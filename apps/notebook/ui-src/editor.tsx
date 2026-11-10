@@ -11,7 +11,7 @@ import { notebookExtensions, widgets } from './editor-extensions';
 import { type Editor, type JSONContent } from '@tiptap/core';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Feedback, FilePicker, Icon, IconButton } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
@@ -172,10 +172,11 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
   </>;
 }
 
-export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, historyControls, onSave, onReplaceDocument, chrome }: {
+export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, historyControls, onSave, onReplaceDocument, chrome, takeInitialFocus }: {
   content: NotebookDocument['content']; document: NotebookDocument; onDocumentChange?: (change: Partial<NotebookDocument>) => void;
   onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number;
   historyControls?: DocumentHistoryControls;
+  takeInitialFocus?(): boolean;
   onReplaceDocument?(document: NotebookDocument): void;
   onSave?(): void; chrome?: NotebookChrome; readonly?: boolean; onChange?: (content: NotebookDocument['content'], historyGroup: string | null) => void;
 }) {
@@ -196,6 +197,10 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     },
     onUpdate: ({ editor: instance, transaction }) => onChange?.(instance.getJSON() as NotebookDocument['content'], notebookHistoryGroup(transaction)),
   });
+  useLayoutEffect(() => {
+    // EditorContent has attached the view; focus before the title can take input.
+    if (editor && takeInitialFocus?.()) editor.view.focus();
+  }, [editor, takeInitialFocus]);
   useEffect(() => {
     if (!editor || JSON.stringify(editor.getJSON()) === JSON.stringify(content)) return;
     const selection = editor.state.selection;

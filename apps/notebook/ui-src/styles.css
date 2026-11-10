@@ -180,7 +180,7 @@ html, body, #app { height: 100%; }
 }
 .notebook-prose:focus { outline: none; }
 .notebook-prose p { margin: .45em 0; }
-.notebook-prose > p:first-child:has(> br:only-child) { margin: 0; font-size: 0; line-height: 0; }
+.notebook-prose > p:first-child:not(:only-child):has(> br:only-child) { margin: 0; font-size: 0; line-height: 0; }
 .notebook-prose h1, .notebook-prose h2, .notebook-prose h3, .notebook-prose h4, .notebook-prose h5, .notebook-prose h6 { margin: 1.1em 0 .4em; line-height: 1.25; }
 .notebook-prose h1 { font-size: 1.8em; }
 .notebook-prose h2 { font-size: 1.45em; }

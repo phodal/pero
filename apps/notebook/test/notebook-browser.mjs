@@ -88,8 +88,13 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin);
-  await createNotebook(page, origin, 'Assay review');
-  await page.getByRole('textbox', { name: 'Notebook content' }).fill('Calibration and controls');
+  await createNotebook(page, origin);
+  const newBody = page.getByRole('textbox', { name: 'Notebook content', exact: true });
+  await expect(newBody).toBeFocused();
+  await expect(newBody.locator('p')).toBeVisible();
+  await page.keyboard.type('Calibration and controls');
+  await expect(newBody).toHaveText('Calibration and controls');
+  await page.getByRole('textbox', { name: 'Notebook title', exact: true }).fill('Assay review');
 
   const workbook = await writeWorkbook([
     { name: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } },

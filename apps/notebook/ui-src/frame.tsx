@@ -81,6 +81,7 @@ function Notebook() {
     return next;
   };
   const navigationRequest = useRef(0);
+  const pendingBodyFocus = useRef('');
   const handledLink = useRef('');
   const current = drafts[selected];
   const shown = snapshot ?? current?.entry;
@@ -238,6 +239,7 @@ function Notebook() {
   };
   const create = () => perform('create', async () => {
     const entry = await api.post<NotebookEntry>('/api/entries', { title: t('untitled') });
+    pendingBodyFocus.current = entry.id;
     adopt(entry);
     updateList(entry);
     choose(entry.id);
@@ -399,6 +401,11 @@ function Notebook() {
                 </li>)}</ul>
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
+                takeInitialFocus={() => {
+                  if (pendingBodyFocus.current !== shown.id) return false;
+                  pendingBodyFocus.current = '';
+                  return active && !snapshot;
+                }}
                 chrome={{
                   status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
                   onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },

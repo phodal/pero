@@ -1,5 +1,19 @@
 # Notebook verification
 
+## New notebook body focus (2026-11-10)
+
+Local changes on `71e7c7d7` focus the first paragraph when a blank notebook
+opens after New notebook. The lone empty paragraph keeps its line height.
+The Notebook build, typecheck and three Chromium browser tests passed. The
+new focus assertion failed against the original build; the updated test
+types into the focused body without clicking it or using Insert.
+
+In an isolated macOS Native Preview profile with the rebuilt App bundle,
+the dark Chinese UI showed the typed text below the title after New notebook,
+with no intervening click. Saving showed revision 2. This did not exercise
+Electron or a release package. The editor suite passed 82 of 83 tests; the
+keyboard shortcut assertion also fails in a clean checkout of `71e7c7d7`.
+
 ## Control Lab creation through Notebook Canvas (2026-11-10)
 
 Local changes based on `58a3307f` were built and tested on macOS with Chromium,
