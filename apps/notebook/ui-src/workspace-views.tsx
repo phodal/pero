@@ -347,19 +347,10 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }, [pendingBlock, tab, editor, t]);
   const openSearch = () => { navigated.current = false; setDialog('search'); };
   const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: editor.getJSON() }, null, 2), 'application/json');
-  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={setTab} onKeyDown={event => {
+  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} orientation="vertical" value={tab} onValueChange={setTab} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
     <div className="notebook-jupyter">
-      <div className="notebook-menubar">
-        <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
-          <TabsTrigger value="notes" data-view="notes" aria-label={t('notes')}>{document.title.trim() || notebook('untitled')}</TabsTrigger>
-          {(['relevant', 'metadata'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
-          <NotebookMenu name={t('viewMenu')} menu="view" icon="chevron-down">
-            {(['procedures', 'review'] as const).map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
-          </NotebookMenu>
-        </TabsList>
-      </div>
       <div className="notebook-command-row">
       {chrome?.snapshot ? <div className="notebook-toolbar-end">
         <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
@@ -407,6 +398,11 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       <NotebookStatusBar editor={editor} variant="output" />
       <Button variant="ghost" onClick={() => window.document.dispatchEvent(new CustomEvent('pero:notebook-shortcuts'))}>{t('keyboardShortcuts')}</Button>
       <div className="notebook-view-actions">
+        <NotebookMenu name={t('viewMenu')} menu="view" caret>
+          <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
+            {views.map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+          </TabsList>
+        </NotebookMenu>
         {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
         {chrome?.onSave && <IconButton className="notebook-save" label={notebook('save')} busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}><Icon name="save" /></IconButton>}
         <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
