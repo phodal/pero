@@ -1,3 +1,4 @@
+import { EntryAiTools } from './entry-ai-tools';
 import { NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
 import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
@@ -201,7 +202,7 @@ type TextDialog = { kind: 'symbols'; selection: Range } | {
 };
 
 /** Format controls are composed into the editor's existing Toolbar. */
-export function NotebookTextTools({ editor }: { editor: Editor }) {
+export function NotebookTextTools({ editor, entryTools = false }: { editor: Editor; entryTools?: boolean }) {
   const { t, locale } = useAppI18n(messages);
   const [dialog, setDialog] = useState<TextDialog | null>(null);
   const returnToEditor = useRef(false);
@@ -342,6 +343,7 @@ export function NotebookTextTools({ editor }: { editor: Editor }) {
     {blockButton('orderedList', 'ordered')}
     {blockButton('taskList', 'task')}
     </Toolbar>
+    {entryTools && <EntryAiTools editor={editor} />}
     <FormatMenu name={t('more')}>
       <Button variant="ghost" aria-label={t('code')} aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>

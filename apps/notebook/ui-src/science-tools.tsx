@@ -4,7 +4,7 @@ import type { GenerationTarget, AIApplication } from '@pero/notebook/ai-generati
 import { useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Feedback, NativeSelect, Field } from '@pero/app-sdk/ui';
+import { Button, Dialog, Feedback, Field, Icon, NativeSelect } from '@pero/app-sdk/ui';
 import { ChemistryPanel, SequencePanel } from './science-tools-calculations';
 import { PlatePanel } from './science-tools-plate';
 import { CandidateReviewPanel, RecordedChecksPanel } from './science-tools-review';
@@ -15,7 +15,7 @@ import type { masterMixExample } from '@pero/notebook/research-tools';
 const toolNames = ['formula', 'ai', 'review', 'sequence', 'chemistry', 'plate', 'checks', 'capabilities'] as const;
 type Tool = typeof toolNames[number];
 
-export function NotebookScienceTools({ editor, onInsert, getTarget = () => null }: { editor: Editor; onInsert(nodes: JSONContent[]): void; getTarget?(): GenerationTarget | null }) {
+export function NotebookScienceTools({ editor, onInsert, getTarget = () => null, initial = 'review', label, className, caret = false }: { editor: Editor; onInsert(nodes: JSONContent[]): void; getTarget?(): GenerationTarget | null; initial?: Tool; label?: string; className?: string; caret?: boolean }) {
   const { t } = useAppI18n(scienceMessages);
   const [open, setOpen] = useState(false), [tool, setTool] = useState<Tool>('review'), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const base = useRef(''), lastInserted = useRef('');
@@ -56,8 +56,8 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null 
   };
   const props = { onSnapshot, getContent: () => JSON.stringify(editor.getJSON()) };
   return <>
-    <Button variant="ghost" disabled={!editor.isEditable} onClick={() => { base.current = JSON.stringify(editor.getJSON()); lastInserted.current = ''; setNotice(''); setError(''); setOpen(true); }}>{t('tools')}</Button>
-    {open && <Dialog title={t('tools')} size="lg" className="notebook-science-dialog" closeLabel={t('close')} onClose={() => setOpen(false)} dismissOnBackdrop>
+    <Button variant="ghost" className={className} disabled={!editor.isEditable} onClick={() => { base.current = JSON.stringify(editor.getJSON()); lastInserted.current = ''; setNotice(''); setError(''); setTool(initial); setOpen(true); }}>{label ?? t('tools')}{caret && <Icon name="chevron-down" size={12} />}</Button>
+    {open && <Dialog title={label ?? t('tools')} size="lg" className="notebook-science-dialog" closeLabel={t('close')} onClose={() => setOpen(false)} dismissOnBackdrop>
       <p className="notebook-note">{t('scope')}</p>
       <Field label={t('tools')}>{control => <NativeSelect {...control} value={tool} onChange={event => { setTool(event.target.value as Tool); setNotice(''); setError(''); }}>{toolNames.map(name => <option key={name} value={name}>{t(name)}</option>)}</NativeSelect>}</Field>
       {notice && <Feedback kind="success">{notice}</Feedback>}{error && <Feedback kind="error">{error}</Feedback>}

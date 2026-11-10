@@ -85,7 +85,7 @@ function EditorToolbar({ editor, historyControls, insertTools }: {
       <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
       {insertTools}
     </div>
-    <span className="notebook-text-tools"><NotebookTextTools editor={editor} /></span>
+    <span className="notebook-text-tools"><NotebookTextTools editor={editor} entryTools /></span>
   </div>;
 }
 
