@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { createNotebookCanvasHost } from '../fixtures/notebook-canvas-host.mjs';
+import { openNotebookMenu } from '../../apps/notebook/test/notebook-browser-actions.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(root, 'test-results/notebook-canvas');
@@ -121,6 +122,7 @@ test('Notebook Canvas renders actual Data, confirms writes, and recovers across 
   completed.push(scenario);
 
   scenario = 'readonly-revision-and-receipt-inspection';
+  await openNotebookMenu(page, 'file');
   await button('Revision history').click();
   await button('Revision 1').click();
   await expect(view.getByText('Read-only view. Actions are unavailable in this instance.', { exact: true })).toBeVisible();

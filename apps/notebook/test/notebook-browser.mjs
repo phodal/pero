@@ -128,7 +128,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     name: 'paper-report.json', mimeType: 'application/json', buffer: paperExport,
   });
   await evidence.getByRole('button', { name: 'Choose a citation' }).click();
-  await page.getByRole('option').nth(1).click();
+  await page.getByRole('listbox', { name: 'Choose a citation', exact: true })
+    .getByRole('option').filter({ hasText: owner.sections[0].evidence[1].quote }).click();
   await evidence.getByRole('button', { name: 'Attach snapshot' }).click();
   await expect(evidence.locator('blockquote')).toHaveText(owner.sections[0].evidence[1].quote);
   await evidence.getByLabel('Label').fill('Paper passage');

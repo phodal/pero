@@ -63,7 +63,8 @@ try {
     const evidence = frame.locator('[data-kind=evidence]');
     await evidence.locator('input[type=file]').setInputFiles({ name: 'paper.json', mimeType: 'application/json', buffer: paper });
     await evidence.getByRole('button', { name: 'Choose a citation' }).click();
-    await frame.getByRole('option').nth(1).click();
+    await frame.getByRole('listbox', { name: 'Choose a citation', exact: true })
+      .getByRole('option').filter({ hasText: 'Second page. Exact original evidence.' }).click();
     await evidence.getByRole('button', { name: 'Attach snapshot' }).click();
     await expect(evidence.locator('blockquote')).toHaveText('Second page. Exact original evidence.');
     await frame.getByRole('button', { name: 'Insert', exact: true }).click();

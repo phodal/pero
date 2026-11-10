@@ -73,7 +73,9 @@ test('workspace deep links switch the selected procedure, reveal rich blocks and
   assert.equal(materialEditor.state.selection.node?.attrs.blockId, 'material-body');
   assert.equal(editor.getText(), 'Unsaved observation');
   await hash('main');
-  assert.equal(document.querySelector('[role="tab"][data-state="active"]')!.textContent, 'Notes');
+  const activeNotes = document.querySelector('[role="tab"][data-state="active"]')!;
+  assert.equal(activeNotes.getAttribute('aria-label'), 'Notes');
+  assert.equal(activeNotes.textContent, documentValue.title);
   assert.equal(editor.state.selection.node?.attrs.blockId, 'main');
   await hash('intro'); await hash('first');
   assert.equal((document.getElementById([...document.querySelectorAll('label')].find(item => item.textContent === 'Procedure title')!.htmlFor) as HTMLInputElement).value, 'First method');
@@ -81,6 +83,6 @@ test('workspace deep links switch the selected procedure, reveal rich blocks and
   await hash('deleted'); assert.match(document.body.textContent!, /no longer in the document/);
   await draw(true); await hash('material-body');
   assert.equal((document.querySelector('[data-material-id="buffer"] .tiptap') as any).editor.isEditable, false);
-  const notesTab = [...document.querySelectorAll('[role="tab"]')].find(item => item.textContent === 'Notes')!;
+  const notesTab = document.querySelector('[role="tab"][aria-label="Notes"]')!;
   await click(notesTab); assert.equal(editor.getText(), 'Unsaved observation');
 });
