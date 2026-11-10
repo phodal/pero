@@ -40,8 +40,8 @@ export async function scientificProvider(source = '[{"method":"A","value":0.0100
       for(const name of ['chart_render','table_render']) if(!body.tools.some(t=>t.function?.name===name)) throw Error(`Missing ${name}`);
       calls.push(body);
       const delta=calls.length===1?{tool_calls:[
-        {index:0,id:'table-results',type:'function',function:{name:'table_render',arguments:JSON.stringify({dataset,tableDocument:{title:'Experimental results',description:'Supplied records; no statistical or dimensional check is claimed.',columns:[{field:'method',label:'Method'},{field:'value',label:'Tracking error',unit:'1'},{field:'n',label:'Samples'},...(JSON.parse(source).some(row=>'verification' in row)?[{field:'verification',label:'Reported checks'}]:[])]}})}},
-        {index:1,id:'plot-results',type:'function',function:{name:'chart_render',arguments:JSON.stringify({dataset,chartDocument:{title:'Tracking error',chart:{type:'line',x:'method',y:'value'}}})}},
+        {index:0,id:'table-results',type:'function',function:{name:'table_render',arguments:JSON.stringify({dataset,tableDocument:{title:'Experimental results',description:'Supplied records; no statistical or dimensional check is claimed.',method:'declared sample mean; not a statistical test',valueOrigin:'calculated',columns:[{field:'method',label:'Method'},{field:'value',label:'Tracking error',unit:'1'},{field:'n',label:'Samples'},...(JSON.parse(source).some(row=>'verification' in row)?[{field:'verification',label:'Reported checks'}]:[])]}})}},
+        {index:1,id:'plot-results',type:'function',function:{name:'chart_render',arguments:JSON.stringify({dataset,chartDocument:{title:'Tracking error',method:'declared line of the supplied values',chart:{type:'line',x:'method',y:'value'}}})}},
       ]}:{content:scientificAnswer};
       res.writeHead(200,{'Content-Type':'text/event-stream'});
       res.end(`data: ${JSON.stringify({id:`science-${calls.length}`,object:'chat.completion.chunk',model:'fixture',choices:[{index:0,delta,finish_reason:calls.length===1?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`);
