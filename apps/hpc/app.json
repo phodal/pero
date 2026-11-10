@@ -7,13 +7,6 @@
   "permissions": { "host": ["agent"] },
   "contributes": {
     "panels": [{ "id": "main", "title": "HPC Benchmarks", "entry": "dist/index.html" }],
-    "columnHeader": {
-      "actions": [
-        { "id": "refresh", "label": "Refresh", "zh": "刷新", "icon": "refresh" },
-        { "id": "discuss", "label": "Discuss with Agent", "zh": "与 Agent 讨论" },
-        { "id": "run", "label": "Run local reference", "zh": "运行本地参考" }
-      ]
-    },
     "writes": [{
       "name": "benchmark-step",
       "description": "Read benchmarks and runs first to obtain their current specDigest. Supply that returned specDigest when executing run, verify or cancel. Execute only a fixed available local reference, independently verify saved evidence, cancel a local run or compare runs with the same specification. Inputs and verification thresholds are frozen. Does not provision compute resources, change thresholds, or submit Slurm/OpenFOAM jobs.",

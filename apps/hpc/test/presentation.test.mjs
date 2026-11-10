@@ -34,7 +34,7 @@ test('method summary separates execution from verification and keeps earlier spe
   const fetch = async url => new Response(JSON.stringify(String(url).endsWith('/api/state')
     ? { benchmarks: [benchmark], runs, runtime: { reframeAvailable, message: 'ReFrame is unavailable in the selected environment' } }
     : { run: old }), { headers: { 'Content-Type': 'application/json' } });
-  const props = { appName: 'hpc', locale: 'en', allowedApiPaths: ['/api'], allowedEvents: [], fetch, subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {} };
+  const props = { appName: 'hpc', locale: 'en', allowedApiPaths: ['/api'], allowedEvents: [], columnHeader: true, fetch, subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {} };
   await render(h(ui.AppApiProvider, props, h(ui.Hpc)));
   assert.equal(document.querySelector('.latest-run .status').textContent, 'Pending');
   await selectTab('Results');
@@ -53,7 +53,7 @@ test('method summary separates execution from verification and keeps earlier spe
   assert.equal(document.querySelector('.app-header h1'), null, 'the workbench tab already names the App');
   assert.equal(document.querySelector('.workspace-heading h2').textContent, benchmark.name);
   assert.equal(document.querySelector('button[aria-label=Refresh]').disabled, false);
-  assert.ok([...document.querySelectorAll('.app-header button')].some(el => el.textContent === 'Run local reference'));
+  assert.ok([...document.querySelectorAll('.app-header button')].some(el => el.textContent === 'Run local reference'), 'Run stays in the App when the host column header is enabled');
 
   reframeAvailable = false;
   await click(document.querySelector('button[aria-label=Refresh]'));
