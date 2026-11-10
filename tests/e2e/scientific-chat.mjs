@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
 import {clickNewChat} from './sidebar-controls.mjs';
+import {createHash} from 'node:crypto';
 import {scientificProvider} from '../fixtures/scientific-provider.mjs';
 
 const root=resolve(import.meta.dirname,'../..'), temp=await mkdtemp(join(tmpdir(),'pero-science-'));
@@ -60,6 +61,32 @@ try {
     // measured in equations-light.png for that layout.
     await page.mouse.click(1152,507);
     await expect.poll(()=>app.evaluate(({clipboard})=>clipboard.readText())).toContain(String.raw`\rho\left(`);
+    const bibtex='@article{sample, title={Declared source}, doi={10.1000/scientific-chat.1}}';
+    const bibtexToken=`bibtex:${createHash('sha256').update(bibtex).digest('hex')}`;
+    const paper=`pero-app-location://paper-agent/main/report/${'c'.repeat(64)}/citation/0`;
+    const literature=async()=>(await state()).literature??[];
+    await expect.poll(async()=>(await literature()).map(item=>item.token).sort()).toEqual(['doi:10.1000/scientific-chat.1', bibtexToken, paper].sort());
+    const doi=(await literature()).find(item=>item.token.startsWith('doi:'));
+    const savedPaper=(await literature()).find(item=>item.paper);
+    const savedBibtex=(await literature()).find(item=>item.token.startsWith('bibtex:'));
+    expect(doi.open).toBe('https://doi.org/10.1000/scientific-chat.1');
+    expect(savedPaper.open).toBe(paper);
+    expect(savedPaper.paper).toBe(true);
+    expect(savedBibtex.open).toBe(doi.open);
+    const clickBound=async(read)=>{
+      await expect.poll(async()=>{const box=await read(); return Boolean(box&&box.width>0);},{timeout:15000}).toBe(true);
+      let box=await read();
+      for(let step=0;step<16&&(box.y<80||box.y>860);step++){
+        await page.mouse.move(800,400); await page.mouse.wheel(0,box.y>860?400:-400); box=await read();
+      }
+      await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+    };
+    await clickBound(async()=>(await literature()).find(item=>item.token===doi.token)?.copy);
+    await expect.poll(()=>app.evaluate(({clipboard})=>clipboard.readText())).toBe(doi.token);
+    await clickBound(async()=>(await literature()).find(item=>item.token===paper)?.openBounds);
+    expect(errors).toEqual([]);
+    await page.screenshot({path:join(output,'literature-light.png'),scale:'css'});
+    await page.mouse.move(800,400); await page.mouse.wheel(0,-4000);
   }
   await page.evaluate(()=>window.pero.sessionCommand({method:'settings.workbench',preferences:{...JSON.parse(window.peroDiagnostics.snapshot()).preferences,appearance:'dark'}}));
   await expect.poll(async()=>(await state()).appearance.dark).toBe(true);
@@ -74,6 +101,9 @@ try {
   await page.mouse.move(800,400);await page.mouse.wheel(0,-10000);
   await expect.poll(async()=>(await state()).scroll.y).toBe(0);
   if(!source){
+    const bibtex='@article{sample, title={Declared source}, doi={10.1000/scientific-chat.1}}';
+    const paper=`pero-app-location://paper-agent/main/report/${'c'.repeat(64)}/citation/0`;
+    expect((await state()).literature.map(item=>item.token).sort()).toEqual(['doi:10.1000/scientific-chat.1', `bibtex:${createHash('sha256').update(bibtex).digest('hex')}`, paper].sort());
     const sourceButton=(await state()).tableBounds.find(item=>item.id===table.artifact_id).source;
     await page.mouse.click(sourceButton.x+sourceButton.width/2,sourceButton.y+sourceButton.height/2);
     await expect.poll(async()=>(await state()).documents?.some(doc=>doc.title==='results.json')).toBe(true);

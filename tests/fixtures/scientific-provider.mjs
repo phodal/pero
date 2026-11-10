@@ -28,7 +28,13 @@ $$
 \notACommand{x}
 $$
 
-SCIENTIFIC_CHAT_OK`;
+SCIENTIFIC_CHAT_OK
+
+doi:10.1000/scientific-chat.1
+
+` + '@article{sample, title={Declared source}, doi={10.1000/scientific-chat.1}}' + `
+
+pero-app-location://paper-agent/main/report/${'c'.repeat(64)}/citation/0`;
 
 export async function scientificProvider(source = '[{"method":"A","value":0.0100,"n":9007199254740993},{"method":"B","value":0,"n":0},{"method":"C","value":null}]') {
   const calls = [], errors = [];
