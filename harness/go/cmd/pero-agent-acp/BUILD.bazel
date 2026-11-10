@@ -35,6 +35,7 @@ go_library(
         "//fstools",
         "//harness",
         "//lsp",
+        "//molecules",
         "//nativetools",
         "//permissionpresets",
         "//pluginruntime",

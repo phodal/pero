@@ -92,6 +92,10 @@ pub mod chart;
 mod chart_lines;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod chart_view;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod control_result;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod molecule_view;
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod table_view;

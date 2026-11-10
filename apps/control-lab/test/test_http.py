@@ -60,6 +60,9 @@ class HttpTest(unittest.TestCase):
                     {'action':'read',**goal,'experimentId':other['id']},
                     {'action':'read',**goal,'specHash':[]},
                     {'action':'search',**goal,'specHash':'0'*64},
+                    {'action':'project',**goal},
+                    {'action':'project',**goal,'candidateId':'baseline'},
+                    {'action':'project',**goal,'candidateId':'baseline','parameters':{'kp':1}},
                 ):
                     with self.subTest(data=data), self.assertRaises(HTTPError) as denied:
                         request('/api/agent-step',data)

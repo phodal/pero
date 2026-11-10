@@ -21,6 +21,7 @@ import (
 	"github.com/phodal/pero/harness/go/environmentservice"
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/lsp"
+	"github.com/phodal/pero/harness/go/molecules"
 	"github.com/phodal/pero/harness/go/nativetools"
 	"github.com/phodal/pero/harness/go/pluginruntime"
 	"github.com/phodal/pero/harness/go/plugins"
@@ -56,6 +57,7 @@ func run() (resultErr error) {
 	modelProfilePath := flag.String("model-profile", "", "explicit versioned JSON launch defaults for one matching model; CLI flags override defaults")
 	toolFormatFlag := flag.String("tool-format", "auto", "native or claude tool names; auto preserves package-selected behavior")
 	chartPython := flag.String("chart-python", "python3", "Python 3.9+ executable for shared chart/data core")
+	moleculeBackend := flag.String("molecule-backend", "", "Scientific Viewer backend directory; empty checks PERO_MOLECULE_BACKEND, then apps/scientific-viewer/backend")
 	workflowNode := flag.String("workflow-node", "node", "Node executable for explicitly selected plugin workflows")
 	recoverTail := flag.Bool("recover-complete-session-tail", false, "opt in to lossless final JSONL delimiter recovery with a private backup")
 	initOnly := flag.Bool("init-only", false, "run Setup init and SessionStart startup, then exit without a conversation")
@@ -306,6 +308,18 @@ func run() (resultErr error) {
 		}
 	}
 	if err := charts.Mount(ctx, h, *chartPython); err != nil {
+		return err
+	}
+	backend := *moleculeBackend
+	if backend == "" {
+		backend = os.Getenv("PERO_MOLECULE_BACKEND")
+	}
+	if backend == "" {
+		if _, err := os.Stat(filepath.Join("apps/scientific-viewer/backend", "conversation.py")); err == nil {
+			backend = "apps/scientific-viewer/backend"
+		}
+	}
+	if err := molecules.Mount(ctx, h, *chartPython, backend); err != nil {
 		return err
 	}
 	if *serviceDirectory != "" {

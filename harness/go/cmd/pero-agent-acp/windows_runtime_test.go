@@ -82,7 +82,7 @@ func TestWindowsACLCLIProcessApprovalAndWriteBoundary(t *testing.T) {
 		for _, tool := range request.Tools {
 			names[tool.Function.Name] = tool.Function.Description
 		}
-		wantNames := []string{"table_render", "chart_render", "read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "write_file", "shell"}
+		wantNames := []string{"table_render", "chart_render", "molecule_render", "read_file", "list_directory", "search_files", "glob_files", "regex_search", "notebook_read", "notebook_image", "EnterPlanMode", "ReadToolOutput", "tool_search", "write_file", "shell"}
 		if len(names) != len(wantNames) {
 			t.Errorf("CLI native tool catalog: %+v", names)
 		}

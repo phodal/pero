@@ -39,6 +39,7 @@ def handler(store, secret):
 
         def action(self, action, identity, data):
             if action == 'read': return store.read(identity)
+            if action == 'project': return store.project(identity, data.get('candidateId'))
             if action == 'propose': return store.propose(identity,data.get('parameters'))
             if action in ('baseline', 'search-next'): return store.start(identity, action)
             if action == 'search': return store.start(identity, 'search', data.get('budget'))
@@ -76,7 +77,7 @@ def handler(store, secret):
                     if self.path == '/api/experiments': return self.reply(201,store.create(data))
                     if self.path == '/api/agent-step':
                         fields = {'read': set(), 'baseline': set(), 'search-next': set(), 'search': set(), 'propose': {'parameters'},
-                                  'cancel': set(), 'lock': {'candidateId'}, 'verify': set(), 'reevaluate': set()}
+                                  'project': {'candidateId'}, 'cancel': set(), 'lock': {'candidateId'}, 'verify': set(), 'reevaluate': set()}
                         action = data.get('action')
                         if not isinstance(action, str) or action not in fields: raise Invalid('Unknown Agent action')
                         goal = Goal(data.get('experimentId'), data.get('specHash'))
@@ -85,6 +86,8 @@ def handler(store, secret):
                         with store.lock:
                             goal.require_record(store.get_record(goal.experiment_id))
                             result = self.action(action,goal.experiment_id,data)
+                        if action == 'project':
+                            return self.reply(200, result)
                         return self.reply(200,agent_summary(result))
                     match = re.fullmatch(r'/api/experiments/([a-f0-9]{32})/(search|verify|cancel|lock|reevaluate|propose)',self.path)
                     if match:

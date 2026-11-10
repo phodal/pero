@@ -1,6 +1,12 @@
 //! LaTeX presentation values. Typesetting is never a scientific validity check.
 use latex_rust::{MathFont, MathStyle, SvgOptions, layout, parse, render_svg};
+use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
+
+/// Identity of the formula source. Display position and numbering are not part of it.
+pub fn formula_citation(source: &str) -> String {
+    format!("formula:{:x}", Sha256::digest(source.as_bytes()))
+}
 
 /// A prepared formula retains its source even when the renderer cannot handle it.
 #[derive(Clone, Debug)]
@@ -56,7 +62,7 @@ impl Formula {
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub(crate) mod view {
-    use super::Formula;
+    use super::{formula_citation, Formula};
     use gpui_kit::{
         base::text::{
             InlineElement, InlineRenderContext, MarkdownNode, MarkdownParseContext, MarkdownPlugin,
@@ -114,6 +120,7 @@ pub(crate) mod view {
             let font = pero_theme::UiAppearance::global(cx).typography.chat * 1.2;
             let chrome = pero_theme::Chrome::from_app(cx);
             let source = formula.source.clone();
+            let citation = formula_citation(&formula.source);
             let identity = node.source_range().map(|r| r.start).unwrap_or_default();
             div()
                 .id(SharedString::from(format!("equation-{identity}")))
@@ -162,14 +169,35 @@ pub(crate) mod view {
                         .into_any_element(),
                 })
                 .child(
-                    pero_theme::ghost_icon_button("copy-equation", chrome, cx)
-                        .flex_shrink_0()
-                        .accessibility_label("Copy formula source")
-                        .tooltip("Copy formula source")
-                        .icon(gpui_kit::component::IconName::Copy)
-                        .on_click(move |_, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(source.clone()))
-                        }),
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(
+                            pero_theme::ghost_icon_button("copy-equation", chrome, cx)
+                                .flex_shrink_0()
+                                .accessibility_label("Copy formula source")
+                                .tooltip("Copy formula source")
+                                .icon(gpui_kit::component::IconName::Copy)
+                                .on_click(move |_, _, cx| {
+                                    cx.write_to_clipboard(ClipboardItem::new_string(source.clone()))
+                                }),
+                        )
+                        .child(
+                            pero_theme::action_button(
+                                SharedString::from(format!("cite-equation-{identity}")),
+                                "Cite",
+                                pero_theme::ActionKind::Ghost,
+                                chrome,
+                                cx,
+                            )
+                            .flex_shrink_0()
+                            .accessibility_label("Copy stable formula reference")
+                            .tooltip("Copy stable formula reference")
+                            .on_click(move |_, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(citation.clone()))
+                            }),
+                        ),
                 )
         }
 
@@ -225,6 +253,8 @@ mod tests {
             for block in [false, true] {
                 let formula = Formula::prepare(source, block);
                 assert_eq!(formula.source, source);
+                assert_eq!(formula_citation(source), formula_citation(source));
+                assert_ne!(formula_citation(source), formula_citation(&(source.to_owned() + "x")));
                 assert_eq!(
                     formula.display.is_ok(),
                     valid,
