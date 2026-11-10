@@ -166,3 +166,35 @@ Desktop suites clicked the old New chat row after Insights moved above it.
 [Test-target follow-up](../issues/2026-10-31-desktop-test-targets.md) records the
 scoped assertions and shared pointer target. The suite remains unverified on
 the follow-up commit until its own CI completes.
+
+## Workbench copy review (2026-11-10)
+
+The worktree based on `71e7c7d7` uses the existing App SDK controls.
+Experiment history has its own action label. The draft groups Run and
+Freeze beside the settings and keeps the budget limit beside its input.
+Verification puts failed and inconclusive checks first, keeps scenario
+coverage visible, and opens the full report in a dialog grouped by scenario.
+
+TypeScript, 46 UI tests and the App build passed. On macOS, the built Web App
+ran in the Codex browser against an isolated Control Lab backend using
+python-control 0.10.2 and ngspice 47. At 1280 × 950, before and after captures
+used the same default PID settings and the same saved record for result views.
+The PID run rejected an invalid budget, evaluated five search scenarios,
+locked a candidate and verified two final scenarios. The summary showed
+8 of 9 checks passed, with settling at 6.05 s against a 5 s limit. Both
+scenario groups exposed all 18 saved checks. Enter opened the report and
+Escape returned focus to its trigger. The Sallen–Key draft showed the ideal
+op-amp assumption and R/C units, then ran with ngspice. At 440 px the filter
+result had no page-level horizontal overflow.
+
+The Codex captures include the draft, search checks, final verification,
+expanded report and filter draft. Electron, Native and the dark theme were
+outside this browser check.
+
+A second browser pass checked the actions by experiment stage. The PID
+candidate could be locked with the permanent-lock hint visible, then verified
+from the same candidate table. The locked view removed the proposal/search
+toolbar. Re-evaluating the saved evidence kept the ledger at seven trials,
+and verifying again added two trials. Both builds opened the same saved
+report for the comparison screenshots. TypeScript, 46 UI tests and the App
+build passed again.

@@ -118,6 +118,24 @@ class EntryStore:
         with closing(self._connect()) as connection, connection:
             return self._insert(connection, uuid4().hex, 1, document)
 
+    def delete(self, identity):
+        """Remove one entry and its local satellites. Missing IDs stay MissingEntry."""
+        with closing(self._connect()) as connection, connection:
+            connection.execute('BEGIN IMMEDIATE')
+            if connection.execute('SELECT 1 FROM revisions WHERE entry_id = ? LIMIT 1', (identity,)).fetchone() is None:
+                raise MissingEntry('Entry not found')
+            connection.execute('DELETE FROM revisions WHERE entry_id = ?', (identity,))
+            for table in (
+                'drafts', 'worksheet_amendments', 'notebook_entry_table_workflows', 'notebook_entry_table_resyncs',
+                'ai_proposal_workspace', 'ai_proposal_archive', 'notebook_comment_threads', 'notebook_local_tasks',
+                'notebook_review_records', 'notebook_review_activity', 'notebook_review_requests',
+                'notebook_workflow_configs', 'notebook_workflow_runs', 'notebook_review_batches',
+            ):
+                if connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+                ).fetchone():
+                    connection.execute(f'DELETE FROM {table} WHERE entry_id = ?', (identity,))
+
     def commit(self, identity, expected_revision, edit):
         with closing(self._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')

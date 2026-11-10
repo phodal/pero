@@ -548,6 +548,7 @@
   "apps.env_failed": "Installation failed",
   "apps.env_retry": "Retry installation",
   "apps.env_title": "environment setup",
+  "apps.env_panel_kicker": "App environment",
   "apps.env_preparing_hint": "Preparing the dependencies for this app. You can view the installation details below.",
   "apps.env_ready_hint": "The app can now be opened.",
   "apps.env_failed_hint": "The environment could not be prepared. Retry, or check the details to resolve the problem.",

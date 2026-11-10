@@ -6,7 +6,6 @@ import { isCatalogSnapshot, type CatalogSnapshot } from '@pero/notebook/structur
 
 const messages = {
   title: { en: 'Browse local samples and boxes', zh: '浏览本地样品与存储盒' },
-  scope: { en: 'Only registered local-catalog records are listed. Select your actual text column for box/location grouping. Labels are recorded metadata, not verified physical stock.', zh: '仅显示已登记的本地目录记录。请选择实际文本字段按存储盒或位置分组。标签属于记录元数据，并非经过验证的实物库存。' },
   search: { en: 'Search catalog', zh: '搜索目录' }, refresh: { en: 'Load catalog records', zh: '加载目录记录' }, busy: { en: 'Loading catalog…', zh: '正在加载目录…' },
   grouping: { en: 'Box / location text column', zh: '存储盒 / 位置文本字段' }, none: { en: 'All loaded samples', zh: '所有已加载样品' },
   box: { en: 'Box / location value', zh: '存储盒 / 位置值' }, choose: { en: 'Choose a box / location', zh: '选择存储盒 / 位置' },
@@ -44,7 +43,7 @@ export function SampleCatalogBrowser({ intake, editable, onChange }: { intake: S
     try { onChange(bindCatalogSelection(intake, snapshot, ids)); setError(''); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   }
-  return <details><summary>{t('title')}</summary><p>{t('scope')}</p>
+  return <details><summary>{t('title')}</summary>
     <Input aria-label={t('search')} value={search} maxLength={200} disabled={busy} onChange={event => setSearch(event.target.value)} />
     <Button variant="ghost" disabled={busy} onClick={() => void load()}>{t(busy ? 'busy' : 'refresh')}</Button>
     {error && <Feedback kind="error">{error}</Feedback>}

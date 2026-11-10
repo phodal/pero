@@ -88,8 +88,43 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin);
-  await createNotebook(page, origin, 'Assay review');
-  await page.getByRole('textbox', { name: 'Notebook content' }).fill('Calibration and controls');
+  await createNotebook(page, origin);
+  const newBody = page.getByRole('textbox', { name: 'Notebook content', exact: true });
+  await expect(newBody).toBeFocused();
+  await expect(newBody.locator('p')).toBeVisible();
+  await page.keyboard.type('Calibration and controls');
+  await expect(newBody).toHaveText('Calibration and controls');
+  await newBody.press('ControlOrMeta+a');
+  await page.setViewportSize({ width: 620, height: 900 });
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, location.origin));
+  const color = page.getByRole('button', { name: '文字颜色', exact: true });
+  await color.click();
+  const palette = page.getByRole('listbox', { name: '文字颜色', exact: true });
+  await expect(palette.getByRole('option', { name: '默认', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(palette.getByRole('option', { name: '玫红', exact: true })).toBeVisible();
+  assert.equal(await palette.getByRole('option').evaluateAll(options =>
+    options.every(option => {
+      const label = option.querySelector(':scope > span');
+      return !!label && label.scrollWidth <= label.clientWidth && !!option.querySelector('.notebook-swatch');
+    })), true);
+  await mkdir(output, { recursive: true });
+  await page.screenshot({ path: resolve(output, 'editor-color-menu-narrow-dark.png') });
+  await palette.press('End');
+  await palette.press('Enter');
+  await expect(page.locator('.notebook-prose [data-notebook-text-color=violet]')).toHaveText('Calibration and controls');
+  await page.getByRole('button', { name: '文字高亮', exact: true }).click();
+  await page.getByRole('option', { name: '橙色', exact: true }).click();
+  await expect(page.locator('.notebook-prose [data-notebook-text-background=orange]')).toHaveText('Calibration and controls');
+  await page.setViewportSize({ width: 1320, height: 950 });
+  await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  const highlight = page.getByRole('button', { name: 'Highlight', exact: true });
+  await highlight.click();
+  const highlights = page.getByRole('listbox', { name: 'Highlight', exact: true });
+  await expect(highlights.getByRole('option', { name: 'Orange', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: resolve(output, 'editor-highlight-menu-light.png') });
+  await highlights.press('Escape');
+  await expect(highlight).toBeFocused();
+  await page.getByRole('textbox', { name: 'Notebook title', exact: true }).fill('Assay review');
 
   const workbook = await writeWorkbook([
     { name: 'Controls', sheet: { rows: 1, columns: 1, cells: { A1: '2' } } },
@@ -168,6 +203,11 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const run = entry.document.content.content.find(node => node.type === 'experiment');
   const review = entry.document.content.content.find(node => node.type === 'finding');
   assert.equal(entry.revision, 2);
+  const formattedText = entry.document.content.content[0].content[0];
+  assert.deepEqual(formattedText.marks.filter(mark => mark.type === 'textColor' || mark.type === 'textBackground'), [
+    { type: 'textColor', attrs: { tone: 'violet' } },
+    { type: 'textBackground', attrs: { tone: 'orange' } },
+  ]);
   assert.equal(source.attrs.source.locator, `pero-app-location://paper-agent/main/report/${owner.id}/citation/1`);
   assert.equal(source.attrs.snapshot.passageId, owner.sections[0].evidence[1].passageId);
   assert.equal(run.attrs.snapshot.observationId, trial.observation.id);
@@ -332,7 +372,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
-  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
+  await expect(page.locator('.notebook-command-row details[data-menu=view]')).toHaveCount(1);
   await expect(page.locator('.notebook-statusbar details[data-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
@@ -355,7 +396,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.locator('[data-kind=spreadsheet]').first().locator('[data-cell=A1]')).toHaveValue('4');
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'copied-notebook-narrow-dark.png'), fullPage: true });
-  await expect(page.locator('.notebook-menubar [role=tab][data-view=notes]')).toHaveText('Copied review');
+  await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await finding.scrollIntoViewIfNeeded();
   await expect(finding.getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(finding.getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();

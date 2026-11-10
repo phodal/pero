@@ -1,7 +1,7 @@
 import { activeNotebookBlock, moveBlock } from './block-order';
 import { NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
 import { messages as notebookMessages } from './messages';
-import { messages as textToolMessages, NOTEBOOK_LINK_EVENT } from './text-tools';
+import { messages as textToolMessages, NOTEBOOK_LINK_EVENT, notebookBlockStyles, notebookColorOptions } from './text-tools';
 import type { Editor } from '@tiptap/core';
 import { AllSelection } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
@@ -11,8 +11,6 @@ import type { ReactNode } from 'react';
 
 const marks = ['bold', 'italic', 'underline', 'strike'] as const;
 const headingLevels = [1, 2, 3, 4, 5, 6] as const;
-const blocks = ['bulletList', 'orderedList', 'taskList', 'blockquote', 'codeBlock'] as const;
-const tones = ['default', 'blue', 'green', 'rose', 'amber'] as const;
 
 function applyFormat(editor: Editor, format: string) {
   const command = editor.chain().focus();
@@ -66,7 +64,7 @@ function NotebookEditingMenu({ editor }: { editor: Editor }) {
       let format = $from.parent.type.name === 'heading' ? `heading-${$from.parent.attrs.level}` : $from.parent.type.name;
       for (let depth = $from.depth; depth > 0; depth--) {
         const name = $from.node(depth).type.name;
-        if (format === 'paragraph' && blocks.includes(name as typeof blocks[number])) format = name;
+        if (format === 'paragraph' && notebookBlockStyles.includes(name as typeof notebookBlockStyles[number])) format = name;
       }
       const block = activeNotebookBlock(instance);
       const inline = $from.parent.inlineContent && $to.parent.inlineContent;
@@ -95,7 +93,7 @@ function NotebookEditingMenu({ editor }: { editor: Editor }) {
         <ContextMenuRadioGroup value={status.format} onValueChange={format => applyFormat(editor, format)}>
           <ContextMenuRadioItem value="paragraph">{t('paragraph')}</ContextMenuRadioItem>
           {headingLevels.map(level => <ContextMenuRadioItem key={level} value={`heading-${level}`}>{t('heading', { level })}</ContextMenuRadioItem>)}
-          {blocks.map(block => <ContextMenuRadioItem key={block} value={block}>{t(block)}</ContextMenuRadioItem>)}
+          {notebookBlockStyles.map(block => <ContextMenuRadioItem key={block} value={block}>{t(block)}</ContextMenuRadioItem>)}
         </ContextMenuRadioGroup>
       </ContextMenuSubContent>
     </ContextMenuSub>
@@ -107,7 +105,7 @@ function NotebookEditingMenu({ editor }: { editor: Editor }) {
           if (tone === 'default') command.unsetMark('textColor').run();
           else command.setMark('textColor', { tone }).run();
         }}>
-          {tones.map(tone => <ContextMenuRadioItem key={tone} value={tone}>{t(tone)}</ContextMenuRadioItem>)}
+          {notebookColorOptions.map(tone => <ContextMenuRadioItem key={tone} value={tone}>{t(tone)}</ContextMenuRadioItem>)}
         </ContextMenuRadioGroup>
       </ContextMenuSubContent>
     </ContextMenuSub>
@@ -119,7 +117,7 @@ function NotebookEditingMenu({ editor }: { editor: Editor }) {
           if (tone === 'default') command.unsetMark('textBackground').run();
           else command.setMark('textBackground', { tone }).run();
         }}>
-          {tones.map(tone => <ContextMenuRadioItem key={tone} value={tone}>{t(tone)}</ContextMenuRadioItem>)}
+          {notebookColorOptions.map(tone => <ContextMenuRadioItem key={tone} value={tone}>{t(tone)}</ContextMenuRadioItem>)}
         </ContextMenuRadioGroup>
       </ContextMenuSubContent>
     </ContextMenuSub>}

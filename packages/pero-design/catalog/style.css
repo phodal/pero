@@ -1,4 +1,4 @@
-body { margin:0; background:var(--pero-bg); font:var(--pero-font-body)/1.5 system-ui,sans-serif; }
+body { margin:0; background:var(--pero-bg); font:var(--pero-font-body)/1.5 var(--pero-font-family-sans, system-ui, sans-serif); }
 .catalog { max-width:1160px; margin:auto; padding:24px; }
 .catalog-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
 .catalog-controls h1 { margin:0; font-size:var(--pero-font-title); font-weight:600; }

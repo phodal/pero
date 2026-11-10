@@ -27,8 +27,10 @@ input.notebook-formula-source.pero-ui-input { color: transparent; caret-color: v
 [data-formula-token="String"] { color: var(--pero-success); }
 [data-formula-token="Number"], [data-formula-token="Boolean"] { color: var(--pero-tint-apricot-text); }
 [data-formula-token="FormulaErrorT"], [data-formula-token="RefError"] { color: var(--pero-error); }
-.notebook-formula-completions { position: fixed; z-index: 1000; max-height: 232px; overflow: auto; padding: var(--pero-spacing-1); background: var(--pero-surface); color: var(--pero-text); border: var(--pero-hairline); border-radius: var(--pero-radius-sm); box-shadow: var(--pero-elevation-md); }
-.notebook-formula-completions > button { display: flex; width: 100%; flex-wrap: wrap; justify-content: start; text-align: left; white-space: normal; }
-.notebook-formula-completions > button[aria-selected="true"] { background: var(--pero-accent-soft); }
-.notebook-formula-completions small { width: 100%; font-size: var(--pero-font-caption); }
+.notebook-formula-completions { position: fixed; z-index: 1000; max-height: 232px; overflow: auto; padding: var(--pero-spacing-1); background: var(--pero-surface); color: var(--pero-text); border: var(--pero-hairline); border-radius: var(--pero-radius-sm); box-shadow: var(--pero-elevation-md); font: var(--pero-font-weight-regular, 400) var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
+.notebook-formula-completions > .pero-ui-button:not([data-variant=unstyled]) { display: flex; width: 100%; flex-wrap: wrap; justify-content: start; gap: var(--pero-spacing-1); text-align: left; white-space: normal; font: var(--pero-font-weight-regular, 400) var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); font-weight: var(--pero-font-weight-regular, 400); }
+.notebook-formula-completions > .pero-ui-button:not([data-variant=unstyled])[aria-selected="true"] { background: var(--pero-accent-soft); }
+.notebook-formula-completions .notebook-formula-name { font-weight: var(--pero-font-weight-regular, 400); }
+.notebook-formula-completions .notebook-formula-syntax { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.notebook-formula-completions small { width: 100%; color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-weight: var(--pero-font-weight-regular, 400); }
 @media (forced-colors: active) { input.notebook-formula-source.pero-ui-input { color: CanvasText; } .notebook-formula-highlight { display: none; } }

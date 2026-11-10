@@ -19,7 +19,7 @@ test('Notebook text controls edit real marks, block structures and selected text
     `,
   });
   const { React, ui, render, click, dom } = runtime;
-  const { Editor, StarterKit, TaskItem, TaskList, NotebookTextTools, NotebookTextColor,
+  const { Editor, StarterKit, TaskItem, TaskList, NotebookTextTools, NotebookTextColor, NotebookTextBackground,
     NotebookSubscript, NotebookSuperscript, NotebookLinkPaste, notebookLinkOptions, isNotebookLinkUri } = ui;
   // jsdom has no top layer; retain the modal's native focus/close contract.
   dom.window.HTMLDialogElement.prototype.showModal = function () {
@@ -34,7 +34,7 @@ test('Notebook text controls edit real marks, block structures and selected text
   editor = new Editor({
     element,
     extensions: [StarterKit.configure({ link: notebookLinkOptions, trailingNode: false }), TaskList,
-      TaskItem.configure({ nested: true }), NotebookTextColor, NotebookSubscript, NotebookSuperscript, NotebookLinkPaste],
+      TaskItem.configure({ nested: true }), NotebookTextColor, NotebookTextBackground, NotebookSubscript, NotebookSuperscript, NotebookLinkPaste],
     content: '<p>Assay result</p>',
   });
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) },
@@ -84,13 +84,15 @@ test('Notebook text controls edit real marks, block structures and selected text
     assert.deepEqual(marks(), [{ type: 'underline' }, { type: 'superscript' }]);
     await click(button('Subscript'));
     assert.deepEqual(marks(), [{ type: 'underline' }, { type: 'subscript' }]);
-    for (const tone of ['blue', 'green', 'rose', 'amber']) {
+    for (const tone of ['blue', 'green', 'rose', 'amber', 'orange', 'violet']) {
       await select('Text color', tone);
       assert.ok(marks().some((mark: { type: string; attrs?: { tone: string } }) => mark.type === 'textColor' && mark.attrs?.tone === tone));
       assert.match(editor.getHTML(), new RegExp(`class="notebook-text-${tone}"`));
     }
     await select('Text color', 'default');
     assert.ok(!marks().some((mark: { type: string }) => mark.type === 'textColor'));
+    await select('Highlight', 'violet');
+    assert.ok(marks().some((mark: { type: string; attrs?: { tone: string } }) => mark.type === 'textBackground' && mark.attrs?.tone === 'violet'));
     await click(textButton('Clear formatting'));
     assert.deepEqual(marks(), []);
     assert.equal(editor.getText(), 'Assay result');
@@ -112,12 +114,17 @@ test('Notebook text controls edit real marks, block structures and selected text
     const blocks = { bulletList: 'Bullet list', orderedList: 'Numbered list', taskList: 'Checklist', blockquote: 'Quote', codeBlock: 'Code block' };
     for (const [kind, label] of Object.entries(blocks)) {
       await reset();
-      await click(button(label));
+      if (kind === 'blockquote' || kind === 'codeBlock') await select('Formatting', kind);
+      else await click(button(label));
       assert.equal(editor.getJSON().content[0].type, kind);
       await select('Formatting', 'paragraph');
       assert.equal(editor.getJSON().content[0].type, 'paragraph');
       assert.equal(editor.getText(), 'Assay result');
     }
+    await reset('<p>First</p><p>Second</p>', { from: 6, to: 6 });
+    await click(textButton('Divider'));
+    assert.ok(editor.getJSON().content.some((node: { type: string }) => node.type === 'horizontalRule'));
+    assert.equal(editor.getText().trim().split(/\s+/).join(' '), 'First Second');
     await reset('<p>First</p><p>Second</p>');
     await act(() => editor.commands.selectAll());
     await click(button('Bold'));

@@ -1,5 +1,57 @@
 # Notebook verification
 
+## Text formatting toolbar (2026-11-10)
+
+Local changes based on `b27158d1` give the shared Select popup enough room
+for full color names and an optional leading swatch. Notebook exposes
+foreground and highlight palettes in the main toolbar, adds orange and
+violet to both, and groups headings, lists, quotes and code blocks in the
+style selector. More formatting includes the divider command. The toolbar
+wraps in narrow windows so the controls remain visible.
+
+The build, Notebook and App SDK typechecks, six text editing tests, twelve
+Select tests, and three Chromium browser tests passed. The main browser flow
+selected violet by keyboard, applied orange highlight and read both marks back
+from the saved revision. Inspected `editor-color-menu-narrow-dark.png` at
+620 × 900 in Chinese and `editor-highlight-menu-light.png` at 1320 × 950 in
+English under `test-results/notebook/`. This pass covered the browser App.
+
+## Block copy and controls (2026-11-10)
+
+Local worktree changes based on `07fcd4ff` move scientific names into the
+editable block header, replace the drawing instructions with a canvas empty
+state, and reveal atom and bond controls as their selections become relevant.
+The shared BlockFrame menu opens SDK dialogs for drawing scope, worksheet
+shortcuts, attachment storage, registration scope, and Canvas permissions.
+Source revision and verification status remain visible while IDs and
+timestamps are available on demand.
+
+The Notebook build, typecheck, and all three Chromium browser tests passed
+with the local Notebook Python environment. The scientific scenario exercised
+empty-to-populated drawing, keyboard expansion of exact positioning, bond
+creation, JSON download and import, and focus returning to the block menu
+after Escape. Inspected the local Chinese dark empty canvas and Chromium
+captures at 1320 × 950 light and 520 × 900 dark in
+`test-results/notebook/scientific-graph-light.png` and
+`test-results/notebook/scientific-graph-narrow-dark.png`. The sample intake
+scenario also passed at 600 × 900 dark. The editor suite passed 82 of 83 tests,
+with the previously recorded scoped-keyboard assertion still failing.
+Electron, Native, and installed App approvals were outside this pass.
+
+## New notebook body focus (2026-11-10)
+
+Local changes on `71e7c7d7` focus the first paragraph when a blank notebook
+opens after New notebook. The lone empty paragraph keeps its line height.
+The Notebook build, typecheck and three Chromium browser tests passed. The
+new focus assertion failed against the original build; the updated test
+types into the focused body without clicking it or using Insert.
+
+In an isolated macOS Native Preview profile with the rebuilt App bundle,
+the dark Chinese UI showed the typed text below the title after New notebook,
+with no intervening click. Saving showed revision 2. This did not exercise
+Electron or a release package. The editor suite passed 82 of 83 tests; the
+keyboard shortcut assertion also fails in a clean checkout of `71e7c7d7`.
+
 ## Control Lab creation through Notebook Canvas (2026-11-10)
 
 Local changes based on `58a3307f` were built and tested on macOS with Chromium,

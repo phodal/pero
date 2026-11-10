@@ -22,6 +22,7 @@ export const selectStyles = `
 .pero-select-option[data-depth="1"]::before{content:"└";flex:none;color:var(--pero-select-muted);font-size:var(--pero-font-size-sm, 12px);line-height:1}
 .pero-select-option[data-depth="2"]{padding-inline-start:calc(var(--pero-space-4, 8px) + 2.3em)}
 .pero-select-option[data-depth="2"]::before{content:"└";flex:none;color:var(--pero-select-muted);font-size:var(--pero-font-size-sm, 12px);line-height:1}
+.pero-select-option-leading{display:flex;align-items:center;flex:none}
 .pero-select-option>span{flex:1;min-width:0}
 .pero-select-option>span:not(.pero-select-option-copy){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pero-select-option-copy{display:flex;flex-direction:column;gap:1px}

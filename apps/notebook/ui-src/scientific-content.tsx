@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { JSONContent } from '@tiptap/core';
 import type { NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppApi, useAppI18n } from '@pero/app-sdk';
-import { Button, Feedback, Field, Input, NativeSelect, Textarea } from '@pero/app-sdk/ui';
+import { Button, Disclosure, DropdownMenuItem, Feedback, Field, Input, NativeSelect, Textarea } from '@pero/app-sdk/ui';
 import { chemicalDerivation, chemicalMolfile, embedReactionMolecule, emptyMolecularGraph, emptyReaction, exportChemical, importChemical, parseReactionDefinition, parseReactionRecord, type ChemicalEmbedding, type ReactionAttributes, type ReactionDefinition, type ReactionMolecule, type ReactionRecord } from '../../../packages/notebook/src/scientific-designs';
 import { BlockFrame } from './block-frame';
 import { MolecularDrawing, MolecularGraphEditor } from './molecular-graph';
@@ -37,7 +37,7 @@ export function ReactionSchemeView(view: NodeViewProps) {
       if (!alive.current) return;
       const unchanged = sameDraft(view, captured);
       if (unchanged) view.updateAttributes({ record: result });
-      setNotice(`${t('saved')}: ${result.id} · v${result.revision}${unchanged ? '' : ` · ${t('changed')}`}`);
+      else setNotice(`${t('saved')}: ${result.id} · v${result.revision} · ${t('changed')}`);
     } catch (cause) { if (alive.current) setError(scientificError(cause)); }
     finally { pending.current = false; if (alive.current) setBusy(false); }
   };
@@ -59,18 +59,22 @@ export function ReactionSchemeView(view: NodeViewProps) {
     if (typeof position !== 'number') return;
     view.editor.commands.insertContentAt(position + view.node.nodeSize, { type: 'chemical', attrs: { chemical: embedReactionMolecule(record, molecule.id) } });
   };
-  return <BlockFrame view={view} kind="reactionScheme" title={<strong>{reaction.name || t('reactionScheme')}</strong>}>
-    <p className="notebook-note">{t('recordScope')}</p>
-    <p className="notebook-note">{t('graphLimits')}</p>
-    <p role="status">{record ? `${record.id} · v${record.revision} · ${record.savedAt}` : t('draft')}{changed ? ` · ${t('changed')}` : ''}</p>
+  return <BlockFrame view={view} kind="reactionScheme"
+    title={editable
+      ? <Input unstyled className="notebook-block-name" aria-label={t('name')} placeholder={t('reactionScheme')} disabled={busy} maxLength={200}
+        value={reaction.name} onChange={e => change({ ...reaction, name: e.target.value })} />
+      : <strong>{reaction.name || t('reactionScheme')}</strong>}
+    help={{ title: t('graphSupport'), content: <><p>{t('recordScope')}</p><p>{t('graphLimits')}</p></> }}>
+    {record ? <Disclosure variant="inline" summary={<span role="status">{t('saved')} · v{record.revision}{changed ? ` · ${t('changed')}` : ''}</span>}>
+      <p><code>{record.id}</code> · <time dateTime={record.savedAt}>{record.savedAt}</time></p>
+    </Disclosure> : <p role="status">{t('draft')}</p>}
     <fieldset disabled={busy} style={{ border: 0, margin: 0, padding: 0 }}>
-      <div className="notebook-science-fields">
-        <Field label={t('name')}>{control => <Input {...control} disabled={!editable} value={reaction.name} maxLength={200} onChange={e => change({ ...reaction, name: e.target.value })} />}</Field>
+      {reaction.molecules.length > 0 && <div className="notebook-science-fields">
         <Field label={t('molecule')}>{control => <NativeSelect {...control} value={molecule?.id ?? ''} onChange={e => setSelected(e.target.value)}><option value="">{t('none')}</option>{reaction.molecules.map((item, index) => <option key={item.id} value={item.id}>{index + 1}: {item.name || t(item.role)}</option>)}</NativeSelect>}</Field>
-      </div>
+      </div>}
       <div className="notebook-science-actions">
         <Button disabled={!editable || reaction.molecules.length >= 24} onClick={() => { const id = crypto.randomUUID(); change({ ...reaction, molecules: [...reaction.molecules, { id, name: '', role: reaction.molecules.length ? 'product' : 'reactant', graph: emptyMolecularGraph() }] }); setSelected(id); }}>{t('addMolecule')}</Button>
-        <Button disabled={!editable || !molecule} onClick={() => { change({ ...reaction, molecules: reaction.molecules.filter(item => item.id !== molecule?.id) }); setSelected(''); }}>{t('removeMolecule')}</Button>
+        {editable && molecule && <Button variant="ghost" onClick={() => { change({ ...reaction, molecules: reaction.molecules.filter(item => item.id !== molecule.id) }); setSelected(''); }}>{t('removeMolecule')}</Button>}
       </div>
       {molecule && <div>
         <div className="notebook-science-fields">
@@ -84,7 +88,7 @@ export function ReactionSchemeView(view: NodeViewProps) {
     {editable && <div className="notebook-science-actions">
       <Button variant="primary" disabled={busy || record !== null && !changed} onClick={() => void save()}>{busy ? t('requestPending') : t(record ? 'nextRevision' : 'submit')}</Button>
       {record && <Button disabled={busy} onClick={() => setConfirmLoad(true)}>{t('reloadRecord')}</Button>}
-      <Button disabled={busy || !record || changed || !molecule} onClick={embed}>{t('embed')}</Button>
+      {record && molecule && <Button disabled={busy || changed} onClick={embed}>{t('embed')}</Button>}
     </div>}
     {confirmLoad && <div><p>{t('reloadWarning')}</p><Button disabled={busy} onClick={() => void reload()}>{t('reloadRecord')}</Button><Button onClick={() => setConfirmLoad(false)}>{t('cancel')}</Button></div>}
     {error && <Feedback kind="error">{error}</Feedback>}{notice && <Feedback kind="success">{notice}</Feedback>}
@@ -132,16 +136,24 @@ export function ChemicalView(view: NodeViewProps) {
     } catch (cause) { if (!view.editor.isDestroyed) setError(scientificError(cause)); }
     finally { pending.current = false; if (input.current) input.current.value = ''; }
   };
-  return <BlockFrame view={view} kind="chemical" title={<strong>{chemical.name || t('chemical')}</strong>}>
-    <p className="notebook-note">{t('graphLimits')}</p>
-    <p role="status">{t(derivation)}{chemical.source ? ` · ${chemical.source.id} v${chemical.source.revision} · ${chemical.source.moleculeId}` : ''}</p>
-    {chemical.source && <><p className="notebook-note">{t('provenance')}</p><Button onClick={() => setSourceCheck(value => value + 1)}>{t('checkSource')}</Button></>}
-    <Field label={t('name')}>{control => <Input {...control} disabled={!editable} value={chemical.name} maxLength={200} onChange={e => update({ ...chemical, name: e.target.value })} />}</Field>
-    {editable ? <MolecularGraphEditor graph={chemical.graph} onChange={graph => update({ ...chemical, graph })} /> : <MolecularDrawing graph={chemical.graph} />}
-    <div className="notebook-science-actions">
-      <Button onClick={() => download('json')}>{t('json')}</Button><Button onClick={() => download('mol')}>{t('mol')}</Button>
-      {editable && <><Button onClick={() => input.current?.click()}>{t('importJson')}</Button><input ref={input} type="file" accept=".json,application/json" aria-label={t('importLabel')} hidden onChange={e => void importFile(e.target.files?.[0])} /></>}
-    </div>
+  return <BlockFrame view={view} kind="chemical"
+    title={editable
+      ? <Input unstyled className="notebook-block-name" aria-label={t('name')} placeholder={t('chemical')} maxLength={200}
+        value={chemical.name} onChange={e => update({ ...chemical, name: e.target.value })} />
+      : <strong>{chemical.name || t('chemical')}</strong>}
+    help={{ title: t('graphSupport'), content: <><p>{t('graphLimits')}</p>{chemical.source && <p>{t('provenance')}</p>}</> }}
+    menuActions={<>
+      {editable && <DropdownMenuItem onSelect={() => input.current?.click()}>{t('importJson')}</DropdownMenuItem>}
+      <DropdownMenuItem onSelect={() => download('json')}>{t('json')}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => download('mol')}>{t('mol')}</DropdownMenuItem>
+    </>}>
+    {chemical.source && <Disclosure variant="inline" summary={<span role="status">{t(derivation)} · v{chemical.source.revision}</span>}>
+      <p><code>{chemical.source.id} · {chemical.source.moleculeId}</code></p>
+      <Button onClick={() => setSourceCheck(value => value + 1)}>{t('checkSource')}</Button>
+    </Disclosure>}
+    {editable ? <MolecularGraphEditor graph={chemical.graph} onChange={graph => update({ ...chemical, graph })}
+      emptyAction={<Button variant="ghost" onClick={() => input.current?.click()}>{t('importJson')}</Button>} /> : <MolecularDrawing graph={chemical.graph} />}
+    {editable && <input ref={input} type="file" accept=".json,application/json" aria-label={t('importLabel')} hidden onChange={e => void importFile(e.target.files?.[0])} />}
     {error && <Feedback kind="error">{error}</Feedback>}
   </BlockFrame>;
 }

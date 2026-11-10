@@ -230,7 +230,7 @@ impl NativeAppPage {
         })
         .detach();
     }
-    fn opening_cover(&self, cx: &mut Context<Self>) -> Div {
+    fn opening_cover(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         let locale = self.context["locale"].as_str().unwrap_or("en");
         let chrome = pero_theme::Chrome::from_app(cx);
         pero_theme::opening_panel(
@@ -664,7 +664,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         if self.apps.preparation.as_ref().is_some_and(|value| value.name == name && value.phase != "ready") {
-            return self.app_preparation_content(cx);
+            return self.app_preparation_content(true, cx);
         }
         let error = self
             .native_app_pages

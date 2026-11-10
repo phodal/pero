@@ -45,7 +45,7 @@ test('Content editing runs locally in Chromium with highlighted code and derived
   const page = await browser.newPage();
   const pageErrors = []; page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
-  const code = page.getByLabel('Code source (not executed)');
+  const code = page.getByRole('textbox', { name: 'Code', exact: true });
   await code.waitFor().catch(cause => { throw new Error(`${cause.message}\nBrowser errors: ${pageErrors.join('\n')}`); });
   await code.click(); await page.keyboard.press('End'); await page.keyboard.press('Enter'); await page.keyboard.press('Tab'); await page.keyboard.type('# local comment');
   await page.waitForFunction(() => window.editor.getText().includes('# local comment'));

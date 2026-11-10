@@ -117,7 +117,7 @@ test('experiment requests preserve the latest intent and respect unavailable evi
         await resolve(create, a);
       } else {
         await open(a.id); await resolve(reads.shift(), a);
-        await click(button(operation === 'create' ? 'Rerun as new experiment' : 'Run bounded search'));
+        await click(button(operation === 'create' ? 'Duplicate settings' : 'Run bounded search'));
       }
       const mutation = writes.shift(); assert.ok(mutation);
       return mutation;

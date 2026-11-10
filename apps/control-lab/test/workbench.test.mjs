@@ -59,10 +59,11 @@ test('experiment refresh retains one workbench, draft, focus and evidence; objec
   await click(button('Run experiment'));
   assert.equal(document.querySelectorAll('.workbench').length, 1);
   await click(button('Cancel evaluation'));
-  assert.ok(button('Cancelling…').disabled);
+  assert.ok(button('Cancel evaluation').disabled);
+  assert.match(document.querySelector('[role="status"]').textContent, /Cancelling/);
   current = { ...current, status: 'cancelled', operation: null, trials: [{ id: 'trial', candidateId: 'proposal', scenarioId: 'nominal', phase: 'search', status: 'cancelled', error: null, observation: null, report: null }] };
   await refresh();
-  assert.equal(button('Cancelling…'), undefined);
+  assert.equal(button('Cancel evaluation'), undefined);
   assert.equal(document.querySelectorAll('.workbench').length, 1);
   assert.equal(document.querySelector('[aria-label="Selected candidate"] [data-state="checked"]').closest('label').textContent, 'New proposal');
   assert.match(document.body.textContent, /Simulation cancelled/);

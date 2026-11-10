@@ -17,6 +17,7 @@ import { useAIRecovery } from './ai-recovery';
 import type { SciencePanelProps } from './science-tools-shared';
 
 const messages = {
+  generationHelp: { en: 'How generation works', zh: '生成说明' },
   generateNote: { en: 'Generate sends the listed selected sources and target table to the selected configured Host agent. New-row and check modes send the current draft. Review all changes before applying. Closing this panel stops polling, not the Host session.', zh: '生成将所选来源和目标表格发送至所选 Host Agent；新行及检查模式发送当前草稿。修改须经复核，关闭面板不会取消 Host 会话。' },
   noAgent: { en: 'No configured Host agent is available. Configure one in Host and refresh. No synthetic output is substituted.', zh: '没有可用的 Host Agent，请在 Host 配置后刷新，不使用模拟输出。' },
   refreshAvailability: { en: 'Refresh availability', zh: '刷新可用性' },
@@ -104,7 +105,6 @@ export function NotebookAITools({ getTarget, onApply, ...props }: SciencePanelPr
   const canStart = recovery.loaded && (!record || !pending && ['applied', 'dismissed'].includes(record.application));
   const applicationPresent = !!record && hasAIApplication(draft, record.frozen.requestId, record.sessionId);
   return <div className="notebook-science-panel">
-    <p className="notebook-note">{t('generateNote')}</p>
     {!agent.available && <Feedback kind="warning">{t('noAgent')}</Feedback>}
     <div className="notebook-science-actions"><Button disabled={locked} onClick={() => void agent.refresh()}>{t('refreshAvailability')}</Button><Button disabled={busy || recovery.busy} onClick={() => void recovery.load()}>{t('reloadRecovery')}</Button></div>
     {recovery.error && <Feedback kind="error">{recovery.error}</Feedback>}
@@ -116,7 +116,6 @@ export function NotebookAITools({ getTarget, onApply, ...props }: SciencePanelPr
       <Field label={t('targetTable')}>{control => <NativeSelect {...control} value={selectedTable} disabled={locked || pending} onChange={event => setBlockId(event.target.value)}><option value="">—</option>{tables.map(table => <option key={table.blockId} value={table.blockId}>{table.table.name || table.blockId} · {table.kind}</option>)}</NativeSelect>}</Field>
       {!tables.length && <Feedback kind="info">{t('addTableFirst')}</Feedback>}
       <label><Checkbox checked={emptyOnly} disabled={locked || pending} onCheckedChange={value => setEmptyOnly(value === true)} /> {t('emptyOnly')}</label>
-      <p>{sourceFormatMessage}</p>
       <Field label={t('selectSource')}>{control => <NativeSelect {...control} value="" disabled={locked || pending} onChange={event => {
         const option = options.find(item => item.id === event.target.value);
         if (option?.node.type === 'attachment' && sourceNeedsExtraction(String(option.node.attrs?.mime))) { const { filename, mime, data, caption, sha256 } = option.node.attrs as unknown as AttachmentAttributes; setExtracting({ id: option.id, kind: 'attachment', file: { filename, mime, data, caption, sha256 } }); }
@@ -133,6 +132,7 @@ export function NotebookAITools({ getTarget, onApply, ...props }: SciencePanelPr
       <ul>{sources.map(source => <li key={source.id}>{source.name} · {source.bytes} bytes · SHA-256 {source.sha256.slice(0, 12)}<Button disabled={locked || pending} onClick={() => setSources(sources.filter(item => item.id !== source.id))}>{t('removeSource')}</Button><Disclosure summary={t('previewSource')}><pre className="notebook-science-json">{source.text}</pre></Disclosure>{source.extraction && <SourceExtractionDetails extraction={source.extraction} />}</li>)}</ul>
       {!onApply && <Feedback kind="warning">{t('typedUnavailable')}</Feedback>}
     </>}
+    <Disclosure summary={t('generationHelp')}><p>{t('generateNote')}</p><p>{sourceFormatMessage}</p></Disclosure>
     <Button variant="primary" disabled={locked || !canStart || !agent.available || !selected || !goal.trim() || !target || mode === 'cells' && (!selectedTable || !sources.length || !onApply)} onClick={() => void act(async () => {
       const currentTarget = getTarget(); if (!currentTarget) throw new Error(t('openSavedEntry'));
       const frozen = mode === 'cells' ? await freezeTypedGeneration(crypto.randomUUID(), selected, currentTarget, props.getContent(), goal, selectedTable, sources, emptyOnly) : mode === 'checks' ? freezeCheckGeneration(crypto.randomUUID(), selected, currentTarget, props.getContent(), goal) : freezeGeneration(crypto.randomUUID(), selected, currentTarget, props.getContent(), goal);

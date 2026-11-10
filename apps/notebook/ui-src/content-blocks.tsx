@@ -34,7 +34,9 @@ export const contentBlockMessages = {
   attachmentCaption: { en: 'Attachment caption', zh: '附件说明' },
   attachmentDownload: { en: 'Download file', zh: '下载文件' },
   attachmentSize: { en: '{size} KiB', zh: '{size} KiB' },
-  attachmentLimits: { en: 'Up to 512 KiB per file. Files are embedded in revisions within the 2 MiB notebook limit; previous revisions retain removed files.', zh: '每个文件最多 512 KiB，文件随修订保存并计入笔记的 2 MiB 上限；移除文件不会删除旧修订中的内容。' },
+  attachmentDetails: { en: 'Attachment details', zh: '附件详情' },
+  attachmentStorage: { en: 'Embedded files count toward the 2 MiB notebook limit. Removing a file keeps copies in earlier revisions.', zh: '内嵌文件计入笔记的 2 MiB 上限。移除附件后，旧修订仍保留副本。' },
+  attachmentFileLimit: { en: 'Up to 512 KiB per file', zh: '单个文件最多 512 KiB' },
   attachmentPreviewTypes: { en: 'PNG, JPEG and WebP images can be previewed. Other files are download-only.', zh: 'PNG、JPEG 和 WebP 图片可预览，其他文件仅供下载。' },
   attachmentTooLarge: { en: 'This file exceeds the 512 KiB attachment limit.', zh: '此文件超出附件的 512 KiB 上限。' },
   attachmentTypeUnsupported: { en: 'Image attachments must be PNG, JPEG or WebP.', zh: '图片附件必须为 PNG、JPEG 或 WebP 格式。' },
@@ -253,6 +255,7 @@ export function AttachmentView(view: NodeViewProps) {
   };
 
   return <BlockFrame view={view} kind="attachment" title={<strong>{filename || t('attachment')}</strong>}
+    help={{ title: t('attachmentDetails'), content: <p>{t('attachmentStorage')}</p> }}
     caption={current && <span className="notebook-note">{t('attachmentSize', { size: Math.ceil(current.bytes.byteLength / 1024) })}</span>}
     actions={<><Button variant="ghost" disabled={!current} onClick={download}><Icon name="download" />{t('attachmentDownload')}</Button>
       {editable && current?.preview && <Button variant="ghost" busy={openingEdit} onClick={() => void openImageEdit()}>{t('editImage')}</Button>}</>}>
@@ -276,9 +279,8 @@ export function AttachmentView(view: NodeViewProps) {
       }} />}
     {current && derivation && <ImageHistory derivation={derivation} />}
     {downloadFailed && <Feedback kind="error">{t('attachmentDownloadFailed')}</Feedback>}
-    {editable ? <label className="notebook-field">{t('attachmentCaption')}
-      <Textarea rows={2} maxLength={attachmentLimits.caption} value={caption} onChange={event => view.updateAttributes({ caption: event.target.value })} />
-    </label> : caption && <p className="notebook-attachment-caption">{caption}</p>}
-    <p className="notebook-note">{t('attachmentLimits')}</p>
+    {editable
+      ? <Textarea aria-label={t('attachmentCaption')} rows={2} maxLength={attachmentLimits.caption} value={caption} onChange={event => view.updateAttributes({ caption: event.target.value })} />
+      : caption && <p className="notebook-attachment-caption">{caption}</p>}
   </BlockFrame>;
 }

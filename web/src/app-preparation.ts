@@ -40,18 +40,21 @@ export function mountAppPreparation(command: (value: object) => Promise<void>, c
     }
   };
   return {
-    get(name?: string) { return name ? records.get(name)?.value : undefined; },
-    event(event: HostEvent, showRequired = true) {
+    get(name?: string) { return name ? records.get(name) : undefined; },
+    showInPanel(name?: string) { if (name === selected) region.hidden = true; },
+    event(event: HostEvent, showInCatalog: boolean) {
       if (event.kind !== 'apps_preparation') return;
       const value = event.data as Preparation;
       const previous = records.get(value.name);
       const fresh = value.phase === 'checking';
       const log = fresh ? [] : previous?.log ?? [];
       log.push(value.message); if (log.length > 100) log.shift();
-      records.set(value.name, { value, log }); selected = value.name;
+      records.set(value.name, { value, log });
+      if (!showInCatalog) return;
+      selected = value.name;
       // A cached check does not flash a window on every App open. Show only
       // work that takes time, or a failure requiring the user's attention.
-      if (value.phase === 'creating' || value.phase === 'installing' && previous?.value.phase !== 'installing' || value.phase === 'failed' || value.phase === 'required' && showRequired || value.phase === 'checking' && previous?.value.phase === 'required') region.hidden = false;
+      if (value.phase === 'creating' || value.phase === 'installing' && previous?.value.phase !== 'installing' || value.phase === 'failed' || value.phase === 'required' || value.phase === 'checking' && previous?.value.phase === 'required') region.hidden = false;
       render();
     },
   };

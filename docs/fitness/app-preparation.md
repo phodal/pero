@@ -95,3 +95,25 @@ Source SHA-256 for the preparation implementation used by the verified flow:
 - `crates/pero-runtime/src/apps/preparation.rs`: `0c7a093876395ac0a2097270cb524f8154d376d49b77937a87f3c8befd5fafbc`
 - `crates/pero-host/src/apps.rs`: `6f331a368da0d890a8b0302e262e8ec4aa2b24f09b627ce5dc7a8777990c581d`
 - `web/src/app-preparation.ts`: `3cea06b5bc2853cec81a90d5cd9cfae8dec4b59b0a5451fa74ae6ce952cd948c`
+
+## 2026-11-10 App panel status
+
+Source: `71e7c7d7` with the local App panel changes. Native uses the same
+centered cover for environment preparation and startup. Electron uses one
+status card for both. The App panel shows the current preparation stage,
+expandable diagnostics and one retry action. Catalog requests without an App
+panel display separate feedback. The Host starts installation when the user
+chooses Prepare environment.
+
+On macOS arm64, the Electron preparation E2E used a disposable profile and the
+real Control Lab backend. It covered opening before consent, installation with
+the log expanded, automatic opening, a rejected environment and successful
+retry. The inspected captures are `required-dark-narrow.png`,
+`installing.png` and `failed-dark-narrow.png` in
+`test-results/app-preparation/`. The status stays within the content pane
+and the failure action stays visible in the dark window at its minimum size.
+
+The rebuilt Native preview showed the centered dark preparation card and
+expanded diagnostics in the real Control Lab tab. Native installation and
+packaged builds were outside this pass. Native and Wasm compilation and
+`npm run check` passed separately from visual verification.

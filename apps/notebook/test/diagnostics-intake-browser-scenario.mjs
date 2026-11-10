@@ -47,7 +47,7 @@ export async function verifyDiagnosticsAndIntake(page, origin, output) {
   const source = page.locator('[data-kind=sampleIntake]').nth(0), destination = page.locator('[data-kind=sampleIntake]').nth(1);
   await source.getByRole('textbox', { name: 'Batch name', exact: true }).fill('Source batch');
   await destination.getByRole('textbox', { name: 'Batch name', exact: true }).fill('Destination batch');
-  await source.getByLabel('Schema ID (optional)', { exact: true }).fill('diagnostic-intake-schema');
+  await source.getByLabel('Schema ID', { exact: true }).fill('diagnostic-intake-schema');
   await source.locator('summary').filter({ hasText: 'Browse local samples and boxes' }).click();
   await button('Load catalog records', source).click();
   await source.getByLabel('Box / location text column').selectOption('box');

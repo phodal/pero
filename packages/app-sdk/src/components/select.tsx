@@ -7,7 +7,7 @@ import { resolvePopupContainer } from './popup-container';
 import { ensureSelectStyles } from './select-styles.mjs';
 import { ensureUiStyles } from './ui-styles';
 
-export type SelectOption = { value: string; label: string; group?: string; disabled?: boolean; hint?: string; /** Nest under a parent for tree-like menus (0 = root). */ depth?: number };
+export type SelectOption = { value: string; label: string; group?: string; disabled?: boolean; hint?: string; leading?: React.ReactNode; /** Nest under a parent for tree-like menus (0 = root). */ depth?: number };
 export type SelectProps = {
   value: string; options: SelectOption[]; onChange: (value: string) => void; label: string;
   id?: string; disabled?: boolean; placeholder?: string; className?: string; triggerClassName?: string; panelClassName?: string;
@@ -187,6 +187,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           {group && <div className="pero-select-group-label" aria-hidden="true">{group}</div>}
           {shown.filter(o => (o.group ?? '') === group).map(o => <div key={o.value} id={optionId(o)} role="option" className="pero-select-option" aria-selected={o.value === value} aria-disabled={o.disabled || undefined} data-value={o.value} data-depth={o.depth && o.depth > 0 ? o.depth : undefined} data-active={o.value === current?.value} data-keyboard-active={keyboardActive && o.value === current?.value || undefined} title={o.hint ?? o.label}
             onPointerMove={() => { setKeyboardActive(false); if (!o.disabled) setActive(o.value); }} onMouseDown={e => e.preventDefault()} onClick={() => choose(o)}>
+            {o.leading && <div className="pero-select-option-leading" aria-hidden="true">{o.leading}</div>}
             {showHint && o.hint ? <span className="pero-select-option-copy"><span>{o.label}</span><small>{o.hint}</small></span> : <span>{o.label}</span>}
             {o.value === value && <Icon name="check" size={14} strokeWidth={2} />}
           </div>)}
