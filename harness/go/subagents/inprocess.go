@@ -159,7 +159,8 @@ func (p *inProcessProvider) Prepare(ctx context.Context, request harness.Subagen
 					} else {
 						outcome.Status = harness.SubagentCompleted
 					}
-				case lifetime.Err() != nil:
+				// Retirement may cancel the child before this provider lifetime.
+				case lifetime.Err() != nil || errors.Is(promptErr, context.Canceled) || errors.Is(promptErr, context.DeadlineExceeded):
 					outcome.Status = harness.SubagentAborted
 					outcome.Reason = harness.FinishAborted
 					outcome.Diagnostic = "subagent run was cancelled"
