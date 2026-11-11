@@ -195,13 +195,16 @@ model LocalEnvironmentCreate { operation:"create";target:"paper-agent.pcgym"|"co
 model LocalEnvironmentList { operation:"list";compute?:boolean;...AppClosed; }
 model LocalEnvironmentPrepare { operation:"prepare";id:AppName;...AppClosed; }
 model LocalEnvironmentCancel { operation:"cancel";id:AppName;...AppClosed; }
+model LocalEnvironmentPropose { operation:"propose";source:string;...AppClosed; }
+model EnvironmentDeclaration {name:string;sha256:string;...AppClosed;}
+model EnvironmentProposal {source:string;declarations:EnvironmentDeclaration[];python_requests:string[];dependencies:string[];locked_packages:int32;warnings:string[];status:"review_required";digest:string;...AppClosed;}
 model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 model LocalEnvironmentCreateLocked { operation:"create_locked";target:"paper-agent.pcgym"|"control-lab.python-control";label:string;...AppClosed; }
 model LocalEnvironmentCreateLockedControl { operation:"create_locked_control";label:string;...AppClosed; }
 model LocalEnvironmentRebuild { operation:"rebuild";id:AppName;label:string;...AppClosed; }
 model LocalEnvironmentBindCompute { operation:"bind_compute";id:AppName;...AppClosed; }
 model LocalEnvironmentUnbindCompute { operation:"unbind_compute";target?:"paper-agent.pcgym"|"control-lab.python-control";...AppClosed; }
-@oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentCancel,LocalEnvironmentBind,LocalEnvironmentCreateLockedControl,LocalEnvironmentCreateLocked,LocalEnvironmentRebuild,LocalEnvironmentBindCompute,LocalEnvironmentUnbindCompute }
+@oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentCancel,LocalEnvironmentPropose,LocalEnvironmentBind,LocalEnvironmentCreateLockedControl,LocalEnvironmentCreateLocked,LocalEnvironmentRebuild,LocalEnvironmentBindCompute,LocalEnvironmentUnbindCompute }
 model ComputePackages is Record<string>;
 model PythonComputeObservation { version:string;build:string;platform:string;machine:string;executable_sha256:string;packages:ComputePackages;packages_sha256:string;...AppClosed; }
 model LockedPythonProfile { root:string;project_sha256:string;lock_sha256:string;python_request:string;python_archive_url:string;python_archive_sha256:string;uv_version:string;uv_sha256:string;observation:PythonComputeObservation;...AppClosed; }
@@ -210,7 +213,7 @@ model PreparationFailure {stage:"bootstrap"|"resolve"|"install"|"observe"|"cance
 model LocalEnvironmentRecord {failure?:PreparationFailure|null;locked_compute?:boolean;prepared?:LockedPythonProfile|null;id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
 @oneOf union AppRequest { NotebookProjectsApp, AppCanvasRequest, SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentProposal | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

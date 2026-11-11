@@ -3819,6 +3819,7 @@ export interface AppSuccess {
     | SkillMarketUpdate
     | SkillMarketCancelled
     | LocalEnvironmentRecord[]
+    | EnvironmentProposal
     | EnvironmentInspectionReport
     | AgentPreparedContext
     | AgentTerminalList
@@ -3944,6 +3945,20 @@ export interface SkillMarketCancelled {
 export interface PreparationFailure {
   stage: "bootstrap" | "resolve" | "install" | "observe" | "cancelled" | "interrupted";
   detail: string;
+}
+export interface EnvironmentProposal {
+  source: string;
+  declarations: EnvironmentDeclaration[];
+  python_requests: string[];
+  dependencies: string[];
+  locked_packages: number;
+  warnings: string[];
+  status: "review_required";
+  digest: string;
+}
+export interface EnvironmentDeclaration {
+  name: string;
+  sha256: string;
 }
 export interface AgentPreparedContext {
   context: AppDocumentSchema;

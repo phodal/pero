@@ -271,6 +271,10 @@ impl Apps {
             }
             let request: Request =
                 serde_json::from_value(value).map_err(|error| error.to_string())?;
+            if let Request::Localenvironment { ref name, request: pero_runtime::apps::local_environment::Request::Propose {ref source}, .. } = request {
+                {let guard=self.store.lock().map_err(|e|e.to_string())?;guard.as_ref().map_err(Clone::clone)?.require_grant(name,"environments")?;}
+                return pero_runtime::apps::project_proposal::inspect(source);
+            }
             if let Request::Localenvironment { ref name, request: pero_runtime::apps::local_environment::Request::Prepare {ref id}, .. } = request {
                 let job={let guard=self.store.lock().map_err(|e|e.to_string())?;guard.as_ref().map_err(Clone::clone)?.environment_preparation(name,id)?};
                 let compute = job.run(&mut |_| {})?;

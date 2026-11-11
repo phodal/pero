@@ -2197,6 +2197,9 @@
               }
             },
             {
+              "$ref": "#/$defs/EnvironmentProposal"
+            },
+            {
               "$ref": "#/$defs/EnvironmentInspectionReport"
             },
             {
@@ -7989,6 +7992,23 @@
         }
       ]
     },
+    "EnvironmentDeclaration": {
+      "title": "EnvironmentDeclaration",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
     "EnvironmentInspectionApp": {
       "title": "EnvironmentInspectionApp",
       "type": "object",
@@ -8103,6 +8123,62 @@
         "requirements",
         "matched",
         "missing"
+      ],
+      "additionalProperties": false
+    },
+    "EnvironmentProposal": {
+      "title": "EnvironmentProposal",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "declarations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvironmentDeclaration"
+          }
+        },
+        "python_requests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locked_packages": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "const": "review_required"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "declarations",
+        "python_requests",
+        "dependencies",
+        "locked_packages",
+        "warnings",
+        "status",
+        "digest"
       ],
       "additionalProperties": false
     },
@@ -9920,6 +9996,9 @@
           "$ref": "#/$defs/LocalEnvironmentCancel"
         },
         {
+          "$ref": "#/$defs/LocalEnvironmentPropose"
+        },
+        {
           "$ref": "#/$defs/LocalEnvironmentBind"
         },
         {
@@ -9954,6 +10033,24 @@
       "required": [
         "operation",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentPropose": {
+      "title": "LocalEnvironmentPropose",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "propose"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "source"
       ],
       "additionalProperties": false
     },

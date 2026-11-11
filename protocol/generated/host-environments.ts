@@ -6,6 +6,7 @@ export type LocalEnvironmentOperation =
   | LocalEnvironmentList
   | LocalEnvironmentPrepare
   | LocalEnvironmentCancel
+  | LocalEnvironmentPropose
   | LocalEnvironmentBind
   | LocalEnvironmentCreateLockedControl
   | LocalEnvironmentCreateLocked
@@ -35,6 +36,10 @@ export interface LocalEnvironmentPrepare {
 export interface LocalEnvironmentCancel {
   operation: "cancel";
   id: AppName;
+}
+export interface LocalEnvironmentPropose {
+  operation: "propose";
+  source: string;
 }
 export interface LocalEnvironmentBind {
   operation: "bind";

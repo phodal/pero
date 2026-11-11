@@ -73,6 +73,7 @@ pub struct LocalEnvironment {
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "lowercase", deny_unknown_fields)]
 pub enum Request {
+    Propose { source: String },
     List {
         #[serde(default)]
         compute: bool,
@@ -141,6 +142,7 @@ impl AppStore {
             request => request,
         };
         match request {
+            Request::Propose { .. } => return Err("Inspect declarations through the Host proposal entrypoint".into()),
             Request::List { .. } => {}
             Request::CreateLocked { target, label } => {
                 if !matches!(target, ScientificMethod::Control | ScientificMethod::Pcgym) { return Err("Choose Control or PC-Gym for a locked Python recipe".into()); }
