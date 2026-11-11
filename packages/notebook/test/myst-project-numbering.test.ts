@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { compileMystProject } from '../src/myst-project.ts';
 import { parseMystProjectSnapshot } from '../src/myst-project-snapshot.ts';
 import { parseMystDocument, type MystNode } from '../src/myst.ts';
+import { renderMystProjectHtml } from '../src/myst-project-render.ts';
 import { renderMystHtml } from '../src/myst-render.ts';
 const equation = (id: string) => `\n\n\`\`\`{math}\n:label: ${id}\nx=1\n\`\`\`\n`;
 const nodes = (node: MystNode, type: string): MystNode[] => [...(node.type === type ? [node] : []), ...(node.children ?? []).flatMap(n => nodes(n, type))];
@@ -55,4 +56,15 @@ test('title numbering carries ancestors across pages, honors offset and renders 
   assert.equal((renderMystHtml(result.pages[0].document).split('<details class="source">')[0].match(/1 First<\/h1>/g) ?? []).length, 1);
   const noTitle = parseMystDocument('---\nnumbering:\n  headings: true\n  title:\n    enabled: false\n    offset: 2\n---\n## Section');
   assert.equal(nodes(noTitle.ast, 'heading')[0].enumerator, '1');
+});
+
+test('notebook metadata and compiled title share one numbered HTML heading', () => {
+  const source = JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: { title: 'Notebook title', numbering: { title: true, headings: true } }, cells: [
+    { cell_type: 'markdown', id: 'a', metadata: {}, source: '## First section' },
+    { cell_type: 'markdown', id: 'b', metadata: {}, source: '## Second section' },
+  ] });
+  const project = compileMystProject(parseMystProjectSnapshot({ format: 'pero-myst-project', version: 1, entry: 'book.ipynb', files: [{ path: 'book.ipynb', text: source }] }));
+  const html = renderMystProjectHtml(project);
+  assert.equal((html.match(/<h1[^>]*>/g) ?? []).length, 1);
+  assert.match(html, /1 Notebook title<\/h1>/);
 });
