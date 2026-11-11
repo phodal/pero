@@ -24,3 +24,11 @@ test('presentation-only MathML and static tags never authorize execution', () =>
   const raw = JSON.parse(source); raw.cells[1].metadata.tags = ['hide-input', 'remove-stderr', 'skip-execution'];
   const visibility = ipynbCellVisibility(parseIpynb(JSON.stringify(raw)).cells[1]); assert.equal(visibility.input, false); assert.equal(visibility.output, true); assert.equal(visibility.stderr, false);
 });
+
+test('cell types admit actual enum strings, never coercible arrays', () => {
+  const cases = JSON.parse(readFileSync(new URL('./fixtures/ipynb-invalid-cell-types.json', import.meta.url), 'utf8'));
+  for (const cell_type of cases) {
+    const raw = { nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [{ id: 'invalid', cell_type, metadata: {}, source: '' }] };
+    assert.throws(() => parseIpynb(JSON.stringify(raw)), /Invalid notebook cell/);
+  }
+});

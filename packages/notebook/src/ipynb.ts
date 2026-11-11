@@ -45,7 +45,7 @@ export function parseIpynb(source: string): IpynbDocument {
   if (!record(raw) || raw.nbformat !== 4 || !Number.isSafeInteger(raw.nbformat_minor) || Number(raw.nbformat_minor) < 0 || !record(raw.metadata) || !Array.isArray(raw.cells) || raw.cells.length > IPYNB_MAX_CELLS) throw new TypeError('Expected bounded nbformat 4 notebook');
   const ids = new Set<string>();
   const cells = raw.cells.map((cell, index): IpynbCell => {
-    if (!record(cell) || !['markdown', 'code', 'raw'].includes(String(cell.cell_type)) || !record(cell.metadata) || ipynbText(cell.source) === undefined) throw new TypeError('Invalid notebook cell');
+    if (!record(cell) || typeof cell.cell_type !== 'string' || !['markdown', 'code', 'raw'].includes(cell.cell_type) || !record(cell.metadata) || ipynbText(cell.source) === undefined) throw new TypeError('Invalid notebook cell');
     if (cell.id !== undefined) {
       if (typeof cell.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(cell.id) || ids.has(cell.id)) throw new TypeError('Invalid or duplicate cell ID');
       ids.add(cell.id);

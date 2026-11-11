@@ -1,6 +1,7 @@
 """Notebook sources use the existing revision owner, not a second notebook store."""
 from pathlib import Path
 import sys
+import json
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
@@ -41,3 +42,11 @@ class IpynbStoreTest(unittest.TestCase):
             IpynbDocumentSource('\t' * (800 * 1024) + SOURCE)
         # JSON has one number kind; integral exponent/decimal forms match JS.
         self.assertEqual(IpynbDocumentSource(SOURCE.replace('"nbformat_minor":5', '"nbformat_minor":5.0')).source.count('5.0'), 1)
+
+    def test_shared_coercible_cell_types_are_rejected(self):
+        fixture = Path(__file__).resolve().parents[3] / 'packages/notebook/test/fixtures/ipynb-invalid-cell-types.json'
+        for cell_type in json.loads(fixture.read_text()):
+            raw = {'nbformat': 4, 'nbformat_minor': 5, 'metadata': {}, 'cells': [
+                {'id': 'invalid', 'cell_type': cell_type, 'metadata': {}, 'source': ''}]}
+            with self.subTest(cell_type=cell_type), self.assertRaises(ValueError):
+                IpynbDocumentSource(json.dumps(raw))
