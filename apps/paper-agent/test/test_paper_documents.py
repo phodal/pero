@@ -270,6 +270,14 @@ class ScientificDocuments(unittest.TestCase):
                 self.assertEqual(report['observations'][0]['anchor']['documentScopes'][0]['documentId'], identity)
                 reopened = call('POST', '/api/research/source-report', dict(operation='read', bundleId=request['bundleId'], reportId=report['id']))
                 self.assertEqual(reopened[1]['observations'], report['observations'])
+                self.assertEqual(call('POST', '/api/research/source-report', dict(operation='read', reportId=report['id']))[1], reopened[1])
+                before = store._list('source-observations')
+                evidence_request = dict(operation='read-observation', reportId=report['id'], observationId=window['observationId'])
+                status, evidence = call('POST', '/api/research/source-report', evidence_request)
+                self.assertEqual(status, 200, evidence)
+                self.assertEqual(evidence['windows'][0]['items'], window['items'])
+                self.assertEqual(store._list('source-observations'), before)
+                self.assertEqual(call('POST', '/api/research/source-report', evidence_request, 'wrong')[0], 401)
                 raw_request = dict(operation='source', documentId=identity, start=13, limit=17,
                     bundleId=request['bundleId'], resourceId=request['resourceId'])
                 status, raw = call('POST', '/api/paper-document', raw_request)
@@ -277,8 +285,20 @@ class ScientificDocuments(unittest.TestCase):
                 raw_report = call('POST', '/api/research/source-report', dict(operation='create',
                     bundleId=request['bundleId'], title='HTTP raw markup', observationIds=[raw['observationId']]))[1]
                 self.assertEqual(raw_report['observations'][0]['anchor']['documentScopes'][0]['unit'], 'original-html')
+                status, exact = call('POST', '/api/research/source-report', dict(operation='read-observation',
+                    reportId=raw_report['id'], observationId=raw['observationId']))
+                self.assertEqual(status, 200, exact)
+                self.assertEqual(exact['windows'][0]['content'], SOURCE.decode()[13:30])
+                self.assertEqual(call('POST', '/api/research/source-report', dict(operation='read-observation',
+                    reportId=raw_report['id'], observationId=window['observationId']))[0], 403)
                 self.assertEqual(call('POST', '/api/paper-document', raw_request)[1]['observationId'], raw['observationId'])
                 self.assertEqual(call('POST', '/api/paper-document', dict(operation='source', documentId=identity, start=-1))[0], 400)
+                original_record = store._read('scientific-documents', identity)
+                (store.root / 'scientific-documents' / (identity + '.json')).write_text(json.dumps({**original_record, 'sourceBytes': 'Y2hhbmdlZA=='}))
+                self.assertEqual(call('POST', '/api/research/source-report', evidence_request)[0], 409)
+                status, retained = call('POST', '/api/research/source-report', dict(operation='read', reportId=report['id']))
+                self.assertEqual(status, 200)
+                self.assertFalse(retained['currentAvailability'][0]['available'])
             finally:
                 server.shutdown(); server.server_close(); thread.join(timeout=5)
 

@@ -100,10 +100,12 @@ test('installed source-report writes accept observed references but not nullable
   const id = 'a'.repeat(64);
   const create = { operation: 'create', bundleId: id, title: 'Observed source', observationIds: [id], interpretations: ['Unresolved'] };
   for (const document of [create, { operation: 'read', bundleId: id, reportId: id },
+    { operation: 'read', reportId: id }, { operation: 'read-observation', reportId: id, observationId: id },
     ...['observations', 'list'].map(operation => ({ operation, bundleId: id }))]) {
     assert.deepEqual(new PreparedAppWrite(definition, document).document, document);
   }
-  for (const document of [{ operation: 'list' }, { ...create, operation: 'execute' }, { ...create, visualReview: 'verified' },
+  // The source owner enforces operation-specific required references.
+  for (const document of [ { ...create, operation: 'execute' }, { ...create, visualReview: 'verified' },
     { ...create, observationIds: [] }, { ...create, observationIds: Array(65).fill(id) },
     ...[null, 42, 'source-id', 'a'.repeat(63), 'a'.repeat(65)].flatMap(value => [
       { ...create, bundleId: value }, { ...create, observationIds: [value] },

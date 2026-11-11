@@ -65,6 +65,9 @@ class SourceReports(unittest.TestCase):
 
     def test_observed_only_scopes_idempotent_reports_reopen_export_and_unresolved_interpretations(self):
         self.assertEqual(self.report('observations'), {'observations': []})
+        for value in (dict(operation='list'), dict(operation='read'), dict(operation='read-observation')):
+            with self.subTest(value=value), self.assertRaises(Invalid):
+                execute(self.store, 'source-report', value)
         for value in (dict(observationIds=['a' * 64]), dict(observationIds=[self.tex['id']]),
                       dict(observationIds=[], sources=[self.tex])):
             with self.subTest(value=value), self.assertRaises(Invalid):
@@ -91,11 +94,14 @@ class SourceReports(unittest.TestCase):
             self.report('create', title='Forged vision', observationIds=[image['observationId']], visualReview='verified')
         self.store = ResearchStore(self.directory.name)
         self.assertEqual(self.report('read', reportId=created['id']), created)
+        self.assertEqual(execute(self.store, 'source-report', dict(operation='read', reportId=created['id'])), created)
         self.assertEqual(self.report('create', title='Observed source', observationIds=[read['observationId'], image['observationId']], interpretations=['The visual meaning has not been checked.']), created)
         exported = execute(self.store, 'export', dict(bundleId=self.selection['bundleId']))
         self.assertEqual(exported['sourceReports'], [created])
         self.assertNotIn('data', str(exported['sourceReports'][0]['observations'][1]['anchor']))
         other, _ = bundle(self.store, source_url='https://arxiv.org/src/2610.24806v2')
+        with self.assertRaises(Invalid):
+            execute(self.store, 'source-report', dict(operation='read', bundleId=other['bundleId'], reportId=created['id']))
         with self.assertRaises(Invalid):
             execute(self.store, 'source-report', dict(operation='create', bundleId=other['bundleId'], title='Wrong bundle', observationIds=[read['observationId']]))
 

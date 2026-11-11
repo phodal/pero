@@ -219,37 +219,45 @@ def _document_receipt(store, observation, scope):
     return receipt
 
 
-def _verify_document_observation(store, observation):
+def _document_observation_windows(store, observation):
+    """Recover the exact saved windows; verification and reopening share one rule."""
     from .paper_documents import PaperDocuments
+    if not observation.documentScopes:
+        raise Invalid('Document observation has no delivered scope', 409)
+    windows = []
+    for scope in observation.documentScopes:
+        _document_receipt(store, observation, scope)
+        document, original = PaperDocuments(store).read(scope.documentId)
+        if document.parser != scope.parserRevision or document.source.digest != scope.sourceDigest:
+            raise Invalid('Recorded document version has changed', 409)
+        if scope.unit == 'original-html':
+            text = original.decode('utf-8')
+            if (scope.blockId != '' or type(scope.start) is not int or type(scope.end) is not int
+                    or not 0 <= scope.start < scope.end <= len(text) or scope.end - scope.start > 4800):
+                raise Invalid('Recorded original HTML window is unavailable', 409)
+            result = dict(unit='original-html', content=text[scope.start:scope.end])
+        else:
+            result = document.read(scope.blockId, scope.start, 4800)
+            if (result['unit'] != scope.unit or type(scope.end) is not int
+                    or not scope.start <= scope.end <= result['end'] or result['missing']):
+                raise Invalid('Recorded document window is unavailable', 409)
+            length = scope.end - scope.start
+            if scope.unit == 'characters':
+                result['content'] = result['content'][:length]
+            else:
+                result['items'] = result['items'][:length]
+        if not (result.get('content') or result.get('items') or result.get('context')) or digest(document_window(result)) != scope.contentDigest:
+            raise Invalid('Recorded document content has changed', 409)
+        windows.append(dict(scope=asdict(scope), content=result.get('content', ''),
+                            items=result.get('items', []), context=result.get('context', ''),
+                            limitations=result.get('limitations', [])))
+    return windows
+
+
+def _verify_document_observation(store, observation):
     from .scientific_document import DocumentError
     try:
-        if not observation.documentScopes:
-            return False
-        for scope in observation.documentScopes:
-            _document_receipt(store, observation, scope)
-            document, original = PaperDocuments(store).read(scope.documentId)
-            if document.parser != scope.parserRevision or document.source.digest != scope.sourceDigest:
-                return False
-            if scope.unit == 'original-html':
-                text = original.decode('utf-8')
-                if (scope.blockId != '' or type(scope.start) is not int or type(scope.end) is not int
-                        or not 0 <= scope.start < scope.end <= len(text) or scope.end - scope.start > 4800):
-                    return False
-                result = dict(unit='original-html', content=text[scope.start:scope.end])
-            else:
-                result = document.read(scope.blockId, scope.start, 4800)
-                if (result['unit'] != scope.unit or type(scope.end) is not int
-                        or not scope.start <= scope.end <= result['end'] or result['missing']):
-                    return False
-                length = scope.end - scope.start
-                if scope.unit == 'characters':
-                    result['content'] = result['content'][:length]
-                else:
-                    result['items'] = result['items'][:length]
-            if not (result.get('content') or result.get('items') or result.get('context')):
-                return False
-            if digest(document_window(result)) != scope.contentDigest:
-                return False
+        _document_observation_windows(store, observation)
         return True
     except (OSError, Invalid, UnicodeError, DocumentError):
         return False
@@ -369,10 +377,11 @@ def report_view(store, record, expected_id):
 
 def source_report(store, value, now):
     operation = value.get('operation')
-    allowed = {'operation', 'bundleId'} | ({'title', 'observationIds', 'interpretations'} if operation == 'create' else {'reportId'} if operation == 'read' else set())
-    if operation not in ('observations', 'create', 'read', 'list') or set(value) - allowed:
-        raise Invalid('Choose observations, create, read or list for a source evidence report')
-    bundle = store.imports.bundle(value.get('bundleId'))
+    allowed = {'operation', 'bundleId'} | ({'title', 'observationIds', 'interpretations'} if operation == 'create' else {'reportId', 'observationId'} if operation == 'read-observation' else {'reportId'} if operation == 'read' else set())
+    if operation not in ('observations', 'create', 'read', 'read-observation', 'list') or set(value) - allowed:
+        raise Invalid('Choose observations, create, read, read-observation or list for a source evidence report')
+    record = store._read('source-reports', value.get('reportId')) if operation in ('read', 'read-observation') else None
+    bundle = store.imports.bundle(value.get('bundleId', record['bundleId'] if record else None))
     if operation == 'observations':
         items = [observed(store, identity, bundle.id).to_dict() for identity in store._list('source-observations')
                  if store._read('source-observations', identity)['bundleId'] == bundle.id]
@@ -380,11 +389,19 @@ def source_report(store, value, now):
     if operation == 'list':
         return dict(reports=[report_view(store, store._read('source-reports', identity), identity) for identity in store._list('source-reports')
                              if store._read('source-reports', identity)['bundleId'] == bundle.id])
-    if operation == 'read':
-        record = store._read('source-reports', value.get('reportId'))
+    if operation in ('read', 'read-observation'):
         if record['bundleId'] != bundle.id:
             raise Invalid('Report is outside this bundle', 403)
-        return report_view(store, record, value.get('reportId'))
+        saved = report_view(store, record, value.get('reportId'))
+        if operation == 'read':
+            return saved
+        identity = value.get('observationId')
+        if identity not in saved['observationIds']:
+            raise Invalid('Observation is outside this saved report', 403)
+        observation = observed(store, identity, bundle.id)
+        if observation.kind != 'scientific_document':
+            raise Invalid('Open this observation from its source bundle', 409)
+        return dict(reportId=saved['id'], observationId=identity, windows=_document_observation_windows(store, observation))
     report = SourceEvidenceReport.parse(value)
     with store.lock:
         if report.id not in store._list('source-reports'):

@@ -190,3 +190,35 @@ Inspected screenshots and receipts: `test-results/paper-record-evidence/` in
 not a new Host, Electron, Native, live-provider or scientific acceptance run.
 Existing reader distribution was reused. No shared tokens or control styles changed.
 HTML SourceReport navigation is a separate follow-up in its existing owner.
+
+## Saved HTML report and original windows — 2026-11-11 (#79)
+
+The follow-up on `cbdcb2e6` opens HTML references from the same saved-record list.
+The existing SourceEvidenceReport owner recovers bundleId from the immutable
+report when a read supplies only reportId; an explicitly supplied wrong bundle
+still fails. `read-observation` requires membership in that saved report and
+returns its exact retained document windows. Original-byte, parser, scope and
+content checks are shared with the existing availability verifier. It neither
+acquires sources nor writes new observations. Missing originals keep the report
+readable and disable its source action; changed content fails instead of opening
+a current revision. Non-document source observations retain their existing
+source-bundle entry point. No attempt, Data or Environment owner changed.
+
+The UI uses shared Button, Feedback, Disclosure and Table components. It shows
+original HTML as text (never executes markup), exact prose/tokens or table cells,
+and labels image references as unobserved. PDF citation navigation remains intact.
+
+Final checks: source-report Python **11/11**, document Python **9/9**, installed
+App-write/manual-evidence contracts **6/6**, TypeScript, App build and the full
+`paper-record-evidence.mjs` browser journey pass. The authenticated loopback test
+checks report-only lookup, exact table and HTML windows, no new observations,
+wrong identity/authorization, corrupted source refusal and retained report.
+Use `/opt/homebrew/opt/node@24/bin/node --experimental-transform-types --test
+ tests/e2e/paper-manual-evidence.test.ts` for that existing TypeScript contract
+suite; Node 26 no longer accepts its transform flag. Python here is 3.12.
+
+Inspected `html-source-light.png` and `html-source-dark-narrow.png` join the PDF
+screenshots under the same local evidence directory. The browser uses synthetic
+API responses; actual HTTP/storage checking is the separate Python suite.
+No real model call, human scientific review, Electron/Native or release-package
+acceptance was added. #79's lifecycle and cross-owner handoff gaps remain open.
