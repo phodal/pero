@@ -38,6 +38,13 @@ class PcgymApp:
         self.pending_approvals = {}
         self.closed = False
 
+    def selected_runtime(self):
+        binding = self.store.root.parent / '.compute' / 'binding.json'
+        if binding.exists():
+            value = pcgym.read_json(binding)
+            return observe_scientific_python(str(Path(value['root']) / 'bin/python'), binding)
+        return observe_scientific_python(self.scientific_python)
+
     def save(self, kind, value):
         # Immutable store compares decoded JSON: normalize tuple-bearing core values once.
         value = json.loads(canonical(value))
@@ -121,7 +128,7 @@ class PcgymApp:
         checkout, sources, manifest = read_checkout(self.checkout)
         if sorted(audited['audit']['source_manifest'], key=lambda f: f['path']) != sorted(manifest['files'], key=lambda f: f['path']):
             raise Invalid('source_changed', 'Execution checkout differs from the inspected source bytes')
-        runtime = observe_scientific_python(self.scientific_python)
+        runtime = self.selected_runtime()
         spec = ReproductionSpec.create(seed=data['seed'], profile=data['profile'],
             packages=dict(runtime.packages), source_manifest_digest=digest(manifest),
             python_version=runtime.python_version, pipeline_digest=pipeline_digest(), scientific_runtime_digest=runtime.identity,
@@ -130,9 +137,14 @@ class PcgymApp:
         with self.lock:
             root = self.bundle(spec.id)
             root.mkdir(parents=True, exist_ok=True)
-            for name, value in {'spec': spec.to_dict(), 'audit': audited['audit'], 'claim': audited['claim'],
+            frozen = {'spec': spec.to_dict(), 'audit': audited['audit'], 'claim': audited['claim'],
                                 'source-manifest': manifest, 'paper-binding': binding,
-                                'local': dict(checkout=str(checkout), interpreter=runtime.executable, scientific_runtime=runtime.to_dict())}.items():
+                                'local': dict(checkout=str(checkout), interpreter=runtime.executable, scientific_runtime=runtime.to_dict())}
+            if runtime.prepared_profile:
+                frozen['compute-profile'] = pcgym.read_json(self.store.root.parent / '.compute/binding.json')
+                if digest(frozen['compute-profile']) != runtime.prepared_profile:
+                    raise Invalid('environment_changed', 'Compute selection changed during freeze; retry explicitly')
+            for name, value in frozen.items():
                 path = root / (name + '.json')
                 if path.exists():
                     if pcgym.read_json(path) != json.loads(canonical(value)):
@@ -185,7 +197,7 @@ class PcgymApp:
         value['requests'] = requests
         return value
 
-    def start(self, data):
+    def start(self, data, *, approval_digest=None):
         fields(data, ('action', 'specId', 'requestId', 'confirmation'))
         if not self.allow_execution or self.checkout is None:
             raise RequestInvalid('Local compute is not enabled by the trusted composition root', 403)
@@ -217,17 +229,23 @@ class PcgymApp:
                                            for a in current['attempts'])
             if unresolved or any(process.poll() is None for process in self.processes.values()) or (root / 'running.lock').exists():
                 raise RequestInvalid('A live or interrupted operation requires reconciliation before retry', 409)
-            runtime = observe_scientific_python(self.scientific_python)
+            runtime = self.selected_runtime()
             if local.get('interpreter') != runtime.executable:
                 raise Invalid('execution_configuration_changed', 'Scientific interpreter differs from the frozen selection')
             runtime.require(spec, ScientificPython.parse(local['scientific_runtime']) if 'scientific_runtime' in local else None)
+            environment = interpreter_environment()
+            if runtime.prepared_profile is not None:
+                if approval_digest is None:
+                    raise Invalid('approval_required', 'Managed computation requires the original private Host approval')
+                from pero_scientific import owner_environment
+                environment.update(owner_environment(), PERO_SCIENTIFIC_APPROVAL=approval_digest)
             self.store._write('pcgym-requests', key, dict(spec_id=spec.id, request_id=request_id,
                 prior_attempt_ids=[a['attempt_id'] for a in self.status(spec.id)['attempts']]))
             # Reuse the CLI's sole runtime owner, timeout, cancellation and checker.
-            self.processes[spec.id] = subprocess.Popen([self.scientific_python, '-E', '-s', '-B', '-m', 'paper_agent.pcgym',
+            self.processes[spec.id] = subprocess.Popen([runtime.executable, '-E', '-s', '-B', '-m', 'paper_agent.pcgym',
                 'run', '--bundle', str(root), '--spec-sha', spec.id,
                 '--confirm-execution', '--accept-audit-findings'],
-                cwd=str(Path(__file__).resolve().parents[1]), env=interpreter_environment(), stdin=subprocess.DEVNULL,
+                cwd=str(Path(__file__).resolve().parents[1]), env=environment, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.process_requests[spec.id] = request_id
         return dict(spec_id=spec.id, status='starting', paper_verdict='INCONCLUSIVE')
@@ -378,10 +396,11 @@ Keep `local.json` out of shared copies; it contains local paths.
         if self.binding(binding['anchor']['paper_id'], binding['annotation_id']) != binding:
             raise Invalid('pdf_changed', 'The selected Paper/PDF changed since freeze')
         local = pcgym.read_json(root / 'local.json')
-        if (self.checkout is None or str(Path(self.checkout).absolute()) != local.get('checkout')
-                or local.get('interpreter') != self.scientific_python):
+        if self.checkout is None or str(Path(self.checkout).absolute()) != local.get('checkout'):
             raise Invalid('execution_configuration_changed', 'The trusted checkout or interpreter differs from the frozen specification')
-        runtime = observe_scientific_python(self.scientific_python)
+        runtime = self.selected_runtime()
+        if local.get('interpreter') != runtime.executable:
+            raise Invalid('execution_configuration_changed', 'Scientific interpreter differs from frozen selection')
         runtime.require(spec, ScientificPython.parse(local['scientific_runtime']) if 'scientific_runtime' in local else None)
         # Legacy bundles retain their bytes; a new approval still binds a fresh observation.
         return ReproductionApproval.create(item, spec, data['requestId'], binding,
@@ -415,6 +434,12 @@ Keep `local.json` out of shared copies; it contains local paths.
             + '\n'.join(spec.deviations()) + '\n' +
             'This runs pinned code with the configured local interpreter. No installation or download is performed.\n'
             'Original metric and experiment identity remain unresolved. Paper verdict remains INCONCLUSIVE.')
+        local = pcgym.read_json(self.bundle(spec.id) / 'local.json')
+        runtime = local.get('scientific_runtime', {})
+        if runtime.get('prepared_profile'):
+            summary += f"\nManaged Compute Profile: {runtime['prepared_profile']}\nInstalled content: {runtime['installation']}"
+        else:
+            summary += '\nObserved existing environment; no complete preparation lock is claimed.'
         return summary
 
     def host_command(self, data):
@@ -465,7 +490,7 @@ Keep `local.json` out of shared copies; it contains local paths.
             if plan.dispatch:
                 try:
                     self.start(dict(action='start', specId=approval.spec_id, requestId=approval.request_id,
-                                    confirmation='execute-frozen-local-simulation'))
+                                    confirmation='execute-frozen-local-simulation'), approval_digest=approval.digest)
                 except (Invalid, RequestInvalid, OSError):
                     failure = dispatch_failure(key in self.store._list('pcgym-requests'))
                     if failure.persist:

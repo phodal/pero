@@ -8,6 +8,7 @@ download occurs here. This proves runtime separation, not PDF/UI acceptance.
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -28,10 +29,16 @@ def main():
     parser.add_argument('--science-python', required=True)
     parser.add_argument('--checkout', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--managed-profile', type=Path)
     args = parser.parse_args()
     root = args.output.resolve()
-    root.mkdir(parents=True, exist_ok=False)
-    service, science = current(), observe(args.science_python)
+    root.mkdir(parents=True, exist_ok=args.managed_profile is not None)
+    if args.managed_profile:
+        assert sys.stdin.readline() == 'execute\n', 'Wait for the Rust process owner'
+        binding = root / '.compute/binding.json'
+        binding.parent.mkdir(parents=True, exist_ok=True)
+        binding.write_bytes(args.managed_profile.read_bytes())
+    service, science = current(), observe(args.science_python, args.managed_profile)
     assert service.executable != science.executable, 'Use separate App and scientific interpreters'
     assert all(version != 'MISSING' for _, version in science.packages)
     store = ResearchStore(root)
@@ -69,6 +76,10 @@ def main():
         attempt = status['attempts'][0]
         assert attempt['status'] == 'completed', attempt
         bundle = app.bundle(ids['specId'])
+        if args.managed_profile:
+            use = pcgym.read_json(bundle / 'attempts' / attempt['attempt_id'] / 'environment-use.json')
+            assert use['use']['state'] == 'Released', use
+            assert use['approval'] == ticket['bindingDigest']
         checked = pcgym.check_attempt(bundle, attempt['attempt_id'])
         assert checked['numeric_recomputation'] == 'PASS', checked
         assert checked['execution_evidence'] == 'CONSISTENT', checked
@@ -100,7 +111,10 @@ def main():
         cancelled = next(a for a in app.status(ids['specId'])['attempts']
                          if a['attempt_id'] == candidate['attempt_id'])
         assert cancelled['status'] == 'cancelled', cancelled
-        result = dict(scope='Real PC-Gym computation; synthetic Paper selection; no Desktop/Host Use acceptance',
+        if args.managed_profile:
+            cancelled_use = pcgym.read_json(bundle / 'attempts' / candidate['attempt_id'] / 'environment-use.json')
+            assert cancelled_use['use']['state'] == 'Released', cancelled_use
+        result = dict(scope='Real PC-Gym computation; synthetic Paper selection; Rust Use bridge when managed; no Desktop acceptance',
             app_runtime=service.to_dict(), scientific_runtime=science.to_dict(), item=ids,
             attempt=attempt, cancelled_attempt=cancelled, verification=checked,
             standalone_checker=json.loads(independent.stdout))

@@ -140,4 +140,4 @@ def audit_sources(files, *, pinned=False):
 def pipeline_digest():
     root = Path(__file__).resolve().parent
     return digest({name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-                   for name in ('pcgym_domain.py', 'pcgym_sources.py', 'pcgym_runtime.py', 'pcgym.py', 'scientific_python.py')})
+                   for name in ('pcgym_domain.py', 'pcgym_sources.py', 'pcgym_runtime.py', 'pcgym.py', 'scientific_python.py', '../pero_scientific.py')})

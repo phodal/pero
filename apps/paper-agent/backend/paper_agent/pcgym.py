@@ -124,6 +124,8 @@ def check_attempt(root, attempt_id):
 
 
 def worker(root, attempt_id):
+    if (root / 'compute-profile.json').exists() and sys.stdin.readline() != 'execute\n':
+        raise Invalid('environment_use_required', 'Host did not admit this scientific child')
     from .pcgym_runtime import run_case
     spec = load_spec(root)
     local = read_json(root / 'local.json')
@@ -155,6 +157,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                'phase': 'preflight', 'worker_started': False}
     write_json(target / 'execution.json', receipt)
     process = None
+    use = None
     old_handlers = {name: signal.getsignal(name) for name in (signal.SIGTERM, signal.SIGINT)}
     cancelling = False
 
@@ -176,9 +179,13 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
             raise Invalid('interpreter_changed', 'Run with the interpreter used to prepare this specification')
         if spec.scientific_runtime_digest is not None or 'scientific_runtime' in local:
             from .scientific_python import ScientificPython, current
-            current().require(spec, ScientificPython.parse(local['scientific_runtime'])
+            current(root / 'compute-profile.json' if (root / 'compute-profile.json').exists() else None).require(spec, ScientificPython.parse(local['scientific_runtime'])
                               if 'scientific_runtime' in local else None)
         preflight(spec, local['checkout'])
+        if (root / 'compute-profile.json').exists():
+            from pero_scientific import ScientificUse
+            use = ScientificUse(target, read_json(root / 'compute-profile.json'), spec.id,
+                                os.environ.get('PERO_SCIENTIFIC_APPROVAL'))
         # The parent remains inside the Host-owned process tree; no detached session.
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT', 'WINDIR') if k in os.environ}
         home = target / 'runtime-home'
@@ -189,8 +196,11 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
         with (target / 'execution.log').open('wb') as log:
             process = subprocess.Popen([sys.executable, '-m', 'paper_agent.pcgym', '_worker',
                                         '--bundle', str(root), '--attempt', attempt_id],
-                                       cwd=target, env=env, stdin=subprocess.DEVNULL, stdout=log,
-                                       stderr=subprocess.STDOUT, start_new_session=False)
+                                       cwd=target, env=env, stdin=subprocess.PIPE if use else subprocess.DEVNULL, stdout=log,
+                                       stderr=subprocess.STDOUT, start_new_session=False,
+                                       **({'process_group':0} if use else {}))
+            if use:
+                use.started(process)
             receipt.update(phase='worker', worker_started=True)
             write_json(target / 'execution.json', receipt)
             deadline = time.monotonic() + spec.timeout_seconds
@@ -213,7 +223,7 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
                        observations_sha256=hashlib.sha256((target / 'observations.json').read_bytes()).hexdigest())
     except KeyboardInterrupt:
         receipt.update(status='cancelled', error='Operator or Host requested cancellation')
-    except (Invalid, OSError) as error:
+    except (Invalid, OSError, ValueError) as error:
         receipt.update(status='failed', error=str(error)[:4096], error_code=getattr(error, 'code', 'io'))
     finally:
         # Repeated App cancel/close or CLI interrupt must not interrupt terminate/wait/kill or
@@ -221,15 +231,22 @@ def run(root, spec_id, *, confirm=False, accept_findings=False):
         cancelling = True
         try:
             if process is not None and process.poll() is None:
-                process.terminate()
+                use.stop(process) if use else process.terminate()
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    process.kill()
+                    use.stop(process, force=True) if use else process.kill()
                     try:
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         receipt.update(status='unknown', error='Cannot confirm child termination; reconcile before retry')
+            if use is not None:
+                try:
+                    if process is not None:
+                        use.stop(process, force=True)
+                    use.finish()
+                except (OSError, ValueError) as error:
+                    receipt.update(status='unknown', error=f'Environment Use requires reconciliation: {error}')
             if 'error' in receipt:
                 # Keep failures observable even when preflight never started a worker.
                 path = target / 'execution.log'
@@ -258,6 +275,8 @@ def export(root, attempt_id, destination, *, verification_item=None, research_re
     if report['numeric_recomputation'] != 'PASS':
         raise Invalid('integrity', 'Cannot export evidence whose observation receipt does not match')
     files = {name: root / name for name in ('claim.json', 'spec.json', 'audit.json', 'source-manifest.json')}
+    if (root / 'compute-profile.json').is_file():
+        files['compute-profile.json'] = root / 'compute-profile.json'
     spec = load_spec(root)
     if spec.paper_binding_digest is not None:
         binding = root / 'paper-binding.json'
@@ -267,7 +286,7 @@ def export(root, attempt_id, destination, *, verification_item=None, research_re
     files.update({name: target / name for name in ('execution.json', 'observations.json', 'verification.json')})
     # Additional raw output is numeric only; the optional binding above includes
     # the observed PDF passage text, but no full PDF/source file or pickle.
-    for name in ('base-raw.npz', 'shaped-raw.npz', 'oracle-raw.npz', 'environment.json'):
+    for name in ('base-raw.npz', 'shaped-raw.npz', 'oracle-raw.npz', 'environment.json', 'environment-use.json'):
         if (target / name).is_file():
             files[name] = target / name
     if any(p.is_symlink() for p in files.values()):
