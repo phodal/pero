@@ -32,6 +32,7 @@ export const structuredTableMessages = {
   registrationTable: { en: 'Registration table', zh: '登记表' },
   lookupTable: { en: 'Lookup table', zh: '查询表' },
   tableName: { en: 'Table name', zh: '表名' },
+  settings: { en: 'Table settings', zh: '表格设置' },
   schema: { en: 'Schema', zh: '数据结构' },
   revision: { en: 'Revision {number}', zh: '修订 {number}' },
   catalogId: { en: 'Catalog ID', zh: '目录 ID' },
@@ -260,9 +261,6 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     help={registration ? { title: t('registrationScope'), content: <p>{t('catalogScope')}</p> } : undefined}
     title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t('requiredTableName')} aria-required="true" maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
     caption={<Badge tone={submitted ? 'info' : 'neutral'}>{t(submitted ? 'submitted' : receipts.length ? 'changed' : 'inputDraft')}</Badge>}>
-    <Disclosure variant="inline" summary={t('schema')}>
-      <p><code>{table.schema.id}</code> · {t('revision', { number: table.schema.revision })}</p>
-    </Disclosure>
     <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
     {activeView && !viewError && <p role="status">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
     {viewError && <Feedback kind="warning">{viewError}</Feedback>}
@@ -285,8 +283,13 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     {!table.rows.length && !editable && <p className="notebook-note">{t('noRows')}</p>}
     {editable && <div className="notebook-structured-actions">
       <Button variant="ghost" disabled={table.rows.length >= structuredTableLimits.rows} onClick={() => edit({ type: 'addRow', id: identity() })}>{t('addRow')}</Button>
-      <Button variant="ghost" disabled={table.schema.columns.length >= structuredTableLimits.columns} onClick={() => setColumn({ id: identity(), name: t('column', { number: table.schema.columns.length + 1 }), type: 'text', required: false, options: [], units: [] })}>{t('addColumn')}</Button>
     </div>}
+    <Disclosure variant="inline" summary={t('settings')}>
+    <Disclosure variant="inline" summary={t('schema')}>
+      <p><code>{table.schema.id}</code> · {t('revision', { number: table.schema.revision })}</p>
+    </Disclosure>
+      {editable && <Button variant="ghost" disabled={table.schema.columns.length >= structuredTableLimits.columns} onClick={() => setColumn({ id: identity(), name: t('column', { number: table.schema.columns.length + 1 }), type: 'text', required: false, options: [], units: [] })}>{t('addColumn')}</Button>}
+    </Disclosure>
     {registration && editorEditable && <>
       {issues.length > 0 && issues.every(issue => issue.code === 'required') && <Disclosure variant="inline" summary={t('waiver')}>
         <p>{t('waiverScope')}</p>

@@ -87,6 +87,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   for (const [index, kind] of kinds.entries()) {
     await button('Add step').click();
     const step = procedureSteps.nth(index);
+    await step.getByText('Step settings', { exact: true }).click();
     await select('Step kind', kind, step);
     await step.getByRole('textbox', { name: 'Step formatting', exact: true }).fill(`${kind} instructions`);
     await step.getByLabel(`Planned minutes ${index + 1}`, { exact: true }).fill('2');

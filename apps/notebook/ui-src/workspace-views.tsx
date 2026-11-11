@@ -69,6 +69,8 @@ const messages = {
   materials: { en: 'Materials', zh: '材料' }, addMaterial: { en: 'Add material', zh: '添加材料' },
   materialName: { en: 'Material {number}', zh: '材料 {number}' }, quantity: { en: 'Quantity {number}', zh: '用量 {number}' },
   removeMaterial: { en: 'Remove material {number}', zh: '移除材料 {number}' }, noMaterials: { en: 'No materials recorded', zh: '未记录材料' },
+  stepOptions: { en: 'Step settings', zh: '步骤设置' },
+  planned: { en: '{minutes} min', zh: '{minutes} 分钟' },
   steps: { en: 'Steps', zh: '步骤' }, addStep: { en: 'Add step', zh: '添加步骤' },
   stepText: { en: 'Step text {number}', zh: '步骤内容 {number}' }, stepLevel: { en: 'Step level {number}', zh: '步骤层级 {number}' },
   step: { en: 'Step', zh: '步骤' }, section: { en: 'Section', zh: '章节' }, substep: { en: 'Substep', zh: '子步骤' },
@@ -167,7 +169,20 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
       </div>
       {!procedure.steps.length && <p className="notebook-workspace-hint">{t('noSteps')}</p>}
       <ol className="notebook-procedure-steps">{procedure.steps.map((step, index) => <li key={step.id} id={`notebook-target-${step.id}`} tabIndex={-1} data-level={step.level} data-critical={step.critical || undefined}>
-        <div className="notebook-workspace-actions"><strong>{index + 1}.</strong><Button variant="ghost" onClick={() => onCopyLink(step.id)}>{t('copyLink')}</Button>
+        <div className="notebook-workspace-actions">
+          <strong>{index + 1}.</strong>
+          <label className="notebook-checkbox"><Checkbox checked={step.completed} disabled={readonly}
+            onCheckedChange={checked => editStep(step.id, { completed: checked === true })} />{t('completed')}</label>
+          {step.critical && <Badge tone="warning">{t('critical')}</Badge>}
+          {step.pause && <Badge>{t('pause')}</Badge>}
+          {step.minutes !== null && <Badge>{t('planned', { minutes: step.minutes })}</Badge>}
+          {step.kind && step.kind !== 'step' && <Badge>{t(step.kind)}</Badge>}
+        </div>
+        <ProcedureStepEditor step={step} readonly={readonly} onChange={patch => editStep(step.id, patch)} />
+        {step.kind === 'timer' && <ProcedureTimerView step={step} readonly={readonly}
+          onAction={(action, now) => apply({ type: 'timer', id, stepId: step.id, action, now })} />}
+        <Disclosure variant="inline" summary={t('stepOptions')}>
+        <div className="notebook-workspace-actions"><Button variant="ghost" onClick={() => onCopyLink(step.id)}>{t('copyLink')}</Button>
           <Select label={t('stepLevel', { number: index + 1 })} value={step.level} disabled={readonly}
             options={(['step', 'section', 'substep'] as const).map(level => ({ value: level, label: t(level) }))}
             onChange={value => editStep(step.id, { level: value as NotebookProcedureStep['level'] })} />
@@ -180,15 +195,13 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
         <Select label={t('stepKind')} value={step.kind ?? 'step'} disabled={readonly}
           options={procedureKinds.map(kind => ({ value: kind, label: t(kind) }))}
           onChange={kind => editStep(step.id, { kind: kind as NotebookProcedureStep['kind'], ...(kind !== 'timer' ? { timer: undefined } : {}) })} />
-        <ProcedureStepEditor step={step} readonly={readonly} onChange={patch => editStep(step.id, patch)} />
-        {step.kind === 'timer' && <ProcedureTimerView step={step} readonly={readonly}
-          onAction={(action, now) => apply({ type: 'timer', id, stepId: step.id, action, now })} />}
         <div className="notebook-workspace-actions">
-          {(['critical', 'pause', 'completed'] as const).map(key => <label key={key} className="notebook-checkbox">
+          {(['critical', 'pause'] as const).map(key => <label key={key} className="notebook-checkbox">
             <Checkbox checked={step[key]} disabled={readonly} onCheckedChange={checked => editStep(step.id, { [key]: checked === true })} />{t(key)}
           </label>)}
           <DurationField minutes={step.minutes} number={index + 1} readonly={readonly} onChange={minutes => editStep(step.id, { minutes })} />
         </div>
+        </Disclosure>
       </li>)}</ol>
     </section>
     <Disclosure variant="inline" summary={t('introduction')} defaultOpen={!!procedure.description || !!procedure.introduction?.content?.some(node => node.type !== 'paragraph' || !!node.content?.length)}>
@@ -346,10 +359,10 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       <div className="notebook-documentbar">
         {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
         {chrome?.onSave && <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button>}
-        <Button variant="ghost" aria-label={t('search')} onClick={openSearch}><Icon name="search" />{t('search')}</Button>
-        {chrome?.propertyTools}
+        <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
         <NotebookMenu name={t('file')} menu="file" caret>
           {close => <>
+          {chrome?.propertyTools}
           {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={() => { chrome.onHistory?.(); close(); }}>{notebook('history')}</Button>}
           {chrome?.fileTools}
           {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
@@ -426,11 +439,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     {mention && <EntryMentionDialog draft={mention} notices={document.notices ?? []} editor={editor}
       onDraft={setMention} onClose={() => setMention(null)}
       onSaved={notices => { onChange({ notices }); setError(''); }} onInvalid={setError} />}
-    <div className="notebook-statusbar">
-      <NotebookStatusBar editor={editor} variant="output" />
-      <Button variant="ghost" onClick={() => window.document.dispatchEvent(new CustomEvent('pero:notebook-shortcuts'))}>{t('keyboardShortcuts')}</Button>
-
-    </div>
+    <NotebookStatusBar editor={editor} variant="output" />
     {dialog === 'search' && <Dialog title={t('search')} closeLabel={t('close')} size="lg" onClose={() => setDialog(null)} restoreFocus={!navigated.current}>
       <Field label={t('searchLabel')} description={t('searchHint')}>{control => <SearchField {...control} value={query} onChange={event => setQuery(event.target.value)} />}</Field>
       <p className="notebook-workspace-hint" role="status">{t('resultCount', { count: results.length })}</p>

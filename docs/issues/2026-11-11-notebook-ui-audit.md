@@ -135,3 +135,29 @@ is retained as `ci-notebook/baseline-source-excerpt.png`.
 The shortcut cases explicitly set Mac/Linux navigator platforms within the test;
 this is not a Linux OS run. Latest Linux CI must run after integration. No
 Electron, Native, paid model or scientific acceptance was performed here.
+
+## Follow-up: reduce persistent controls
+
+User feedback: the interface remains cluttered and exposes too many operations.
+The first repair fixed individual access/layout defects but did not sufficiently
+reduce visual density. A fresh browser capture at 440px found 31 visible editor
+chrome controls and the title beginning at y=458px. Normal procedure steps expose
+structural editing controls alongside execution. Evidence and table metadata
+precede their main content.
+
+Continue with progressive disclosure: keep insertion/save/content access direct;
+make formatting, library administration and step settings explicit optional tools;
+move table configuration after its data; consolidate evidence provenance and move
+snapshot replacement into block actions. Preserve all data, warnings, keyboard
+commands and active step properties. Table view selection and active filters stay
+directly accessible; schema and new-column configuration sit below the data.
+
+Verification on the archive integration branch, macOS with the declared Python
+dependencies: Notebook typecheck/build, 110 editor tests and all 7 browser suites
+passed. Existing browser journeys now open Format, File → Properties, reference
+Block actions and Step settings through their visible controls; persistence, exact
+snapshots, printing, procedure kinds and nested dialogs retain their assertions.
+Visually inspected the current light desktop, narrow dark document and dark
+Properties dialog in `test-results/notebook/{copied-notebook.png,
+copied-notebook-narrow-dark.png,notebook-home-narrow-dark.png}`. Packaged Electron
+and Native embedding were not retested.
