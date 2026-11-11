@@ -1,4 +1,5 @@
 export const messages = {
+  mystDocument: { en: 'MyST document', zh: 'MyST 文档' },
   namedReference: { en: 'Named reference', zh: '命名引用' },
   addNamedReference: { en: 'Add named reference', zh: '添加命名引用' },
   editNamedReference: { en: 'Edit reference', zh: '编辑引用' },

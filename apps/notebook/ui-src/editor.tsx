@@ -1,3 +1,4 @@
+import { NotebookMystTools } from './myst-document';
 import { DatedSectionTools, NamedReferenceTools } from './notebook-reference-controls';
 import { NotebookFileIntake } from './file-intake';
 import { NotebookCommandTools, NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
@@ -157,6 +158,8 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       <summary>{t('moreBlocks')}</summary>
       {['sourceExcerpt', 'sampleIntake', 'appCanvas', 'mixturePrep', 'inputTable', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
       <p className="notebook-menu-label">{t('insertDocument')}</p>
+      {widgetButton('mystDocument')}
+      <NotebookMystTools editor={editor} onInsert={nodes => insertBlocks(editor, nodes)} />
       <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
       <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
       {editor.schema.nodes.referenceMention && <NotebookReferenceMentionPicker editor={editor} />}

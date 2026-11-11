@@ -1,0 +1,18 @@
+export const mystMessages = {
+  source: { en: 'MyST source', zh: 'MyST 源码' },
+  preview: { en: 'MyST preview', zh: 'MyST 预览' },
+  import: { en: 'Import MyST document', zh: '导入 MyST 文档' },
+  importHint: { en: 'Import .md, .myst or .myst.json as a new block. Existing content is kept.', zh: '将 .md、.myst 或 .myst.json 导入为新块，保留现有内容。' },
+  imported: { en: 'MyST document inserted. Save the notebook to keep this draft.', zh: '已插入 MyST 文档，请保存笔记以保留此草稿。' },
+  sourceDownload: { en: 'Download source', zh: '下载源码' },
+  bundleDownload: { en: 'Download MyST bundle', zh: '下载 MyST 文件包' },
+  htmlDownload: { en: 'Download HTML', zh: '下载 HTML' },
+  downloaded: { en: 'Download prepared.', zh: '已准备下载。' },
+  limit: { en: 'MyST source must be at most 256 KiB (UTF-8). The previous source is unchanged.', zh: 'MyST 源码不能超过 256 KiB（UTF-8），原有源码未更改。' },
+  fileLimit: { en: 'The file is too large to import.', zh: '文件过大，无法导入。' },
+  fileType: { en: 'Choose a .md, .myst or .myst.json file.', zh: '请选择 .md、.myst 或 .myst.json 文件。' },
+  unavailable: { en: 'This MyST block uses an unsupported or invalid schema. Source is read-only; it can still be downloaded.', zh: '此 MyST 块使用不支持或无效的格式。源码为只读，仍可下载。' },
+  boundaries: { en: 'Local static preview. Code, plugins and remote assets are not executed or fetched. Unsupported syntax is kept in the original source.', zh: '本地静态预览，不执行代码或插件，也不获取远程资源。不支持的语法保留在原始源码中。' },
+  diagnostics: { en: 'MyST diagnostics', zh: 'MyST 诊断' },
+  insertFailed: { en: 'The document could not be inserted. Keep the file and try again in an editable notebook.', zh: '无法插入文档，请保留文件并在可编辑笔记中重试。' },
+} as const;

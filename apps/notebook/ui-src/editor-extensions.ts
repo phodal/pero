@@ -1,3 +1,4 @@
+import { MystDocumentView } from './myst-document';
 import { NamedReferenceView } from './notebook-reference-controls';
 import { SourceExcerptView } from './source-excerpt';
 import { ReactionSchemeView, ChemicalView } from './scientific-content';
@@ -30,6 +31,7 @@ import { NoteCardView } from './note-card';
 import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 export const widgets = [
+  { name: 'mystDocument', icon: 'document', defaults: { schemaVersion: 1, source: '' }, view: MystDocumentView },
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
   { name: 'sourceExcerpt', icon: 'document', defaults: { label: '', excerpt: null }, view: SourceExcerptView },
   { name: 'reactionScheme', icon: 'flask', defaults: { reaction: emptyReaction(), record: null }, view: ReactionSchemeView },
