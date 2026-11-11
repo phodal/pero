@@ -11,7 +11,7 @@ const profiles=resolve(root,'target/skills-market-e2e');
 await mkdir(profiles,{recursive:true});await mkdir(out,{recursive:true});
 await rm(resolve(out,'failure.png'),{force:true});
 const profile=await mkdtemp(resolve(profiles,'install-'));
-const fixture=await createSourceFixture(profile);
+const fixture=await createSourceFixture(profile,{generalName:'slow'});
 const forwarder=await buildForwarder(profile,{realHarness:process.env.PERO_SKILLS_HARNESS_PATH || resolve(root,'target/debug/pero-agent-acp'+(process.platform==='win32'?'.exe':''))});
 const agents=resolve(profile,'agents.json'),settings=resolve(profile,'settings.json');
 await writeFile(agents,JSON.stringify([{id:'pero',name:'Pero install fixture',command:forwarder.command,args:[],env:{}}]));

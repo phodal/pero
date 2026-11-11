@@ -25,7 +25,7 @@ async function ok(operation,input){const reply=await market(operation,input);ass
 async function readyFile(path){const deadline=Date.now()+15000;while(true){try{await access(path);return;}catch(error){if(error.code!=='ENOENT')throw error;}assert(Date.now()<deadline,'Acquisition did not publish readiness');await new Promise(done=>setTimeout(done,20));}}
 async function stop(){host.stdin.end();const timer=setTimeout(()=>host.kill('SIGKILL'),5000);const[code]=await exit;clearTimeout(timer);host=null;assert.equal(code,0,stderr);}
 try{
-  const fixture=await createSourceFixture(directory);
+  const fixture=await createSourceFixture(directory,{generalName:'slow'});
   const harness=process.env.PERO_SKILLS_HARNESS_PATH||join(root,'target/debug/pero-agent-acp'+(process.platform==='win32'?'.exe':''));
   const forwarder=await buildForwarder(directory,{realHarness:harness});
   await writeFile(join(directory,'agents.json'),JSON.stringify([{id:'pero',name:'Actual acquisition fixture',command:forwarder.command,args:[],env:{}}]));
