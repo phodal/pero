@@ -39,7 +39,7 @@ try{
  await expect(control.getByLabel('Template',{exact:true})).toBeVisible({timeout:30000});
  const old=await savedTrial();const servicePid=pid();expect(servicePid).toHaveLength(1);
  await clickAppShortcut(page,'environments');frame=page.frameLocator('iframe[title="environments"]');
- await frame.getByRole('tab',{name:'Control compute',exact:true}).click();
+ await frame.getByRole('tab',{name:'Compute',exact:true}).click();
  await expect(frame.getByText('No locked compute profiles yet',{exact:true})).toBeVisible();await screenshot('01-empty-light');
  page.on('response',async response=>{if(response.url().endsWith('/host/environment/profiles')&&response.ok()){const request=response.request().postDataJSON();if(request.operation==='list'&&request.compute){const rows=await response.json().catch(()=>[]);observed.push(...rows.map(v=>({id:v.id,state:v.state,log:v.log})));}}});
  await frame.getByRole('button',{name:'Create compute profile',exact:true}).click();
@@ -57,8 +57,8 @@ try{
  await expect(frame.locator('progress')).toBeVisible();
  await expect.poll(()=>observed.some(value=>value.state==='preparing'&&value.log.length>0),{timeout:60000}).toBe(true);
  await screenshot('02-preparing-light');
- await expect(frame.getByRole('button',{name:'Use for Control calculations',exact:true})).toBeEnabled({timeout:180000});
- await frame.getByRole('button',{name:'Use for Control calculations',exact:true}).click();
+ await expect(frame.getByRole('button',{name:'Use for this method',exact:true})).toBeEnabled({timeout:180000});
+ await frame.getByRole('button',{name:'Use for this method',exact:true}).click();
  await expect(frame.getByText('Currently selected',{exact:true})).toBeVisible({timeout:30000});
  const first=(await profiles()).find(v=>v.bound);expect(first.label).toBe('Control locked A');expect(pid()).toEqual(servicePid);
  await screenshot('03-selected-light');
@@ -82,9 +82,9 @@ try{
  expect((await profiles()).find(v=>v.bound).id).toBe(first.id);
  await writeFile(lockPath,lock);
  await frame.getByRole('button',{name:'Retry preparation',exact:true}).click();
- await expect(frame.getByRole('button',{name:'Use for Control calculations',exact:true})).toBeEnabled({timeout:120000});
+ await expect(frame.getByRole('button',{name:'Use for this method',exact:true})).toBeEnabled({timeout:120000});
  const rebuilt=(await profiles()).find(v=>v.id===second.id);expect(rebuilt.prepared.lock_sha256).toBe(first.prepared.lock_sha256);expect(rebuilt.prepared.root).not.toBe(first.prepared.root);
- await frame.getByRole('button',{name:'Use for Control calculations',exact:true}).click();
+ await frame.getByRole('button',{name:'Use for this method',exact:true}).click();
  await expect(frame.getByText('Currently selected',{exact:true})).toBeVisible({timeout:30000});expect(pid()).toEqual(servicePid);
  await setAppearance(page,'dark');await expect.poll(()=>frame.locator('html').evaluate(el=>el.style.colorScheme)).toBe('dark');
  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setMinimumSize(480,600);BrowserWindow.getAllWindows()[0].setSize(720,800);});
@@ -94,8 +94,8 @@ try{
  await expect(frame.getByRole('button',{name:'Rebuild from same lock',exact:true})).toBeFocused();await screenshot('07-keyboard-focus');
  await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
  await expect(frame.getByText('当前计算环境',{exact:true})).toBeVisible();await screenshot('08-selected-dark-zh');
- await frame.getByRole('button',{name:'使用 App 服务环境',exact:true}).click();
- await expect(frame.getByText('尚未选择独立计算环境，Control Lab 继续使用 App 服务环境。',{exact:true})).toBeVisible();
+ await frame.getByRole('button',{name:'恢复原配置环境',exact:true}).click();
+ await expect(frame.getByText('尚未选择独立计算环境，计算继续使用原配置环境。',{exact:true})).toBeVisible();
  expect((await profiles()).some(v=>v.bound)).toBe(false);expect(pid()).toEqual(servicePid);
  expect(JSON.parse(await readFile(resolve(profile,'settings.json'),'utf8')).app_python).toEqual(initialSettings);
  await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-en').click();BrowserWindow.getAllWindows()[0].setSize(1280,850);});

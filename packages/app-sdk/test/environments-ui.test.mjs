@@ -147,12 +147,12 @@ test('compute preparation polls persisted progress while Prepare waits and prese
     return response(input.compute?[value]:[]);
   };
   await render(React.createElement(ui.EnvironmentManager,{fetchFn}));
-  await focus(button('Control compute')); await click(button('Research'));
+  await focus(button('Compute')); await click(button('Research'));
   await click(button('Prepare environment'));
   await React.act(async()=>t.mock.timers.tick(1000));
   assert.match(document.querySelector('.env-preparation-progress').textContent,/Downloading scipy wheel/);
   assert.equal(document.querySelector('progress').hasAttribute('value'),false);
-  assert.equal(button('Use for Control calculations'),undefined);
+  assert.equal(button('Use for this method'),undefined);
   value={...value,state:'failed',error:'No compatible wheel',log:['No compatible wheel']};
   await React.act(async()=>finish(response([value])));
   assert.match(document.querySelector('[role=alert]').textContent,/No compatible wheel/);
