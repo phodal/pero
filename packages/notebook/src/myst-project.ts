@@ -103,7 +103,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       const merged = inheritMystMetadata(first?.scholarly ?? {}, normalized.normalized, 'notebook');
       const inherited = inheritMystMetadata(merged.normalized, validated.normalized);
       diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
-      const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}) };
+      const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}), ...(merged.normalized.bibliography ? { bibliography: merged.normalized.bibliography } : {}) };
       const markdownCells = document.cells.filter(cell => cell.kind === 'markdown').map(cell => {
         const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
         const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized);

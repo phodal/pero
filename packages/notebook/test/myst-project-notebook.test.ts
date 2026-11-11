@@ -30,3 +30,11 @@ test('only literal cell zero supplies YAML metadata; unknown notebook metadata s
 test('malformed notebook remains a typed invalid source instead of flattening to Markdown',()=>{
  const result=compileMystProject(project('{broken'));assert.equal(result.entry.kind,'invalid');assert.ok(result.diagnostics.some(d=>d.code==='notebook-invalid'));
 });
+test('notebook and first-cell bibliographies combine once and remain available in later cells',()=>{
+ const source=notebook([markdown('first','---\nbibliography: [first.bib, shared.bib]\n---\n@First'),markdown('next','@Notebook @Shared')],{bibliography:['notebook.bib','shared.bib']});
+ const wire=JSON.parse(exportMystProjectSnapshot(project(source)));
+ wire.files.push({path:'first.bib',text:'@article{First,title={First record}}'},{path:'notebook.bib',text:'@article{Notebook,title={Notebook record}}'},{path:'shared.bib',text:'@article{Shared,title={Shared record}}'});
+ const result=compileMystProject(parseMystProjectSnapshot(wire));if(result.entry.kind!=='ipynb')throw Error('Notebook');
+ for(const cell of result.entry.markdownCells){assert.ok(cell.document.bibliography.first);assert.ok(cell.document.bibliography.notebook);assert.ok(cell.document.bibliography.shared);assert.equal(cell.bibliography.filter(record=>record.path==='shared.bib').length,1);}
+ assert.ok(!result.diagnostics.some(d=>d.code==='citation-unresolved'||d.code==='citation-duplicate'));
+});
