@@ -30,3 +30,13 @@ test('IPYNB actual editor clipboard/save/reopen retains source and future versio
   assert.equal(document.querySelector('textarea')?.readOnly,true); assert.equal(document.querySelector('iframe'),null);
   await React.act(async()=>active?.destroy());
 });
+test('actual file picker admits exact UTF8 notebooks and refuses malformed UTF8 without insertion', async t => {
+  const { React, ui, render } = await createUiRuntime(t, { resolveDir: resolve(import.meta.dirname, '../ui-src'), contents: `export { NotebookMystTools } from './myst-document'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';` });
+  const inserted: any[]=[];const editor={isEditable:true,isDestroyed:false};const host=ui.createAppHost({name:'Notebook',locale:'en'});
+  await render(React.createElement(ui.AppSdkProvider,{host},React.createElement(ui.NotebookMystTools,{editor,onInsert:(nodes:any[])=>{inserted.push(...nodes);return true;}})));
+  const input=document.querySelector('input[type="file"]') as HTMLInputElement;
+  assert.match(input.accept,/\.ipynb/);
+  const choose=async(bytes:Uint8Array)=>{Object.defineProperty(input,'files',{configurable:true,value:[{name:'study.ipynb',size:bytes.length,arrayBuffer:async()=>bytes.buffer}]});await React.act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));};
+  await choose(new TextEncoder().encode(source));assert.deepEqual(inserted,[{type:'ipynbDocument',attrs:{schemaVersion:1,source}}]);
+  await choose(new Uint8Array([0xff,0xfe]));assert.equal(inserted.length,1);assert.match(document.body.textContent??'',/encoded data|encoding|UTF-8/i);
+});
