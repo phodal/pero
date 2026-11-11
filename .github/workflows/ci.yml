@@ -480,6 +480,16 @@ jobs:
           ref: f3803c96974ad4a94195fb97e5c637e9c2a3afe3
           path: .official-dsh-reference
           persist-credentials: false
+      - name: Compare actual official Skill catalog hook
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
+        run: node scripts/harness/compare-skill-catalog.mjs .official-dsh-reference/packages/skill/tool-skill/src/index.ts > "$RUNNER_TEMP/official-skill-catalog.json"
+      - name: Retain official Skill hook receipts
+        if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: official-skill-catalog
+          path: ${{ runner.temp }}/official-skill-catalog.json
+          if-no-files-found: warn
       - name: Extract all selected official references
         run: |
           python scripts/ast-compare/references.py \

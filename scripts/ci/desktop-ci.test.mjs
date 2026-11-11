@@ -49,6 +49,20 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
     assert.match(matrix, /windows-latest/); assert.match(matrix, /macos-latest/);
     assert.match(matrix, /\|\| fromJSON\('\["ubuntu-latest"\]'\)/);
   }
+  const harness = workflow.jobs.harness;
+  assert.equal(harness.if, undefined);
+  assert(harness.steps.some(step => step.run === 'go test -race -count=1 ./...'));
+  const official = workflow.jobs.ast.steps;
+  const catalog = official.find(step => step.name === 'Compare actual official Skill catalog hook');
+  assert.equal(catalog.if, acceptance.if);
+  assert.equal(catalog['continue-on-error'], undefined);
+  assert.match(catalog.run, /compare-skill-catalog\.mjs .*tool-skill\/src\/index\.ts/);
+  const source = official.find(step => step.with?.repository === 'deepseek-ai/deepseek-harness');
+  assert.equal(source.with.ref, 'f3803c96974ad4a94195fb97e5c637e9c2a3afe3');
+  assert(official.indexOf(source) < official.indexOf(catalog));
+  const receipt = official.find(step => step.with?.name === 'official-skill-catalog');
+  assert.match(receipt.if, /always\(\).*schedule.*workflow_dispatch.*ci:full/);
+  assert.equal(receipt.with.path, '${{ runner.temp }}/official-skill-catalog.json');
   for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
   const platform = YAML.parse(readFileSync('.github/workflows/desktop-check.yml', 'utf8')).jobs.desktop;
