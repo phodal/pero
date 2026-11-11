@@ -86,8 +86,8 @@ jobs:
         run: |
           files=""
           if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
-            if git fetch --no-tags --depth=1 origin "$SCOPE_BASE" "refs/pull/${SCOPE_PR}/head"; then
-              files=$(git diff --name-only "$SCOPE_BASE" FETCH_HEAD)
+            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "refs/pull/${SCOPE_PR}/head:refs/remotes/origin/pr-head"; then
+              files=$(git diff --name-only refs/remotes/origin/pr-base refs/remotes/origin/pr-head)
             else
               echo "Cannot read the pull request diff; running the check." >&2
               echo "run=true" >> "$GITHUB_OUTPUT"
