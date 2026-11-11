@@ -1,5 +1,8 @@
 # Quality gates
 
+Current design principles, 15-App inventory, Native/browser observations and
+remaining gaps: [Design principles audit — 2026-11-11](2026-11-11-design-principles-audit.md).
+
 Notebook block editing, Excel calculation and exchange, and versioned evidence:
 [Notebook verification](notebook.md).
 

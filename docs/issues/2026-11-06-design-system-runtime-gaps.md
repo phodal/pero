@@ -6,6 +6,61 @@ date: 2026-11-06
 
 # Design system gaps in actual Desktop consumers
 
+## 2026-11-11 repair delivery — current status
+
+The initial audit's eight defects now have implementation fixes. Paper's
+autonomous-research workspace has been redesigned around question, starting
+papers and scope, followed by saved-plan actions, records and evidence. Its
+draft stays mounted across library navigation; read-only history and paging no
+longer depend on Agent admission; loaded data, requests and errors are distinct.
+Ordinary controls and typography use the public SDK. Saving remains separate
+from launching an Agent.
+
+Notebook Insert/Format/View/File/Help now share Popover behavior with explicit
+retained mounting for scientific tools and dialogs. Native App failures are
+scoped to App/panel and catalog errors do not mask retained pages. Notebook's
+App icon registry entry is generated, and Composer uses input-border with the
+neutral text-input focus line. Fixed Notebook control heights, Reader/Diff
+typography and Sidebar/Chat default-size restoration have also been adjusted.
+
+Actual rebuilt Native observations confirm all four Paper protocol fields and
+the seed selection survive library navigation, saving does not launch an
+Agent, Notebook Insert Escape closes and returns focus, and Notebook/Paper
+remain usable at UI size 24. Paper's save area is reachable at that size and
+its dark theme was inspected. The [two-stage verification report](../fitness/2026-11-11-design-principles-audit.md)
+preserves the original findings and records the replacement components,
+behavior boundaries, current screenshots and test results. The intermediate
+saved-plan screenshot 05 is excluded from final layout evidence.
+
+Native sidebar resize/reset was also observed: drag 260→340 then double-click
+restored 260; drag 260→300 then Enter restored 260, confirmed by AX. This does
+not establish Chat-split, restart or narrow-window preference acceptance.
+
+Paper tests pass 18/18, Notebook/SDK related checks pass 20/20, prepared-source
+extraction recheck passes 1/1, root checks and all 15 App bundles pass, and the
+Native build plus 32 related tests pass. The unrelated Ctrl+Shift+S test
+assertion still fails identically on the original baseline; this is not a
+claim that all 84 Notebook editor checks are green.
+
+This canonical tracker remains `in_progress`: Reader/Diff large-font visuals,
+actual Native failure injection, VoiceOver, physical IME and the full 15-App
+state matrix remain unverified. The earlier Lab Popover/heatmap scope is also
+still open; Notebook's accepted Escape path does not replace those checks.
+
+## 2026-11-11 initial audit — historical findings
+
+The product now contains 15 Apps. The [current verification report](../fitness/2026-11-11-design-principles-audit.md)
+consolidates the existing principles and records current-source evidence on
+`7607c741`: real Native Paper navigation loses an unsaved research draft, and
+browser Notebook Insert remains open after Escape. Production React checks
+also reproduce saved-report paging depending on Agent configuration and a
+failed initial read displaying the successful-empty guidance. Static review
+finds a global Native App error masking retained pages, the missing Notebook
+App icon mapping, Composer boundary contrast below the design target, and
+private Paper program controls/typography. Those were open at this initial-audit
+stage, which implemented no fixes and did not close the earlier Native
+Popover/heatmap scope. The repair delivery above supersedes this implementation status.
+
 ## What and scope
 
 The requested Native font/experience review began on `62d00480` with no tracked
