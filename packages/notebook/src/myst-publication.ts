@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { exportMystBundle, type MystDocument, type MystNode } from './myst.ts';
 export type MystPublicationKind = 'docx' | 'latex' | 'typst';
 export interface MystPublicationAsset { path: string; mediaType: string; base64: string }
@@ -67,6 +68,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'tableCell': return { type: node.type, header: !!node.header, children: children() };
       case 'figure': case 'container': losses.add('Figure/table numbering rendered as text, not an editable field.'); return { type: 'root', children: [...(document.references[read(node, 'identifier')] ? [paragraph(document.references[read(node, 'identifier')].label)] : []), ...children()] };
       case 'caption': case 'admonitionTitle': return { type: 'paragraph', children: children() };
+      case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text, not an editable field.'); return { type: 'blockquote', children: [{ type: 'paragraph', children: [visit(mystProofHeading(node))] }, ...(node.children ?? []).filter(child => child.type !== 'admonitionTitle').map(visit)] };
       case 'admonition': losses.add('Admonition presentation converted to a quotation.'); return { type: 'blockquote', children: children() };
       case 'image': {
         const url = read(node, 'url'), asset = assets.get(url);

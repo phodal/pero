@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { renderMystCitationBibliography } from './myst-citation-render.ts';
 import type { MystScholarlyMetadata } from './myst-metadata.ts';
 import { mystAnchor } from './myst-project-references.ts';
@@ -128,6 +129,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
       case 'math': return `<div class="equation"${id(node)}>${math(value, true)}${label(node) ? `<span>${escapeMystHtml(label(node))}</span>` : ''}</div>`;
       case 'figure': case 'container': return `<figure${id(node)}>${label(node) ? `<div>${escapeMystHtml(label(node))}</div>` : ''}${children()}</figure>`;
       case 'caption': return `<figcaption${id(node)}>${children()}</figcaption>`;
+      case 'proof': return `<aside${id(node)}><p>${render(mystProofHeading(node))}</p>${(node.children ?? []).filter(child => child.type !== 'admonitionTitle').map(render).join('')}</aside>`;
       case 'admonition': return `<aside${id(node)}>${children()}</aside>`;
       case 'admonitionTitle': return `<strong${id(node)}>${children()}</strong>`;
       case 'table': return `<table${id(node)}>${label(node) ? `<caption>${escapeMystHtml(label(node))}</caption>` : ''}<tbody>${children()}</tbody></table>`;

@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { boundMystPublicationImages, inertPublicationMath, mystPublicationRecovery, type MystPublicationInput } from './myst-publication.ts';
 import type { MystDocument, MystNode } from './myst.ts';
 /** JATS Archiving 1.3. No external DTD, resource lookup or executable node handlers. */
@@ -43,6 +44,7 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
       }
       case 'list': return `<list list-type="${n.ordered ? 'order' : 'bullet'}">${children(n)}</list>`;
       case 'listItem': return `<list-item>${children(n)}</list-item>`;
+      case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text.'); return `<disp-quote${id(n)}><p>${render(mystProofHeading(n), true)}</p>${(n.children ?? []).filter(child => child.type !== 'admonitionTitle').map(child => render(child)).join('')}</disp-quote>`;
       case 'blockquote': case 'admonition': if (n.type === 'admonition') losses.add('Admonition presentation converted to quotation.'); return `<disp-quote>${children(n)}</disp-quote>`;
       case 'admonitionTitle': case 'caption': return `<p>${children(n, true)}</p>`;
       case 'figure': case 'container': return `<fig${id(n)}>${(n.children ?? []).some(c => c.type === 'caption') ? `<caption>${(n.children ?? []).filter(c => c.type === 'caption').map(c => render(c)).join('')}</caption>` : ''}${(n.children ?? []).filter(c => c.type !== 'caption').map(c => render(c)).join('')}</fig>`;

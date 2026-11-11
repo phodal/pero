@@ -104,7 +104,7 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
       const title = targetName(node);
       const name = title?.length ? structuredClone(title) : undefined;
       const template = number ? numbering[key]?.template ?? numberedTemplate(kind)
-        : kind === 'proof' || kind === 'exercise' ? `${kindName(kind)}${name ? ' ({name})' : ''}`
+        : node.type === 'proof' || kind === 'exercise' ? `${kindName(kind)}${name ? ' ({name})' : ''}`
         : name ? '{name}' : kindName(kind);
       // Display numbering does not require an authored target label.
       node.numberingLabel = number ? template.replaceAll('%s', `${node.parentEnumerator ?? ''}${number}`).replaceAll('{number}', `${node.parentEnumerator ?? ''}${number}`).replaceAll('{name}', name?.map(mystNodeText).join('') ?? rawId ?? '') : '';

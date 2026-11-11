@@ -7,6 +7,7 @@ import type { MystIncludeProvenance } from './myst-includes.ts';
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { createTokenizer, mystParse } from 'myst-parser';
+import { mystProofDirective } from './myst-proof.ts';
 import { VFile } from 'vfile';
 import { parseDocument } from 'yaml';
 
@@ -52,7 +53,7 @@ export interface MystDocument {
 }
 export const MYST_SOURCE_MAX_BYTES = 256 * 1024;
 const disabledDirectives = new Set(['include', 'literalinclude', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
-const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc']);
+const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc', 'proof']);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
 export const normalizeMystIdentifier = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -80,7 +81,7 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
   try {
     const tokens = createTokenizer({ extensions: { smartquotes: false, frontmatter: options.frontmatter !== false } }).parse(source, { vfile: file });
     frontmatter = tokens[0]?.type === 'fence' && tokens[0].info === 'yaml' && source.replace(/^\uFEFF/, '').startsWith('---');
-    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
+    ast = mystParse(source, { vfile: file, directives: [mystProofDirective], extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
   } catch (error) {
     report('parse-error', error instanceof Error ? error.message : 'Unable to parse MyST', undefined, 'error');
     ast = { type: 'root', children: [{ type: 'mystUnsupported', value: source }] };
