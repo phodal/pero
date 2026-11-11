@@ -2,6 +2,14 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum PreparationStage { Bootstrap, Resolve, Install, Observe, Cancelled, Interrupted }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreparationFailure { pub stage: PreparationStage, pub detail: String }
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PythonObservation {

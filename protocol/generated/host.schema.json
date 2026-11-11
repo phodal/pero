@@ -9781,6 +9781,24 @@
       ],
       "additionalProperties": false
     },
+    "LocalEnvironmentCancel": {
+      "title": "LocalEnvironmentCancel",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "id": {
+          "$ref": "#/$defs/AppName"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "LocalEnvironmentCreate": {
       "title": "LocalEnvironmentCreate",
       "type": "object",
@@ -9806,6 +9824,37 @@
             {
               "type": "string",
               "const": "lcms2yield.inference"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "target",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentCreateLocked": {
+      "title": "LocalEnvironmentCreateLocked",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "create_locked"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
             }
           ]
         },
@@ -9868,10 +9917,16 @@
           "$ref": "#/$defs/LocalEnvironmentPrepare"
         },
         {
+          "$ref": "#/$defs/LocalEnvironmentCancel"
+        },
+        {
           "$ref": "#/$defs/LocalEnvironmentBind"
         },
         {
           "$ref": "#/$defs/LocalEnvironmentCreateLockedControl"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentCreateLocked"
         },
         {
           "$ref": "#/$defs/LocalEnvironmentRebuild"
@@ -9928,6 +9983,16 @@
       "title": "LocalEnvironmentRecord",
       "type": "object",
       "properties": {
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PreparationFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "locked_compute": {
           "type": "boolean"
         },
@@ -10032,6 +10097,18 @@
         "operation": {
           "type": "string",
           "const": "unbind_compute"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "paper-agent.pcgym"
+            },
+            {
+              "type": "string",
+              "const": "control-lab.python-control"
+            }
+          ]
         }
       },
       "required": [
@@ -12608,6 +12685,48 @@
           "maxItems": 4
         }
       },
+      "additionalProperties": false
+    },
+    "PreparationFailure": {
+      "title": "PreparationFailure",
+      "type": "object",
+      "properties": {
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "bootstrap"
+            },
+            {
+              "type": "string",
+              "const": "resolve"
+            },
+            {
+              "type": "string",
+              "const": "install"
+            },
+            {
+              "type": "string",
+              "const": "observe"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "interrupted"
+            }
+          ]
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "detail"
+      ],
       "additionalProperties": false
     },
     "PrepareApp": {

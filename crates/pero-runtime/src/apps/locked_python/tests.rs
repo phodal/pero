@@ -15,7 +15,9 @@ fn locked_control_rebuild_and_recovery() {
         .join("../..")
         .canonicalize()
         .unwrap();
-    for name in ["control-lab", "environments"] {
+    let method = if std::env::var("PERO_UV_LIVE_METHOD").as_deref() == Ok("pcgym") { ScientificMethod::Pcgym } else { ScientificMethod::Control };
+    let app_name = method.target().0;
+    for name in [app_name, "environments"] {
         let app = root.join("apps").join(name);
         fs::create_dir_all(&app).unwrap();
         fs::copy(
@@ -24,10 +26,10 @@ fn locked_control_rebuild_and_recovery() {
         )
         .unwrap();
         fs::write(app.join(".installation.json"), br#"{"enabled":true}"#).unwrap();
-        if name == "control-lab" {
+        if name == app_name {
             #[cfg(unix)]
             std::os::unix::fs::symlink(
-                repository.join("apps/control-lab/backend"),
+                repository.join("apps").join(app_name).join("backend"),
                 app.join("backend"),
             )
             .unwrap();
@@ -38,7 +40,8 @@ fn locked_control_rebuild_and_recovery() {
     let first = store
         .local_environments(
             &caller,
-            Request::CreateLockedControl {
+            Request::CreateLocked {
+                target: method,
                 label: "first".to_owned().try_into().unwrap(),
             },
         )

@@ -1,25 +1,26 @@
 //! Explicit, wheel-only Control Lab preparation. AppStore owns publication.
-use super::{PythonEnvironment, definition::PythonDependency, preparation, uv_tool};
-use crate::environments::{LockedPythonProfile, PythonObservation};
+use super::{PythonEnvironment, definition::PythonDependency, preparation, uv_tool, ScientificMethod};
+use crate::environments::{LockedPythonProfile, PythonObservation, PreparationFailure, PreparationStage};
 use std::{fs, path::Path, process::Command};
 
 const PYTHON: &str = "3.12.14"; // uv 0.12.20's fixed python-build-standalone table.
 
-pub(super) fn verify(profile: &LockedPythonProfile, app: &Path) -> Result<(), String> {
+pub(super) fn verify(profile: &LockedPythonProfile, app: &Path, method: ScientificMethod) -> Result<(), String> {
     profile
-        .require(&observe(&profile.root, app)?)
+        .require(&observe(&profile.root, app, method)?)
         .map_err(|_| "Compute environment changed; rebuild a new profile, then select it and create a new experiment".into())
 }
 
-fn observe(root: &Path, app: &Path) -> Result<PythonObservation, String> {
+fn observe(root: &Path, app: &Path, method: ScientificMethod) -> Result<PythonObservation, String> {
     let python = PythonEnvironment::try_from(root.to_path_buf())?;
     let output = Command::new(python.executable())
         .args([
             "-I",
             "-B",
             "-c",
-            include_str!("../../../../apps/control-lab/backend/control_lab/compute_observation.py"),
+            include_str!("../../../../packages/scientific-runtime/python/pero_scientific.py"),
         ])
+        .arg(if matches!(method, ScientificMethod::Pcgym) { "pcgym" } else { "control" })
         .current_dir(app)
         .env_clear()
         .output()
@@ -59,8 +60,12 @@ pub(super) fn prepare(
     id: &str,
     dependencies: &[PythonDependency],
     app: &Path,
+    method: ScientificMethod,
+    cancel: &Path,
     log: &mut impl FnMut(String),
-) -> Result<LockedPythonProfile, String> {
+) -> Result<LockedPythonProfile, PreparationFailure> {
+    let mut stage=PreparationStage::Bootstrap;
+    let outcome=(|| {
     let (python_target, python_archive_sha256) =
         match (std::env::consts::OS, std::env::consts::ARCH) {
             ("macos", "aarch64") => (
@@ -101,7 +106,9 @@ pub(super) fn prepare(
             fs::remove_dir_all(entry.path()).map_err(|e| e.to_string())?;
         }
     }
+    if cancel.exists() { return Err("Preparation cancelled by operator".into()); }
     let binary = uv_tool::ensure(home, log)?;
+    if cancel.exists() { return Err("Preparation cancelled by operator".into()); }
     let recipe = catalog.join(format!("{id}.recipe"));
     fs::create_dir_all(&recipe).map_err(|e| e.to_string())?;
     // Only generate from the installed, validated fixed method manifest. No arbitrary project scripts.
@@ -115,6 +122,13 @@ pub(super) fn prepare(
         )
         .map_err(|e| e.to_string())?
     );
+    let mut project = if matches!(method, ScientificMethod::Pcgym) {
+        project.replace("pero-control-compute", "pero-pcgym-compute")
+    } else { project };
+    if matches!(method, ScientificMethod::Pcgym) && std::env::consts::OS == "linux" {
+        // The fixed scientific case runs on CPU; PyPI's Linux torch wheels pull CUDA.
+        project.push_str("\n[tool.uv.sources]\ntorch = { index = \"pytorch-cpu\" }\n\n[[tool.uv.index]]\nname = \"pytorch-cpu\"\nurl = \"https://download.pytorch.org/whl/cpu\"\nexplicit = true\n");
+    }
     let project_path = recipe.join("pyproject.toml");
     if project_path.exists() {
         if fs::read_to_string(&project_path).map_err(|e| e.to_string())? != project {
@@ -126,9 +140,10 @@ pub(super) fn prepare(
         fs::write(&project_path, &project).map_err(|e| e.to_string())?;
     }
     let lock_path = recipe.join("uv.lock");
+    stage=PreparationStage::Resolve;
     if !lock_path.exists() {
         log("Resolving complete dependencies from https://pypi.org/simple".into());
-        preparation::run(
+        preparation::run_cancellable(
             uv_tool::command(&binary, home).current_dir(&recipe).args([
                 "lock",
                 "--python",
@@ -139,6 +154,7 @@ pub(super) fn prepare(
                 "https://pypi.org/simple",
             ]),
             log,
+            Some(cancel),
         )?;
     }
     let lock_sha256 = uv_tool::sha(&fs::read(&lock_path).map_err(|e| e.to_string())?);
@@ -152,9 +168,10 @@ pub(super) fn prepare(
     // An unpublished generation stays at its final physical path: relocating a
     // venv would invalidate script shebangs. The catalog record is the atomic publication.
     let root = catalog.join(format!("{id}-{}", uuid::Uuid::new_v4()));
+    stage=PreparationStage::Install;
     let result = (|| {
         log("Installing frozen wheels into a new unpublished compute prefix".into());
-        preparation::run(
+        preparation::run_cancellable(
             uv_tool::command(&binary, home)
                 .current_dir(&recipe)
                 .env("UV_PROJECT_ENVIRONMENT", &root)
@@ -171,8 +188,12 @@ pub(super) fn prepare(
                     "https://pypi.org/simple",
                 ]),
             log,
+            Some(cancel),
         )?;
-        let observation = observe(&root, app)?;
+        if cancel.exists() { return Err("Preparation cancelled by operator".into()); }
+        stage=PreparationStage::Observe;
+        let observation = observe(&root, app, method)?;
+        if cancel.exists() { return Err("Preparation cancelled by operator".into()); }
         Ok(LockedPythonProfile {
             root: root.clone(),
             project_sha256: uv_tool::sha(project.as_bytes()),
@@ -189,6 +210,8 @@ pub(super) fn prepare(
         fs::remove_dir_all(root).map_err(|e| e.to_string())?;
     }
     result
+    })();
+    outcome.map_err(|detail|PreparationFailure {stage:if cancel.exists(){PreparationStage::Cancelled}else{stage},detail})
 }
 
 #[cfg(test)]

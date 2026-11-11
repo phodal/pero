@@ -1,12 +1,14 @@
 /* Generated from protocol/host.tsp by scripts/codegen/contracts.mjs. Do not edit. */
-import type { AppDocumentSchema, AppName, RequestId } from './host';
+import type { AppDocumentSchema, AppName, PreparationFailure, RequestId } from './host';
 
 export type LocalEnvironmentOperation =
   | LocalEnvironmentCreate
   | LocalEnvironmentList
   | LocalEnvironmentPrepare
+  | LocalEnvironmentCancel
   | LocalEnvironmentBind
   | LocalEnvironmentCreateLockedControl
+  | LocalEnvironmentCreateLocked
   | LocalEnvironmentRebuild
   | LocalEnvironmentBindCompute
   | LocalEnvironmentUnbindCompute;
@@ -30,12 +32,21 @@ export interface LocalEnvironmentPrepare {
   operation: "prepare";
   id: AppName;
 }
+export interface LocalEnvironmentCancel {
+  operation: "cancel";
+  id: AppName;
+}
 export interface LocalEnvironmentBind {
   operation: "bind";
   id: AppName;
 }
 export interface LocalEnvironmentCreateLockedControl {
   operation: "create_locked_control";
+  label: string;
+}
+export interface LocalEnvironmentCreateLocked {
+  operation: "create_locked";
+  target: "paper-agent.pcgym" | "control-lab.python-control";
   label: string;
 }
 export interface LocalEnvironmentRebuild {
@@ -49,6 +60,7 @@ export interface LocalEnvironmentBindCompute {
 }
 export interface LocalEnvironmentUnbindCompute {
   operation: "unbind_compute";
+  target?: "paper-agent.pcgym" | "control-lab.python-control";
 }
 /**
  * Software observations only; does not allocate or approve scientific execution.
@@ -61,6 +73,7 @@ export interface EnvironmentInspectionApp {
   id: RequestId;
 }
 export interface LocalEnvironmentRecord {
+  failure?: PreparationFailure | null;
   locked_compute?: boolean;
   prepared?: LockedPythonProfile | null;
   id: AppName;

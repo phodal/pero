@@ -56,6 +56,8 @@ impl EnvironmentState {
 #[serde(deny_unknown_fields)]
 pub struct LocalEnvironment {
     #[serde(default)]
+    pub failure: Option<crate::environments::PreparationFailure>,
+    #[serde(default)]
     pub locked_compute: bool,
     #[serde(default)]
     pub prepared: Option<crate::environments::LockedPythonProfile>,
@@ -79,6 +81,8 @@ pub enum Request {
     CreateLockedControl {
         label: EnvironmentLabel,
     },
+    #[serde(rename = "create_locked")]
+    CreateLocked { target: ScientificMethod, label: EnvironmentLabel },
     Rebuild {
         id: AppName,
         label: EnvironmentLabel,
@@ -88,7 +92,7 @@ pub enum Request {
         id: AppName,
     },
     #[serde(rename = "unbind_compute")]
-    UnbindCompute,
+    UnbindCompute { #[serde(default)] target: Option<ScientificMethod> },
     Create {
         target: ScientificMethod,
         label: EnvironmentLabel,
@@ -96,6 +100,7 @@ pub enum Request {
     Prepare {
         id: AppName,
     },
+    Cancel { id: AppName },
     Bind {
         id: AppName,
     },
@@ -125,28 +130,34 @@ impl AppStore {
             &request,
             Request::List { compute: true }
                 | Request::CreateLockedControl { .. }
+                | Request::CreateLocked { .. }
                 | Request::Rebuild { .. }
                 | Request::BindCompute { .. }
-                | Request::UnbindCompute
+                | Request::UnbindCompute { .. }
+                | Request::Cancel { .. }
         );
+        let request = match request {
+            Request::CreateLockedControl { label } => Request::CreateLocked { target: ScientificMethod::Control, label },
+            request => request,
+        };
         match request {
             Request::List { .. } => {}
-            Request::CreateLockedControl { label } => {
+            Request::CreateLocked { target, label } => {
+                if !matches!(target, ScientificMethod::Control | ScientificMethod::Pcgym) { return Err("Choose Control or PC-Gym for a locked Python recipe".into()); }
                 let app = self
                     .installed
-                    .get(&AppName::try_from("control-lab".to_owned())?)
+                    .get(&AppName::try_from(target.target().0.to_owned())?)
                     .ok_or("Control Lab is not installed")?;
                 let value = LocalEnvironment {
+                    failure: None,
                     id: AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?,
                     label,
-                    target: ScientificMethod::Control,
-                    dependencies: app
-                        .definition
-                        .backend
-                        .as_ref()
-                        .ok_or("App has no backend")?
-                        .dependencies
-                        .clone(),
+                    target,
+                    dependencies: if matches!(target, ScientificMethod::Pcgym) {
+                        serde_json::from_str(include_str!("pcgym-dependencies.json")).map_err(|e| e.to_string())?
+                    } else {
+                        app.definition.backend.as_ref().ok_or("App has no backend")?.dependencies.clone()
+                    },
                     locked_compute: true,
                     prepared: None,
                     state: EnvironmentState::Created,
@@ -178,8 +189,9 @@ impl AppStore {
                 value.bound = false;
                 save_environment(&self.environment_root(), &value)?;
             }
-            Request::UnbindCompute => {
-                let binding = self.data.join("control-lab/.compute/binding.json");
+            Request::UnbindCompute { target } => {
+                let target = target.unwrap_or(ScientificMethod::Control);
+                let binding = self.data.join(target.target().0).join(".compute/binding.json");
                 match fs::remove_file(binding) {
                     Ok(()) => {}
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -190,8 +202,8 @@ impl AppStore {
                 let value = self.environment_record(&id)?;
                 value.state.require_ready()?;
                 let profile = value.prepared.ok_or("Select a locked compute profile")?;
-                super::locked_python::verify(&profile, &self.root.join("control-lab"))?;
-                let directory = self.data.join("control-lab/.compute");
+                super::locked_python::verify(&profile, &self.root.join(value.target.target().0), value.target)?;
+                let directory = self.data.join(value.target.target().0).join(".compute");
                 fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
                 let pending = directory.join("binding.pending");
                 fs::write(
@@ -220,6 +232,7 @@ impl AppStore {
                     dependencies.extend(pins);
                 }
                 let value = LocalEnvironment {
+                    failure: None,
                     id: AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?,
                     label,
                     locked_compute: false,
@@ -233,24 +246,31 @@ impl AppStore {
                 };
                 save_environment(&self.environment_root(), &value)?;
             }
+            Request::CreateLockedControl { .. } => unreachable!("normalized locked recipe"),
             Request::Prepare { .. } => return Err("Prepare through the Host job entrypoint".into()),
+            Request::Cancel { id } => {
+                let value = self.environment_record(&id)?;
+                if !value.locked_compute || value.state != EnvironmentState::Preparing {
+                    return Err("Only an active locked preparation can be cancelled".into());
+                }
+                fs::write(self.environment_root().join(format!("{}.cancel",id.as_str())), b"cancel").map_err(|e|e.to_string())?;
+            }
             Request::Bind { .. } => return Err("Binding requires the App backend owner".into()),
         }
         let root = self.environment_root();
         if !root.exists() {
             return Ok(Vec::new());
         }
-        let compute_binding = self.data.join("control-lab/.compute/binding.json");
-        let selected_compute = if compute && compute_binding.exists() {
-            Some(
-                serde_json::from_slice::<crate::environments::LockedPythonProfile>(
-                    &fs::read(compute_binding).map_err(|e| e.to_string())?,
-                )
-                .map_err(|e| e.to_string())?,
-            )
-        } else {
-            None
-        };
+        let mut bindings = std::collections::BTreeMap::new();
+        if compute {
+            for name in ["control-lab", "paper-agent"] {
+                let path = self.data.join(name).join(".compute/binding.json");
+                if path.exists() {
+                    let profile: crate::environments::LockedPythonProfile = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+                    bindings.insert(name, profile);
+                }
+            }
+        }
         let mut values = Vec::new();
         for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
@@ -264,8 +284,7 @@ impl AppStore {
                 let app = AppName::try_from(value.target.target().0.to_owned())?;
                 value.bound = if value.locked_compute {
                     value.prepared.as_ref().is_some_and(|profile| {
-                        selected_compute
-                            .as_ref()
+                        bindings.get(value.target.target().0)
                             .is_some_and(|selected| selected.root == profile.root)
                     })
                 } else {
@@ -336,6 +355,7 @@ impl EnvironmentPreparation {
         let app = AppName::try_from(value.target.target().0.to_owned())?;
         value.state = EnvironmentState::Preparing;
         value.error = None;
+        value.failure = None;
         value.log.clear();
         save_environment(&self.catalog, &value)?;
         let result = (|| {
@@ -347,6 +367,8 @@ impl EnvironmentPreparation {
                     &id,
                     &dependencies,
                     &self.app_root,
+                    value.target,
+                    &self.catalog.join(format!("{id}.cancel")),
                     &mut |line| {
                         value.log.push(line.clone());
                         if value.log.len() > 80 {
@@ -359,7 +381,7 @@ impl EnvironmentPreparation {
                             message: line,
                         });
                     },
-                )?;
+                ).map_err(|failure| {let detail=failure.detail.clone();value.failure=Some(failure);detail})?;
                 value.prepared = Some(profile);
                 return Ok(());
             }
@@ -452,6 +474,8 @@ impl AppStore {
         }
         let mut value = value;
         value.state = value.state.preparing(in_use)?;
+        let cancel=self.environment_root().join(format!("{}.cancel",id.as_str()));
+        if cancel.exists() {fs::remove_file(cancel).map_err(|e|e.to_string())?;}
         save_environment(&self.environment_root(), &value)?;
         Ok(EnvironmentPreparation {
             catalog: self.environment_root(),
@@ -477,6 +501,7 @@ impl AppStore {
                 if value.state == EnvironmentState::Preparing {
                     value.state = EnvironmentState::Failed;
                     value.error=Some("Preparation was interrupted when the Host stopped. Prepare again to resume installation.".into());
+                    value.failure=Some(crate::environments::PreparationFailure {stage:crate::environments::PreparationStage::Interrupted,detail:value.error.clone().unwrap()});
                     save_environment(&root, &value)?;
                 }
             }
@@ -499,6 +524,7 @@ mod tests {
         let store =
             AppStore::open(root.clone(), super::super::PythonEnvironments::default()).unwrap();
         let value = LocalEnvironment {
+                    failure: None,
             id: AppName::try_from("env-recovery".to_owned()).unwrap(),
             label: EnvironmentLabel::try_from("Recovery".to_owned()).unwrap(),
             target: ScientificMethod::Control,

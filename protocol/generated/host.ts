@@ -3941,6 +3941,10 @@ export interface SkillMarketUpdate {
 export interface SkillMarketCancelled {
   cancelled: true;
 }
+export interface PreparationFailure {
+  stage: "bootstrap" | "resolve" | "install" | "observe" | "cancelled" | "interrupted";
+  detail: string;
+}
 export interface AgentPreparedContext {
   context: AppDocumentSchema;
 }
