@@ -206,6 +206,7 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   const activeNotes = document.querySelector('[role=tab][data-state=active]')!;
   assert.equal(activeNotes.getAttribute('aria-label'), 'Notes');
   assert.equal(activeNotes.textContent, 'Notes');
+  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, initial.title);
   assert.equal(dom.window.location.hash, '#notebook-entry=cross-root&notebook-target=source-file');
   const notesEditor = (document.querySelector('.notebook-editor .tiptap') as any).editor;
   assert.equal(notesEditor.state.selection.node.attrs.blockId, 'source-file');

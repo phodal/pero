@@ -76,6 +76,7 @@ test('workspace deep links switch the selected procedure, reveal rich blocks and
   const activeNotes = document.querySelector('[role="tab"][data-state="active"]')!;
   assert.equal(activeNotes.getAttribute('aria-label'), 'Notes');
   assert.equal(activeNotes.textContent, 'Notes');
+  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, documentValue.title);
   assert.equal(editor.state.selection.node?.attrs.blockId, 'main');
   await hash('intro'); await hash('first');
   assert.equal((document.getElementById([...document.querySelectorAll('label')].find(item => item.textContent === 'Procedure title')!.htmlFor) as HTMLInputElement).value, 'First method');
