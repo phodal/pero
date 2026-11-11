@@ -1,0 +1,180 @@
+{
+  "document": {
+    "schemaVersion": 1,
+    "title": "MyST source wire contract",
+    "content": {
+      "type": "doc",
+      "content": []
+    }
+  },
+  "cases": [
+    {
+      "name": "empty source",
+      "accepted": true,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": ""
+      }
+    },
+    {
+      "name": "unknown and malformed syntax with CRLF",
+      "accepted": true,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "---\r\ntitle: 原样 🧪\r\n---\r\n\r\n::::{unknown-directive}\r\n:::{note}\r\nKeep **unfinished markup\r\n```{image}\r\n:width: not-a-width\r\n\r\nUnclosed body\r\n"
+      }
+    },
+    {
+      "name": "inert executable syntax without terminal newline",
+      "accepted": true,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "```{code-cell} python\nraise RuntimeError(\"never execute\")\n```\n\n```{include} private.md\n```"
+      }
+    },
+    {
+      "name": "mixed line endings and trailing blank lines",
+      "accepted": true,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "First\r\nSecond\nThird\r\n\r\n"
+      }
+    },
+    {
+      "name": "future schema",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 2,
+        "source": ""
+      }
+    },
+    {
+      "name": "boolean schema",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": true,
+        "source": ""
+      }
+    },
+    {
+      "name": "text schema",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": "1",
+        "source": ""
+      }
+    },
+    {
+      "name": "null source",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": null
+      }
+    },
+    {
+      "name": "object source",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": {
+          "text": "# Title"
+        }
+      }
+    },
+    {
+      "name": "numeric source",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": 42
+      }
+    },
+    {
+      "name": "execution flag",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "",
+        "execute": true
+      }
+    },
+    {
+      "name": "external plugins",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "",
+        "plugins": [
+          "https://example.invalid/plugin.js"
+        ]
+      }
+    },
+    {
+      "name": "permission override",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "",
+        "permission": "allow"
+      }
+    },
+    {
+      "name": "derived AST field",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1,
+        "source": "",
+        "ast": {
+          "type": "root"
+        }
+      }
+    },
+    {
+      "name": "unstable identity",
+      "accepted": false,
+      "attrs": {
+        "blockId": "../other",
+        "schemaVersion": 1,
+        "source": ""
+      }
+    },
+    {
+      "name": "missing source",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "name": "missing schema",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-contract",
+        "source": ""
+      }
+    }
+  ],
+  "utf8Boundary": {
+    "maxBytes": 262144,
+    "unit": "🧪",
+    "repeat": 65535,
+    "suffix": "尾a",
+    "overflow": "a"
+  }
+}
