@@ -17,6 +17,7 @@ export interface MystNumberingState {
   numbering: Numbering;
   headings: (number | null)[];
   counts: Record<string, { main: number; sub: number }>;
+  titleHandled?: boolean;
 }
 type Report = (code: string, message: string, node?: MystNode) => void;
 const string = (value: unknown) => typeof value === 'string' ? value : undefined;
@@ -24,15 +25,19 @@ export const mystNodeText = (node: MystNode): string => node.value ?? (node.chil
 const kindName = (kind: string) => { const name = kind === 'code' ? 'program' : kind.split(':').at(-1)!; return name[0].toUpperCase() + name.slice(1); };
 
 /** A notebook passes the SAME state through its visible cells. Separate pages
- * start fresh; an explicit ordered caller may supply previous counts, in which
- * case only the upstream `continue` settings inherit them. */
+ * start fresh unless an ordered caller supplies previous counts. Explicit
+ * `continue` settings and title ancestor levels inherit upstream counts. */
 export function createMystNumberingState(settings?: Numbering, previous?: MystNumberingState): MystNumberingState {
   const numbering = fillNumbering(settings, defaults);
   const headings = [1, 2, 3, 4, 5, 6].map((depth, index) => {
     const item = numbering[`heading_${depth}`];
     if (item?.enabled === false) return null;
     if (item?.start) return item.start - 1;
-    if ((item?.continue ?? numbering.all?.continue) && previous) return previous.headings[index];
+    const previousCount = previous?.headings[index];
+    if ((item?.continue ?? numbering.all?.continue) && (item?.enabled ?? numbering.all?.enabled ?? true) && previousCount !== undefined) return previousCount;
+    const offset = numbering.title?.offset ?? 0;
+    if (numbering.title?.enabled && depth - 1 <= offset && previousCount != null) return previousCount;
+    if (!numbering.title?.enabled && depth <= offset) return null;
     return 0;
   });
   const counts: MystNumberingState['counts'] = Object.create(null);
@@ -70,8 +75,18 @@ export function attachMystTargets(node: MystNode): void {
   children.forEach(attachMystTargets);
 }
 
-export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, report: Report, budget = new MystProjectionBudget()): Record<string, MystReferenceTarget> {
+export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, report: Report, budget = new MystProjectionBudget(), title?: string): Record<string, MystReferenceTarget> {
   attachMystTargets(ast);
+  // A metadata-only title is a publication heading, never a source rewrite.
+  // Notebook cells share this marker so their title is counted only once.
+  if (!state.titleHandled) {
+    state.titleHandled = true;
+    const firstContent = ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type));
+    if (title && state.numbering.title?.enabled && !(firstContent?.type === 'heading' && firstContent.depth === 1)) {
+      ast.children ??= [];
+      ast.children.unshift({ type: 'heading', depth: 1, children: [{ type: 'text', value: title }] });
+    }
+  }
   const references: Record<string, MystReferenceTarget> = Object.create(null);
   const { numbering } = state;
   // Numbering templates can repeat a long authored caption or enumerator many

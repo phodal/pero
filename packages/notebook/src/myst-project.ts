@@ -65,7 +65,13 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   };
   const projectBibliography = bibliographyResources(rawProject.bibliography, 'myst.yml');
   const pages: MystProjectPage[] = [];
-  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata, numberingState?: MystNumberingState): MystProjectPage => {
+  const notebookPages: MystProjectNotebookPage[] = [];
+  const suppliedPages = snapshot.files.filter(file => /\.(md|myst|ipynb)$/i.test(file.path));
+  // Resolve the explicit TOC before compiling any targets. Titles are filled from
+  // the compiled metadata below; ordering never depends on snapshot file order.
+  const order = buildMystProjectToc(snapshot, validated.normalized.toc, suppliedPages.map(file => ({ path: file.path, title: file.path })), []);
+  let previousNumbering: MystNumberingState | undefined;
+  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata, numberingState?: MystNumberingState, continueProject = false): MystProjectPage => {
     used.add(resource.path);
     const expansion = expandMystIncludes(snapshot, resource.path, supplied ?? parseMystSource(resource.text));
     const tables = expandMystCsvTables(snapshot, resource.path, expansion.parsed);
@@ -91,13 +97,19 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       node.children?.forEach(visit);
     };
     visit(parsed.ast);
+    if (!numberingState) numberingState = createMystNumberingState(inherited.normalized.numbering, continueProject ? previousNumbering : undefined);
+    if (continueProject) previousNumbering = numberingState;
     const document = resolveMystDocument(parsed, { numberingState, deferProjectToc: true, scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
     return { path: resource.path, document, bibliography: bibliography.records };
   };
-  for (const resource of snapshot.files.filter(file => /\.(md|myst)$/i.test(file.path))) pages.push(compilePage(resource));
-  const notebookPages: MystProjectNotebookPage[] = [];
-  for (const resource of snapshot.files.filter(file => /\.ipynb$/i.test(file.path))) {
+  for (const path of order.pageOrder) {
+    const resource = suppliedPages.find(file => file.path === path)!;
+    const continueProject = order.numberingOrder.includes(path);
+    if (!/\.ipynb$/i.test(path)) {
+      pages.push(compilePage(resource, undefined, undefined, undefined, continueProject));
+      continue;
+    }
     used.add(resource.path);
     try {
       const document = parseIpynb(resource.text);
@@ -109,7 +121,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       const inherited = inheritMystMetadata(merged.normalized, validated.normalized);
       diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
       const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}), ...(merged.normalized.bibliography ? { bibliography: merged.normalized.bibliography } : {}) };
-      const numberingState = createMystNumberingState(inherited.normalized.numbering);
+      const numberingState = createMystNumberingState(inherited.normalized.numbering, continueProject ? previousNumbering : undefined);
       const markdownCells: MystProjectNotebookCell[] = [], codeCells: MystProjectNotebookCell[] = [];
       for (const cell of document.cells) {
         if (cell.kind === 'markdown') {
@@ -133,6 +145,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
           codeCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: projected, bibliography: [] });
         }
       }
+      if (continueProject) previousNumbering = numberingState;
       notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells, codeCells });
       if (raw.myst !== undefined) report('notebook-metadata-inert', 'Nonstandard metadata.myst is retained; direct notebook metadata and first-cell frontmatter provide publication metadata.', resource.path);
     } catch (error) {

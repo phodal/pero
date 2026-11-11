@@ -173,7 +173,7 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   projectMystTerms(ast, context?.scholarly ?? parsed.scholarly, report);
   attachMystTargets(ast);
   prepareMystTocHeadings(ast);
-  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report, projectionBudget));
+  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report, projectionBudget, (context?.scholarly ?? parsed.scholarly).title));
   walk(ast, node => {
     if (node.type === 'link' && typeof node.url === 'string' && node.url.startsWith('#')) {
       let id = node.url.slice(1);
