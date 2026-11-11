@@ -355,8 +355,8 @@ export default function PaperAgent() {
         if(!match&&!passage)return;
         const report=await api.get<import('./types').Report>(`/api/reports/${(match??passage)![1]}`);
         const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
-        const refs=report.sections?.flatMap(section=>section.evidence??[])??[];
-        const ref=passage?[...refs,...(report.matrix?.cells.flatMap(cell=>cell.evidence)??[])].find(ref=>ref.passageId===passage[2]):refs[Number(match![2])];if(!ref)throw Error('Citation is unavailable');
+        const refs=[...(report.sections?.flatMap(section=>section.evidence??[])??[]),...(report.matrix?.cells.flatMap(cell=>cell.evidence)??[])];
+        const ref=passage?refs.find(ref=>ref.passageId===passage[2]):refs[Number(match![2])];if(!ref)throw Error('Citation is unavailable');
         await cite(ref,intent);
       })().catch(onError);
     };

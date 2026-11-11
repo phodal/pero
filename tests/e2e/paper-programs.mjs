@@ -7,6 +7,7 @@ import { resolve, extname } from 'node:path';
 const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/paper-programs');
 await mkdir(out,{recursive:true});
 const paper={id:'a'.repeat(64),source:'openalex',sourceId:'W1',title:'Synthetic model mismatch study with a deliberately long descriptive title',url:'https://openalex.org/W1',authors:[],contentKind:'abstract',contentDigest:'b'.repeat(64),fetchedAt:'2026-11-06T00:00:00Z',content:'Synthetic source; no scientific acceptance.'};
+const reportId='9'.repeat(64);
 let program=null,run=null,failNext=false,failCancel=false;const calls=[],citations=[],errors=[];
 const browser=await chromium.launch({headless:true,...(process.env.PERO_CHROMIUM_PATH?{executablePath:process.env.PERO_CHROMIUM_PATH}:{})});
 const page=await browser.newPage({viewport:{width:1100,height:900}});
@@ -20,7 +21,7 @@ try {
     else if(path==='/api/library')value={papers:[paper],intents:[],reports:[]};
     else if(path==='/api/workspaces')value={items:[{workspaceId:'ws_fixture'}]};
     else if(path==='/api/harnesses')value={items:[{id:'pero',available:true}]};
-    else if(path==='/api/reports/report1')value={id:'report1',intentId:'intent1',sections:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'First quotation'},{paperId:paper.id,passageId:'same-passage',quote:'Second quotation'}]}]};
+    else if(path==='/api/reports/'+reportId)value={id:reportId,intentId:'intent1',sections:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'First quotation'},{paperId:paper.id,passageId:'same-passage',quote:'Second quotation'}]}],matrix:{cells:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'Matrix quotation'}]}]}};
     else if(path==='/api/intents/intent1')value={id:'intent1',papers:[paper]};
     else if(path==='/api/evidence'){citations.push(body);value={paperId:paper.id,start:0,end:body.quote.length,heading:'Saved original passage',before:'',quote:body.quote,after:''}}
     else if(path==='/api/programs'){
@@ -76,7 +77,7 @@ try {
   await expect.poll(()=>run.status,{timeout:10000}).toBe('cancelled');
   await expect(surface.getByRole('button',{name:'Resume research',exact:true})).toBeDisabled();
   await surface.getByRole('dialog').getByRole('button',{name:'Go back',exact:true}).click();
-  program.rounds=[{id:'round1',number:1,question:'Two quotations from one observed passage',newEvidence:1,gaps:['Independent replication missing'],nextAction:'Locate replication',claims:['First quotation','Second quotation'].map((quote,i)=>({text:'Synthetic claim '+(i+1),stance:i?'counterevidence':'support',quote,reportId:'report1',paperId:paper.id,passageId:'same-passage'}))}];
+  program.rounds=[{id:'round1',number:1,question:'Two quotations from one observed passage',newEvidence:1,gaps:['Independent replication missing'],nextAction:'Locate replication',claims:['First quotation','Second quotation'].map((quote,i)=>({text:'Synthetic claim '+(i+1),stance:i?'counterevidence':'support',quote,reportId,paperId:paper.id,passageId:'same-passage'}))}];
   program.usage.rounds=1;
   await surface.getByRole('button',{name:'Refresh',exact:true}).click();
   await surface.getByRole('tab',{name:'Reports',exact:true}).click();
@@ -88,6 +89,11 @@ try {
   await page.screenshot({path:resolve(out,'exact-second-quotation.png')});
   await surface.locator('.pa-evidence button').first().press('Escape');
   await expect(surface.locator('.pa-evidence')).toHaveCount(0);
+  await page.evaluate(id=>document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:location',location:'report/'+id+'/citation/2'},'*'),reportId);
+  await expect(surface.locator('.pa-evidence mark')).toHaveText('Matrix quotation');
+  assert.equal(citations.at(-1).quote,'Matrix quotation');
+  await page.screenshot({path:resolve(out,'export-matrix-citation.png')});
+  await surface.locator('.pa-evidence button').first().press('Escape');
   await surface.getByRole('tab',{name:'Plan',exact:true}).click();
   await expect(surface.getByText('Not yet reported / 40',{exact:true})).toBeVisible();
   await page.screenshot({path:resolve(out,'unknown-accounting-light.png')});
@@ -107,6 +113,6 @@ try {
   await surface.getByRole('button',{name:'刷新',exact:true}).click();
   await expect(surface.getByText('Synthetic research backend unavailable. Reload to retry.',{exact:false})).toHaveCount(0);
   assert.deepEqual(errors,[]);
-  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks:['explicit-start','same-run-resume','stop-disabled','error-recovery','keyboard-focus','light-dark','narrow-no-overflow','same-passage-second-quote','unknown-runtime-not-zero','claim-stance'],limitations:['Fixture state; no provider or scientific acceptance']},null,2));
+  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks:['explicit-start','same-run-resume','stop-disabled','error-recovery','keyboard-focus','light-dark','narrow-no-overflow','same-passage-second-quote','unknown-runtime-not-zero','claim-stance','indexed-matrix-artifact-link'],limitations:['Fixture state; no provider or scientific acceptance']},null,2));
   console.log('PASS Paper research plan/start/pause/resume/stop/error and responsive UI');
 }catch(error){await page.screenshot({path:resolve(out,'failure.png')});throw error}finally{await browser.close()}

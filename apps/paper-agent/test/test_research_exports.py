@@ -19,11 +19,12 @@ class ResearchExportAcceptance(unittest.TestCase):
         program = ResearchProgram.create(dict(requestId='markdown', question='Question', scope='Scope',
             inclusion='Include', exclusion='Exclude', seedPaperIds=['a' * 64]), NOW)
         claim = dict(stance='limitation', text='Claim\n# fake heading [link](https://example.com)',
-            quote='Quote\n> fake quote\n**new finding**', reportId='b' * 64, passageId='c' * 64)
+            quote='Quote\n> fake quote\n**new finding**', reportId='b' * 64, passageId='c' * 64, evidenceIndex=1)
         report = export_program(program, [dict(number=1, question='Question', claims=[claim], nextAction='Review')])['documents'][0]['content']
         self.assertIn('\n  \\# fake heading \\[link\\]', report)
         self.assertIn('\n  > &gt; fake quote\n  > \\*\\*new finding', report)
         self.assertNotIn('\n# fake heading', report)
+        self.assertIn('/report/' + claim['reportId'] + '/citation/1', report)
 
     def test_large_evidence_parts_are_valid_and_exact_after_checkpoint_advance(self):
         with tempfile.TemporaryDirectory() as root:

@@ -201,7 +201,7 @@ class CollectorTests(unittest.TestCase):
             round_path = fixture.programs.directory(program.id) / 'rounds' / (program.roundIds[0] + '.json')
             original = module.read(round_path)
             for field, changed in (('quote', original['claims'][0]['quote'].replace(' ', '')),
-                                   ('reportId', 'f' * 64)):
+                                   ('reportId', 'f' * 64), ('evidenceIndex', 99)):
                 with self.subTest(citation_integrity=field):
                     edited = deepcopy(original); edited['claims'][0][field] = changed
                     module.write(round_path, edited)

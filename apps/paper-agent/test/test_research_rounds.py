@@ -40,4 +40,6 @@ class ResearchClaims(unittest.TestCase):
                     with self.assertRaisesRegex(Invalid, error):
                         ResearchClaim.parse(claim, (report,))
                 else:
-                    self.assertEqual(ResearchClaim.parse(claim, (report,)).quote, expected)
+                    selected = ResearchClaim.parse(claim, (report,))
+                    self.assertEqual(selected.quote, expected)
+                    self.assertEqual(selected.evidenceIndex, quotes.index(expected))

@@ -15,6 +15,7 @@ class ResearchClaim:
     paperId: str
     passageId: str
     quote: str
+    evidenceIndex: int | None = None
 
     @classmethod
     def parse(cls, value, reports):
@@ -50,8 +51,8 @@ class ResearchClaim:
                           'select a saved evidenceIndex (omit quote), or supply its exact quote. Saved choices: ' + choices)
         if value.get('stance') not in ('support', 'counterevidence', 'limitation'):
             raise Invalid('Choose support, counterevidence or limitation')
-        _, ref = matches[0]
-        return cls(text(value.get('text'), 4000, 'claim'), value['stance'], report_id, ref.paper_id, ref.passage_id, ref.quote)
+        index, ref = matches[0]
+        return cls(text(value.get('text'), 4000, 'claim'), value['stance'], report_id, ref.paper_id, ref.passage_id, ref.quote, index)
 
 
 @dataclass(frozen=True)

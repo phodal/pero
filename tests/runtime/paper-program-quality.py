@@ -72,7 +72,9 @@ def collect(directory):
             verified = bool(passage and source and page and passage.paper_id == claim['paperId']
                 and passage.file_digest == source['sha256'] and claim['quote'] and claim['quote'] in passage.content
                 and page['text'][passage.start:passage.start + len(passage.content)] == passage.content
-                and any(all(ref.get(key) == claim.get(key) for key in ('paperId', 'passageId', 'quote')) for ref in refs))
+                and any(all(ref.get(key) == claim.get(key) for key in ('paperId', 'passageId', 'quote'))
+                        and (claim.get('evidenceIndex') is None or claim['evidenceIndex'] == index)
+                        for index, ref in enumerate(refs)))
             claims.append(dict(id=f'claim-{len(claims) + 1}', round=row['number'], **claim,
                 sourceId=source['id'] if source else None, page=passage.page if passage else None,
                 observedText=passage.content if passage else None, citationVerified=verified))

@@ -22,7 +22,11 @@ def export_program(program, rounds):
     for row in rounds:
         report.extend(['', f'### Round {row["number"]}: {markdown_text(row["question"])}'])
         for claim in row['claims']:
-            link = claim['sourceUrl'] if claim.get('sourceKind') == 'html' else f'pero-app-location://paper-agent/main/report/{claim["reportId"]}/passage/{claim["passageId"]}'
+            if claim.get('sourceKind') == 'html':
+                link = claim['sourceUrl']
+            else:
+                target = f'citation/{claim["evidenceIndex"]}' if claim.get('evidenceIndex') is not None else f'passage/{claim["passageId"]}'
+                link = f'pero-app-location://paper-agent/main/report/{claim["reportId"]}/{target}'
             claim_text = markdown_text(claim['text']).replace('\n', '\n  ')
             report.extend([f'- **{claim["stance"]}**: {claim_text} ([source report]({quote(link, safe=":/?#=@%&+~")}))',
                            *['  > ' + line for line in markdown_text(claim['quote']).splitlines()]])
