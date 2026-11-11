@@ -59,3 +59,34 @@ test("document and reference definitions do not enumerate example types", () => 
   }
   assert.throws(() => referenceReview({ proposalId: "proposal-1", expectedRevision: 1, decision: "accept", source: {} } as never), /permission|reference/);
 });
+
+test("current fields validate before identity assignment while future records follow explicit policy", () => {
+  const definition = defineDocumentBlock({
+    type: "sourceDocument",
+    defaults: { source: "" },
+    futureVersions: "reject",
+    versionOne(attrs) {
+      if (new TextEncoder().encode(attrs.source).length > 8) throw new Error("Source exceeds 8 bytes.");
+    },
+  });
+  const fields = { schemaVersion: 1, source: "科研" };
+  assert.deepEqual(definition.validateFields(fields), fields);
+  assert.throws(() => definition.validate(fields), /Block id/);
+  assert.deepEqual(definition.validate({ blockId: "source-1", ...fields }), { status: "current", attrs: { blockId: "source-1", ...fields } });
+  for (const invalid of [
+    { schemaVersion: 1, source: 3 },
+    { schemaVersion: 1, source: "", ast: {} },
+    { schemaVersion: 1, source: "科研文" },
+    { schemaVersion: 2, source: "" },
+    { source: "" },
+  ]) {
+    assert.throws(() => definition.validateFields(invalid));
+    assert.throws(() => definition.validate({ blockId: "source-1", ...invalid }));
+  }
+  const future = { blockId: "future-1", schemaVersion: 2, replacement: { content: ["retained"] } };
+  assert.deepEqual(noteCardDefinition.validate(future), { status: "opaque", schemaVersion: 2, attrs: future });
+  assert.deepEqual(axisSpan.validate(future), { status: "opaque", schemaVersion: 2, attrs: future });
+  assert.throws(() => noteCardDefinition.validateFields(future), /schema version/);
+  assert.throws(() => axisSpan.validateFields(future), /schema version/);
+  assert.throws(() => definition.validate(future), /schema version/);
+});

@@ -40,8 +40,8 @@ export interface BlockIdentity {
 
 /**
  * A document block. The type name and defaults come from the definition,
- * not from this interface. Version 1 checks those defaults. A later integer
- * schemaVersion is returned unchanged.
+ * not from this interface. Version 1 checks those defaults. Future versions
+ * are preserved by default, or rejected by an explicitly strict definition.
  */
 /** Version 1 attrs. A future schema is not this type. */
 export type CurrentDocumentAttrs<Fields extends Record<string, BlockScalar>> = {
@@ -61,8 +61,31 @@ export interface DocumentBlockDefinition<
   readonly type: Type;
   readonly schemaVersion: 1;
   readonly role: "document";
+  readonly futureVersions: "preserve" | "reject";
   readonly defaults: { readonly schemaVersion: 1 } & Fields;
   validate(value: unknown): DocumentValidation<Fields>;
+  /** Current-version fields before identity assignment. Returns the input unchanged;
+   * optional blockId/templateOrigin are allowed but identity is checked only by validate. */
+  validateFields(value: unknown): { schemaVersion: 1 } & Fields;
+}
+
+/** Text interchange capabilities. File access and presentation belong to the consumer. */
+export interface DocumentImportFormat<Attrs> {
+  readonly id: string;
+  readonly label: string;
+  readonly extensions: readonly string[];
+  readonly mediaType: string;
+  /** UTF-8 file byte budget, checked before reading/parsing by file consumers. */
+  readonly maxBytes?: number;
+  parse(text: string): Attrs;
+}
+
+export interface DocumentExportFormat<Document> {
+  readonly id: string;
+  readonly label: string;
+  readonly extensions: readonly string[];
+  readonly mediaType: string;
+  serialize(document: Document): string;
 }
 
 /** A reference block. The only command is propose_reference. The type name is not enumerated here. */
@@ -76,7 +99,8 @@ export interface ReferenceBlockDefinition {
 export function defineDocumentBlock<Type extends string, Fields extends Record<string, BlockScalar>>(spec: {
   type: Type;
   defaults: Fields;
-  versionOne(attrs: { blockId: string; schemaVersion: 1 } & Fields): void;
+  futureVersions?: "preserve" | "reject";
+  versionOne(attrs: { schemaVersion: 1 } & Fields): void;
 }): DocumentBlockDefinition<CurrentDocumentAttrs<Fields>, Type, Fields> {
   if (!blockTypeName.test(spec.type)) throw new Error("Invalid block type name.");
   if ("schemaVersion" in spec.defaults || "blockId" in spec.defaults) throw new Error("schemaVersion and blockId belong to the block contract, not its field defaults.");
@@ -84,27 +108,36 @@ export function defineDocumentBlock<Type extends string, Fields extends Record<s
     if (!isScalar(value)) throw new Error(`Invalid default for ${key}.`);
   }
   const defaults = { schemaVersion: 1 as const, ...spec.defaults };
+  const futureVersions = spec.futureVersions ?? "preserve";
+  function validateFields(value: unknown): { schemaVersion: 1 } & Fields {
+    const record = recordOf(value);
+    if (record.schemaVersion !== 1) throw new Error("Unsupported document block schema version.");
+    const allowed = new Set(["blockId", "schemaVersion", "templateOrigin", ...Object.keys(spec.defaults)]);
+    if (Object.keys(record).some(key => !allowed.has(key))) throw new Error("Invalid document block fields.");
+    for (const [key, sample] of Object.entries(spec.defaults)) {
+      const got = record[key];
+      if (sample === null ? got !== null : typeof got !== typeof sample) throw new Error(`Invalid document block ${key}.`);
+    }
+    const parsed = record as { schemaVersion: 1 } & Fields;
+    spec.versionOne(parsed);
+    return parsed;
+  }
   return {
     type: spec.type,
     schemaVersion: 1,
     role: "document",
+    futureVersions,
     defaults,
+    validateFields,
     validate(value) {
       const record = recordOf(value);
       const blockId = record.blockId;
       if (typeof blockId !== "string" || !id.test(blockId)) throw new Error("Block id must be stable.");
       const version = record.schemaVersion;
       if (typeof version !== "number" || !Number.isInteger(version) || version < 1) throw new Error("Invalid block schema version.");
-      if (version !== 1) return { status: "opaque", schemaVersion: version, attrs: record };
-      const allowed = new Set(["blockId", "schemaVersion", "templateOrigin", ...Object.keys(spec.defaults)]);
-      if (Object.keys(record).some(key => !allowed.has(key))) throw new Error("Invalid document block fields.");
-      for (const [key, sample] of Object.entries(spec.defaults)) {
-        const got = record[key];
-        if (sample === null ? got !== null : typeof got !== typeof sample) throw new Error(`Invalid document block ${key}.`);
-      }
-      const attrs = record as CurrentDocumentAttrs<Fields>;
-      spec.versionOne(attrs);
-      return { status: "current", attrs };
+      if (version !== 1 && futureVersions === "preserve") return { status: "opaque", schemaVersion: version, attrs: record };
+      validateFields(record);
+      return { status: "current", attrs: record as CurrentDocumentAttrs<Fields> };
     },
   };
 }
