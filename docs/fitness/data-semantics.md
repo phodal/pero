@@ -149,3 +149,10 @@ SQL-column rejection, whose focused negatives were then rerun there.
 | 4. Product vertical slice | Real Data → query → Paper exact claim/source → independent recomputation → Host restart/history, observed in Chromium. No Electron/Native claim. |
 | 5. Version changes and incomplete outcomes | Fixed data/definition changes preserve history; missing inputs fail, partial results explicitly show truncation, failed query count is unknown, unfinished intents reopen as interrupted without retry. Executor cancellation is signal-tested; process-kill/UI cancellation is not claimed. |
 | 6. Decision | [ADR 0035](../adr/0035-data-semantic-contract.md): **reuse-contract-only**. Keep #152 open for real model comparison and upstream deployment hard gates. |
+
+Final UI follow-up: `7e5a54db` derives recomputation availability from the saved
+check definition; `244e9234` adds its real UI scenario. Clean-source
+`run-SF1e7p/verification.json` passed all previous groups plus this sixth case:
+a completed query with no independent checker shows a disabled recompute action
+and a visible reason, never a verification verdict. `unsupported-check-dark.png`
+was inspected. No Paper source or Host binary changed in this follow-up.

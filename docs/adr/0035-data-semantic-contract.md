@@ -21,7 +21,7 @@ second query state machine. Host resolves both private backends and their tokens
 the browser supplies only a query ID and claim selection.
 
 The first UI exposes one fixed table named `sample`; the Data entry point supports
-up to five explicit projections. Numbers require explicit conversion, empty/null
+up to five explicit projections. Numbers require explicit conversion to SQLite REAL (double precision), empty/null
 values become SQL NULL, and conversion failures stop preparation. Independent
 whole-table count/sum/mean use the original export and Decimal arithmetic, not
 SQL execution. Unsupported checks remain unavailable. Each result remains
