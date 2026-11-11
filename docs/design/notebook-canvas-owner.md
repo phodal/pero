@@ -16,6 +16,21 @@ This implements bounded, declared data views inside Notebook. It does not embed 
 
 ## Results and interrupted operations
 
+A declared read projection may include up to eight `results`, each with a unique
+bounded ID, a label and an inert object value. The existing 64 KiB response limit
+still applies. The SDK presents explicit selection and attachment only when the
+consumer supplies an attachment handler and the source is editable. Selecting a
+result dispatches no App action. The consumer validates its domain value and owns
+the document edit; result data never grants execution authority.
+
+Control Lab returns completed verification trials for the exact saved Notebook
+submission. It retains the trial/report/observation identities, exact check-number
+strings and canonical export digest. At most eight recent receipts within 48 KiB
+are offered, with omitted counts stated when necessary. Notebook inserts the
+selected receipt as a normal Experiment reference, which a Finding can cite.
+Older references keep their frozen snapshots when parameters change. Export/import
+remains available, but no file transfer is required for this owner handoff.
+
 Data atomically saves its metadata change and operation receipt in the existing catalog replacement. The same operation with the same inputs returns the original receipt; different inputs are rejected. Status reads receive the complete original envelope, including parameters, and cannot reinterpret an old receipt as another action. The Host verifies the returned operation, completion state and exact envelope digest before constructing its provenance record. Current Data envelopes use compact sorted-key UTF-8 JSON with ASCII identities and boolean parameters.
 
 Before dispatch, Host persists the exact source, action and envelope in its managed App recovery journal. It never persists tickets or consent. A new mount can discover previous operations for the same entry/block/binding and inspect Data's receipt without write permission, including after an App switch or Host restart. Provenance uses the original immutable source revision. Missing or interrupted owner status stays unknown; cancellation after dispatch does not claim rollback. An unresolved operation blocks a different new operation for that binding. The journal holds at most 128 records and only evicts resolved records; it refuses new dispatch rather than dropping unresolved evidence. Data's actual receipts remain in its catalog.

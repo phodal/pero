@@ -1,5 +1,36 @@
 # Notebook verification
 
+## Experiment flow recovery and direct results (2026-11-11)
+
+Verified product source `6ad36911` (based on `7c6f02f0`) gates Canvas mounting on its saved binding,
+provide an inline revision-save action and route stale input review to the
+existing procedure parameter. Field choices put column/value before source IDs.
+Control Lab now returns bounded selectable verification receipts through the
+existing Host Canvas read; attachment retains the same snapshot as the owner's
+integrity-checked JSON export. The UI pass removes repeated instructional copy
+and keeps source IDs in details.
+
+Rebuilt both Apps and the Rust Host. The in-app browser completed a blank-entry
+8 s / 1001-sample flow through actual search, candidate lock, independent
+verification, direct evidence attachment and a cited Finding. The final UI
+replay imported only the authored setup, changed to 2001 samples, followed the
+new review route and executed the new frozen specification. Both verification
+runs passed 8/8 checks. Final revision 5 retained its snapshot and Finding after
+reload. Direct snapshots matched the actual exported trial receipts exactly.
+Screenshots, state and comparisons are under
+`test-results/notebook-flow-fixed-2026-11-11/` and
+`test-results/notebook-flow-final-ui-2026-11-11/`.
+
+Root checks, App/SDK typechecks, both builds, 149 package tests, focused UI tests
+and two Host Canvas tests passed. Notebook Python passed 121 tests with three
+skips; Control Lab Python passed 54 with one skip. The serial editor run passed
+82/83, with the scoped-keyboard assertion also failing on baseline. Parallel
+runs additionally exposed a baseline formula-completion assertion and intermittent
+document-history teardown activity; neither appeared in the final serial run.
+The real Host fixture used test-driven shell approval. Desktop deep links,
+Electron/Native approval sheets, release packages and physical validation were
+not exercised.
+
 ## Text formatting toolbar (2026-11-10)
 
 Local changes based on `b27158d1` give the shared Select popup enough room
