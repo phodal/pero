@@ -259,7 +259,7 @@ impl Workbench {
                 name: name.clone(),
                 panel: panel.clone(),
             });
-            self.apps.error = None;
+            self.apps.open_errors.remove(&(name.clone(), panel.clone()));
             self.sync_follow(cx);
             self.command(json!({"action":"apps_open","name":name,"panel":panel}), cx);
         }
@@ -703,19 +703,26 @@ impl Workbench {
                         .cursor(CursorStyle::ResizeLeftRight)
                         .on_mouse_down(
                             MouseButton::Left,
-                            cx.listener(|this, _, window, cx| {
+                            cx.listener(|this, event: &MouseDownEvent, window, cx| {
                                 this.chat_resize_focus.focus(window, cx);
-                                this.resizing_chat = true;
+                                if event.click_count == 2 {
+                                    this.preferences.layout.resize_chat(
+                                        pero_contracts::workbench::LayoutPreferences::default().chat_width());
+                                    this.save_preferences(this.preferences.clone(), cx);
+                                } else {
+                                    this.resizing_chat = true;
+                                }
+                                cx.stop_propagation();
                                 cx.notify();
                             }),
                         )
                         .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                            let delta = match event.keystroke.key.as_str() {
-                                "left" => 20.,
-                                "right" => -20.,
+                            let width = match event.keystroke.key.as_str() {
+                                "left" => this.preferences.layout.chat_width() + 20.,
+                                "right" => this.preferences.layout.chat_width() - 20.,
+                                "enter" => pero_contracts::workbench::LayoutPreferences::default().chat_width(),
                                 _ => return,
                             };
-                            let width = this.preferences.layout.chat_width() + delta;
                             this.preferences.layout.resize_chat(width);
                             this.save_preferences(this.preferences.clone(), cx);
                             cx.stop_propagation();

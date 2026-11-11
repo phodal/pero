@@ -105,20 +105,29 @@ impl Workbench {
             .cursor(CursorStyle::ResizeLeftRight)
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| {
+                cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     this.sidebar_resize_focus.focus(window, cx);
-                    this.resizing_sidebar = true;
+                    if event.click_count == 2 {
+                        this.preferences.layout.resize_sidebar(
+                            pero_contracts::workbench::LayoutPreferences::default().sidebar_width());
+                        this.save_preferences(this.preferences.clone(), cx);
+                    } else {
+                        this.resizing_sidebar = true;
+                    }
                     cx.stop_propagation();
                     cx.notify();
                 }),
             )
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                let delta = match event.keystroke.key.as_str() {
-                    "left" => -20.,
-                    "right" => 20.,
+                use pero_contracts::workbench::LayoutPreferences as L;
+                let width = match event.keystroke.key.as_str() {
+                    "left" => this.preferences.layout.sidebar_width() - 20.,
+                    "right" => this.preferences.layout.sidebar_width() + 20.,
+                    "home" => L::MIN_SIDEBAR_WIDTH.into(),
+                    "end" => L::MAX_SIDEBAR_WIDTH.into(),
+                    "enter" => L::default().sidebar_width(),
                     _ => return,
                 };
-                let width = this.preferences.layout.sidebar_width() + delta;
                 this.preferences.layout.resize_sidebar(width);
                 this.save_preferences(this.preferences.clone(), cx);
                 cx.stop_propagation();
