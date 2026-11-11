@@ -8,6 +8,7 @@ pub mod session_artifacts;
 pub mod roadmap;
 pub mod apps;
 pub mod environments;
+pub mod environment_use_store;
 pub mod owned_process;
 pub mod compute;
 pub mod contribution;
