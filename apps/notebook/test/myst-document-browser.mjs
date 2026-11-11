@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -78,7 +78,35 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   });
   t.after(async () => {
     try {
-      await mkdir(output, { recursive: true });
+      for (const [button, extension] of [['Word (DOCX)', '.docx'], ['JATS XML', '.xml'], ['LaTeX source', '.tex'], ['Typst source', '.typ']]) {
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: button, exact: true }).click();
+    const download = await pending, destination = resolve(directory, `publication${extension}`);
+    await download.saveAs(destination);
+    if (extension === '.docx') {
+      const checked = spawnSync('python3', ['-c', 'import sys,zipfile,json,xml.etree.ElementTree as E; z=zipfile.ZipFile(sys.argv[1]); E.fromstring(z.read("word/document.xml")); assert "Scientific browser fixture" in z.read("word/document.xml").decode(); assert "source" in json.loads(z.read("pero/source.json"))', destination], { encoding: 'utf8' });
+      assert.equal(checked.status, 0, checked.stderr);
+    } else assert.ok((await readFile(destination, 'utf8')).includes('Scientific browser fixture'));
+  }
+  await mkdir(output, { recursive: true });
+  await page.evaluate(() => { window.print = () => { globalThis.publicationPrintInvoked = true; }; });
+  await page.getByRole('button', { name: 'Print publication / Save as PDF', exact: true }).click();
+  const print = page.locator('.notebook-print-output[data-publication="myst"]');
+  await expect(print.locator('math')).toHaveCount(2);
+  await expect(print.locator('textarea, iframe, .source')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Print', exact: true }).click();
+  assert.equal(await page.evaluate(() => globalThis.publicationPrintInvoked), true);
+  await page.emulateMedia({ media: 'print' });
+  await print.screenshot({ path: resolve(output, 'myst-publication-print.png') });
+  const pdfPath = resolve(output, 'myst-publication.pdf');
+  const pdf = await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  const checked = spawnSync('python3', ['-c', 'import sys,pypdfium2 as P; d=P.PdfDocument(sys.argv[1]); assert len(d)>0; text="".join(p.get_textpage().get_text_range() for p in d); assert "Scientific browser fixture" in text; assert "Existing notebook text stays" not in text', pdfPath], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stderr);
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await expect(print).toHaveCount(0);
+
       await page.screenshot({ path: resolve(output, 'myst-document-publication.png'), fullPage: true });
     } finally { await browser.close(); }
   });

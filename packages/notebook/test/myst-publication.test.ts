@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import JSZip from 'jszip';
 import { parseMystDocument, importMystBundle } from '../src/myst.ts';
@@ -7,7 +8,7 @@ import { projectMystPublication, inertPublicationMath } from '../src/myst-public
 import { exportMystJats } from '../src/myst-jats.ts';
 import { exportMystDocx, exportMystLatex, exportMystTypst, exportMystPublicationArchive } from '../src/myst-publication-sdk.ts';
 const source = '---\ntitle: Scientific publication\nauthors:\n  - name: Ada Example\ndoi: 10.1234/example\n---\n# Scientific publication\n\nA real formula $x^2$ and equation:\n\n$$\nN = N_0 e^{rt} + \\frac{x^2}{\\sqrt{y}}\n$$\n\n![Figure](figure.png)\n\n| Trial | Result |\n| --- | --- |\n| A | 42 |\n\n- First\n- Second\n\n## Discussion\n\nA **bold** finding.\n';
-const assets = [{ path: 'figure.png', mediaType: 'image/png', base64: 'iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAIAAABhdOiYAAAAfklEQVR4nO3QQRHAIADAMEDCVKILpVOw65M9EgW9zmefwbd1O+DvDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFB4AX3CAXwOGfvwAAAAAElFTkSuQmCC' }];
+const assets = [{ path: 'figure.png', mediaType: 'image/png', base64: 'iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAIAAABhdOiYAAAAfklEQVR4nO3QQRHAIADAMEDIJCIMlVOw65M9EgW9zmefwbd1O+DvDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFAwKBgUDAoGBYOCQcGgYFB4Af69AZbozKKMAAAAAElFTkSuQmCC' }];
 const input = { document: parseMystDocument(source), assets };
 test('official adapters produce deterministic genuine artifacts and never mutate source', async () => {
   const before = JSON.stringify(input);
@@ -73,4 +74,18 @@ test('alias-heavy source recovery uses the importer canonical source-only bundle
   const source='---\ntitle: &text '+ 'a'.repeat(240000)+'\nsubtitle: *text\ndescription: *text\nshort_title: *text\nabstract: *text\n---\n';
   const zip=await JSZip.loadAsync(await exportMystDocx({document:parseMystDocument(source)}));
   assert.equal(importMystBundle(await zip.file('pero/source.json')!.async('string')).source,source);
+});
+
+test('reviewed deterministic scientific text fixtures remain exact', () => {
+  const fixture = new URL('./fixtures/myst-publication/', import.meta.url);
+  const document = parseMystDocument(readFileSync(new URL('science.myst', fixture), 'utf8'));
+  for (const [name, output] of [['article.xml', exportMystJats(document)], ['article.tex', exportMystLatex({ document, assets })], ['article.typ', exportMystTypst({ document, assets })]]) assert.equal(output, readFileSync(new URL(name, fixture), 'utf8'));
+});
+
+test('compiled CSL groups and bibliography preserve rendered text exactly once', () => {
+  const document = parseMystDocument('Citation {cite:p}`study,other`.');
+  const visit = (node: typeof document.ast) => { if (node.type === 'cite' || node.type === 'citeGroup') node.citationId = 'occurrence'; node.children?.forEach(visit); }; visit(document.ast);
+  Object.assign(document, { citationRendering: { engine: 'refkit-js@0.4.0', style: { path: 'style.csl', id: 'style', title: 'Style' }, locale: 'en-US', citations: { occurrence: { text: '(Styled, 2026)', html: '<em>(Styled, 2026)</em>' } }, bibliography: [{ id: 'study', text: 'Styled bibliography.', html: 'Styled bibliography.' }] } });
+  for (const kind of ['docx', 'latex', 'typst'] as const) { const text = JSON.stringify(projectMystPublication({ document }, kind).ast); assert.equal(text.split('(Styled, 2026)').length - 1, 1); assert.ok(text.includes('Styled bibliography.')); }
+  assert.equal(exportMystJats(document).split('(Styled, 2026)').length - 1, 1);
 });
