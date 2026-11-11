@@ -18,11 +18,11 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
       if (typeof node.identifier === 'string' && (counts.get(node.identifier) ?? 0) > 1 && !['crossReference','cite','footnoteReference'].includes(node.type)) delete node.identifier;
     });
     for (const [identifier, reference] of Object.entries(page.document.references)) {
-      for (let i = 0; i < (counts.get(identifier) ?? 1); i++) targets.set(identifier, [...(targets.get(identifier) ?? []), { sourcePath: page.path, target: { path: page.namespace ?? page.path, identifier, label: reference.label, reference } }]);
+      for (let i = 0; i < (reference.ambiguous ? 2 : counts.get(identifier) ?? 1); i++) targets.set(identifier, [...(targets.get(identifier) ?? []), { sourcePath: page.path, target: { path: page.namespace ?? page.path, identifier, label: reference.label, reference } }]);
     }
   }
   for (const page of pages) {
-    page.document.diagnostics = page.document.diagnostics.filter(item => item.code !== 'reference-unresolved' && item.code !== 'reference-number-unavailable');
+    page.document.diagnostics = page.document.diagnostics.filter(item => item.code !== 'reference-unresolved' && item.code !== 'reference-number-unavailable' && item.code !== 'reference-ambiguous');
     walk(page.document.ast, node => {
       const key = normalizeMystIdentifier(String(node.identifier ?? node.label ?? ''));
       if (node.type === 'cite' && node.citationShorthand && !page.document.bibliography[key] && targets.has(key)) {

@@ -27,6 +27,7 @@ export interface MystNode {
 }
 export interface MystDiagnostic { severity: 'warning' | 'error'; code: string; message: string; line?: number; path?: string }
 export interface MystReferenceTarget {
+  ambiguous?: boolean;
   identifier: string;
   kind: string;
   number?: string;
@@ -179,16 +180,19 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
       let id = node.url.slice(1);
       try { id = decodeURIComponent(id); } catch { /* Preserve invalid fragment escapes. */ }
       const target = references[identifier(id)];
-      if (target) resolveMystReferenceContent(node, target, report, projectionBudget);
+      if (target?.ambiguous) { node.resolved = false; report('reference-ambiguous', `Ambiguous local reference: ${id}`, node); }
+      else if (target) resolveMystReferenceContent(node, target, report, projectionBudget);
       return;
     }
     if (node.type === 'cite' && node.citationShorthand && references[identifier(String(node.identifier))] && !bibliography[identifier(String(node.identifier))]) node.type = 'crossReference';
     if (node.type !== 'crossReference' && node.type !== 'cite') return;
     const id = identifier(string(node.identifier) ?? string(node.label) ?? '');
-    const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id];
+    const ambiguous = node.type === 'crossReference' && references[id]?.ambiguous;
+    const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id] && !ambiguous;
     node.identifier = id;
     node.resolved = resolved;
     if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report, projectionBudget); }
+    else if (ambiguous) { node.error = 'ambiguous'; report('reference-ambiguous', `Ambiguous local reference: ${id}`, node); }
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
   const document: MystDocument = { projectionBudget, version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };

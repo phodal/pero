@@ -93,6 +93,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'link': losses.add('Hyperlinks exported as visible text and URL, not active links.'); return { type: 'strong', children: [...children(), plain(` (${read(node, 'url')})`)] };
       case 'crossReference': {
         losses.add('Cross references exported as resolved text, not editable fields.');
+        if (node.resolved === false) return plain(`[Unresolved reference: ${read(node, 'identifier')}]`);
         const target = node.projectTarget;
         return plain(target && typeof target === 'object' && 'label' in target && typeof target.label === 'string' ? target.label : document.references[read(node, 'identifier')]?.label ?? `[Unresolved reference: ${read(node, 'identifier')}]`);
       }

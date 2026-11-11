@@ -88,6 +88,7 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
     }
   }
   const references: Record<string, MystReferenceTarget> = Object.create(null);
+  const targetNodes = new Map<string, MystNode[]>();
   const { numbering } = state;
   // Numbering templates can repeat a long authored caption or enumerator many
   // times. Admit each replaceAll stage before it allocates its result.
@@ -140,13 +141,23 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
         node.identifier = id;
         const target: MystReferenceTarget = { identifier: id, kind, ...(number ? { number: `${node.parentEnumerator ?? ''}${number}` } : {}), template, ...(name ? { name } : {}), label: '' };
         target.label = mystReferenceContent({ type: 'crossReference', identifier: id }, target, report, budget).map(mystNodeText).join('');
-        if (references[id]) report('reference-duplicate', `Duplicate label: ${rawId}`, node);
+        const destinations = targetNodes.get(id) ?? [];
+        destinations.push(node); targetNodes.set(id, destinations);
+        if (references[id]) {
+          references[id].ambiguous = true;
+          report('reference-duplicate', `Duplicate label: ${rawId}`, node);
+        }
         else references[id] = target;
       }
     }
     node.children?.forEach(visit);
   };
   visit(ast);
+  // Keep the ambiguity in the reference index for later project resolution,
+  // but no conflicting block may advertise a destination anchor.
+  for (const [id, nodes] of targetNodes) if (references[id].ambiguous) {
+    for (const node of nodes) delete node.identifier;
+  }
   return references;
 }
 

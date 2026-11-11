@@ -70,3 +70,30 @@ test('numbering labels preflight repeated names and repeated expanded numbers', 
     assert.ok(doc.references.large.label.length < MYST_PROJECTION_MAX_BYTES);
   }
 });
+
+test('standalone duplicate labels suppress all anchors and both reference spellings', async () => {
+  const { renderMystHtml } = await import('../src/myst-render.ts');
+  const { projectMystPublication } = await import('../src/myst-publication.ts');
+  const source = '(same)=\n## First\n\n(same)=\n## Second\n\n{ref}`same` and [fragment](#same)\n\n:::{toc}\n:context: page\n:::';
+  const doc = parseMystDocument(source), html = renderMystHtml(doc);
+  assert.equal(exportMystMarkdown(doc), source);
+  assert.ok(html.includes('First') && html.includes('Second'));
+  assert.ok(!html.includes('id="myst-same"') && !html.includes('href="#myst-same"'));
+  assert.equal(doc.references.same.ambiguous, true);
+  assert.equal(doc.diagnostics.filter(item => item.code === 'reference-ambiguous').length, 2);
+  assert.ok(walk(projectMystPublication({ document: doc }, 'docx').ast).some(node => node.value === '[Unresolved reference: same]'));
+});
+
+test('local ambiguity survives project indexing without blocking unique path-qualified destinations', () => {
+  const snapshot = parseMystProjectSnapshot({ format: 'pero-myst-project', version: 1, entry: 'index.md', files: [
+    { path: 'index.md', text: '(same)=\n## First\n\n(same)=\n## Second\n\n{ref}`same` [local](#same) [other](other.md#same)' },
+    { path: 'other.md', text: '(same)=\n## Unique' },
+  ] });
+  const project = compileMystProject(snapshot);
+  if (project.entry.kind !== 'myst') throw new Error('Expected MyST page');
+  const links = walk(project.entry.document.ast).filter(node => ['crossReference', 'link'].includes(node.type));
+  assert.equal(links[0].resolved, false);
+  assert.equal(links[1].resolved, false);
+  assert.equal(links[2].resolved, true);
+  assert.equal(links[2].projectTarget?.path, 'other.md');
+});
