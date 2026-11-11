@@ -449,3 +449,29 @@ and [Canvas screenshots/receipts](https://github.com/phodal/pero/actions/runs/42
 Both archives were checksum-verified; actual project/CSV/Canvas and failure
 pixels were inspected. Native/Electron GUI and arbitrary TeX/Typst compilation
 remain outside this evidence.
+
+## Accepted scientific workflow checkpoint `d190b80d`
+
+[CI 42967754932](https://github.com/phodal/pero/actions/runs/42967754932)
+completed successfully on `d190b80db49ff9401cf7a88e6be2e2aef99647f9`.
+Notebook passed 267 core, 106 complete editor, 149 real-OCR backend and all seven
+Chromium journeys. Both Canvas real-owner journeys and the Linux CI gate passed.
+The local complete editor rerun independently passed 106/106 after print repair.
+Native compilation passed; skipped Native/Electron GUI acceptance is not claimed.
+
+Actual scientific downloads, repeated internal navigation, same-origin CSL,
+IPYNB source recovery, print invocation/cleanup and PDF bytes/text/pages now pass.
+[Notebook artifact 13831913303](https://github.com/phodal/pero/actions/runs/42967754932/artifacts/13831913303)
+(archive SHA-256 `658b5dfaf7139bccd34580d398628db31c4f8c2b9d309f94d43f965ce01ed0a2`)
+and [Canvas artifact 13831996896](https://github.com/phodal/pero/actions/runs/42967754932/artifacts/13831996896)
+(`26acc6510821bbea551c82b62a8200c5d14b6095d054c468a4ca93113f812e12`)
+were downloaded and verified. Both real PDF pages were rendered and inspected,
+alongside project/source/CSV and Canvas screenshots. Scientific metadata, native
+MathML rendering and the table are readable; original host prose is absent.
+A light gray background remains below the final print content and is a visual
+follow-up, not a claim of complete print-template certification.
+
+The continuation proceeds separately with local embeds, upstream numbering and
+reference presentation, proof blocks, explicit contents and terminology. These
+new stages are not covered by this checkpoint's acceptance. Existing execution,
+external-service, native GUI and publication-toolchain boundaries remain.
