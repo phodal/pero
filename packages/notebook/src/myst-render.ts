@@ -13,6 +13,9 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid; padding
 code { font-family: ui-monospace, monospace; }
 blockquote, aside { margin: 1rem 0; border-inline-start: .2rem solid; padding: .25rem 1rem; }
 figure { margin: 1.5rem 0; }
+.byline { list-style: none; padding: 0; }
+.publication-metadata { margin-bottom: 2rem; }
+.metadata-label { font-weight: 600; }
 figcaption, .notice { font-size: .9rem; }
 .equation { display: flex; gap: 1rem; align-items: center; justify-content: space-between; overflow-x: auto; padding: 1rem 0; }
 math[display="block"] { margin: .5rem 0; }
@@ -142,8 +145,60 @@ export function renderMystHtml(document: MystDocument): string {
       }
     }
   };
-  const body = render(document.ast);
-  const title = typeof document.metadata.title === 'string' ? document.metadata.title : 'MyST publication';
+  const scholarly = document.scholarly;
+  const title = scholarly.title ?? 'MyST publication';
+  const plainText = (node: MystNode): string => node.value ?? (node.children ?? []).map(plainText).join('');
+  const firstContent = document.ast.children?.find(node => node.type !== 'comment');
+  const repeatedTitle = scholarly.title && firstContent?.type === 'heading' && firstContent.depth === 1 && plainText(firstContent).trim() === scholarly.title.trim() ? firstContent : undefined;
+  const titleHtml = repeatedTitle ? render(repeatedTitle) : scholarly.title ? `<h1>${escapeHtml(scholarly.title)}</h1>` : '';
+  const body = render(repeatedTitle ? { ...document.ast, children: document.ast.children?.filter(node => node !== repeatedTitle) } : document.ast);
+  const affiliations = scholarly.affiliations ?? [];
+  const people = [...(scholarly.authors ?? []), ...(scholarly.contributors ?? [])];
+  const personName = (person: (typeof people)[number]) => {
+    if (person.name) return person.name;
+    notices.add(`Contributor ${person.id ?? '(without id)'} has no display name; authored metadata is preserved.`);
+    return person.id ?? 'Unnamed contributor';
+  };
+  const affiliationName = (affiliation: (typeof affiliations)[number]) => {
+    const name = [...new Set([affiliation.name, affiliation.institution, affiliation.department, affiliation.address, affiliation.city, affiliation.state, affiliation.postal_code, affiliation.country].filter(Boolean))].join(', ');
+    if (name) return name;
+    notices.add(`Affiliation ${affiliation.id ?? '(without id)'} has no display details; authored metadata is preserved.`);
+    return affiliation.id ?? 'Unnamed affiliation';
+  };
+  const affiliationLink = (identifier: string) => {
+    const index = affiliations.findIndex(item => item.id === identifier);
+    if (index < 0) { notices.add(`Unresolved affiliation: ${identifier}`); return escapeHtml(`${identifier} [unresolved]`); }
+    return link(`#publication-affiliation-${index + 1}`, String(index + 1));
+  };
+  const byline = (scholarly.authors ?? []).map(person => `<li>${escapeHtml(personName(person))}${person.affiliations?.length ? `<sup> ${person.affiliations.map(affiliationLink).join(', ')}</sup>` : ''}${person.orcid ? ` · ${link(`https://orcid.org/${person.orcid}`, `ORCID ${escapeHtml(person.orcid)}`)}` : ''}${person.corresponding ? ` · Corresponding author${person.email ? `: ${link(`mailto:${person.email}`, escapeHtml(person.email))}` : ''}` : ''}${person.equal_contributor ? ' · Equal contribution' : ''}${person.deceased ? ' · Deceased' : ''}${person.roles?.length ? `<div class="notice">${escapeHtml(person.roles.join(', '))}</div>` : ''}${person.note ? `<div class="notice">${escapeHtml(person.note)}</div>` : ''}</li>`).join('');
+  const affiliationList = affiliations.map((item, index) => `<li id="publication-affiliation-${index + 1}">${escapeHtml(affiliationName(item))}</li>`).join('');
+  const licenses = (['content', 'code'] as const).flatMap(kind => {
+    const license = scholarly.license?.[kind];
+    if (!license) return [];
+    const name = license.name ?? license.id ?? license.url;
+    if (!name) notices.add(`${kind} license has no display name or URL; authored metadata is preserved.`);
+    const content = escapeHtml(name ?? 'Unspecified license');
+    return [`<p><span class="metadata-label">${kind === 'content' ? 'Content' : 'Code'} license:</span> ${license.url ? link(license.url, content) : content}${license.note ? ` · ${escapeHtml(license.note)}` : ''}</p>`];
+  }).join('');
+  const funding = (scholarly.funding ?? []).map(item => {
+    const awards = (item.awards ?? []).map(award => {
+      const sources = (award.sources ?? []).map(identifier => {
+        const affiliation = affiliations.find(entry => entry.id === identifier);
+        if (!affiliation) notices.add(`Unresolved funding source: ${identifier}`);
+        return affiliation ? affiliationName(affiliation) : `${identifier} [unresolved]`;
+      });
+      const recipients = (ids: string[]) => ids.map(identifier => {
+        const person = people.find(entry => entry.id === identifier);
+        if (!person) notices.add(`Unresolved funding recipient or investigator: ${identifier}`);
+        return person ? personName(person) : `${identifier} [unresolved]`;
+      }).join(', ');
+      return `<li>${escapeHtml([award.name, award.id].filter(Boolean).join(' · ') || 'Award')}${award.description ? `<p>${escapeHtml(award.description)}</p>` : ''}${sources.length ? `<p>Funder: ${escapeHtml(sources.join('; '))}</p>` : ''}${award.recipients?.length ? `<p>Recipients: ${escapeHtml(recipients(award.recipients))}</p>` : ''}${award.investigators?.length ? `<p>Investigators: ${escapeHtml(recipients(award.investigators))}</p>` : ''}</li>`;
+    }).join('');
+    return `${item.statement ? `<p>${escapeHtml(item.statement)}</p>` : ''}${item.open_access ? `<p>${escapeHtml(item.open_access)}</p>` : ''}${awards ? `<ul>${awards}</ul>` : ''}`;
+  }).join('');
+  const metadata = `${titleHtml}${scholarly.subtitle ? `<p>${escapeHtml(scholarly.subtitle)}</p>` : ''}${byline ? `<ul class="byline" aria-label="Authors">${byline}</ul>` : ''}${affiliationList ? `<ol aria-label="Affiliations">${affiliationList}</ol>` : ''}${scholarly.date ? `<p>Date: <time>${escapeHtml(scholarly.date)}</time></p>` : ''}${scholarly.doi ? `<p>DOI: ${link(`https://doi.org/${scholarly.doi}`, escapeHtml(scholarly.doi))}</p>` : ''}${licenses}${scholarly.copyright ? `<p>${escapeHtml(scholarly.copyright)}</p>` : ''}${scholarly.keywords?.length ? `<p>Keywords: ${escapeHtml(scholarly.keywords.join(', '))}</p>` : ''}${funding ? `<section aria-label="Funding"><h2>Funding</h2>${funding}</section>` : ''}`;
+  const header = metadata ? `<header class="publication-metadata">${metadata}<p class="notice">Authored publication metadata; not externally verified.</p></header>` : '';
+
   const bibliography = Object.entries(document.bibliography).map(([key, entry]) => {
     const description = [entry.author, entry.year, entry.title].filter(Boolean).join('. ') || entry.id;
     return `<li id="${escapeHtml(anchor(`citation-${key}`))}">[${escapeHtml(entry.id)}] ${entry.url ? link(entry.url, escapeHtml(description)) : escapeHtml(description)}</li>`;
@@ -151,5 +206,5 @@ export function renderMystHtml(document: MystDocument): string {
   const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><title>${escapeHtml(title)}</title><style>${publicationStyle}</style></head>
-<body><main>${body}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeHtml(document.source)}</pre></details></main></body></html>`;
+<body><main>${header}${body}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeHtml(document.source)}</pre></details></main></body></html>`;
 }

@@ -1,4 +1,5 @@
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
+import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { createTokenizer, mystParse } from 'myst-parser';
 import { VFile } from 'vfile';
 import { parseDocument } from 'yaml';
@@ -24,6 +25,7 @@ export interface MystDocument {
   source: string;
   ast: MystNode;
   metadata: Record<string, unknown>;
+  scholarly: MystScholarlyMetadata;
   diagnostics: MystDiagnostic[];
   references: Record<string, MystReferenceTarget>;
   bibliography: Record<string, MystBibliographyEntry>;
@@ -38,8 +40,7 @@ const identifier = normalizeMystIdentifier;
 
 /** No compiler, plugins, execution, file resolution or network access is installed. */
 export function parseMystDocument(source: string): MystDocument {
-  if (typeof source !== 'string') throw new TypeError('MyST source must be a string');
-  if (new TextEncoder().encode(source).length > MYST_SOURCE_MAX_BYTES) throw new RangeError('MyST source exceeds 256 KiB');
+  parseMystAttributes({ schemaVersion: 1, source });
   const diagnostics: MystDiagnostic[] = [];
   const report = (code: string, message: string, node?: MystNode, severity: MystDiagnostic['severity'] = 'warning') => {
     diagnostics.push({ code, message, severity, ...(node?.position ? { line: node.position.start.line } : {}) });
@@ -75,6 +76,15 @@ export function parseMystDocument(source: string): MystDocument {
     }
     ast.children!.shift();
   }
+  const { pero: handledPero, ...standardMetadata } = metadata;
+  if (handledPero !== undefined) {
+    if (!record(handledPero)) report('frontmatter-validation', 'pero metadata must be a mapping; authored value retained');
+    else for (const key of Object.keys(handledPero)) {
+      if (key !== 'bibliography') report('frontmatter-validation', `Unknown pero metadata field: ${key}; authored value retained`);
+    }
+  }
+  const scholarly = validateMystMetadata(standardMetadata);
+  diagnostics.push(...scholarly.diagnostics);
   const normalize = (node: MystNode): MystNode[] => {
     if (node.type === 'mystDirective' || node.type === 'mystRole') {
       const name = string(node.name) ?? '';
@@ -143,21 +153,19 @@ export function parseMystDocument(source: string): MystDocument {
     if (resolved) node.target = id;
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
-  return { version: 1, source, ast, metadata, diagnostics, references, bibliography };
+  return { version: 1, source, ast, metadata, scholarly: scholarly.normalized, diagnostics, references, bibliography };
 }
 
-export function exportMystMarkdown(document: MystDocument): string { return document.source; }
+export function exportMystMarkdown(document: { source: string }): string { return document.source; }
 /** A portable, deterministic source + diagnostic bundle; no assets are fetched. */
 export function exportMystBundle(document: MystDocument): string {
-  return JSON.stringify({ format: 'pero-myst', version: 1, source: document.source, metadata: document.metadata, bibliography: document.bibliography, diagnostics: document.diagnostics }, null, 2) + '\n';
+  return JSON.stringify({ format: 'pero-myst', version: 1, source: document.source, metadata: document.metadata, scholarly: document.scholarly, bibliography: document.bibliography, diagnostics: document.diagnostics }, null, 2) + '\n';
 }
 
 /** Validate persisted source at the adapter boundary, without accepting AST as state. */
 export function parseMystAttributes(value: unknown): { schemaVersion: 1; source: string } {
-  if (!record(value) || value.schemaVersion !== 1 || typeof value.source !== 'string') throw new TypeError('Invalid MyST document attributes');
-  if (Object.keys(value).some(key => !['schemaVersion', 'source', 'blockId', 'templateOrigin'].includes(key))) throw new TypeError('Unknown MyST document attribute');
-  if (new TextEncoder().encode(value.source).length > MYST_SOURCE_MAX_BYTES) throw new RangeError('MyST source exceeds 256 KiB');
-  return { schemaVersion: 1, source: value.source };
+  const attrs = mystDocumentDefinition.validateFields(value);
+  return { schemaVersion: 1, source: attrs.source };
 }
 /** Only source is authoritative; metadata, bibliography and diagnostics are rederived on parse. */
 export function importMystBundle(text: string): { schemaVersion: 1; source: string } {
@@ -168,13 +176,9 @@ export function importMystBundle(text: string): { schemaVersion: 1; source: stri
 
 /** MyST uses the shared document-block adapter while its source domain remains
  * deliberately strict: future schemas must not be pasted or saved as version 1. */
-const mystBlock = defineDocumentBlock({
-  type: 'mystDocument', defaults: { source: '' }, versionOne() {},
-});
-export const mystDocumentDefinition = registerDocumentBlock({
-  ...mystBlock,
-  validate(value: unknown) {
-    parseMystAttributes(value);
-    return mystBlock.validate(value);
+export const mystDocumentDefinition = registerDocumentBlock(defineDocumentBlock({
+  type: 'mystDocument', defaults: { source: '' }, futureVersions: 'reject',
+  versionOne(attrs) {
+    if (new TextEncoder().encode(attrs.source).length > MYST_SOURCE_MAX_BYTES) throw new RangeError('MyST source exceeds 256 KiB');
   },
-});
+}));

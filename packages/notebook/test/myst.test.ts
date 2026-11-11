@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseMystDocument, exportMystMarkdown, exportMystBundle, importMystBundle, parseMystAttributes, MYST_SOURCE_MAX_BYTES, type MystNode } from '../src/myst.ts';
+import { parseMystDocument, exportMystMarkdown, exportMystBundle, importMystBundle, parseMystAttributes, mystDocumentDefinition, MYST_SOURCE_MAX_BYTES, type MystNode } from '../src/myst.ts';
 
 function nodes(node: MystNode): MystNode[] { return [node, ...(node.children ?? []).flatMap(nodes)]; }
 const scientific = `---
@@ -130,7 +130,7 @@ test('frontmatter rejects malformed, duplicate and custom-tag YAML but keeps ori
 test('persisted source has a versioned UTF-8 byte limit', () => {
   assert.deepEqual(parseMystAttributes({ schemaVersion: 1, source: '' }), { schemaVersion: 1, source: '' });
   assert.throws(() => parseMystAttributes({ schemaVersion: 2, source: '' }));
-  for (const extra of ['execute', 'plugins']) assert.throws(() => parseMystAttributes({ schemaVersion: 1, source: '', [extra]: true }), /Unknown/);
+  for (const extra of ['execute', 'plugins']) assert.throws(() => parseMystAttributes({ schemaVersion: 1, source: '', [extra]: true }), /fields/);
   const oversized = '界'.repeat(Math.floor(MYST_SOURCE_MAX_BYTES / 3) + 1);
   assert.throws(() => parseMystDocument(oversized), /256 KiB/);
   assert.throws(() => parseMystAttributes({ schemaVersion: 1, source: oversized }), /256 KiB/);
@@ -170,6 +170,30 @@ test('an include nested inside a supported admonition remains opaque and inert',
   assert.equal(include?.children, undefined);
   assert.ok(!all.some(node => node.type === 'include'));
   assert.ok(document.diagnostics.some(item => item.code === 'directive-disabled' && item.line === 4));
+  assert.equal(exportMystMarkdown(document), source);
+  assert.equal(importMystBundle(exportMystBundle(document)).source, source);
+});
+
+
+test('MyST uses the shared SDK domain validator without reinterpreting future schemas', () => {
+  const source = '# Exact source\r\n';
+  assert.equal(mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 1, source }).source, source);
+  assert.deepEqual(parseMystAttributes({ schemaVersion: 1, source, blockId: 'myst-one' }), { schemaVersion: 1, source });
+  assert.throws(() => mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 2, source }));
+  assert.throws(() => mystDocumentDefinition.validateFields({ schemaVersion: 2, source }));
+  assert.throws(() => mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 1, source: 'x'.repeat(MYST_SOURCE_MAX_BYTES + 1) }));
+});
+
+test('scholarly frontmatter is validated without replacing raw authored metadata', () => {
+  const source = '---\ntitle: Study\nauthor: Ada Lovelace\ndoi: invalid\ncustom: retained\npero:\n  bibliography:\n    - id: cite-me\n      title: Local reference\n---\n\n{cite}`cite-me`';
+  const document = parseMystDocument(source);
+  assert.equal(document.scholarly.authors?.[0].name, 'Ada Lovelace');
+  assert.equal(document.scholarly.doi, undefined);
+  assert.equal(document.metadata.doi, 'invalid');
+  assert.equal(document.metadata.author, 'Ada Lovelace');
+  assert.ok(document.diagnostics.some(item => item.code === 'frontmatter-validation' && item.message.includes('doi')));
+  assert.ok(document.diagnostics.some(item => item.message.includes('custom')));
+  assert.ok(!document.diagnostics.some(item => item.message.includes('extra key ignored: pero')));
   assert.equal(exportMystMarkdown(document), source);
   assert.equal(importMystBundle(exportMystBundle(document)).source, source);
 });

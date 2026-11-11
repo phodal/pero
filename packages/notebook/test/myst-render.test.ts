@@ -4,7 +4,7 @@ import { renderMystHtml } from '../src/myst-render.ts';
 import type { MystDocument, MystNode } from '../src/myst.ts';
 
 function publication(children: MystNode[], overrides: Partial<MystDocument> = {}): MystDocument {
-  return { version: 1, source: '# Original source', metadata: {}, ast: { type: 'root', children },
+  return { version: 1, source: '# Original source', metadata: {}, scholarly: {}, ast: { type: 'root', children },
     references: {}, bibliography: {}, diagnostics: [], ...overrides };
 }
 const text = (value: string): MystNode => ({ type: 'text', value });
@@ -150,4 +150,82 @@ test('parsed task lists retain completed and incomplete states without interacti
   assert.match(body, /\[Not completed\].*<p>Pending<\/p>/);
   assert.match(body, /<li><p>Ordinary<\/p><\/li>/);
   assert.doesNotMatch(body, /<input|<button|<script/);
+});
+
+test('official scholarly frontmatter publishes authors, linked affiliations, identifiers and funding', async () => {
+  const { parseMystDocument } = await import('../src/myst.ts');
+  const source = `---
+title: Cell growth
+subtitle: A reproducible study
+author:
+  - id: ada
+    name: {given: Ada, family: Lovelace}
+    affiliation: lab
+    orcid: 0000-0002-1825-0097
+    corresponding: true
+    email: ada@example.org
+    roles: [Conceptualization]
+affiliations:
+  - id: lab
+    name: Example Institute
+    city: London
+    country: UK
+date: 2024-02-29
+doi: 10.1038/nphys1170
+license: CC-BY-4.0
+funding:
+  statement: Supported by Example Foundation
+  awards:
+    - id: G1
+      sources: [{id: foundation, name: Example Foundation}]
+      recipients: [ada]
+---
+(title)=
+# Cell growth
+
+Research content.
+`;
+  const parsed = parseMystDocument(source);
+  const html = renderMystHtml(parsed);
+  const body = html.split('<details class="source">')[0];
+  assert.equal((body.match(/<h1\b/g) ?? []).length, 1);
+  for (const content of ['id="myst-title"', 'Cell growth', 'A reproducible study', 'Ada Lovelace', 'Example Institute, London, UK', 'href="#publication-affiliation-1"', 'id="publication-affiliation-1"', 'href="https://orcid.org/0000-0002-1825-0097"', 'Corresponding author', 'Conceptualization', 'href="https://doi.org/10.1038/nphys1170"', 'Content license:', 'Supported by Example Foundation', 'Funder: Example Foundation', 'Recipients: Ada Lovelace', 'Authored publication metadata; not externally verified.']) assert.ok(body.includes(content), content);
+  assert.match(body, /<time>2024-02-29<\/time>/);
+  assert.equal(parsed.source, source);
+  assert.doesNotMatch(body, /<script|<img|<iframe/);
+});
+
+test('invalid and hostile scholarly metadata stays recoverable without injecting markup', async () => {
+  const { parseMystDocument } = await import('../src/myst.ts');
+  const source = `---
+title: '<script>alert(1)</script>'
+authors:
+  - name: '<img src=x onerror=alert(1)>'
+    affiliation: missing
+license:
+  content:
+    name: '<iframe src=x>'
+    url: 'javascript:alert(1)'
+doi: not-a-doi
+funding:
+  statement: '<script>funding()</script>'
+---
+# Retained content
+`;
+  const parsed = parseMystDocument(source);
+  const html = renderMystHtml(parsed);
+  const body = html.split('<details class="source">')[0];
+  assert.match(body, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(body, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(body, /&lt;script&gt;funding\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script|<img|<iframe|href="javascript:/);
+  assert.match(body, /Publication diagnostics/);
+  assert.match(body, /Retained content/);
+  assert.equal(parsed.source, source);
+  assert.equal(parsed.metadata.doi, 'not-a-doi');
+  assert.equal(parsed.scholarly.doi, undefined);
+  const malformed = renderMystHtml(parseMystDocument('---\ntitle: Keep me\nauthors: [null]\n---\n# Usable body'));
+  assert.match(malformed, /Usable body/);
+  assert.match(malformed, /Unable to normalize frontmatter/);
+  assert.match(malformed, /Original MyST source/);
 });
