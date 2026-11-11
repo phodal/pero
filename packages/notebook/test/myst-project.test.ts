@@ -90,13 +90,13 @@ test('source parsing and typed resolution are separate without changing standalo
   assert.equal(parsed.ast.children?.[0].children?.[0].resolved, undefined);
 });
 
-test('project codecs preserve all resource text and expose exact recovery bytes for future versions', () => {
+test('project codecs preserve all resource text and expose exact recovery bytes for future versions', async () => {
   const snapshot = project({ ...files, 'unused.txt': 'α\r\n\t"\\' });
   const wire = exportMystProjectSnapshot(snapshot);
   const attrs = mystProjectImportFormats[0].parse(wire);
   assert.equal(attrs.snapshot, wire);
   assert.equal(mystProjectExportFormats[0].serialize(attrs), wire);
-  assert.match(mystProjectExportFormats[1].serialize(attrs), /Example Lab/);
+  assert.match(await mystProjectExportFormats[1].serialize(attrs), /Example Lab/);
   const future = '{"format":"pero-myst-project","version":9}';
   assert.equal(mystProjectExportFormats[0].serialize({ snapshot: future }), future);
   assert.throws(() => mystProjectImportFormats[0].parse(future));
