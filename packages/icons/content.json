@@ -129,6 +129,7 @@
     "webp": "image"
   },
   "apps": {
+    "notebook": "notebook",
     "virtual-cell": "dna",
     "scientific-viewer": "microscope",
     "paper-agent": "book-open-text",
