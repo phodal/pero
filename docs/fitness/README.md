@@ -10,6 +10,10 @@ Pinned marimo/Jupyter runtime experiment, existing Science Kernel comparison,
 cancellation, offline exports and a proposed owner handoff:
 [Computational Notebook PoC B](notebook-runtime-poc.md).
 
+Native-service comparison, uniform cards, dependency/advisory observations and
+real Paper → Notebook → verification → Project acceptance:
+[Notebook candidate cards](notebook-runtime-cards.md).
+
 GPUI Kit 0.9.0 dependency migration, retained local fixes and runtime checks:
 [Kit upgrade](gpui-kit-0.9.md).
 

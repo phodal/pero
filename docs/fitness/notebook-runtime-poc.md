@@ -8,6 +8,11 @@ github_url: https://github.com/phodal/pero/issues/180
 
 # Computational Notebook PoC B — 2026-11-11
 
+The [completion-pass cards](notebook-runtime-cards.md) supersede this report's
+remaining-work and source-only candidate status. This historical report retains
+its original measurements, including nbconvert 7.17.0; the current experimental
+lock uses 7.17.1 after the recorded advisory check.
+
 The bounded experiment is complete. Prefer **existing Science Kernel execution
 plus the existing Notebook `.ipynb` document owner** for the next Pero integration
 step. Jupyter's execution/serialization modules are useful interoperability

@@ -8,7 +8,7 @@ github_url: https://github.com/phodal/pero/issues/180
 
 # Computational Notebook PoC B
 
-## 2026-11-11 completion pass in progress
+## 2026-11-11 completion pass — ready for integration review
 
 The expanded #180 scope now includes an implemented App-local Notebook Interop v0
 description and fixed-revision deep link, plus the existing owner chain. The
@@ -23,8 +23,42 @@ The fixed revision deep link reopened the original evidence in the actual App.
 The PDF motivates an authored analytic check; this is not book reproduction or
 scientific acceptance. Offline CI uses the existing synthetic Paper PDF fixture.
 Trusted-shell confirmations are test-driven; this pass does not establish Native
-or packaged Electron acceptance. Candidate service probes/cards and ADR-0033 are
-being completed separately before the final seven-item closure audit.
+or packaged Electron acceptance. Candidate service probes, [uniform cards](../fitness/notebook-runtime-cards.md)
+and [ADR-0033](../adr/0033-notebook-interop-and-computation.md) now record the final
+selection. The coordinating maintainer owns remote checks/publication/closure;
+the local tracker remains active until that integration audit finishes.
+
+### Original seven-item acceptance matrix
+
+| #180 item | Evidence and result |
+| --- | --- |
+| P0 versions, maintenance, code licenses/NOTICE/SBOM/security/cards | Four uniform cards. Pinned official source files and license hashes; npm/Python inventories and source Cargo-lock SBOM; PyPI/OSV observations retained. nbconvert 7.17.0 advisory findings fixed to 7.17.1 and rerun. nteract source-lock matches explicitly prevent default adoption; no binary safety clearance claimed. |
+| Lab Notebook independent App and persistence | Existing mature Notebook reused, not rebuilt. Real Entry revisions, App install/backend, immutable references and Host restart exercised. Existing ADR-0032/Notebook verification remain authoritative for broader editor coverage. |
+| Same-input marimo / JupyterLab+AI / nteract and computation choice | All execute the same CSV to equal result hash. Actual marimo editor and Lab/Chat UI, Lab native kernel/MCP discovery and nteract native tool lifecycle exercised. Native Agent model/GUI embedding/collaboration limits explicit. Choose Jupyter modules at a concrete seam; retain current Science Kernel owner. |
+| Notebook Interop v0 | Authenticated App-local describe-notebook, pinned resource revision vs document SHA, declared supported formats/actions, owner evidence refs, read-only historical URI. No Host protocol expansion. |
+| Cross-App scenario with success/failure/old evidence | Actual original PDF citation → Notebook → Control PI 8 s PASS/2 s FAIL → unchanged Finding → persisted Project link. Owner source/trial and old revision reopen after Host restart. Offline fixture version also passes. |
+| Regular CI under target budget; slow lanes separate | Existing normal CI caller retained; Canvas test step capped at 10 minutes. Both local tests 33.6 s, independently replayed by coordinator 29.7 s. Full dependency/build job cap is 20 minutes; remote execution remains integration-owned. Upstream downloads/services/OS/model probes are opt-in. |
+| Final ADR recommendation/rejections/risks/measurements/migration/phases | ADR-0033 and cards: existing Lab Notebook + file/kernel reuse; no default additional daemon/Agent, no stored-data migration. Current #180 integration and conditional future adoption issue/PR phases are explicit, without adding speculative adapters or changing #163. |
+
+### Security and verification observations
+
+The original combined research environment used nbconvert 7.17.0. Its version
+record matched three CVE groups (five alias-bearing entries). The experimental
+input/lock now pins 7.17.1; the original comparison and actual Lab probe were
+rerun. Final 68-package comparison, 158-package Lab+AI and 60-package nteract
+Python inventories returned no PyPI matches. This does not establish complete
+security clearance. The nteract source lock contains 1,116 packages: all 1,072
+registry versions were queried and 55 matched versions/101 advisory IDs retained.
+Aliases/maintenance advisories and uncompiled dependencies are included; these
+are not 101 proven binary vulnerabilities. Default nteract distribution is rejected
+pending any future binary-specific triage, rather than silently marking it safe.
+
+The screenshot review found an early old-revision capture still displaying Canvas
+loading. The scenario now waits for the historical 8 s / 1001-sample projection,
+asserts no alert/loading, reopens the old owner trial after restart and checks its
+report before the final capture. No production state machine was changed for this.
+The enhanced original-source run passed in 46.7 s; final screenshots under
+`test-results/notebook-interop/original-source-crossflow-final/` were inspected.
 
 ## What and why
 
