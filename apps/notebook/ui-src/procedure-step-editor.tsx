@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state';
 import { useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Feedback, Field, FilePicker, NativeSelect } from '@pero/app-sdk/ui';
+import { Badge, Button, Disclosure, Feedback, Field, FilePicker, NativeSelect } from '@pero/app-sdk/ui';
 import type { NotebookNode } from '@pero/notebook';
 import { procedureElapsed, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
 import { notebookExtensions } from './editor-extensions';
@@ -13,6 +13,7 @@ import { nextWorksheetName } from './worksheet-model';
 const messages = {
   format: { en: 'Step formatting', zh: '步骤格式' },
   image: { en: 'Insert image', zh: '插入图片' }, table: { en: 'Insert editable table', zh: '插入可编辑表格' },
+  insertContent: { en: 'Insert image or table', zh: '插入图片或表格' },
   plate: { en: 'Insert well grid', zh: '插入孔位网格' }, plateSize: { en: 'Well grid size', zh: '孔位网格尺寸' },
   start: { en: 'Start timer', zh: '开始计时' }, pause: { en: 'Pause timer', zh: '暂停计时' }, reset: { en: 'Reset timer', zh: '重置计时' },
   elapsed: { en: 'Actual elapsed: {seconds} seconds', zh: '实际已计时：{seconds} 秒' },
@@ -94,7 +95,8 @@ export function ProcedureRichEditor({ content, text = '', kind, label, readonly,
   };
   return <div className="notebook-procedure-content" ref={container}>
     {!readonly && <div className="notebook-procedure-tools">
-      <NotebookTextTools editor={editor} />
+      <Disclosure variant="inline" summary={t('format')}><NotebookTextTools editor={editor} /></Disclosure>
+      {(!kind || kind === 'image' || kind === 'table') && <Disclosure variant="inline" summary={t('insertContent')}>
       {(!kind || kind === 'image') && <FilePicker label={t('image')} accept="image/png,image/jpeg,image/webp" emptyLabel="" onFile={file => void insertImage(file)} />}
       {(!kind || kind === 'table') && <><Field label={t('plateSize')}>{control => <NativeSelect {...control} value={plateSize} onChange={event => setPlateSize(event.target.value)}>
         {[['4x6', '24 (4 × 6)'], ['8x12', '96 (8 × 12)'], ['16x24', '384 (16 × 24)'], ['32x48', '1536 (32 × 48)']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -102,6 +104,7 @@ export function ProcedureRichEditor({ content, text = '', kind, label, readonly,
         [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }, { type: 'paragraph' }]); }}>{t('plate')}</Button></>}
       {(!kind || kind === 'table') && <Button variant="ghost" onClick={() => editor.commands.insertContentAt(editor.state.doc.content.size,
         [{ type: 'spreadsheet', attrs: { label: '', sheet: { rows: 3, columns: 3, cells: {} } } }, { type: 'paragraph' }])}>{t('table')}</Button>}
+      </Disclosure>}
     </div>}
     {error && <Feedback kind="error">{error}</Feedback>}
     <EditorContent editor={editor} />

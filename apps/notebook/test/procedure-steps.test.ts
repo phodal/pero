@@ -16,6 +16,7 @@ test('procedure table editor inserts the real editable spreadsheet and reports p
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) },
     React.createElement(ui.ProcedureStepEditor, { step, readonly: false, onChange: (value: any) => { patch = value; } })));
   dispose = () => React.act(async () => (document.querySelector('.tiptap') as any)?.editor?.destroy());
+  await click([...document.querySelectorAll('summary')].find(item => item.textContent === 'Insert image or table')!);
   const insert = [...document.querySelectorAll('button')].find(item => item.textContent === 'Insert editable table');
   assert.ok(insert);
   await click(insert);

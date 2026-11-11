@@ -58,6 +58,7 @@ const messages = {
   duplicate: { en: 'That tag already exists.', zh: '该标签已存在。' }, invalid: { en: 'Check the field value and its stated limit.', zh: '请检查字段值及其限制。' },
   stale: { en: 'This parameter changed. Reopen it and review the latest version.', zh: '此参数已更改，请重新打开并审阅最新版本。' },
   limit: { en: 'This list has reached its size limit.', zh: '此列表已达到数量上限。' },
+  procedureShortHint: { en: 'Write the steps and record completion manually.', zh: '编写操作步骤，并手动记录完成情况。' },
   procedureHint: { en: 'Write methods and record completion manually. Critical and pause flags are annotations. Timers measure manually started wall-clock time, not equipment execution.', zh: '编写方法并手动记录完成情况。「关键」与「暂停点」是注释。计时器测量手动开始的墙钟时长，不代表设备执行。' },
   addProcedure: { en: 'Add procedure', zh: '添加流程' }, newProcedure: { en: 'Untitled procedure', zh: '未命名流程' },
   chooseProcedure: { en: 'Choose procedure', zh: '选择流程' }, procedureTitle: { en: 'Procedure title', zh: '流程标题' },
@@ -158,16 +159,10 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
   return <div className="notebook-workspace-form" data-notebook-document-edit id={`notebook-target-${procedure.id}`} tabIndex={-1}>
     <Field label={t('procedureTitle')}>{control => <Input {...control} value={procedure.title} maxLength={workspaceLimits.label} readOnly={readonly}
       onChange={event => apply({ type: 'edit', id, patch: { title: event.target.value } })} />}</Field>
-    <section aria-label={t('introduction')}><h3>{t('introduction')}</h3>
-      <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly}
-        onChange={introduction => apply({ type: 'edit', id, patch: { introduction } })} />
-    </section>
-    <ProcedureParameters procedure={procedure} readonly={readonly} apply={apply} />
-    <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />
     <section aria-label={t('steps')}>
       <div className="notebook-workspace-actions"><h3>{t('steps')}</h3>
-        <Badge>{t('plannedTotal', { minutes: procedurePlannedMinutes(procedure) })}</Badge>
-        <Badge>{t('completedCount', { done: procedure.steps.filter(step => step.completed).length, total: procedure.steps.length })}</Badge>
+        {!!procedure.steps.length && <><Badge>{t('plannedTotal', { minutes: procedurePlannedMinutes(procedure) })}</Badge>
+        <Badge>{t('completedCount', { done: procedure.steps.filter(step => step.completed).length, total: procedure.steps.length })}</Badge></>}
         {!readonly && <Button variant="ghost" disabled={procedure.steps.length >= workspaceLimits.steps} onClick={() => apply({ type: 'addStep', id, stepId: crypto.randomUUID() })}><Icon name="plus" />{t('addStep')}</Button>}
       </div>
       {!procedure.steps.length && <p className="notebook-workspace-hint">{t('noSteps')}</p>}
@@ -196,6 +191,13 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
         </div>
       </li>)}</ol>
     </section>
+    <Disclosure variant="inline" summary={t('introduction')} defaultOpen={!!procedure.description || !!procedure.introduction?.content?.some(node => node.type !== 'paragraph' || !!node.content?.length)}>
+      <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly}
+        onChange={introduction => apply({ type: 'edit', id, patch: { introduction } })} />
+    </Disclosure>
+    <ProcedureParameters procedure={procedure} readonly={readonly} apply={apply} />
+    <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />
+
   </div>;
 }
 
@@ -215,7 +217,7 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
     if (change.type === 'add') setSelected(change.id);
   };
   return <>
-    <p className="notebook-workspace-hint">{t('procedureHint')}</p>
+    <p className="notebook-workspace-hint">{t('procedureShortHint')}</p>
     <div className="notebook-workspace-actions">
       {procedure && <Select label={t('chooseProcedure')} value={procedure.id}
         options={procedures.map(item => ({ value: item.id, label: item.title || t('newProcedure') }))} onChange={setSelected} />}
@@ -344,7 +346,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       <div className="notebook-documentbar">
         {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
         {chrome?.onSave && <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button>}
-        <Button variant="ghost" onClick={openSearch}><Icon name="search" />{t('search')}</Button>
+        <Button variant="ghost" aria-label={t('search')} onClick={openSearch}><Icon name="search" />{t('search')}</Button>
         {chrome?.propertyTools}
         <NotebookMenu name={t('file')} menu="file" caret>
           {close => <>
@@ -370,7 +372,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       </div>
       <div className="notebook-workspace-navigation">
         <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
-          {views.map(value => <TabsTrigger key={value} value={value}>{t(value)}</TabsTrigger>)}
+          {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
         </TabsList>
         <NotebookMenu name={t('viewMenu')} menu="view" caret closeOnSelect>
           <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}

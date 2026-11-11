@@ -87,7 +87,6 @@ export function ProcedureMaterials({ procedure, readonly, apply, onCopyLink }: {
   })}</ol>;
   return <section aria-label={t('materials')}>
     <div className="notebook-workspace-actions"><h3>{t('materials')}</h3>{!readonly && <Button variant="ghost" disabled={full} onClick={() => apply({ type: 'addMaterial', id: procedure.id, materialId: crypto.randomUUID() })}><Icon name="plus" />{t('add')}</Button>}</div>
-    {!all.length && <p className="notebook-workspace-hint">{t('empty')}</p>}
     {rows(procedure.materials)}
     {selecting && !readonly && <MaterialPicker onClose={() => setSelecting(null)} onSelect={(name, source) => { edit(selecting, { name, source }); setSelecting(null); }} />}
   </section>;

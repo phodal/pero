@@ -47,8 +47,7 @@ export function ProcedureParameters({ procedure, readonly, apply }: { procedure:
     <div className="notebook-workspace-actions"><h3>{t('title')}</h3>{!disabled && <Button disabled={(procedure.parameters?.length ?? 0) >= procedureParameterLimits.parameters} onClick={() => {
       setError(''); setEditing({ creating: true, parameter: { id: crypto.randomUUID(), name: '', type: 'decimal', required: true, options: [], units: [], version: 1, stepId: null, source: { kind: 'literal', raw: '' } } });
     }}>{t('add')}</Button>}</div>
-    <p className="notebook-workspace-hint">{t('hint')}</p>
-    {!procedure.parameters?.length && <p>{t('none')}</p>}
+    {!!procedure.parameters?.length && <p className="notebook-workspace-hint">{t('hint')}</p>}
     {(procedure.parameters ?? []).map(parameter => { const result = resolve(procedure.id, parameter.id); return <div key={parameter.id} data-parameter-id={parameter.id} id={`notebook-target-${parameter.id}`} tabIndex={-1}>
       <div className="notebook-workspace-actions"><strong>{parameter.name || parameter.id}</strong><Badge>{parameter.type}</Badge><Badge>v{parameter.version}</Badge><Badge>{t(parameter.source.kind)}</Badge>
         {!disabled && <><Button variant="ghost" onClick={() => { setError(''); setEditing({ creating: false, parameter: structuredClone(parameter) }); }}>{t('edit')}</Button>

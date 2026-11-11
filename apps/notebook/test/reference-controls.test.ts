@@ -88,7 +88,7 @@ test('workspace empty states render their labels and guidance in the active view
   editor = new ui.Editor({ extensions: ui.notebookExtensions, content });
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
     React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
-  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, 'Empty');
+  assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, 'Empty');
   assert.equal(document.querySelector('.notebook-menubar'), null);
   const viewTrigger = document.querySelector<HTMLButtonElement>('[data-notebook-menu=view] button')!;
   viewTrigger.getBoundingClientRect = () => ({ x: 10, y: 10, width: 30, height: 24, top: 10, left: 10, right: 40, bottom: 34, toJSON() {} });
@@ -96,12 +96,12 @@ test('workspace empty states render their labels and guidance in the active view
   const viewMenu = document.querySelector<HTMLElement>('[data-notebook-menu-panel=view]');
   assert.ok(viewMenu);
   assert.equal(document.querySelector('.notebook-statusbar [data-notebook-menu=view]'), null);
-  assert.deepEqual([...viewMenu.querySelectorAll('[role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
+  assert.deepEqual([...document.querySelectorAll('.notebook-view-tabs [role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
   for (const [tab, heading, guidance] of [
     ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
     ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],
   ]) {
-    const trigger = [...viewMenu.querySelectorAll<HTMLElement>('[role=tab]')].find(node => node.textContent === tab)!;
+    const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-view-tabs [role=tab]')].find(node => node.textContent === tab)!;
     await React.act(async () => trigger.focus());
     const panel = document.querySelector('[role=tabpanel][data-state=active]')!;
     assert.equal(panel.querySelector('.pero-ui-empty-heading')?.textContent, heading);

@@ -198,7 +198,7 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   let excerptView = document.querySelector('[data-notebook-block-id="intro-excerpt"]')!;
   assert.match(excerptView.textContent!, /Original attachment is available and unchanged/);
   assert.doesNotMatch(excerptView.textContent!, /no longer|Other notebook sections/);
-  const richEditor = (document.querySelector('#notebook-target-method .notebook-procedure-content .tiptap') as any).editor;
+  const richEditor = (document.querySelector('#notebook-target-method .tiptap[aria-label="Introduction"]') as any).editor;
   const excerptNode = richEditor.state.doc.firstChild;
   const html = richEditor.view.serializeForClipboard(new ui.Slice(ui.Fragment.from(excerptNode), 0, 0)).dom.innerHTML;
   // The shared hash navigation switches tabs and focuses the original attachment.
@@ -206,7 +206,7 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   const activeNotes = document.querySelector('[role=tab][data-state=active]')!;
   assert.equal(activeNotes.getAttribute('aria-label'), 'Notes');
   assert.equal(activeNotes.textContent, 'Notes');
-  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, initial.title);
+  assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, initial.title);
   assert.equal(dom.window.location.hash, '#notebook-entry=cross-root&notebook-target=source-file');
   const notesEditor = (document.querySelector('.notebook-editor .tiptap') as any).editor;
   assert.equal(notesEditor.state.selection.node.attrs.blockId, 'source-file');
@@ -214,7 +214,7 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   await click(button('Locate original attachment', document.querySelector('[data-notebook-block-id="intro-excerpt"]')!));
   assert.equal(document.querySelector('[role=tab][data-state=active]')!.getAttribute('aria-label'), 'Notes', 'repeated navigation to the same hash still reveals the source');
   assert.equal(document.querySelector('[role=tab][data-state=active]')!.textContent, 'Notes');
-  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, initial.title);
+  assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, initial.title);
   await React.act(async () => { notesEditor.commands.setTextSelection(notesEditor.state.doc.content.size - 1); const paste = new dom.window.Event('paste', { bubbles: true, cancelable: true }); Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } }); notesEditor.view.dom.dispatchEvent(paste); });
   await checked();
   const copied = state.document.content.content.find((node: any) => node.type === 'sourceExcerpt');

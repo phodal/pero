@@ -100,6 +100,7 @@ export async function verifyNotebookComponents(page, origin, output) {
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9S8AAAAASUVORK5CYII=', 'base64') });
   await expect(imageStep.locator('[data-kind=attachment] img')).toBeVisible();
   const tableStep = procedureSteps.nth(4);
+  await tableStep.getByText('Insert image or table', { exact: true }).click();
   await button('Insert editable table', tableStep).click();
   await tableStep.locator('[data-cell=A1]').fill('7');
   const timerStep = procedureSteps.nth(5);
