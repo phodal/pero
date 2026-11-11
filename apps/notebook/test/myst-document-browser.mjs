@@ -195,11 +195,31 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await page.getByRole('dialog').getByRole('button', { name: 'Print', exact: true }).click();
   assert.equal(await page.evaluate(() => globalThis.publicationPrintInvoked), true);
   await page.emulateMedia({ media: 'print' });
+  const paperStyles = await page.evaluate(() => [document.documentElement, document.body].map(node => { const style = getComputedStyle(node); return { background: style.backgroundColor, minHeight: style.minHeight, overflow: style.overflow }; }));
+  for (const style of paperStyles) assert.deepEqual(style, { background: 'rgb(255, 255, 255)', minHeight: '0px', overflow: 'visible' });
   await print.screenshot({ path: resolve(output, 'myst-publication-print.png') });
   const pdfPath = resolve(output, 'myst-publication.pdf');
   const pdf = await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
-  const checked = spawnSync('python3', ['-c', 'import sys,pypdfium2 as P; d=P.PdfDocument(sys.argv[1]); assert len(d)>0; text="".join(p.get_textpage().get_text_range() for p in d); assert "Scientific browser fixture" in text; assert "Existing notebook text stays" not in text', pdfPath], { encoding: 'utf8' });
+  const checked = spawnSync('python3', ['-c', `import sys, math, pypdfium2 as P
+d = P.PdfDocument(sys.argv[1])
+assert len(d) > 0
+text = "".join(p.get_textpage().get_text_range() for p in d)
+assert "Scientific browser fixture" in text
+assert "Existing notebook text stays" not in text
+page = d[len(d) - 1]
+text_page = page.get_textpage()
+rects = [text_page.get_rect(i) for i in range(text_page.count_rects())]
+assert rects
+image = page.render(scale=1).to_pil().convert("RGB")
+image.save(sys.argv[1].replace(".pdf", "-last-page.png"))
+# This fixture's last page ends with diagnostics, followed by empty paper.
+start = math.ceil(page.get_height() - min(rect[1] for rect in rects) + 12)
+end = image.height - 40
+assert end - start >= 20, "Expected blank paper after the final diagnostic"
+blank = image.crop((image.width // 4, start, image.width * 3 // 4, end))
+assert all(low >= 254 for low, high in blank.getextrema()), "Screen chrome background leaked into blank printed paper"
+`, pdfPath], { encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr);
   await page.emulateMedia({ media: 'screen' });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
