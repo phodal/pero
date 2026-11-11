@@ -1,7 +1,7 @@
 import { NotebookProjectAssociations } from './notebook-projects';
 import { useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Dialog, Disclosure, Feedback, Field, Input, NativeSelect } from '@pero/app-sdk/ui';
+import { Badge, Button, Dialog, Disclosure, Feedback, Field, Input } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type NotebookDocument, type NotebookEntry, type ScientificReference } from '@pero/notebook';
 import { notebookContentRoots, type NotebookMetadata } from '@pero/notebook/workspace';
 import type { TemplateOrigin } from '@pero/notebook/templates';
@@ -22,9 +22,10 @@ export function NotebookHomeTools(props: NotebookHomeProps) {
 }
 
 export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, onMetadata, onClose }: NotebookHomeProps & { onClose(): void }) {
-  const { t } = useAppI18n(messages);
+  const { t, locale } = useAppI18n(messages);
+  const [projectsOpen, setProjectsOpen] = useState(false);
   const api = useAppApi(), initial = useRef(document.metadata ?? { project: '', author: '', tags: [] });
-  const [project, setProject] = useState(initial.current.project), [author, setAuthor] = useState(initial.current.author), [filter, setFilter] = useState('');
+  const [project, setProject] = useState(initial.current.project), [author, setAuthor] = useState(initial.current.author);
   const [library, setLibrary] = useState<HomeLibrary | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const live = useRef(true), request = useRef(0);
   useEffect(() => () => { live.current = false; request.current++; }, []);
@@ -48,17 +49,18 @@ export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, on
   };
   notebookContentRoots(document).forEach(walk);
   const choices = (field: 'project' | 'author') => [...new Set((library?.entries ?? []).map(item => item[field]).filter(Boolean))].sort();
-  const shown = library?.entries.filter(item => !filter || item.project === filter) ?? [];
   const changed = project !== initial.current.project || author !== initial.current.author;
   return <Dialog title={t('notebookHomeTitle')} closeLabel={t('closeAction')} size="lg" onClose={onClose}>
-    <h3>{document.title}</h3><p>{entry.id} · v{entry.revision} · schema {document.schemaVersion}</p><p>{entry.updatedAt} {dirty && <Badge tone="warning">{t('homeUnsavedDraft')}</Badge>}</p>
-    <p>{t('homeOwnershipHint')}</p>
-    <NotebookProjectAssociations entryId={entry.id} revision={entry.revision} readonly={readonly} dirty={dirty} onOpenEntry={id => { onOpenEntry(id); onClose(); }} />
+    <h3>{document.title}</h3><p>{t('revision', { number: entry.revision })} · {new Date(entry.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}
+      {dirty && <Badge>{t('draftChanges')}</Badge>}</p>
+    <Disclosure variant="inline" summary={t('projectAssociations')} open={projectsOpen} onOpenChange={setProjectsOpen}>
+      {projectsOpen && <NotebookProjectAssociations entryId={entry.id} revision={entry.revision} readonly={readonly} dirty={dirty} onOpenEntry={id => { onOpenEntry(id); onClose(); }} />}
+    </Disclosure>
     <section aria-label={t('homeLabelsSection')}><h4>{t('homeLabelsSection')}</h4>
       <p>{t('homeLabelsHint')}</p>
       {(['project', 'author'] as const).map(field => <div key={field}>
-        <Field label={field === 'project' ? t('savedProjectLabel') : t('savedAuthorLabel')}>{control => <NativeSelect {...control} disabled={readonly || busy} value="" onChange={event => { if (event.target.value) (field === 'project' ? setProject : setAuthor)(event.target.value); }}><option value="">{t('chooseLabel')}</option>{choices(field).map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
-        <Field label={field === 'project' ? t('projectLabel') : t('authorLabel')}>{control => <Input {...control} disabled={readonly} maxLength={200} value={field === 'project' ? project : author} onChange={event => (field === 'project' ? setProject : setAuthor)(event.target.value)} />}</Field>
+        <Field label={field === 'project' ? t('projectLabel') : t('authorLabel')}>{control => <Input {...control} list={`notebook-${entry.id}-${field}`} disabled={readonly} maxLength={200} value={field === 'project' ? project : author} onChange={event => (field === 'project' ? setProject : setAuthor)(event.target.value)} />}</Field>
+        <datalist id={`notebook-${entry.id}-${field}`}>{choices(field).map(value => <option key={value} value={value} />)}</datalist>
       </div>)}
       {!readonly && <Button variant="primary" disabled={!changed || !onMetadata} onClick={() => {
         if (JSON.stringify(document.metadata ?? { project: '', author: '', tags: [] }) !== JSON.stringify(initial.current)) { setError(t('homeMetadataChanged')); return; }
@@ -68,13 +70,7 @@ export function NotebookHome({ entry, document, dirty, readonly, onOpenEntry, on
     <Disclosure summary={t('templateProvenance', { count: origins.size })}><ul>{[...origins.values()].map(origin => <li key={origin.instanceId}>{origin.templateId} · v{origin.revision} · instance {origin.instanceId}<pre className="notebook-science-json">{JSON.stringify({ parameters: origin.parameterValues, identities: origin.idMap }, null, 2)}</pre></li>)}</ul>{!origins.size && <p>{t('noTemplateOrigin')}</p>}</Disclosure>
     <Disclosure summary={t('scientificSourceIdentities', { count: sources.length })}><ul>{sources.map(({ blockId, source }, index) => <li key={index}>{blockId} · {source.app} / {source.kind} / {source.id} · {source.version || t('unpinnedVersion')} <Badge>{scientificReferenceState(source)}</Badge><p>{source.locator}</p></li>)}</ul><p>{t('recordedIdentitiesHint')}</p></Disclosure>
     <Disclosure summary={t('embeddedFileProvenance', { count: files.length })}><ul>{files.map(({ blockId, file }) => <li key={blockId}>{file.filename} · {file.mime}<p style={{ overflowWrap: 'anywhere' }}>SHA-256: {file.sha256}</p><p>{t('recordedImageEdits', { count: file.derivation?.steps.length ?? 0 })}</p></li>)}</ul></Disclosure>
-    <section aria-label={t('savedEntries')}><h4>{t('savedEntries')}</h4><Field label={t('filterSavedProject')}>{control => <NativeSelect {...control} value={filter} onChange={event => setFilter(event.target.value)}><option value="">{t('allProjects')}</option>{choices('project').map(value => <option key={value} value={value}>{value}</option>)}</NativeSelect>}</Field>
-      <Button busy={busy} disabled={busy} onClick={() => void load()}>{t('reloadSavedEntries')}</Button>
-      {library?.limited && <Feedback kind="info">{t('showingRecentEntries')}</Feedback>}
-      {!library && busy && <p role="status">{t('loadingSavedEntries')}</p>}
-      {library && !shown.length && <p>{t('noMatchingEntries')}</p>}
-      <ul>{shown.map(item => <li key={item.entryId}><Button variant="link" onClick={() => { onOpenEntry(item.entryId); onClose(); }}>{item.title} · v{item.revision}</Button> · {item.project} · {item.author}</li>)}</ul>
-    </section>
+    <Disclosure variant="inline" summary={t('recordIdentifiers')}><p>{entry.id} · schema {document.schemaVersion}</p><p>{t('homeOwnershipHint')}</p></Disclosure>
     {error && <Feedback kind="error">{error}</Feedback>}
   </Dialog>;
 }

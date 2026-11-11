@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, Select, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
 import { NotebookEditor } from './editor';
@@ -60,6 +60,7 @@ function Notebook() {
   const [entries, setEntries] = useState<NotebookEntrySummary[] | null>(null);
   const [selected, setSelected] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(true);
+  const [entryQuery, setEntryQuery] = useState(''), [entryOrder, setEntryOrder] = useState('recent');
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
@@ -381,6 +382,8 @@ function Notebook() {
     });
   });
 
+  const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
+  if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
   const catalogActions = <>
     <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
     <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />
@@ -400,8 +403,13 @@ function Notebook() {
               onClick={() => setNavigationOpen(false)}>{t('notebooks')}</Button>
             {catalogActions}
           </div>
+          <div className="notebook-library-tools">
+            <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
+            <Select label={t('sortNotebooks')} value={entryOrder} options={[{ value: 'recent', label: t('recentNotebooks') }, { value: 'title', label: t('titleOrder') }]} onChange={setEntryOrder} />
+          </div>
+          {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
           <ul className="notebook-list">
-            {entries.map(entry => {
+            {visibleEntries.map(entry => {
               const local = drafts[entry.id];
               return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}

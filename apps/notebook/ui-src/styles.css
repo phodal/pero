@@ -653,3 +653,7 @@ form.notebook-workspace-actions { align-items: end; }
 
 .notebook-editor[data-empty] .notebook-prose::before { content: attr(data-placeholder); position: absolute; color: var(--pero-text-muted); pointer-events: none; font-size: var(--pero-font-body); }
 .notebook-editor[data-empty] .notebook-prose { position: relative; min-height: 5rem; }
+
+.notebook-library-tools { display: grid; gap: var(--pero-spacing-2); padding: var(--pero-spacing-2); }
+.notebook-library-tools > * { min-width: 0; width: 100%; }
+.notebook-split[data-stacked] > .notebook-nav[data-sized] { max-height: min(16rem, 35dvh); }

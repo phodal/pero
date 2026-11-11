@@ -14,11 +14,12 @@ test('Home shows provenance, reuses saved local labels, preserves tags and honor
   const mount = (readonly = false) => render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookHome, { entry, document: documentValue, dirty: true, readonly, onMetadata: (value: unknown) => { metadata = value; }, onOpenEntry: (id: string) => { opened = id; }, onClose: () => { closed++; } })));
   const button = (text: string) => { const value = [...document.querySelectorAll('button')].find(node => node.textContent === text); assert.ok(value, text); return value; };
   await mount(); assert.match(document.body.textContent!, /instance/); assert.match(document.body.textContent!, /paper-agent \/ report \/ source/); assert.match(document.body.textContent!, /does not change project membership/);
-  const select = document.querySelector<HTMLSelectElement>('select')!;
-  await React.act(async () => { select.value = 'Project B'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+  const project = document.querySelector<HTMLInputElement>('input[list]')!;
+  assert.ok(document.querySelector('datalist option[value="Project B"]'));
+  await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(project, 'Project B'); project.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
   await click(button('Apply labels to draft'));
   assert.deepEqual(metadata, { project: 'Project B', author: 'Author A', tags: ['retain'] }); assert.equal(closed, 1);
-  await click(button('Tracked record · v3')); assert.equal(opened, entry.id);
+  assert.equal(opened, '', 'Properties does not own the notebook library');
   await render(null); await mount(true); assert.equal(document.querySelectorAll('input:not([disabled])').length, 0);
   assert.equal([...document.querySelectorAll('button')].some(node => node.textContent === 'Apply labels to draft'), false);
 });

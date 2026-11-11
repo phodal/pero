@@ -15,15 +15,13 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
     await button('Save revision').click(); assert.equal((await response).ok(), true); await expect(button('Save revision')).toBeDisabled();
   };
   await save();
-  await openNotebookMenu(page, 'file');
-  await button('Notebook home').click();
-  let dialog = page.getByRole('dialog', { name: 'Notebook home and provenance', exact: true });
+  await button('Properties').click();
+  let dialog = page.getByRole('dialog', { name: 'Notebook properties', exact: true });
   await expect(dialog).toContainText(created.id); await expect(dialog).toContainText('does not change project membership');
   await dialog.getByRole('textbox', { name: 'Project label', exact: true }).fill('Workflow acceptance');
   await dialog.getByRole('textbox', { name: 'Author label', exact: true }).fill('Unverified local label');
   await button('Apply labels to draft', dialog).click(); await save();
-  await openNotebookMenu(page, 'file');
-  await button('Notebook home').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
+  await button('Properties').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
   await button('Close', page.getByRole('dialog')).click();
 
@@ -53,7 +51,6 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   const published = await page.request.post(origin + '/api/templates', { data: definition }); assert.equal(published.ok(), true, await published.text());
   const first = await published.json(); document.content.content[0].content[0].text = 'Later protocol step';
   const revised = await page.request.post(`${origin}/api/templates/${first.id}/revisions`, { data: { expectedRevision: 1, definition } }); assert.equal(revised.ok(), true, await revised.text());
-  await ensureMoreTools(page);
   await button('Templates').click(); dialog = page.getByRole('dialog', { name: 'Templates', exact: true });
   await button('Browser revision comparison · v2', dialog).click(); await button('Compare published revisions', dialog).click();
   await expect(dialog).toContainText('Earlier protocol step'); await expect(dialog).toContainText('Later protocol step');
@@ -74,8 +71,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await closeInsertMenu(page);
   await page.setViewportSize({ width: 760, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
-  await openNotebookMenu(page, 'file');
-  await button('Notebook home').click();
+  await button('Properties').click();
   await page.screenshot({ path: resolve(output, 'notebook-home-narrow-dark.png'), fullPage: true });
   await button('Close', page.getByRole('dialog')).click();
 }

@@ -1,4 +1,13 @@
 export const messages = {
+  searchNotebooks: { en: 'Search notebooks', zh: '搜索笔记' },
+  sortNotebooks: { en: 'Sort notebooks', zh: '笔记排序' },
+  recentNotebooks: { en: 'Recently saved', zh: '最近保存' },
+  titleOrder: { en: 'Title', zh: '标题' },
+  draftChanges: { en: 'Draft changes', zh: '草稿有更改' },
+  projectAssociations: { en: 'Linked projects', zh: '关联项目' },
+  chooseSavedSnapshot: { en: 'Choose saved snapshot', zh: '选择已保存的快照' },
+  recordIdentifiers: { en: 'Record identifiers', zh: '记录标识' },
+
   insertData: { en: 'Data', zh: '数据' },
   insertEvidence: { en: 'Evidence and experiments', zh: '证据与实验' },
   bodyPlaceholder: { en: 'Write a research note, or use Insert to add data and evidence.', zh: '写下研究记录，或通过“插入”添加数据与证据。' },
