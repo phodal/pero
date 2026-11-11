@@ -66,6 +66,52 @@ class MystDocumentTests(unittest.TestCase):
                     NotebookDocument.parse({'schemaVersion': 1, 'title': 'Invalid', 'content': {
                         'type': 'doc', 'content': [{'type': 'mystDocument', 'attrs': attrs}]}})
 
+    def test_unrelated_edit_preserves_malformed_and_nested_source_in_every_revision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            included = Path(directory) / 'included.md'
+            included.write_text('PRIVATE INCLUDE CONTENT MUST NOT BE EXPANDED', encoding='utf-8')
+            executed = Path(directory) / 'executed.txt'
+            source = '\n'.join([
+                '---', 'title: 原样保留', '---', '',
+                '```{image}', ':width: invalid-width', '',
+                'Unique malformed-image body.',
+                '- Unique nested list item.',
+                '  - Unique deeper list item.', '```', '',
+                '::::{unknown-directive}', 'Unique unknown-directive prose.', '',
+                ':::{note}', 'Unique nested note prose.', '',
+                f'```{{include}} {included}', '```', ':::', '::::', '',
+                '```{code-cell} python', 'from pathlib import Path',
+                f'Path({str(executed)!r}).write_text("executed")', '```', '',
+            ]).replace('\n', '\r\n')
+            original = document(source)
+            original['content']['content'].append({
+                'type': 'paragraph', 'attrs': {'blockId': 'separate-prose'},
+                'content': [{'type': 'text', 'text': 'Before unrelated edit.'}],
+            })
+            store = EntryStore(directory)
+            created = store.create(NotebookDocument.parse(original))
+
+            def edit_paragraph(current):
+                changed = current.wire()
+                changed['content']['content'][1]['content'][0]['text'] = 'After unrelated edit.'
+                return NotebookDocument.parse(changed)
+
+            saved = store.commit(created.identity, 1, edit_paragraph)
+            self.assertEqual(saved.revision, 2)
+            reopened = EntryStore(directory)
+            for revision, paragraph in ((1, 'Before unrelated edit.'), (2, 'After unrelated edit.'),
+                                        (None, 'After unrelated edit.')):
+                with self.subTest(revision=revision):
+                    persisted = reopened.read(created.identity, revision).document.wire()
+                    blocks = persisted['content']['content']
+                    self.assertEqual(blocks[0], original['content']['content'][0])
+                    self.assertEqual(blocks[0]['attrs']['source'].encode('utf-8'), source.encode('utf-8'))
+                    self.assertEqual(blocks[1]['content'][0]['text'], paragraph)
+                    self.assertNotIn('PRIVATE INCLUDE CONTENT', blocks[0]['attrs']['source'])
+            self.assertEqual(len(reopened.history(created.identity)), 2)
+            self.assertFalse(executed.exists())
+            self.assertEqual(included.read_text(encoding='utf-8'), 'PRIVATE INCLUDE CONTENT MUST NOT BE EXPANDED')
+
     def test_myst_document_has_no_reference_or_execution_capability(self):
         from scientific_block import BlockProposalStore, ProposeReference
         source = {'app': 'paper-agent', 'kind': 'report', 'id': 'report', 'version': 'v1', 'locator': ''}

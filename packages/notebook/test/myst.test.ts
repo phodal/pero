@@ -143,3 +143,33 @@ test('official scientific subscript and superscript roles normalize without unsu
   for (const type of ['subscript', 'superscript']) assert.equal(all.find(node => node.type === type)?.children?.[0].value, '2');
   assert.deepEqual(document.diagnostics, []);
 });
+
+test('malformed known and unknown directives retain exact authored content across both exports', () => {
+  for (const name of ['image', 'future-science']) {
+    const source = '```{' + name + '}\n\nDISTINCT **nested content**\n\n- PRESERVED list item\n```\n';
+    const document = parseMystDocument(source);
+    const retained = nodes(document.ast).find(node => node.type === (name === 'image' ? 'mystDirectiveError' : 'mystDirective'));
+    assert.ok(retained, name);
+    assert.match(retained.value ?? '', /DISTINCT \*\*nested content\*\*/);
+    assert.match(retained.value ?? '', /PRESERVED list item/);
+    assert.ok(document.diagnostics.some(item => item.message.includes(name)), name);
+    if (name === 'image') assert.ok(document.diagnostics.some(item => item.severity === 'error' && item.code === 'directive-argument-correct'));
+    assert.equal(exportMystMarkdown(document), source);
+    assert.equal(importMystBundle(exportMystBundle(document)).source, source);
+  }
+});
+
+test('an include nested inside a supported admonition remains opaque and inert', () => {
+  const source = ':::{note}\nBefore\n\n```{include} /etc/passwd\n```\n\nAfter\n:::';
+  const document = parseMystDocument(source);
+  const all = nodes(document.ast);
+  const admonition = all.find(node => node.type === 'admonition');
+  const include = admonition?.children?.find(node => node.type === 'mystDirective');
+  assert.equal(include?.name, 'include');
+  assert.equal(include?.value, '```{include} /etc/passwd\n```');
+  assert.equal(include?.children, undefined);
+  assert.ok(!all.some(node => node.type === 'include'));
+  assert.ok(document.diagnostics.some(item => item.code === 'directive-disabled' && item.line === 4));
+  assert.equal(exportMystMarkdown(document), source);
+  assert.equal(importMystBundle(exportMystBundle(document)).source, source);
+});
