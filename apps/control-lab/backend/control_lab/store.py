@@ -11,7 +11,7 @@ import platform
 from .conversation import project_candidate
 from .experiments import MAX_EVIDENCE_ATTEMPTS, Attempt, Candidate, ExperimentSpec, Invalid, Trial, admit_attempts, candidates, canonical, input_digest, proposal, sample_reservation, template
 from .verification import Observation, aggregate, verify_observation
-from . import engines
+from . import engines, compute_runtime
 from .canvas import NotebookExperiment
 
 
@@ -264,6 +264,8 @@ class ExperimentStore:
                 if added:
                     self.save(record)
                 return deepcopy(record)
+            profile = compute_runtime.admit(self.root, record, template(spec.template_id).engine) if self.execute is engines.execute else None
+            execute = profile.execute if profile else self.execute
             self.cancelled = threading.Event()
             operation_id = uuid.uuid4().hex
             prior_report = deepcopy(record.get('report'))
@@ -276,7 +278,7 @@ class ExperimentStore:
             self.save(record)
             self.active_id = identity
             try:
-                self.worker = threading.Thread(target=self.run, args=(identity, spec, phase, jobs, self.cancelled, operation_id), daemon=False)
+                self.worker = threading.Thread(target=self.run, args=(identity, spec, phase, jobs, self.cancelled, operation_id, execute), daemon=False)
                 self.worker.start()
             except Exception as error:
                 # A custom thread implementation may report an error after it
@@ -302,7 +304,8 @@ class ExperimentStore:
                 raise Invalid('Calculation could not start; inspect the saved experiment or reopen the App') from None
             return deepcopy(record)
 
-    def run(self, identity, spec, phase, jobs, cancelled, operation_id):
+    def run(self, identity, spec, phase, jobs, cancelled, operation_id, execute=None):
+        execute = execute or self.execute
         failed = False
         try:
             for candidate, scenario in jobs:
@@ -320,7 +323,7 @@ class ExperimentStore:
                     record['trials'].append(deepcopy(trial))
                     self.save(record)
                 try:
-                    result = self.execute(template(spec.template_id).engine, spec.template_id,
+                    result = execute(template(spec.template_id).engine, spec.template_id,
                                           dict(candidate['parameters']), dict(scenario.parameters), directory, cancelled)
                     limit = sample_reservation(template(spec.template_id).engine, dict(spec.parameters)['samples'])
                     if any(len(curve.get('x', [])) > limit or len(curve.get('y', [])) > limit

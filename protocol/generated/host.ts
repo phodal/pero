@@ -163,7 +163,13 @@ export type SkillMarketId = string;
 export type SkillRevision = string;
 export type SkillDigest = string;
 export type LocalEnvironmentOperation =
-  LocalEnvironmentCreate | LocalEnvironmentList | LocalEnvironmentPrepare | LocalEnvironmentBind;
+  | LocalEnvironmentCreate
+  | LocalEnvironmentList
+  | LocalEnvironmentPrepare
+  | LocalEnvironmentBind
+  | LocalEnvironmentCreateLockedControl
+  | LocalEnvironmentRebuild
+  | LocalEnvironmentBindCompute;
 export type AgentRunRequest =
   | AgentRunPrepare
   | AgentRunTerminal
@@ -1912,6 +1918,7 @@ export interface LocalEnvironmentCreate {
 }
 export interface LocalEnvironmentList {
   operation: "list";
+  compute?: boolean;
 }
 export interface LocalEnvironmentPrepare {
   operation: "prepare";
@@ -1919,6 +1926,19 @@ export interface LocalEnvironmentPrepare {
 }
 export interface LocalEnvironmentBind {
   operation: "bind";
+  id: AppName;
+}
+export interface LocalEnvironmentCreateLockedControl {
+  operation: "create_locked_control";
+  label: string;
+}
+export interface LocalEnvironmentRebuild {
+  operation: "rebuild";
+  id: AppName;
+  label: string;
+}
+export interface LocalEnvironmentBindCompute {
+  operation: "bind_compute";
   id: AppName;
 }
 /**
@@ -3976,6 +3996,8 @@ export interface SkillMarketCancelled {
   cancelled: true;
 }
 export interface LocalEnvironmentRecord {
+  locked_compute?: boolean;
+  prepared?: LockedPythonProfile | null;
   id: AppName;
   label: string;
   target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
@@ -3984,6 +4006,29 @@ export interface LocalEnvironmentRecord {
   log: string[];
   error: string | null;
   bound: boolean;
+}
+export interface LockedPythonProfile {
+  root: string;
+  project_sha256: string;
+  lock_sha256: string;
+  python_request: string;
+  python_archive_url: string;
+  python_archive_sha256: string;
+  uv_version: string;
+  uv_sha256: string;
+  observation: PythonComputeObservation;
+}
+export interface PythonComputeObservation {
+  version: string;
+  build: string;
+  platform: string;
+  machine: string;
+  executable_sha256: string;
+  packages: ComputePackages;
+  packages_sha256: string;
+}
+export interface ComputePackages {
+  [k: string]: string | undefined;
 }
 export interface EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";

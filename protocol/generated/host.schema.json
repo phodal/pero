@@ -6345,6 +6345,14 @@
       ],
       "additionalProperties": false
     },
+    "ComputePackages": {
+      "title": "ComputePackages",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "ConfigurationChangedEvent": {
       "title": "ConfigurationChangedEvent",
       "type": "object",
@@ -9755,6 +9763,24 @@
       ],
       "additionalProperties": false
     },
+    "LocalEnvironmentBindCompute": {
+      "title": "LocalEnvironmentBindCompute",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "bind_compute"
+        },
+        "id": {
+          "$ref": "#/$defs/AppName"
+        }
+      },
+      "required": [
+        "operation",
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "LocalEnvironmentCreate": {
       "title": "LocalEnvironmentCreate",
       "type": "object",
@@ -9794,6 +9820,24 @@
       ],
       "additionalProperties": false
     },
+    "LocalEnvironmentCreateLockedControl": {
+      "title": "LocalEnvironmentCreateLockedControl",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "create_locked_control"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "label"
+      ],
+      "additionalProperties": false
+    },
     "LocalEnvironmentList": {
       "title": "LocalEnvironmentList",
       "type": "object",
@@ -9801,6 +9845,9 @@
         "operation": {
           "type": "string",
           "const": "list"
+        },
+        "compute": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -9822,6 +9869,15 @@
         },
         {
           "$ref": "#/$defs/LocalEnvironmentBind"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentCreateLockedControl"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentRebuild"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentBindCompute"
         }
       ]
     },
@@ -9843,10 +9899,45 @@
       ],
       "additionalProperties": false
     },
+    "LocalEnvironmentRebuild": {
+      "title": "LocalEnvironmentRebuild",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "rebuild"
+        },
+        "id": {
+          "$ref": "#/$defs/AppName"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "id",
+        "label"
+      ],
+      "additionalProperties": false
+    },
     "LocalEnvironmentRecord": {
       "title": "LocalEnvironmentRecord",
       "type": "object",
       "properties": {
+        "locked_compute": {
+          "type": "boolean"
+        },
+        "prepared": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LockedPythonProfile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "id": {
           "$ref": "#/$defs/AppName"
         },
@@ -10319,6 +10410,51 @@
       "required": [
         "header",
         "location"
+      ],
+      "additionalProperties": false
+    },
+    "LockedPythonProfile": {
+      "title": "LockedPythonProfile",
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "project_sha256": {
+          "type": "string"
+        },
+        "lock_sha256": {
+          "type": "string"
+        },
+        "python_request": {
+          "type": "string"
+        },
+        "python_archive_url": {
+          "type": "string"
+        },
+        "python_archive_sha256": {
+          "type": "string"
+        },
+        "uv_version": {
+          "type": "string"
+        },
+        "uv_sha256": {
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/PythonComputeObservation"
+        }
+      },
+      "required": [
+        "root",
+        "project_sha256",
+        "lock_sha256",
+        "python_request",
+        "python_archive_url",
+        "python_archive_sha256",
+        "uv_version",
+        "uv_sha256",
+        "observation"
       ],
       "additionalProperties": false
     },
@@ -13617,6 +13753,43 @@
         "author",
         "additions",
         "deletions"
+      ],
+      "additionalProperties": false
+    },
+    "PythonComputeObservation": {
+      "title": "PythonComputeObservation",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "build": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "executable_sha256": {
+          "type": "string"
+        },
+        "packages": {
+          "$ref": "#/$defs/ComputePackages"
+        },
+        "packages_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "build",
+        "platform",
+        "machine",
+        "executable_sha256",
+        "packages",
+        "packages_sha256"
       ],
       "additionalProperties": false
     },
