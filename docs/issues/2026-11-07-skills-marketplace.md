@@ -1,13 +1,22 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-07
 github_issue: 156
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/156
 ---
 
 # Skills 市场：发现、安装与按需使用
+
+## 2026-11-11 合并与关闭
+
+按维护者明确要求关闭本跟踪。PR #193 已合并至 master（`38d08cf0`），
+合并前提交 `46950c48` 的 CI 和 Computer Use 均通过，目录刷新修复与
+Wasm 构建修复均已集成。
+
+显式 opt-in 真实模型验收仍未执行，关闭不将回环 provider、浏览器或 CI 结果
+升级为真实模型、科学有效性、独立 Native 界面或签名包验收。
 
 ## PR #193 CI 恢复（2026-11-11）
 

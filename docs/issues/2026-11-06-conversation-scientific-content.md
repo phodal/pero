@@ -1,13 +1,23 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-06
 github_issue: 145
-github_state: OPEN
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/145
 ---
 
 # 会话流中的科学内容展示与计算证据
+
+## 2026-11-11 合并与关闭
+
+按维护者明确要求关闭本跟踪。PR #194 已合并至 master（`c4f3a50d`），
+合并前提交 `e31658c5` 的 CI 和 Computer Use 均通过。图表、表格和文献引用
+采用稳定身份，Notebook 共享断言修复与 #193 一致。
+
+关闭不补充验收证据：本增量的独立 Native 界面、真实付费模型、Paper 稿件关联、
+ngspice 会话闭环及通用符号/量纲验证等未完成或未核验范围，仍按下文和
+[验收记录](../fitness/scientific-conversation.md) 保留，不标为通过。
 
 ## 目标与用户预期
 

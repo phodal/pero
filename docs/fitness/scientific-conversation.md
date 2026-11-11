@@ -12,7 +12,11 @@ previously recorded macOS scoped-keyboard assertion still failing.
 PR #193 uses the same test correction and the existing Wasm target installation
 fix independently. Its current-master merge tree passed all three Chromium
 browser tests locally. The previous #194 CI passed after retrying an Ubuntu
-package-index download timeout; final-head Actions verification is pending.
+package-index download timeout. Final head `e31658c5` passed
+[CI 42938893680](https://github.com/phodal/pero/actions/runs/42938893680)
+and Computer Use, then merged through PR #194 as `c4f3a50d`.
+The maintainer requested closure of #145; the unverified scope below remains
+unverified and is not waived by the issue disposition.
 
 2026-11-06, macOS arm64, development worktree `codex/scientific-chat-145`,
 base `1766b667` plus this issue's commits. GPUI Kit 0.8.1 from the pinned
