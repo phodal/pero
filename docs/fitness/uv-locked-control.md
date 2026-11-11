@@ -52,11 +52,12 @@ request is `{"method":"apps","id":"request-id","action":"localenvironment",
 | `{"operation":"prepare","id":"env-…"}` | Explicit preparation; returns compute records |
 | `{"operation":"list","compute":true}` | Read-only persisted state and receipts |
 | `{"operation":"bind_compute","id":"env-…"}` | Select verified compute prefix; no App restart |
+| `{"operation":"unbind_compute"}` | Return later calculations to App service Python; no App restart |
 | `{"operation":"rebuild","id":"env-…","label":"Control rebuilt"}` | New record with the exact source lock; Prepare explicitly |
 
 Start computation through the existing Control Lab Goal/experiment routes.
-There is no new scientific dispatch API. Unbinding to service Python is not yet
-exposed; select another prepared profile and create a new experiment.
+There is no new scientific dispatch API. Returning to service Python or selecting
+the original prepared profile lets an existing experiment use its original environment again.
 
 ## Reproduce the local gates
 
@@ -115,8 +116,8 @@ No binaries, wheels, venvs or large exports are committed.
 
 ## Remaining boundaries
 
-- UI creation/selection, Electron/Native observations and signed packages have
-  not been delivered or claimed. Existing visual controls are unchanged.
+- The later Environments UI increment is documented below. Native, signed packages
+  and full profile-aware scientific approval remain unverified.
 - No production EnvironmentUse admission/lease/release wiring. The receipt is
   software evidence linked through the existing attempt's artifact ledger, not
   an Owner grant. Existing Goal approval remains; full profile-aware approval
@@ -155,3 +156,59 @@ prepare software, and return source/observation evidence to the existing Host
 and Environment owner. It must not call Pixi tasks as a replacement scheduler.
 No Pixi executable was installed, no native compatibility was accepted, and no
 provider interface was added before a second real implementation exists.
+
+## Environments UI increment — 2026-11-11
+
+Source: `ec6cfaeb` (return to service Python) and `8abf8993` (compute controls).
+The Environments App now has separate **App environments**, **Control compute**
+and **Software checks** tabs. Compute uses existing Host records; no new local
+preparation or scientific state machine was introduced. Current binding and the
+reason historical experiments cannot continue after switching are always visible.
+Shared components supply progress, errors, dialogs, inputs, actions and disclosure;
+only layout styles were added. Existing service binding and inspection stay intact.
+
+Actual macOS arm64 development Electron acceptance used an isolated data home,
+the branch's own Host/Desktop/App builds and the existing shell/reader build from
+main (the shell/reader sources were not modified). Shared node_modules were read
+only; app/connector dependencies and target outputs were local to this checkout.
+No Notebook source, production data home, model or paid API was used.
+
+| Gate | Observed result |
+| --- | --- |
+| Create / prepare | Whitespace rejected with draft retained; cancel/reopen preserves name; Enter creates; explicit preparation displays persisted real log and indeterminate progress |
+| Select / rebuild | Bound ready profile without restarting the service; created another record from identical lock into a distinct physical prefix |
+| Failed preparation / retry | Corrupted only the disposable rebuild's saved lock; UI showed digest mismatch and retry; original selected profile remained bound; restoring source lock and explicit retry succeeded |
+| Historical continuity | Switching refused the old experiment with an actionable error and identical prior export; returning to service Python allowed its final verification |
+| Process/settings isolation | Service PID `62451` and `app_python` settings stayed unchanged across selections and return to service Python |
+| Actual compute | Locked profile produced a completed PI golden search and a matching compute-profile artifact; restored service experiment retained search and added a completed verification trial |
+| Keyboard | Enter opens rebuild and focuses its field; Escape returns focus to the rebuild button (the initial focus-stealing defect was fixed and rerun) |
+| Appearance | Light, dark, Chinese and 720×800 window checked; no horizontal document overflow; ordinary actions, selected badge, error and focus ring were distinguishable |
+| Regression | Runtime 160 passed / 5 ignored; Environments UI 6/6; SDK and root TypeScript; generated contract freshness all passed |
+
+Evidence: `test-results/issue-163-ui/verification.json`, `progress.json` and PNGs
+`01-empty-light` through `09-service-restored-history`. The retained home is
+`/var/folders/l8/7nm25zns5qjds0jc7z8f1gpm0000gn/T/pero-163-ui-g0wHA9`.
+Screenshots 02, 05, 06, 07, 08 and 09 were visually inspected. The first 09 capture
+preceded frontend polling; it was replaced after reopening the same home and
+observing **Evidence · 2 trials**, both completed, and final verification 8/8.
+`verification.json.restoredHistoryUi` distinguishes this later UI observation
+from the original full run. Native, signed packages and Linux remain unverified.
+These PI results are simulation evidence, not physical/scientific acceptance.
+
+Replay (explicit opt-in; downloads pinned Python, uv and wheels to a fresh home):
+
+```sh
+npm ci --prefix packages/connectors
+node scripts/build/desktop.mjs
+node scripts/build/apps.mjs --app environments --reader-dist /absolute/built/reader
+node scripts/build/apps.mjs --app control-lab --reader-dist /absolute/built/reader
+PERO_ENVIRONMENT_PREPARATION_REAL=1 PERO_ENVIRONMENTS_TEST_VENV=/absolute/existing/control-venv node tests/e2e/locked-control-environments.mjs
+```
+
+Build the shell/reader normally when not reusing existing outputs; the fixture's
+App service venv must contain the existing Control Lab dependencies. The runtime
+unit suite requires a Python supporting repository syntax (`PERO_APP_PYTHON` was
+set to `/opt/homebrew/bin/python3`, avoiding macOS system Python 3.9). Root typecheck
+used the existing generated reader declarations. The stale service-creation test
+radio count was corrected from three to four to include its existing LCMS option.
+No binaries, screenshots or preparation artifacts are committed.
