@@ -94,6 +94,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'crossReference': {
         losses.add('Cross references exported as resolved text, not editable fields.');
         if (node.resolved === false) return plain(`[Unresolved reference: ${read(node, 'identifier')}]`);
+        if (node.children?.length) return { type: 'root', children: children() };
         const target = node.projectTarget;
         return plain(target && typeof target === 'object' && 'label' in target && typeof target.label === 'string' ? target.label : document.references[read(node, 'identifier')]?.label ?? `[Unresolved reference: ${read(node, 'identifier')}]`);
       }

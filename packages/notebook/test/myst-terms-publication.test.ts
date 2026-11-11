@@ -3,6 +3,8 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import JSZip from 'jszip';
 import { parseMystDocument, importMystBundle, type MystNode } from '../src/myst.ts';
+import { compileMystProject } from '../src/myst-project.ts';
+import { parseMystProjectSnapshot } from '../src/myst-project-snapshot.ts';
 import { projectMystPublication } from '../src/myst-publication.ts';
 import { exportMystJatsResult } from '../src/myst-jats.ts';
 import { exportMystDocx, exportMystLatex, exportMystTypst } from '../src/myst-publication-sdk.ts';
@@ -61,4 +63,29 @@ assert json.loads(r.find('.//custom-meta/meta-value').text)['source']==${JSON.st
   for (const text of visible) assert.ok(body.stdout.includes(text));
   assert.ok(!body.stdout.includes('Unsupported'));
   assert.ok(jats.losses.includes(loss));
+});
+
+
+test('scientific references retain resolved rich wording locally and across pages without resolving ambiguity', () => {
+  const definitions = ':::{prf:theorem} My **result**\n:label: thm\n\nBody\n:::\n\n```{glossary}\nApple\n: A fruit.\n```';
+  const refs = '{ref}`thm` and {numref}`Result {number}: {name} <thm>` and {term}`custom apple <Apple>`';
+  const project = compileMystProject(parseMystProjectSnapshot({ format: 'pero-myst-project', version: 1, entry: 'main.md', files: [
+    { path: 'main.md', text: refs }, { path: 'terms.md', text: definitions },
+  ] }));
+  if (project.entry.kind !== 'myst') throw Error('Expected MyST');
+  const text = (node: MystNode): string => node.value ?? (node.children ?? []).map(text).join('');
+  for (const document of [parseMystDocument(`${definitions}\n\n${refs}`), project.entry.document]) {
+    const before = JSON.stringify(document);
+    for (const kind of ['docx', 'latex', 'typst'] as const) {
+      const result = projectMystPublication({ document }, kind);
+      assert.equal(text(result.ast.children!.at(-1)!), 'My result and Result 1: My result and custom apple');
+      assert.equal(result.ast.children!.at(-1)!.children!.filter(node => node.type === 'strong').length, 2);
+    }
+    assert.match(exportMystJatsResult({ document }).xml, /<p>My <bold>result<\/bold> and Result 1: My <bold>result<\/bold> and custom apple<\/p>/);
+    assert.equal(JSON.stringify(document), before);
+  }
+  const ambiguous = parseMystDocument(`${definitions}\n\n${definitions}\n\n{ref}\`thm\``);
+  assert.ok(ambiguous.diagnostics.some(item => item.code === 'reference-duplicate'));
+  for (const kind of ['docx', 'latex', 'typst'] as const) assert.equal(text(projectMystPublication({ document: ambiguous }, kind).ast.children!.at(-1)!), '[Unresolved reference: thm]');
+  assert.match(exportMystJatsResult({ document: ambiguous }).xml, /<p>\[Unresolved reference: thm\]<\/p>/);
 });

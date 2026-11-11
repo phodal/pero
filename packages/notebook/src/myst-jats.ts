@@ -59,7 +59,7 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
         losses.add(`Image not embedded in JATS: ${str(n, 'url')}`);
         return inline ? `<named-content content-type="missing-image">${xml(str(n, 'alt') || str(n, 'url'))}</named-content>` : `<p>Image not embedded: ${xml(str(n, 'alt') || str(n, 'url'))}</p>`;
       case 'link': losses.add('Links exported as visible text and URL.'); return `${children(n, true)} (${xml(str(n, 'url'))})`;
-      case 'crossReference': { const t = n.projectTarget; if (t) losses.add('Cross-document reference is display text; other pages absent from entry-only publication.'); const label = t && typeof t === 'object' && 'label' in t && typeof t.label === 'string' ? t.label : document.references[str(n, 'identifier')]?.label; return xml(label ?? `[Unresolved reference: ${str(n, 'identifier')}]`); }
+      case 'crossReference': { const t = n.projectTarget; if (t) losses.add('Cross-document reference is display text; other pages absent from entry-only publication.'); if (n.resolved === false) return xml(`[Unresolved reference: ${str(n, 'identifier')}]`); if (n.children?.length) return children(n, true); const label = t && typeof t === 'object' && 'label' in t && typeof t.label === 'string' ? t.label : document.references[str(n, 'identifier')]?.label; return xml(label ?? `[Unresolved reference: ${str(n, 'identifier')}]`); }
       case 'cite': { const r = document.bibliography[str(n, 'identifier')]; return r ? `<xref ref-type="bibr" rid="${key(r.id)}">${xml([r.author, r.year].filter(Boolean).join(', ') || r.id)}</xref>` : xml(`[Unresolved citation: ${str(n, 'identifier')}]`); }
       case 'citeGroup': return children(n, true);
       case 'comment': case 'mystTarget': return '';
