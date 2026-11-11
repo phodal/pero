@@ -1,0 +1,7 @@
+sample,group,concentration_mg_l
+c1,control,1
+c2,control,2
+c3,control,3
+t1,treatment,2
+t2,treatment,4
+t3,treatment,6
