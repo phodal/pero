@@ -1,5 +1,6 @@
 import { expandMystEmbeds } from './myst-embeds.ts';
-import { createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
+import { attachMystTargets, createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
+import { prepareMystTocHeadings, expandMystTocs } from './myst-toc.ts';
 import type { MystProjectReferenceTarget } from './myst-project-references.ts';
 import type { MystImageData } from './myst-assets.ts';
 import type { MystIncludeProvenance } from './myst-includes.ts';
@@ -51,7 +52,7 @@ export interface MystDocument {
 }
 export const MYST_SOURCE_MAX_BYTES = 256 * 1024;
 const disabledDirectives = new Set(['include', 'literalinclude', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
-const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment']);
+const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc']);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
 export const normalizeMystIdentifier = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -146,6 +147,7 @@ export interface MystResolutionContext {
   bibliography: Record<string, MystBibliographyEntry>;
   scholarly: MystScholarlyMetadata;
   diagnostics: MystDiagnostic[];
+  deferProjectToc?: boolean;
 }
 
 /** Resolve exactly once, after bibliography/metadata inputs have been collected. */
@@ -162,6 +164,8 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   if (metadata.references) report('references-external', 'Cross-project references are retained but not loaded');
   if (metadata.plugins) report('plugins-disabled', 'Document plugins are not loaded');
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
+  attachMystTargets(ast);
+  prepareMystTocHeadings(ast);
   Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report));
   walk(ast, node => {
     if (node.type === 'link' && typeof node.url === 'string' && node.url.startsWith('#')) {
@@ -180,7 +184,9 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
     if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report); }
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
-  return { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+  const document: MystDocument = { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+  if (!context?.deferProjectToc) expandMystTocs(document);
+  return document;
 }
 
 /** Existing authored Pero bibliography projection, shared with project ambiguity checks. */

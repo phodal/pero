@@ -1,5 +1,6 @@
 import { expandMystEmbeds, isMystEmbedImage } from './myst-embeds.ts';
 import { createMystNumberingState, type MystNumberingState } from './myst-numbering.ts';
+import { buildMystProjectToc, expandMystTocs, mystNodeText, type MystProjectToc } from './myst-toc.ts';
 import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
@@ -16,7 +17,7 @@ export type MystProjectNotebookPage =
   | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[] }
   | { kind: 'invalid'; path: string; source: string; diagnostics: MystDiagnostic[] };
 export type MystProjectEntry = { kind: 'myst'; path: string; document: MystDocument } | MystProjectNotebookPage;
-export interface MystProjectProjection {
+export interface MystProjectProjection extends MystProjectToc {
   entry: MystProjectEntry;
   notebookPages: MystProjectNotebookPage[];
   pages: MystProjectPage[];
@@ -45,7 +46,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   if (rawConfig.version !== undefined && rawConfig.version !== 1) report('project-config-version', 'Only myst.yml version 1 is supported; configuration is retained but not applied.', 'myst.yml');
   const validated = validateMystProjectMetadata(rawProject);
   diagnostics.push(...validated.diagnostics.map(item => ({ ...item, path: 'myst.yml' })));
-  for (const key of ['plugins', 'references', 'exports', 'downloads', 'resources', 'toc', 'requirements']) {
+  for (const key of ['plugins', 'references', 'exports', 'downloads', 'resources', 'requirements']) {
     if (rawProject[key] !== undefined) report('project-feature-inert', `Project ${key} is retained but not loaded or executed by this text snapshot compiler.`, 'myst.yml');
   }
   const bibliographyResources = (declaration: unknown, base: string): MystTextResource[] => {
@@ -89,7 +90,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       node.children?.forEach(visit);
     };
     visit(parsed.ast);
-    const document = resolveMystDocument(parsed, { numberingState, scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
+    const document = resolveMystDocument(parsed, { numberingState, deferProjectToc: true, scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
     return { path: resource.path, document, bibliography: bibliography.records };
   };
@@ -121,6 +122,8 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     }
   }
   const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input).map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  const navigation = buildMystProjectToc(snapshot, validated.normalized.toc, [...pages.map(page => ({ path: page.path, title: page.document.scholarly.short_title ?? page.document.scholarly.title ?? mystNodeText(page.document.ast.children?.find(node => node.type === 'heading') ?? { type: 'text', value: page.path }) })), ...notebookPages.map(page => ({ path: page.path, title: page.kind === 'ipynb' ? page.scholarly.short_title ?? page.scholarly.title ?? page.path : page.path }))], diagnostics);
+  for (const page of referencePages) expandMystTocs(page.document, { toc: navigation.toc, path: page.path, namespace: 'namespace' in page ? page.namespace : undefined });
   expandMystEmbeds(referencePages, snapshot);
   resolveMystProjectReferences(snapshot, referencePages, notebookPages.filter(page => page.kind === 'ipynb').map(page => ({ path: page.path, identifier: '', label: page.path })));
   diagnostics.push(...referencePages.flatMap(page => page.document.diagnostics));
@@ -129,5 +132,5 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   // Snapshot admission guarantees a provided Markdown or notebook entry.
   const markdownEntry = pages.find(page => page.path === snapshot.entry);
   const entry: MystProjectEntry = markdownEntry ? { kind: 'myst', path: markdownEntry.path, document: markdownEntry.document } : notebookPages.find(page => page.path === snapshot.entry)!;
-  return { entry, pages, notebookPages, rawConfig, diagnostics };
+  return { entry, pages, notebookPages, rawConfig, diagnostics, ...navigation };
 }

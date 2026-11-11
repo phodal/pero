@@ -57,3 +57,21 @@ implemented. No external discovery or execution is enabled. This is a bounded
 local projection, not full upstream embed parity. Semantics were checked against
 MyST `docs/embed.md` and `packages/myst-cli/src/transforms/embed.ts` at
 `50e82202324dc36f10bd04877d00016879da6f6e`.
+
+## Explicit table of contents
+
+The existing pinned frontmatter validator admits `project.toc` once. The SDK
+projects supplied Markdown/notebook file entries and title-only groups into one
+navigation tree. Entry titles override page `short_title` and title only in
+navigation; document metadata and source remain unchanged. Hidden subtrees are
+compiled and linkable, but excluded from navigation and `numberingOrder`.
+`pageOrder` retains them, followed by unlisted supplied pages, for whole-project
+HTML publication. No directory discovery, glob expansion or remote URL TOC
+entry is implemented; unsupported entries diagnose and retain configuration.
+
+`toc` directives expand to ordinary list/link nodes for project, children, page
+and section contexts with relative depth limits. TOC title headings do not enter
+the lists. Section TOCs stop at their enclosing heading boundary. Stable heading
+anchors preserve explicit labels and distinguish repeated titles. Notebook-cell
+anchors keep their cell namespace. This is static publication navigation, not a
+website sidebar/search service. Focused tests are in `myst-toc.test.ts`.
