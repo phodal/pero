@@ -220,7 +220,7 @@ visual, Electron or Native acceptance is claimed by these local core/editor test
 
 Completed project-stage local checks:
 
-- `npm test --workspace @pero/notebook`: **210/210 passed**.
+- `npm test --workspace @pero/notebook`: **211/211 passed**.
 - `npm test --prefix apps/notebook`: **99/99 editor tests passed**; Python
   **143 discovered, 141 passed, 2 existing optional tests skipped**.
 - `npm run typecheck --prefix apps/notebook`: passed.
@@ -246,3 +246,9 @@ App source evidence contains each file as `ready` with exact source text/digests
 source-diagnostics tests passed **3/3**. An independent read-only scoped review
 found no blocking defect and passed **25 core/snapshot, 5 Python project and 3
 project editor tests**. The reviewer did not launch a browser.
+
+Independent admission review also reproduced a pre-existing source-document mismatch:
+JavaScript accepted lone UTF-16 surrogates that UTF-8 export replaced, while Python
+rejected them. Shared MyST source admission now rejects those invalid scalar values
+before encoding. The cross-runtime corpus and both source/bundle format paths cover
+high/low lone surrogates and retain valid supplementary characters unchanged.

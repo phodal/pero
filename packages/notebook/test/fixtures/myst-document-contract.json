@@ -168,6 +168,33 @@
         "blockId": "myst-contract",
         "source": ""
       }
+    },
+    {
+      "name": "lone high surrogate",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-unicode",
+        "schemaVersion": 1,
+        "source": "\ud800"
+      }
+    },
+    {
+      "name": "lone low surrogate",
+      "accepted": false,
+      "attrs": {
+        "blockId": "myst-unicode",
+        "schemaVersion": 1,
+        "source": "\udc00"
+      }
+    },
+    {
+      "name": "paired supplementary source",
+      "accepted": true,
+      "attrs": {
+        "blockId": "myst-unicode",
+        "schemaVersion": 1,
+        "source": "🧪科研\r\n"
+      }
     }
   ],
   "utf8Boundary": {

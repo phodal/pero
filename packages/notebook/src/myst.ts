@@ -213,6 +213,8 @@ export function importMystBundle(text: string): { schemaVersion: 1; source: stri
 export const mystDocumentDefinition = registerDocumentBlock(defineDocumentBlock({
   type: 'mystDocument', defaults: { source: '' }, futureVersions: 'reject',
   versionOne(attrs) {
+    // TextEncoder would replace lone surrogates, silently changing authored source.
+    if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(attrs.source)) throw new TypeError('MyST source must contain valid Unicode scalar values');
     if (new TextEncoder().encode(attrs.source).length > MYST_SOURCE_MAX_BYTES) throw new RangeError('MyST source exceeds 256 KiB');
   },
 }));

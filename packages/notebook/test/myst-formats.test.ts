@@ -60,3 +60,13 @@ test('every legal source fits its own bundle import budget despite metadata alia
     assert.equal(input('bundle').parse(serialized).source, source);
   }
 });
+
+
+test('source and bundle admission reject invalid UTF-16 rather than replacing authored text on UTF-8 download', () => {
+  for (const source of ['\ud800', '\udc00']) {
+    assert.throws(() => input('source').parse(source), /Unicode/);
+    assert.throws(() => input('bundle').parse(JSON.stringify({ format: 'pero-myst', version: 1, source })), /Unicode/);
+  }
+  const source = '🧪科研\r\n';
+  assert.equal(input('bundle').parse(output('bundle').serialize({ source })).source, source);
+});
