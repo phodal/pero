@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-11
 github_issue: 200
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/200
 ---
 
@@ -28,7 +28,7 @@ Skills App 复用公开 Select 增加技能范围筛选；原列表、抽屉、�
 
 ## 验证状态
 
-实施中；以下不作为已完成验收：真实模型、Native、签名包及跨平台验证。
+原 P0/P1/P2 与本次 P3 已完成；真实模型、Native、签名包及跨平台仍明确未验。
 
 ## 2026-11-11 实施结果
 
@@ -54,5 +54,25 @@ Skills App 复用公开 Select 增加技能范围筛选；原列表、抽屉、�
   这是确定性准备，未让模型执行研究，不是统计显著性或科研效果证明。
 
 实际命令、截图及平台边界见 [验证记录](../fitness/skills-marketplace.md#200-通用增量2026-11-11)。
-本 issue 保持开放：待适配候选、真实模型混合任务、Notebook 附件、Native、其他平台/Agent
-和签名包仍未验收。不修改工作流，不自动合并或对外发布。
+原交付只分别验证混合选择与脚本；P3 同一任务缺口在下节补齐。待适配候选、真实模型、
+Notebook 专属附件、Native、其他平台/Agent 与签名包保持未验，不新增为原文外关闭条件。
+
+
+## P3 闭环完成与关闭复核（2026-11-11）
+
+从 master `7ff7c637` 新建独立 `codex/skills-p3-200`，保留前两次交付。
+真实 Host/Git 安装固定通用 verification-before-completion 与科研 statistical-analysis，
+两者不全局启用；同一个普通会话收到完整正文，确定性 provider 驱动真实工具完成
+读取、写脚本/测试、执行、独立核查及既有 Host 产物保存。
+
+最终源码 `c9fbd90f` 干净执行：27 次实际工具调用，23 次精确 allow-once，2 个行为测试
+与 9 项独立核查通过。14 份保存产物包含报告、脚本、测试日志、输入、环境、方法版本
+和同一任务回执；实际重启 Host 并删除原工作副本后，全部保存版本可读取且摘要一致。
+恢复的文件再次独立复算通过。没有新增 owner、运行来源安装器或改变产品权限。
+
+[九条验收矩阵与复现](../fitness/skills-marketplace.md#200-p3-同一任务闭环与九条关闭复核2026-11-11)。
+判断：原文九条已满足，由主协调合并、发布并关闭 GitHub issue。
+主协调独立重跑同一接线通过，证据位于
+`/Users/phodal/workspaces/pero-skills-p3-200/test-results/skills-market/mixed-host/run-AxvkSa/`。
+真实模型、科学接受、Notebook 专属附件、其他平台/Agent 和签名包不冒充已验；
+原文要求分列这些范围，未要求所有模型/平台都通过才可关闭。

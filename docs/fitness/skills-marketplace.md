@@ -158,3 +158,91 @@ Windows/Linux 和签名包均未本轮验证。7 个通用候选仍待适配，5
 最终取消场景明确以 `general_skill` 作为被取消/重试项，另一科研项继续安装成功。
 最后的 UI 清理只内联原先无逻辑的 condition 转发函数，已随最终 App 构建和三套验收覆盖。
 最终源码/二进制 SHA、各 concern 完整提交以及结果文件索引保存在证据根 `delivery.json`。
+
+## #200 P3 同一任务闭环与九条关闭复核（2026-11-11）
+
+本节补齐上节「混合选择与手写分析分开执行」的缺口，并取代把真实模型、
+Notebook 专属附件和所有平台都视为 #200 必须阻塞项的判断。
+按 issue 原文，P3 允许明确标识的回环 provider；交付使用现有 Notebook **或产物**通路。
+第 9 条要求分别列出验证范围，不要求所有平台/模型/签名包同时通过。
+
+工作区 `/Users/phodal/workspaces/pero-skills-p3-200`，分支 `codex/skills-p3-200`，
+基线 `7ff7c637732606286940b50bafee4d0d3b47a2f5`。Host 与 Go Harness 都在该
+独立工作区从源码构建；未复用旧 #200 二进制，未更改产品权限或 App 装配。
+最终执行源码 `c9fbd90f5620845a40ce1e4e2cf16b97f17bfbcc`，执行时工作区干净。
+
+### 本次实际执行
+
+```sh
+node scripts/build/harness.mjs
+node scripts/cargo.mjs build -p pero-host
+# 使用已安装 PyYAML 的 Python；只生成现有合并目录，不增加来源。
+python scripts/research-skills/publish.py --output target/skills-p3-catalog.json
+PERO_SKILLS_MARKET_PUBLIC=1 PERO_SKILLS_PYTHON=/opt/homebrew/bin/python3 \
+  node tests/runtime/skills-market-mixed.mjs
+```
+
+本机发布目录的解释器为 `/tmp/pero-200-python/bin/python`；任务实际解释器为
+Python 3.14.7，macOS 27.2 arm64。输入是固定合成 CSV，SHA-256
+`65b2230300678eec4336095d49fefbf7d2069e64c5da6c81287a2015f2d6ef8c`。
+
+同一个普通会话显式选择以下真实 Git 安装且未全局启用的技能，第一条 provider
+请求检查两份**完整解析正文**均到达；不是只检查技能名称或描述标记：
+
+| 技能 ID | 实际固定 revision | SKILL.md SHA-256 |
+| --- | --- | --- |
+| `obra/superpowers/skills/verification-before-completion/SKILL.md` | `22f0b463e7a5e579904dd6211a520321035526f7` | `2befe7fc55bcadaa3d97dd9e8efeb633d2561c0ebe74c5a8b17c4d9e7e4520b3` |
+| `K-Dense-AI/scientific-agent-skills/skills/statistical-analysis/SKILL.md` | `a25cf9ec00e2745d03f8704acf6f6919694ccd9a` | `e112848726b3713267cac65e4e2c15491a0a26ee1ed628db01195f7e43f97997` |
+
+28 次回环 provider 请求驱动 27 次真实生产工具调用：读取 brief/CSV、保存计划、
+写入四个脚本/测试文件、运行行为测试、分析及 Decimal 独立核查、读取结果，最后通过
+`mcp__pero-app-use__deliver_artifact` 交付 14 份产物。只有 provider 的决策/代码是
+手写 fixture；文件工具、shell、测试进程、MCP、Rust Host 和 Go Harness 均真实执行。
+两项行为测试覆盖重复 ID、非有限值、单位、缺测、零值及空完整配对；独立核查 9/9 通过。
+结果为四个完整配对 13 → 16 mg/L，平均配对变化 3 mg/L，p5 缺测未插补。
+
+一次性会话显式选择既有 `full-access` 模式，其含义是文件和命令逐次请求批准；
+测试只对 provider 已登记且与 Host pending call 的名称/参数完全相等的 23 次调用
+回答 `allow_once`。未使用默认 `auto-review` 跳过提示，未写入全局许可、运行来源
+hooks/安装器或改变产品权限。这里没有 OS/网络 sandbox 的认证声明。
+
+`task-receipt.json` 在同一真实 Harness 任务中写出并交付，串联实际技能
+ID/revision/SHA、固定输入、解释器、测试日志、shell 返回、独立检查，以及保存产物的
+精确 ID/version/SHA。报告的 `related` 字段关联输入、代码、环境、执行日志和复核；
+这些引用由现有 Host artifact owner 验证和冻结。没有另建任务状态机或保存 owner。
+
+关闭实际 Host、删除全部工作副本、重新启动 Host 后，14 份版本均由
+`resolve_snapshot` 重新读取，逐字节和 SHA 对比一致；从恢复文件重新运行独立
+checker 仍 9/9 通过。`reopened/report.md`、代码、日志和任务回执均可直接读取。
+没有启动 Electron，也未声称完成新的 UI 检查或 Notebook 专属附件功能。
+
+最终本地证据（不提交产物或第三方源码）：
+`test-results/skills-market/mixed-host/run-n8Ckco/`。
+`result.json` 是外层接线回执，`events.json` 保存 Host 事件，`provider-calls.json`
+保存 fixture 发出的实际工具调用和结果，`reopened/` 是从 Host 恢复的文件。
+任务回执 owner 引用：thread `skills-mixed-task`，artifact
+`e223ad49-a54a-430c-a920-ad16a1206b0b`，version `1`。
+
+开发过程中修正的均是本次测试接线：selector 使用真实 source 身份，文件工具的
+字符串 content 与 MCP 内容数组分开解析；权限使用既有逐次批准模式。第一次默认
+模式试跑虽然执行成功，但未产生显式 permission 事件，因此没有作为最终验收。
+最终正式回执确认 23 次精确 allow-once；没有为通过测试修改产品权限实现。
+
+### 对照 #200 原文九条
+
+| # | 验收条目 | 证据与结论 |
+| --- | --- | --- |
+| 1 | 通用目录/中文索引对账、固定来源及许可 | 已完成。P0 12 个候选、95 个旧排除路径均有去向；5 个静态可装、7 个明确待适配；5 个旧文档 ID 共享发现，不误报未知/专有许可。目录 11 项回归与离线对账通过。 |
+| 2 | 实际用途、分类/搜索/已安装、未知和内部条目语义 | 已完成。原 #200 Electron `result.json` 验证 1778 项、All/General/Research、中文/暗色/窄窗、键盘及未知条件；Host 准入投影用于列表和已安装快照。 |
+| 3 | 通用准入与旧科研/ID/安装/历史兼容 | 已完成。原领域 9 项、Host 4 项及目录旧 ID/source/license 回归；旧 1766 项未重写，安装 state 和旧会话保持。 |
+| 4 | 通用技能真实安装、取消/重试、重启、更新/回退、旧会话 | 已完成。原 `runtime.json`、`runtime-concurrent.json` 和 Electron `install/result.json`；被取消项明确为 general_skill。真实公共 Git 另有获取摘要回执。 |
+| 5 | 未全局启用的显式选择、未发送草稿、不改变 App 权限 | 已完成。原 Electron `chat/result.json` 7 项；本次两个真实公共技能均未全局启用、首个 prompt 前 0 请求，完整上下文进入同一会话。App 装配代码未变。 |
+| 6 | 一次混合任务交付可读报告/代码/测试，定位版本/输入/环境/未知 | **本次补齐。** 27 次真实工具调用、14 个 Host 产物版本、同一任务回执、独立检查，以及 Host 重启后逐字节读取；模型及科研接受未验范围写入报告。 |
+| 7 | 不自动运行 hooks/安装器或扩权，拒绝/脱敏不退化 | 已完成。原 Go plugins/rust 准入回归和实际未知许可/其他 Agent 拒绝；本次只加载静态正文、既有工具逐次批准，未改产品权限、脱敏或 hook 路径。 |
+| 8 | 领域/旧数据/重复/许可回归及少量真实 UI 场景 | 已完成。原 Python 11、App 6、Rust 9+4、Go plugins 和三套 Electron；失败保留/重试、选择、明暗、窄窗、键盘均有实际证据。P3 未改 UI，无需把本次 headless 验证冒充新增 UI 验收。 |
+| 9 | 分列平台、ACP Agent、模型和签名包范围 | 已完成范围披露。本轮 #200 产品与 P3：macOS arm64 开发构建；其他 ACP 仅协议 fixture；未跑真实模型、Native、Windows/Linux #200 增量或签名包。此前 #156 Windows 证据单列，不外推本增量。 |
+
+**关闭判断：#200 九条验收已满足，可由主协调发布并关闭。** 待适配候选保持不可直接
+使用、真实模型显式 opt-in、其他平台与签名包未验证，都是已披露的范围，不应再被
+加为原文之外的关闭前置。该结论不声称模型自主科研质量或统计科学接受；GitHub
+发布与关闭动作由主协调执行，本工作区未自动 push、建 PR 或关闭 issue。
