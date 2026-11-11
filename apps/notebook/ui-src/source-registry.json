@@ -38,5 +38,12 @@
   "packages/notebook/src/myst-publication-sdk.ts",
   "packages/notebook/src/myst-jats.ts",
   "packages/notebook/src/myst-docx-math.ts",
-  "apps/notebook/backend/ipynb_document.py"
+  "apps/notebook/backend/ipynb_document.py",
+  "packages/notebook/src/myst-proof.ts",
+  "packages/notebook/src/myst-numbering.ts",
+  "packages/notebook/src/myst-toc.ts",
+  "packages/notebook/src/myst-embeds.ts",
+  "packages/notebook/src/myst-terms.ts",
+  "packages/notebook/src/myst-projection-budget.ts",
+  "packages/notebook/src/ipynb-recorded.ts"
 ]
