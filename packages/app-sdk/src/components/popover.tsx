@@ -22,9 +22,11 @@ export type PopoverProps = {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
+  /** Keep stateful tools mounted while closed; the hidden panel leaves focus order. */
+  keepMounted?: boolean;
 };
 
-const TAB_SELECTOR = 'button,input,select,textarea,a[href],[tabindex]';
+const TAB_SELECTOR = 'button,input,select,textarea,a[href],summary,[tabindex]';
 
 function classes(...names: Array<string | undefined>) {
   return names.filter(Boolean).join(' ');
@@ -43,7 +45,9 @@ function restoreTrigger(trigger: HTMLButtonElement | null, panel: HTMLElement | 
 }
 
 function enabledMenuItems(panel: HTMLElement) {
-  return [...panel.querySelectorAll<HTMLElement>('[role^="menuitem"]')].filter(item => !item.hasAttribute('disabled') && item.getAttribute('aria-disabled') !== 'true');
+  return [...panel.querySelectorAll<HTMLElement>('[role^="menuitem"]')].filter(item =>
+    !item.hasAttribute('disabled') && item.getAttribute('aria-disabled') !== 'true'
+    && !item.closest('[hidden],[inert],dialog:not([open]),details:not([open]) > :not(summary)'));
 }
 
 function tabbables(root: ParentNode, skip: HTMLElement | null, doc: Document) {
@@ -83,7 +87,7 @@ function applyTheme(trigger: HTMLElement, panel: HTMLElement) {
  */
 export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popover({
   label, trigger, children, className, contentClassName, align = 'end', triggerClassName, triggerVariant = 'unstyled', triggerTitle,
-  popupRole = 'dialog', container, open, defaultOpen = false, onOpenChange, disabled = false,
+  popupRole = 'dialog', container, open, defaultOpen = false, onOpenChange, disabled = false, keepMounted = false,
 }, forwardedRef) {
   const controlled = open !== undefined;
   const [uncontrolled, setUncontrolled] = useState(defaultOpen);
@@ -199,6 +203,8 @@ export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popo
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (!displayed || event.defaultPrevented) return;
+    const dialog = event.target instanceof Element ? event.target.closest('dialog[open]') : null;
+    if (dialog && !dialog.contains(triggerRef.current)) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -254,7 +260,7 @@ export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popo
     <Button variant={triggerVariant} data-unstyled={triggerClassName ? true : undefined} ref={setTrigger} type="button" disabled={disabled} className={classes('pero-ui-popover-trigger', triggerClassName)} title={triggerTitle ?? label}
       aria-haspopup={popupRole === false ? false : popupRole} aria-expanded={!!displayed} aria-controls={displayed ? panelId : undefined} aria-label={label}
       onClick={event => { event.currentTarget.focus(); commit(!displayed, false); }}>{trigger}</Button>
-    {displayed && portal && createPortal(<div ref={panelRef} id={panelId} data-pero-popup-container="" role={role} aria-label={role ? label : undefined} data-align={align} style={{visibility:'hidden'}} tabIndex={-1}
+    {(displayed || keepMounted) && portal && createPortal(<div ref={panelRef} id={panelId} hidden={!displayed} data-pero-popup-container="" role={role} aria-label={role ? label : undefined} data-align={align} style={{display:displayed ? undefined : 'none',visibility:displayed ? 'hidden' : undefined}} tabIndex={-1}
       className={classes('pero-ui-popover-panel', className, contentClassName)} onKeyDown={onKeyDown}>{children(requestClose)}</div>, portal)}
   </div>;
 });

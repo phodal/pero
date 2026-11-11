@@ -100,6 +100,36 @@ test('popover roles, dismissal, menu keys, and portal containers', async t => {
     await render(null);
   });
 
+  await t.test('retained popup content keeps local drafts and native disclosure tab stops', async () => {
+    await render(null);
+    function Draft() {
+      const [value, setValue] = React.useState(0);
+      return React.createElement('details', { open: true },
+        React.createElement('summary', { tabIndex: 0 }, 'Saved scope'),
+        React.createElement('button', { type: 'button', onClick: () => setValue(value + 1) }, `Draft ${value}`));
+    }
+    await render(React.createElement(Popover, {
+      label: 'Retained tools', trigger: 'Tools', keepMounted: true, children: () => React.createElement(Draft),
+    }));
+    const trigger = stubAnchor(), retained = panel();
+    assert.ok(retained);
+    assert.equal(retained.hidden, true);
+    assert.equal(retained.style.display, 'none');
+    await click(trigger);
+    await key(trigger, 'Tab');
+    assert.equal(document.activeElement, retained.querySelector('summary'));
+    await click(retained.querySelector('button'));
+    assert.equal(retained.querySelector('button').textContent, 'Draft 1');
+    await key(retained.querySelector('button'), 'Escape');
+    assert.equal(document.activeElement, trigger);
+    assert.equal(retained.hidden, true);
+    await click(trigger);
+    assert.equal(panel(), retained);
+    assert.equal(retained.hidden, false);
+    assert.equal(retained.querySelector('button').textContent, 'Draft 1');
+    await render(null);
+  });
+
   await t.test('escape refocuses, nested prevention stays, and menu skips disabled', async () => {
     await render(null);
     await render(React.createElement(Popover, {
