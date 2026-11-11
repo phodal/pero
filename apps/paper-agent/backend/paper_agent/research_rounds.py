@@ -2,7 +2,8 @@
 from dataclasses import asdict, dataclass
 import json
 
-from .model import Invalid, digest, mapping, sequence, text
+from .model import Invalid, PdfPassage, digest, mapping, sequence, text
+from .source_reports import SourceObservation
 from .research_program import reference
 
 
@@ -91,9 +92,24 @@ class DocumentClaim:
                    match.observationId, match.documentId, match.blockId, quote, match.sourceUrl)
 
 
-def evidence_key(claim):
-    return (claim.get('sourceKind', 'pdf'), claim['paperId'], claim.get('passageId') or claim.get('documentId'),
-            claim.get('blockId', ''), claim.get('observationId', ''))
+@dataclass(frozen=True)
+class ResearchEvidence:
+    """Progress follows retained original scopes, independent of catalog aliases."""
+    passages: tuple[PdfPassage, ...]
+    observations: tuple[SourceObservation, ...]
+
+    def key(self, claim: ResearchClaim | DocumentClaim):
+        if isinstance(claim, DocumentClaim):
+            observation = next((item for item in self.observations if item.id == claim.observationId), None)
+            scope = next((item for item in observation.documentScopes
+                          if item.documentId == claim.documentId and item.blockId == claim.blockId), None) if observation else None
+            if scope is None:
+                raise Invalid('Progress requires a saved observed HTML window', 409)
+            return ('html', scope.sourceDigest, scope.blockId, scope.unit, scope.start, scope.end, scope.contentDigest)
+        passage = next((item for item in self.passages if item.id == claim.passageId), None)
+        if passage is None:
+            raise Invalid('Progress requires a saved observed PDF passage', 409)
+        return ('pdf', passage.file_digest, passage.page, passage.start, passage.content)
 
 
 @dataclass(frozen=True)
@@ -116,7 +132,7 @@ class ResearchRound:
         return digest(asdict(self))
 
     @classmethod
-    def create(cls, value, program, reports, previous, now, document_evidence=()):
+    def create(cls, value, program, reports, previous, now, evidence: ResearchEvidence, document_evidence=()):
         values = [mapping(c, 'research claim') for c in sequence(value.get('claims'), 64, 'claims')]
         if any(c.get('sourceKind', 'pdf') not in ('pdf', 'html') for c in values):
             raise Invalid('Choose PDF or HTML evidence')
@@ -124,8 +140,9 @@ class ResearchRound:
         if not claims:
             raise Invalid('A completed research round needs at least one observed claim; use finish for blocked work')
         gaps = tuple(text(g, 2000, 'gap') for g in sequence(value.get('gaps', []), 32, 'gaps'))
-        old = {evidence_key(c) for r in previous for c in r['claims']}
-        added = len({evidence_key(asdict(c)) for c in claims} - old)
+        old = {evidence.key(DocumentClaim(**c) if c.get('sourceKind') == 'html' else ResearchClaim(**c))
+               for r in previous for c in r['claims']}
+        added = len({evidence.key(c) for c in claims} - old)
         screening = digest([(c.id, c.decision) for c in program.candidates])
         return cls(len(program.roundIds) + 1, text(value.get('question'), 2000, 'round question'),
                    tuple(value['reportIds']), claims, gaps, text(value.get('nextAction'), 2000, 'next action'),

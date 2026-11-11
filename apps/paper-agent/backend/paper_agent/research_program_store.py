@@ -239,20 +239,23 @@ class ResearchPrograms:
                 next_program = program.advance(sourceReportIds=tuple(dict.fromkeys((*program.sourceReportIds, result['id']))))
                 extra = dict(sourceReport=result)
             elif operation == 'commit-round':
-                from .research_rounds import ResearchRound, DocumentEvidence
+                from .research_rounds import ResearchRound, DocumentEvidence, ResearchEvidence
+                from .source_reports import SourceObservation
                 report_ids = sequence(value.get('reportIds'), 32, 'saved round reports')
-                allowed = {self.store.study(i).report_id for i in program.studyIds} | set(program.sourceReportIds)
+                studies = tuple(self.store.study(i) for i in program.studyIds)
+                observations = tuple(SourceObservation.from_record(self.store._read('source-observations', i)) for i in program.observationIds)
+                allowed = {study.report_id for study in studies} | set(program.sourceReportIds)
                 if not report_ids or len(set(report_ids)) != len(report_ids) or any(i not in allowed for i in report_ids):
                     raise Invalid('Round reports must belong to saved observations or finalized studies in this program')
                 reports = tuple(self.store.report(i) for i in report_ids if i not in program.sourceReportIds)
                 document_evidence = []
                 for identity in (i for i in report_ids if i in program.sourceReportIds):
-                    from .source_reports import report_view, observed, verify_observation
+                    from .source_reports import report_view, verify_observation
                     from .paper_documents import PaperDocuments
                     report = report_view(self.store, self.store._read('source-reports', identity), identity)
                     for item in report['observations']:
-                        observation = observed(self.store, item['id'], report['bundleId'])
-                        if observation.id not in program.observationIds or not verify_observation(self.store, observation):
+                        observation = next((o for o in observations if o.id == item['id'] and o.bundleId == report['bundleId']), None)
+                        if observation is None or not verify_observation(self.store, observation):
                             raise Invalid('HTML observation is unavailable or outside this program', 409)
                         for scope in observation.documentScopes:
                             document, _ = PaperDocuments(self.store).read(scope.documentId)
@@ -268,7 +271,8 @@ class ResearchPrograms:
                 if pending.exists():
                     saved = self._read(pending)
                     now = saved['createdAt']
-                row = ResearchRound.create(value, program, reports, previous, now, tuple(document_evidence))
+                evidence = ResearchEvidence(tuple(p for study in studies for p in study.passages), observations)
+                row = ResearchRound.create(value, program, reports, previous, now, evidence, tuple(document_evidence))
                 next_program = program.complete_round(row, previous[-1]['screeningDigest'] if previous else None)
                 if not pending.exists():
                     self._write(pending, dict(digest=digest(value), createdAt=now))

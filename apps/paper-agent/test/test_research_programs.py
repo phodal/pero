@@ -296,16 +296,21 @@ class ResearchProgramsAcceptance(unittest.TestCase):
             self.assertIn('needs_review', delivered)
 
     def test_repeated_evidence_cannot_reset_the_no_progress_limit(self):
-        for reread, requote, reword in ((False, False, False), (True, False, False), (True, True, False), (False, False, True)):
-            with self.subTest(new_report_same_observation=reread, different_quote=requote, reworded_screening=reword), tempfile.TemporaryDirectory() as root:
+        for reread, requote, reword, alias in ((False, False, False, False), (True, False, False, False), (True, True, False, False), (False, False, True, False), (True, True, False, True)):
+            with self.subTest(new_report_same_observation=reread, different_quote=requote, reworded_screening=reword, same_bytes_alias=alias), tempfile.TemporaryDirectory() as root:
                 store = ResearchStore(root)
                 paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
                 pdf_bytes = b'no-progress original PDF fixture'
                 document = PdfDocument.create(paper.id, digest(pdf_bytes), paper.url,
                     (PdfPage(1, 600, 800, 'Formal method. Exact original evidence.'),), NOW)
                 store.save_pdf(document, pdf_bytes)
+                sources = [paper]
+                if alias:
+                    other = store.save_paper(PaperSnapshot.from_reading(reading(sourceId='another-provider-identity'), NOW))
+                    store.save_pdf(PdfDocument.create(other.id, digest(pdf_bytes), other.url, document.pages, NOW), pdf_bytes)
+                    sources.append(other)
                 programs = ResearchPrograms(store)
-                state = programs.command(self.plan(paper,
+                state = programs.command(self.plan(paper, seedPaperIds=[p.id for p in sources],
                     limits=dict(rounds=6, searches=8, candidates=24, reads=18), noProgressLimit=2), NOW)
                 candidate_id = state['candidates'][0]['id']
                 report_ids = []
@@ -316,6 +321,8 @@ class ResearchProgramsAcceptance(unittest.TestCase):
                         programId=state['id'], expectedCheckpoint=state['checkpoint'], **fields), NOW)
 
                 for index in range(1, 4):
+                    paper = sources[(index - 1) % len(sources)]
+                    candidate_id = next(c['id'] for c in state['candidates'] if c['paperId'] == paper.id)
                     if reword:
                         state = perform('screen', f'reword-{index}', candidateId=candidate_id,
                             decision='include', reason=f'Same included source, explanation {index}')
@@ -343,7 +350,7 @@ class ResearchProgramsAcceptance(unittest.TestCase):
                     if index < 3:
                         self.assertFalse(state['stopReason'])
 
-                self.assertEqual(len(set(passage_ids)), 1)
+                self.assertEqual(len(set(passage_ids)), len(sources))
                 self.assertEqual(len(set(report_ids)), 3 if reread else 1)
                 self.assertEqual(state['usage']['rounds'], 3)
                 self.assertEqual(state['stopReason'], 'no_progress')
