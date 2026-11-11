@@ -107,6 +107,41 @@ func bundleSkillResources(ctx context.Context, original, target, revision, skill
 	for _, name := range strings.Split(names, "\x00") {
 		available[name] = true
 	}
+	// A selected skill also carries its ancestor license/notice texts. These
+	// are pinned data, not additional skills, hooks or executable permissions.
+	for resource := range available {
+		parent := path.Dir(resource)
+		name := strings.ToUpper(path.Base(resource))
+		stem := strings.TrimSuffix(strings.TrimSuffix(name, ".TXT"), ".MD")
+		if copied[resource] || (stem != "LICENSE" && stem != "LICENCE" && stem != "COPYING" && stem != "NOTICE") {
+			continue
+		}
+		if parent != "." && parent != selectedDir && !strings.HasPrefix(selectedDir, parent+"/") {
+			continue
+		}
+		if err = checkoutGitPaths(ctx, original, revision, resource); err != nil {
+			return err
+		}
+		info, err := root.Lstat(filepath.FromSlash(resource))
+		if err != nil || !info.Mode().IsRegular() {
+			return errors.New("plugins: skill license resources must be regular repository files")
+		}
+		data, err := readConfiguration(root, resource)
+		if err != nil {
+			return err
+		}
+		if err = accountSkillBytes(&copiedBytes, int64(len(data))); err != nil {
+			return err
+		}
+		destination := filepath.Join(target, filepath.FromSlash(resource))
+		if err = os.MkdirAll(filepath.Dir(destination), 0700); err != nil {
+			return err
+		}
+		if err = os.WriteFile(destination, data, 0600); err != nil {
+			return err
+		}
+		copied[resource] = true
+	}
 	for len(markdown) > 0 {
 		document := markdown[0]
 		markdown = markdown[1:]

@@ -31,6 +31,9 @@ func TestFetchSelectedSkill(t *testing.T) {
 	body := "---\nname: paper-check\ndescription: Check research evidence\nauthor: Orchestra Research\nversion: 1.0.0\nlicense: MIT\ntags: [Research]\ndependencies: [torch]\n---\nMARKET_SOURCE Read ./references/check.md.\nCite [references](../../shared/references.bib) and read [methods](../../shared/docs/methods.md).\nA prose ../ example is not a resource reference.\n"
 	writeFiles(repo, map[string]string{
 		"skills/paper-check/SKILL.md":            body,
+		"LICENSE":                                "ROOT_LICENSE",
+		"skills/NOTICE.md":                       "SKILLS_NOTICE",
+		"unrelated/LICENSE":                      "UNRELATED_LICENSE",
 		"skills/paper-check/references/check.md": "REFERENCE_EVIDENCE",
 		"skills/unselected/SKILL.md":             "---\nname: unselected\ndescription: Not selected\n---\nUNSELECTED_EVIDENCE",
 		"skills/unselected/large-data.txt":       strings.Repeat("UNSELECTED_LARGE_DATA\n", 400000),
@@ -71,6 +74,15 @@ func TestFetchSelectedSkill(t *testing.T) {
 	}
 	if len(loaded) != 1 || len(loaded[0].Definition.Components) != 1 || !strings.Contains(loaded[0].Definition.Components[0].Content, "MARKET_SOURCE") {
 		t.Fatalf("selection: %+v", loaded)
+	}
+	for resource, expected := range map[string]string{"LICENSE": "ROOT_LICENSE", "skills/NOTICE.md": "SKILLS_NOTICE"} {
+		content, err := os.ReadFile(filepath.Join(first.Directory, "source", resource))
+		if err != nil || string(content) != expected {
+			t.Fatalf("license %s: %q %v", resource, content, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(first.Directory, "source", "unrelated/LICENSE")); !os.IsNotExist(err) {
+		t.Fatalf("unrelated license copied: %v", err)
 	}
 	for _, resource := range loaded[0].Resources {
 		if strings.Contains(resource, "unselected") || strings.Contains(resource, "hooks/") {

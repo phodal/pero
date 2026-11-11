@@ -127,7 +127,7 @@ func FetchSkill(ctx context.Context, source, cache, commit, skillPath, namespace
 		os.Remove(final)
 		return SkillFetchReceipt{}, err
 	}
-	receipt := SkillFetchReceipt{Directory: view, Revision: revision, SHA256: digest, Invocation: component.QualifiedName, AdapterVersion: 2}
+	receipt := SkillFetchReceipt{Directory: view, Revision: revision, SHA256: digest, Invocation: component.QualifiedName, AdapterVersion: 3}
 	data, _ := json.MarshalIndent(receipt, "", "  ")
 	if err = os.WriteFile(filepath.Join(final, "receipt.json"), append(data, '\n'), 0600); err != nil {
 		_ = os.RemoveAll(final)
