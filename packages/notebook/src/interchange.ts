@@ -86,8 +86,9 @@ export function canReplace(projection: Projection, target: Loss["target"]): bool
 }
 
 export function projectNotebook(content: NotebookNode): Projection {
+  if (content.type !== "doc" || !Array.isArray(content.content)) throw new Error("Notebook interchange requires a document with a content array");
   const canonical = structuredClone(content);
-  const children = content.type === "doc" && Array.isArray(content.content) ? content.content : [content];
+  const children = content.content;
   const projected = projectChildren(children, handlers, "");
   return {
     version: interchangeVersion,
@@ -95,18 +96,20 @@ export function projectNotebook(content: NotebookNode): Projection {
     myst: { type: "root", children: projected.myst },
     blockNote: projected.blockNote,
     withheld: projected.withheld,
-    losses: projected.losses,
+    losses: [...unrepresented(content, "root", []), ...projected.losses],
   };
 }
 
+/** Restore this adapter's projection; not a general BlockNote JSON importer. */
 export function restoreBlockNote(projection: Projection): NotebookNode {
   if (!canReplace(projection, "blockNote")) throw new Error("BlockNote projection is incomplete");
   return { type: "doc", content: projection.blockNote.map(restoreBlock) };
 }
 
+/** Restore this adapter's projection; not a general MyST JSON importer. */
 export function restoreMyst(projection: Projection): NotebookNode {
   if (!canReplace(projection, "myst")) throw new Error("MyST projection is incomplete");
-  return { type: "doc", content: projection.myst.children.map(node => restoreMystNode(node, "0")) };
+  return { type: "doc", content: projection.myst.children.map((node, index) => restoreMystNode(node, String(index))) };
 }
 
 /**
@@ -183,7 +186,12 @@ function proseHandler(node: NotebookNode, path: string): Attempt {
     }
     losses.push(...both(childPath, "outside-subset", `${child.type} inside ${node.type} is outside the v1 inline subset and was not dropped`));
   });
-  if (node.type === "heading" && !Number.isInteger(node.attrs?.level)) losses.push(...both(path, "missing-heading-level", "Heading depth was not invented"));
+  const level = node.attrs?.level;
+  if (node.type === "heading" && (typeof level !== "number" || !Number.isInteger(level) || level < 1 || level > 6)) losses.push(...both(path, "invalid-heading-level", "Heading depth must be between 1 and 6"));
+  if (node.type === "codeBlock") {
+    if (children.some(child => child.marks?.length)) losses.push(...both(path, "marked-code", "Code blocks carry plain text, not text marks"));
+    if (children.length > 1) losses.push({ path, target: "myst", code: "code-text-segments", detail: "MyST code has one value and cannot preserve separate text nodes" });
+  }
   if (node.type === "codeBlock" && node.attrs?.language !== undefined && typeof node.attrs.language !== "string") {
     losses.push(...both(path, "outside-subset", "Code language is not a string"));
   }
@@ -191,7 +199,6 @@ function proseHandler(node: NotebookNode, path: string): Attempt {
   losses.push(...unrepresented(node, path, represented));
   const id = editorBlockId(node);
   if (!id) losses.push({ path, target: "blockNote", code: "missing-editor-block-id", detail: "No editor block id was invented for this block" });
-  const level = node.attrs?.level;
   const language = node.attrs?.language;
   const props: Record<string, string | number | boolean> = {};
   if (node.type === "heading" && Number.isInteger(level)) props.level = level as number;
@@ -204,7 +211,7 @@ function proseHandler(node: NotebookNode, path: string): Attempt {
       : { type: "paragraph", children: mystChildren, ...identity };
   const block: BlockNoteBlock | undefined = id ? {
     id,
-    type: node.type === "codeBlock" ? "code" : node.type,
+    type: node.type,
     props,
     content: texts,
     children: [],
@@ -214,6 +221,7 @@ function proseHandler(node: NotebookNode, path: string): Attempt {
 
 function textAttempt(node: NotebookNode, path: string): { myst?: unknown; text?: BlockNoteText; losses: Loss[] } {
   if (typeof node.text !== "string") return { losses: both(path, "outside-subset", "Text node has no string value") };
+  const losses = unrepresented(node, path, []);
   const marks = node.marks ?? [];
   const unsupported = marks.some(mark => !["bold", "italic", "code"].includes(mark.type) || (mark.attrs !== undefined && Object.keys(mark.attrs).length > 0));
   if (unsupported || (marks.some(mark => mark.type === "code") && marks.length > 1)) {
@@ -224,7 +232,7 @@ function textAttempt(node: NotebookNode, path: string): { myst?: unknown; text?:
   let myst: unknown = styles.code ? { type: "inlineCode", value: node.text } : { type: "text", value: node.text };
   if (!styles.code && styles.italic) myst = { type: "emphasis", children: [myst] };
   if (!styles.code && styles.bold) myst = { type: "strong", children: [myst] };
-  return { myst, text: { type: "text", text: node.text, styles }, losses: [] };
+  return { myst, text: { type: "text", text: node.text, styles }, losses };
 }
 
 function referenceHandler(node: NotebookNode, path: string): Attempt {
@@ -238,6 +246,8 @@ function referenceHandler(node: NotebookNode, path: string): Attempt {
     losses.push(...both(path, "snapshot-not-in-editor-props", "The snapshot stays on the notebook node. BlockNote props and a MyST cite identifier cannot carry it."));
   }
   losses.push(...unrepresented(node, path, ["blockId", "label", "source", "snapshot"]));
+  if (node.content?.length) losses.push(...both(path, "reference-content", "Reference children remain only in the stored node"));
+  if (identity.reference && Object.keys(identity.reference).some(key => !["app", "kind", "id", "version", "locator"].includes(key))) losses.push(...both(path, "reference-extra-fields", "Additional owner reference fields remain only in the stored node"));
   losses.push({ path, target: "myst", code: "myst-cite-not-owner-record", detail: "MyST cite keeps one identifier string. It does not replace the owner app, kind, id, and version fields." });
   const source = identity.reference;
   const label = typeof node.attrs?.label === "string" ? node.attrs.label : "";
@@ -260,8 +270,11 @@ function referenceHandler(node: NotebookNode, path: string): Attempt {
 
 function unrepresented(node: NotebookNode, path: string, represented: string[]): Loss[] {
   const extra = Object.keys(node.attrs ?? {}).filter(key => !represented.includes(key));
-  if (!extra.length) return [];
-  return both(path, "unrepresented-attribute", `${node.type} keeps ${extra.join(", ")} only in the stored notebook node. Replacement is refused.`);
+  const losses = extra.length ? both(path, "unrepresented-attribute", `${node.type} keeps ${extra.join(", ")} only in the stored notebook node. Replacement is refused.`) : [];
+  if (node.attrs?.blockId !== undefined && !editorBlockId(node)) losses.push(...both(path, "invalid-editor-block-id", "The stored editor block id cannot be represented"));
+  if (node.type !== "text" && (node.marks?.length || node.text !== undefined)) losses.push(...both(path, "unrepresented-node-fields", "Block text or marks remain only in the stored node"));
+  if (node.type === "text" && node.content?.length) losses.push(...both(path, "unrepresented-node-fields", "Text children remain only in the stored node"));
+  return losses;
 }
 
 function both(path: string, code: string, detail: string): Loss[] {
@@ -274,7 +287,7 @@ function editorBlockId(node: NotebookNode): string | null {
 }
 
 function restoreBlock(block: BlockNoteBlock): NotebookNode {
-  if (block.type === "paragraph" || block.type === "heading" || block.type === "code") return restoreProse(block);
+  if (block.type === "paragraph" || block.type === "heading" || block.type === "codeBlock") return restoreProse(block);
   if (referenceTypes.has(block.type)) {
     return {
       type: block.type,
@@ -301,7 +314,7 @@ function restoreProse(block: BlockNoteBlock): NotebookNode {
     return marks.length ? { type: "text", text: item.text, marks } : { type: "text", text: item.text };
   });
   if (block.type === "heading") return withContent({ type: "heading", attrs: { blockId: block.id, level: block.props.level } }, content);
-  if (block.type === "code") {
+  if (block.type === "codeBlock") {
     const attrs = typeof block.props.language === "string" ? { blockId: block.id, language: block.props.language } : { blockId: block.id };
     return withContent({ type: "codeBlock", attrs }, content);
   }
@@ -317,7 +330,8 @@ function restoreMystNode(value: unknown, path: string): NotebookNode {
   const node = value as { type?: string; children?: unknown; depth?: unknown; value?: unknown; lang?: unknown; data?: { editorBlockId?: unknown } };
   const blockId = typeof node.data?.editorBlockId === "string" ? node.data.editorBlockId : undefined;
   if (node.type === "paragraph" || node.type === "heading") {
-    const content = Array.isArray(node.children) ? node.children.map((child, index) => restoreMystInline(child, `${path}.${index}`)) : [];
+    if (!Array.isArray(node.children)) throw new Error(`MyST node ${path} has no children array`);
+    const content = node.children.flatMap((child, index) => restoreMystInline(child, `${path}.${index}`));
     if (node.type === "heading") {
       if (!Number.isInteger(node.depth)) throw new Error("MyST heading has no depth");
       return withContent({ type: "heading", attrs: { ...(blockId ? { blockId } : {}), level: node.depth as number } }, content);
@@ -331,18 +345,18 @@ function restoreMystNode(value: unknown, path: string): NotebookNode {
   throw new Error(`MyST node ${String(node.type)} is outside the restore subset`);
 }
 
-function restoreMystInline(value: unknown, path: string): NotebookNode {
+function restoreMystInline(value: unknown, path: string): NotebookNode[] {
   if (!value || typeof value !== "object") throw new Error(`MyST inline ${path} is not an object`);
   const node = value as { type?: string; value?: unknown; children?: unknown[] };
-  if (node.type === "text" && typeof node.value === "string") return { type: "text", text: node.value };
-  if (node.type === "inlineCode" && typeof node.value === "string") return { type: "text", text: node.value, marks: [{ type: "code" }] };
+  if (node.type === "text" && typeof node.value === "string") return [{ type: "text", text: node.value }];
+  if (node.type === "inlineCode" && typeof node.value === "string") return [{ type: "text", text: node.value, marks: [{ type: "code" }] }];
   if ((node.type === "strong" || node.type === "emphasis") && Array.isArray(node.children)) {
     const mark = node.type === "strong" ? "bold" : "italic";
-    const [child] = node.children;
-    const restored = restoreMystInline(child, `${path}.0`);
-    const order = ["bold", "italic", "code"];
-    const marks = [...(restored.marks ?? []), { type: mark }].sort((left, right) => order.indexOf(left.type) - order.indexOf(right.type));
-    return { ...restored, marks };
+    return node.children.flatMap((child, index) => restoreMystInline(child, `${path}.${index}`)).map(restored => {
+      const types = new Set([...(restored.marks ?? []).map(item => item.type), mark]);
+      const marks = ["bold", "italic", "code"].filter(type => types.has(type)).map(type => ({ type }));
+      return { ...restored, marks };
+    });
   }
   throw new Error(`MyST inline ${String(node.type)} is outside the restore subset`);
 }

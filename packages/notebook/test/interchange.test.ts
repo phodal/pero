@@ -166,3 +166,56 @@ test("the persisted block list is the parser list plus the retention envelope", 
   assert.equal(persistedBlockTypes.includes("retainedBlock"), true);
   assert.equal(new Set(persistedBlockTypes).size, persistedBlockTypes.length);
 });
+
+test("the pinned BlockNote code contract uses codeBlock with plain unstyled text", () => {
+  const content = doc([{ type: "codeBlock", attrs: { blockId: "code-1", language: "python" }, content: [{ type: "text", text: "x = 1" }] }]);
+  const projected = projectNotebook(content);
+  assert.deepEqual(projected.blockNote, [{ id: "code-1", type: "codeBlock", props: { language: "python" }, content: [{ type: "text", text: "x = 1", styles: {} }], children: [] }]);
+  assert.deepEqual(restoreBlockNote(projected), content);
+});
+
+test("unrepresented document, inline, code, and reference data prevent replacement", () => {
+  const reference = { app: "paper-agent", kind: "report-citation", id: "report", version: "v1", locator: "page 2" };
+  const cases: [string, NotebookNode][] = [
+    ["document attributes", { ...doc([paragraph("kept")]), attrs: { title: "Original title" } }],
+    ["invalid block identity", doc([{ ...paragraph("kept"), attrs: { blockId: "invalid id" } }])],
+    ["inline attributes", doc([{ ...paragraph("kept"), content: [{ type: "text", text: "kept", attrs: { provenance: "source" } }] }])],
+    ["block marks", doc([{ ...paragraph("kept"), marks: [{ type: "bold" }] }])],
+    ["marked code", doc([{ type: "codeBlock", attrs: { blockId: "c1" }, content: [{ type: "text", text: "kept", marks: [{ type: "bold" }] }] }])],
+    ["invalid heading", doc([{ type: "heading", attrs: { blockId: "h1", level: 7 }, content: [{ type: "text", text: "kept" }] }])],
+    ["reference children", doc([{ type: "evidence", attrs: { blockId: "e1", label: "source", source: reference, snapshot: null }, content: [paragraph("kept")] }])],
+    ["extra reference fields", doc([{ type: "evidence", attrs: { blockId: "e1", label: "source", source: { ...reference, provenance: "kept" }, snapshot: null } }])],
+  ];
+  for (const [name, content] of cases) {
+    const projected = projectNotebook(content);
+    assert.deepEqual(projected.canonical, content, name);
+    for (const target of ["myst", "blockNote"] as const) assert.equal(canReplace(projected, target), false, `${name}: ${target}`);
+    assert.throws(() => restoreMyst(projected), /incomplete/, name);
+    assert.throws(() => restoreBlockNote(projected), /incomplete/, name);
+  }
+  const segments = doc([{ type: "codeBlock", attrs: { blockId: "c1" }, content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] }]);
+  const projected = projectNotebook(segments);
+  assert.equal(canReplace(projected, "myst"), false);
+  assert.deepEqual(restoreBlockNote(projected), segments);
+});
+
+test("interchange requires a document rather than silently wrapping another input shape", () => {
+  assert.throws(() => projectNotebook(paragraph("not a document")), /requires a document/);
+  assert.throws(() => projectNotebook({ type: "doc" }), /content array/);
+  assert.deepEqual(restoreMyst(projectNotebook(doc([]))), doc([]));
+});
+
+test("MyST nested inline nodes restore every child, including mixed marks", () => {
+  const projected = projectNotebook(doc([]));
+  projected.myst.children = [{ type: "paragraph", children: [{ type: "strong", children: [
+    { type: "text", value: "first" },
+    { type: "emphasis", children: [{ type: "text", value: "second" }, { type: "text", value: "third" }] },
+  ] }] }];
+  assert.deepEqual(restoreMyst(projected), doc([{ type: "paragraph", content: [
+    { type: "text", text: "first", marks: [{ type: "bold" }] },
+    { type: "text", text: "second", marks: [{ type: "bold" }, { type: "italic" }] },
+    { type: "text", text: "third", marks: [{ type: "bold" }, { type: "italic" }] },
+  ] }]));
+  projected.myst.children = [{ type: "paragraph", children: "not an array" }];
+  assert.throws(() => restoreMyst(projected), /children array/);
+});
