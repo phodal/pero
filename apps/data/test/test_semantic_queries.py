@@ -52,6 +52,9 @@ class QueryTests(unittest.TestCase):
             queries = SemanticQueries(catalog)
             source = dict(datasetId=catalog.datasets[0].id, assetId=asset.id, table='sample', columns={'n': 'number', 'label': 'text'})
             snapshot = queries.snapshot([source])
+            with self.assertRaises(ValueError):
+                queries.snapshot([source | dict(columns={'label': 'number'})])
+            self.assertEqual(list(queries.root.glob('.*.sqlite')), [])
             saved = queries.definition(definition())
             intent = dict(snapshotId=snapshot['id'], definitionId=saved['id'], parameters={}, question='Mean n?')
             result = queries.execute(intent)
@@ -77,6 +80,23 @@ class QueryTests(unittest.TestCase):
             export.unlink()
             with self.assertRaisesRegex(ValueError, 'unavailable'):
                 restart.check(result['id'])
+            self.assertEqual(restart.evidence(result['id'])['receipt']['rows'], [{'value': 2.0}])
+            # The same projection owner handles two fixed tables and retains full truncated results.
+            extra = catalog.import_file(ImportFile.parse(dict(name='many.csv', kind='dataset',
+                content=base64.b64encode(('n\n' + '\n'.join(map(str, range(101))) + '\n').encode()).decode(), source='Synthetic fixture')))
+            extra_dataset = next(d.id for d in catalog.datasets if extra.id in d.versions)
+            multiple = queries.snapshot([source, dict(datasetId=extra_dataset, assetId=extra.id,
+                table='extra', columns={'n': 'number'})])
+            listing = queries.definition(definition('SELECT n FROM extra ORDER BY n') | dict(check=None))
+            listed = queries.execute(intent | dict(snapshotId=multiple['id'], definitionId=listing['id']))
+            self.assertEqual(listed['receipt']['rowCount'], 101)
+            self.assertTrue(listed['receipt']['truncated'])
+            self.assertEqual(len(listed['receipt']['rows']), 100)
+            self.assertEqual(len(queries.read('rows', listed['receipt']['resultId'])), 101)
+            (queries.root / (snapshot['databaseHash'] + '.sqlite')).unlink()
+            unavailable = queries.execute(intent)
+            self.assertEqual(unavailable['receipt']['status'], 'failed')
+            self.assertIsNone(unavailable['receipt']['rowCount'])
             self.assertEqual(restart.evidence(result['id'])['receipt']['rows'], [{'value': 2.0}])
             rows = queries.root / (result['receipt']['resultId'] + '.rows.json')
             rows.write_text('[{"value":99}]')
