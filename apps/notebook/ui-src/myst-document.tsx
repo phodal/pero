@@ -3,11 +3,14 @@ import type { Editor, JSONContent } from '@tiptap/core';
 import type { NodeViewProps } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Feedback, Field, FilePicker, Textarea } from '@pero/app-sdk/ui';
-import { MYST_SOURCE_MAX_BYTES, parseMystAttributes, parseMystDocument, importMystBundle, exportMystBundle } from '@pero/notebook/myst';
+import { MYST_SOURCE_MAX_BYTES, parseMystAttributes, parseMystDocument } from '@pero/notebook/myst';
+import { mystImportFormats, mystExportFormats } from '@pero/notebook/myst-formats';
 import { renderMystHtml } from '@pero/notebook/myst-render';
 import { BlockFrame } from './block-frame';
 import { mystMessages } from './myst-document-messages';
 import './myst-document.css';
+
+const exportLabels: Record<string, keyof typeof mystMessages> = { source: 'sourceDownload', bundle: 'bundleDownload', html: 'htmlDownload' };
 
 export function MystDocumentView(view: NodeViewProps) {
   const { t } = useAppI18n(mystMessages);
@@ -20,28 +23,25 @@ export function MystDocumentView(view: NodeViewProps) {
       return { document, html: renderMystHtml(document) };
     } catch { return null; }
   }, [source, view.node.attrs.schemaVersion]);
-  const download = (kind: 'source' | 'bundle' | 'html') => {
+  const download = (format: typeof mystExportFormats[number]) => {
     setError(''); setNotice('');
     try {
-      const text = kind === 'source' ? source : kind === 'bundle' && result ? exportMystBundle(result.document) : result?.html;
-      if (text === undefined) return;
-      downloadFile(`document.${kind === 'source' ? 'myst' : kind === 'bundle' ? 'myst.json' : 'html'}`, new TextEncoder().encode(text), kind === 'html' ? 'text/html' : kind === 'bundle' ? 'application/json' : 'text/plain;charset=utf-8');
+      if (!result && format.id !== 'source') return;
+      downloadFile(`document${format.extensions[0]}`, new TextEncoder().encode(format.serialize({ source })), format.mediaType);
       setNotice(t('downloaded'));
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
   return <BlockFrame view={view} kind="mystDocument">
     <p>{t('boundaries')}</p>
     {!result && <Feedback kind="warning">{t('unavailable')}</Feedback>}
-    <Field label={t('source')}>{control => <Textarea {...control} className="notebook-myst-source" aria-label={t('source')} value={source} readOnly={!view.editor.isEditable || !result} spellCheck={false} onChange={event => {
+    <Field label={t('source')}>{control => <Textarea {...control} className="notebook-myst-source" rows={12} aria-label={t('source')} value={source} readOnly={!view.editor.isEditable || !result} spellCheck={false} onChange={event => {
       if (!view.editor.isEditable || !result) return;
       const next = event.target.value;
       if (new TextEncoder().encode(next).length > MYST_SOURCE_MAX_BYTES) { setError(t('limit')); return; }
       setError(''); setNotice(''); view.updateAttributes({ source: next });
     }} />}</Field>
     <div className="notebook-myst-actions">
-      <Button onClick={() => download('source')}>{t('sourceDownload')}</Button>
-      <Button disabled={!result} onClick={() => download('bundle')}>{t('bundleDownload')}</Button>
-      <Button disabled={!result} onClick={() => download('html')}>{t('htmlDownload')}</Button>
+      {mystExportFormats.map(format => <Button key={format.id} disabled={!result && format.id !== 'source'} onClick={() => download(format)}>{exportLabels[format.id] ? t(exportLabels[format.id]) : format.label}</Button>)}
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <p role="status">{notice}</p>}
@@ -62,19 +62,17 @@ export function NotebookMystTools({ editor, onInsert }: { editor: Editor; onInse
     if (pending.current || !editor.isEditable) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try {
-      const bundle = file.name.toLowerCase().endsWith('.myst.json');
-      if (!bundle && !/\.(md|myst)$/i.test(file.name)) throw new Error(t('fileType'));
-      // JSON escapes and derived diagnostics may be larger than the source itself.
-      if (file.size > (bundle ? MYST_SOURCE_MAX_BYTES * 8 : MYST_SOURCE_MAX_BYTES)) throw new Error(t('fileLimit'));
-      const text = await file.text();
-      const attrs = bundle ? importMystBundle(text) : parseMystAttributes({ schemaVersion: 1, source: text });
+      const format = mystImportFormats.find(candidate => candidate.extensions.some(extension => file.name.toLowerCase().endsWith(extension)));
+      if (!format) throw new Error(t('fileType'));
+      if (format.maxBytes !== undefined && file.size > format.maxBytes) throw new Error(t('fileLimit'));
+      const attrs = format.parse(await file.text());
       if (!alive.current) return;
       if (editor.isDestroyed || !editor.isEditable || !onInsert([{ type: 'mystDocument', attrs }])) throw new Error(t('insertFailed'));
       setNotice(t('imported'));
     } catch (cause) { if (alive.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { pending.current = false; if (alive.current) setBusy(false); }
   };
-  return <div><FilePicker compact variant="ghost" label={t('import')} emptyLabel="" title={t('importHint')} accept=".md,.myst,.myst.json" busy={busy} disabled={!editor.isEditable} onFile={file => void importFile(file)} />
+  return <div><FilePicker compact variant="ghost" label={t('import')} emptyLabel="" title={t('importHint')} accept={mystImportFormats.flatMap(format => format.extensions).join(',')} busy={busy} disabled={!editor.isEditable} onFile={file => void importFile(file)} />
     {error && <Feedback kind="error">{error}</Feedback>}{notice && <p role="status">{notice}</p>}
   </div>;
 }

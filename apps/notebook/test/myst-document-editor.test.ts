@@ -41,11 +41,23 @@ test('MyST source view is labelled, sandboxed and read-only for history or futur
     import { useEditor, EditorContent } from '@tiptap/react';
     import { notebookExtensions } from './editor-extensions';
     export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+    export { mystExportFormats } from '@pero/notebook/myst-formats';
     export function Fixture({ schemaVersion, editable, capture }) {
       const editor = useEditor({ extensions: notebookExtensions, editable, content: { type: 'doc', content: [{ type: 'mystDocument', attrs: { blockId: 'myst-1', schemaVersion, source: '# Private source\\n\\n<script>alert(1)</script>' } }] } });
       capture(editor); return <EditorContent editor={editor} />;
     }
   ` });
+  const downloads: { name: string; blob: Blob }[] = [];
+  const anchorPrototype = window.HTMLAnchorElement.prototype;
+  const createUrl = URL.createObjectURL, click = anchorPrototype.click;
+  let downloadBlob: Blob;
+  URL.createObjectURL = (blob: Blob) => { downloadBlob = blob; return 'blob:unit-download'; };
+  anchorPrototype.click = function () { downloads.push({ name: this.download, blob: downloadBlob }); };
+  t.after(() => { URL.createObjectURL = createUrl; anchorPrototype.click = click; });
+  const download = async (label: string) => {
+    const button = [...document.querySelectorAll('button')].find(item => item.textContent === label)!;
+    await React.act(async () => button.click());
+  };
   const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, { schemaVersion: 1, editable: false, key: 'history', capture })));
   assert.equal(document.querySelector('textarea')?.readOnly, true);
@@ -58,6 +70,9 @@ test('MyST source view is labelled, sandboxed and read-only for history or futur
   assert.equal(document.querySelector('textarea')?.readOnly, true);
   assert.match(document.body.textContent ?? '', /unsupported or invalid schema/);
   assert.equal(document.querySelector('iframe'), null);
+  await download('Download source');
+  assert.equal(await downloads[0].blob.text(), '# Private source\n\n<script>alert(1)</script>');
+  assert.equal([...document.querySelectorAll('button')].find(item => item.textContent === 'Download HTML')?.disabled, true);
   await React.act(async () => active?.destroy());
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, { schemaVersion: 1, editable: true, key: 'editable', capture })));
   const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
@@ -67,6 +82,13 @@ test('MyST source view is labelled, sandboxed and read-only for history or futur
   });
   assert.equal((active as any).getJSON().content[0].attrs.source, source);
   assert.equal((active as any).getJSON().content[0].attrs.blockId, 'myst-1');
+  for (const [index, label] of ['Download source', 'Download MyST bundle', 'Download HTML'].entries()) {
+    await download(label);
+    const format = ui.mystExportFormats[index], saved = downloads.at(-1)!;
+    assert.equal(saved.name, `document${format.extensions[0]}`);
+    assert.equal(saved.blob.type, format.mediaType);
+    assert.equal(await saved.blob.text(), format.serialize({ source }));
+  }
   await React.act(async () => active?.destroy());
 });
 
@@ -96,4 +118,13 @@ test('MyST file picker imports into a new block, resets, and rejects large or fu
   assert.match(document.body.textContent ?? '', /Unsupported MyST bundle/);
   await choose({ name: 'study.myst.json', size: 100, text: async () => JSON.stringify({ format: 'pero-myst', version: 1, source }) });
   assert.equal(inserted.length, 2);
+  await choose({ name: 'other.json', size: 10, text: async () => { throw new Error('must not read'); } });
+  assert.equal(inserted.length, 2);
+  assert.match(document.body.textContent ?? '', /Choose a .md/);
+  let finishRead!: (text: string) => void;
+  await choose({ name: 'delayed.MD', size: source.length, text: () => new Promise<string>(resolve => { finishRead = resolve; }) });
+  editor.isEditable = false;
+  await React.act(async () => finishRead(source));
+  assert.equal(inserted.length, 2);
+  assert.match(document.body.textContent ?? '', /could not be inserted/);
 });
