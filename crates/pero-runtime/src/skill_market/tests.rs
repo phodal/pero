@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn market_version_choices() {
-    let entry: SkillCatalogEntry = serde_json::from_str(r#"{"id":"source/read","name":"read","kind":"research_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"abc"},"license":{"spdx":"MIT","status":"declared_in_skill","evidence_url":"https://example.invalid/LICENSE"}}"#).unwrap();
+    let entry: SkillCatalogEntry = serde_json::from_str(r#"{"id":"source/read","name":"read","kind":"research_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"license":{"spdx":"MIT","status":"declared_in_skill","evidence_url":"https://example.invalid/LICENSE"}}"#).unwrap();
     let version = |revision: &str| {
         let mut e = entry.clone();
         e.source.commit = revision.into();
@@ -86,10 +86,15 @@ fn update_request_keeps_the_observed_pin() {
 
 #[test]
 fn installation_license_evidence() {
-    let entry:SkillCatalogEntry=serde_json::from_str(r#"{"id":"source/read","name":"read","kind":"research_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"abc"},"license":{"spdx":"MIT","status":"declared_in_skill","evidence_url":"https://example.invalid/LICENSE"}}"#).unwrap();
+    let entry:SkillCatalogEntry=serde_json::from_str(r#"{"id":"source/read","name":"read","kind":"research_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"license":{"spdx":"MIT","status":"declared_in_skill","evidence_url":"https://example.invalid/LICENSE"}}"#).unwrap();
     for (kind, status, evidence, accepted) in [
         ("research_skill", "declared_in_skill", true, true),
         ("research_support", "directory_license", true, true),
+        ("general_skill", "directory_license", true, true),
+        ("general_skill", "reviewed_repository", true, true),
+        ("general_skill", "repository_only", true, false),
+        ("general_skill", "directory_license", false, false),
+        ("unknown_kind", "directory_license", true, false),
         ("research_skill", "repository_only", true, false),
         ("research_skill", "unknown", true, false),
         ("research_skill", "declared_in_skill", false, false),
@@ -97,14 +102,40 @@ fn installation_license_evidence() {
     ] {
         let mut candidate = entry.clone();
         candidate.kind = kind.into();
+        candidate.compatibility.status = "static_instructions".into();
         candidate.license.status = status.into();
         if !evidence {
             candidate.license.evidence_url = None;
         }
+        let served = sanitize_catalog(
+            &serde_json::to_vec(&serde_json::json!({"schema_version": 1, "skills": [&candidate]}))
+                .unwrap(),
+        )
+        .unwrap();
+        let served: serde_json::Value = serde_json::from_slice(&served).unwrap();
+        assert_eq!(served["skills"][0]["installation"]["allowed"], accepted);
         assert_eq!(
             candidate.installable().is_ok(),
             accepted,
             "{kind}/{status}/{evidence}"
+        );
+    }
+}
+
+#[test]
+fn general_compatibility_requires_review() {
+    let entry: SkillCatalogEntry = serde_json::from_str(r#"{"id":"source/read","name":"read","kind":"general_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"license":{"spdx":"MIT","status":"directory_license","evidence_url":"https://example.invalid/LICENSE"}}"#).unwrap();
+    for status in [
+        "",
+        "unverified",
+        "requires_adaptation",
+        "static_instructions",
+    ] {
+        let mut candidate = entry.clone();
+        candidate.compatibility.status = status.into();
+        assert_eq!(
+            candidate.installable().is_ok(),
+            status == "static_instructions"
         );
     }
 }
@@ -160,4 +191,17 @@ fn acquisition_cancel_and_shutdown_preserve_installed_version() {
         assert_eq!(control.begin("next").is_ok(), !shutdown);
         fs::remove_dir_all(directory).unwrap();
     }
+}
+
+#[test]
+fn duplicate_catalog_identity_is_rejected() {
+    let entry = serde_json::json!({"id":"source/read","name":"read","kind":"research_skill","source":{"repository":"example/read","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","path":"SKILL.md","sha256":"abc"},"license":{"spdx":null,"status":"unknown"}});
+    let bytes =
+        serde_json::to_vec(&serde_json::json!({"schema_version":1,"skills":[entry.clone(),entry]}))
+            .unwrap();
+    assert!(
+        SkillMarketStore::index_catalog(&bytes)
+            .unwrap_err()
+            .contains("Duplicate")
+    );
 }

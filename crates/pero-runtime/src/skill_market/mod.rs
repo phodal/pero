@@ -93,7 +93,10 @@ pub struct SkillCatalogEntry {
 }
 impl SkillCatalogEntry {
     pub fn installable(&self) -> Result<(), String> {
-        if self.kind != "research_skill" && self.kind != "research_support" {
+        if !matches!(
+            self.kind.as_str(),
+            "research_skill" | "research_support" | "general_skill"
+        ) {
             return Err(
                 "This catalog record is a dependency or reference, not an independent skill".into(),
             );
@@ -105,7 +108,7 @@ impl SkillCatalogEntry {
             .is_none_or(|s| s.is_empty() || s == "unknown" || s == "NOASSERTION")
             || !matches!(
                 self.license.status.as_str(),
-                "declared_in_skill" | "directory_license"
+                "declared_in_skill" | "directory_license" | "reviewed_repository"
             )
             || self
                 .license
@@ -116,6 +119,9 @@ impl SkillCatalogEntry {
             return Err(
                 "License evidence is missing; open the source and verify its terms first".into(),
             );
+        }
+        if self.kind == "general_skill" && self.compatibility.status != "static_instructions" {
+            return Err("This general skill requires a compatibility review or host adaptation; review its requirements".into());
         }
         Ok(())
     }

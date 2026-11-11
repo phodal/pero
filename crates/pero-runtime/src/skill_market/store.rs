@@ -70,11 +70,13 @@ impl SkillMarketStore {
         if catalog.schema_version != 1 {
             return Err("Unsupported skill catalog version".into());
         }
-        Ok(catalog
-            .skills
-            .into_iter()
-            .map(|entry| (entry.id.clone(), entry))
-            .collect())
+        let mut entries = HashMap::new();
+        for entry in catalog.skills {
+            if entries.insert(entry.id.clone(), entry).is_some() {
+                return Err("Duplicate skill identity in catalog".into());
+            }
+        }
+        Ok(entries)
     }
     pub fn accept_entry(entry: SkillCatalogEntry) -> Result<SkillCatalogEntry, String> {
         let source = &entry.source;

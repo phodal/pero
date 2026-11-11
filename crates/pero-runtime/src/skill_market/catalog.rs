@@ -36,6 +36,18 @@ fn sanitize_skill(value: &mut Value) {
     let Some(object) = value.as_object_mut() else {
         return;
     };
+    // The UI consumes the same source, license and compatibility decision as install.
+    let admission =
+        serde_json::from_value::<super::SkillCatalogEntry>(Value::Object(object.clone()))
+            .map_err(|_| "Invalid skill catalog entry".to_string())
+            .and_then(super::SkillMarketStore::accept_entry);
+    object.insert(
+        "installation".into(),
+        match admission {
+            Ok(_) => serde_json::json!({"allowed": true, "reason": ""}),
+            Err(reason) => serde_json::json!({"allowed": false, "reason": reason}),
+        },
+    );
     object.remove("frontmatter_yaml");
     object.remove("classification");
     object.remove("related_instruction_ids");
