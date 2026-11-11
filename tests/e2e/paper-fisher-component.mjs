@@ -1,5 +1,6 @@
 // Transport fixtures exercise the production component, not scientific or Native acceptance.
 import assert from 'node:assert/strict';
+import { appSdkAliases } from '../../scripts/build/app-sdk.mjs';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from 'node:http';
@@ -47,7 +48,7 @@ const server = createServer(async (req, res) => {
 });
 let browser;
 try {
-  await build({ stdin: { contents: source, loader: 'tsx', resolveDir: root }, outfile: join(output, 'app.js'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx') } });
+  await build({ stdin: { contents: source, loader: 'tsx', resolveDir: root }, outfile: join(output, 'app.js'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), ...appSdkAliases(root) } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_PATH || chromium.executablePath(), headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage({ viewport: { width: 390, height: 900 } });

@@ -79,7 +79,7 @@ class FisherOriginalPdfTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name) / 'case'
+        self.root = Path(self.temp.name).resolve() / 'case'
         self.prepared = prepare(PDF, self.root)
         self.spec_id = self.prepared['spec_id']
 

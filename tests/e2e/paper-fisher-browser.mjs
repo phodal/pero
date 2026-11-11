@@ -1,7 +1,9 @@
 // Production PdfViewer + real Paper HTTP adapter, pinned original PDF and actual arithmetic.
 // Run with PERO_FISHER_PDF=/path/to/reviewed.pdf; PERO_FISHER_SERVE=1 exposes the same surface for manual inspection.
 import assert from 'node:assert/strict';
+import { appSdkAliases } from '../../scripts/build/app-sdk.mjs';
 import { build } from 'esbuild';
+import { packageSourceParsers } from '../../scripts/build/source-parsers.mjs';
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -11,8 +13,9 @@ import { tmpdir } from 'node:os';
 import { resolve, join, basename } from 'node:path';
 const root = resolve(import.meta.dirname, '../..'), app = resolve(root, 'apps/paper-agent');
 if (!process.env.PERO_FISHER_PDF) throw Error('PERO_FISHER_PDF must identify the original reviewed Fisher PDF');
+await packageSourceParsers(root, 'paper-agent');
 const output = await mkdtemp(join(tmpdir(), 'pero-fisher-browser-'));
-const python = spawn('python3', ['-u', '-c', `
+const python = spawn(process.env.PERO_APP_PYTHON || 'python3', ['-u', '-c', `
 import json, os, tempfile
 from pathlib import Path
 from http.server import ThreadingHTTPServer
@@ -51,7 +54,7 @@ const api={get:async path=>{const r=await fetch(path);if(!r.ok)throw Error(await
 function App(){const[annotations,setAnnotations]=useState([]);const preserveView=useRef(null);return <PdfViewer document={${JSON.stringify(info.document)}} annotations={annotations} api={api} t={key=>messages[key].en} active readLabel="Read" onSaved={a=>setAnnotations(rows=>[...rows.filter(r=>r.id!==a.id),a])} onMatrixAdded={async()=>{}} onText={()=>{}} chrome={{toolbar:null,preserveView,onNavigate(){},onSave(){}}}/>;}
 createRoot(document.getElementById('root')).render(<AppSdkProvider host={{info:{locale:'en',active:true}}}><App/></AppSdkProvider>);`;
   await build({ stdin: { contents: source, loader: 'tsx', resolveDir: root }, outfile: join(output, 'app.js'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', loader: { '.wasm': 'file', '.woff2': 'file', '.woff': 'file' },
-    alias: { react: resolve(app, 'node_modules/react'), 'react-dom': resolve(app, 'node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx') } });
+    alias: { react: resolve(app, 'node_modules/react'), 'react-dom': resolve(app, 'node_modules/react-dom'), ...appSdkAliases(root) } });
   server = createServer(async (req, res) => {
     try {
       if (req.url.startsWith('/api/')) {

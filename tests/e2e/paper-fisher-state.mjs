@@ -1,5 +1,6 @@
 // Production React component in JSDOM. Behavioral evidence, not browser/visual acceptance.
 import assert from 'node:assert/strict';
+import { appSdkAliases } from '../../scripts/build/app-sdk.mjs';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -38,7 +39,7 @@ const api = { post: async (_path, body) => {
   throw Error('Unexpected action');
 } };
 try {
-  await build({ stdin: { contents: `import React,{act} from 'react';import{createRoot}from'react-dom/client';import{AppSdkProvider}from'@pero/app-sdk';import{FisherReproduction}from'${root}/apps/paper-agent/ui-src/fisher-reproduction';export{act};export function mount(api){const root=createRoot(document.getElementById('root'));root.render(<AppSdkProvider host={{info:{locale:'en',active:true}}}><FisherReproduction api={api} annotation={{id:'annotation'}} onSource={()=>{}}/></AppSdkProvider>);return root;}`, loader: 'tsx', resolveDir: root }, outfile: join(output, 'component.mjs'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), '@pero/app-sdk/ui': resolve(root, 'packages/app-sdk/src/ui.tsx') } });
+  await build({ stdin: { contents: `import React,{act} from 'react';import{createRoot}from'react-dom/client';import{AppSdkProvider}from'@pero/app-sdk';import{FisherReproduction}from'${root}/apps/paper-agent/ui-src/fisher-reproduction';export{act};export function mount(api){const root=createRoot(document.getElementById('root'));root.render(<AppSdkProvider host={{info:{locale:'en',active:true}}}><FisherReproduction api={api} annotation={{id:'annotation'}} onSource={()=>{}}/></AppSdkProvider>);return root;}`, loader: 'tsx', resolveDir: root }, outfile: join(output, 'component.mjs'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), ...appSdkAliases(root) } });
   const { act, mount } = await import(pathToFileURL(join(output, 'component.mjs')));
   let mounted;
   const render = async () => { await act(async () => { mounted = mount(api); }); };
