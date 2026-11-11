@@ -28,7 +28,18 @@ Pinned sources, read at these commits:
 
 ## v1 subset
 
-Complete BlockNote and MyST restore covers top-level `paragraph`, `heading`, and `codeBlock`, with marks `bold`, `italic`, and `code` only.
+The input is a Notebook `doc` with a content array. Complete BlockNote and
+MyST restore covers top-level `paragraph`, `heading`, and `codeBlock`. Prose
+supports `bold`, `italic`, and `code` marks only. Code blocks contain unstyled
+text: the BlockNote discriminator is [`codeBlock`](https://github.com/TypeCellOS/BlockNote/blob/9eda15fe45f37b614a08e8f6cf9340c12dd3672b/packages/core/src/blocks/Code/block.ts),
+while MyST uses `code` with one string value. Separate code text segments are
+therefore a MyST loss. Restore functions consume this adapter's narrow
+projection; they are not general-purpose importers of arbitrary upstream JSON.
+
+Root attributes, inline attributes, invalid editor ids, block marks, and
+reference children or extra owner fields produce losses rather than silently
+vanishing on restore. MyST emphasis/strong restores every inline child, including
+nested spans, instead of retaining only the first child.
 
 A pinned `evidence` or `experiment` reference with `snapshot: null` and no other stored attributes can be restored from the BlockNote view. Its props are strings: `label`, `app`, `kind`, `objectId`, `version`, `locator`. `objectId` is the owner id. The BlockNote `id` is only the editor block id. `templateOrigin` and any other persisted attribute are a loss on both targets, so `canReplace` is false and restore refuses to overwrite them.
 
@@ -49,7 +60,7 @@ The interchange handler map only decides which nodes have a lossless BlockNote o
 
 ## Reference proposals
 
-The Host agent submits `propose_reference` through the existing `POST /api/agent-apply` route. That stores one pending proposal and does not change the document or mix with other edits. The same proposal id and body is idempotent. A different body conflicts. The evidence card only accepts or rejects that stored proposal through `POST /api/entries/{id}/block-proposals`, sending the proposal id, expected revision, and decision. It cannot supply a new reference or a permission field. Accept appends one revision through `EntryStore.commit`, which also clears the published draft. Reject records the decision and does not publish, including when the entry has moved on. A stale expected revision still conflicts on accept. Both routes use the existing Host token check.
+The Host agent submits `propose_reference` through the existing `POST /api/agent-apply` route, declared in the App manifest write schema and description. That stores one pending proposal and does not change the document or mix with other edits. The same proposal id and body is idempotent. A different body conflicts. The evidence card only accepts or rejects that stored proposal through `POST /api/entries/{id}/block-proposals`, sending the proposal id, expected revision, and decision. It cannot supply a new reference or a permission field. Accept appends one revision through `EntryStore.commit`, which checks template lineage, clears the published draft, and records the decision in the same transaction. Reject does not change the revision and records the revision at which the decision was made for repeatable replay. An old proposal may be rejected at the current revision, but accepting it requires its original base revision. A stale expected revision is a conflict for either decision. The card prefers current-revision proposals, removes reviewed proposals, and keeps the decision feedback visible. A stale proposal remains dismissible with Accept disabled. Both routes use the existing Host token check.
 
 A block enters through one `BlockDefinition`. A new type brings its persistence validator. Evidence and experiment stay on the historical parser and declare a reference capability. That capability accepts only a label and a source. If the block already holds a snapshot, the source must still match that snapshot; the recorded pointer is not a live lookup of the owner object. `noteCard` is the document extension: it has no reference command, and the editor mounts it through `editorAdapter` in `packages/notebook/src/scientific-block.ts`. Adding either kind does not add a branch to `parse_operations`. Historical block types are not moved onto this definition.
 
