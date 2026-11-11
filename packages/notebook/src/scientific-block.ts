@@ -80,12 +80,13 @@ export interface DocumentImportFormat<Attrs> {
   parse(text: string): Attrs;
 }
 
-export interface DocumentExportFormat<Document> {
+export type DocumentExportContent = string | Uint8Array | Promise<string | Uint8Array>;
+export interface DocumentExportFormat<Document, Content extends DocumentExportContent = string> {
   readonly id: string;
   readonly label: string;
   readonly extensions: readonly string[];
   readonly mediaType: string;
-  serialize(document: Document): string;
+  serialize(document: Document): Content;
 }
 
 /** A reference block. The only command is propose_reference. The type name is not enumerated here. */
