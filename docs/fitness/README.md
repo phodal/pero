@@ -18,6 +18,9 @@ usage: [Research quality gate](paper-research-quality.md).
 Original Fisher Table III data, frozen numerical reanalysis and an independent
 exact-arithmetic checker: [Real-source result reproduction](paper-fisher-reproduction.md).
 
+Frozen Data semantic definitions, read-only SQL receipts and independent recomputation:
+[Data semantic light path](data-semantics.md).
+
 Pinned research catalog, Skills marketplace, profile-owned installation and
 selected Harness invocation: [Skills marketplace](skills-marketplace.md).
 
