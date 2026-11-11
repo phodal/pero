@@ -39,6 +39,11 @@ await packageSourceParsers(root, appName);
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
 await packageNotebookDiagnostics(root, appName);
+if (appName === 'skills') {
+  const catalog = spawnSync(process.env.PYTHON || 'python3', [resolve(root, 'scripts/research-skills/publish.py'), '--output', resolve(outdir, 'market-catalog.json')], {stdio:'inherit'});
+  if (catalog.error) throw catalog.error;
+  if (catalog.status !== 0) throw new Error('Skills catalog could not be published');
+}
 await build({
   absWorkingDir: root,
   entryPoints: [resolve(appRoot, 'ui-src/frame.tsx')],

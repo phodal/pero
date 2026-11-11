@@ -458,6 +458,7 @@ def runtime_catalog(document: dict) -> dict:
             "category": item.get("category", ""),
             "category_zh": item.get("category_zh", ""),
             "kind": item.get("kind", ""),
+            "discovery_scopes": item.get("discovery_scopes", ["general"] if item.get("kind") == "general_skill" else ["research"]),
             "source": _runtime_source(item.get("source") or {}),
             "sources": [_runtime_source(source) for source in item.get("sources") or []],
             "license": {key: (item.get("license") or {}).get(key) for key in ("spdx", "status", "evidence_url")},

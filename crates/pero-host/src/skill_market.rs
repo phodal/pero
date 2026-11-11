@@ -153,6 +153,10 @@ fn catalog_path(workspace: &Path) -> PathBuf {
             }
         }
     }
+    let development = workspace.join("apps/skills/dist/market-catalog.json");
+    if development.is_file() {
+        return development;
+    }
     let reviewed = workspace.join("docs/design-docs/research-skills-catalog.json");
     if reviewed.is_file() {
         return reviewed;
