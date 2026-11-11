@@ -128,7 +128,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
           const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
           const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized, ipynbCellVisibility(cell).input ? numberingState : undefined);
           markdownCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography });
-        } else if (cell.kind === 'code' && ipynbCellVisibility(cell).cell) {
+        } else if (cell.kind === 'code' && (ipynbCellVisibility(cell).input || ipynbCellVisibility(cell).output)) {
           const recorded = projectRecordedCell(cell);
           const cellMetadata = cell.raw.metadata as Record<string, unknown>;
           const labels = [cellMetadata.label, cellMetadata.name].filter(value => value !== undefined);

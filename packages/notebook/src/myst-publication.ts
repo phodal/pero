@@ -22,9 +22,21 @@ export const MYST_PUBLICATION_IMAGE_MAX_BYTES = 16 * 1024 * 1024;
 /** Counts decoded payload bytes per placement, since DOCX repeats media per ImageRun. */
 export function boundMystPublicationImages(input: MystPublicationInput): MystPublicationInput {
   const assets = new Map((input.assets ?? []).map(a => [a.path, a]));
+  const recorded = new Map<string, MystPublicationAsset>();
   let placements = 0, bytes = 0, omitted = 0;
   const visit = (node: MystNode): MystNode => {
-    const asset = node.type === 'image' && typeof node.url === 'string' ? assets.get(node.url) : undefined;
+    let asset = node.type === 'image' && typeof node.url === 'string' ? assets.get(node.url) : undefined;
+    if (!asset && node.type === 'image' && node.imageData?.renderable) {
+      const image = node.imageData, key = `${image.mediaType}:${image.base64}`;
+      asset = recorded.get(key);
+      if (!asset) {
+        let index = assets.size + 1, path: string;
+        do { path = `recorded-assets/image-${index++}.${image.mediaType === 'image/png' ? 'png' : 'jpg'}`; } while (assets.has(path));
+        asset = { path, mediaType: image.mediaType, base64: image.base64 };
+        assets.set(path, asset); recorded.set(key, asset);
+      }
+      node = { ...node, url: asset.path };
+    }
     if (asset && ['image/png', 'image/jpeg'].includes(asset.mediaType)) {
       const size = Math.floor(asset.base64.length * 3 / 4) - (asset.base64.endsWith('==') ? 2 : asset.base64.endsWith('=') ? 1 : 0);
       if (placements >= MYST_PUBLICATION_IMAGE_MAX_PLACEMENTS || size > MYST_PUBLICATION_IMAGE_MAX_BYTES - bytes) {
@@ -37,8 +49,8 @@ export function boundMystPublicationImages(input: MystPublicationInput): MystPub
   };
   const ast = visit(input.document.ast), diagnostics = [...input.document.diagnostics];
   if (omitted) diagnostics.push({ severity: 'warning', code: 'publication-image-budget', message: `${omitted} image placement(s) omitted: publication allows at most 128 placements and 16777216 decoded image bytes counted per placement. Exact original source is retained.` });
-  if (input.recovery) return { ...input, document: { ...input.document, ast, diagnostics } };
-  return { ...input, document: { ...input.document, ast, diagnostics } };
+  if (input.recovery) return { ...input, assets: [...assets.values()], document: { ...input.document, ast, diagnostics } };
+  return { ...input, assets: [...assets.values()], document: { ...input.document, ast, diagnostics } };
 }
 /** Only inert, allowlisted node fields reach conversion SDKs. */
 export function projectMystPublication(input: MystPublicationInput, kind: MystPublicationKind): { ast: MystNode; losses: string[] } {
@@ -66,7 +78,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'list': return { type: 'list', ordered: !!node.ordered, start: Number.isSafeInteger(node.start) && Number(node.start) > 0 ? node.start : 1, children: children() };
       case 'table': case 'tableRow': return { type: node.type, children: children() };
       case 'tableCell': return { type: node.type, header: !!node.header, children: children() };
-      case 'figure': case 'container': losses.add('Figure/table numbering rendered as text, not an editable field.'); return { type: 'root', children: [...(document.references[read(node, 'identifier')] ? [paragraph(document.references[read(node, 'identifier')].label)] : []), ...children()] };
+      case 'figure': case 'container': losses.add('Figure/table numbering rendered as text, not an editable field.'); return { type: 'root', children: [...((document.references[read(node, 'identifier')]?.label || read(node, 'numberingLabel')) ? [paragraph(document.references[read(node, 'identifier')]?.label || read(node, 'numberingLabel'))] : []), ...children()] };
       case 'caption': case 'admonitionTitle': return { type: 'paragraph', children: children() };
       case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text, not an editable field.'); return { type: 'blockquote', children: [{ type: 'paragraph', children: [visit(mystProofHeading(node))] }, ...(node.children ?? []).filter(child => child.type !== 'admonitionTitle').map(visit)] };
       case 'admonition': losses.add('Admonition presentation converted to a quotation.'); return { type: 'blockquote', children: children() };

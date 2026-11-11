@@ -47,7 +47,7 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
       case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text.'); return `<disp-quote${id(n)}><p>${render(mystProofHeading(n), true)}</p>${(n.children ?? []).filter(child => child.type !== 'admonitionTitle').map(child => render(child)).join('')}</disp-quote>`;
       case 'blockquote': case 'admonition': if (n.type === 'admonition') losses.add('Admonition presentation converted to quotation.'); return `<disp-quote>${children(n)}</disp-quote>`;
       case 'admonitionTitle': case 'caption': return `<p>${children(n, true)}</p>`;
-      case 'figure': case 'container': return `<fig${id(n)}>${(n.children ?? []).some(c => c.type === 'caption') ? `<caption>${(n.children ?? []).filter(c => c.type === 'caption').map(c => render(c)).join('')}</caption>` : ''}${(n.children ?? []).filter(c => c.type !== 'caption').map(c => render(c)).join('')}</fig>`;
+      case 'figure': case 'container': return `<fig${id(n)}>${str(n, 'numberingLabel') ? `<label>${xml(str(n, 'numberingLabel'))}</label>` : ''}${(n.children ?? []).some(c => c.type === 'caption') ? `<caption>${(n.children ?? []).filter(c => c.type === 'caption').map(c => render(c)).join('')}</caption>` : ''}${(n.children ?? []).filter(c => c.type !== 'caption').map(c => render(c)).join('')}</fig>`;
       case 'table': return `<table-wrap${id(n)}><table><tbody>${children(n)}</tbody></table></table-wrap>`;
       case 'tableRow': return `<tr>${children(n)}</tr>`;
       case 'tableCell': return `<${n.header ? 'th' : 'td'}>${children(n, true)}</${n.header ? 'th' : 'td'}>`;

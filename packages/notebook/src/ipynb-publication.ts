@@ -63,19 +63,5 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
       } else { children.push(...recorded.children); recorded.notices.forEach(report); }
     } else if (visible.input) children.push(paragraph('Raw cell, shown as literal text.'), literal(cell.source));
   }
-  const materialize = (node: MystNode) => {
-    if (node.type === 'image' && node.imageData?.renderable) {
-      const image = node.imageData;
-      let path = assignedImages.get(image);
-      if (!path) {
-        let index = assets.length + 1;
-        do { path = `notebook-assets/image-${index++}.${image.mediaType === 'image/png' ? 'png' : 'jpg'}`; } while (paths.has(path));
-        paths.add(path); assignedImages.set(image, path); assets.push({ path, mediaType: image.mediaType, base64: image.base64 });
-      }
-      node.url = path;
-    }
-    node.children?.forEach(materialize);
-  };
-  children.forEach(materialize);
   return { document: { ast: { type: 'root', children }, scholarly: entry.scholarly, references, bibliography, diagnostics, ...(entry.citationRendering ? { citationRendering: entry.citationRendering } : {}) }, recovery: { kind: 'ipynb', filename: 'notebook.ipynb', source: entry.document.source }, assets };
 }

@@ -1,3 +1,6 @@
+import JSZip from 'jszip';
+import { exportMystDocx, exportMystPublicationArchive } from '../src/myst-publication-sdk.ts';
+import { png } from './fixtures/ipynb-publication.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compileMystProject } from '../src/myst-project.ts';
@@ -69,4 +72,33 @@ test('malicious MIME remains inert and excessive output previews remain bounded 
 test('embed count budget also bounds notebook output replication', () => {
   const { project } = build(Array.from({ length: 140 }, () => '```{embed} run.ipynb#result\n```').join('\n\n'), [code('one', { label: 'result' })]);
   assert.ok(project.diagnostics.some(item => item.code === 'embed-budget'));
+});
+
+test('recorded raster reuse survives Markdown and notebook scientific publication without copied identities', async () => {
+  for (const entry of ['paper.md', 'run.ipynb']) {
+    const source = '```{embed} run.ipynb#result\n:remove-input:\n```\n\n```{embed} run.ipynb#result\n:remove-input:\n```';
+    const { project, notebook } = build(source, [code('one', { label: 'result', tags: ['hide-input'] }, [{ output_type: 'display_data', data: { 'image/png': png, 'text/html': '<script>unsafe()</script>' } }])], entry);
+    const input = compiledMystEntryPublication(project.entry);
+    const expected = entry === 'paper.md' ? 2 : 1;
+    const word = await JSZip.loadAsync(await exportMystDocx(input));
+    const xml = await word.file('word/document.xml')!.async('string');
+    assert.equal((xml.match(/<w:drawing>/g) ?? []).length, expected);
+    assert.ok(!xml.includes('NEVER EXECUTE')); assert.ok(xml.includes('Program'));
+    for (const kind of ['latex', 'typst', 'jats'] as const) {
+      const archive = await JSZip.loadAsync(await exportMystPublicationArchive(input, kind));
+      const manifest = JSON.parse(await archive.file('assets.json')!.async('string'));
+      assert.equal(manifest.length, 1, kind);
+      assert.equal(await archive.file('assets/image-1.png')!.async('base64'), png);
+      const body = await archive.file(`article.${kind === 'latex' ? 'tex' : kind === 'typst' ? 'typ' : 'xml'}`)!.async('string');
+      assert.equal(body.split('assets/image-1.png').length - 1, expected, kind);
+      assert.ok(body.includes('Program'), kind);
+      if (entry === 'run.ipynb') assert.equal(await archive.file('notebook.ipynb')!.async('string'), notebook);
+      else assert.equal(JSON.parse(await archive.file('source.json')!.async('string')).source, source);
+    }
+  }
+});
+test('fully hidden inputs and outputs cannot create invisible code reference targets', () => {
+  const { project } = build('{ref}`run.ipynb#hidden`\n\n```{embed} run.ipynb#hidden\n```', [code('one', { label: 'hidden', tags: ['hide-input', 'hide-output'] })]);
+  assert.ok(project.diagnostics.some(item => item.code === 'reference-unresolved'));
+  assert.ok(project.diagnostics.some(item => item.code === 'embed-missing'));
 });
