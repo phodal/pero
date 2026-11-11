@@ -50,6 +50,22 @@ singleton socket restriction. No new local screenshot, Native/Electron GUI or
 full MyST compatibility is claimed. No merge or deployment was performed.
 
 
+### Follow-up acceptance and scientific-reference repair
+
+At checkpoint `568c5db3`, CI run [43080600913](https://github.com/phodal/pero/actions/runs/43080600913)
+passed all seven real Notebook browser journeys, including the previously failing
+project reference destination. Its [retained artifact](https://github.com/phodal/pero/actions/runs/43080600913/artifacts/13885291097)
+contains inspected screenshots and a real two-page A4 Chromium PDF with equations,
+table, references and diagnostics, without PDF JavaScript. This supersedes the
+pending-browser statement above for that checkpoint only. Both real Host Canvas journeys also passed, including owner confirmations, revision/Host-restart recovery and Paper → Notebook → PI → Finding → Project interop; [Canvas evidence](https://github.com/phodal/pero/actions/runs/43080600913/artifacts/13884986744) was retrieved and the recovery screenshot inspected. Aggregate CI and Native are still running. The browser fixture now checks proof, glossary and abbreviations in preview, reload, HTML and printed PDF; this extended fixture awaits a new CI run.
+
+Read-only review then reproduced two in-scope semantic defects: scientific adapters
+replace resolved authored reference children with a generic target label, losing
+custom term/proof wording; JATS groups definition-list children in fixed pairs,
+misassigning a second description as the next term. Both defects are repaired: rich resolved reference children survive, and glossary descriptions group by actual node type, including rich terms, tight/loose descriptions and nested lists. Local/cross-page publication-body regressions retain ambiguity placeholders and exact source recovery. All 323 SDK tests, 155 focused MyST/IPYNB tests, Notebook types and production build pass on the repaired tree. These are not kernel/site
+parity work and do not require a new owner or persistence path.
+
+
 This report supports the user's subsequent request to fill in MyST capabilities.
 It extends PR head `d65e798c740d49ceb3132c853e54304c4f1adf57`; it does not close
 the broader #195 roadmap or claim full MyST compatibility. The
