@@ -82,12 +82,17 @@ jobs:
           SCOPE_EVENT: ${{ github.event_name }}
           SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
           SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          SCOPE_HEAD: ${{ github.event.pull_request.head.sha }}
+          SCOPE_PR: ${{ github.event.pull_request.number }}
         run: |
           files=""
           if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
-            git fetch --no-tags --depth=1 origin "$SCOPE_BASE" "$SCOPE_HEAD"
-            files=$(git diff --name-only "$SCOPE_BASE" "$SCOPE_HEAD")
+            if git fetch --no-tags --depth=1 origin "$SCOPE_BASE" "refs/pull/${SCOPE_PR}/head"; then
+              files=$(git diff --name-only "$SCOPE_BASE" FETCH_HEAD)
+            else
+              echo "Cannot read the pull request diff; running the check." >&2
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
 

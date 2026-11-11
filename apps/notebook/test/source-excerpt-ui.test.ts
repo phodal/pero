@@ -214,6 +214,7 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   await click(button('Locate original attachment', document.querySelector('[data-notebook-block-id="intro-excerpt"]')!));
   assert.equal(document.querySelector('[role=tab][data-state=active]')!.getAttribute('aria-label'), 'Notes', 'repeated navigation to the same hash still reveals the source');
   assert.equal(document.querySelector('[role=tab][data-state=active]')!.textContent, 'Notes');
+  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, initial.title);
   await React.act(async () => { notesEditor.commands.setTextSelection(notesEditor.state.doc.content.size - 1); const paste = new dom.window.Event('paste', { bubbles: true, cancelable: true }); Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } }); notesEditor.view.dom.dispatchEvent(paste); });
   await checked();
   const copied = state.document.content.content.find((node: any) => node.type === 'sourceExcerpt');

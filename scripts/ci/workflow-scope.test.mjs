@@ -48,6 +48,9 @@ test('Computer Use and Release triggers keep synchronize and do not limit themse
   assert.equal(computer.on.pull_request.paths, undefined);
   assert.deepEqual(computer.on.push.paths, [...computerUseGlobs]);
   assert.equal(computer.on.schedule[0].cron, '0 20 * * *');
+  assert.equal(computer.jobs.scope.steps[0].uses, 'actions/checkout@v7');
+  assert.match(computer.jobs.scope.steps.at(-1).run, /refs\/pull\/\$\{SCOPE_PR\}\/head/);
+  assert.match(computer.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
   assert.equal(computer.jobs.scope.outputs.run, '${{ steps.decide.outputs.run }}');
   assert.match(computer.jobs.scope.steps.at(-1).run, /workflow-scope\.mjs/);
   assert.equal(computer.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'computer-use');
@@ -59,6 +62,8 @@ test('Computer Use and Release triggers keep synchronize and do not limit themse
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
+  assert.equal(release.jobs.scope.steps[0].uses, 'actions/checkout@v7');
+  assert.match(release.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
   assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'release-package');
   assert.match(release.jobs.build.if, /pull_request/);
   assert.match(release.jobs.build.if, /schedule/);
