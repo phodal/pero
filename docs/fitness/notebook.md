@@ -1,5 +1,34 @@
 # Notebook verification
 
+## Notebook design alignment (2026-11-11)
+
+Product source `0bcdd805` and `91d4be4d` replaces gray toolbar chips with
+transparent controls, shared neutral interaction states and accent selection.
+Bound Canvas configuration moves behind its settings action; new bindings,
+stale parameter review and required revision saves remain directly accessible.
+The shared Canvas aligns parameter values and result attachment, uses shared
+Disclosure for technical details, and accepts caller-selected primary action
+emphasis without promoting other owners' actions. Notebook cell pickers and row
+removal use accessible SDK icon buttons. Finding repeats no claim in its header;
+source metadata joins snapshot provenance. Verdict and numerical simulation
+scope stay visible. Narrow selectors show parameter/value before procedure context.
+
+Inspected actual Notebook rendering at 1320 × 950 and 440 × 950, in light/dark
+and English/Chinese, over the prior real Rust Host/owner data. Verified menu
+Escape/focus return, configuration save/focus return, explicit attachment of the
+actual verification result, stale input review navigation and recovery. The
+attachment probe was undone; revision 6 reload retains exactly the original
+single snapshot, Finding and evidence citation from revision 5. No new model or
+simulation execution was dispatched in this style pass.
+
+Notebook build, Notebook/SDK typechecks, root checks and 20 focused UI tests
+passed. The existing Control Canvas browser scenario's verdict label was updated
+and syntax-checked. Evidence and inspected screenshots:
+`test-results/notebook-design-review-2026-11-11/README.md` and `verification.json`.
+A temporary preview host supplies theme/locale context; screenshots omit only
+its external control strip where noted. This is browser UI validation, with no
+new Native/Electron, packaged-app or physical hardware acceptance.
+
 ## Experiment flow recovery and direct results (2026-11-11)
 
 Verified product source `6ad36911` (based on `7c6f02f0`) gates Canvas mounting on its saved binding,

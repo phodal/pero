@@ -45,3 +45,30 @@ Evidence: `test-results/notebook-flow-fixed-2026-11-11/` (blank-entry run and na
 Checks: root `npm run check`, Notebook and App SDK typechecks, App builds, 149 Notebook package tests, focused SDK/Notebook UI checks and two Host Canvas unit tests passed. Notebook Python: 121 tests, three skips; Control Lab Python: 54 tests, one skip. The final serial editor suite passed 82/83: the scoped-keyboard assertion also fails on clean baseline `7c6f02f0`. An earlier parallel pass exposed a formula-completion assertion also reproduced on baseline, and intermittent document-history teardown activity; the final serial run had neither failure.
 
 The browser run used isolated SQLite data and test-driven trusted-shell approval. Electron/Native approval sheets, packaged releases, deep-link navigation and physical hardware were outside this verification. The updated `notebook-control-canvas.mjs` regression uses direct attachment and compares it with the integrity-checked export; actual browser acceptance in this session used the in-app browser.
+
+## Design alignment follow-up
+
+The subsequent visual review found stacked configuration/execution/diagnostic
+controls and persistent gray toolbar chips obscuring the intended Pero hierarchy.
+Product source `0bcdd805` / `91d4be4d` migrates Canvas history/receipt details to
+shared inline Disclosure, refresh/cell actions to named IconButtons, and primary
+emphasis to explicit SDK Button variants. Existing shared token roles supply
+neutral hover, accent selection, disabled presentation and blue/apricot content
+identity; no token generator output or local control skin was added.
+
+Affected consumers are the shared DeclaredAppCanvas/CanvasActionForm and Notebook
+App Canvas, input tables, evidence snapshots, Finding and formatting toolbars.
+Saved bindings show their owner title and configuration settings, with technical
+receipts retained in Binding details. Critical stale input review and required
+revision saves remain in the main flow. Parameter/value labels stay readable at
+440px, with procedure context in the option hint. The claim appears once; source
+metadata remains reachable in snapshot provenance. Default action emphasis for
+other owners remains secondary unless the caller explicitly chooses an action.
+
+The real browser checked both themes and widths, including keyboard menu/focus,
+config save, attachment/undo and stale input recovery. Revision 6 reload preserves
+the original snapshot, Finding and citation exactly. Notebook build, App/SDK
+typechecks, root checks and 20 focused UI tests passed. This pass did not dispatch
+new experiment execution or establish Native/Electron acceptance. The existing
+full execution evidence above remains scoped to that earlier run. Full visual
+ledger: `test-results/notebook-design-review-2026-11-11/README.md`.
