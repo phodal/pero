@@ -92,22 +92,26 @@ test('Code blocks follow live read-only changes without replacing their document
   });
   await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'notebook', locale: 'en' }) },
     React.createElement(ui.Fixture, { capture: (value: any) => { editor = value; } })));
-  const source = () => document.querySelector('[aria-label="Code source (not executed)"]')!;
+  const source = () => document.querySelector('[aria-label="Code"]')!;
   const language = () => document.querySelector<HTMLButtonElement>('button[aria-label="Code language"]')!;
   const remove = () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Remove code block');
   const node = editor.state.doc.firstChild;
   assert.equal(source().getAttribute('contenteditable'), 'true');
   assert.equal(language().disabled, false);
   assert.ok(remove());
+  assert.equal(document.querySelector('.node-codeBlock [data-node-view-content-react]'), null);
+  assert.equal([...document.body.textContent!.matchAll(/print\(1\)/g)].length, 1);
   await React.act(async () => editor.setEditable(false));
   assert.equal(editor.state.doc.firstChild, node);
   assert.equal(source().getAttribute('contenteditable'), 'false');
   assert.equal(language().disabled, true);
   assert.equal(remove(), undefined);
   assert.equal(editor.getText(), 'print(1)');
+  assert.equal([...document.body.textContent!.matchAll(/print\(1\)/g)].length, 1);
   await React.act(async () => editor.setEditable(true));
   assert.equal(editor.state.doc.firstChild, node);
   assert.equal(source().getAttribute('contenteditable'), 'true');
   assert.equal(language().disabled, false);
   assert.ok(remove());
+  assert.equal(document.querySelector('.node-codeBlock [data-node-view-content-react]'), null);
 });

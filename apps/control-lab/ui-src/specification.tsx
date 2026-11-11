@@ -10,10 +10,10 @@ function Fields({ fields, values, change }: { fields: Field[]; values: Record<st
 }
 
 /** The draft's sole editor for fixed parameters, acceptance criteria and execution budget. */
-export function Specification({ template, tunable, parameters, criteria, budget, disabled, generating, onParameter, onCriterion, onBudget, onGenerate, onCancel, onFreeze }: {
+export function Specification({ template, tunable, parameters, criteria, budget, disabled, generating, canRun, onParameter, onCriterion, onBudget, onGenerate, onCancel, onFreeze, onRun }: {
   template: Template; tunable: string[]; parameters: Record<string, number>; criteria: Record<string, number>; budget: number;
-  disabled: boolean; generating: boolean; onParameter(name: string, value: number): void; onCriterion(name: string, value: number): void;
-  onBudget(value: number): void; onGenerate(): void; onCancel(): void; onFreeze(form: HTMLFormElement | null): void;
+  disabled: boolean; generating: boolean; canRun: boolean; onParameter(name: string, value: number): void; onCriterion(name: string, value: number): void;
+  onBudget(value: number): void; onGenerate(): void; onCancel(): void; onFreeze(form: HTMLFormElement | null): void; onRun(): void;
 }) {
   return <section className="specification">
     <div className="toolbar"><Button disabled={disabled} onClick={onGenerate}>{generating ? 'Generating…' : 'Generate parameters'}</Button>{generating && <Button onClick={onCancel}>Cancel</Button>}</div>
@@ -22,10 +22,14 @@ export function Specification({ template, tunable, parameters, criteria, budget,
     }}>
       <fieldset disabled={disabled}><legend>Plant and simulation</legend><Fields fields={template.parameters.filter(field => !tunable.includes(field.name))} values={parameters} change={onParameter}/></fieldset>
       <fieldset className="acceptance-fields" disabled={disabled}><legend>Acceptance criteria</legend><Fields fields={template.criteria} values={criteria} change={onCriterion}/></fieldset>
-      <fieldset disabled={disabled}><legend>Candidate budget</legend><FormField label="Total candidate budget">{control => <Input {...control} type="number" required min={1} max={template.candidateBudgetMax} step={1} value={Number.isNaN(budget) ? '' : budget} onChange={event => onBudget(event.target.valueAsNumber)}/>}</FormField></fieldset>
-      <div className="spec-actions"><p className="muted">Run saves and freezes these settings. You can also freeze without running.</p>
-      <p className="muted">Ledger limit: 80 attempts / 40,000 samples.</p>
-      <Button disabled={disabled} onClick={event => onFreeze(event.currentTarget.form)}>Freeze specification</Button></div>
+      <fieldset disabled={disabled}><FormField label="Candidate budget" description="Execution limit: 80 attempts / 40,000 samples.">{control => <Input {...control} type="number" required min={1} max={template.candidateBudgetMax} step={1} value={Number.isNaN(budget) ? '' : budget} onChange={event => onBudget(event.target.valueAsNumber)}/>}</FormField></fieldset>
+      <div className="spec-actions toolbar">
+        <Button variant="primary" disabled={!canRun} aria-describedby="run-specification-effect" onClick={event => {
+          if (event.currentTarget.form?.reportValidity()) onRun();
+        }}>Run experiment</Button>
+        <Button disabled={disabled} onClick={event => onFreeze(event.currentTarget.form)}>Freeze specification</Button>
+        <small id="run-specification-effect">Running freezes the specification.</small>
+      </div>
     </form>
   </section>;
 }

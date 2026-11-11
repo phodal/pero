@@ -6,8 +6,7 @@ body {
   background: var(--pero-bg);
   color: var(--pero-text);
   font:
-    var(--pero-font-body) system-ui,
-    sans-serif;
+    var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif);
 }
 h1 {
   font-size: var(--pero-font-heading);
@@ -46,7 +45,7 @@ p {
 .layout { min-height: calc(100vh - 55px); }
 main { min-width: 0; padding: 12px; }
 .experiment-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
-.experiment-heading h2 { font-size: var(--pero-font-heading); margin-bottom: 4px; }
+.trial-progress { display: grid; flex: 1; gap: 4px; max-width: 320px; }
 .workbench { gap: 0; align-items: stretch; }
 .workbench > .panel { border: 0; border-radius: 0; }
 .workbench[data-stacked] > .panel { border-bottom: 0.5px solid var(--pero-border); }
@@ -72,10 +71,13 @@ main { min-width: 0; padding: 12px; }
 .verdict-header.INCONCLUSIVE { background: var(--pero-warning-bg); }
 .verify-list { display: grid; margin-top: 12px; }
 .verify-list .check-row.pero-ui-button { font:inherit; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; width: 100%; text-align: left; padding: 8px 4px; }
-.check-row > span:first-child { grid-column: 1; grid-row: 1; }
-.check-row small { grid-column: 1; grid-row: 2; }
-.check-row strong { grid-column: 2; grid-row: 1; font-variant-numeric: tabular-nums; }
-.check-row .pero-badge { grid-column:2; grid-row:2; justify-self:end; }
+.check-row .pero-badge { justify-self:end; }
+.check-values { grid-column: 1 / -1; font-variant-numeric: tabular-nums; }
+.check-values strong { color: var(--pero-text); }
+.final-check-group h3 { margin-bottom: 4px; }
+.final-report-trigger { margin-top: 8px; }
+.verification-panel .verdict-header + .pero-ui-table-wrap,
+.verification-panel .verify-list + .pero-ui-table-wrap { margin-top: 12px; }
 .suggestion { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--pero-border); }
 .suggestion h3 { margin: 0; }
 .suggestion-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -85,7 +87,7 @@ main { min-width: 0; padding: 12px; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .panel-heading h2 { margin: 0; }
 .panel-heading .pero-select { max-width: 100%; font-size: var(--pero-font-caption); }
-.model-expression { padding: 16px 8px; text-align: center; font-family: system-ui, sans-serif; font-size: var(--pero-font-body); }
+.model-expression { padding: 16px 8px; text-align: center; font-family: var(--pero-font-family-sans, system-ui, sans-serif); font-size: var(--pero-font-body); }
 .facts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 8px; font-size: var(--pero-font-caption); }
 .facts dt { color: var(--pero-text-muted); overflow-wrap: anywhere; }
 .facts dd { margin: 0; text-align: right; max-width: 130px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
@@ -196,7 +198,6 @@ summary {
   .workbench > section { width: 100%; }
   main { padding: 12px; }
   .panel { padding: 12px; }
-  .experiment-heading h2 { font-size: var(--pero-font-heading); }
     .pero-ui-field.field { grid-template-columns: minmax(0, 1fr) 100px; }
 }
 @container (max-width: 400px) {
@@ -221,16 +222,11 @@ summary {
 
 .workbench > .panel { container-type:inline-size; }
 .workbench[data-preparing] .response-panel { background:var(--pero-bg); }
-.preflight-summary { margin-top:var(--pero-spacing-6); }
-.preflight-summary p { margin-bottom:0; }
 .environment-notice { display:grid; gap:var(--pero-spacing-2); margin-bottom:var(--pero-spacing-3); }
 .specification { margin:0; }
 .evidence-detail { margin-top:var(--pero-spacing-3); overflow-wrap:anywhere; }
 .param-head input { flex:0 0 88px; }
 @container (max-width:360px) {
-  .check-row > span:first-child, .check-row small { grid-column:1 / -1; }
-  .check-row strong { grid-column:1; grid-row:3; }
-  .check-row .pero-badge { grid-column:2; grid-row:3; }
   .param-head { flex-wrap:wrap; }
   .param-head label { flex:1 0 100%; }
   .param-head input { flex:1; width:100%; }
@@ -240,3 +236,4 @@ summary {
 .specification form { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:var(--pero-spacing-3) var(--pero-spacing-6); align-items:start; }
 .specification .acceptance-fields { grid-row:span 2; }
 .spec-actions { grid-column:1/-1; }
+.spec-actions small { flex-basis:100%; }

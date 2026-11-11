@@ -9,13 +9,12 @@ import { SampleCatalogBrowser } from './sample-catalog';
 import { SamplePropagation } from './sample-propagation';
 const messages = {
   exportCsv: { en: 'Export review worklist CSV', zh: '导出复核工作清单 CSV' }, exportJson: { en: 'Export pinned bindings JSON', zh: '导出固定绑定 JSON' },
-  exportScope: { en: 'CSV includes record versions and source identity. Spreadsheet-formula prefixes are escaped; JSON retains exact source values and snapshots. These are review files, not instrument commands.', zh: 'CSV 包含记录版本和来源身份，对电子表格公式前缀进行转义；JSON 保留精确原值及快照。这些是复核文件，非仪器命令。' },
   title: { en: 'Sample intake', zh: '样品来源选择' }, name: { en: 'Batch name', zh: '批次名称' },
-  scope: { en: 'Select existing Notebook local-catalog records. No physical inventory, movement or instrument operation. Saved bindings retain the selected version and original input; imported snapshots are not owner verification.', zh: '选择 Notebook 本地目录中已有的记录。不操作物理库存、移液或仪器。保存所选版本与原始输入；导入快照不代表目录所有者核验。' },
   mode: { en: 'Input source', zh: '输入来源' }, manual: { en: 'Manual identifiers', zh: '手工标识符' }, barcode: { en: 'Keyboard barcode scanner', zh: '键盘条码扫描器' }, worklist: { en: 'Worklist', zh: '工作清单' }, table: { en: 'Structured table', zh: '结构化表格' }, plate: { en: 'Plate mapping', zh: '孔板映射' },
-  field: { en: 'Exact-match field: $id or a text column ID', zh: '精确匹配字段：$id 或文本列 ID' }, schema: { en: 'Schema ID (optional)', zh: '数据结构 ID（可选）' },
-  help: { en: 'One ID per line for manual/scanner/worklist. Table: header id. Plate: headers well and id. Paste TSV or choose CSV/TSV. Barcode values match the explicitly named text column, not an assumed barcode field.', zh: '手工、扫描器或工作清单每行一个 ID。表格表头为 id，孔板表头为 well 和 id。可粘贴 TSV 或选择 CSV/TSV。条码按明确指定的文本列匹配，不假定存在条码字段。' },
-  input: { en: 'Source identifiers / delimited table', zh: '来源标识符 / 分隔表格' }, file: { en: 'Read local CSV/TSV (100 KB maximum)', zh: '读取本地 CSV/TSV（最多 100 KB）' },
+  field: { en: 'Match field', zh: '匹配字段' }, schema: { en: 'Schema ID', zh: '数据结构 ID' },
+  input: { en: 'Source identifiers / delimited table', zh: '来源标识符 / 分隔表格' }, file: { en: 'Import CSV / TSV', zh: '导入 CSV / TSV' },
+  identifiersExample: { en: 'One ID per line', zh: '每行一个 ID' },
+  fileError: { en: 'Choose a CSV/TSV file of at most 100 KB.', zh: '请选择不超过 100 KB 的 CSV/TSV 文件。' },
   resolve: { en: 'Find matching records', zh: '查找匹配记录' }, busy: { en: 'Looking up records…', zh: '正在查找记录…' }, select: { en: 'Select this version', zh: '选择此版本' }, all: { en: 'Select all unique matches', zh: '选择全部唯一匹配项' }, remove: { en: 'Remove binding', zh: '移除绑定' },
   missing: { en: 'No exact match', zh: '没有精确匹配' }, unique: { en: 'Unique match (select to bind)', zh: '唯一匹配（请选择以绑定）' }, ambiguous: { en: 'Multiple exact matches: select explicitly', zh: '多个精确匹配：请明确选择' }, duplicate: { en: 'Duplicate input', zh: '重复输入' }, incomplete: { en: 'Search truncated: narrow schema/field before selecting', zh: '搜索结果被截断：请缩小数据结构或字段范围后选择' },
   notebookTable: { en: 'Use a registered table in this entry', zh: '使用当前记录中的已登记表格' }, chooseTable: { en: 'Choose a source table', zh: '选择来源表格' },
@@ -53,9 +52,12 @@ export function SampleIntakeView(view: NodeViewProps) {
     try { let next = intake; for (const item of chosen) next = bindIntake(next, item.result, item.id); view.updateAttributes({ intake: next }); setError(''); }
     catch (err) { setError(String(err instanceof Error ? err.message : err)); }
   }
-  return <BlockFrame view={view} kind="sampleIntake" title={<strong>{t('title')}</strong>} caption={<Badge>{intake.bindings.length}</Badge>}>
-    <p>{t('scope')}</p>
-    <Input aria-label={t('name')} placeholder={t('name')} value={intake.name} maxLength={200} readOnly={!editable} onChange={e => edit({ name: e.target.value })} />
+  return <BlockFrame view={view} kind="sampleIntake"
+    title={editable
+      ? <Input unstyled className="notebook-block-name" aria-label={t('name')} placeholder={t('name')} maxLength={200}
+        value={intake.name} onChange={e => edit({ name: e.target.value })} />
+      : <strong>{intake.name || t('title')}</strong>}
+    caption={<Badge>{intake.bindings.length}</Badge>}>
     <Select label={t('mode')} value={intake.mode} disabled={!editable || busy} options={intakeModes.map(mode => ({ value: mode, label: t(mode) }))} onChange={mode => edit({ mode: mode as IntakeMode, fileName: '' })} />
     <label>{t('field')}<Input value={intake.field} disabled={!editable || busy} maxLength={128} onChange={e => { if (/^[A-Za-z0-9_-]*$/.test(e.target.value) || e.target.value === '$id') edit({ field: e.target.value || '$id' }); }} /></label>
     <label>{t('schema')}<Input value={intake.schemaId} disabled={!editable || busy} maxLength={128} onChange={e => { if (/^[A-Za-z0-9_-]*$/.test(e.target.value)) edit({ schemaId: e.target.value }); }} /></label>
@@ -65,12 +67,11 @@ export function SampleIntakeView(view: NodeViewProps) {
       const source = sourceTables[Number(value)], receipt = source.receipts[source.receipts.length - 1];
       edit({ mode: 'table', field: '$id', schemaId: receipt.schemaId, input: 'id\n' + receipt.records.map(record => record.recordId).join('\n'), fileName: `Notebook table ${source.table.id}` });
     }} />}
-    <p>{t('help')}</p>
-    <Textarea aria-label={t('input')} value={intake.input} maxLength={100000} disabled={!editable || busy} onChange={e => edit({ input: e.target.value })} />
-    <FilePicker label={t('file')} emptyLabel="CSV / TSV" accept=".csv,.tsv" disabled={!editable || busy} onFile={async file => {
-      if (file.size > 100000 || !/\.(csv|tsv)$/i.test(file.name) || file.name.length > 200) { setError(t('file')); return; }
+    <Textarea aria-label={t('input')} placeholder={editable ? intake.mode === 'plate' ? 'well,id\nA1,sample-01' : intake.mode === 'table' ? 'id\nsample-01' : t('identifiersExample') : undefined} value={intake.input} maxLength={100000} disabled={!editable || busy} onChange={e => edit({ input: e.target.value })} />
+    <FilePicker compact label={t('file')} emptyLabel="" accept=".csv,.tsv" disabled={!editable || busy} onFile={async file => {
+      if (file.size > 100000 || !/\.(csv|tsv)$/i.test(file.name) || file.name.length > 200) { setError(t('fileError')); return; }
       setBusy(true);
-      try { const input = await file.text(); edit({ input, fileName: file.name, mode: intake.mode === 'plate' ? 'plate' : 'table' }); setError(''); } catch { setError(t('file')); } finally { setBusy(false); }
+      try { const input = await file.text(); edit({ input, fileName: file.name, mode: intake.mode === 'plate' ? 'plate' : 'table' }); setError(''); } catch { setError(t('fileError')); } finally { setBusy(false); }
     }} />
     {intake.fileName && <p>{intake.fileName}</p>}
     <Button disabled={!editable || busy} onClick={() => void resolve()}>{busy ? t('busy') : t('resolve')}</Button>
@@ -81,7 +82,7 @@ export function SampleIntakeView(view: NodeViewProps) {
     </div>}
     <SampleCatalogBrowser intake={intake} editable={editable} onChange={next => view.updateAttributes({ intake: next })} />
     <SamplePropagation view={view} />
-    {intake.bindings.length > 0 && <div><p>{t('exportScope')}</p>
+    {intake.bindings.length > 0 && <div>
       <Button variant="ghost" onClick={() => downloadFile('Notebook-sample-worklist.csv', intakeWorklistCsv(intake), 'text/csv;charset=utf-8')}>{t('exportCsv')}</Button>
       <Button variant="ghost" onClick={() => downloadFile('Notebook-sample-bindings.json', JSON.stringify({ format: 'pero-notebook-sample-worklist-v1', scope: 'pinned local associations, not physical inventory', intake }, null, 2), 'application/json')}>{t('exportJson')}</Button>
     </div>}

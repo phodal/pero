@@ -7,7 +7,6 @@ const messages = {
   horizon: { en: 'Observation window (s)', zh: '观察时长（秒）' },
   samples: { en: 'Sample count', zh: '采样点数' },
   choose: { en: 'Choose a procedure parameter', zh: '选择流程参数' },
-  hint: { en: 'PI controller analytic case. Select recorded or table-pinned parameters, then save the Notebook revision.', zh: 'PI 控制器解析算例。选择记录值或固定表格参数，然后保存笔记修订。' },
   invalid: { en: 'Select a current quantity in seconds and a whole-number sample count.', zh: '请选择有效的秒数和整数采样点数。' },
   stale: { en: 'The Notebook inputs changed. Review and save a new binding before creating an experiment.', zh: '笔记参数已变更。请核对并保存新的绑定后再创建实验。' },
 } as const;
@@ -67,7 +66,6 @@ export function ControlLabInputs({ choices, mapping, onChange }: {
 }) {
   const { t } = useAppI18n(messages);
   return <div className="notebook-control-canvas-inputs">
-    <p className="notebook-note">{t('hint')}</p>
     <div className="notebook-science-fields">
       {fields.map(field => <Field key={field} label={t(field)}>{control =>
         <Select {...control} label={t(field)} placeholder={t('choose')} value={mapping[field]}

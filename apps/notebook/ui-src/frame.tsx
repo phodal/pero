@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
 import { NotebookEditor } from './editor';
@@ -63,7 +63,7 @@ function Notebook() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
-  const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | null>(null);
+  const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | 'delete' | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [openError, setOpenError] = useState('');
   const [error, setError] = useState('');
@@ -81,6 +81,7 @@ function Notebook() {
     return next;
   };
   const navigationRequest = useRef(0);
+  const pendingBodyFocus = useRef('');
   const handledLink = useRef('');
   const current = drafts[selected];
   const shown = snapshot ?? current?.entry;
@@ -238,6 +239,7 @@ function Notebook() {
   };
   const create = () => perform('create', async () => {
     const entry = await api.post<NotebookEntry>('/api/entries', { title: t('untitled') });
+    pendingBodyFocus.current = entry.id;
     adopt(entry);
     updateList(entry);
     choose(entry.id);
@@ -255,6 +257,25 @@ function Notebook() {
     updateList(entry);
     choose(entry.id);
   });
+  const removeNotebook = (id: string) => {
+    if (!window.confirm(t('deleteNotebookConfirm'))) return;
+    void perform('delete', async () => {
+      await api.del(endpoint(id));
+      catalogRequest.current++;
+      setDrafts(previous => {
+        const { [id]: _removed, ...rest } = previous;
+        return rest;
+      });
+      let remaining: NotebookEntrySummary[] = [];
+      setEntries(previous => {
+        remaining = previous?.filter(entry => entry.id !== id) ?? [];
+        return remaining;
+      });
+      setSelected(currentId => currentId === id ? (remaining[0]?.id || '') : currentId);
+      setSnapshot(previous => previous?.id === id ? null : previous);
+      setHistory(null);
+    });
+  };
   useEffect(() => {
     const openRevision = (event: Event) => {
       const target = (event as CustomEvent<{ entryId?: unknown; revision?: unknown }>).detail;
@@ -350,29 +371,47 @@ function Notebook() {
     });
   });
 
-  return <AppFrame label={t('notebook')} className="notebook-app"
-    tools={<><Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
-      onClick={() => setNavigationOpen(open => !open)}>{t('notebooks')}</Button><Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
-      <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} /></>}
-    actions={<IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>}>
+  const catalogActions = <>
+    <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
+    <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />
+    <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
+  </>;
+  return <AppFrame label={t('notebook')} className="notebook-app">
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && <Feedback kind="error" variant="block">{error}</Feedback>}
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
-        heading={t('noNotebooks')} description={t('start')} />
+        heading={t('noNotebooks')} description={t('start')} actions={catalogActions} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
+          <div className="notebook-nav-tools">
+            <Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(false)}>{t('notebooks')}</Button>
+            {catalogActions}
+          </div>
           <ul className="notebook-list">
             {entries.map(entry => {
               const local = drafts[entry.id];
               return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
-                meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })} /></li>;
+                meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })}
+                trailing={<DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem danger disabled={!!busy} onSelect={() => removeNotebook(entry.id)}>{t('deleteNotebook')}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>} /></li>;
             })}
           </ul>
         </SplitPane>}
         <SplitPane as="section" id="notebook-document" aria-label={t('body')} min={350} className="notebook-page">
+          {!navigationOpen && <div className="notebook-nav-reopen">
+            <Button variant="ghost" aria-expanded={false} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(true)}>{t('notebooks')}</Button>
+          </div>}
           {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
           {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
             : <div className="notebook-document" onKeyDownCapture={event => {
@@ -399,6 +438,11 @@ function Notebook() {
                 </li>)}</ul>
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
+                takeInitialFocus={() => {
+                  if (pendingBodyFocus.current !== shown.id) return false;
+                  pendingBodyFocus.current = '';
+                  return active && !snapshot;
+                }}
                 chrome={{
                   status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
                   onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },

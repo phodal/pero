@@ -146,7 +146,7 @@ test('Notebook sections preserve child editing and attachment bytes stay bounded
     await settled(() => !!document.querySelector('[data-kind="attachment"]') && !document.body.textContent!.includes('Checking file integrity'));
     assert.equal(document.querySelector('img'), null);
     assert.equal([...document.querySelectorAll('button')].find(node => node.textContent?.includes('Download file'))!.disabled, false);
-    assert.match(document.body.textContent!, /512 KiB per file/);
+    assert.doesNotMatch(document.querySelector('[data-kind="attachment"]')!.textContent!, /512 KiB per file/);
     await act(() => editor.commands.updateAttributes('attachment', { data: 'YWJk' }));
     await settled(() => document.body.textContent!.includes('File integrity could not be verified'));
     assert.equal([...document.querySelectorAll('button')].find(node => node.textContent?.includes('Download file'))!.disabled, true);

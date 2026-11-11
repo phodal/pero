@@ -239,7 +239,7 @@ try {
     }
     await expect(frame.getByRole('img').first()).toBeVisible();
     await action('Lock candidate', `${experimentPath(frozen.id)}/lock`);
-    await expect(frame.getByRole('button', { name: 'Run bounded search', exact: true })).toBeDisabled();
+    await expect(frame.getByRole('button', { name: 'Run bounded search', exact: true })).toHaveCount(0);
     await action('Verify locked candidate', `${experimentPath(frozen.id)}/verify`);
     const verified = await settled(frozen.id);
     expect(verified.status).toBe('completed');
@@ -321,7 +321,7 @@ try {
   await expect.poll(() => frame.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: resolve(out, 'narrow.png') });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1086));
-  const rerun = await action('Rerun as new experiment', '/api/experiments');
+  const rerun = await action('Duplicate settings', '/api/experiments');
   expect(rerun.id).not.toBe(first.id);
   expect(rerun.specHash).toBe(first.specHash);
   expect(rerun.trials).toEqual([]);

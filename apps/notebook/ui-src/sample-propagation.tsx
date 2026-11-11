@@ -6,7 +6,6 @@ import { applyIntakePropagation, stageIntakePropagation, type IntakePropagation,
 
 const messages = {
   title: { en: 'Propagate selected source bindings', zh: '传播已选择的来源绑定' },
-  scope: { en: 'Stage and review copies of these pinned bindings in another sample-intake block. This changes local notebook associations only, never stock, locations or instrument worklists.', zh: '将这些固定版本的绑定暂存并复核后复制到另一个样品来源块。仅修改本地笔记关联，不更改库存、位置或仪器工作清单。' },
   target: { en: 'Destination intake block', zh: '目标样品来源块' }, choose: { en: 'Choose a destination', zh: '选择目标' },
   empty: { en: 'Add another sample-intake block to receive bindings.', zh: '请添加另一个样品来源块以接收绑定。' },
   stage: { en: 'Stage propagation', zh: '暂存传播' }, apply: { en: 'Apply staged bindings', zh: '应用暂存绑定' }, cancel: { en: 'Cancel staged propagation', zh: '取消暂存传播' },
@@ -46,7 +45,7 @@ export function SamplePropagation({ view }: { view: NodeViewProps }) {
       setPlan(null); setError(''); setNotice(t('applied'));
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   }
-  return <details><summary>{t('title')}</summary><p>{t('scope')}</p>
+  return <details><summary>{t('title')}</summary>
     {!destinations.length ? <p>{t('empty')}</p> : <>
       <Field label={t('target')}>{control => <NativeSelect {...control} value={targetId} disabled={!editable} onChange={event => { setTargetId(event.target.value); setPlan(null); setNotice(''); setError(''); }}>
         <option value="">{t('choose')}</option>{destinations.map(item => <option key={item.id} value={item.id}>{item.intake.name || item.id}</option>)}

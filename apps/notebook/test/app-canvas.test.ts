@@ -66,7 +66,7 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
   const snapshot = () => JSON.stringify(editor.getJSON());
   const before = () => editor.getJSON().content[0].attrs.binding;
   await mount();
-  assert.match(document.body.textContent!, /enabled, installed App/);
+  assert.equal(button('Open App view').disabled, false);
   assert.match(document.body.textContent!, /Read an experiment/);
   assert.equal(document.querySelector('iframe'), null, 'Discovery is not disguised as an embedded view');
   assert.deepEqual(before(), binding);
@@ -79,7 +79,7 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     await click(button('Open App view'));
     assert.equal(navigation.length, 1);
     await React.act(async () => acknowledge!());
-    assert.match(document.body.textContent!, /No App action was executed/);
+    assert.match(document.body.textContent!, /Open request acknowledged/);
     assert.equal(snapshot(), original);
   });
 

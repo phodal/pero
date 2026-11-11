@@ -170,6 +170,10 @@ const CRITERION_CHECKS: Record<string, string> = {
   peakingMax: "Passband peaking",
 };
 
+export function verificationUnits(template?: Template) {
+  return new Map(template?.criteria.map(field => [CRITERION_CHECKS[field.name], field.unit]));
+}
+
 export type Range = { min: number; max: number };
 export type Concept = {
   name: string;
@@ -318,16 +322,17 @@ export function checkConcepts(experiment: Experiment, candidateId: string, phase
 }
 
 export function verdictSummary(concepts: { verdict: string }[], scenarioCount: number) {
-  if (!concepts.length) return { verdict: "NOT_RUN" as Verdict, title: "No checks", detail: `${scenarioCount} frozen scenarios` };
+  const scenarioNoun = scenarioCount === 1 ? "scenario" : "scenarios";
+  if (!concepts.length) return { verdict: "NOT_RUN" as Verdict, title: "No checks", detail: `${scenarioCount} frozen ${scenarioNoun}` };
   if (concepts.every((concept) => concept.verdict === "NOT_RUN")) {
-    return { verdict: "NOT_RUN" as Verdict, title: "Checks have not been run", detail: `${scenarioCount} frozen scenarios` };
+    return { verdict: "NOT_RUN" as Verdict, title: "Checks have not been run", detail: `${scenarioCount} frozen ${scenarioNoun}` };
   }
   const failed = concepts.filter((concept) => concept.verdict === "FAIL").length;
   const passed = concepts.filter((concept) => concept.verdict === "PASS").length;
   const title = failed
     ? `${failed} constraint${failed === 1 ? "" : "s"} failed`
     : passed === concepts.length ? "All checks passed" : "Evidence inconclusive";
-  return { verdict: (failed ? "FAIL" : passed === concepts.length ? "PASS" : "INCONCLUSIVE") as Verdict, title, detail: `${passed} of ${concepts.length} checks passed · ${scenarioCount} scenarios` };
+  return { verdict: (failed ? "FAIL" : passed === concepts.length ? "PASS" : "INCONCLUSIVE") as Verdict, title, detail: `${passed} of ${concepts.length} checks passed · ${scenarioCount} ${scenarioNoun}` };
 }
 
 function moveToward(current: Record<string, number>, ranges: Record<string, Range>, name: string, fraction: number) {
@@ -360,25 +365,25 @@ export function suggestedDraft(
       moveToward(next, ranges, "kp", -0.15);
       moveToward(next, ranges, "ki", -0.1);
       moveToward(next, ranges, "kd", 0.1);
-      message = "Worst overshoot exceeds the frozen limit. This draft lowers proportional and integral gain and raises derivative gain. Run it to record the candidate.";
+      message = "Aims to reduce overshoot.";
     } else if (concepts.some((concept) => concept.name === "Target settling time" && concept.verdict !== "PASS")) {
       moveToward(next, ranges, "kd", 0.1);
       moveToward(next, ranges, "kp", -0.05);
-      message = "Settling is outside the frozen limit or window. This draft raises derivative gain. Run it to record the candidate.";
+      message = "Aims to shorten settling time.";
     } else if (failed("Final-window target error")) {
       moveToward(next, ranges, "ki", 0.1);
-      message = "Final-window error exceeds the frozen limit. This draft raises integral gain. Run it to record the candidate.";
+      message = "Aims to reduce final-window error.";
     } else if (failed("Gain margin") || failed("Phase margin")) {
       moveToward(next, ranges, "kp", -0.1);
-      message = "A classical margin is below the frozen minimum. This draft lowers proportional gain. Run it to record the candidate.";
+      message = "Aims to improve stability margins.";
     }
   } else if (templateId === "active-filter") {
     if (failed("Passband peaking")) {
       moveToward(next, ranges, "gain", -0.1);
-      message = "Passband peaking exceeds the frozen limit. This draft lowers amplifier gain. Run it to record the candidate.";
+      message = "Aims to reduce passband peaking.";
     } else if (failed("Cutoff relative error")) {
       moveToward(next, ranges, "r", 0.1);
-      message = "Cutoff error exceeds the frozen tolerance. This draft raises resistance. Run it to record the candidate.";
+      message = "Aims to bring the cutoff closer to its target.";
     }
   }
   const changed = names.some((name) => Number.isFinite(next[name]) && Number.isFinite(current[name]) && Math.abs(next[name] - current[name]) > 1e-9);

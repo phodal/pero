@@ -88,7 +88,6 @@ function SourceExcerptComposer({ editor, initial, onConfirm, onCancel }: {
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
   return <Dialog title={t(initial?.excerpt ? 'update' : 'insert')} closeLabel={t('close')} onClose={onCancel}>
-    <p className="notebook-note">{t('scope')}</p>
     {!options.length && <Feedback kind="info">{t(context ? 'empty' : 'emptySection')}</Feedback>}
     <Field label={t('label')}>{control => <Input {...control} value={label} maxLength={200} onChange={event => setLabel(event.target.value)} />}</Field>
     <Select label={t('source')} placeholder={t('choose')} value={selected} options={options.map(item => ({ value: item.blockId, label: `${item.attachment.filename} · ${item.attachment.mime}` }))} onChange={id => void load(id)} />
@@ -102,7 +101,6 @@ function SourceExcerptComposer({ editor, initial, onConfirm, onCancel }: {
     }} />}
     {loaded && <>
       <Field label={t('full')}>{control => <Textarea {...control} ref={preview} readOnly rows={10} value={loaded.snapshot.text} />}</Field>
-      <p className="notebook-note">{t('rangeHelp')}</p>
       <Button onClick={() => {
         if (!preview.current) return;
         try { const range = sourceExcerptSelection(loaded.snapshot.text, preview.current.selectionStart, preview.current.selectionEnd); setStart(String(range.start)); setEnd(String(range.end)); setError(''); }
@@ -153,7 +151,6 @@ export function SourceExcerptView(view: NodeViewProps) {
     {!excerpt ? <p>{t(context ? 'empty' : 'emptySection')}</p> : <>
       {validShape && <><blockquote className="notebook-snapshot-quote" style={{ whiteSpace: 'pre-wrap' }}>{excerpt.quote}</blockquote><p>{excerpt.source.filename} · [{excerpt.start}, {excerpt.end})</p></>}
       {failed === excerpt ? <Feedback kind="error">{t('invalid')}</Feedback> : <Feedback kind={current ? 'success' : 'info'}>{t(current ? 'verified' : 'checking')}</Feedback>}
-      <p className="notebook-note">{t('provenance')}</p>
       {availability && <p role="status">{t(availability === 'missing' && !context ? 'missingSection' : availability)}</p>}
       <div className="notebook-science-actions"><Button disabled={!current} onClick={download}>{t('download')}</Button>
         {availability === 'available' && current && <Button onClick={() => {

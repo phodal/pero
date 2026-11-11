@@ -9,7 +9,7 @@ export async function openNotebookMenu(page, menu) {
   return details;
 }
 
-/** Workspace views live in the View menu. Review sections stay direct tabs. */
+/** Workspace views live in the View menu. */
 export async function openNotebookView(page, name) {
   const tab = page.getByRole('tab', { name, exact: true });
   if (!(await tab.isVisible())) await openNotebookMenu(page, 'view');

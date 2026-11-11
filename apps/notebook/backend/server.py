@@ -99,6 +99,9 @@ def handler(store, secret):
         def do_POST(self):
             self.dispatch(self.post)
 
+        def do_DELETE(self):
+            self.dispatch(self.delete)
+
         def dispatch(self, route):
             if not token or not hmac.compare_digest(token, self.headers.get('X-Pero-App-Token', '').encode('latin1')):
                 return self.error(401, 'unauthorized', 'Host authentication required')
@@ -250,6 +253,13 @@ def handler(store, secret):
                 revision = integer(data['baseRevision'], 'base revision')
                 document = NotebookDocument.parse(data['document'])
                 return self.reply(200, store.commit(match[1], revision, lambda _previous: document).wire())
+            return self.error(404, 'not-found', 'Route not found')
+
+        def delete(self):
+            match = ENTRY_PATH.fullmatch(self.path)
+            if match and not match[2]:
+                store.delete(match[1])
+                return self.reply(200, {'deleted': True, 'id': match[1]})
             return self.error(404, 'not-found', 'Route not found')
 
     return Handler

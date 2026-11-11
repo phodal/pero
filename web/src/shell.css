@@ -1,22 +1,52 @@
 @import "../../packages/pero-design/src/tokens.css";
 
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 system-ui, sans-serif; }
-#loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) system-ui, sans-serif; color: var(--pero-text-muted); background: var(--pero-material-chrome); }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif); color: var(--pero-text-muted); background: var(--pero-material-chrome); }
 canvas { display: block; }
 body > input, body > textarea { font-size: var(--pero-font-body); }
 #pero-app-surface { position: fixed; z-index: 2; background: var(--pero-material-chrome); overflow: hidden; }
 #pero-app-surface[hidden], #pero-app-surface .app-panel-surface[hidden], #pero-app-surface iframe[hidden], .app-panel-status[hidden] { display: none; }
 #pero-app-surface iframe { display: block; width: 100%; height: 100%; border: 0; }
-.app-panel-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--pero-spacing-3); background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body) system-ui, sans-serif; padding: var(--pero-spacing-6); }
-.app-panel-status[data-preparation] { flex-direction: column; text-align: center; }
-.app-panel-status[data-preparation] p { max-width: 440px; margin: 0; line-height: 1.5; }
-.app-panel-status[data-preparation] details { max-width: min(560px, 100%); text-align: left; overflow-wrap: anywhere; }
-.app-panel-status[data-preparation] pre { white-space: pre-wrap; font-size: 12px; }
-.app-panel-status button { box-sizing: border-box; min-height: var(--pero-control-height); padding: 0 var(--pero-spacing-3); border: 0; border-radius: var(--pero-radius-button); color: var(--pero-on-action); background: var(--pero-action); cursor: pointer; }
+.app-panel-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; overflow: auto; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); padding: var(--pero-spacing-6); }
+.app-panel-status-card {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pero-spacing-5);
+  width: min(520px, 100%);
+  margin-block: auto;
+  padding: calc(2 * var(--pero-spacing-6)) var(--pero-spacing-6);
+  border-radius: var(--pero-radius-panel);
+  background: var(--pero-tint-blue-surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.app-panel-status-kicker { color: var(--pero-tint-blue-text); font-size: var(--pero-font-caption); font-weight: 500; }
+.app-panel-status-card strong { font-size: var(--pero-font-title); font-weight: 600; }
+.app-panel-status-card [role="alert"] { color: var(--pero-error); }
+.app-panel-status-card p { max-width: 360px; margin: 0; color: var(--pero-text-muted); }
+.app-panel-status-card details { max-width: 100%; text-align: left; }
+.app-panel-status-card pre { box-sizing: border-box; max-height: 240px; overflow: auto; padding: var(--pero-spacing-3); white-space: pre-wrap; font-size: var(--pero-font-caption); background: var(--pero-surface-muted); }
+.app-panel-status-motif { display: flex; align-items: center; gap: var(--pero-spacing-3); }
+.app-panel-status-motif span { display: grid; place-items: center; box-sizing: border-box; width: 40px; aspect-ratio: 1; border-radius: var(--pero-radius-selection); border: 1px solid var(--pero-border); background: var(--pero-surface); color: var(--pero-tint-blue-text); }
+.app-panel-status-motif span:nth-child(2) { width: 56px; }
+.app-panel-status-motif span::before { content: ""; width: 45%; aspect-ratio: 1; background: currentColor; mask: var(--panel-icon) center / contain no-repeat; }
+.app-panel-status-motif span:nth-child(1) { --panel-icon: url('/icons/clock.svg'); }
+.app-panel-status-motif span:nth-child(2) { --panel-icon: url('/icons/devices.svg'); }
+.app-panel-status-motif span:nth-child(3) { --panel-icon: url('/icons/file-text.svg'); }
+.app-panel-status-spinner { box-sizing: border-box; width: 22px; aspect-ratio: 1; border: 2px solid var(--pero-tint-blue-soft); border-top-color: var(--pero-tint-blue-strong); border-radius: 50%; }
+@media (prefers-reduced-motion: no-preference) {
+  .app-panel-status-spinner { animation: app-panel-spin 900ms linear infinite; }
+}
+@keyframes app-panel-spin { to { transform: rotate(1turn); } }
+.app-panel-status button { box-sizing: border-box; min-height: var(--pero-control-height); padding: 0 var(--pero-spacing-3); border: 0; border-radius: var(--pero-radius-button); color: var(--pero-on-action); background: var(--pero-action); font: inherit; cursor: pointer; }
 .app-panel-status button:hover { background: var(--pero-action-hover); }
-.app-panel-status button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
+.app-panel-status button:disabled { opacity: 0.6; cursor: default; }
+.app-panel-status :is(button, summary):focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 
-.app-preparation { position: fixed; z-index: 100; right: 12px; bottom: 12px; box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--pero-surface); color: var(--pero-text); border: 1px solid var(--pero-border); font: 14px system-ui, sans-serif; }
+.app-preparation { position: fixed; z-index: 100; right: 12px; bottom: 12px; box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; background: var(--pero-surface); color: var(--pero-text); border: 1px solid var(--pero-border); font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif); }
 .app-preparation[hidden] { display: none; }
 .app-preparation-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .app-preparation p { margin: 12px 0; overflow-wrap: anywhere; }

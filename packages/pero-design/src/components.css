@@ -11,7 +11,7 @@
   border-radius: var(--pero-radius-selection);
   background: transparent;
   color: var(--pero-text);
-  font: var(--pero-font-body) system-ui, sans-serif;
+  font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif);
   text-align: start;
   cursor: pointer;
 }
@@ -55,10 +55,10 @@
 .pero-library-heading { min-width: 0; flex: 1 1 16rem; }
 .pero-library-heading h1 {
   margin: 0;
-  font: 600 var(--pero-font-title)/1.25 system-ui, sans-serif;
+  font: 600 var(--pero-font-title)/1.25 var(--pero-font-family-sans, system-ui, sans-serif);
   overflow-wrap: anywhere;
 }
-.pero-library-heading p { margin: 2px 0 0; font: var(--pero-font-label)/1.3 system-ui, sans-serif; color: var(--pero-text-muted); }
+.pero-library-heading p { margin: 2px 0 0; font: var(--pero-font-label)/1.3 var(--pero-font-family-sans, system-ui, sans-serif); color: var(--pero-text-muted); }
 .pero-library-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-icon-gap); flex-shrink: 0; max-width: 100%; }
 .pero-ui-page-header { width: 100%; max-width: var(--pero-page-width); margin-inline: auto; }
 
@@ -118,7 +118,7 @@
   border-radius: var(--pero-radius-badge);
   background: color-mix(in oklab, var(--pero-text) 8%, transparent);
   color: var(--pero-text-muted);
-  font: 500 var(--pero-font-label)/1.5 system-ui, sans-serif;
+  font: 500 var(--pero-font-label)/1.5 var(--pero-font-family-sans, system-ui, sans-serif);
 }
 .pero-badge[data-tone=info] { color:var(--pero-info); background:var(--pero-info-bg); }
 .pero-badge[data-tone=success] { color:var(--pero-success); background:var(--pero-success-bg); }
@@ -135,11 +135,11 @@
   border-radius: var(--pero-radius-kbd);
   background: var(--pero-surface-muted);
   color: var(--pero-text-muted);
-  font: var(--pero-font-label) system-ui, sans-serif;
+  font: var(--pero-font-label) var(--pero-font-family-sans, system-ui, sans-serif);
 }
 
 .pero-settings { min-width: 0; color: var(--pero-text); }
-.pero-settings-label { margin: 0 0 var(--pero-spacing-2); font: 500 var(--pero-font-label)/1.3 system-ui, sans-serif; color: var(--pero-text-muted); }
+.pero-settings-label { margin: 0 0 var(--pero-spacing-2); font: 500 var(--pero-font-label)/1.3 var(--pero-font-family-sans, system-ui, sans-serif); color: var(--pero-text-muted); }
 .pero-settings-panel { min-width: 0; }
 .pero-settings-panel > * { padding: var(--pero-spacing-2) 0; }
 .pero-settings-row {
@@ -159,7 +159,7 @@
   border-radius: var(--pero-radius-button);
   background: var(--pero-material-reading);
   color: var(--pero-role-text);
-  font: var(--pero-font-body) system-ui, sans-serif;
+  font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif);
 }
 .pero-search-field:focus-visible { outline: var(--pero-border-width-thin, 1px) solid var(--pero-text-muted); outline-offset: calc(-1 * var(--pero-border-width-thin, 1px)); }
 .pero-search-field[aria-invalid=true] { border-color: var(--pero-error); }

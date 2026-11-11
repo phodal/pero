@@ -7,7 +7,7 @@ import { rememberWidgetFocus } from './block-order';
 export const notebookCodeLanguages = ['plaintext', 'python', 'javascript'] as const;
 const messages = {
   language: { en: 'Code language', zh: '代码语言' },
-  code: { en: 'Code source (not executed)', zh: '代码内容（不执行）' },
+  code: { en: 'Code', zh: '代码' },
   plaintext: { en: 'Plain text', zh: '纯文本' },
   remove: { en: 'Remove code block', zh: '删除代码块' },
 };
@@ -35,6 +35,15 @@ function CodeBlockView(view: NodeViewProps) {
   </NodeViewWrapper>;
 }
 
+/** TipTap mounts a content hole for non-leaf React node views. CodeMirror owns
+ * the editable surface, so detach that hole or ProseMirror mirrors the source above it. */
+function codeBlockNodeView(props: Parameters<ReturnType<typeof ReactNodeViewRenderer>>[0]) {
+  const nodeView = ReactNodeViewRenderer(CodeBlockView)(props);
+  nodeView.contentDOM?.remove();
+  Object.defineProperty(nodeView, 'contentDOM', { get: () => null });
+  return nodeView;
+}
+
 /** Keep StarterKit's text model, commands, fenced input and HTML exchange. No execution authority. */
 export const NotebookCodeBlock = CodeBlock.extend({
   addAttributes() {
@@ -48,5 +57,5 @@ export const NotebookCodeBlock = CodeBlock.extend({
       rendered: false,
     } };
   },
-  addNodeView() { return ReactNodeViewRenderer(CodeBlockView); },
+  addNodeView() { return codeBlockNodeView; },
 });
