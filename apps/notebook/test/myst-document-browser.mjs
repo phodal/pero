@@ -91,10 +91,15 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
     '    orcid: 0000-0000-0000-0001', '    affiliations: [example-lab]',
     'affiliations:', '  - id: example-lab', '    name: Example Institute',
     'doi: 10.5555/example-myst-browser', 'license: CC-BY-4.0',
+    'abbreviations:', '  DNA: Deoxyribonucleic acid',
     'plugins:', '  - https://myst-resource.invalid/plugin.js', '---', '',
     '# Local science', '', 'Inline $x^2$ and **observations**.', '',
     '```{math}', ':label: eq-growth', 'N(t) = N_0 e^{rt}', '```', '',
     'See {eq}`eq-growth`.', '', '```{note}', 'Keep the control.', '```', '',
+    ':::{prf:theorem} Growth **bound**', ':label: growth-bound', '',
+    'The population remains bounded.', ':::', '', 'See {numref}`growth-bound`.', '',
+    '```{glossary}', 'Genome', ': The complete genetic material.', '```', '',
+    'Study {term}`Genome` with DNA and {abbr}`RNA (Ribonucleic acid)`.', '',
     '| Sample | Count |', '| --- | --- |', '| A | 42 |', '',
     '![Remote image](https://myst-resource.invalid/figure.png)', '',
     '```{include} https://myst-resource.invalid/include.md', '```', '',
@@ -124,6 +129,18 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(iframe).toHaveAttribute('sandbox', '');
   await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');
   const preview = page.frameLocator('iframe[title="MyST preview"]');
+  const expectScientificText = async surface => {
+    await expect(surface.getByText('Theorem 1 (Growth bound)', { exact: true })).toBeVisible();
+    await expect(surface.getByText('The population remains bounded.', { exact: true })).toBeVisible();
+    await expect(surface.getByRole('link', { name: 'Theorem 1', exact: true })).toHaveAttribute('href', /#myst-growth-bound$/);
+    await expect(surface.locator('dt')).toHaveText('Genome');
+    await expect(surface.locator('dd')).toHaveText('The complete genetic material.');
+    await expect(surface.getByRole('link', { name: 'Genome', exact: true })).toHaveAttribute('href', /#myst-term-genome$/);
+    await expect(surface.getByText('Study Genome with DNA and RNA.', { exact: true })).toBeVisible();
+    await expect(surface.locator('abbr[title="Deoxyribonucleic acid"]')).toHaveText('DNA');
+    await expect(surface.locator('abbr[title="Ribonucleic acid"]')).toHaveText('RNA');
+  };
+  await expectScientificText(preview);
   await expect(preview.getByRole('heading', { name: 'Revised local science', exact: true })).toBeVisible();
   await expect(preview.getByRole('heading', { name: 'Scientific browser fixture', exact: true })).toHaveCount(1);
   await expect(preview.getByRole('list', { name: 'Authors', exact: true })).toContainText('Example Researcher');
@@ -154,6 +171,7 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await page.reload();
   await english();
   await expect(editor).toHaveValue(edited);
+  await expectScientificText(preview);
   await expect(preview.getByRole('heading', { name: 'Revised local science', exact: true })).toBeVisible();
 
   for (const [button, name] of [['Download source', 'document.myst'], ['Download MyST bundle', 'document.myst.json'], ['Download HTML', 'document.html']]) {
@@ -173,6 +191,16 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
       assert.match(text, /default-src 'none'/);
       assert.match(text, /<math[ >]/);
       assert.match(text, /Revised local science/);
+      // Inspect the publication body, never the preserved source disclosure.
+      const visible = await page.evaluate(html => {
+        const document = new DOMParser().parseFromString(html, 'text/html');
+        document.querySelectorAll('details.source').forEach(node => node.remove());
+        return document.body.textContent.replace(/\s+/g, ' ');
+      }, text);
+      for (const content of ['Theorem 1 (Growth bound)', 'The population remains bounded.',
+        'See Theorem 1.', 'Genome', 'The complete genetic material.', 'Study Genome with DNA and RNA.']) {
+        assert.ok(visible.includes(content), `Missing from HTML publication: ${content}`);
+      }
       assert.doesNotMatch(text, /<script[ >]|<img[ >]/i);
     }
   }
@@ -191,6 +219,7 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await page.getByRole('button', { name: 'Print publication / Save as PDF', exact: true }).click();
   const print = page.locator('.notebook-print-output[data-publication="myst"]');
   await expect(print.locator('math')).toHaveCount(2);
+  await expectScientificText(print);
   await expect(print.locator('textarea, iframe, .source')).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Print', exact: true }).click();
   assert.equal(await page.evaluate(() => globalThis.publicationPrintInvoked), true);
@@ -207,6 +236,10 @@ assert len(d) > 0
 text = "".join(p.get_textpage().get_text_range() for p in d)
 assert "Scientific browser fixture" in text
 assert "Existing notebook text stays" not in text
+visible = " ".join(text.split())
+for content in ["Theorem 1 (Growth bound)", "The population remains bounded.",
+                "See Theorem 1.", "Genome", "The complete genetic material.", "Study Genome with DNA and RNA."]:
+    assert content in visible, f"Missing from printed PDF: {content}"
 page = d[len(d) - 1]
 text_page = page.get_textpage()
 rects = [text_page.get_rect(i) for i in range(text_page.count_rects())]
