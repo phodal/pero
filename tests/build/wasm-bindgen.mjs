@@ -47,6 +47,7 @@ for (const [name, probe, reinstall] of cases) {
         'install', 'wasm-bindgen-cli', '--version', '0.2.127', '--locked', '--force', '--root', `${root}/target/tools`,
       ]]] : []);
       assert.ok(calls.some(([command]) => command.endsWith(process.platform === 'win32' ? 'wasm-bindgen.exe' : 'wasm-bindgen')), 'build continues to generate Wasm bindings');
+      assert.deepEqual(calls.filter(([command]) => command === 'rustup'), [['rustup', ['target', 'add', '--toolchain', 'nightly-2026-10-28', 'wasm32-unknown-unknown']]]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

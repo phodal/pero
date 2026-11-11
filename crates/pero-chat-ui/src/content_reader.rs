@@ -104,6 +104,7 @@ pub struct ContentReader {
     copied: bool,
     window: AnyWindowHandle,
     bounds: crate::view_bounds::ViewBounds,
+    copy_bounds: crate::view_bounds::ViewBounds,
     focus_handle: FocusHandle,
 }
 
@@ -171,6 +172,7 @@ impl ContentReader {
             copied: false,
             window: window.window_handle(),
             bounds: Default::default(),
+            copy_bounds: Default::default(),
             focus_handle: cx.focus_handle(),
         };
         this.refresh_projection(false, window, cx);
@@ -217,7 +219,7 @@ impl ContentReader {
 
     pub fn snapshot(&self, cx: &App) -> serde_json::Value {
         let preview_offset = self.preview_scroll.offset();
-        serde_json::json!({"bounds":self.bounds.snapshot(),"id":self.document.id,"revision":self.document.revision,"bytes":self.document.bytes,
+        serde_json::json!({"bounds":self.bounds.snapshot(),"copy":self.copy_bounds.snapshot(),"id":self.document.id,"revision":self.document.revision,"bytes":self.document.bytes,
             "dirty":self.dirty,"saving":self.saving,"fileError":self.file_error,"confirmClose":self.discard.is_some(),"editable":self.editable(),"markdown":self.markdown.is_some(),"workspace":self.placement==ReaderPlacement::Workspace,"source":self.source,"editor":self.editor.is_some(),"rows":self.preview.as_ref().map(|p|p.rows.len()).ok(),
             "table":self.table.as_ref().map(|table|table.read(cx).snapshot(cx)),
             "columns":self.preview.as_ref().map(|p|p.columns.len()).ok(),"previewLoading":self.preview_loading,"error":self.preview.as_ref().err().filter(|_|!self.preview_loading),

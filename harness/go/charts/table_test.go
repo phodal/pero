@@ -9,6 +9,35 @@ import (
 	"testing"
 )
 
+func TestTableMethodAndOriginStayDeclarations(t *testing.T) {
+	source := `[{"method":"A","n":1},{"method":"B","n":null}]`
+	quoted, _ := json.Marshal(source)
+	input := fmt.Sprintf(`{"dataset":{"name":"results.json","format":"json","content":%s},"tableDocument":{"title":"Results","method":"mean of the saved samples","valueOrigin":"calculated","columns":[{"field":"method"},{"field":"n","unit":"1"}]}}`, string(quoted))
+	output, err := Render(context.Background(), "python3", json.RawMessage(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var receipt struct{ Content string }
+	if json.Unmarshal(output, &receipt) != nil {
+		t.Fatal("receipt")
+	}
+	var table struct {
+		Method, ValueOrigin string
+		Rows                [][]struct{ Kind, Display string }
+	}
+	if json.Unmarshal([]byte(receipt.Content), &table) != nil {
+		t.Fatal(receipt.Content)
+	}
+	if table.Method != "mean of the saved samples" || table.ValueOrigin != "calculated" || table.Rows[1][1].Kind != "null" || table.Rows[1][1].Display == "0" {
+		t.Fatalf("method, origin, or null changed: %s", receipt.Content)
+	}
+	changed := strings.Replace(input, "calculated", "reported", 1)
+	again, err := Render(context.Background(), "python3", json.RawMessage(changed))
+	if err != nil || string(again) == string(output) {
+		t.Fatal("a different declaration must be a different receipt")
+	}
+}
+
 func TestExperimentalTable(t *testing.T) {
 	source := `[{"method":"A","n":9007199254740993,"error":0.0100},{"method":"B","n":0,"error":null},{"method":"C","n":2}]`
 	request := func(source, columns, view string) string {
