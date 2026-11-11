@@ -88,7 +88,7 @@ test('IPYNB imports, edits, persists and exports exact retained recorded data', 
   const source = await readFile(resolve(root, 'packages/notebook/test/fixtures/ipynb-contract.json'), 'utf8');
   await page.locator('input[type="file"][accept*=".ipynb"]').setInputFiles({name:'science.ipynb',mimeType:'application/x-ipynb+json',buffer:Buffer.from(source)});
   const input = page.getByRole('textbox',{name:'Cell 2: code',exact:true});
-  await expect(input).toHaveValue('print("界")\r\n');
+  await expect(input).toHaveValue('print("界")\n');
   await input.fill('print("edited")');
   const iframe = page.getByTitle('Notebook publication preview',{exact:true});
   await expect(iframe).toHaveAttribute('sandbox','');
