@@ -16,6 +16,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 root = Path(sys.argv[1]).resolve()
 if os.environ.get('PERO_SCIENTIFIC_USE_ADDRESS'):
@@ -135,13 +136,23 @@ try:
     assert all(t['status'] != 'running' for t in stopped['trials'])
     assert service.poll() is None
     if shutil.which('ngspice'):
+        circuit_trial = request('/api/experiments', {'templateId':'active-filter','candidateBudget':1}, 201)
+        action(circuit_trial, 'baseline')
+        circuit_trial = finished(circuit_trial)
+        assert all(trial['status']=='completed' for trial in circuit_trial['trials']), circuit_trial
+        native_export = request('/api/experiments/' + circuit_trial['id'] + '/export')
+        native_use = json.loads(next(a['text'] for a in native_export['artifacts'] if a['name']=='environment-use.json'))
+        assert native_use['use']['state']=='Released', native_use
+        observed_native = native_use['use']['request']['snapshot']['binding']['profile']['observation']['components']['ngspice']
+        assert observed_native['program']['sha256']==circuit_trial['nativeExecutable']['sha256']
+        (root/'managed-circuit.json').write_text(json.dumps(native_export))
         # Reproduce the actual orphan case: native computation outlives SIGKILL
         # of its Python parent. The Rust owner must refuse a false release.
         sys.path.insert(0, str(repository / 'apps/control-lab/backend'))
         from pero_scientific import ScientificUse
         from control_lab.native_executable import NativeExecutable
         native = NativeExecutable.observe()
-        orphan = root / 'native-orphan-use'
+        orphan = root / ('native-orphan-' + uuid.uuid4().hex)
         orphan.mkdir(exist_ok=True)
         circuit = orphan / 'long.cir'
         circuit.write_text('native stop check\nV1 in 0 DC 1\nR1 in 0 1k\n.control\nrepeat 10000000\nop\nend\n.endc\n.end\n')

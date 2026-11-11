@@ -57,16 +57,53 @@ an explicit confirmation because this stops that App's current calculations.
 Bound software cannot be modified in place. Create a new environment to change it.
 Control and Circuit share Control Lab's App-wide interpreter binding.
 
-This is local App runtime binding, not independent per-attempt compute or managed
+The App environments tab is local App runtime binding, not independent per-attempt compute or managed
 EnvironmentUse admission. PC-Gym source checkout and scientific approvals retain
 their existing configuration and owners; installing packages does not authorize
 training or establish scientific acceptance. Python transitive dependencies are
 resolved by uv, not a complete cross-platform artifact lock.
 
+## Locked scientific computation
+
+The Compute tab prepares independent Control Lab or PC-Gym profiles. It saves
+the exact uv/Python download identities, generated project, full native uv lock,
+observed interpreter/build and distribution-file digest. Prepare publishes a new
+prefix only after import/content checks; rebuild copies the same lock into another
+prefix. Selecting compute does not restart the App service. A published profile is
+immutable, and an existing experiment/specification refuses a different profile.
+
+Preparation can be cancelled. Failures retain their bootstrap, resolution,
+installation, observation, cancellation or interruption stage and diagnostics.
+The current binding is preserved. A cancelled download of the bootstrap uv archive
+can finish its bounded HTTP request before cancellation is observed; uv installation
+subprocess groups are stopped at the next poll. Retry is explicit.
+
+Original Control Store and PC-Gym CLI owners still control attempts. The Host's
+private loopback bridge records the existing EnvironmentUse transitions, checks
+the original Paper approval, verifies scientific child parent/process-group ownership,
+and releases only after the entire registered scientific group is absent. App
+shutdown also stops registered scientific groups. Restart reconciles saved records
+without replay. Receipts accompany attempt exports. Native ngspice remains an
+observed executable, with frozen path/version/content identity, not a reproducible
+native installation.
+
+Review project declarations reads only `pyproject.toml`, `uv.lock`, `.python-version`
+and `requirements.txt` from a local directory or GitHub URL pinned to a full commit.
+It produces a review proposal with source digests and unresolved requirements;
+it does not import project code, run build hooks or install dependencies.
+This inspection requires an existing Python 3.11+ interpreter.
+
+All supported Desktop uv archives are fixed and verified; locked compute
+preparation currently supports macOS arm64 and Linux x86_64. Linux PC-Gym uses
+the explicit official CPU PyTorch index. See [production verification](../../docs/fitness/uv-scientific-production.md)
+for observed acceptance and remaining platform scope.
+
 ## Build and validate in the repository
 
 ```sh
 npm run gen:contracts
+node scripts/build/scientific-runtime.mjs
+node scripts/build/source-parsers.mjs
 npm run check
 node --test packages/app-sdk/test/environments.test.mjs
 node --experimental-strip-types --test desktop/src/main/environment-inspection.test.ts
@@ -76,6 +113,7 @@ node scripts/build/apps.mjs --app environments
 node scripts/build/apps.mjs --app paper-agent
 node scripts/build/apps.mjs --app control-lab
 npm --prefix apps/environments run check
+python3 -m unittest discover -s packages/scientific-runtime/test
 PERO_ENVIRONMENTS_TEST_VENV=/absolute/path/to/existing/venv node tests/e2e/environments.mjs
 ```
 
