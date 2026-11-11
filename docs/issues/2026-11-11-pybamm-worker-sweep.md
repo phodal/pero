@@ -235,3 +235,28 @@ GitHub #59 remains open for parent review; this worktree does not push, merge or
 close it. Two independent execution environments and network recovery are now
 observed, while battery experimental accuracy, production HTTPS deployment,
 packaged installation and Electron/Native acceptance remain unverified.
+
+## Independent review found an ACP failure-reporting gap
+
+Parent replay `test-results/pybamm-59-vm/parent-review-1/` timed out after 180 s:
+Linux completed its first item, while the macOS ACP had created an empty attempt
+directory, had no calculation child, and waited on stdin. Native process samples
+(`acp-sample.txt`, `executor-sample.txt`) and the original Worker journal remain.
+The original exception type was not recorded and cannot be recovered from that
+terminated process. The immediate trigger therefore remains undetermined.
+
+The observed failure path exposed a concrete protocol gap: `execute` ran as a
+background task, and a process/filesystem exception could finish that task without
+settling `session/prompt`. ACP now records `PERO_PYBAMM_ERROR` with the exception
+type/message and returns the existing JSON-RPC error for that request. Execution
+and Run state still belong to the existing Worker. No scientific method bytes,
+comparison tolerance, Worker binary or scheduler changed.
+
+A real pipe/process test drives missing-executable and blocked-output-directory
+failures. Both now produce an error notice and response, then exit cleanly on EOF;
+the prior revision hangs for both cases. This demonstrates the reporting defect,
+not that either injected error was the original parent's trigger. Evidence:
+`acp-failure-tests.log` (5/5 template tests) and `acp-baseline-failure.log`.
+The complete new two-machine run `diagnostic-1/receipt.json` passed 6/6 with the
+same cancellation/network-loss/recovery checks. Its logs and failed parent attempt
+remain separate; the parent should replay into another new output directory.

@@ -28,28 +28,34 @@ async def serve(workspace: Path):
 
     async def execute(request_id, experiment):
         nonlocal process
-        output = workspace / 'pybamm-results' / session
-        output.mkdir(parents=True, exist_ok=False)
-        result_path = output / 'result.jsonl'
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, str(ROOT / 'run.py'), experiment, str(result_path),
-            cwd=workspace, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        notice('PERO_PYBAMM_START ' + json.dumps({'experiment': experiment, 'pid': process.pid, 'session': session}))
-        stdout, stderr = await process.communicate()
-        (output / 'stdout.log').write_bytes(stdout)
-        (output / 'stderr.log').write_bytes(stderr)
-        notice('PERO_PYBAMM_STOP ' + json.dumps({'pid': process.pid, 'exit_code': process.returncode,
-               'cancelled': cancelled, 'stdout': stdout.decode(errors='replace')[-4000:],
-               'stderr': stderr.decode(errors='replace')[-4000:]}))
-        if cancelled:
-            send({'id': request_id, 'result': {'stopReason': 'cancelled'}})
-        elif process.returncode:
-            send({'id': request_id, 'error': {'code': -32603, 'message': 'Frozen calculation failed; see persisted process log'}})
-        else:
-            content = result_path.read_text()
-            notice(PREFIX + encoded({'sha256': digest(content.encode()), 'content': content,
-                                    'path': str(result_path.relative_to(workspace)), 'session': session}).decode())
-            send({'id': request_id, 'result': {'stopReason': 'end_turn'}})
+        try:
+            output = workspace / 'pybamm-results' / session
+            output.mkdir(parents=True, exist_ok=False)
+            result_path = output / 'result.jsonl'
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, str(ROOT / 'run.py'), experiment, str(result_path),
+                cwd=workspace, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            notice('PERO_PYBAMM_START ' + json.dumps({'experiment': experiment, 'pid': process.pid, 'session': session}))
+            stdout, stderr = await process.communicate()
+            (output / 'stdout.log').write_bytes(stdout)
+            (output / 'stderr.log').write_bytes(stderr)
+            notice('PERO_PYBAMM_STOP ' + json.dumps({'pid': process.pid, 'exit_code': process.returncode,
+                   'cancelled': cancelled, 'stdout': stdout.decode(errors='replace')[-4000:],
+                   'stderr': stderr.decode(errors='replace')[-4000:]}))
+            if cancelled:
+                send({'id': request_id, 'result': {'stopReason': 'cancelled'}})
+            elif process.returncode:
+                send({'id': request_id, 'error': {'code': -32603, 'message': 'Frozen calculation failed; see persisted process log'}})
+            else:
+                content = result_path.read_text()
+                notice(PREFIX + encoded({'sha256': digest(content.encode()), 'content': content,
+                                        'path': str(result_path.relative_to(workspace)), 'session': session}).decode())
+                send({'id': request_id, 'result': {'stopReason': 'end_turn'}})
+        except Exception as error:
+            # A background task must settle its ACP request even when process I/O fails.
+            failure = f'{type(error).__name__}: {error}'
+            notice('PERO_PYBAMM_ERROR ' + json.dumps({'error': failure}))
+            send({'id': request_id, 'error': {'code': -32603, 'message': failure}})
 
     async def stop():
         nonlocal cancelled
