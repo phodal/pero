@@ -74,7 +74,7 @@ test('scoped commands preserve widget/native/IME/modal keys and symbol command u
   const press = async (target: Element, key: string, extra = {}) => { let event: any; await React.act(async () => { event = new dom.window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, ctrlKey: true, key, ...extra }); target.dispatchEvent(event); }); return event.defaultPrevented; };
   assert.equal(await press(editor.view.dom, '\\'), true); assert.deepEqual(calls, ['section']);
   assert.equal(await press(scope.querySelector('#widget')!, '\\'), false); assert.equal(await press(editor.view.dom, '\\', { isComposing: true }), false);
-  assert.equal(await press(editor.view.dom, 's'), true); assert.equal(await press(editor.view.dom, 's', { shiftKey: true }), true); assert.equal(await press(editor.view.dom, 'p'), true);
+  assert.equal(await press(editor.view.dom, 's'), true); assert.equal(await press(editor.view.dom, 's', { shiftKey: true }), false); assert.equal(await press(editor.view.dom, 'p'), true);
   assert.deepEqual(calls, ['section', 'save', 'print']);
   await React.act(async () => editor.commands.setTextSelection(3));
   assert.equal(await press(editor.view.dom, ';'), true); assert.match(document.querySelector('dialog')!.textContent!, /Insert symbol/);
