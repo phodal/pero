@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { renderMystHtml } from '../src/myst-render.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeMystCitations, renderMystCitations } from '../src/myst-citations.ts';
@@ -28,6 +29,11 @@ test('real APA engine formats groups, locators, narrative cites and style-sorted
   assert.deepEqual(rendered.citationRendering?.bibliography.map(item => item.id), ['beta', 'alpha']);
   assert.match(rendered.citationRendering!.bibliography[0].html, /<i>Second study<\/i>/);
   assert.equal(rendered.source, source);
+  const html = renderMystHtml(rendered);
+  assert.match(html, /refkit-js@0\.4\.0/);
+  assert.match(html, /Jones, 2023; Smith, 2024, pp. 12–14/);
+  assert.equal((html.match(/aria-label="References"/g) ?? []).length, 1);
+  assert.doesNotMatch(renderMystHtml(rendered, { bibliography: false }), /aria-label="References"/);
   assert.equal(JSON.stringify(original), before);
 });
 

@@ -1,3 +1,4 @@
+import { renderMystCitationBibliography } from './myst-citation-render.ts';
 import type { MystScholarlyMetadata } from './myst-metadata.ts';
 import { mystAnchor } from './myst-project-references.ts';
 import { safeMystImageDataUri } from './myst-assets.ts';
@@ -17,6 +18,7 @@ code { font-family: ui-monospace, monospace; }
 blockquote, aside { margin: 1rem 0; border-inline-start: .2rem solid; padding: .25rem 1rem; }
 img { max-width: 100%; height: auto; }
 figure { margin: 1.5rem 0; }
+.csl-small-caps { font-variant: small-caps; }
 .byline { list-style: none; padding: 0; }
 .publication-metadata { margin-bottom: 2rem; }
 .metadata-label { font-weight: 600; }
@@ -54,7 +56,7 @@ function math(value: string, displayMode: boolean): string {
 
 /** A publication is inert, self-contained HTML. Use an empty iframe sandbox
  * for previews. Authored HTML, includes, plugins and code never execute. */
-export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean }
+export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean; bibliography?: boolean }
 export function renderMystHtml(document: MystDocument, options: MystHtmlOptions = {}): string {
   const notices = new Set<string>();
   const text = (node: MystNode, key: string) => typeof node[key] === 'string' ? node[key] as string : '';
@@ -141,11 +143,13 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
         return link(`#${anchor(target)}`, content);
       }
       case 'cite': {
+        const styled = document.citationRendering?.citations[text(node, 'citationId')];
+        if (styled) return styled.html;
         const target = text(node, 'target') || text(node, 'identifier') || text(node, 'label');
         if (!document.bibliography[target]) { notices.add(`Unresolved citation: ${target}`); return `<span>[${escapeMystHtml(target)}: unresolved]</span>`; }
         return link(`#${anchor(`citation-${target}`)}`, `[${escapeMystHtml(target)}]`);
       }
-      case 'citeGroup': return children();
+      case 'citeGroup': return document.citationRendering?.citations[text(node, 'citationId')]?.html ?? children();
       case 'comment': return '';
       case 'footnoteDefinition': return `<aside${id(node)}>${children()}</aside>`;
       case 'footnoteReference': return `<sup>${link(`#${anchor(text(node, 'identifier'))}`, escapeMystHtml(text(node, 'label') || text(node, 'identifier')))}</sup>`;
@@ -167,12 +171,13 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   const header = metadataResult.html;
   metadataResult.notices.forEach(notice => notices.add(notice));
 
-  const bibliography = Object.entries(document.bibliography).map(([key, entry]) => {
+  const bibliography = document.citationRendering || options.bibliography === false ? '' : Object.entries(document.bibliography).map(([key, entry]) => {
     const description = [entry.author, entry.year, entry.title].filter(Boolean).join('. ') || entry.id;
     return `<li id="${escapeMystHtml(anchor(`citation-${key}`))}">[${escapeMystHtml(entry.id)}] ${entry.url ? link(entry.url, escapeMystHtml(description)) : escapeMystHtml(description)}</li>`;
   }).join('');
+  const styledBibliography = options.bibliography !== false && document.citationRendering ? renderMystCitationBibliography(document.citationRendering, options.namespace) : '';
   const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
-  const content = `${header}${body}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
+  const content = `${header}${body}${styledBibliography}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
   if (options.fragment) return `<section id="${anchor('')}">${content}</section>`;
   return renderMystHtmlShell(title, content);
 }
