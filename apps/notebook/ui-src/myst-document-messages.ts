@@ -1,4 +1,5 @@
 export const mystMessages = {
+  printPublication: { en: 'Print publication / Save as PDF', zh: '打印出版物 / 另存为 PDF' },
   source: { en: 'MyST source', zh: 'MyST 源码' },
   preview: { en: 'MyST preview', zh: 'MyST 预览' },
   import: { en: 'Import MyST document', zh: '导入 MyST 文档' },

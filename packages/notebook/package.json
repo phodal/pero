@@ -56,7 +56,9 @@
     "./myst-bibliography": "./src/myst-bibliography.ts",
     "./myst-citations": "./src/myst-citations.ts",
     "./ipynb": "./src/ipynb.ts",
-    "./ipynb-visibility": "./src/ipynb-visibility.ts"
+    "./ipynb-visibility": "./src/ipynb-visibility.ts",
+    "./myst-publication-sdk": "./src/myst-publication-sdk.ts",
+    "./myst-publication": "./src/myst-publication.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

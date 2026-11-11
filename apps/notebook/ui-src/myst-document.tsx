@@ -1,4 +1,6 @@
 import { ipynbImportFormats } from '@pero/notebook/ipynb';
+import { mystCompiledPublicationFormats } from '@pero/notebook/myst-publication-sdk';
+import { openNotebookPublicationPrint } from './notebook-print';
 import { mystProjectImportFormats } from '@pero/notebook/myst-project-formats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
@@ -26,13 +28,18 @@ export function MystDocumentView(view: NodeViewProps) {
       return { document, html: renderMystHtml(document) };
     } catch { return null; }
   }, [source, view.node.attrs.schemaVersion]);
-  const download = (format: typeof mystExportFormats[number]) => {
+  const download = async (format: typeof mystExportFormats[number]) => {
     setError(''); setNotice('');
     try {
       if (!result && format.id !== 'source') return;
-      downloadFile(`document${format.extensions[0]}`, new TextEncoder().encode(format.serialize({ source })), format.mediaType);
+      downloadFile(`document${format.extensions[0]}`, new TextEncoder().encode(await format.serialize({ source })), format.mediaType);
       setNotice(t('downloaded'));
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
+  const publicationDownload = async (format: typeof mystCompiledPublicationFormats[number]) => {
+    if (!result) return; setError(''); setNotice('');
+    try { const content = await format.serialize({ document: result.document }); downloadFile(`document${format.extensions[0]}`, typeof content === 'string' ? new TextEncoder().encode(content) : new Uint8Array(content), format.mediaType); setNotice(t('downloaded')); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   };
   return <BlockFrame view={view} kind="mystDocument">
     <p>{t('boundaries')}</p>
@@ -45,6 +52,8 @@ export function MystDocumentView(view: NodeViewProps) {
     }} />}</Field>
     <div className="notebook-myst-actions">
       {mystExportFormats.map(format => <Button key={format.id} disabled={!result && format.id !== 'source'} onClick={() => download(format)}>{exportLabels[format.id] ? t(exportLabels[format.id]) : format.label}</Button>)}
+      {mystCompiledPublicationFormats.map(format => <Button key={format.id} disabled={!result} onClick={() => void publicationDownload(format)}>{format.label}</Button>)}
+      <Button disabled={!result} onClick={() => result && openNotebookPublicationPrint(result.html)}>{t('printPublication')}</Button>
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <p role="status">{notice}</p>}
