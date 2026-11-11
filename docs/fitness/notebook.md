@@ -632,3 +632,15 @@ retains desktop and narrow-screen screenshots plus scrolled scientific-reference
 views in light and dark themes. Use the PR's latest exact-head CI and screenshot
 artifact for the executed result; source changes alone do not establish visual
 or Desktop/Native acceptance.
+
+
+## Notebook UI audit repairs — 2026-11-11
+
+The [canonical repair record](../issues/2026-11-11-notebook-ui-audit.md) records
+visible draft/save feedback, responsive titles and menus, direct view navigation,
+neutral incomplete tables, step-first procedures, searchable navigation and fixed
+saved-evidence selection. Notebook editor tests passed 109/109; SDK Popover tests,
+Notebook/SDK typechecks, build and root checks passed. Browser inspection covered
+1280px and 440px widths, English/light and Chinese/dark, save/reload and exact
+snapshot retention. Pero Electron, Native and live Host integration remain
+unverified for these changes.
