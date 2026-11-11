@@ -152,8 +152,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
-      <SnapshotDetails snapshot={snapshot} />
-      <Disclosure variant="inline" summary={t('referenceDetails')}>{reference}</Disclosure>
+      <SnapshotDetails snapshot={snapshot} source={reference} />
     </>}
     {editable && <Disclosure variant="inline" className="notebook-reference-edit"
       summary={t(snapshot ? 'editReference' : 'attachSource')} open={editingReference}
@@ -203,9 +202,7 @@ export function FindingView(view: NodeViewProps) {
   const updateLink = (id: string, checked: boolean) => view.updateAttributes({
     evidenceIds: checked ? [...evidenceIds, id] : evidenceIds.filter(value => value !== id),
   });
-  const titleText = claim.trim();
-  const title = titleText ? (titleText.length > 80 ? `${titleText.slice(0, 80)}…` : titleText) : '';
-  return <BlockFrame view={view} kind="finding" title={title ? <strong>{title}</strong> : <span className="notebook-block-name" aria-hidden="true">&nbsp;</span>}>
+  return <BlockFrame view={view} kind="finding">
     <div className="notebook-reference-fields">
       <label className="notebook-field notebook-reference-wide">{t('claim')}
         <Textarea rows={2} maxLength={32768} readOnly={!editable} value={claim} onChange={event => view.updateAttributes({ claim: event.target.value })} />
