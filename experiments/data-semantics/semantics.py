@@ -2,6 +2,10 @@
 from dataclasses import dataclass
 import math
 import re
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps/data/backend"))
+from semantic_domain import ReadGrant
 
 
 @dataclass(frozen=True)
@@ -56,19 +60,6 @@ class QueryIntent:
         ):
             raise ValueError('Parameters must be finite scalar values')
         return cls(*(raw[key] for key in keys), tuple(params.items()))
-
-
-@dataclass(frozen=True)
-class ReadGrant:
-    actor: str
-    project: str
-    columns: tuple[tuple[str, tuple[str, ...]], ...]
-
-    def permits_read(self, table, column, database):
-        # SQLite reports no database for COUNT(*)'s column-less table read.
-        return (database == 'main' or (database is None and column == '')) and any(
-            table == name and (not column or column in fields) for name, fields in self.columns
-        )
 
 
 @dataclass(frozen=True)

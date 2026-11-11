@@ -7,6 +7,7 @@ import signal
 import threading
 
 from analysis import Analysis
+from semantic_queries import SemanticQueries
 from canvas import projection as canvas_projection, archive as canvas_archive, update as canvas_update, status as canvas_status
 from catalog import Catalog, IMPORT_LIMIT, ImportFile
 from datasets import DatasetEdit, PreviewRequest, SaveView
@@ -16,6 +17,7 @@ from sources import ResearchAsset, ResearchSelection
 
 def handler(downloads, secret):
     analysis = Analysis(downloads.catalog)
+    queries = SemanticQueries(downloads.catalog)
 
     def state():
         with downloads.catalog.lock:
@@ -50,7 +52,7 @@ def handler(downloads, secret):
                 if self.command == 'GET' and self.path.startswith('/api/chart/'):
                     return self.reply(200, analysis.read_chart(self.path.removeprefix('/api/chart/')))
                 routes = (
-                    '/api/import', '/api/download', '/api/cancel', '/api/inspect',
+                    '/api/queries', '/internal/research-query', '/api/import', '/api/download', '/api/cancel', '/api/inspect',
                     '/api/datasets/update', '/api/views', '/api/source', '/api/records', '/api/export',
                     '/api/chart', '/api/chart/validate', '/internal/canvas/dataset', '/internal/canvas/status', '/api/canvas/archive', '/api/canvas/update',
                     '/api/research-download', '/api/research-status', '/api/research-cancel',
@@ -61,7 +63,7 @@ def handler(downloads, secret):
                     raise ValueError('A JSON request with Content-Length is required')
                 limit = ((IMPORT_LIMIT + 2) // 3) * 4 + 4096 if self.path == '/api/import' else (
                     2 * 1024 * 1024 + 4096 if self.path in ('/api/chart', '/api/chart/validate', '/api/export') else (
-                        128 * 1024 if self.path in ('/api/inspect', '/api/views', '/api/records', '/api/source') else 8192))
+                        128 * 1024 if self.path in ('/api/inspect', '/api/views', '/api/records', '/api/source', '/api/queries') else 8192))
                 length = int(self.headers.get('Content-Length', 0))
                 if not 0 < length <= limit:
                     raise ValueError('Request exceeds its size limit (10 MiB for imported files)')
@@ -71,6 +73,14 @@ def handler(downloads, secret):
                 data = json.loads(raw)
                 if not isinstance(data, dict):
                     raise ValueError('Expected a JSON object')
+                if self.path == '/internal/research-query':
+                    if self.headers.get('X-Pero-Research-Internal') != '1':
+                        return self.reply(403, {'error': 'Private research metadata access required'})
+                    if data.get('operation') not in ('list', 'read'):
+                        raise ValueError('Paper can only reference saved Data queries')
+                    return self.reply(200, queries.request(data))
+                if self.path == '/api/queries':
+                    return self.reply(200, queries.request(data))
                 if self.path == '/internal/canvas/dataset':
                     return self.reply(200, canvas_projection(downloads.catalog, data))
                 if self.path == '/internal/canvas/status':

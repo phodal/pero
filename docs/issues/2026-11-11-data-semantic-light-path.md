@@ -37,3 +37,17 @@ Agent、权限 owner 或 Run。定义审查是本地 SQL/口径审查，不是�
 A/B/C 同模型同预算比较、实际 usage/维护成本、语义收益以及 P2 Paper/历史 UI 闭环仍未评估。
 生产租户权限、Vault、出网策略、完整服务部署和研究者接受尚未验证。暂不采纳完整上游服务；
 仅保留轻量定义/回执实验。该 issue 保持开放，不把 D 人工 SQL 正确率当成关闭依据。
+
+## 产品接线续作（2026-11-11，在隔离分支进行）
+
+范围扩展为现有 Data / Paper / research-assets 的产品轻路径；不建立第二个 Catalog、
+Agent、Run 或授权 owner。Data 新的 SemanticQueries 持有不可变投影、审查定义与回执；
+只读引擎由产品与原 D 实验共享。独立整表 count/sum/mean 直接读固定导出，以 Decimal
+复算，缺失原始导出会失败，历史读取本身不执行查询。更复杂 SQL 暂无通用独立检查器。
+
+Paper 只保存已有 ResearchClaim、冻结 PDF 的 SourceVersion 和 Data 对象 ID；
+Host 使用原 research-assets 授权能力取服务端回执。UI 使用共享组件新增 Data Queries
+和 Paper Data query evidence；原数据分析和手工研究记录仍保留。未引入新 token/局部控件样式。
+
+首次验证：Data 69 个测试、原离线概念 3 个测试通过。后续真实 Host/browser、
+评估驱动和部署边界结论将在本记录追加；目前不能宣称完整 P2 或真实 A/B/C 验收完成。
