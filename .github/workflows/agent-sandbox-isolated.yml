@@ -7,12 +7,13 @@ on:
     paths:
       - deployment/agent-sandbox/**
       - crates/pero-worker/**
+      - crates/pero-contracts/**
+      - crates/pero-runtime/**
+      - Cargo.toml
+      - Cargo.lock
+      - scripts/cargo.mjs
       - harness/go/**
-      - server/cmd/pero-agent-connect/**
-      - server/cmd/pero-acp-bridge/**
-      - server/cmd/pero-artifact-collector/**
-      - server/internal/sandbox/**
-      - server/internal/artifacts/s3/**
+      - server/**
       - .github/workflows/agent-sandbox-isolated.yml
 
 permissions:

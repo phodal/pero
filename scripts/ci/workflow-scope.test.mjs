@@ -103,12 +103,17 @@ test('Computer Use and Release triggers keep synchronize and do not limit themse
   const sandbox = YAML.parse(readFileSync('.github/workflows/agent-sandbox.yml', 'utf8'));
   const isolated = YAML.parse(readFileSync('.github/workflows/agent-sandbox-isolated.yml', 'utf8'));
   assert.deepEqual(sandbox.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
-  assert.ok(sandbox.on.pull_request.paths.includes('server/internal/sandbox/**'));
-  assert.equal(matchesPath('server/internal/sandbox/**', 'server/internal/sandbox/runtime.go'), true);
-  assert.equal(matchesPath('server/internal/sandbox/**', 'server/internal/httpapi/routes.go'), false);
-  assert.ok(isolated.on.pull_request.paths.includes('server/internal/artifacts/s3/**'));
-  assert.equal(matchesPath('server/internal/artifacts/s3/**', 'server/internal/artifacts/s3/store.go'), true);
-  assert.equal(matchesPath('server/internal/artifacts/s3/**', 'server/internal/artifacts/other.go'), false);
+  for (const workflow of [sandbox, isolated]) {
+    assert.ok(workflow.on.pull_request.paths.includes('server/**'));
+    assert.ok(workflow.on.pull_request.paths.includes('crates/pero-contracts/**'));
+    assert.ok(workflow.on.pull_request.paths.includes('crates/pero-runtime/**'));
+    assert.ok(workflow.on.pull_request.paths.includes('scripts/cargo.mjs'));
+  }
+  assert.equal(matchesPath('server/**', 'server/internal/httpapi/routes.go'), true);
+  assert.equal(matchesPath('server/**', 'server/internal/artifacts/s3/store.go'), true);
+  assert.equal(matchesPath('server/**', 'services/http.go'), false);
+  assert.equal(matchesPath('crates/pero-runtime/**', 'crates/pero-runtime/src/lib.rs'), true);
+  assert.equal(matchesPath('crates/pero-runtime/**', 'crates/pero-host/src/lib.rs'), false);
   assert.match(sandbox.jobs.kind.if, /agent-sandbox-e2e/);
   assert.match(isolated.jobs['isolated-kind'].if, /agent-sandbox-isolated-e2e/);
   assert.match(release.jobs.build.if, /pull_request/);
