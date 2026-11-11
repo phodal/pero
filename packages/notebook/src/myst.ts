@@ -1,3 +1,5 @@
+import type { MystProjectReferenceTarget } from './myst-project-references.ts';
+import type { MystImageData } from './myst-assets.ts';
 import type { MystIncludeProvenance } from './myst-includes.ts';
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
@@ -9,6 +11,8 @@ import { parseDocument } from 'yaml';
 export interface MystNode {
   type: string;
   provenance?: MystIncludeProvenance;
+  projectTarget?: MystProjectReferenceTarget;
+  imageData?: MystImageData;
   children?: MystNode[];
   value?: string;
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
@@ -89,7 +93,9 @@ export function parseMystSource(source: string): MystParsedDocument {
   }
   const scholarly = validateMystMetadata(standardMetadata);
   diagnostics.push(...scholarly.diagnostics);
+  const sourceLines = source.split('\n');
   const normalize = (node: MystNode): MystNode[] => {
+    if (node.type === 'cite' && node.position) node.citationShorthand = sourceLines[node.position.start.line - 1]?.[node.position.start.column - 1] === '@';
     if (node.type === 'mystDirective' || node.type === 'mystRole') {
       const name = string(node.name) ?? '';
       if (disabledDirectives.has(name)) {

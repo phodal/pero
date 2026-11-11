@@ -1,3 +1,4 @@
+import { resolveMystProjectReferences } from './myst-project-references.ts';
 import { expandMystIncludes } from './myst-includes.ts';
 import { parseMystSource, parseMystYamlMapping, resolveMystDocument, type MystDocument, type MystDiagnostic, type MystNode } from './myst.ts';
 import { inheritMystMetadata, validateMystProjectMetadata } from './myst-metadata.ts';
@@ -62,22 +63,25 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     // of every key. Distinct resources with equal keys remain ambiguous.
     const bibliography = resolveMystBibliography([...new Map(resources.map(file => [file.path, file])).values()], parsed.metadata, resource.path);
     const visit = (node: MystNode) => {
-      if (node.type === 'image' || node.type === 'link') {
+      if (node.type === 'image') {
         const url = typeof node.url === 'string' ? node.url : '';
-        if (url && !url.startsWith('#')) {
-          const resolution = resolveMystResource(snapshot, resource.path, url);
-          if (resolution.status === 'resolved') used.add(resolution.path);
-          report(`resource-${resolution.status}`, `${node.type} ${url}: ${resolution.status === 'resolved' ? 'provided; not embedded or linked as a compiled project page' : resolution.status === 'missing' ? 'not provided' : resolution.reason}`, resource.path, node.position?.start.line);
-        }
+        const resolution = resolveMystResource(snapshot, node.provenance?.path ?? resource.path, url);
+        const asset = resolution.status !== 'unsupported' ? snapshot.assets?.find(asset => asset.path === resolution.path) : undefined;
+        if (asset) {
+          used.add(asset.path); node.imageData = asset; node.url = asset.path;
+          if (!asset.renderable) report('asset-unsupported', `Image ${url}: ${asset.mediaType} is preserved but not embedded.`, resource.path, node.position?.start.line);
+        } else report(`resource-${resolution.status === 'resolved' ? 'unsupported' : resolution.status}`, `Image ${url}: ${resolution.status === 'unsupported' ? resolution.reason : resolution.status === 'resolved' ? 'provided text is not a binary image' : 'not provided'}`, resource.path, node.position?.start.line);
       }
       node.children?.forEach(visit);
     };
     visit(parsed.ast);
     const document = resolveMystDocument(parsed, { scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
-    diagnostics.push(...document.diagnostics);
     pages.push({ path: resource.path, document, bibliography: bibliography.records });
   }
+  resolveMystProjectReferences(snapshot, pages);
+  diagnostics.push(...pages.flatMap(page => page.document.diagnostics));
+  for (const asset of snapshot.assets ?? []) if (!used.has(asset.path)) report('asset-unused', 'Provided binary resource is retained but not used by compiled pages.', asset.path);
   for (const file of snapshot.files) if (!used.has(file.path)) report('resource-unused', 'Provided text resource is retained but not used by the compiled entry/pages.', file.path);
   // Snapshot admission guarantees that entry names a provided Markdown resource.
   return { entry: pages.find(page => page.path === snapshot.entry)!.document, pages, rawConfig, diagnostics };
