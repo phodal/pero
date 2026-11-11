@@ -166,6 +166,15 @@ try {
   await page.setViewportSize({width:760,height:900});
   await page.getByRole('region',{name:'Saved query result'}).scrollIntoViewIfNeeded();
   await page.screenshot({path:resolve(directory,'data-history-narrow-dark.png'),fullPage:true});
+  await page.getByRole('button',{name:'New query',exact:true}).click();
+  await choose('Independent check','No supported independent check');
+  await page.getByLabel('Reviewer',{exact:true}).fill('Local fixture reviewer');
+  await page.getByRole('checkbox',{name:'I reviewed SQL, units, denominator, joins and missing values.'}).check();
+  await page.getByRole('button',{name:'Save definition and run',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Recompute from source',exact:true})).toBeDisabled();
+  await expect(page.getByText('This definition has no supported independent check.',{exact:true})).toBeVisible();
+  await page.screenshot({path:resolve(directory,'unsupported-check-dark.png'),fullPage:true});
+  checks.push('a definition without an independent check disables recomputation with a visible reason; execution is not labelled verified');
   assert.deepEqual(errors,[]);
   await json(resolve(directory,'verification.json'),{...identity,checks,queryId:saved.id,linkId:links[0].id,modelRun:false,scientificAcceptance:'needs_review',renderer:'Chromium; Host real; UI loopback proxy test seam',errors});
   console.log(JSON.stringify({directory,checks:checks.length,queryId:saved.id}));
