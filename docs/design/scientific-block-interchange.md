@@ -76,3 +76,14 @@ The evidence card sends this request only when a saved entry is open. The frame 
 - Electron, Wasm, and Native GPUI were not launched here. The Web app was opened in Chrome against the Notebook backend.
 
 Phase A does not close the Notebook research issue, chat citations (#145), or Skills (#156).
+
+## Subsequent MyST document work
+
+The later request to fill in MyST capabilities adds a separate source-backed
+`mystDocument` block and the official pinned parser. This extends the original
+scope; it does not turn the narrow interchange projection into a general MyST
+importer or move revision ownership away from Notebook. Dedicated source/bundle
+exports preserve the full authored source; the old prose-only projection reports
+`myst-source-document` loss instead of replacing it. See the
+[capability matrix and staged boundaries](myst-capabilities.md) and
+[verification report](../issues/2026-11-11-myst-document-verification.md).
