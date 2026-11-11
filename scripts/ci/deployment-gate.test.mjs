@@ -143,6 +143,11 @@ test('tag resolution uses the peeled commit and rejects a move', () => {
   const mismatch = dispatchReleaseArchives.flatMap(pack);
   mismatch[0] = { ...mismatch[0], sha256: other };
   assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], mismatch).reason, 'checksum-mismatch');
+  const noArchive = dispatchReleaseArchives.flatMap(pack).filter(entry => entry.name !== dispatchReleaseArchives[0]);
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], noArchive).reason, 'missing-archive');
+  const renamed = dispatchReleaseArchives.flatMap(pack);
+  renamed[1].manifest = { ...renamed[1].manifest, archive: 'Other.dmg' };
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], renamed).reason, 'wrong-sha');
 });
 
 test('Pages builds the admitted SHA only after trusted CI, and Release republishes that same SHA', () => {
@@ -190,8 +195,7 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.push.tags, ['v*']);
   assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.ok(release.on.pull_request.paths.includes('.github/workflows/release.yml'));
-  assert.equal(release.jobs.scope, undefined);
+  assert.equal(release.on.pull_request.paths, undefined);
   assert.equal(release.on.schedule[0].cron, '0 20 * * *');
   assert.equal(release.on.workflow_dispatch.inputs.tag.required, true);
   assert.equal(release.on.workflow_dispatch.inputs.sha.required, false);
@@ -209,7 +213,11 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.gate.permissions.contents, 'read');
   assert.match(release.jobs.build.if, /needs.gate.result == 'success'/);
   assert.match(release.jobs.build.if, /github.event_name == 'pull_request'/);
-  assert.doesNotMatch(release.jobs.build.if, /needs\.scope/);
+  assert.match(release.jobs.build.if, /needs.scope.outputs.run == 'true'/);
+  const download = release.jobs.publish.steps.find(step => step.uses?.startsWith('actions/download-artifact'));
+  assert.equal(download.with['if-no-files-found'], undefined);
+  assert.equal(download.with.pattern, 'release-${{ needs.resolve.outputs.sha }}-*');
+  assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs manifests/);
   assert.equal(release.jobs.build.steps[0].with.ref, "${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || github.sha }}");
   assert.match(release.jobs.publish.if, /needs.build.result == 'success'/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);

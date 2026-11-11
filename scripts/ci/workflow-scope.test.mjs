@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
@@ -42,28 +45,70 @@ test('scope keeps synchronize, manual, schedule, and explicit labels without run
   assert.throws(() => shouldRun('other', { event: 'push' }), /Unknown workflow scope/);
 });
 
+test('a two-ref fetch names the pull request head, so FETCH_HEAD cannot hide the diff', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'pero-scope-fetch-'));
+  const git = (cwd, args) => execFileSync('git', ['-c', 'user.name=Pero', '-c', 'user.email=pero@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
+  try {
+    const origin = resolve(root, 'origin');
+    const work = resolve(root, 'work');
+    git(root, ['init', '-q', origin]);
+    writeFileSync(resolve(origin, 'a'), '1\n');
+    git(origin, ['add', 'a']);
+    git(origin, ['commit', '-qm', 'base']);
+    const base = git(origin, ['rev-parse', 'HEAD']);
+    git(origin, ['checkout', '-q', '-b', 'pr']);
+    execFileSync('mkdir', ['-p', resolve(origin, 'use')]);
+    writeFileSync(resolve(origin, 'use/x'), '2\n');
+    git(origin, ['add', 'use/x']);
+    git(origin, ['commit', '-qm', 'pr']);
+    git(origin, ['update-ref', 'refs/pull/1/head', 'HEAD']);
+    git(origin, ['checkout', '-q', '--detach', base]);
+    git(root, ['init', '-q', work]);
+    git(work, ['remote', 'add', 'origin', origin]);
+    git(work, ['fetch', '--no-tags', '--depth=1', 'origin', `${base}:refs/remotes/origin/pr-base`, 'refs/pull/1/head:refs/remotes/origin/pr-head']);
+    assert.equal(git(work, ['rev-parse', 'FETCH_HEAD']), base);
+    assert.equal(git(work, ['diff', '--name-only', 'refs/remotes/origin/pr-base', 'FETCH_HEAD']), '');
+    assert.equal(git(work, ['diff', '--name-only', 'refs/remotes/origin/pr-base', 'refs/remotes/origin/pr-head']), 'use/x');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Computer Use and Release triggers keep synchronize and do not limit themselves to labeled', () => {
   const computer = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.deepEqual(computer.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.deepEqual(computer.on.pull_request.paths, [...computerUseGlobs]);
+  assert.equal(computer.on.pull_request.paths, undefined);
   assert.deepEqual(computer.on.push.paths, [...computerUseGlobs]);
   assert.equal(computer.on.schedule[0].cron, '0 20 * * *');
-  assert.equal(computer.jobs.scope, undefined);
-  assert.equal(computer.jobs.native.needs, undefined);
-  assert.equal(computer.jobs.native.if, undefined);
+  assert.equal(computer.jobs.scope.steps[0].uses, 'actions/checkout@v7');
+  assert.match(computer.jobs.scope.steps.at(-1).run, /refs\/pull\/\$\{SCOPE_PR\}\/head:refs\/remotes\/origin\/pr-head/);
+  assert.match(computer.jobs.scope.steps.at(-1).run, /git diff --name-only refs\/remotes\/origin\/pr-base refs\/remotes\/origin\/pr-head/);
+  assert.doesNotMatch(computer.jobs.scope.steps.at(-1).run, /FETCH_HEAD/);
+  assert.match(computer.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
+  assert.equal(computer.jobs.native.needs, 'scope');
+  assert.equal(computer.jobs.native.if, "needs.scope.outputs.run == 'true'");
+  assert.equal(computer.jobs.native['continue-on-error'], undefined);
+  assert.equal(computer.jobs.native.name, 'Native Computer Use (${{ matrix.os }})');
   assert.match(computer.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.match(computer.jobs.native.strategy.matrix.os, /ci:full/);
 
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.deepEqual(release.on.pull_request.paths, [...releasePackageGlobs]);
-  assert.equal(release.jobs.scope, undefined);
+  assert.equal(release.on.pull_request.paths, undefined);
+  assert.match(release.jobs.scope.steps.at(-1).run, /git diff --name-only refs\/remotes\/origin\/pr-base refs\/remotes\/origin\/pr-head/);
+  assert.doesNotMatch(release.jobs.scope.steps.at(-1).run, /FETCH_HEAD/);
+  assert.match(release.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
+  assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'release-package');
   const sandbox = YAML.parse(readFileSync('.github/workflows/agent-sandbox.yml', 'utf8'));
   const isolated = YAML.parse(readFileSync('.github/workflows/agent-sandbox-isolated.yml', 'utf8'));
   assert.deepEqual(sandbox.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
-  assert.ok(sandbox.on.pull_request.paths.includes('deployment/agent-sandbox/**'));
-  assert.ok(isolated.on.pull_request.paths.includes('.github/workflows/agent-sandbox-isolated.yml'));
+  assert.ok(sandbox.on.pull_request.paths.includes('server/internal/sandbox/**'));
+  assert.equal(matchesPath('server/internal/sandbox/**', 'server/internal/sandbox/runtime.go'), true);
+  assert.equal(matchesPath('server/internal/sandbox/**', 'server/internal/httpapi/routes.go'), false);
+  assert.ok(isolated.on.pull_request.paths.includes('server/internal/artifacts/s3/**'));
+  assert.equal(matchesPath('server/internal/artifacts/s3/**', 'server/internal/artifacts/s3/store.go'), true);
+  assert.equal(matchesPath('server/internal/artifacts/s3/**', 'server/internal/artifacts/other.go'), false);
   assert.match(sandbox.jobs.kind.if, /agent-sandbox-e2e/);
   assert.match(isolated.jobs['isolated-kind'].if, /agent-sandbox-isolated-e2e/);
   assert.match(release.jobs.build.if, /pull_request/);

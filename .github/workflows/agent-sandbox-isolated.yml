@@ -11,6 +11,8 @@ on:
       - server/cmd/pero-agent-connect/**
       - server/cmd/pero-acp-bridge/**
       - server/cmd/pero-artifact-collector/**
+      - server/internal/sandbox/**
+      - server/internal/artifacts/s3/**
       - .github/workflows/agent-sandbox-isolated.yml
 
 permissions:

@@ -193,7 +193,9 @@ recovery, permissions, cancellation, lease loss and descendant cleanup.
 
 `.github/workflows/agent-sandbox.yml` is opt-in: manual dispatch, or the maintainer
 `agent-sandbox-e2e` label on a same-repository PR that changes the sandbox,
-Worker, or harness. Other pull requests do not start this workflow. It runs isolated PostgreSQL
+Worker, harness, or `server/internal/sandbox`. Other pull requests do not start
+this workflow. The isolated workflow uses its own label and also watches
+`server/internal/artifacts/s3`. It runs isolated PostgreSQL
 contracts and creates an owned kind cluster on a disposable GitHub runner only.
 `kind-smoke.sh` refuses existing clusters/registry names and uses its own kubeconfig.
 It checks pinned download hashes, installs the pinned controller, pushes a test

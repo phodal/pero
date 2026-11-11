@@ -8,6 +8,7 @@ on:
       - deployment/agent-sandbox/**
       - crates/pero-worker/**
       - harness/go/**
+      - server/internal/sandbox/**
       - .github/workflows/agent-sandbox.yml
 
 permissions:
