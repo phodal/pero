@@ -26,7 +26,9 @@ if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(appName)) throw new Error('Invalid App na
 const appRoot = resolve(root, 'apps', appName);
 // Each App has a frozen dependency tree, separate from Desktop's runtime.
 if (!existsSync(resolve(appRoot, 'node_modules/react/package.json'))) {
-  const installed = spawnSync(process.platform === 'win32' ? process.execPath : 'npm', [...(process.platform === 'win32' ? [process.env.npm_execpath] : []), 'ci', '--prefix', appRoot], { stdio: 'inherit' });
+  const windows = process.platform === 'win32';
+  if (windows && !process.env.npm_execpath) throw new Error('Run App builds through npm run build:apps on Windows.');
+  const installed = spawnSync(windows ? process.execPath : 'npm', [...(windows ? [process.env.npm_execpath] : []), 'ci', '--prefix', appRoot], { stdio: 'inherit' });
   if (installed.error) throw installed.error;
   if (installed.status !== 0) throw new Error(`App ${appName} dependencies could not be installed`);
 }
