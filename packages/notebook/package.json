@@ -60,12 +60,19 @@
   "dependencies": {
     "@citation-js/core": "0.7.18",
     "@citation-js/plugin-bibtex": "0.7.18",
+    "buffer": "6.0.3",
+    "docx": "8.5.0",
     "exceljs": "4.4.0",
     "fast-formula-parser": "1.0.19",
+    "jszip": "3.10.1",
     "katex": "0.16.22",
     "myst-frontmatter": "1.10.2",
     "myst-parser": "1.7.5",
+    "myst-to-docx": "1.0.18",
+    "myst-to-tex": "1.0.48",
+    "myst-to-typst": "0.0.40",
     "vfile": "5.3.7",
+    "xml-js": "1.6.11",
     "yaml": "2.8.3"
   }
 }
