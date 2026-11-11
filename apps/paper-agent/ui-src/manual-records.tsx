@@ -7,6 +7,7 @@ import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } f
 import { ResearchWatch, researchHost, type DataPin, type Dataset } from './research-watch';
 import './manual-records.css';
 import { DataEvidence } from './data-evidence';
+import { SavedEvidenceReport } from './saved-evidence-report';
 
 type Decision = { paperId: string; decision: 'include' | 'exclude' | 'pending'; reason: string };
 export type ResearchAttempt = { paperId: string; documentId: string; annotationId: string; page: number;
@@ -34,6 +35,8 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }
   const [decisions, setDecisions] = useState<Decision[]>([]), [evidence, setEvidence] = useState<Evidence[]>([]);
   const [attempts, setAttempts] = useState<ResearchAttempt[]>([]), [availableAttempts, setAvailableAttempts] = useState<ResearchAttempt[] | null>(null);
   const [handoffNotes, setHandoffNotes] = useState(false);
+  const [evidenceReportId, setEvidenceReportId] = useState<string | null>(null);
+  const evidenceTrigger = useRef<HTMLButtonElement | null>(null);
   const [watchOpen, setWatchOpen] = useState(false);
   const [datasets, setDatasets] = useState<Dataset[] | null>(null);
   const [dataPins, setDataPins] = useState<Record<string, string>>({});
@@ -75,7 +78,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }
   async function open(record: RecordRevision) {
     const value = await request<RecordRevision>({ operation: 'read', recordId: record.id });
     if (!mounted.current) return;
-    epoch.current++; setOpened(value); setImpact(null); setSelected([]); setMessage(''); setHandoffNotes(false);
+    epoch.current++; setOpened(value); setImpact(null); setSelected([]); setMessage(''); setHandoffNotes(false); setEvidenceReportId(null);
   }
   function updateDecision(id: string, patch: Partial<Decision>) { setDecisions(items => items.map(item => item.paperId === id ? { ...item, ...patch } : item)); }
   function updateEvidence(index: number, patch: Partial<Evidence> | null) { setEvidence(items => reviseEvidence(items, index, patch)); }
@@ -193,7 +196,12 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }
     {opened && <article aria-label="Saved research record"><h3>{opened.question}</h3><p>{opened.scope}</p>
       <dl><dt>Inclusion</dt><dd>{opened.inclusion}</dd><dt>Exclusion</dt><dd>{opened.exclusion}</dd></dl>
       <ul>{opened.decisions.map(item => <li key={item.paperId}><strong>{title(item.paperId)}</strong><p>{item.decision}: {item.reason}</p></li>)}</ul>
-      {!!opened.evidence.length && <><h3>Evidence references</h3><ul>{opened.evidence.map((item, index) => <li key={index}>{title(item.paperId)} — {item.stance}<p>{item.note}</p><small>{item.reportId ? library.reports.find(report => report.id === item.reportId)?.title ?? 'Saved report reference' : 'No source evidence yet'}</small></li>)}</ul></>}
+      {!!opened.evidence.length && <><h3>Evidence references</h3><ul>{opened.evidence.map((item, index) => <li key={index}>{title(item.paperId)} — {item.stance}<p>{item.note}</p>
+        {item.reportId && item.sourceKind !== 'html'
+          ? <Button variant="link" disabled={busy} aria-expanded={evidenceReportId === item.reportId} onClick={event => { evidenceTrigger.current = event.currentTarget; setEvidenceReportId(item.reportId); }}>{library.reports.find(report => report.id === item.reportId)?.title ?? 'Open saved report'}</Button>
+          : <small>{item.reportId ? 'Saved HTML source report' : 'No source evidence yet'}</small>}
+      </li>)}</ul></>}
+      {evidenceReportId && <SavedEvidenceReport key={evidenceReportId} api={api} reportId={evidenceReportId} onCite={onCite} onClose={() => { setEvidenceReportId(null); requestAnimationFrame(() => evidenceTrigger.current?.focus()); }}/>}
       {opened.review && <p>Local review: {opened.review.decision} — {opened.review.note}. Identity is self-declared, not independent review.</p>}
       {!!opened.attempts?.length && <Disclosure variant="inline" defaultOpen summary={<>Execution history</>}>
         <ul>{opened.attempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}><p>{attemptLabel(attempt)}</p>

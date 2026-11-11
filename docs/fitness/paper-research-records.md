@@ -169,3 +169,24 @@ supported no-Agent clean-environment recomputation; PDF/IR/data/method version
 impact; actual user-selected reread/recompute via the existing owners; fixed-method
 new-input reuse; real Desktop accessibility/theme/narrow-window verification;
 and the other B1–B11 evidence required by the issue. Do not close #79 from this slice.
+
+## Saved PDF report navigation — 2026-11-11 (#79)
+
+Source: parent integration `528c12ddb` plus `codex/paper-79-evidence-navigation`.
+A saved Evidence reference opens its immutable ResearchReport and frozen Intent
+in the existing ReportView/Experiments components, even outside the current
+history projection. Users choose the exact section, matrix or experiment citation;
+the existing source action receives its full quote and passage ID. Opening the
+report does not select an arbitrary quotation or edit the matrix. Missing reports
+retain the research revision with a retry action. Keyboard opening focuses the
+report region; closing returns focus to the initiating link. DataEvidence is unchanged.
+
+`node tests/e2e/paper-record-evidence.mjs` passes against the built production
+Paper App in Chromium with synthetic API responses. It verifies the second of
+two quotes in one passage, matrix quotation, missing-report retry, retained
+revision, focus return, and a 390px dark viewport. TypeScript and App build pass.
+Inspected screenshots and receipts: `test-results/paper-record-evidence/` in
+`/Users/phodal/workspaces/pero-issue-79-evidence`. This is browser/UI evidence,
+not a new Host, Electron, Native, live-provider or scientific acceptance run.
+Existing reader distribution was reused. No shared tokens or control styles changed.
+HTML SourceReport navigation is a separate follow-up in its existing owner.
