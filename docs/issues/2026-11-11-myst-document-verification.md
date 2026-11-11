@@ -359,3 +359,38 @@ focused Canvas domain/SDK/actual-editor tests passed. The editor regression
 uses the real configuration disclosure and confirms source preservation through
 a changed-declaration save and read-only revision. Actual repaired browser
 acceptance awaits the next CI run; no local Chromium was launched for this repair.
+
+## Browser findings on published `2c6a3267`
+
+Actual [CI 42964513846](https://github.com/phodal/pero/actions/runs/42964513846)
+ran against GitHub's merge tree with newer master `7607c741`. Linux core/runtime,
+Native compilation, and Notebook's 266 core, 102 editor and 149 real-OCR backend
+checks passed. Notebook Chromium passed 5/7 journeys and Canvas passed 1/2.
+These are failures requiring correction, not complete product acceptance.
+
+- Scientific DOCX download called the official adapter's Node-only
+  `Packer.toBuffer`. An actual browser-target bundle without Node globals
+  reproduced `nodebuffer is not supported by this platform`. The adapter now
+  uses official Blob output and converts its ArrayBuffer to bytes. A real ZIP,
+  equation and source-recovery regression passes in that same browser-API realm.
+  The expanded publication assertions had also been accidentally placed in
+  teardown; they now run in the test body before resources close. All download,
+  XML, PDF and source checks are retained. The complete local core suite now
+  passes 267/267; typecheck and production build pass.
+- Project preview reached a blank iframe after clicking a cross-document link.
+  The exact target exists in both base and CSL-enriched HTML. The inherited
+  `srcdoc` base resolves fragment-only links to the embedding App URL; preview
+  fragment URLs must stay within the inert publication, independently of the
+  standalone HTML export.
+- Canvas Data recovery completed actual owner projection, denied/cancelled and
+  confirmed writes, read-only receipt review and Host restart. It then failed
+  opening configuration after master moved controls behind a gear. Its test
+  must follow that current UI and the existing saved-revision admission rule.
+  The separate real PI experiment/Finding journey passed.
+
+Retained [Notebook artifact 13831226001](https://github.com/phodal/pero/actions/runs/42964513846/artifacts/13831226001)
+and [Canvas artifact 13830497306](https://github.com/phodal/pero/actions/runs/42964513846/artifacts/13830497306)
+were downloaded with verified archive digests. Inspected pixels show the inert
+IPYNB outputs, publication metadata, blank project frame at failure and recovered
+Data Canvas. They do not establish corrected browser behavior. A fresh run on
+the subsequent repaired head is required; no local Chromium retry was attempted.
