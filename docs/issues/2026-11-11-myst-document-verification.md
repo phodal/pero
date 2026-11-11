@@ -190,3 +190,47 @@ publication codecs through shared format contracts. These require actual adapter
 and fixtures, not additional format labels. Keep file/network/execution effects in
 their existing owners. No kernel, automatic asset fetch, full-project converter or
 website deployment is introduced by the current continuation.
+
+## Published SDK stage, separate from project continuation
+
+The published stage is `f88535f663e25a268ab13ecbc6281d2f56af669b` (same tree as local
+`d3740e42147e6dd293687dc1d3f32984c7e8473c`). In run
+[42940058781](https://github.com/phodal/pero/actions/runs/42940058781),
+[Notebook job 130259449533](https://github.com/phodal/pero/actions/runs/42940058781/job/130259449533)
+passed browser 5/5 and
+[Canvas job 130259449491](https://github.com/phodal/pero/actions/runs/42940058781/job/130259449491)
+passed 2/2. The overall run completed successfully. Package 197, editor 96 and Python 138 checks passed locally and in CI.
+The parent inspected artifact 13819869492 source/preview images: the repaired
+textarea showed twelve readable monospaced lines; controls/diagnostics were clean;
+author, affiliation, ORCID, DOI and license appeared. Lower iframe body outside
+that viewport was not visually accepted. Native shell compiled, but Native and
+Electron GUI were not run. These results do not validate the later project slice.
+
+## Text-project continuation (local implementation)
+
+Implemented separate source-only project snapshots and shared TS/Python wire
+fixtures, official project metadata inheritance, forced BibTeX/CSL-JSON resolution,
+and generic resource editor/entry preview. Limits now also measure persisted
+JSON-string contribution against Notebook's unchanged 2 MiB document cap.
+Real EntryStore tests cover bibliography edits, original revisions and near-limit
+save/reopen. Unsupported project versions retain raw download recovery.
+
+Local Chromium remains unrun because its singleton socket launch was denied in
+this environment; no alternate launch was attempted. The new browser test captures
+resource-editor and preview screenshots when run in real CI. No project-browser,
+visual, Electron or Native acceptance is claimed by these local core/editor tests.
+
+Completed project-stage local checks:
+
+- `npm test --workspace @pero/notebook`: **210/210 passed**.
+- `npm test --prefix apps/notebook`: **99/99 editor tests passed**; Python
+  **143 discovered, 141 passed, 2 existing optional tests skipped**.
+- `npm run typecheck --prefix apps/notebook`: passed.
+- `node scripts/build/apps.mjs --app notebook`: passed against the final code.
+- Bazel normal invocation refreshed derived pnpm/input-cache records as expected;
+  subsequent CI-frozen `//:checks`: **7/7 passed**. Root npm lock is authoritative,
+  retains unrelated platform metadata and includes only intended new packages.
+- New dependency notice was verified byte-for-byte in the actual staged builtin
+  App payload. Its closure is MIT/BSD; no CSL engine/citeproc is installed.
+- Browser source passes syntax checking; browser execution and screenshot
+  inspection for this new stage remain pending CI, not accepted locally.
