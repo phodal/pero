@@ -242,6 +242,8 @@ export type NotebookChrome = {
   restoreDisabled?: boolean;
   snapshot?: boolean;
   fileTools?: ReactNode;
+  /** Stored document used for export when the editor is showing a placeholder. */
+  retainedContent?: NotebookDocument['content'];
 };
 
 export function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = false, label, icon }: {
@@ -362,7 +364,8 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     return () => cancelAnimationFrame(frame);
   }, [pendingBlock, tab, editor, t]);
   const openSearch = () => { navigated.current = false; setDialog('search'); };
-  const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: editor.getJSON() }, null, 2), 'application/json');
+  const exportContent = () => chrome?.retainedContent ?? editor.getJSON() as NotebookDocument['content'];
+  const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: exportContent() }, null, 2), 'application/json');
   const protocolPane = <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />;
   return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={setTab} onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
@@ -441,7 +444,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
           <div className="notebook-menu-rule" role="separator" />
           <Button variant="ghost" onClick={downloadJson}>{t('export')}</Button>
-          <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: editor.getJSON() as NotebookDocument['content'] }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
+          <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: exportContent() }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
           {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
         </NotebookMenu>
         <NotebookMenu name={t('helpMenu')} menu="help" icon="info">

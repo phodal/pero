@@ -123,7 +123,11 @@ def parse_operations(values, new_id):
             fields(value, {'op', 'blockId'})
             operations.append(DeleteBlock(block_id(value['blockId'])))
         else:
-            raise ValueError('Unsupported Notebook operation')
+            from block_registry import parse_registered_operation
+            parsed = parse_registered_operation(value, new_id)
+            if parsed is None:
+                raise ValueError('Unsupported Notebook operation')
+            operations.append(parsed)
     return operations
 
 
@@ -176,6 +180,9 @@ def apply_operations(original, operations):
     document = deepcopy(original)
     blocks = document.content['content']
     for operation in operations:
+        from block_registry import apply_registered_operation
+        if apply_registered_operation(document, operation):
+            continue
         if isinstance(operation, AddFinding):
             for identity in operation.evidence:
                 evidence = document.block(identity)

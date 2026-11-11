@@ -109,5 +109,15 @@
   },
   "allowScripts": {
     "esbuild@0.28.2": true
+  },
+  "overrides": {
+    "myst-to-docx": {
+      "docx": "8.5.0"
+    }
+  },
+  "pnpm": {
+    "overrides": {
+      "myst-to-docx@1.0.18>docx": "8.5.0"
+    }
   }
 }

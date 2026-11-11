@@ -1,0 +1,26 @@
+---
+title: Scientific publication
+authors:
+  - name: Ada Example
+doi: 10.1234/example
+---
+# Scientific publication
+
+A real formula $x^2$ and equation:
+
+$$
+N = N_0 e^{rt} + \frac{x^2}{\sqrt{y}}
+$$
+
+![Figure](figure.png)
+
+| Trial | Result |
+| --- | --- |
+| A | 42 |
+
+- First
+- Second
+
+## Discussion
+
+A **bold** finding.

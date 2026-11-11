@@ -1,3 +1,5 @@
+import '@pero/notebook/myst-project-snapshot';
+import '@pero/notebook/myst';
 import { parseNamedReference } from '@pero/notebook/named-reference';
 import { isSourceExcerptAttributes } from '@pero/notebook/source-excerpt';
 import { isScientificContentAttributes } from '@pero/notebook/scientific-designs';
@@ -13,6 +15,16 @@ import { spreadsheetLimits } from '@pero/notebook';
 import { isAttachmentAttributes } from '@pero/notebook/attachment';
 import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
 import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
+import { persistedBlockTypes } from '@pero/notebook/interchange';
+import { registeredDocumentBlock } from '@pero/notebook/scientific-block';
+
+function opaquePayload(payload: Record<string, unknown>): boolean {
+  if (typeof payload.type !== 'string' || !object(payload.attrs)) return false;
+  const definition = registeredDocumentBlock(payload.type);
+  if (!definition) return false;
+  try { return definition.validate(payload.attrs).status === 'opaque'; }
+  catch { return false; }
+}
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -38,6 +50,12 @@ function cells(value: unknown, rows: number, columns: number, valid: (item: unkn
 
 /** Clipboard HTML may contain user-supplied data attributes outside this editor. */
 export function isClipboardWidget(kind: string, attrs: Record<string, unknown>): boolean {
+  const registered = registeredDocumentBlock(kind);
+  if (registered) {
+    try {
+      return registered.validate({ ...attrs, blockId: typeof attrs.blockId === 'string' && attrs.blockId ? attrs.blockId : 'clipboard' }).status === 'current';
+    } catch { return false; }
+  }
   switch (kind) {
     case 'namedReference': try { parseNamedReference(attrs); return true; } catch { return false; }
     case 'sourceExcerpt': return isSourceExcerptAttributes(attrs);
@@ -66,6 +84,18 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
         cells(annotations ?? {}, rows, columns, value => object(value) && Object.keys(value).length === 2 &&
           text(value.unit, 128) && ids(value.evidenceIds)) &&
         parseSheetOperations(attrs, sheet as unknown as Spreadsheet) !== null;
+    }
+    case 'retainedBlock': {
+      const { originalType, payload, blockId } = attrs;
+      const structural = new Set(['doc', 'text', 'hardBreak', 'referenceMention', 'listItem', 'taskItem']);
+      if (typeof originalType !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,64}$/.test(originalType)) return false;
+      if (structural.has(originalType)) return false;
+      if (!object(payload) || payload.type !== originalType) return false;
+      const known = persistedBlockTypes.includes(originalType as typeof persistedBlockTypes[number]);
+      if (known && !opaquePayload(payload)) return false;
+      if (new TextEncoder().encode(JSON.stringify(payload)).length > 65_536) return false;
+      if (object(payload.attrs) && 'blockId' in payload.attrs && blockId !== undefined && payload.attrs.blockId !== blockId) return false;
+      return true;
     }
     case 'experiment':
     case 'evidence': {

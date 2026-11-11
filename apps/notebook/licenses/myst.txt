@@ -1,0 +1,62 @@
+MyST packages bundled with Notebook (MIT)
+
+markdown-it-myst 1.0.19
+myst-common 1.10.2
+myst-directives 1.7.5
+myst-frontmatter 1.10.2
+myst-parser 1.7.5
+myst-roles 1.7.5
+myst-toc 0.1.5
+simple-validators 1.2.1
+
+These npm packages omit their license file. Their package metadata identifies
+the MyST project and MIT license. The project license is reproduced from:
+https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2024 Project Jupyter
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+========================================================================
+
+SPDX data used by the MyST frontmatter license validator
+
+spdx-exceptions 2.5.0 (CC-BY-3.0)
+Source: https://github.com/kemitchell/spdx-exceptions.json
+Attribution from node_modules/spdx-exceptions/README.md:
+Copyright © 2010-2015 Linux Foundation and its Contributors. Licensed
+under the Creative Commons Attribution License 3.0 Unported. All other
+rights are expressly reserved.
+License: https://creativecommons.org/licenses/by/3.0/legalcode
+The exception identifiers are bundled without modifying their contents.
+“SPDX” is a federally registered United States trademark of The Linux
+Foundation Corporation. No endorsement is implied.
+
+spdx-license-ids 3.0.24 (CC0-1.0)
+Source: https://github.com/jslicense/spdx-license-ids
+Author: Shinnosuke Watanabe (https://github.com/shinnn)
+License: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+The license identifier lists are bundled without modifying their contents.
+
+Other runtime dependency license texts, including KaTeX, vfile and yaml,
+are in myst-dependencies-mit.txt and myst-dependencies-other.txt.
+Build-only packages and type definitions that contribute no runtime code
+are not included in this notice inventory.

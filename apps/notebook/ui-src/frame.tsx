@@ -230,6 +230,16 @@ function Notebook() {
     const { id, title, revision, updatedAt } = entry;
     setEntries(previous => [{ id, title, revision, updatedAt }, ...(previous?.filter(value => value.id !== id) ?? [])]);
   };
+  useEffect(() => {
+    const committed = (event: Event) => {
+      const entry = (event as CustomEvent<NotebookEntry>).detail;
+      if (!entry?.id || entry.document?.schemaVersion !== 1) return;
+      adopt(readEntry(entry));
+      updateList(entry);
+    };
+    window.addEventListener('pero-notebook-entry-committed', committed);
+    return () => window.removeEventListener('pero-notebook-entry-committed', committed);
+  }, [adopt, updateList]);
   const perform = async (operation: NonNullable<typeof busy>, action: () => Promise<void>) => {
     setBusy(operation);
     setError('');
@@ -438,6 +448,7 @@ function Notebook() {
                 </li>)}</ul>
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
+                dirty={!snapshot && current.dirty}
                 savedDocument={shown.document}
                 takeInitialFocus={() => {
                   if (pendingBodyFocus.current !== shown.id) return false;

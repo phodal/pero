@@ -57,7 +57,7 @@ test('verified image history survives editor JSON/HTML, Python import, source do
   await React.act(async () => editor.commands.setContent(html));
   assert.deepEqual(editor.getJSON().content[0].attrs.derivation, derived.derivation);
   const documentValue = { schemaVersion: 1, title: 'Image history', content: snapshot };
-  const persisted = spawnSync('python3', ['-c', `import json,sys; from document import NotebookDocument; value=json.load(sys.stdin); print(NotebookDocument.parse(value).serialized())`], {
+  const persisted = spawnSync('python3', ['-c', `import json,sys; import scientific_block; from document import NotebookDocument; value=json.load(sys.stdin); print(NotebookDocument.parse(value).serialized())`], {
     cwd: resolve(import.meta.dirname, '../backend'), input: JSON.stringify(documentValue), encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
   });
   assert.equal(persisted.status, 0, persisted.stderr);

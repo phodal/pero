@@ -8,6 +8,7 @@ export interface NotebookContextValue {
   entryId: string;
   revision: number;
   readonly: boolean;
+  dirty: boolean;
   document: NotebookDocument;
   savedDocument?: NotebookDocument;
   saveRevision?(): void;

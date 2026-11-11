@@ -1,0 +1,562 @@
+{
+  "document": {
+    "schemaVersion": 1,
+    "title": "MyST project wire contract"
+  },
+  "cases": [
+    {
+      "name": "exact authored text",
+      "accepted": true,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path '/a.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "/a.md",
+        "files": [
+          {
+            "path": "/a.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'C:/a.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "C:/a.md",
+        "files": [
+          {
+            "path": "C:/a.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a\\\\b.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a\\b.md",
+        "files": [
+          {
+            "path": "a\\b.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'https:a.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "https:a.md",
+        "files": [
+          {
+            "path": "https:a.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a?.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a?.md",
+        "files": [
+          {
+            "path": "a?.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a#.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a#.md",
+        "files": [
+          {
+            "path": "a#.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a//b.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a//b.md",
+        "files": [
+          {
+            "path": "a//b.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path './a.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "./a.md",
+        "files": [
+          {
+            "path": "./a.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path '../a.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "../a.md",
+        "files": [
+          {
+            "path": "../a.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a/../b.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a/../b.md",
+        "files": [
+          {
+            "path": "a/../b.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a\\x00.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a\u0000.md",
+        "files": [
+          {
+            "path": "a\u0000.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a\\x7f.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a\u007f.md",
+        "files": [
+          {
+            "path": "a\u007f.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path 'a/'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "a/",
+        "files": [
+          {
+            "path": "a/",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path ''",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "",
+        "files": [
+          {
+            "path": "",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid path '\\ud800.md'",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "\ud800.md",
+        "files": [
+          {
+            "path": "\ud800.md",
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "future version",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 99,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ]
+      }
+    },
+    {
+      "name": "boolean version",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": true,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing entry",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "missing.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ]
+      }
+    },
+    {
+      "name": "non markdown entry",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "myst.yml",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty files",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": []
+      }
+    },
+    {
+      "name": "duplicate files",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          },
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extra authority",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "# \u539f\u6837 \ud83e\uddea\r\n\n```{include} ../fragment.md\n```"
+          },
+          {
+            "path": "myst.yml",
+            "text": "project:\n  bibliography: refs.bib\n"
+          },
+          {
+            "path": "refs.bib",
+            "text": "@article{A, title={Safe}}\n"
+          },
+          {
+            "path": "fragment.md",
+            "text": "Inert"
+          }
+        ],
+        "execute": true
+      }
+    },
+    {
+      "name": "invalid text",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "surrogate text",
+      "accepted": false,
+      "snapshot": {
+        "format": "pero-myst-project",
+        "version": 1,
+        "entry": "pages/article.md",
+        "files": [
+          {
+            "path": "pages/article.md",
+            "text": "\ud800"
+          }
+        ]
+      }
+    }
+  ],
+  "limits": {
+    "files": 32,
+    "resourceBytes": 262144,
+    "aggregateBytes": 1048576,
+    "wireBytes": 8388608,
+    "pathBytes": 1024,
+    "persistedBytes": 1572864
+  },
+  "references": [
+    {
+      "base": "pages/article.md",
+      "reference": "../refs.bib",
+      "status": "resolved",
+      "path": "refs.bib"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "./other.md",
+      "status": "missing",
+      "path": "pages/other.md"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../../private.md",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "https://example.org/a.bib",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../%72efs.bib",
+      "status": "missing",
+      "path": "%72efs.bib"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../*.bib",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../[ab].md",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../*.md",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../${HOME}/a.md",
+      "status": "unsupported"
+    }
+  ],
+  "blockCases": [
+    {
+      "name": "future block",
+      "patch": {
+        "schemaVersion": 2
+      }
+    },
+    {
+      "name": "boolean block version",
+      "patch": {
+        "schemaVersion": true
+      }
+    },
+    {
+      "name": "extra execution permission",
+      "patch": {
+        "execute": true
+      }
+    },
+    {
+      "name": "invalid identity",
+      "patch": {
+        "blockId": "../bad"
+      }
+    },
+    {
+      "name": "nontext snapshot",
+      "patch": {
+        "snapshot": {}
+      }
+    }
+  ],
+  "persistedBoundary": {
+    "escapedUnit": "\u0000",
+    "repeat": 200000,
+    "paddingUnit": "a"
+  }
+}
