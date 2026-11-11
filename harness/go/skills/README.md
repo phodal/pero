@@ -105,8 +105,26 @@ User-only workflows remain absent from model discovery and invocation.
 
 ## Behavioral comparison
 
-Unlike official DSH, summaries are tool-schema descriptions rather than durable
-user-role catalog reminders. History compaction retains the registered schema,
-not a guarantee that a loaded Skill body remains visible. No automatic reload or
-catalog-update message is implemented. See the [pinned behavior audit](../../../docs/fitness/harness-behavior-parity.md)
-for observed contracts, deliberate authority differences and unverified gaps.
+Approved model-invocable summaries also enter durable user-role `skill-catalog`
+messages. Exact visible registration controls publication; masked, shadowed or
+undiscovered deferred tools advertise no call guidance. A previously published
+catalog is withdrawn with an empty replacement when unavailable. Pending Skill
+restrictions use the same existing denial rule before the first request.
+
+Unchanged visible catalogs are not repeated. Existing Session surface identity
+owns deduplication after cancellation/JSONL resume and restoration after compaction.
+PostCompact also covers overflow retries that do not rerun PreStep. This does not
+activate a skill, reload a body or renew grants. Existing Claude-profile body
+reattachment remains separate; legacy roots still do not restore loaded bodies.
+
+Catalog messages use the explicit advertisement byte ceiling, or 8192 bytes by
+default, in addition to the existing tool schema budget. Names and normalized
+500-byte descriptions are the only published entry fields. Source metadata records
+exactly the displayed rows and the total selected count. Omitted summaries use the
+existing pager, including when a small ceiling cannot fit one complete row.
+An old session without catalog messages gains one on continuation; no new storage
+format or additional discovery roots are required.
+
+See the [pinned behavior audit](../../../docs/fitness/harness-behavior-parity.md)
+for same-input official-hook evidence, deliberate authority differences and
+unverified complete-runtime/live-provider boundaries.

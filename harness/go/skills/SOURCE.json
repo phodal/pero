@@ -35,7 +35,8 @@
     "Existing Harness runtime, ToolRegistry and PreStep own registration/generation and admission; one exact-key skill tool lists or reads. Explicit gestures reuse the same frozen catalog read.",
     "Only direct child SKILL.md files. Duplicate names and invalid files fail closed. Bounded UTF-8 text; model-disabled skills remain unavailable.",
     "Explicit slash invocation and reattachment use exact authorized registration availability before deferred discovery; denied or shadowed skills remain unavailable. This is a local integration fix, not a claim of upstream equivalence.",
-    "Post-compaction restoration filters exact activated instruction content already present on the current surface, correlating successful Skill results separately from short activation notices. Restored text continues checkpoint progress instead of implying a fresh invocation; preprocessing and turn grants are not rerun."
+    "Post-compaction restoration filters exact activated instruction content already present on the current surface, correlating successful Skill results separately from short activation notices. Restored text continues checkpoint progress instead of implying a fresh invocation; preprocessing and turn grants are not rerun.",
+    "Durable bounded summary catalogs reconcile against Session surface identity and pending messages. Existing exact visible registration and Skill denial rules own visibility; PostCompact restores guidance before overflow retries. No filesystem discovery, resource execution, permission changes or new persistent state."
   ],
   "license": "No new blanket license assigned. Source files have no embedded third-party notice. Existing dependency-specific notices and ownership decisions remain unchanged.",
   "behavioral_audit": {
@@ -43,7 +44,7 @@
     "commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
     "path": "packages/skill/tool-skill/src/index.ts",
     "blob": "f08fb8206433bb40ec415c65e9a50382386a3bd0",
-    "role": "Behavioral reference, not copied implementation: whitespace-bounded direct-user gestures and per-step deduplication adapted through existing PreStep. Durable catalog/reminder semantics remain a gap.",
+    "role": "Behavioral reference, not copied implementation: direct-user legacy gestures and visibility-matched durable catalog publication through existing hooks. Same-input actual official catalog-hook runner uses mocked registration/snapshot/session seams; full runtime parity remains unverified.",
     "record": "docs/fitness/harness-behavior-parity.md"
   }
 }

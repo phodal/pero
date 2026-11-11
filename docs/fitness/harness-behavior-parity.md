@@ -1,62 +1,118 @@
 # Harness behavioral comparison (#73)
 
-## Scope and fixed references
+## Scope and fixed references — 2026-11-11
 
-This is a **bounded source audit and deterministic Pero contract suite**, not
-proof of complete DSH compatibility or a two-runtime A/B evaluation.
-[Issue #73](https://github.com/phodal/pero/issues/73) remains open for its broader
-acceptance. The explicit Skill increment below changes direct-user loading only;
-approval policy and provider retry policy are unchanged. No new Point source was read or copied.
+This is a bounded source audit, deterministic Pero suite and same-input execution
+of the official catalog hook at mocked seams. It is **not** full DSH compatibility,
+a two-runtime end-to-end A/B, or real-model selection/quality evidence. [#73](https://github.com/phodal/pero/issues/73)
+remains open. Earlier evidence below describes its historical revisions.
 
-- Pero audit baseline: [`9dc378f96ce605d62126864e57225c5b577cd88c`](https://github.com/phodal/pero/commit/9dc378f96ce605d62126864e57225c5b577cd88c).
-- Official DSH baseline: [`f3803c96974ad4a94195fb97e5c637e9c2a3afe3`](https://github.com/deepseek-ai/deepseek-harness/tree/f3803c96974ad4a94195fb97e5c637e9c2a3afe3),
-  already selected in [Harness provenance](../../harness/go/SOURCE.json).
-- Directly inspected for this audit: official [Skill loader/catalog](https://github.com/deepseek-ai/deepseek-harness/blob/f3803c96974ad4a94195fb97e5c637e9c2a3afe3/packages/skill/tool-skill/src/index.ts)
-  (Git blob `f08fb8206433bb40ec415c65e9a50382386a3bd0`) and
-  [approval pipeline `serviceAsk`](https://github.com/deepseek-ai/deepseek-harness/blob/f3803c96974ad4a94195fb97e5c637e9c2a3afe3/packages/core/tools/src/pipeline.ts#L422-L470)
-  (Git blob `56c68c6c59bb280ac0c96d1198cec6c1e8e7db49`).
-- Earlier official-source comparisons are linked below rather than represented
-  as fresh upstream execution: [response/read/cancel review](../issues/2026-10-28-harness-upstream-parity.md)
-  and [module review](../issues/2026-10-28-harness-module-contracts.md).
+- Current Pero implementation baseline: [`b1b952939f8986c150eb9d1b7d63166411657a63`](https://github.com/phodal/pero/commit/b1b952939f8986c150eb9d1b7d63166411657a63).
+  PRs #91 and #96 are already merged; later plugin/compaction changes also exist.
+- Official reference: [`f3803c96974ad4a94195fb97e5c637e9c2a3afe3`](https://github.com/deepseek-ai/deepseek-harness/tree/f3803c96974ad4a94195fb97e5c637e9c2a3afe3),
+  [tool-skill source](https://github.com/deepseek-ai/deepseek-harness/blob/f3803c96974ad4a94195fb97e5c637e9c2a3afe3/packages/skill/tool-skill/src/index.ts),
+  Git blob `f08fb8206433bb40ec415c65e9a50382386a3bd0`.
+  This is a fixed comparison reference, not a claim about latest upstream HEAD.
+- [Package provenance](../../harness/go/skills/SOURCE.json) distinguishes local
+  implementation from the behavioral reference. No additional Point code copied.
+- Canonical active tracker: [#73 catalog behavior](../issues/2026-11-11-harness-skill-catalog-parity.md).
 
-## Capability matrix
+## Current capability matrix
 
-**Aligned subset** means the listed observable rule only. **Intentional difference** preserves current Pero authority. **Gap** is not implemented here.
-**Unverified** is not converted into a pass by source extraction or AST mappings.
-All local paths below are relative to this checkout; test names are searchable
-entry points, not an assertion that every line in a linked package is verified.
+Aligned means only the observable subset listed. Intentional differences retain
+Pero ownership. Passing local tests does not turn unverified rows into parity.
 
-| Capability / status | Pero owner and observable contract | Reproducible evidence / remaining boundary |
+| Capability / status | Owner and current behavior | Evidence / remaining boundary |
 | --- | --- | --- |
-| Skill relevance discovery — **intentional difference + gap** | [skills/tool.go](../../harness/go/skills/tool.go): name/description summaries in the tool description, not user-role durable catalog messages. Names/digests are listed by `skill({})` before reading. | [catalog_test.go](../../harness/go/skills/catalog_test.go), `TestToolUsesExistingRegistry`: advertised summary, no body/path/digest/disabled entry, rejected name-only call with recovery guidance. Official `apply` publishes visibility-matched `skill-catalog` messages before a step. |
-| Skill content identity — **intentional difference** | [catalog.go](../../harness/go/skills/catalog.go): approved explicit roots, launch-time digest and descriptor-bound reread. Changed content fails; list does not accept a new digest. | `TestCatalogReadAndChange`, `TestToolUsesExistingRegistry`, `TestRootReplacementAfterOpen`. Official name-only loading dynamically resolves the current scoped provider. No implicit roots or precedence are added. |
-| Explicit slash invocation — **aligned subset, frozen authority** | [invocation.go](../../harness/go/skills/invocation.go) selects known whitespace-bounded `/name` tokens from the current claimed direct-user text blocks, once per name per step. Existing PreStep admission appends attributed `skill-invocation` instructions before the first provider request, using the existing frozen digest read and exact visible tool registration. | `TestExplicitSkillProviderRequest`, `TestExplicitSkillCancellationResume`: direct/repeated/unknown/path/fraction and non-user sources, disabled/unmounted/masked/shadowed skills, changed content refusal, cancellation and JSONL restoration without reloading old gestures. DSH user-invocable model-disabled skills remain deliberately unsupported here. |
-| Directory updates/source precedence — **gap / deliberately excluded authority** | Only direct child SKILL.md files; duplicate names fail. No dynamic discovery, resource execution or implicit home/project roots. | `TestNoImplicitRootsAndDepth`, `TestDiscoveryFailures`, `TestFrontmatterAndScriptsAreInertData`. Official `snapshot` and `catalogHistory` are not ported. Any future discovery change needs an explicit authority design. |
-| Skill context after compaction — **intentional difference + gap** | [loop.go](../../harness/go/harness/loop.go) resolves schemas for each step; [compaction_range.go](../../harness/go/harness/compaction_range.go) replaces selected history, not the registered tool catalog. A previously loaded body is ordinary tool-result context, not pinned instructions. | [compaction_test.go](../../harness/go/skills/compaction_test.go), `TestSkillAdvertisementAcrossCompaction`: actual tool read reaches the provider; real summary/replacement removes its body; the next request still has the summary-only schema, no automatic body reload or durable available-skills message. Official catalog is republished when its durable event is no longer visible. |
-| Context overflow recovery — **aligned subset; wider parity unverified** | [compaction_basic.go](../../harness/go/harness/compaction_basic.go): recovery only after durable surface progress, bounded overflow retry. Explicit provider overflow classified separately from a generic oversized HTTP request. | [compaction_test.go](../../harness/go/cmd/pero-agent-acp/compaction_test.go), `TestCompactionLaunchEngineLongContextOverflowCancelResume`; [adapter_test.go](../../harness/go/providers/openai/adapter_test.go), `TestContextOverflowClassificationPreservesRecovery`. Prior official review linked above; no fresh upstream runtime execution. |
-| Truncated responses — **aligned subset** | [loop.go](../../harness/go/harness/loop.go) and [stream.go](../../harness/go/providers/openai/stream.go) discard tool calls at the max-token stop; safe text is retained. | `TestMaxTokensDropsToolCallsAndKeepsSafeContent`; [compaction_wire_test.go](../../harness/go/cmd/pero-agent-acp/compaction_wire_test.go), `TestCompactionCLIActualLoopAndWire`. This is not tool exactly-once execution across process crashes. |
-| Approval service — **aligned subset, product policy differs** | [approval.go](../../harness/go/harness/approval.go) owns gated approval, session policy and answerer outcomes. Official `serviceAsk` also denies when no approval service/agent channel exists. Skill instructions grant no tool authority. | [approval_test.go](../../harness/go/harness/approval_test.go), `TestApprovalIsScopedDurableAndFailClosed`, `TestApprovalCancellationWinsAndLateAnswerIsDiscarded`; `TestExtractedToolValidationAndApprovalFailClosed` in [extraction_test.go](../../harness/go/harness/extraction_test.go). No claim that every tool is gated. |
-| Native tools / auto-review — **intentional product policy** | [permission_mode.go](../../harness/go/harness/permission_mode.go) and native registration own permissions; auto-review may allow native operations without a human prompt. `ApprovalNever` rejects gated requests. | [permission_mode_test.go](../../harness/go/harness/permission_mode_test.go), `TestPermissionModeDecidesApproval`; [native_approval_test.go](../../harness/go/acp/native_approval_test.go). Not a blanket statement about all writes, MCP or OS confinement. Pending #87's clone-specific behavior is outside this baseline. |
-| Direct MCP vs Host/App — **separate authority; parity unverified** | [harness/mcp.go](../../harness/go/harness/mcp.go) mounts configured server tools through existing registry; [mcp/tools.go](../../harness/go/mcp/tools.go) executes calls. Direct MCP registration does not set native `RequiresApproval`. Host/App separately validates session, installation, route and business permissions. | [MCP verification](mcp-tools-resources.md), [App Use verification](app-use.md), [MCP settings contracts](../../tests/contracts/mcp-settings.mjs). Server configuration/grant is not per-tool allow/ask/deny. `readOnlyHint` is not authority; `approval=never` alone does not make MCP read-only. #50 stage two and #11 policy changes are excluded. |
-| Cancellation/admission — **aligned subset** | [acp/stream.go](../../harness/go/acp/stream.go) carries cancellation from prompt admission; approval cancellation discards late grants. | [stream_test.go](../../harness/go/acp/stream_test.go), `TestPromptAdmissionCancellation`; `TestExtractedLoopCancellationSettles`. Cancellation settles the local operation; it is not rollback of an external effect. |
-| Provider retry vs business replay/resume — **bounded contracts, not general exactly-once** | Provider retries are owned by Harness retry policy; SDK retries are disabled. Resume consumes committed session history rather than executing old tool calls again. MCP reconnect is connection recovery, not permission to replay a failed write. | [retry_test.go](../../harness/go/harness/retry_test.go), `TestRetryWaitIsCancellableBeforeAttemptStarts`; `TestFailedHTTPConsumesBudgetWithoutSDKRetry`; `TestExtractedLoopDurableToolRoundTripAndResume`. Unknown external outcomes require reconciliation, not automatic write retry. No crash-atomic external transaction guarantee. |
-| Other modules and real provider behavior — **unverified beyond linked subsets** | The existing 17 AST mapping pairs and source manifests describe extraction provenance, not all runtime behavior. | Prior module review covers selected stop/stream/read/ACP/log/Todo/MCP contracts. Official/Go same-input runtime A/B, paid-model skill selection, usage, recovery quality and complete protocol parity remain unverified. |
+| Skill discovery — **aligned publication subset; bounded presentation differs** | [catalog_reminder.go](../../harness/go/skills/catalog_reminder.go) emits durable user-role `skill-catalog` messages through existing PreStep. Exact visible registration and pending Skill denials control publication. Schema summaries remain available. | `TestCatalogPublicationTransitions`, `TestCatalogReminderVisibilityAndResume`, `TestSkillDenialsApplyBeforeFirstRequestAndExpire`; actual official hook consumes the same 10 fixture steps. Pero limits message bytes and provides paging instead of publishing every description. |
+| Catalog visibility/recovery — **aligned subset** | Unchanged visible catalogs are not repeated. Existing Session events and surface seqs identify loss; PreStep/PostCompact restore it. Masking or same-name shadow publishes an empty replacement, lifting it republishes the selected catalog. | `TestSkillAdvertisementAcrossCompaction`, visibility/resume test and explicit cancellation/resume test. Real Pero compaction, registry and JSONL persistence; official hook's surface is mocked. Deferred undiscovered tools publish no call guidance until visible. |
+| Content identity — **intentional difference** | Legacy `skill` lists names/digests then reads both; selected plugin `Skill` accepts its approved qualified name. Descriptor-bound reads retain content validation. | `catalog_test.go`, `selected_test.go`. Official resolves current scoped providers; Pero does not grant implicit roots or refresh a changed selected definition. |
+| Explicit invocation — **aligned legacy subset; plugin-specific behavior** | Legacy roots recognize whitespace-bounded direct-user tokens. Claude-profile selections accept the first command, support user-only skills and existing expansion/resource contracts. Both use current claimed messages, not historical gesture replay. | `invocation_test.go`, `invocation_claude_test.go`, `selected_test.go`. These existing plugin capabilities supersede the older matrix's blanket “unsupported” claim; they are not newly introduced here. |
+| Discovery roots/updates/precedence — **intentional differences + gap** | Legacy roots are explicit/direct-child and reject duplicate names. Selected plugins are assembled by existing owners. This reminder uses mount-time model-invocable summaries; it performs no filesystem discovery or rescans. | `catalog_test.go`, `selected_test.go`. Official dynamic snapshot completeness and source precedence are not implemented by this increment. Market admission/UI (#200) remains separate. |
+| Loaded context after compaction — **different by profile** | Legacy bodies remain ordinary context and are not automatically reloaded. Existing Claude-profile [reattach.go](../../harness/go/skills/reattach.go) restores bounded previously activated content only when absent, without rerunning preprocessing or renewing grants. Catalog reminders are independent of body restoration. | `compaction_test.go`, `reattach_test.go`, `permissions_test.go`. The 2026-11-01 blanket “no body restoration” description was stale for plugin selections. |
+| Overflow and truncated responses — **aligned subsets; wider parity unverified** | Existing compaction owner retries only after durable progress; max-token stops discard incomplete tool calls. PostCompact publishes catalog before overflow retry without requiring a new PreStep. | Existing CLI compaction suites, `TestMaxTokensDropsToolCallsAndKeepsSafeContent`, provider classification tests. No crash-atomic external exactly-once guarantee. |
+| Approval/native auto-review — **product policy differs** | Existing approval and permission-mode owners decide gated requests. `ApprovalNever` rejects gated requests; Skill catalog messages grant nothing and do not renew Skill turn grants. | `harness/approval_test.go`, `permission_mode_test.go`, `acp/native_approval_test.go`, `skills/permissions_test.go`. No new default permissions. |
+| MCP versus Host/App — **separate authority; parity unverified** | Direct configured MCP, native tools and Host/App route/business checks remain separate owners. | [MCP](mcp-tools-resources.md), [App Use](app-use.md). `approval=never` does not imply all MCP is read-only. No policy changes in this increment. |
+| Cancellation, retries and resume — **bounded contracts** | Existing loop/admission/persistence owns cancellation and retry. Catalog restoration derives from durable surface; it does not replay tools or old explicit gestures. | `TestExplicitSkillCancellationResume`, `TestCatalogReminderVisibilityAndResume`, existing approval/retry/extraction tests. Unknown external effects still require reconciliation. |
+| Remaining modules/live behavior — **unverified beyond linked contracts** | AST/source mappings are provenance evidence, not complete behavioral acceptance. | Full official-runtime/provider A/B, live Skill selection, task quality, token savings, platform packaging and scientific acceptance remain unverified. |
 
-## Reminder and replay implications
+## Catalog contract and migration
 
-Do not “fix” the Skill gap by duplicating the tool description as an ordinary
-user message. Official behavior has durable source identity, visibility matching,
-catalog completeness, updates and compaction-aware publication. Implementing it
-would change model message roles/order, token pressure, persisted histories and
-resume semantics. It must be designed and tested as a separate runtime change.
+The new named value is `catalogReminder`: tool identity, published name/description
+entries, total selected count and update attribution. The functional reconciliation
+uses Session events, active surface seqs and pending messages. The mount shell uses
+existing exact registration visibility and the existing Skill denial rule. No new
+registry, permission owner, scheduler, persistent state file or settings toggle.
 
-Current descriptions are carried by provider tool schemas, not by a history
-message. The new test observes that boundary through the actual Harness adapter,
-not by inspecting implementation text. Summarization may omit loaded instructions;
-a subsequent task must explicitly list/read the authorized Skill again, or the
-user can issue a new `/name` gesture, when needed. The test's summary intentionally omits them: it demonstrates a possible
-loss, not a claim that every real summary loses them. No provider selection,
-request budget, retry, summary prompt or historical-tool replay is changed here.
+New or resumed sessions with visible approved skills receive one bounded message
+before their provider request. Existing visible reminders deduplicate on restore;
+old sessions without one gain a first publication. Catalog background appears
+before fresh skill instructions. Pending synthetic reminders surviving cancellation
+are reconciled, not interpreted as fresh user input. PostCompact uses the same
+rule, including retries that bypass PreStep. Historical catalog messages stay in
+the audit history; an empty replacement withdraws their current call guidance.
+
+Message content defaults to 8192 UTF-8 bytes (or the existing explicit advertisement
+ceiling), with descriptions normalized and limited to 500 UTF-8 bytes. Source entries
+match exactly the displayed rows; omitted rows are explicitly counted and recoverable
+through the existing catalog pager. Descriptions are JSON-escaped. Bodies, digests,
+resource paths and user-only entries are not disclosed. Empty initial catalogs emit
+nothing. Large catalogs may display no full row at the smallest budget; their pager
+remains reachable. This differs from official description-length/completeness rules.
+
+This adds context tokens alongside existing schemas. It does not promise token savings
+or model compliance. It does not pin loaded bodies, invoke resources, renew permission
+grants, change provider budgets, or migrate old message formats. Existing JSON source
+metadata accepts the new attributed message; no storage schema migration is needed.
+
+## Same-input reproduction
+
+The ordinary Go/Bazel Skill suite consumes
+[testdata/catalog-publication.json](../../harness/go/skills/testdata/catalog-publication.json).
+To execute the actual official hook separately, obtain the pinned source above and run:
+
+```sh
+node scripts/harness/compare-skill-catalog.mjs /path/to/official-tool-skill.ts
+```
+
+The runner requires Node with `node:module.stripTypeScriptTypes`, verifies the exact
+Git blob before evaluation, then invokes the upstream catalog PreStep listener with
+mocked registration, selected snapshot and Session surface seams. No upstream code is
+vendored or installed as production code. Both implementations check the same inputs
+and expected publication/role/entries/update results: first publication, no duplicate,
+compaction loss, withdrawal, repeated withdrawal, restoration, hidden startup and
+empty catalogs. It does **not** execute official compaction, loading, persistence,
+incomplete discovery or provider behavior. The Go integration tests separately
+exercise those local registry/persistence/compaction boundaries. The runner performs
+no network calls; fetching upstream and running this comparison are explicit checks.
+
+## Local evidence — 2026-11-11, macOS arm64, Go 1.26.4
+
+Implementation commit: `8bedf1b6235cb96a5f5a47c538882120b5ba9fe4`. The following checks cover this increment;
+no hosted CI, Native/Desktop or package acceptance is claimed.
+
+- Full `GOWORK=off go -C harness/go test -race -count=1 ./...`: 38 packages
+  passed with Python 3.12.11 selected through a task-local PATH shim. The first
+  run with system Python 3.9 failed only the installed literature-review sidecar's
+  `type | None` annotation; the module/source was not changed to hide it.
+- Related five-package race suite and `go vet` passed; latest Skill race suite passed.
+- Standalone `bazel test --lockfile_mode=error //skills:skills_test` and
+  `bazel run --lockfile_mode=error //:gazelle -- -mode=diff` passed in `harness/go`.
+- Exact upstream hook runner passed all 10 same-input steps. Its verified source
+  blob and observed outputs are in `official-catalog.json`.
+- A Go overlay replacing only tool mounting with the pinned Pero baseline makes
+  the new provider catalog/resume and compaction assertions fail, as expected.
+  This confirms they detect the missing behavior rather than just existing passes.
+- Source/provenance JSON, document links, formatting and diff checks passed; new
+  source/test files remain below 1000 lines. Test fixtures run in ordinary Go/Bazel
+  suites; the optional upstream runner adds no public-network dependency to CI.
+
+Local logs (not committed): `test-results/issue-73/` in the issue checkout,
+including `harness-race-python312.log`, original `harness-race.log`,
+`related-race.log`, `skills-race.log`, `vet.log`, `bazel-skills.log`, `gazelle.log`,
+`official-catalog.json` and `baseline-regression.log`. Reproduction metadata is
+in that directory's `README.md`. A scripted provider and mocked official seams
+remain distinct from full official-runtime or real-model acceptance.
 
 ## Reproduction and CI
 
@@ -96,7 +152,7 @@ this bounded contract suite passes; remaining gaps and unverified rows stay open
   `GOTMPDIR`/`TMPDIR` and the existing toolchain/module cache passed. This was an
   environment capacity failure, not a test or product failure.
 
-### Explicit user Skill loading — bounded follow-on
+### Historical explicit user Skill loading — 2026-11-01 follow-on
 
 The pinned official source was inspected again for this increment. Its actual
 `invokedSkillNames` matcher accepts whitespace-bounded tokens anywhere in direct
