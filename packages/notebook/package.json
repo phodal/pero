@@ -44,13 +44,19 @@
     "./notebook-print": "./src/notebook-print.ts",
     "./source-extraction": "./src/source-extraction.ts",
     "./interchange": "./src/interchange.ts",
-    "./scientific-block": "./src/scientific-block.ts"
+    "./scientific-block": "./src/scientific-block.ts",
+    "./myst": "./src/myst.ts",
+    "./myst-render": "./src/myst-render.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "exceljs": "4.4.0",
-    "fast-formula-parser": "1.0.19"
+    "fast-formula-parser": "1.0.19",
+    "katex": "0.16.22",
+    "myst-parser": "1.7.5",
+    "vfile": "5.3.7",
+    "yaml": "2.8.3"
   }
 }
