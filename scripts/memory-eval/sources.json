@@ -10,7 +10,7 @@
       "version": "0.0.30",
       "root_license": "MIT",
       "observed_commit_date": "2026-11-03T15:25:33Z",
-      "evaluation": "source_review_only",
+      "evaluation": "executed CRUD and namespace APIs; reflection not executed",
       "files": [
         {
           "path": "LICENSE",
@@ -45,7 +45,7 @@
       "version": "0.31.2",
       "root_license": "Apache-2.0",
       "observed_commit_date": "2026-11-11T01:25:27Z",
-      "evaluation": "source_review_only",
+      "evaluation": "executed temporal/episode APIs; no live graph service or LLM extraction",
       "files": [
         {
           "path": "LICENSE",
@@ -80,7 +80,7 @@
       "version": "1.2.1",
       "root_license": "MIT",
       "observed_commit_date": "2026-11-11T09:26:06Z",
-      "evaluation": "source_review_only",
+      "evaluation": "executed pinned chunks retain/recall/delete/restart/rebuild; reflect blocked by none provider",
       "files": [
         {
           "path": "LICENSE",
@@ -148,6 +148,40 @@
           "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/internal/store/store.go"
         }
       ]
+    },
+    {
+      "repository": "anthropics/claude-quickstarts",
+      "revision": "4a4224bdf0e9cfb3332167b69c90457403813625",
+      "root_license": "MIT",
+      "evaluation": "pinned source and Managed Agents API review; managed execution not authorized",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/anthropics/claude-quickstarts/blob/4a4224bdf0e9cfb3332167b69c90457403813625/LICENSE",
+          "root_license": "MIT"
+        },
+        {
+          "path": "managed-agents/knowledge-wiki/README.md",
+          "git_blob_sha": "8fbca440f047afe1971b0ef4ece8ee3d3bd04c3c",
+          "url": "https://github.com/anthropics/claude-quickstarts/blob/4a4224bdf0e9cfb3332167b69c90457403813625/managed-agents/knowledge-wiki/README.md"
+        },
+        {
+          "path": "managed-agents/knowledge-wiki/requirements.txt",
+          "git_blob_sha": "ca6dec7908dfe15e7f410d1035c535cd83ee2d8f",
+          "url": "https://github.com/anthropics/claude-quickstarts/blob/4a4224bdf0e9cfb3332167b69c90457403813625/managed-agents/knowledge-wiki/requirements.txt"
+        },
+        {
+          "path": "managed-agents/knowledge-wiki/prompts/organizer_system.md",
+          "git_blob_sha": "6af6917b748e857ac14a9557074bfb6e2d63dfc9",
+          "url": "https://github.com/anthropics/claude-quickstarts/blob/4a4224bdf0e9cfb3332167b69c90457403813625/managed-agents/knowledge-wiki/prompts/organizer_system.md"
+        },
+        {
+          "path": "managed-agents/knowledge-wiki/utilities.py",
+          "git_blob_sha": "70005c6ab633944108bfdabb69024b4e9789accc",
+          "url": "https://github.com/anthropics/claude-quickstarts/blob/4a4224bdf0e9cfb3332167b69c90457403813625/managed-agents/knowledge-wiki/utilities.py"
+        }
+      ]
     }
-  ]
+  ],
+  "pero_acceptance_base": "5072cbc606064cd6141848a23587c7bdcbdf997e"
 }

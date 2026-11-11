@@ -1,0 +1,363 @@
+{
+  "fixture_sha256": "96db2e049abd9ed1f5e1c838a83c87f03c3e9ffa0504de3661701dbc54646352",
+  "environment": {
+    "python": "3.12.11",
+    "system": "Darwin",
+    "release": "27.2.0",
+    "machine": "arm64"
+  },
+  "engram_ref": "ba9e46ced152c37a7cb9e576153c41995873e2fc",
+  "fixture_records": 15,
+  "fixture_questions": 25,
+  "model": null,
+  "llm_answer_accuracy": null,
+  "dreaming_quality": null,
+  "wiki_quality": null,
+  "model_tokens": null,
+  "paid_api_calls": 0,
+  "api_cost_usd": 0,
+  "ingest_and_startup_ms": 3266.581333009526,
+  "summary": {
+    "no_memory": {
+      "questions": 25,
+      "positive_questions": 12,
+      "covered_positive_questions": 0,
+      "gate_matches": 13,
+      "gate_mismatches": [
+        "Q01-current-correction",
+        "Q02-historical",
+        "Q03-version-condition",
+        "Q04-missing-condition",
+        "Q06-conflict",
+        "Q07-verifier-reference",
+        "Q09-failure-source",
+        "Q15-semantic-query",
+        "Q16-before-delete",
+        "Q21-correction-after-restart",
+        "Q22-source-changed",
+        "Q25-rebuild-changed"
+      ],
+      "wrong_scope_hits": 0,
+      "source_readback_valid": 0,
+      "returned_hits": 0,
+      "response_bytes": 0,
+      "tool_calls": 0,
+      "median_retrieval_ms": 0.00045797787606716156,
+      "p95_retrieval_ms": 0.0010829826351255178
+    },
+    "search_files": {
+      "questions": 25,
+      "positive_questions": 12,
+      "covered_positive_questions": 11,
+      "gate_matches": 24,
+      "gate_mismatches": [
+        "Q15-semantic-query"
+      ],
+      "wrong_scope_hits": 0,
+      "source_readback_valid": 32,
+      "returned_hits": 32,
+      "response_bytes": 38590,
+      "tool_calls": 57,
+      "median_retrieval_ms": 1.2979169841855764,
+      "p95_retrieval_ms": 1.8455829995218664
+    },
+    "engram": {
+      "questions": 25,
+      "positive_questions": 12,
+      "covered_positive_questions": 11,
+      "gate_matches": 23,
+      "gate_mismatches": [
+        "Q15-semantic-query",
+        "Q22-source-changed"
+      ],
+      "wrong_scope_hits": 0,
+      "source_readback_valid": 31,
+      "returned_hits": 34,
+      "response_bytes": 73510,
+      "tool_calls": 59,
+      "median_retrieval_ms": 0.7718330016359687,
+      "p95_retrieval_ms": 1.4650830125901848
+    },
+    "hindsight_chunks": {
+      "questions": 25,
+      "positive_questions": 12,
+      "covered_positive_questions": 11,
+      "gate_matches": 23,
+      "gate_mismatches": [
+        "Q15-semantic-query",
+        "Q22-source-changed"
+      ],
+      "wrong_scope_hits": 0,
+      "source_readback_valid": 129,
+      "returned_hits": 139,
+      "response_bytes": 19639,
+      "tool_calls": 164,
+      "median_retrieval_ms": 11.811333999503404,
+      "p95_retrieval_ms": 53.01179099478759
+    }
+  },
+  "hindsight_probe": {
+    "ready": true,
+    "embedding": "synthetic-hash-bag-64",
+    "llm": null,
+    "caller_selected_beta_bank": {
+      "hits": [
+        {
+          "source_ref": "transcript://beta/session-a#b01",
+          "source_sha256": "804ece2cb486ab3e40150aa68a671870793b9f0a35f7c57ab5fd555936621511"
+        }
+      ],
+      "calls": 2
+    },
+    "reflect_attempt": {
+      "error": "LLMNotAvailableError: Reflect requires an LLM provider. Current provider is set to 'none'. Set HINDSIGHT_API_LLM_PROVIDER to a real provider (e.g., openai, anthropic, gemini).",
+      "action": "reflect"
+    }
+  },
+  "lifecycle": [
+    {
+      "phase": "note_deleted",
+      "delete": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Memory #10 permanently deleted"
+          }
+        ]
+      },
+      "readback": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Observation #10 not found"
+          }
+        ],
+        "isError": true
+      }
+    },
+    {
+      "phase": "hindsight_note_deleted",
+      "absent": true
+    },
+    {
+      "phase": "hindsight_process_restart",
+      "fresh_process": true
+    },
+    {
+      "phase": "rebuilt",
+      "sources": [
+        "a01",
+        "a02",
+        "a03",
+        "a04",
+        "a05",
+        "a06",
+        "a07",
+        "a08",
+        "a09",
+        "a12",
+        "a14"
+      ]
+    }
+  ],
+  "disk_bytes": {
+    "transcripts": 5112,
+    "engram": 503808,
+    "rebuild": 266240,
+    "hindsight": 43927365
+  },
+  "binary_sha256": {
+    "engram": "f87770cecf99359ae90b459f463c6d7976e069bad0358282d642a21643d471b0",
+    "search_files": "b0cbcd4f71adf50063c4020658ad7f826e61c652eacd7578b82bb304463f9dd0"
+  },
+  "evaluation_sha256": {
+    "test_model.py": "f11e43e1ca392e565009c70c52e348ee8f05e4d98e9fd4e5255d08d08ea11535",
+    "check_review.py": "69491a1fdcd84a10bf8575040bb36ef28bd96ea516b878cdac18095221ee2a55",
+    "hindsight_arm.py": "695e7e359632e753e9c9debad197235885eef748c6e2b766dbd4be2d0209b3ce",
+    "review.py": "c5cc338329b34e6e62f5cb6d339a6482331d870ea79a5f1f17e5befd79d57b30",
+    "model.py": "5215cc1a458d6e9eac150feac3eec1653b476ba6247849f7ffc4f4189e9849db",
+    "check_results.py": "3faf886a39f2b5c53f0929310ea7a0e78e38da978ae78fe9972b934ba3ade277",
+    "probe_components.py": "e7bb9861297e0120877659b880e09ef02b7fdb311bdb48b9d8c44a462d5327f6",
+    "evaluate.py": "8f2e960d2f271e51d8a1dcb9c308a040179e749e93f26b66aa348f4acb1e4d53",
+    "review_run.py": "247b91e8654e61459b7542cea4c9e195ec866a193c9e8dc0ef70a32cef37688e",
+    "test_review.py": "712e050473b649560590936bf4617a723199d818d678ab4c71069e9e3efde6ad"
+  },
+  "replay": {
+    "runs": [
+      "compare-08",
+      "compare-09"
+    ],
+    "outcomes_per_run": 100,
+    "deterministic_outcomes_equal": true
+  },
+  "review": {
+    "fixture_sha256": "96db2e049abd9ed1f5e1c838a83c87f03c3e9ffa0504de3661701dbc54646352",
+    "revision": 1,
+    "watermark": 3,
+    "active_pages": 1,
+    "immutable_versions": 1,
+    "review": "explicit synthetic operator approval",
+    "revocation_hides_context": true,
+    "wiki_comparison": [
+      {
+        "question": "Q09-failure-source",
+        "sources": 1,
+        "search_decision": {
+          "status": "candidate",
+          "ids": [
+            "a08"
+          ],
+          "source_refs": [
+            "transcript://alpha/session-a#a08"
+          ],
+          "rejected": []
+        },
+        "wiki_decision": {
+          "status": "candidate",
+          "ids": [
+            "a08"
+          ],
+          "source_refs": [
+            "transcript://alpha/session-a#a08"
+          ],
+          "rejected": []
+        },
+        "same_decision": true,
+        "search_transport_bytes": 1481,
+        "search_calls": 2,
+        "search_source_bytes": 571,
+        "wiki_bytes": 651,
+        "llm_answer_accuracy": null
+      },
+      {
+        "question": "Q06-conflict",
+        "sources": 2,
+        "search_decision": {
+          "status": "conflict",
+          "ids": [
+            "a05",
+            "a07"
+          ],
+          "source_refs": [
+            "transcript://alpha/session-a#a05",
+            "transcript://alpha/session-b#a07"
+          ],
+          "rejected": [
+            [
+              "transcript://alpha/session-a#a06",
+              "wrong_conditions"
+            ]
+          ]
+        },
+        "wiki_decision": {
+          "status": "conflict",
+          "ids": [
+            "a05",
+            "a07"
+          ],
+          "source_refs": [
+            "transcript://alpha/session-a#a05",
+            "transcript://alpha/session-b#a07"
+          ],
+          "rejected": []
+        },
+        "same_decision": true,
+        "search_transport_bytes": 3559,
+        "search_calls": 4,
+        "search_source_bytes": 1254,
+        "wiki_bytes": 839,
+        "llm_answer_accuracy": null
+      }
+    ],
+    "wall_ms": 10.320625005988404,
+    "analyzer": "deterministic authored annotations, not LLM Dreaming",
+    "model_tokens": null,
+    "dreaming_quality": null,
+    "paid_api_calls": 0,
+    "api_cost_usd": 0,
+    "page_bytes": 2532,
+    "process_recovery": [
+      {
+        "attempt": "off",
+        "exit_code": 0,
+        "checkpoint_exists": false
+      },
+      {
+        "attempt": "failure",
+        "exit_code": 3,
+        "checkpoint_exists": false
+      },
+      {
+        "attempt": "recover",
+        "exit_code": 0,
+        "checkpoint_exists": true
+      },
+      {
+        "attempt": "retry",
+        "exit_code": 0,
+        "checkpoint_exists": true
+      }
+    ]
+  },
+  "components": {
+    "langmem": {
+      "create_update_search_delete": "passed",
+      "namespace_filter": "passed",
+      "historical_versions": "update replaced the same key; caller must retain history separately",
+      "storage": "LangGraph InMemoryStore, no embedding index",
+      "quality_score": null,
+      "llm_reflection": "not executed: no authorized model",
+      "deployment": "Python library; persistence and model remain caller dependencies",
+      "candidate": "langmem",
+      "elapsed_ms": 1396.6727920051198,
+      "paid_api_calls": 0,
+      "model_tokens": null
+    },
+    "graphiti": {
+      "temporal_and_episode_API": "passed",
+      "query": [
+        "((e.valid_at <= $valid_at_0))",
+        "((e.invalid_at IS NULL))"
+      ],
+      "parameters": {
+        "valid_at_0": "2026-11-05 00:00:00+00:00"
+      },
+      "backend_attempt": "ServiceUnavailable: Couldn't connect to 127.0.0.1:64072 (resolved to ('127.0.0.1:64072',)):\nTimed out trying to establish connection to ResolvedIPv4Address(('127.0.0.1', 64072))",
+      "graph_execution": "blocked: no configured graph service; Docker daemon unavailable",
+      "quality_score": null,
+      "llm_extraction": "not executed: no authorized model",
+      "candidate": "graphiti",
+      "elapsed_ms": 2196.2610830087215,
+      "paid_api_calls": 0,
+      "model_tokens": null
+    }
+  },
+  "dependency_review": {
+    "hindsight": {
+      "installed_distributions": 184,
+      "unknown_license_metadata": [
+        "cobble",
+        "exceptiongroup",
+        "fastuuid",
+        "Jinja2",
+        "markdown-it-py",
+        "markdownify",
+        "mdurl",
+        "obstore",
+        "pdfplumber",
+        "tokenizers"
+      ],
+      "scope": "metadata inventory, not legal redistribution approval"
+    },
+    "langmem": {
+      "installed_distributions": 51,
+      "unknown_license_metadata": [],
+      "scope": "metadata inventory, not legal redistribution approval"
+    },
+    "graphiti": {
+      "installed_distributions": 29,
+      "unknown_license_metadata": [],
+      "scope": "metadata inventory, not legal redistribution approval"
+    }
+  }
+}
