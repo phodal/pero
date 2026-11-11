@@ -5,6 +5,7 @@ import json
 import os
 
 from clusters import ClusterDraft, ClusterStore, Selection
+from task_reports import TaskReport, read_report, save_report
 
 
 def handler(store, secret):
@@ -27,18 +28,23 @@ def handler(store, secret):
             try:
                 if self.command == 'GET' and self.path == '/api/state':
                     return self.reply(200, store.state())
-                if self.command != 'POST' or self.path not in ('/api/clusters', '/api/selection'):
+                if self.command == 'GET' and self.path == '/api/task-report':
+                    return self.reply(200, read_report(store.path.parent))
+                if self.command != 'POST' or self.path not in ('/api/clusters', '/api/selection', '/api/task-report'):
                     return self.reply(404, {'detail': 'Route not found'})
                 self.connection.settimeout(10)
                 if self.headers.get('Transfer-Encoding') or not self.headers.get('Content-Type', '').startswith('application/json'):
                     raise ValueError('A JSON request with Content-Length is required')
                 length = int(self.headers.get('Content-Length', 0))
-                if not 0 < length <= 8192:
-                    raise ValueError('Cluster configuration request exceeds its size limit')
+                limit = 4 * 1024 * 1024 if self.path == '/api/task-report' else 8192
+                if not 0 < length <= limit:
+                    raise ValueError('Request exceeds its size limit')
                 content = self.rfile.read(length)
                 if len(content) != length:
                     raise ValueError('Incomplete request')
                 value = json.loads(content)
+                if self.path == '/api/task-report':
+                    return self.reply(200, save_report(store.path.parent, TaskReport.parse(value)))
                 result = store.save(ClusterDraft.parse(value)) if self.path == '/api/clusters' else store.select(Selection.parse(value))
                 return self.reply(200, result)
             except (ValueError, TypeError) as error:

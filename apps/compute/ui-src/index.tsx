@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
 import { Disclosure, AppFrame, Badge, Button, Card, EmptyIllustration, EmptyState, Feedback, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
+import { TaskReport } from './task-report';
 import { messages, type Cluster, type ClusterInput, type ClusterState, type ExecutionReceipt } from './messages';
 import './styles.css';
 
@@ -52,7 +53,7 @@ export default function Compute() {
       jobs: null, jobsStatus: 'not_connected', executionsStatus: state?.executionsStatus ?? null } });
 
   return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" tools={
-    <TabsList aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
+    <TabsList aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
   } actions={<><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button>
     {tab === 'clusters' && Boolean(state?.clusters.length) ? <Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button> : null}</>}>
     {loading && state ? <p className="compute-status" role="status">{t('refreshing')}</p> : null}
@@ -63,6 +64,7 @@ export default function Compute() {
       {failure === 'environmentUnavailable' ? <Button onClick={() => void open('/apps')}>{t('manageApps')}</Button> : null}
       <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{error}</p></Disclosure></div> : null}
     {!state ? loading ? <LoadingSkeleton label={t('loading')} className="compute-loading"><SkeletonText /></LoadingSkeleton> : null : <>
+      <TabsContent value="reports" className="compute-panel"><TaskReport /></TabsContent>
       <TabsContent value="jobs" className="compute-panel">
         {state.executionsStatus === 'unreadable' ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t('executionsUnreadable')}</Feedback>
           <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button>

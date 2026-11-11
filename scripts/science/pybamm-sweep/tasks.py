@@ -1,6 +1,7 @@
 """Explicitly submit or inspect the fixed list through existing Task/Run HTTP APIs."""
 import argparse
 from dataclasses import asdict, replace
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -65,7 +66,10 @@ def collect(api: ControlPlane, batch: Batch, reference_path: Path):
             continue
         details[item.experiment] = detail
         rows.append(summarize(item, Observation.parse(detail), references.get(item.experiment), identity))
-    return {'batch': batch.key, 'denominator': 6, 'rows': [asdict(row) for row in rows],
+    return {'schema': 'pero.pybamm-report.v1', 'observed_at': datetime.now(timezone.utc).isoformat(),
+            'name': batch.name, 'origin': batch.origin, 'method': asdict(identity.method),
+            'method_sha256': identity.sha256, 'bindings': [asdict(item) for item in batch.items],
+            'batch': batch.key, 'denominator': 6, 'rows': [asdict(row) for row in rows],
             'consistent': sum(row.verification == 'consistent' for row in rows),
             'machine_acceptance': 'not_assessed', 'scientific_acceptance': 'not_assessed', 'details': details}
 

@@ -1,7 +1,7 @@
 /** Real sandboxed Compute UI + SDK + Python persistence; only the Host boundary is a fixture. */
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createInterface } from 'node:readline';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -71,7 +71,7 @@ async function fixture(t, options = {}) {
     if (request.url === '/') {
       response.writeHead(200, { 'Content-Type': 'text/html' });
       return response.end(`<!doctype html><style>body{margin:0}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style>
-        <iframe title="Compute" sandbox="allow-scripts allow-same-origin" src="/app"></iframe><script>
+        <iframe title="Compute" sandbox="allow-scripts allow-same-origin allow-downloads" src="/app"></iframe><script>
         window.hostNavigations=[];window.failNavigation=false;window.context={locale:'zh-CN',dark:false,active:true};
         addEventListener('message',event=>{
           if(event.data?.type==='pero:app:ready')event.source.postMessage({type:'pero:app:context',context:window.context},'*');
@@ -186,6 +186,8 @@ test('loading and navigation failures recover while keyboard, locale and appeara
   await expect.poll(() => page.evaluate(() => window.hostNavigations)).toEqual(['/workers', '/workers', '/apps/environments', '/apps', '/apps/environments']);
   await frame.getByRole('tab', { name: '作业', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
+  await expect(frame.getByRole('tab', { name: '实验报告', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowRight');
   await expect(frame.getByRole('tab', { name: '集群', exact: true })).toHaveAttribute('aria-selected', 'true');
   const add = frame.getByRole('button', { name: '添加集群配置', exact: true });
   await add.click();
@@ -298,4 +300,44 @@ test('an owner receipt is shown without querying or resubmitting the cluster job
   await expect(draft).toContainText('stdout.log');
   assert.equal((await nonexistent()).status, 404);
   assert.ok(requests.every(item => item.path === '/api/state'));
+});
+
+test('imported experiment observations retain all six rows, raw results, logs and previous report on failure', async t => {
+  const { page, frame, restart } = await fixture(t);
+  const report = process.env.PERO_PYBAMM_REPORT
+    ? JSON.parse(await readFile(process.env.PERO_PYBAMM_REPORT, 'utf8'))
+    : JSON.parse(execFileSync(process.env.PYTHON || 'python3', [resolve(appRoot, 'test/test_task_reports.py')], { encoding: 'utf8' }));
+  await frame.getByRole('tab', { name: '实验报告', exact: true }).click();
+  const upload = value => frame.locator('input[type=file][accept=".json,application/json"]').setInputFiles({ name: 'report.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)) });
+  await upload(report);
+  await expect(frame.locator('.compute-report-row')).toHaveCount(6);
+  await expect(frame.getByText('报告记录 6 / 6 项结果一致', { exact: true })).toBeVisible();
+  await expect(frame.getByText(new RegExp(report.observed_at.replaceAll('+', '\\+')))).toBeVisible();
+  const downloading = page.waitForEvent('download');
+  await frame.getByRole('button', { name: '下载原始结果', exact: true }).first().click();
+  const chunks = []; for await (const chunk of await (await downloading).createReadStream()) chunks.push(chunk);
+  const bytes = Buffer.concat(chunks);
+  const { createHash } = await import('node:crypto');
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), report.rows[0].result_sha256);
+  const recordDownload = page.waitForEvent('download');
+  await frame.getByRole('button', { name: '下载执行记录与日志', exact: true }).first().click();
+  const logs = []; for await (const chunk of await (await recordDownload).createReadStream()) logs.push(chunk);
+  assert.deepEqual(JSON.parse(Buffer.concat(logs).toString()), report.details[report.rows[0].experiment]);
+  await page.screenshot({ path: resolve(captures, 'task-report-normal-light.png'), fullPage: true });
+  await restart(); await frame.getByRole('tab', { name: '实验报告', exact: true }).click();
+  await expect(frame.getByRole('heading', { name: report.name, exact: true })).toBeVisible();
+  await upload({ ...report, rows: report.rows.slice(1) });
+  await expect(frame.getByText(/已保留上一份报告/)).toBeVisible();
+  await expect(frame.locator('.compute-report-row')).toHaveCount(6);
+  const fault = process.env.PERO_PYBAMM_FAULT_REPORT
+    ? JSON.parse(await readFile(process.env.PERO_PYBAMM_FAULT_REPORT, 'utf8'))
+    : { ...report, name: 'Fault batch', rows: report.rows.map((row, i) => ({ ...row, state: ['failed', 'cancelled', 'reconcile', 'queued', 'missing', 'unavailable'][i], verification: 'not_checked', result_sha256: '', result_path: '' })), details: {} };
+  await upload(fault);
+  await expect(frame.getByText('报告记录 0 / 6 项结果一致', { exact: true })).toBeVisible();
+  await expect(frame.locator('.compute-report-row')).toHaveCount(6);
+  for (const name of ['失败', '已取消', '待核对']) await expect(frame.getByText(name, { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 440, height: 900 });
+  await page.evaluate(() => { window.context.dark = true; document.querySelector('iframe').contentWindow.postMessage({ type: 'pero:app:context', context: window.context }, '*'); });
+  await page.screenshot({ path: resolve(captures, 'task-report-fault-narrow-dark.png'), fullPage: true });
+  assert.equal(await frame.locator('html').evaluate(node => node.scrollWidth <= innerWidth), true);
 });

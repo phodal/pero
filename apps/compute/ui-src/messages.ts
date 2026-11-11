@@ -3,6 +3,7 @@ import type { AppMessages } from '@pero/app-sdk';
 export const messages: AppMessages = {
   navigation: { en: 'Compute views', zh: '计算视图' },
   jobs: { en: 'Jobs', zh: '作业' },
+  reports: { en: 'Experiment reports', zh: '实验报告' },
   clusters: { en: 'Clusters', zh: '集群' },
   add: { en: 'Add cluster draft', zh: '添加集群配置' },
   edit: { en: 'Edit draft', zh: '编辑配置' },
