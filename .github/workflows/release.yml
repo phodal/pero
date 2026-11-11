@@ -2,13 +2,20 @@ name: Release Desktop products
 
 on:
   push:
-    branches: [master]
     tags: ['v*']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  schedule:
+    - cron: "0 20 * * *"
   workflow_dispatch:
     inputs:
       tag:
         description: Existing version tag containing this packaging workflow
         required: true
+        type: string
+      sha:
+        description: Optional commit the tag must peel to. Resolved from the tag when empty.
+        required: false
         type: string
 
 permissions:
@@ -29,17 +36,102 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       actions: write
+      contents: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ github.ref_name }}
       RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
+      - name: Checkout the gate program
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Peel the tag to an immutable commit
+        id: pin
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/ci/deployment-gate.mjs pin-tag
       - name: Start native build with shared branch caches
-        run: gh workflow run release.yml --ref "$RELEASE_BRANCH" --field "tag=$RELEASE_TAG"
+        env:
+          SHA: ${{ steps.pin.outputs.sha }}
+        run: gh workflow run release.yml --ref "$RELEASE_BRANCH" --field "tag=$RELEASE_TAG" --field "sha=$SHA"
+
+  scope:
+    name: Decide Virtual Cell packaging scope
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - id: decide
+        name: Run for relevant changes, the daily canary, or ci:full
+        env:
+          SCOPE_KIND: release-package
+          SCOPE_EVENT: ${{ github.event_name }}
+          SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
+          SCOPE_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files=""
+          if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "$SCOPE_BASE" "$SCOPE_HEAD"
+            files=$(git diff --name-only "$SCOPE_BASE" "$SCOPE_HEAD")
+          fi
+          printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
+
+  resolve:
+    name: Pin the requested tag
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - id: pin
+        name: Peel the tag before checkout
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: node scripts/ci/deployment-gate.mjs pin-tag
+
+  gate:
+    name: Require trusted CI for the tag commit
+    needs: resolve
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Reject a missing, red, cancelled, or mismatched CI result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+        run: node scripts/ci/deployment-gate.mjs ci
 
   build:
-    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'branch'
+    needs: [scope, resolve, gate]
+    if: >-
+      always() && !cancelled() &&
+      ((github.event_name == 'workflow_dispatch' && needs.resolve.result == 'success' && needs.gate.result == 'success') ||
+       ((github.event_name == 'schedule' || github.event_name == 'pull_request') && needs.scope.outputs.run == 'true'))
     name: ${{ matrix.product }} (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -54,6 +146,7 @@ jobs:
     timeout-minutes: 90
     env:
       RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_SHA: ${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || '' }}
       RELEASE_PRODUCT: ${{ matrix.product }}
       CARGO_BUILD_JOBS: '2'
       HOMEBREW_NO_AUTO_UPDATE: '1'
@@ -61,8 +154,20 @@ jobs:
       - name: Checkout build source
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse a tree that is not the admitted SHA
+        env:
+          ADMITTED_SHA: ${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$ADMITTED_SHA"
+
+      - name: Refuse a tag that no longer points at this checkout
+        if: env.RELEASE_TAG != ''
+        run: |
+          git fetch --no-tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$(git rev-parse HEAD)"
 
       - name: Keep LF line endings
         if: runner.os == 'Windows'
@@ -194,22 +299,37 @@ jobs:
           retention-days: 7
 
   publish:
-    if: github.event_name == 'workflow_dispatch'
+    if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && needs.build.result == 'success' && needs.resolve.result == 'success'
     name: Publish all verified products together
-    needs: build
+    needs: [build, resolve]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      GATE_REPOSITORY: ${{ github.repository }}
+      GATE_TARGET_SHA: ${{ needs.resolve.outputs.sha }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Reject a moved tag or a CI result that is no longer green
+        run: |
+          node scripts/ci/deployment-gate.mjs pin-tag
+          node scripts/ci/deployment-gate.mjs ci
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
+
+      - name: Require every manifest to name the pinned SHA
+        run: node scripts/ci/deployment-gate.mjs manifests release-assets
 
       - name: Verify combined checksums
         working-directory: release-assets

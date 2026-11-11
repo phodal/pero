@@ -3,14 +3,23 @@
 # GPUI shell in the browser. Agent, remote, and Apps actions still require Desktop.
 #
 # Pages must use GitHub Actions as its source (Settings → Pages → Build and
-# deployment). The custom domain stays openpero.com. This workflow copies docs/
-# on every master push, because that folder is no longer published on its own.
+# deployment). The custom domain stays openpero.com. Publication is not tied to
+# the push itself: it builds the immutable SHA whose trusted CI complete
+# succeeded. workflow_run uses this file from master and must not check out a
+# pull request or fork. The master checkout below only supplies this gate.
 name: Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: Full master commit SHA whose trusted CI complete already succeeded
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,8 +35,48 @@ defaults:
     shell: bash
 
 jobs:
+  gate:
+    name: Require trusted CI for the target SHA
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.status == 'completed' &&
+        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch') &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.decision.outputs.sha }}
+    steps:
+      - name: Checkout the gate program
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Admit the CI SHA, not the current default-branch tip
+        id: decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+          GATE_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          GATE_TRIGGER_ID: ${{ github.event.workflow_run.id }}
+          GATE_TRIGGER_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          GATE_TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+          GATE_TRIGGER_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          GATE_TRIGGER_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          GATE_TRIGGER_STATUS: ${{ github.event.workflow_run.status }}
+          GATE_TRIGGER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: node scripts/ci/deployment-gate.mjs ci
+
   build:
     name: Build site and workbench
+    needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -48,8 +97,16 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
+      - name: Checkout the admitted commit
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Refuse a tree that is not the admitted SHA
+        env:
+          ADMITTED_SHA: ${{ needs.gate.outputs.sha }}
+        run: test "$(git rev-parse HEAD)" = "$ADMITTED_SHA"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
