@@ -49,10 +49,17 @@ try {
   await frame.getByRole('button', { name: 'Open reading record', exact: true }).first().click();
   await expect(frame.locator('.pa-reading-screen')).toBeVisible();
   await expect(frame.locator('#paper-research-records')).toContainText('What assumptions does the original source make?');
+  await expect.poll(() => frame.locator('.pa-pdf-page img').first().evaluate(image => image.complete && image.naturalWidth > 0).catch(() => false), { timeout: 30000 }).toBe(true);
   await page.screenshot({ path: join(out, 'saved-reading-record.png') });
   await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
   await frame.getByRole('button', { name: 'Autonomous research', exact: true }).click();
   await expect(frame.getByText('Round limit reached', { exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Source report', exact: true }).click();
+  await expect.poll(() => frame.locator('.pa-pdf-page img').first().evaluate(image => image.complete && image.naturalWidth > 0).catch(() => false), { timeout: 30000 }).toBe(true);
+  await expect(frame.locator('[data-citation-region]').first()).toBeVisible();
+  await page.screenshot({ path: join(out, 'exact-source-pdf.png') });
+  await frame.locator('.pa-reading-bar').getByRole('button', { name: 'Back to library', exact: true }).click();
+  await frame.getByRole('button', { name: 'Autonomous research', exact: true }).click();
   await frame.getByRole('button', { name: 'Open conversation and artifacts', exact: true }).press('Enter');
   chat = page.mainFrame(); // The workbench embeds the shared ChatPanel in its primary canvas.
   const state = () => chat.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
