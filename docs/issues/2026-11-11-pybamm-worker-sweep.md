@@ -1,8 +1,8 @@
 ---
 kind: feature
-status: in_progress
+status: resolved
 github_issue: 59
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/59
 ---
 
@@ -260,3 +260,10 @@ not that either injected error was the original parent's trigger. Evidence:
 The complete new two-machine run `diagnostic-1/receipt.json` passed 6/6 with the
 same cancellation/network-loss/recovery checks. Its logs and failed parent attempt
 remain separate; the parent should replay into another new output directory.
+
+
+## Coordinating acceptance — 2026-11-11
+
+The coordinating chat independently reran the macOS/Linux VM six-case suite: 6/6 outputs, zero duplicate calculations, six rejected late results, real cancellation/network loss and original-Run reconciliation. The Compute result browser was inspected. The task VM is stopped; evidence and its disk are retained.
+
+Code is merged through `735f3696`; [integration CI](https://github.com/phodal/pero/actions/runs/43019965818) records the merged source.

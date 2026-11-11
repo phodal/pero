@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: active
+status: resolved
 github_issue: 180
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/180
 ---
 
@@ -101,3 +101,10 @@ remains a separately managed reactive runtime candidate; nteract was not run.
 No new daemon, ACP flow, Host owner, runtime protocol or product UI was added.
 Next: review the proposed Computation Snapshot handoff and choose one explicit
 Host-authorized integration scenario; broader #180 acceptance is still open.
+
+
+## Coordinating acceptance — 2026-11-11
+
+The coordinating chat independently ran real Jupyter and marimo probes and inspected the historical Canvas screenshots. Final merged Host/Chromium Canvas and Paper-to-Control workflows both passed (2/2, 27.71 seconds), including old revisions. The three candidate evaluations and ADR complete the original research scope.
+
+Code is merged through `735f3696`; [integration CI](https://github.com/phodal/pero/actions/runs/43019965818) records the merged source.

@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-11
 github_issue: 161
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/161
 ---
 
@@ -74,10 +74,18 @@ single-/cross-document comparisons pass. This is not LLM Dreaming or Host wiring
 [Final acceptance mapping](../fitness/memory-recall-evaluation-2026-11-11.md#final-original-scope-acceptance)
 and [ADR 0034](../adr/0034-auditable-memory-projections.md) record all five original
 research success criteria and T1–T8 evidence. Original research deliverables are
-ready for coordinating-chat review and closure. This tracker remains in progress
-until that remote issue transition is made; no local claim that GitHub is closed.
+accepted by the coordinating chat after an independent 100-outcome replay and
+fresh-process reviewed-projection recovery checks. Research-scope closure does
+not authorize the deferred adoption work below.
 
 Remaining *adoption* limits are real model extraction/reflect/organization quality,
 Graphiti end-to-end backend behavior, public-benchmark generalization, production
 privacy erasure and Host/UI integration. They are explicitly deferred; requiring
 a paid model or deployment of every candidate would expand the research gate.
+
+
+## Coordinating acceptance — 2026-11-11
+
+The coordinating chat independently repeated all 100 fixed outcomes, the five reviewed-projection value cases and four fresh-process recovery cases. Candidate service processes were stopped. This closes the original research deliverables, with the adoption limits above retained.
+
+Code is merged through `735f3696`; [integration CI](https://github.com/phodal/pero/actions/runs/43019965818) records the merged source.

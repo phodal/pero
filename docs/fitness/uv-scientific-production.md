@@ -17,7 +17,7 @@ The issue remains open until its remaining platform/acceptance scope is reviewed
 | Control and native solver | Real PI computation had maximum analytic error `1.887379141862766e-15`. Actual managed active-filter ngspice calculation exported a Released Use containing the exact frozen native executable SHA. Independent path-switch test refused a changed ngspice executable, preserved exports and accepted the original again. |
 | Process ownership / failure / restart | OS parent and process-group checks gate scientific worker execution. A real SIGKILL of scientific Python left ngspice alive; Rust refused release until the full scientific group stopped. The durable Use ledger's release/restart gate passed for registered and not-yet-started children. No Python `released` assertion substitutes for OS evidence. |
 | Existing behavior and minimal UI | Real Electron verified PC-Gym selection, method-specific creation, real preparation cancellation, retained binding, local/GitHub proposal review, light/dark/narrow layout. Prior direct Control gate also covered unchanged backend PID, binding drift, missing dependencies, same-version byte drift, explicit recovery, cancellation and historical export after service restart. |
-| Linux gate | Fixed Linux x86_64 uv/Python inputs exist; PC-Gym explicitly selects the official CPU torch index. The coordinated Linux verification workflow is integrated by the parent task and awaits publication/execution. This macOS report does not assert that its Linux run passed. |
+| Linux gate | Fixed Linux x86_64 uv/Python inputs and the official CPU torch index passed real preparation/rebuild, Control/ngspice and PC-Gym execution/cancellation/Use gates in [run 43018513361](https://github.com/phodal/pero/actions/runs/43018513361). See [downloaded receipt review](uv-linux-ci.md). |
 
 ## Commands and retained evidence
 
@@ -40,9 +40,9 @@ contract generation check and Host compile passed.
 
 A broad Paper suite was also attempted with the unprepared system Python: 372
 tests ended with 19 failures, 51 errors and 17 skips, including missing `pypdfium2`
-and `PIL`. That run is not a passing integration claim. The parent coordinator owns
-the complete Paper rerun in its prepared App environment; no new dependency
-installation or unrelated repair was added to this pass.
+and `PIL`. That run is not a passing integration claim. The parent coordinator's
+merged-source rerun in its prepared App environment completed 383 tests with
+366 passing and 17 explicit skips. No unrelated dependency repair was added.
 
 Scientific live gates use explicitly prepared inputs and do not download software:
 

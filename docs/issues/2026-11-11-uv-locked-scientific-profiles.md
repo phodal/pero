@@ -90,9 +90,12 @@ or page-local control style was added. Production Use remains the original Rust
 state machine, with the original Python scientific owners and existing Paper approval.
 
 P0/P1 implementation for this pass is delivered with the real macOS evidence above.
-The issue remains open for remaining acceptance review: the coordinated Linux
-workflow is integrated and awaits publication/execution; Native, signed package and Windows execution are
-unverified. Extra uv artifact digests/layouts are verified, not execution acceptance.
+The coordinated Linux x86_64 [workflow passed](https://github.com/phodal/pero/actions/runs/43018513361):
+both methods prepared/rebuilt and completed actual execution, cancellation and Use
+release gates, including ngspice orphan-process refusal. Downloaded receipts were
+independently inspected. The issue remains open for P2; Native, signed package and
+Windows execution are unverified. Extra uv artifact digests/layouts are verified,
+not execution acceptance.
 The P2 Pixi candidate from #59's real Linux ARM native ABI conflict needs a separate
 demonstrated resolver fit; no new provider was added. The user requested stopping
 new scope after completing this pass.

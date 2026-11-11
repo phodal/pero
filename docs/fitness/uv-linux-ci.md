@@ -1,9 +1,20 @@
 ---
 kind: verification_report
-status: pending_execution
+status: verified
 ---
 
 # Linux locked preparation and scientific Use gate — #163
+
+## Observed run — 2026-11-11
+
+[Run 43018513361](https://github.com/phodal/pero/actions/runs/43018513361)
+passed on source `aeb52d34b58040217f3a6ad18a1981fe95681beb` and Ubuntu
+24.04 x86_64. Both Control and PC-Gym completed actual locked preparation,
+immutable rebuild and recovery, then actual attempts, cancellation and Use
+release. The Control gate also ran installed ngspice and the native orphan
+process check. Logs, native locks and receipts were downloaded and checked by
+the coordinating chat. PC-Gym remains scientifically INCONCLUSIVE; this is
+environment/runtime acceptance, not agreement with the paper.
 
 The existing Linux Control job installs manifest dependencies with pip and runs
 the numerical engine tests. General Rust test jobs leave explicitly ignored
