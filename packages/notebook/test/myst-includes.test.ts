@@ -13,15 +13,15 @@ test('include selection follows pinned inclusive line and whole-marker semantics
 test('nested relative include and literalinclude preserve exact source and provenance', () => {
   const snapshot = project({'main.md':'```{include} parts/one.md\n```','parts/one.md':'Text **included**.\n```{literalinclude} ../code.py\n:lines: 2-3\n```','code.py':'ignored\nprint("<script>")\n# trailing\n'});
   const before = exportMystProjectSnapshot(snapshot), result = compileMystProject(snapshot);
-  assert.match(renderMystHtml(result.entry), /Text <strong>included<\/strong>/);
-  assert.match(renderMystHtml(result.entry), /&lt;script&gt;/);
-  assert.match(JSON.stringify(result.entry.ast), /"path":"code.py"/);
+  assert.match(renderMystHtml(result.entry.document), /Text <strong>included<\/strong>/);
+  assert.match(renderMystHtml(result.entry.document), /&lt;script&gt;/);
+  assert.match(JSON.stringify(result.entry.document.ast), /"path":"code.py"/);
   assert.equal(exportMystProjectSnapshot(snapshot), before);
 });
 test('cycles, missing resources, root escapes and unsupported options retain directives', () => {
   const result = compileMystProject(project({'main.md':'```{include} other.txt\n```\n```{include} ../../escape.md\n```\n```{include} absent.md\n```\n```{literalinclude} other.txt\n:encoding: utf8\n```','other.txt':'```{include} main.md\n```'}));
   for (const code of ['include-cycle','include-unsupported','include-missing','include-options']) assert.ok(result.diagnostics.some(d => d.code === code),code);
-  assert.match(renderMystHtml(result.entry), /:encoding: utf8/);
+  assert.match(renderMystHtml(result.entry.document), /:encoding: utf8/);
 });
 test('repeated expansion, selected text and recursion are bounded', () => {
   const many = project({'main.md':Array.from({length:130},()=> '```{include} part.txt\n```').join('\n'),'part.txt':'x'});
@@ -36,5 +36,5 @@ test('repeated expansion, selected text and recursion are bounded', () => {
 test('unsupported directive bodies and parsed notebook includes remain visible', () => {
   const result=compileMystProject(project({'main.md':'```{include} text.txt\nBody\n```\n```{include} file.ipynb\n```','text.txt':'Text','file.ipynb':'{}'}));
   for(const code of ['include-body-unsupported','include-format-unsupported']) assert.ok(result.diagnostics.some(d=>d.code===code));
-  assert.match(renderMystHtml(result.entry),/Body/);
+  assert.match(renderMystHtml(result.entry.document),/Body/);
 });

@@ -1,13 +1,20 @@
+import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { resolveMystProjectReferences } from './myst-project-references.ts';
 import { expandMystIncludes } from './myst-includes.ts';
-import { parseMystSource, parseMystYamlMapping, resolveMystDocument, type MystDocument, type MystDiagnostic, type MystNode } from './myst.ts';
-import { inheritMystMetadata, validateMystProjectMetadata } from './myst-metadata.ts';
+import { parseMystSource, parseMystYamlMapping, resolveMystDocument, type MystDocument, type MystDiagnostic, type MystNode, type MystParsedDocument } from './myst.ts';
+import { inheritMystMetadata, validateMystProjectMetadata, validateMystMetadata, mystNotebookMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { resolveMystBibliography, type MystBibliographyRecord } from './myst-bibliography.ts';
 import { resolveMystResource, type MystProjectSnapshot, type MystTextResource } from './myst-project-snapshot.ts';
 
 export interface MystProjectPage { path: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
+export interface MystProjectNotebookCell { index: number; namespace: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
+export type MystProjectNotebookPage =
+  | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[] }
+  | { kind: 'invalid'; path: string; source: string; diagnostics: MystDiagnostic[] };
+export type MystProjectEntry = { kind: 'myst'; path: string; document: MystDocument } | MystProjectNotebookPage;
 export interface MystProjectProjection {
-  entry: MystDocument;
+  entry: MystProjectEntry;
+  notebookPages: MystProjectNotebookPage[];
   pages: MystProjectPage[];
   rawConfig: Record<string, unknown>;
   diagnostics: MystDiagnostic[];
@@ -52,12 +59,12 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   };
   const projectBibliography = bibliographyResources(rawProject.bibliography, 'myst.yml');
   const pages: MystProjectPage[] = [];
-  for (const resource of snapshot.files.filter(file => /\.(md|myst)$/i.test(file.path))) {
+  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata): MystProjectPage => {
     used.add(resource.path);
-    const expansion = expandMystIncludes(snapshot, resource.path, parseMystSource(resource.text));
+    const expansion = expandMystIncludes(snapshot, resource.path, supplied ?? parseMystSource(resource.text));
     const parsed = expansion.parsed;
     expansion.resources.forEach(path => used.add(path));
-    const inherited = inheritMystMetadata(parsed.scholarly, validated.normalized);
+    const inherited = inheritMystMetadata(parsed.scholarly, notebookScholarly ?? validated.normalized, notebookScholarly ? 'notebook' : 'project');
     const resources = [...projectBibliography, ...bibliographyResources(parsed.metadata.bibliography, resource.path)];
     // Repeated declarations of one physical resource are one input, not two copies
     // of every key. Distinct resources with equal keys remain ambiguous.
@@ -65,6 +72,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     const visit = (node: MystNode) => {
       if (node.type === 'image') {
         const url = typeof node.url === 'string' ? node.url : '';
+        if (notebookScholarly && url.startsWith('attachment:')) return;
         const resolution = resolveMystResource(snapshot, node.provenance?.path ?? resource.path, url);
         const asset = resolution.status !== 'unsupported' ? snapshot.assets?.find(asset => asset.path === resolution.path) : undefined;
         if (asset) {
@@ -77,12 +85,41 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     visit(parsed.ast);
     const document = resolveMystDocument(parsed, { scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
-    pages.push({ path: resource.path, document, bibliography: bibliography.records });
+    return { path: resource.path, document, bibliography: bibliography.records };
+  };
+  for (const resource of snapshot.files.filter(file => /\.(md|myst)$/i.test(file.path))) pages.push(compilePage(resource));
+  const notebookPages: MystProjectNotebookPage[] = [];
+  for (const resource of snapshot.files.filter(file => /\.ipynb$/i.test(file.path))) {
+    used.add(resource.path);
+    try {
+      const document = parseIpynb(resource.text);
+      const raw = mapping(document.raw.metadata) ? document.raw.metadata : {};
+      const notebookMetadata = mystNotebookMetadata(raw);
+      const normalized = validateMystMetadata(notebookMetadata);
+      const first = document.cells[0]?.kind === 'markdown' ? parseMystSource(document.cells[0].source) : undefined;
+      const merged = inheritMystMetadata(first?.scholarly ?? {}, normalized.normalized, 'notebook');
+      const inherited = inheritMystMetadata(merged.normalized, validated.normalized);
+      diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
+      const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}) };
+      const markdownCells = document.cells.filter(cell => cell.kind === 'markdown').map(cell => {
+        const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
+        const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized);
+        return { index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography };
+      });
+      notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells });
+      if (raw.myst !== undefined) report('notebook-metadata-inert', 'Nonstandard metadata.myst is retained; direct notebook metadata and first-cell frontmatter provide publication metadata.', resource.path);
+    } catch (error) {
+      const item: MystDiagnostic = { severity: 'error', code: 'notebook-invalid', path: resource.path, message: error instanceof Error ? error.message : 'Invalid notebook source' };
+      notebookPages.push({ kind: 'invalid', path: resource.path, source: resource.text, diagnostics: [item] }); diagnostics.push(item);
+    }
   }
-  resolveMystProjectReferences(snapshot, pages);
-  diagnostics.push(...pages.flatMap(page => page.document.diagnostics));
+  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  resolveMystProjectReferences(snapshot, referencePages, notebookPages.filter(page => page.kind === 'ipynb').map(page => ({ path: page.path, identifier: '', label: page.path })));
+  diagnostics.push(...referencePages.flatMap(page => page.document.diagnostics));
   for (const asset of snapshot.assets ?? []) if (!used.has(asset.path)) report('asset-unused', 'Provided binary resource is retained but not used by compiled pages.', asset.path);
   for (const file of snapshot.files) if (!used.has(file.path)) report('resource-unused', 'Provided text resource is retained but not used by the compiled entry/pages.', file.path);
   // Snapshot admission guarantees that entry names a provided Markdown resource.
-  return { entry: pages.find(page => page.path === snapshot.entry)!.document, pages, rawConfig, diagnostics };
+  const markdownEntry = pages.find(page => page.path === snapshot.entry);
+  const entry: MystProjectEntry = markdownEntry ? { kind: 'myst', path: markdownEntry.path, document: markdownEntry.document } : notebookPages.find(page => page.path === snapshot.entry)!;
+  return { entry, pages, notebookPages, rawConfig, diagnostics };
 }

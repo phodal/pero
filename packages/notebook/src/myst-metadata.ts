@@ -1,4 +1,4 @@
-import { validatePageFrontmatter, validateProjectFrontmatter, fillPageFrontmatter, type PageFrontmatter, type ProjectFrontmatter } from 'myst-frontmatter';
+import { validatePageFrontmatter, validateProjectFrontmatter, fillPageFrontmatter, fillProjectFrontmatter, PAGE_FRONTMATTER_KEYS, FRONTMATTER_ALIASES, type PageFrontmatter, type ProjectFrontmatter } from 'myst-frontmatter';
 
 /** Upstream page schema, including normalized contributors, affiliations and funding.
  * This is a derived projection, never a replacement for authored YAML metadata.
@@ -70,12 +70,14 @@ function validateMetadata<T extends PageFrontmatter>(metadata: Record<string, un
 }
 
 /** Official contributor-aware inheritance. Never replace this with an object spread. */
-export function inheritMystMetadata(page: PageFrontmatter, project: ProjectFrontmatter): MystMetadataValidation {
+export function inheritMystMetadata(page: PageFrontmatter, project: ProjectFrontmatter, scope: 'project' | 'notebook' = 'project'): MystMetadataValidation {
   const messages: Parameters<typeof fillPageFrontmatter>[2]['messages'] = { errors: [], warnings: [] };
   const diagnostics: MystMetadataDiagnostic[] = [];
   let normalized: PageFrontmatter = structuredClone(page);
   try {
-    normalized = fillPageFrontmatter(structuredClone(page), structuredClone(project), { property: 'frontmatter', messages });
+    normalized = scope === 'notebook'
+      ? fillProjectFrontmatter(structuredClone(page), structuredClone(project), { property: 'frontmatter', messages }, PAGE_FRONTMATTER_KEYS, false)
+      : fillPageFrontmatter(structuredClone(page), structuredClone(project), { property: 'frontmatter', messages });
   } catch (error) {
     diagnostics.push({ severity: 'error', code: 'frontmatter-validator-error', property: 'frontmatter', message: `Unable to inherit project metadata: ${error instanceof Error ? error.message : 'upstream validation failed'}` });
   }
@@ -83,4 +85,11 @@ export function inheritMystMetadata(page: PageFrontmatter, project: ProjectFront
     for (const entry of entries ?? []) diagnostics.push({ severity, code: 'frontmatter-validation', property: entry.property, message: `${entry.property}: ${entry.message}` });
   }
   return { normalized: JSON.parse(JSON.stringify(normalized)) as PageFrontmatter, diagnostics };
+}
+
+/** Notebook metadata also contains kernel/editor state. Only upstream page fields
+ * and official aliases enter scholarly validation; all raw data stays in .ipynb. */
+export function mystNotebookMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+  const keys = new Set([...PAGE_FRONTMATTER_KEYS, ...Object.keys(FRONTMATTER_ALIASES)]);
+  return Object.fromEntries(Object.entries(metadata).filter(([key]) => keys.has(key)));
 }

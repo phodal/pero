@@ -164,7 +164,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   const title = scholarly.title ?? 'MyST publication';
   const plainText = (node: MystNode): string => node.value ?? (node.children ?? []).map(plainText).join('');
   const firstContent = document.ast.children?.find(node => node.type !== 'comment');
-  const repeatedTitle = scholarly.title && firstContent?.type === 'heading' && firstContent.depth === 1 && plainText(firstContent).trim() === scholarly.title.trim() ? firstContent : undefined;
+  const repeatedTitle = options.metadata !== false && scholarly.title && firstContent?.type === 'heading' && firstContent.depth === 1 && plainText(firstContent).trim() === scholarly.title.trim() ? firstContent : undefined;
   const titleHtml = repeatedTitle ? render(repeatedTitle) : scholarly.title ? `<h1>${escapeMystHtml(scholarly.title)}</h1>` : '';
   const body = render(repeatedTitle ? { ...document.ast, children: document.ast.children?.filter(node => node !== repeatedTitle) } : document.ast);
   const metadataResult = options.metadata === false ? { html: '', notices: [] } : renderMystMetadata(scholarly, options.namespace, titleHtml);

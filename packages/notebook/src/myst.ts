@@ -60,7 +60,7 @@ export function parseMystDocument(source: string): MystDocument {
 }
 
 /** Parse and normalize before resource resolution; project callers supply typed inputs. */
-export function parseMystSource(source: string): MystParsedDocument {
+export function parseMystSource(source: string, options: { frontmatter?: boolean } = {}): MystParsedDocument {
   parseMystAttributes({ schemaVersion: 1, source });
   const diagnostics: MystDiagnostic[] = [];
   const report = (code: string, message: string, node?: MystNode, severity: MystDiagnostic['severity'] = 'warning') => {
@@ -70,9 +70,9 @@ export function parseMystSource(source: string): MystParsedDocument {
   let frontmatter = false;
   let ast: MystNode;
   try {
-    const tokens = createTokenizer({ extensions: { smartquotes: false } }).parse(source, { vfile: file });
+    const tokens = createTokenizer({ extensions: { smartquotes: false, frontmatter: options.frontmatter !== false } }).parse(source, { vfile: file });
     frontmatter = tokens[0]?.type === 'fence' && tokens[0].info === 'yaml' && source.replace(/^\uFEFF/, '').startsWith('---');
-    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false }, mdast: { listItemParagraphs: true } }) as MystNode;
+    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
   } catch (error) {
     report('parse-error', error instanceof Error ? error.message : 'Unable to parse MyST', undefined, 'error');
     ast = { type: 'root', children: [{ type: 'mystUnsupported', value: source }] };

@@ -21,21 +21,21 @@ const files = {
 test('project uses official metadata inheritance and explicit BibTeX records without changing source', () => {
   const snapshot = project(files);
   const result = compileMystProject(snapshot);
-  assert.equal(result.entry.scholarly.title, 'Page title');
-  assert.equal(result.entry.scholarly.authors?.[0].name, 'Alice Smith');
-  assert.equal(result.entry.scholarly.affiliations?.[0].name, 'Example Lab');
-  assert.equal(result.entry.bibliography['garcía2024'].author, 'José García, Research Group');
-  assert.equal(result.entry.bibliography.child.year, '2020');
+  assert.equal(result.entry.document.scholarly.title, 'Page title');
+  assert.equal(result.entry.document.scholarly.authors?.[0].name, 'Alice Smith');
+  assert.equal(result.entry.document.scholarly.affiliations?.[0].name, 'Example Lab');
+  assert.equal(result.entry.document.bibliography['garcía2024'].author, 'José García, Research Group');
+  assert.equal(result.entry.document.bibliography.child.year, '2020');
   assert.equal(result.pages[0].bibliography[0].csl['container-title'], 'Journal of Examples');
   assert.equal(result.pages[0].bibliography[0].id, 'García2024');
   assert.equal(result.pages[0].bibliography[0].path, 'refs.bib');
   assert.ok(!result.diagnostics.some(d => d.code === 'citation-unresolved'));
-  assert.equal(result.entry.source, files['pages/article.md']);
+  assert.equal(result.entry.document.source, files['pages/article.md']);
   assert.equal(snapshot.files.find(f => f.path === 'refs.bib')!.text, bibtex);
   const noTitle = compileMystProject(replaceMystProjectResource(snapshot, snapshot.entry, 'No page title.'));
-  assert.equal(noTitle.entry.scholarly.title, undefined, 'project title is deliberately not inherited');
+  assert.equal(noTitle.entry.document.scholarly.title, undefined, 'project title is deliberately not inherited');
   const override = compileMystProject(replaceMystProjectResource(snapshot, snapshot.entry, '---\nauthors:\n  - name: Page Author\n---\nText'));
-  assert.equal(override.entry.scholarly.authors?.[0].name, 'Page Author');
+  assert.equal(override.entry.document.scholarly.authors?.[0].name, 'Page Author');
 });
 
 test('project and page declarations resolve from their own file, preserve full CSL and diagnose ambiguity', () => {
@@ -44,11 +44,11 @@ test('project and page declarations resolve from their own file, preserve full C
     'pages/local.json': JSON.stringify([{ id: 'shared', type: 'book', title: 'Two' }, { id: 'csl', type: 'article-journal', title: 'CSL title', author: [{ literal: 'Group' }], issued: { 'date-parts': [[2025]] }, DOI: '10.1234/test', custom: { all: ['retained'] } }]),
   });
   const result = compileMystProject(snapshot);
-  assert.equal(result.entry.bibliography.shared, undefined);
-  assert.equal(result.entry.bibliography.legacy, undefined);
-  assert.equal(result.entry.bibliography.csl.author, 'Group');
-  assert.equal(result.entry.bibliography.csl.year, '2025');
-  assert.equal(result.entry.bibliography.csl.url, 'https://doi.org/10.1234/test');
+  assert.equal(result.entry.document.bibliography.shared, undefined);
+  assert.equal(result.entry.document.bibliography.legacy, undefined);
+  assert.equal(result.entry.document.bibliography.csl.author, 'Group');
+  assert.equal(result.entry.document.bibliography.csl.year, '2025');
+  assert.equal(result.entry.document.bibliography.csl.url, 'https://doi.org/10.1234/test');
   assert.equal(result.diagnostics.filter(d => d.code === 'citation-ambiguous').length, 2);
   assert.equal(result.diagnostics.filter(d => d.code === 'citation-unresolved').length, 2);
   assert.deepEqual(result.pages[0].bibliography.at(-1)?.csl.custom, { all: ['retained'] });
@@ -65,8 +65,8 @@ test('missing resources, unsafe paths, inert includes/plugins and malformed bibl
   const result = compileMystProject(snapshot);
   for (const code of ['resource-missing', 'resource-unsupported', 'include-unsupported', 'bibliography-invalid', 'project-feature-inert', 'citation-unresolved', 'resource-unused']) assert.ok(result.diagnostics.some(d => d.code === code), code);
   assert.ok(result.diagnostics.some(d => d.code === 'html-inert' && d.path === 'provided.txt'));
-  assert.ok(renderMystHtml(result.entry).includes('&lt;script&gt;'));
-  assert.ok(!renderMystHtml(result.entry).includes('<script>'));
+  assert.ok(renderMystHtml(result.entry.document).includes('&lt;script&gt;'));
+  assert.ok(!renderMystHtml(result.entry.document).includes('<script>'));
   assert.deepEqual(result, compileMystProject(snapshot));
 });
 
@@ -74,7 +74,7 @@ test('direct forced BibTeX input never treats a URL as a remote bibliography and
   const snapshot = project({ ...files, 'refs.bib': 'https://example.org/never-fetch.bib', 'pages/article.md': '---\nbibliography: refs.json\n---\n@evil', 'pages/refs.json': JSON.stringify([{ id: 'evil', type: 'book', title: '<img src=x onerror=alert(1)>', URL: 'javascript:alert(1)' }]) });
   const result = compileMystProject(snapshot);
   assert.ok(result.diagnostics.some(d => d.code === 'bibliography-empty'));
-  const html = renderMystHtml(result.entry);
+  const html = renderMystHtml(result.entry.document);
   assert.ok(!html.includes('<img src=x'));
   assert.ok(!html.includes('href="javascript:'));
   assert.match(html, /&lt;img/);
@@ -111,12 +111,12 @@ test('Notebook interchange retains project authority and reports both lossy expo
 
 test('unsupported config versions and malformed scholarly input remain visible without applying project defaults', () => {
   const future = compileMystProject(project({ ...files, 'myst.yml': 'version: 9\nproject:\n  authors:\n    - name: Future Author' }));
-  assert.equal(future.entry.scholarly.authors, undefined);
+  assert.equal(future.entry.document.scholarly.authors, undefined);
   assert.ok(future.diagnostics.some(d => d.code === 'project-config-version'));
   const invalid = compileMystProject(project({ ...files, 'myst.yml': 'project:\n  authors: [null]\n  date: today' }));
   assert.ok(invalid.diagnostics.some(d => d.code === 'frontmatter-validator-error'));
   assert.ok(invalid.diagnostics.some(d => d.code === 'frontmatter-date'));
   const duplicates = compileMystProject(project({ ...files, 'refs.bib': '@article{Study,title={One}}\n@article{study,title={Two}}', 'pages/article.md': '@Study' }));
-  assert.equal(duplicates.entry.bibliography.study, undefined);
+  assert.equal(duplicates.entry.document.bibliography.study, undefined);
   assert.ok(duplicates.diagnostics.some(d => d.code === 'citation-ambiguous'));
 });
