@@ -109,6 +109,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                     data = mapping(json.loads(body), "request")
                     if path in ('/api/programs', '/internal/research-program'):
                         return self.reply(200, program_request(programs, data, now(), internal=path.startswith('/internal/')))
+                    if path in ('/api/data-evidence', '/internal/research-data-evidence'):
+                        from .data_evidence import request as data_evidence_request
+                        return self.reply(200, data_evidence_request(store, data, internal=path.startswith('/internal/')))
                     if path == '/internal/research-record':
                         from .research_watch import save_with_data
                         return self.reply(200, save_with_data(store, data, now()))

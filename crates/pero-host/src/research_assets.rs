@@ -31,6 +31,8 @@ pub(crate) enum ResearchAssetsRequest {
     Status { bundle_id: ResearchId, asset_id: Option<ResearchId> },
     Cancel { bundle_id: ResearchId, asset_id: Option<ResearchId> },
     Datasets,
+    Queries { query_id: Option<ResearchId> },
+    Linkquery { query_id: ResearchId, claim: Value },
     Saverecord { record: Value, datasets: Vec<DatasetSelection> },
 }
 
@@ -109,6 +111,23 @@ impl ResearchAssetHandoff {
 
     pub(crate) fn execute(self, request: ResearchAssetsRequest) -> Result<Value, String> {
         match request {
+            ResearchAssetsRequest::Queries { query_id } => {
+                let body = match query_id {
+                    Some(id) => serde_json::json!({"operation":"read","queryId":id}),
+                    None => serde_json::json!({"operation":"list"}),
+                };
+                return post(&client(6)?, &self.data, "/internal/research-query", &body);
+            }
+            ResearchAssetsRequest::Linkquery { query_id, claim } => {
+                let client = client(6)?;
+                let query: Value = post(&client, &self.data, "/internal/research-query",
+                    &serde_json::json!({"operation":"read","queryId":query_id}))?;
+                if query["id"] != serde_json::to_value(&query_id).map_err(|e| e.to_string())? {
+                    return Err("Data returned a different query reference".into());
+                }
+                return post(&client, &self.paper, "/internal/research-data-evidence",
+                    &serde_json::json!({"operation":"bind","claim":claim,"query":query}));
+            }
             ResearchAssetsRequest::Datasets => {
                 return serde_json::to_value(datasets(&self.data)?).map_err(|error| error.to_string());
             }
@@ -235,6 +254,10 @@ mod tests {
             (json!({"operation":"start","bundleId":bundle(),"assetId":asset(),"descriptor":descriptor()}), false),
             (json!({"operation":"status","bundleId":bundle(),"target":"other"}), false),
             (json!({"operation":"delete","bundleId":bundle()}), false),
+            (json!({"operation":"queries"}), true),
+            (json!({"operation":"queries","queryId":bundle()}), true),
+            (json!({"operation":"linkquery","queryId":bundle(),"claim":{}}), true),
+            (json!({"operation":"linkquery","queryId":bundle(),"claim":{},"query":{"rows":[99]}}), false),
         ] {
             assert_eq!(serde_json::from_value::<ResearchAssetsRequest>(value.clone()).is_ok(), accepted, "{value}");
         }

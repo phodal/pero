@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
 import { Disclosure, Button, Checkbox, Select, Feedback, Input, Textarea } from '@pero/app-sdk/ui';
-import type { Api, Library, Paper, Report } from './types';
+import type { Citation } from './report-content';
+import type { Api, Intent, Library, Paper, Report } from './types';
 import { reviseEvidence, reportsCitingPaper, type ManualEvidence as Evidence } from './manual-evidence';
 import { ResearchWatch, researchHost, type DataPin, type Dataset } from './research-watch';
 import './manual-records.css';
+import { DataEvidence } from './data-evidence';
 
 type Decision = { paperId: string; decision: 'include' | 'exclude' | 'pending'; reason: string };
 export type ResearchAttempt = { paperId: string; documentId: string; annotationId: string; page: number;
@@ -22,8 +24,8 @@ type Impact = { recordId: string; methodStatus: string; affectedAttempts: Resear
   pdfChanged: boolean; structuredChanged: boolean; candidatePaperIds: string[] }[] };
 
 /** Manual decisions reference existing evidence; they never create observations or execute research. */
-export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api: Api; library: Library; paper: Paper | null;
-  onRead(id: string): void; onAttempt(attempt: ResearchAttempt): void }) {
+export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }: { api: Api; library: Library; paper: Paper | null;
+  onRead(id: string): void; onCite(value: Citation, intent: Intent): void; onAttempt(attempt: ResearchAttempt): void }) {
   const [reports, setReports] = useState<Report[]>([]), [reportsLoading, setReportsLoading] = useState(false), [reportsError, setReportsError] = useState(''), [reportsRetry, setReportsRetry] = useState(0);
   const [records, setRecords] = useState<RecordRevision[]>([]), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [editing, setEditing] = useState(false), [parentId, setParentId] = useState<string | undefined>();
@@ -103,6 +105,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt }: { api:
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
   const attemptLabel = (attempt: ResearchAttempt) => `${attempt.profile} / ${attempt.policy}, seed ${attempt.seed} / ${attempt.status} / ${attempt.startedAt}`;
   return <section className="pa-manual-records" aria-label="Question and scope"><h3>Question and scope</h3>
+    <DataEvidence api={api} library={library} onCite={onCite} paperId={paper?.id} />
     {loading && <p role="status">Loading records…</p>}
     {error && <Feedback kind="error">{error}<Button disabled={busy || loading} onClick={() => setRetry(value => value + 1)}>Reload records</Button></Feedback>}
     {message && <p role="status">{message}</p>}

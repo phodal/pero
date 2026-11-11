@@ -137,7 +137,7 @@ export function ResearchRecords({ api, library, paper, results = false, onFollow
       <Select label={t('researchResultStatus')} value={filter} onChange={value => setFilter(value as typeof filter)}
         options={[{ value: 'all', label: t('allResearchResults') }, ...(['reportSaved', 'studyUnfinished', 'questionSaved'] as const).map(kind => ({ value: kind, label: t(kind) }))]}/>
     </div>}
-    <div hidden={results && (!!term || filter !== 'all')}><ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt}/></div>
+    <div hidden={results && (!!term || filter !== 'all')}><ManualRecords api={api} library={library} paper={paper} onRead={onRead} onAttempt={onAttempt} onCite={onCite}/></div>
     {!days.size && <EmptyState heading={t(history.length ? 'noResearchMatches' : 'noResearchRecords')}/>}
     {!!days.size && <div className="pa-result-browser">
       <nav aria-label={t('researchResults')} className="pa-result-list">
