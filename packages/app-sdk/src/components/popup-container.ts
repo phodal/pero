@@ -35,8 +35,9 @@ function nearestOpenDialog(trigger: HTMLElement): HTMLElement | null {
 export function resolvePopupContainer(trigger: HTMLElement, explicit?: HTMLElement | null) {
   if (explicit) return explicit;
   const nested = trigger.closest<HTMLElement>('[data-pero-popup-container]');
-  if (nested) return nested;
   const dialog = nearestOpenDialog(trigger);
+  // A modal opened from a popup owns its controls above that enclosing popup.
+  if (nested && (!dialog || dialog.contains(nested))) return nested;
   if (dialog) return dialog;
   const workbench = trigger.closest('.pero-workbench');
   if (workbench instanceof trigger.ownerDocument.defaultView!.HTMLElement) return workbench;

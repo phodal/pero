@@ -287,14 +287,19 @@ test('select keeps listbox semantics, controlled intent, and dialog portal', asy
     sink.remove(); moved.remove();
     await render(null);
 
-    await render(React.createElement('dialog', { open: true, id: 'host-dialog' }, tree('alpha')));
-    const host = document.getElementById('host-dialog');
-    await click(stubAnchor());
-    assert.ok(host.contains(panel()), 'open dialog contains the popup');
-    assert.ok(panel().parentElement !== document.body, 'popup is not a direct body child');
-    await key(document.querySelector('[role="listbox"]'), 'Escape');
-    assert.ok(host.contains(document.activeElement), 'escape focus stays in the dialog');
-    await render(null);
+    for (const placement of ['dialog', 'dialog-in-popup', 'popup-in-dialog']) {
+      const content = placement === 'popup-in-dialog'
+        ? React.createElement('div', { 'data-pero-popup-container': '', id: 'inner-popup' }, tree('alpha')) : tree('alpha');
+      const dialog = React.createElement('dialog', { open: true, id: 'host-dialog' }, content);
+      await render(placement === 'dialog-in-popup'
+        ? React.createElement('div', { 'data-pero-popup-container': '' }, dialog) : dialog);
+      const host = document.getElementById('host-dialog');
+      await click(stubAnchor());
+      assert.ok(panel().parentElement === (document.getElementById('inner-popup') ?? host), placement);
+      await key(document.querySelector('[role="listbox"]'), 'Escape');
+      assert.ok(host.contains(document.activeElement), `${placement}: escape focus stays in the dialog`);
+      await render(null);
+    }
   });
 });
 

@@ -21,6 +21,7 @@ export async function verifySourceExcerpts(page, origin, output) {
     await button('Insert source excerpt').click();
     const dialog = page.getByRole('dialog');
     await button('Source attachment', dialog).click();
+    await page.screenshot({ path: resolve(output, 'source-excerpt-picker-light.png') });
     await page.getByRole('option', { name: 'pinned-notes.txt · text/plain', exact: true }).click();
     await expect(dialog.getByLabel('Source text (read-only)', { exact: true })).toHaveValue('\ufeffA🧪e\u0301\n终\nLast');
     return dialog;

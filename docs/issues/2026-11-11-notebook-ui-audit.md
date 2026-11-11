@@ -82,3 +82,56 @@ retested. Saved snapshot selection is explicitly scoped to Notebook revisions;
 JSON import remains available for external reports. No scientific acceptance is
 implied. One console exception during iframe theme verification was traced to the
 browser's injected Electron preload, not a Notebook source script.
+
+## CI follow-up: migrated navigation and nested dialogs
+
+Runs [43003026881](https://github.com/phodal/pero/actions/runs/43003026881)
+and [43007150844](https://github.com/phodal/pero/actions/runs/43007150844)
+failed at the same two assertions: the shortcut test assumed Ctrl+Shift+S was
+unhandled by every editor, and the browser test searched for View in the old
+command row. On Linux, Tiptap legitimately handles Mod+Shift+S as strikethrough.
+The test must verify the native edit and absence of a Notebook export, on both
+Mac and Linux. Navigation now exposes five tabs and retains View in the workspace
+navigation row; the browser contract must check that actual arrangement.
+Later in the journey, the Properties label fields have native datalists and
+therefore combobox semantics, not a fixed textbox role. Select them by their
+associated labels while preserving save, reload and exact metadata assertions.
+
+Continuing the full browser journey then exposed a real nested-dialog defect:
+Insert → source excerpt → Source attachment rendered the Select list in the
+outer Popover, behind the native modal. The shared popup-container resolver
+preferred an ancestor popup marker even when a closer open dialog owned the
+trigger. Preserve explicit containers and popup containers inside dialogs, but
+keep a dialog's controls above an enclosing menu. The affected real consumer is
+the source-excerpt composer; its existing pointer-selection and retained-source
+checks are the browser regression path. Test-alignment commit: `ff19e977`.
+
+Verification on base `68c62816` plus this repair, macOS, Node 26.8.1,
+Python 3.12.11 and real Chromium with isolated SQLite:
+
+- `NOTEBOOK_REAL_OCR=1 npm run test:notebook`: 269 core and 110 editor tests
+  passed; Python ran 151 tests, 150 passed and the Linux-only virtual-address
+  limit case skipped. Real image/PDF OCR and limited-parser OCR passed.
+- `npm --prefix apps/notebook run test:browser`: 7/7 passed, including all 15
+  follow-on scenarios in the workbook journey. No forced clicks or skipped
+  assertions. Source attachment selection uses a real pointer click, then
+  checks exact text/hash, published revisions and retained download bytes.
+- Shared Select, Popover and Dialog: 22/22 passed. The existing portal table
+  now covers a dialog inside a popup and a popup inside a dialog; explicit
+  container, Escape and focus behavior remain covered.
+- Packaged parser/citation tests: 2/2; installed App/Canvas owner tests: 21/21.
+- Notebook build, Notebook typecheck and SDK typecheck passed.
+
+Local logs: `/Users/phodal/workspaces/pero-notebook-ci-430030/test-results/ci-notebook/`
+(`notebook-tests.log`, `fixed-browser.log`, `popup-tests.log`,
+`packaged-parser-tests.log`, `owner-tests.log`, `build.log`, `typecheck.log`,
+`sdk-typecheck.log`). Browser artifacts remain in the sibling `notebook/`
+directory. Visually inspected `copied-notebook.png`,
+`source-excerpt-picker-light.png`, `source-excerpt-light.png`, and
+`source-excerpt-retained-narrow-dark.png`; the picker is visible above the modal
+and the saved/retained excerpt is readable in both themes. The failure screenshot
+is retained as `ci-notebook/baseline-source-excerpt.png`.
+
+The shortcut cases explicitly set Mac/Linux navigator platforms within the test;
+this is not a Linux OS run. Latest Linux CI must run after integration. No
+Electron, Native, paid model or scientific acceptance was performed here.
