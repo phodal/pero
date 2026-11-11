@@ -5,6 +5,25 @@ on:
     tags: ['v*']
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - apps/virtual-cell/**
+      - products/virtual-cell/**
+      - packages/product/**
+      - scripts/release/**
+      - scripts/build/**
+      - scripts/cargo.mjs
+      - scripts/lib/**
+      - desktop/**
+      - crates/pero-host/**
+      - crates/pero-worker/**
+      - crates/pero-runtime/**
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - package-lock.json
+      - scripts/ci/deployment-gate.mjs
+      - scripts/ci/workflow-scope.mjs
+      - .github/workflows/release.yml
   schedule:
     - cron: "0 20 * * *"
   workflow_dispatch:
@@ -63,39 +82,6 @@ jobs:
           SHA: ${{ steps.pin.outputs.sha }}
         run: gh workflow run release.yml --ref "$RELEASE_BRANCH" --field "tag=$RELEASE_TAG" --field "sha=$SHA"
 
-  scope:
-    name: Decide Virtual Cell packaging scope
-    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      run: ${{ steps.decide.outputs.run }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-      - id: decide
-        name: Run for relevant changes, the daily canary, or ci:full
-        env:
-          SCOPE_KIND: release-package
-          SCOPE_EVENT: ${{ github.event_name }}
-          SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
-          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          SCOPE_PR: ${{ github.event.pull_request.number }}
-        run: |
-          files=""
-          if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
-            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "refs/pull/${SCOPE_PR}/head:refs/remotes/origin/pr-head"; then
-              files=$(git diff --name-only refs/remotes/origin/pr-base refs/remotes/origin/pr-head)
-            else
-              echo "Cannot read the pull request diff; running the check." >&2
-              echo "run=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-          printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
-
   resolve:
     name: Pin the requested tag
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
@@ -137,11 +123,11 @@ jobs:
         run: node scripts/ci/deployment-gate.mjs ci
 
   build:
-    needs: [scope, resolve, gate]
+    needs: [resolve, gate]
     if: >-
       always() && !cancelled() &&
       ((github.event_name == 'workflow_dispatch' && needs.resolve.result == 'success' && needs.gate.result == 'success') ||
-       ((github.event_name == 'schedule' || github.event_name == 'pull_request') && needs.scope.outputs.run == 'true'))
+       github.event_name == 'schedule' || github.event_name == 'pull_request')
     name: ${{ matrix.product }} (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:

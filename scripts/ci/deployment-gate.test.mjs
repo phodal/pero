@@ -190,7 +190,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.push.tags, ['v*']);
   assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.equal(release.on.pull_request.paths, undefined);
+  assert.ok(release.on.pull_request.paths.includes('.github/workflows/release.yml'));
+  assert.equal(release.jobs.scope, undefined);
   assert.equal(release.on.schedule[0].cron, '0 20 * * *');
   assert.equal(release.on.workflow_dispatch.inputs.tag.required, true);
   assert.equal(release.on.workflow_dispatch.inputs.sha.required, false);
@@ -207,7 +208,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.gate.permissions.actions, 'read');
   assert.equal(release.jobs.gate.permissions.contents, 'read');
   assert.match(release.jobs.build.if, /needs.gate.result == 'success'/);
-  assert.match(release.jobs.build.if, /needs.scope.outputs.run == 'true'/);
+  assert.match(release.jobs.build.if, /github.event_name == 'pull_request'/);
+  assert.doesNotMatch(release.jobs.build.if, /needs\.scope/);
   assert.equal(release.jobs.build.steps[0].with.ref, "${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || github.sha }}");
   assert.match(release.jobs.publish.if, /needs.build.result == 'success'/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);

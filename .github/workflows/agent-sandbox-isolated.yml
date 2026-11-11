@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
+    paths:
+      - deployment/agent-sandbox/**
+      - crates/pero-worker/**
+      - harness/go/**
+      - server/cmd/pero-agent-connect/**
+      - server/cmd/pero-acp-bridge/**
+      - server/cmd/pero-artifact-collector/**
+      - .github/workflows/agent-sandbox-isolated.yml
 
 permissions:
   contents: read
