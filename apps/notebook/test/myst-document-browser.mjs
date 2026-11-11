@@ -86,7 +86,12 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   const english = () => page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   await english();
   const source = [
-    '---', 'title: Scientific browser fixture', 'plugins:', '  - https://myst-resource.invalid/plugin.js', '---', '',
+    '---', 'title: Scientific browser fixture',
+    'authors:', '  - id: example-author', '    name: Example Researcher',
+    '    orcid: 0000-0000-0000-0001', '    affiliations: [example-lab]',
+    'affiliations:', '  - id: example-lab', '    name: Example Institute',
+    'doi: 10.5555/example-myst-browser', 'license: CC-BY-4.0',
+    'plugins:', '  - https://myst-resource.invalid/plugin.js', '---', '',
     '# Local science', '', 'Inline $x^2$ and **observations**.', '',
     '```{math}', ':label: eq-growth', 'N(t) = N_0 e^{rt}', '```', '',
     'See {eq}`eq-growth`.', '', '```{note}', 'Keep the control.', '```', '',
@@ -101,6 +106,17 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await page.locator('input[type="file"][accept=".md,.myst,.myst.json"]').setInputFiles({ name: 'science.myst', mimeType: 'text/plain', buffer: Buffer.from(source) });
   const editor = page.getByRole('textbox', { name: 'MyST source', exact: true });
   await expect(editor).toHaveValue(source);
+  const sourceGeometry = await editor.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, minHeight: parseFloat(style.minHeight),
+      rootSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      lineHeight: parseFloat(style.lineHeight), fontFamily: style.fontFamily, resize: style.resize };
+  });
+  assert.ok(sourceGeometry.height >= 16 * sourceGeometry.rootSize, JSON.stringify(sourceGeometry));
+  assert.ok(sourceGeometry.minHeight >= 16 * sourceGeometry.rootSize, JSON.stringify(sourceGeometry));
+  assert.ok(sourceGeometry.height / sourceGeometry.lineHeight >= 10, JSON.stringify(sourceGeometry));
+  assert.match(sourceGeometry.fontFamily, /mono/i);
+  assert.equal(sourceGeometry.resize, 'vertical');
   await expect(page.locator('.notebook-prose')).toContainText('Existing notebook text stays.');
   const edited = source.replace('# Local science', '# Revised local science');
   await editor.fill(edited);
@@ -109,6 +125,13 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');
   const preview = page.frameLocator('iframe[title="MyST preview"]');
   await expect(preview.getByRole('heading', { name: 'Revised local science', exact: true })).toBeVisible();
+  await expect(preview.getByRole('heading', { name: 'Scientific browser fixture', exact: true })).toHaveCount(1);
+  await expect(preview.getByRole('list', { name: 'Authors', exact: true })).toContainText('Example Researcher');
+  await expect(preview.locator('.byline a[href="#publication-affiliation-1"]')).toHaveCount(1);
+  await expect(preview.locator('#publication-affiliation-1')).toHaveText('Example Institute');
+  await expect(preview.locator('a[href="https://orcid.org/0000-0000-0000-0001"]')).toHaveCount(1);
+  await expect(preview.locator('a[href="https://doi.org/10.5555/example-myst-browser"]')).toHaveCount(1);
+  await expect(preview.locator('a[href="https://creativecommons.org/licenses/by/4.0/"]')).toHaveCount(1);
   await expect(preview.locator('math')).toHaveCount(2);
   await expect(preview.getByRole('cell', { name: '42', exact: true })).toBeVisible();
   await expect(preview.getByText('Keep the control.', { exact: true })).toBeVisible();
@@ -149,6 +172,12 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
       assert.doesNotMatch(text, /<script[ >]|<img[ >]/i);
     }
   }
+  await mkdir(output, { recursive: true });
+  await editor.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: resolve(output, 'myst-document-source.png'), fullPage: true });
+  await iframe.scrollIntoViewIfNeeded();
+  await iframe.screenshot({ path: resolve(output, 'myst-document-preview.png') });
+  console.log(`MyST source geometry: ${JSON.stringify(sourceGeometry)}`);
   assert.deepEqual(externalRequests, []);
   assert.deepEqual(errors, []);
 });
