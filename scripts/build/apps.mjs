@@ -1,3 +1,4 @@
+import { packageScientificRuntime } from './scientific-runtime.mjs';
 import { packageNotebookDiagnostics } from './notebook-diagnostics.mjs';
 import { packageSourceParsers } from './source-parsers.mjs';
 import { appSdkAliases } from './app-sdk.mjs';
@@ -36,6 +37,7 @@ if (appName === 'data') {
     await cp(resolve(root, 'harness/go/charts/python', name), resolve(appRoot, 'backend/_core', name));
 }
 await packageSourceParsers(root, appName);
+await packageScientificRuntime(root, appName);
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
 await packageNotebookDiagnostics(root, appName);

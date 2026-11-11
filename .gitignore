@@ -196,3 +196,6 @@ apps/**/dist
 # Shared local PDF/OCR primitives packaged with their consuming Apps.
 /apps/notebook/backend/pero_source_tools.py
 /apps/paper-agent/backend/pero_source_tools.py
+
+/apps/control-lab/backend/pero_scientific.py
+/apps/paper-agent/backend/pero_scientific.py
