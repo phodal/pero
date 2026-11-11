@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { test } from 'node:test';
 import { chromium, expect } from '@playwright/test';
+import { publicationPreviewHtml } from '../ui-src/publication-preview.ts';
 
 const app = resolve(import.meta.dirname, '..');
 const root = resolve(app, '../..');
@@ -119,9 +120,17 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await expect(preview.getByRole('img', { name: 'Provided figure' })).toHaveJSProperty('naturalWidth', 64);
   await expect(preview.getByRole('navigation', { name: 'Project pages' })).toBeVisible();
   const crossref = preview.getByRole('link', { name: 'Section 1', exact: true });
-  await expect(crossref).toHaveAttribute('href', '#myst-notes~2e~md:note-label');
+  await expect(crossref).toHaveAttribute('href', 'about:srcdoc#myst-notes~2e~md:note-label');
   await crossref.click();
-  await expect(preview.locator('[id="myst-notes~2e~md:note-label"]')).toBeVisible();
+  const target = preview.locator('[id="myst-notes~2e~md:note-label"]');
+  await expect(target).toBeVisible();
+  await expect(target).toBeInViewport();
+  assert.equal(await target.evaluate(() => location.href), 'about:srcdoc#myst-notes~2e~md:note-label');
+  await preview.getByRole('navigation', { name: 'Project pages' }).getByRole('link', { name: 'Project article', exact: true }).click();
+  await expect(preview.getByRole('heading', { name: 'Project article', exact: true })).toBeInViewport();
+  await crossref.click();
+  await expect(target).toBeInViewport();
+  assert.equal(page.url(), `${origin}/#notebook-entry=${entry.id}`);
   await expect(preview.locator('body')).toContainText('Recorded project result: 42');
   await expect(preview.getByRole('table')).toContainText('Quoted, sample');
   await expect(preview.getByRole('columnheader', { name: 'Sample' })).toBeVisible();
@@ -168,7 +177,7 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   const roundtrip = await downloadText('Download project snapshot', 'project.myst-project.json');
   assert.deepEqual(JSON.parse(roundtrip), project);
   const html = await downloadText('Download project HTML', 'project.html');
-  assert.equal(html, await iframe.getAttribute('srcdoc'));
+  assert.equal(publicationPreviewHtml(html), await iframe.getAttribute('srcdoc'));
   assert.match(html, /Browser Numeric Style/);
   assert.match(html, /See \{1\} and/);
   assert.equal(JSON.parse(roundtrip).files.find(file => file.path === 'styles/custom.csl').text, revisedStyle);

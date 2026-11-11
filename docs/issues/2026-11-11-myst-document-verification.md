@@ -394,3 +394,32 @@ were downloaded with verified archive digests. Inspected pixels show the inert
 IPYNB outputs, publication metadata, blank project frame at failure and recovered
 Data Canvas. They do not establish corrected browser behavior. A fresh run on
 the subsequent repaired head is required; no local Chromium retry was attempted.
+
+
+## Project preview fragment navigation repair
+
+Run [42964513846](https://github.com/phodal/pero/actions/runs/42964513846),
+Notebook job 130338695127, reached the project cross-document click and then
+could not find its target. The retained `myst-project-publication.png` shows an
+empty iframe after the click. Both the base and CSL-enriched renderers retain
+the correct `myst-notes~2e~md:note-label` ID. The defect is the srcdoc URL base:
+a fragment-only href resolves against the embedding App URL, navigating the
+sandbox away from the publication instead of scrolling its target. This URL
+behavior and the explicit `about:srcdoc#…` fix match the
+[MDN srcdoc example](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#embedding_source_code_in_an_iframe).
+
+All three static publication previews now specialize generated fragment hrefs
+to `about:srcdoc#…` at the UI boundary. Downloaded HTML and the print input keep
+the original relative fragments, so each standalone file navigates within itself.
+The HTML content, source, identifiers, empty iframe sandbox and restrictive CSP
+remain unchanged. No script, parent access or additional fetching is enabled.
+Regression coverage checks source/metadata/citation links, unchanged external
+links and source escaping, exact preview/export equivalence after this sole URL
+specialization, and the real-browser target plus repeated page navigation.
+Local Chromium remains unrun after its earlier launch denial; actual browser
+navigation and screenshot acceptance require the next matching CI run.
+
+Focused actual-component and preview regressions passed **11/11**, no skips;
+Notebook TypeScript checking and both browser-test syntax checks passed.
+The expanded metadata/citation/escaped-source preview fixtures passed **3/3**
+again after their final edit. These are local DOM/URL results, not browser acceptance.

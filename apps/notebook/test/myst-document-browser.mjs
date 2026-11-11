@@ -127,7 +127,7 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(preview.getByRole('heading', { name: 'Revised local science', exact: true })).toBeVisible();
   await expect(preview.getByRole('heading', { name: 'Scientific browser fixture', exact: true })).toHaveCount(1);
   await expect(preview.getByRole('list', { name: 'Authors', exact: true })).toContainText('Example Researcher');
-  await expect(preview.locator('.byline a[href="#publication-affiliation-1"]')).toHaveCount(1);
+  await expect(preview.locator('.byline a[href="about:srcdoc#publication-affiliation-1"]')).toHaveCount(1);
   await expect(preview.locator('#publication-affiliation-1')).toHaveText('Example Institute');
   await expect(preview.locator('a[href="https://orcid.org/0000-0000-0000-0001"]')).toHaveCount(1);
   await expect(preview.locator('a[href="https://doi.org/10.5555/example-myst-browser"]')).toHaveCount(1);
@@ -135,7 +135,11 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(preview.locator('math')).toHaveCount(2);
   await expect(preview.getByRole('cell', { name: '42', exact: true })).toBeVisible();
   await expect(preview.getByText('Keep the control.', { exact: true })).toBeVisible();
-  await expect(preview.locator('a[href="#myst-eq-growth"]')).toHaveCount(1);
+  const equationLink = preview.locator('a[href="about:srcdoc#myst-eq-growth"]');
+  await expect(equationLink).toHaveCount(1);
+  await equationLink.click();
+  await expect(preview.locator('#myst-eq-growth')).toBeInViewport();
+  assert.equal(await preview.locator('body').evaluate(() => location.href), 'about:srcdoc#myst-eq-growth');
   await expect(preview.locator('script, img, iframe, object')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'MyST diagnostics', exact: true })).toContainText('Document plugins are not loaded');
   assert.equal(await page.evaluate(() => globalThis.mystExecuted), undefined);

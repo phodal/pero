@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { publicationPreviewHtml } from '../ui-src/publication-preview.ts';
 import { createUiRuntime } from '../../../packages/app-sdk/test/ui-test-runtime.mjs';
 
 const snapshot = JSON.stringify({ format: 'pero-myst-project', version: 1, entry: 'pages/article.md', files: [
@@ -104,7 +105,7 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
   assert.match(revisedHtml, /Revised reference/);
   assert.match(revisedHtml, /Doe \(2025\)/);
   await React.act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')!.click());
-  assert.equal(await downloads.at(-1)!.text(), revisedHtml, 'Download uses the same formatted projection as preview');
+  assert.equal(publicationPreviewHtml(await downloads.at(-1)!.text()), revisedHtml, 'Download uses the same formatted projection, with only preview-local fragment URLs');
   assert.equal(active.getJSON().content[0].attrs.blockId, 'project-1');
   assert.match(JSON.parse(active.getJSON().content[0].attrs.snapshot).files[2].text, /Revised reference/);
   await show('history', false, 1);

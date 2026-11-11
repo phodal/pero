@@ -12,6 +12,7 @@ import { mystImportFormats, mystExportFormats } from '@pero/notebook/myst-format
 import { renderMystHtml } from '@pero/notebook/myst-render';
 import { BlockFrame } from './block-frame';
 import { mystMessages } from './myst-document-messages';
+import { publicationPreviewHtml } from './publication-preview';
 import './myst-document.css';
 
 const importFormats = [...ipynbImportFormats.map(format => ({ format, type: 'ipynbDocument' })), ...mystImportFormats.map(format => ({ format, type: 'mystDocument' })), ...mystProjectImportFormats.map(format => ({ format, type: 'mystProject' }))];
@@ -63,7 +64,7 @@ export function MystDocumentView(view: NodeViewProps) {
     {!!result?.document.diagnostics.length && <section className="notebook-myst-diagnostics" aria-label={t('diagnostics')}>
       <strong>{t('diagnostics')}</strong><ul>{result.document.diagnostics.map((item, index) => <li key={index}>{item.line ? `${item.line}: ` : ''}{item.message}</li>)}</ul>
     </section>}
-    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={result.html} />}
+    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={publicationPreviewHtml(result.html)} />}
   </BlockFrame>;
 }
 

@@ -13,6 +13,7 @@ import { mystProjectExportFormats } from '@pero/notebook/myst-project-formats';
 import { renderMystProjectHtml } from '@pero/notebook/myst-project-render';
 import { BlockFrame } from './block-frame';
 import { mystProjectMessages } from './myst-project-messages';
+import { publicationPreviewHtml } from './publication-preview';
 import './myst-document.css';
 
 export function MystProjectView(view: NodeViewProps) {
@@ -106,6 +107,6 @@ export function MystProjectView(view: NodeViewProps) {
     {!!result?.projection.diagnostics.length && <section className="notebook-myst-diagnostics" aria-label={t('diagnostics')}>
       <strong>{t('diagnostics')}</strong><ul>{result.projection.diagnostics.map((item, index) => <li key={index}>{item.path ? `${item.path}: ` : ''}{item.line ? `${item.line}: ` : ''}{item.message}</li>)}</ul>
     </section>}
-    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={result.html} />}
+    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={publicationPreviewHtml(result.html)} />}
   </BlockFrame>;
 }

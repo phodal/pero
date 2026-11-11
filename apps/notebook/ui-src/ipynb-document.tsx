@@ -6,6 +6,7 @@ import { parseIpynb, editIpynbCell, appendIpynbCell, clearIpynbOutputs, ipynbExp
 import { renderIpynbHtml } from '@pero/notebook/ipynb-render';
 import { BlockFrame } from './block-frame';
 import { ipynbMessages } from './ipynb-messages';
+import { publicationPreviewHtml } from './publication-preview';
 import './myst-document.css';
 export function IpynbDocumentView(view: NodeViewProps) {
   const { t } = useAppI18n(ipynbMessages); const [error, setError] = useState('');
@@ -24,6 +25,6 @@ export function IpynbDocumentView(view: NodeViewProps) {
       <Button onClick={() => { const format = ipynbExportFormats[0]; downloadFile(`notebook${format.extensions[0]}`, new TextEncoder().encode(format.serialize({ source })), format.mediaType); }}>{t('download')}</Button>
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
-    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={result.html} />}
+    {result && <iframe className="notebook-myst-preview" title={t('preview')} sandbox="" referrerPolicy="no-referrer" srcDoc={publicationPreviewHtml(result.html)} />}
   </BlockFrame>;
 }
