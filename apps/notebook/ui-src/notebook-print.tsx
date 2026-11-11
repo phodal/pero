@@ -8,14 +8,19 @@ import { NotebookPrintContent, visiblePrintSectionLabel } from './notebook-print
 import { messages } from './messages';
 import './notebook-print.css';
 
+const PUBLICATION_PRINT_EVENT = 'pero:notebook-publication-print';
+/** Receives only HTML from the inert publication renderer, never authored HTML. */
+export function openNotebookPublicationPrint(html: string) { window.dispatchEvent(new CustomEvent(PUBLICATION_PRINT_EVENT, { detail: html })); }
+
 export const NOTEBOOK_PRINT_OPEN_EVENT = 'pero:notebook-print-open';
 export function NotebookPrintTools({ document: notebook, entryId, revision, dirty = false }: { document: NotebookDocument; entryId: string; revision: number; dirty?: boolean }) {
   const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false), [settings, setSettings] = useState<NotebookPrintSettings>(() => defaultPrintSettings(notebook));
+  const [publication, setPublication] = useState<string | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [preparedAt, setPreparedAt] = useState('');
   const sections = notebookPrintSections(notebook), storageKey = `pero:notebook:print:v1:${entryId}`;
   const load = () => {
-    setError(''); setNotice(''); setPreparedAt(new Date().toISOString());
+    setPublication(null); setError(''); setNotice(''); setPreparedAt(new Date().toISOString());
     try { setSettings(parsePrintSettings(JSON.parse(window.localStorage.getItem(storageKey) ?? 'null'), notebook)); }
     catch { setSettings(defaultPrintSettings(notebook)); setNotice(t('printSettingsUnread')); }
     setOpen(true);
@@ -25,12 +30,30 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
     window.addEventListener(NOTEBOOK_PRINT_OPEN_EVENT, show);
     return () => window.removeEventListener(NOTEBOOK_PRINT_OPEN_EVENT, show);
   }, [entryId, notebook]);
+  useEffect(() => {
+    const show = (event: Event) => {
+      if (!(event instanceof CustomEvent) || typeof event.detail !== 'string') return;
+      const parsed = new DOMParser().parseFromString(event.detail, 'text/html');
+      const main = parsed.querySelector('main'); if (!main) return;
+      main.querySelectorAll('.source').forEach(node => node.remove());
+      setPublication(main.innerHTML); setOpen(false); setError('');
+    };
+    const done = () => setPublication(null);
+    window.addEventListener(PUBLICATION_PRINT_EVENT, show); window.addEventListener('afterprint', done);
+    return () => { window.removeEventListener(PUBLICATION_PRINT_EVENT, show); window.removeEventListener('afterprint', done); };
+  }, []);
   const change = (patch: Partial<NotebookPrintSettings>) => { setSettings(previous => ({ ...previous, ...patch })); setError(''); setNotice(''); };
   const selected = settings.sections.filter(id => sections.some(section => section.id === id));
   const valid = Number.isFinite(settings.marginMm) && settings.marginMm >= 5 && settings.marginMm <= 40 && selected.length > 0;
   const saveSettings = () => { try { window.localStorage.setItem(storageKey, JSON.stringify(settings)); setNotice(t('printPreferencesSaved')); } catch { setError(t('printSettingsUnsaved')); } };
   const output = <NotebookPrintContent document={notebook} settings={settings} entryId={entryId} revision={revision} dirty={dirty} preparedAt={preparedAt} />;
   return <>
+    {publication !== null && <Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setPublication(null)}>
+      <p>{t('printHint')}</p>{error && <Feedback kind="error">{error}</Feedback>}
+      <Button variant="primary" onClick={() => { try { window.print(); } catch (cause) { setError(String(cause)); } }}>{t('printAction')}</Button>
+      <div className="notebook-print-preview notebook-print-document" dangerouslySetInnerHTML={{ __html: publication }} />
+    </Dialog>}
+    {publication !== null && createPortal(<div className="notebook-print-output notebook-print-document" data-publication="myst"><style>{notebookPageRule(settings)}</style><div dangerouslySetInnerHTML={{ __html: publication }} /></div>, document.body)}
     <Button variant="ghost" onClick={load}>{t('printOptions')}</Button>
     {open && <Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setOpen(false)}>
       <div className="notebook-science-fields">
