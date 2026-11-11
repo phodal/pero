@@ -10,7 +10,7 @@ function fixture() {
     .map(slot => ({ slot, sha256: `digest-${slot}` }));
   return {
     documents, control, ledger,
-    complete(value = 'completed') { status = value; checkpoint = 'terminal-checkpoint'; attempts = 17; },
+    complete(value = 'completed', count = 17) { status = value; checkpoint = 'terminal-checkpoint-' + count; attempts = count; },
     paused() { return paused.promise; },
     resume() { const next = resume; paused = Promise.withResolvers(); next(); },
     get reads() { return reads; },
@@ -38,7 +38,9 @@ function fixture() {
 
 test('waits for delayed terminal accounting and every same-checkpoint artifact, not raw event count', async () => {
   const f = fixture();
-  // The turn/status response can already be completed while the backend still holds running/zero.
+  // A resumed turn must not settle against the previous cancellation receipt.
+  f.complete('cancelled', 11);
+  f.options.minimumModelRequests = 17;
   f.ledger.push(...f.documents.map(document => f.event(document)));
   let settled = false;
   const pending = waitForResearchFinalization(f.options).then(value => { settled = true; return value; });
@@ -53,7 +55,7 @@ test('waits for delayed terminal accounting and every same-checkpoint artifact, 
   f.resume(); await f.paused(); assert.equal(settled, false, 'split export part remains pending');
   f.ledger.push(f.event(f.documents.at(-1))); f.resume();
   const result = await pending;
-  assert.equal(result.current.checkpoint, 'terminal-checkpoint');
+  assert.equal(result.current.checkpoint, 'terminal-checkpoint-17');
   assert.equal(result.current.runtime.modelRequestsUsed, 17);
   assert.equal(result.artifacts.length, 5);
 });

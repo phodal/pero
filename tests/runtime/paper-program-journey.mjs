@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
+import { waitForResearchFinalization } from './research-quality/finalization.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const keepProfile = process.env.PERO_RESEARCH_KEEP_PROFILE === '1';
@@ -57,8 +58,8 @@ async function appRequest(action, fields = {}) {
   }
   return event.data.value;
 }
-async function readProgram() {
-  const response = await fetch(access.backend.url + '/api/programs', { method: 'POST',
+async function readProgram(signal) {
+  const response = await fetch(access.backend.url + '/api/programs', { method: 'POST', signal,
     headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
     body: JSON.stringify({ operation: 'read', programId: seed.context.programId }) });
   const value = await response.json(); assert(response.ok, JSON.stringify(value)); return value;
@@ -245,15 +246,19 @@ try {
   const finished = await wait(event => event.thread_id === run.sessionId && ['turn_finished', 'session_error'].includes(event.kind), restartAfter);
   assert.equal(finished.kind, 'turn_finished', JSON.stringify(finished)); assert.equal(finished.data.stopReason, 'end_turn');
   assert.equal(stage, 'done'); assert.deepEqual(providerErrors, []);
-  await wait(event => {
-    if (event.kind !== 'artifact_registered' || event.thread_id !== run.sessionId) return false;
-    const latest = new Map(events.filter(item => item.kind === 'artifact_registered' && item.thread_id === run.sessionId).map(item => [item.data.artifact.id, item.data.artifact]));
-    return latest.size === 4 && [...latest.values()].every(artifact => artifact.versions.length === 3);
-  }, restartAfter);
+  const { current } = await waitForResearchFinalization({
+    readProgram, programId: seed.context.programId, sessionId: run.sessionId,
+    events: () => events, minimumModelRequests: requests.length, signal: AbortSignal.timeout(30000),
+    readExport: async (checkpoint, signal) => {
+      const response = await fetch(access.backend.url + '/api/programs', { method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'X-Pero-App-Token': access.backend.token },
+        body: JSON.stringify({ operation: 'export', programId: seed.context.programId, checkpoint }) });
+      assert(response.ok); return response.json();
+    },
+  });
   const modelAudit = await readFile(join(ledger, 'model-attempts.log'), 'utf8'), appAudit = await readFile(join(ledger, 'app-calls.log'), 'utf8');
   assert(modelAudit.startsWith(pausedModels) && modelAudit.length > pausedModels.length); assert(appAudit.startsWith(pausedApps) && appAudit.length > pausedApps.length);
   assert.equal(modelAudit.trim().split('\n').length, requests.length);
-  const current = await readProgram();
   assert.equal(current.usage.searches, 1); assert.equal(current.usage.downloads, 1); assert.equal(current.usage.downloadBytes, pdf.length);
   assert.equal(current.usage.rounds, 1); assert.equal(current.stopReason, 'round_limit'); assert.equal(current.runtime.status, 'completed');
   assert.equal(pdfRequests, 1, 'resume downloaded the original again');
@@ -265,12 +270,12 @@ try {
     host.stdin.write(JSON.stringify({ method: 'artifacts', action: 'read', request_id, thread_id: run.sessionId, artifact_id: artifact.id, version: version.version }) + '\n');
     const document = await wait(event => event.request_id === request_id); assert.equal(document.kind, 'artifact_document', JSON.stringify(document));
     assert.equal(sha(document.text), version.sha256);
-    if (artifact.title === 'research-report.md' && version.version === 3) assert(document.text.includes(passage.id));
+    if (artifact.title === 'research-report.md' && version.version === artifact.versions.length) assert(document.text.includes(`/report/${reportId}/citation/0`));
   }
   const report = { passed: true, profileDirectory: keepProfile ? directory : undefined, threadId: run.sessionId, runId: run.id,
     programId: seed.context.programId, sameACPsession: ready.data.sessionId, providerRequests: requests.length, contentReads, pendingObservations,
     newPDFDownloads: pdfRequests, newPDFBytes: pdf.length, resumedAttempts: 2, modelRequestsBeforePause: pausedModels.trim().split('\n').length,
-    modelRequestsAfterResume: requests.length, artifactCount: saved.length, versionsPerArtifact: 3, noStatusPolling: true,
+    modelRequestsAfterResume: requests.length, artifactCount: saved.length, versionsPerArtifact: Object.fromEntries(saved.map(artifact => [artifact.title, artifact.versions.length])), noStatusPolling: true,
     hostSHA256: sha(await readFile(binary)), harnessSHA256: sha(await readFile(agent)),
     limitations: ['Synthetic OpenAlex/PDF provider responses and model decisions; real Python worker/transport parsing, Host/Harness and persistence', 'No scientific or desktop UI acceptance'] };
   await json(join(output, 'result.json'), report); await json(join(output, 'evidence.json'), { events, requests, calls, feedback, current, metadataRequests, pausedModels, modelAudit, pausedApps, appAudit });

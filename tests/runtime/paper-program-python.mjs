@@ -21,7 +21,7 @@ const keepProfile = process.env.PERO_RESEARCH_KEEP_PROFILE === '1';
 const output = join(root, 'test-results/paper-program-python');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const json = (path, value) => writeFile(path, JSON.stringify(value, null, 2));
-const events = [], requests = [], errors = [], calls = [], questions = [], deliveries = [], passages = [];
+const events = [], requests = [], errors = [], calls = [], questions = [], deliveries = [], passages = [], reportIds = [];
 const changed = new EventEmitter();
 const gaps = ['Does the method tolerate model mismatch?', 'Which bounded correction restores the result?', 'Independent replication remains missing.'];
 const skill = (await readFile(join(root, 'apps/paper-agent/agent-plugins/paper-autoresearch/SKILL.md'), 'utf8')).trim();
@@ -90,7 +90,7 @@ function advance(result, previousStage) {
     } } });
   }
   if (previousStage === 'finalize') {
-    state = result; reportId = result.result.reportId;
+    state = result; reportId = result.result.reportId; reportIds.push(reportId);
     return program('commit-round', { question: questions.at(-1), reportIds: [reportId], claims: [{
       text: passage.content, stance: round === 2 ? 'counterevidence' : 'support', reportId,
       paperId: seed.paperId, passageId: passage.id, evidenceIndex: 0,
@@ -239,8 +239,10 @@ try {
   }
   const firstReport = snapshots.find(snapshot => snapshot.title === 'research-report.md' && snapshot.version === 1).content;
   const finalReport = snapshots.find(snapshot => snapshot.title === 'research-report.md' && snapshot.version === 4).content;
-  assert(firstReport.includes(passages[0])); assert(!firstReport.includes(passages[1]));
-  for (const passageId of passages) assert(finalReport.includes(passageId));
+  assert(firstReport.includes(`/report/${reportIds[0]}/citation/0`)); assert(!firstReport.includes(reportIds[1]));
+  for (const id of reportIds) assert(finalReport.includes(`/report/${id}/citation/0`));
+  const matrix = JSON.parse(snapshots.find(snapshot => snapshot.title === 'evidence-matrix.json' && snapshot.version === 4).content);
+  assert.deepEqual(matrix.claims.map(claim => claim.passageId), passages);
   assert(finalReport.includes('needs_review')); assert(finalReport.includes('round_limit'));
   const audit = await readFile(join(directory, 'settings.research', seed.context.programId, 'model-attempts.log'), 'utf8');
   assert.equal(audit.trim().split('\n').length, requests.length);

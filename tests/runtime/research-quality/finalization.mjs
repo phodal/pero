@@ -5,12 +5,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 
 export async function waitForResearchFinalization({ readProgram, readExport, events, programId,
-  sessionId, signal, pause = signal => delay(100, undefined, { signal }) }) {
+  sessionId, signal, minimumModelRequests = 0, pause = signal => delay(100, undefined, { signal }) }) {
   for (;;) {
     signal.throwIfAborted();
     const current = await readProgram(signal);
     assert.equal(current.id, programId, 'Finalization returned another research program');
-    if (terminal.has(current.runtime?.status)) {
+    if (terminal.has(current.runtime?.status) && current.runtime.modelRequestsUsed >= minimumModelRequests) {
       for (const field of ['modelRequestsUsed', 'appCallsUsed']) {
         assert(Number.isSafeInteger(current.runtime[field]) && current.runtime[field] >= 0,
           `Final research accounting is missing ${field}`);
