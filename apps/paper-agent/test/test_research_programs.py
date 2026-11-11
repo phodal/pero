@@ -292,8 +292,8 @@ class ResearchProgramsAcceptance(unittest.TestCase):
             self.assertIn('needs_review', delivered)
 
     def test_repeated_evidence_cannot_reset_the_no_progress_limit(self):
-        for reread in (False, True):
-            with self.subTest(new_report_same_observation=reread), tempfile.TemporaryDirectory() as root:
+        for reread, requote, reword in ((False, False, False), (True, False, False), (True, True, False), (False, False, True)):
+            with self.subTest(new_report_same_observation=reread, different_quote=requote, reworded_screening=reword), tempfile.TemporaryDirectory() as root:
                 store = ResearchStore(root)
                 paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
                 pdf_bytes = b'no-progress original PDF fixture'
@@ -312,6 +312,9 @@ class ResearchProgramsAcceptance(unittest.TestCase):
                         programId=state['id'], expectedCheckpoint=state['checkpoint'], **fields), NOW)
 
                 for index in range(1, 4):
+                    if reword:
+                        state = perform('screen', f'reword-{index}', candidateId=candidate_id,
+                            decision='include', reason=f'Same included source, explanation {index}')
                     if index == 1 or reread:
                         state = perform('prepare-study', f'repeat-prepare-{index}',
                             candidateIds=[candidate_id], question='What assumptions are documented?')
@@ -319,9 +322,11 @@ class ResearchProgramsAcceptance(unittest.TestCase):
                         state = perform('study-step', f'repeat-read-{index}',
                             document=dict(studyId=study_id, action='read', paperId=paper.id, page=1))
                         passage = PdfPassage.from_record(state['result']['observation']['passages'][0])
+                        report = final_report(store.study(study_id), passage)
+                        if requote:
+                            report['sections'][0]['evidence'][0]['quote'] = passage.content[:40 - index]
                         state = perform('study-step', f'repeat-finalize-{index}',
-                            document=dict(studyId=study_id, action='finalize',
-                                          report=final_report(store.study(study_id), passage)))
+                            document=dict(studyId=study_id, action='finalize', report=report))
                         report_id = state['result']['reportId']
                     report_ids.append(report_id)
                     passage_ids.append(passage.id)

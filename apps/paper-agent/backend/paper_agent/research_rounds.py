@@ -93,7 +93,7 @@ class DocumentClaim:
 
 def evidence_key(claim):
     return (claim.get('sourceKind', 'pdf'), claim['paperId'], claim.get('passageId') or claim.get('documentId'),
-            claim.get('blockId', ''), claim['quote'])
+            claim.get('blockId', ''), claim['quote'] if claim.get('sourceKind') == 'html' else '')
 
 
 @dataclass(frozen=True)
@@ -126,7 +126,7 @@ class ResearchRound:
         gaps = tuple(text(g, 2000, 'gap') for g in sequence(value.get('gaps', []), 32, 'gaps'))
         old = {evidence_key(c) for r in previous for c in r['claims']}
         added = len({evidence_key(asdict(c)) for c in claims} - old)
-        screening = digest([(c.id, c.decision, c.reason) for c in program.candidates])
+        screening = digest([(c.id, c.decision) for c in program.candidates])
         return cls(len(program.roundIds) + 1, text(value.get('question'), 2000, 'round question'),
                    tuple(value['reportIds']), claims, gaps, text(value.get('nextAction'), 2000, 'next action'),
                    now, program.checkpoint, screening, added)
