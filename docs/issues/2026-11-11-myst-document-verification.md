@@ -234,3 +234,17 @@ Completed project-stage local checks:
   App payload. Its closure is MIT/BSD; no CSL engine/citeproc is installed.
 - Browser source passes syntax checking; browser execution and screenshot
   inspection for this new stage remain pending CI, not accepted locally.
+
+
+Final integration checks: `NOTEBOOK_REAL_OCR=1 PYTHONDONTWRITEBYTECODE=1
+python3 -m unittest discover -s apps/notebook/test -p 'test_*.py' -v`
+passed **143/143 with no skips**, including real image/scanned-PDF OCR and the
+limited parser-process OCR path. This supersedes the earlier default run's two
+opt-in skips; it does not imply browser acceptance.
+
+The source-diagnostics registry now includes the project snapshot, compiler,
+format codecs, bibliography resolver and Python persistence boundary. Rebuilt
+App source evidence contains each file as `ready` with exact source text/digests;
+source-diagnostics tests passed **3/3**. An independent read-only scoped review
+found no blocking defect and passed **25 core/snapshot, 5 Python project and 3
+project editor tests**. The reviewer did not launch a browser.

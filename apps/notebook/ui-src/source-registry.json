@@ -13,5 +13,10 @@
   "apps/notebook/backend/myst_document.py",
   "packages/notebook/src/scientific-block.ts",
   "packages/notebook/src/myst-metadata.ts",
-  "packages/notebook/src/myst-formats.ts"
+  "packages/notebook/src/myst-formats.ts",
+  "packages/notebook/src/myst-project-snapshot.ts",
+  "packages/notebook/src/myst-project.ts",
+  "packages/notebook/src/myst-project-formats.ts",
+  "packages/notebook/src/myst-bibliography.ts",
+  "apps/notebook/backend/myst_project.py"
 ]
