@@ -167,8 +167,9 @@ test('production editor keeps MyST source while draft Canvas waits for a saved r
   ] } };
   const saved = { ...draft, content: { type: 'doc', content: [draft.content.content[0]] } };
   const requests: any[] = [];
+  let installedDeclaration = binding.declaration, currentDraft = draft;
   t.mock.method(globalThis, 'fetch', async (path: string, init: RequestInit) => {
-    if (path === '/host/sdk') return Response.json({ appViews: [{ app: 'data', title: 'Data', version: '1', revision: binding.declaration,
+    if (path === '/host/sdk') return Response.json({ appViews: [{ app: 'data', title: 'Data', version: '1', revision: installedDeclaration,
       enabled: true, panels: [{ id: 'main', title: 'Data' }], actions: [], canvases: [{ id: binding.view, title: 'Dataset inspector', inputs: {} }] }] });
     assert.equal(path, '/host/canvas');
     const request = JSON.parse(init.body as string); requests.push(request);
@@ -179,10 +180,10 @@ test('production editor keeps MyST source while draft Canvas waits for a saved r
   });
   let saves = 0, edits = 0;
   const host = ui.createAppHost({ name: 'Notebook', locale: 'en', active: true });
-  const mount = async (savedDocument: typeof draft, readonly = false, saving = false) => {
+  const mount = async (savedDocument: typeof draft, readonly = false, saving = false, revision = savedDocument === saved ? 1 : 2) => {
     await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
-      document: draft, content: draft.content, savedDocument, entryId: 'a'.repeat(32), revision: savedDocument === draft ? 2 : 1,
-      readonly, dirty: savedDocument !== draft, onSave: () => { saves++; }, onChange: () => { edits++; },
+      document: currentDraft, content: currentDraft.content, savedDocument, entryId: 'a'.repeat(32), revision,
+      readonly, dirty: savedDocument !== currentDraft, onSave: () => { saves++; }, onChange: (content: typeof draft.content) => { currentDraft = { ...currentDraft, content }; edits++; },
       chrome: { status: 'Revision', saveDisabled: saving, saveBusy: saving },
     })));
     editor = (document.querySelector('.tiptap') as HTMLElement & { editor: any }).editor;
@@ -203,7 +204,32 @@ test('production editor keeps MyST source while draft Canvas waits for a saved r
   }]);
   assert.equal(editor.getJSON().content.find((node: any) => node.type === 'mystDocument').attrs.source, source);
   assert.equal(edits, 0, 'adopting saved context must not rewrite the document');
-  await mount(draft, true);
+  const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label);
+  assert.equal(button('Configure App view')?.getAttribute('aria-expanded'), 'false');
+  assert.equal(button('Refresh installed Apps'), undefined, 'a healthy bound view keeps setup behind configuration');
+  installedDeclaration = 'c'.repeat(64);
+  await click(button('Configure App view')!);
+  assert.equal(button('Configure App view')?.getAttribute('aria-expanded'), 'true');
+  await click(button('Refresh installed Apps')!);
+  assert.match(document.body.textContent ?? '', /The App declaration changed/);
+  await click(button('Save binding')!);
+  assert.equal(button('Configure App view')?.getAttribute('aria-expanded'), 'false');
+  assert.equal(document.querySelector('[aria-label="Declared App view"]'), null);
+  assert.equal(requests.filter(request => request.operation === 'mount').length, 1);
+  assert.equal(saveButton()?.disabled, false);
+  assert.equal(draft.content.content[1].attrs.binding?.declaration, binding.declaration, 'the saved source remains unchanged until revision adoption');
+  const updatedBinding = editor.getJSON().content.find((node: any) => node.type === 'appCanvas').attrs.binding;
+  assert.deepEqual(updatedBinding, { ...binding, declaration: installedDeclaration });
+  await click(saveButton()!);
+  assert.equal(saves, 2);
+  await mount(currentDraft, false, false, 3);
+  assert.equal(saveButton(), undefined);
+  assert.equal(requests.filter(request => request.operation === 'mount').length, 2);
+  assert.deepEqual(requests.filter(request => request.operation === 'mount').at(-1).source, {
+    entryId: 'a'.repeat(32), revision: 3, blockId: 'canvas', readOnly: false, binding: updatedBinding,
+  });
+  assert.equal(editor.getJSON().content.find((node: any) => node.type === 'mystDocument').attrs.source, source);
+  await mount(currentDraft, true, false, 3);
   assert.equal(requests.filter(request => request.operation === 'mount').at(-1).source.readOnly, true);
   assert.equal(document.querySelector<HTMLTextAreaElement>('[aria-label="MyST source"]')?.readOnly, true);
   assert.equal(saveButton(), undefined);

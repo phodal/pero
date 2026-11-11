@@ -335,3 +335,27 @@ share it. The existing notebook warning remains. HTML and printing omit original
 source, and publication bodies omit comments/hidden cells. Six focused actual
 component checks and type checking pass for that disclosure; source/publisher
 behavior is unchanged.
+
+## Canvas CI reconciliation with the current Notebook design
+
+Run [42964513846](https://github.com/phodal/pero/actions/runs/42964513846)
+tested PR head `2c6a3267` merged into master `7607c741`, rather than the older
+local master `ccc13945`. The actual PI owner journey passed. The Data owner
+journey passed projection, confirmation denial/cancellation, archive and retained
+receipt, historical inspection, and Host restart recovery, then stopped while
+looking for the hidden `Refresh installed Apps` control. Its retained screenshots
+and `browser-context.json` show the healthy bound view with no browser errors.
+The current design places configuration behind `Configure App view`; the test
+had not opened it. No timeout or production permission change is needed.
+
+The rebinding portion also still expected an unsaved binding to attempt a mount
+and fail. The current saved-document contract deliberately avoids that request.
+The repaired journey explicitly opens configuration, refreshes declarations,
+checks that an edited binding makes no speculative mount, directly verifies that
+Host rejects that unsaved source, then saves the revision through its inline
+action and verifies successful remount with unchanged binding identity/inputs.
+The merged-tree Notebook typecheck, browser-scenario syntax check and all 18
+focused Canvas domain/SDK/actual-editor tests passed. The editor regression
+uses the real configuration disclosure and confirms source preservation through
+a changed-declaration save and read-only revision. Actual repaired browser
+acceptance awaits the next CI run; no local Chromium was launched for this repair.
