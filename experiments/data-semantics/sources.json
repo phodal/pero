@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "upstream": {
+    "repository": "NVIDIA/auto-ontology",
+    "commit": "fc43a82600e18b19d159c52023f54f5572f537ac",
+    "license": "Apache-2.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "f30c028cc160cd27972bf845c9e44c703201903d226cecaf827b39fbf8f61d5e",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/LICENSE"
+      },
+      {
+        "path": "README.md",
+        "sha256": "a2d3f9388c0a9f9a4c66581db59a1d3702524fa1601a2474caa06aac6eaf5128",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/README.md"
+      },
+      {
+        "path": "docs/mcp.md",
+        "sha256": "543bf220ee220a2c2cb03ed95d150b1c63a7df64f7943f3680169cdf070d0589",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/docs/mcp.md"
+      },
+      {
+        "path": "docs/connections.md",
+        "sha256": "c072a68e80c4f270ecd1921965c972350f1f36c398c7fcbdf7caa7a713df61fa",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/docs/connections.md"
+      },
+      {
+        "path": "docs/authentication.md",
+        "sha256": "5c637af8a5700d3ad11c3cb7ca6db648dcb43ffba76ee7b7fdba50e7316b4f99",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/docs/authentication.md"
+      },
+      {
+        "path": "docs/conversation-api.md",
+        "sha256": "1494fcf4c71c86d6ee5e7a804cfd71ca344a17b7526dab641087d1b489744ec7",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/docs/conversation-api.md"
+      },
+      {
+        "path": "auto_ontology/connectors/sqlite.py",
+        "sha256": "affbfe410d3997bf0a37164799730dafc9f50f8f0de5d7e17f5a0a2be7d814d4",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/auto_ontology/connectors/sqlite.py"
+      },
+      {
+        "path": ".env.example",
+        "sha256": "1e44afa0c6e063deb57ec734b6780d29e8a1cf8fb5e31457e16a241648c9bb99",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/.env.example"
+      },
+      {
+        "path": "mcp/auto_ontology_mcp/chat.py",
+        "sha256": "42db2636e21bc12ba117798559e9f734740390f0643b79c9e6fcf58545d9d5a6",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/mcp/auto_ontology_mcp/chat.py"
+      },
+      {
+        "path": "mcp/auto_ontology_mcp/server.py",
+        "sha256": "a5e6d03f3577876167afdca1e69097cf05271775f035c1fc061b461113f0c1e8",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/mcp/auto_ontology_mcp/server.py"
+      },
+      {
+        "path": "mcp/auto_ontology_mcp/auto_ontology_auth.py",
+        "sha256": "8d8d43d8a2d8d8af5a375ca775d7d9f1e141e2adde7b3657be3ff7920ce64f7f",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/mcp/auto_ontology_mcp/auto_ontology_auth.py"
+      },
+      {
+        "path": "mcp/auto_ontology_mcp/readiness.py",
+        "sha256": "9cc229a7268f69f080802e245fc9e72eb5370c52e484c296842d24e09d3de533",
+        "url": "https://github.com/NVIDIA/auto-ontology/blob/fc43a82600e18b19d159c52023f54f5572f537ac/mcp/auto_ontology_mcp/readiness.py"
+      }
+    ]
+  },
+  "dataset": {
+    "name": "UCI Iris",
+    "citation": "Fisher, R. (1936). Iris [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C56C76.",
+    "license": "CC-BY-4.0",
+    "license_evidence": "https://archive.ics.uci.edu/dataset/53/iris",
+    "url": "https://archive.ics.uci.edu/static/public/53/iris.zip",
+    "archive_sha256": "d11fe30213d36434a0879aab7cb00ce3c812eb7ba2495874438abff7b7b762e9",
+    "member": "iris.data",
+    "sha256": "6f608b71a7317216319b4d27b4d9bc84e6abd734eda7872b71a458569e2656c0",
+    "bytes": 4551,
+    "rows": 150,
+    "unit": "cm",
+    "note": "UCI version, not a transcription of Fisher Table III; publisher documents two discrepancies from the original paper. Original bytes retained; sample IDs are derived row numbers."
+  },
+  "models": {
+    "A": "not_run",
+    "B": "not_run",
+    "C": "not_run",
+    "configuration": null,
+    "actual_usage": null
+  },
+  "collection_date": "2026-11-11"
+}
