@@ -1,3 +1,4 @@
+import { mystNodeText } from './myst-numbering.ts';
 import { projectRecordedCell } from './ipynb-recorded.ts';
 import type { MystNode, MystDiagnostic, MystDocument } from './myst.ts';
 import type { MystProjectEntry } from './myst-project.ts';
@@ -29,6 +30,22 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
     }
     return { type: 'image', url: path, alt: `Cell ${cell.index + 1}: ${location}` };
   };
+  let titleConsidered = false;
+  // Only the leading heading of the first published compiled cell can own the
+  // notebook title. Move it before generated cell headings, without dropping a
+  // legitimate later heading that happens to have the same text.
+  const appendCompiled = (nodes: MystNode[]) => {
+    if (!titleConsidered) {
+      titleConsidered = true;
+      const first = nodes.find(node => !['comment', 'mystTarget'].includes(node.type) && !(node.type === 'text' && !node.value));
+      if (first?.type === 'heading' && first.depth === 1 && mystNodeText(first) === entry.scholarly.title) {
+        children.unshift(first);
+        children.push(...nodes.filter(node => node !== first));
+        return;
+      }
+    }
+    children.push(...nodes);
+  };
   for (const cell of entry.document.cells) {
     const visible = ipynbCellVisibility(cell); visible.notices.forEach(report); if (!visible.cell) continue;
     children.push({ type: 'heading', depth: 2, children: [{ type: 'text', value: `Cell ${cell.index + 1}: ${cell.kind}` }] });
@@ -47,7 +64,7 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
         if (node.children) node.children = node.children.map(visit);
         return node;
       };
-      children.push(...(visit(ast).children ?? []));
+      appendCompiled(visit(ast).children ?? []);
       for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
       Object.assign(bibliography, compiled.document.bibliography); diagnostics.push(...compiled.document.diagnostics);
       if (cell.raw.attachments) report(`Cell ${cell.index + 1}: complete attachment bundles remain in notebook.ipynb; only referenced supported raster images are embedded.`);
@@ -57,7 +74,7 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
       if (compiled) {
         const scope = `${entry.path}:cell-${cell.index}:`;
         const visit = (node: MystNode): MystNode => ({ ...node, ...(typeof node.identifier === 'string' ? { identifier: scope + node.identifier } : {}), ...(node.children ? { children: node.children.map(visit) } : {}) });
-        children.push(...(visit(structuredClone(compiled.document.ast)).children ?? []));
+        appendCompiled(visit(structuredClone(compiled.document.ast)).children ?? []);
         for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
         diagnostics.push(...compiled.document.diagnostics);
       } else { children.push(...recorded.children); recorded.notices.forEach(report); }
