@@ -179,3 +179,39 @@ commands, exact evidence, original-failure replay, continuation/accounting and
 terminal delivery. Offline engineering passes do not revise the old failed runs
 or constitute a new provider run. Independent human scientific review and a new
 explicitly authorized provider attempt remain outstanding; #143 stays open.
+
+## Acceptance audit — 2026-11-11 (5072cbc6)
+
+The next isolated pass audits the original A/B acceptance matrix independently
+of the missing live credential. Confirmed gaps: changing a quote within the same
+observed passage counts as new evidence; the report UI omits claim stance and
+coalesces unavailable runtime accounting to zero; the independent collector
+normalizes whitespace before declaring a citation verified. These can mislead
+progress or review even with a correctly bounded execution. Repairs retain the
+existing Program, Host and review owners and the original scientific thresholds.
+The pass also prepares a readable independent review dossier and checks actual
+report/source navigation, rather than treating a raw JSON packet as usable review.
+
+The audit repairs are committed in the isolated acceptance branch. Original
+source scopes now own progress identity across PDF aliases and HTML windows;
+rewriting a quote or unchanged screening rationale cannot extend the run.
+The program UI exposes exact saved citations, claim stance, configurable
+no-progress limits, unknown execution accounting and retained reading batches.
+The collector checks exact original/report/observation membership and produces
+a readable independent-review dossier without assigning scientific verdicts.
+
+[Acceptance matrix and current evidence](../fitness/paper-research-acceptance-143.md)
+map the original criteria to controlled runtime, browser, macOS Electron and
+regression evidence, with unverified scope explicit. The user authorized both
+DeepSeek Flash reruns at the original caps (60 requests, 4096 output tokens per
+request, 12 minutes each), with credentials configured separately. This executor
+still lacks `DEEPSEEK_API_KEY`; no new real-model call or human review occurred.
+#143 remains open. The parent coordinator owns integration and any later closure.
+
+Final navigation checks also cover indexed section/matrix links in new artifacts
+and explicit recovery for ambiguous historical passage-only links. Actual
+Electron PDF rendering and exact citation highlighting pass. The controlled
+restart journey now waits for the resumed request frontier and matching final
+checkpoint artifacts; it observes the same ACP session, 11 → 18 cumulative
+requests, one download and four retained versions, with no additional model
+dispatch from the waiter.
