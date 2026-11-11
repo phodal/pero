@@ -1,5 +1,19 @@
 # Scientific conversation acceptance — #145
 
+## Shared Notebook CI recovery (2026-11-11)
+
+PR #194 originally restored the document title in the Notes view menu to satisfy
+two stale navigation assertions. The final change retains master's `Notes` label
+and checks the document title in its title input instead. Source selection,
+unsaved draft preservation and read-only assertions remain in place. The related
+nine editor tests pass locally; the full editor suite passes 82/83, with the
+previously recorded macOS scoped-keyboard assertion still failing.
+
+PR #193 uses the same test correction and the existing Wasm target installation
+fix independently. Its current-master merge tree passed all three Chromium
+browser tests locally. The previous #194 CI passed after retrying an Ubuntu
+package-index download timeout; final-head Actions verification is pending.
+
 2026-11-06, macOS arm64, development worktree `codex/scientific-chat-145`,
 base `1766b667` plus this issue's commits. GPUI Kit 0.8.1 from the pinned
 repository version, Rust nightly-2026-10-28 for Native/Wasm. The main checkout's
@@ -206,3 +220,37 @@ succeeded.
 A second `pero-chat-ui` native library run passed 44 tests, adding the molecule
 receipt test and the formula-source citation assertion. Wasm and the Workbench
 were still not run, so the RDKit SVG was not observed inside GPUI.
+
+## 2026-11-10 Stable citations
+
+`go -C harness/go test -count=1 ./charts` passes, including a table whose method
+is “mean of the saved samples” and whose value origin is calculated. A null cell
+stays null. Changing the origin changes the receipt bytes.
+
+`PERO_GPUI_KIT_PATH=/tmp/gpui-kit CARGO_BUILD_JOBS=1 rustup run nightly-2026-10-28 node scripts/cargo.mjs test -j1 -p pero-chat-ui --features native --lib`
+passes 46 tests. Citation tests show that reversing saved chart/table identities
+does not retarget the original token, and a short Paper location is rejected.
+
+`DISPLAY=:1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/scientific-chat.mjs` then
+opened the Electron workbench against `target/debug/pero-host` and
+`target/debug/pero-agent-acp`. The model is the loopback fixture. The harness
+tools are real. The visible transcript shows the table method, calculated
+origin, `table:1795f6214bc7076bc9410edef1ea6eb605658c06c5d13ce60cf53f15af8533b9`,
+the chart method, `chart:126c469f26003d2bd7777a0373e016319dfae24754f1b20146ba27eb8e2f0597`,
+and the sentence that a source declaration is not experimental verification.
+Copying the table citation and the PDE source, opening `results.json`, and
+relaunching without another provider call all passed. Light, dark and 780px
+captures are under `test-results/scientific-chat/`. `result.json` records
+`realHarness: true` and `realModel: false`.
+
+The same assistant message carries `doi:10.1000/scientific-chat.1`, one BibTeX entry, and one Paper location. The transcript shows those tokens. Copy uses the DOI token. Open DOI is the existing web link. Open paper is the existing App location. Restart keeps the three tokens without another provider call.
+
+An earlier headless page that only painted “Start with a task” is not this run.
+A collapsed multi-tool group was hiding the receipts; they now stay in the
+message stream while the tool log stays collapsed.
+
+Native remains unrun. `npm run dev:native` refuses Linux. The generated font
+files now exist from `scripts/build/fonts.mjs`, but
+`crates/pero-ui/src/native_web.rs` still calls `webkit2gtk::prelude::WebViewExt`
+and `can_go_back`, which do not match webkit2gtk 2.0. That desktop build is a
+macOS step, not a compatibility rewrite in this change.

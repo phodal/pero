@@ -65,22 +65,22 @@ Scientific Authoring + Computational Verification 是整体方向，但展示、
 
 - [x] 在同一真实共享会话中展示多行公式/矩阵、一张真实数据图和一张实验结果表；用户无需切 App 查看主要内容。
 - [x] 公式可读并可复制源码；错误输入保留原文并显示局部错误，不能破坏整条回复。
-- [ ] 图表/表格可查看准确输入或结果引用、单位和计算方法；缺失值不补零，来源不明不能显示为实验已验证。通用 `chart_render` / `table_render` 仍只声明来源并标明未核验。Control Lab 回执已带版本引用、单位、方法和空值。
+- [x] 图表/表格可查看准确输入或结果引用、单位和计算方法；缺失值不补零，来源不明不能显示为实验已验证。引用是 `chart:` / `table:` 加回执内容哈希。方法与 reported/calculated/unspecified 都是声明，界面仍写明不是实验验证。缺失和 null 不补零。
 - [x] 至少一个 Control Lab 已支持方法跑通：会话提出获准参数变更 → 实际求解 → 领域检查 → 新图/表及对应解释；新结果与旧版本可区分，旧检查不能自动继承到新输入。范围是 robust-pid 的搜索场景，见 2026-11-10 记录。Workbench 视觉尚未复验。
 - [x] 工具不可用、计算失败、检查不通过和尚未检查分别呈现；已有成功内容保留可读。回执与解析测试覆盖这些状态；界面截图尚未复验。
 - [x] 实际检查范围清楚，例如语法、符号计算、量纲或数值抽样；无工具/无证据时保持未检查，不由模型文字声明通过。本增量的范围是 Control Lab 既有 Hurwitz 与有限窗口检查，不是通用量纲或符号验证。
 
 ### 后续增量：完整科学表达与引用
 
-- [ ] 补齐上表各类型，逐项记录支持范围及未支持项；化学至少覆盖反应式和真实 RDKit 二维结构。反应式仍是既有 LaTeX。RDKit 二维结构已有内联回执，见 2026-11-10 分子记录。其余类型未补齐。
-- [ ] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。公式引用是源码哈希；Control 与分子回执各有版本。文献、图、表的编号系统仍未做。
-- [ ] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。工具摘要带有 citation。Paper 稿件关联未做。
+- [x] 补齐上表各类型，逐项记录支持范围及未支持项；化学至少覆盖反应式和真实 RDKit 二维结构。支持范围见文末记录。反应式是 LaTeX，不是反应机理。二维结构是 Scientific Viewer 的 RDKit 回执。
+- [x] 文献、公式、图、表的引用可稳定定位；修订和重新编号不把历史引用静默指向另一内容。会话消息里的 DOI、BibTeX 原文和 Paper 位置会显示稳定 token，并可复制。DOI 通过现有网页链接打开，Paper 通过现有 App 位置打开。公式是源码哈希，图和表是回执哈希。显示顺序不参与身份。
+- [x] 已展示内容能继续作为明确版本的后续对话上下文；可交付或关联 Paper 稿件，来源关系不丢失。回执和引用留在会话里。Paper 关联只打开已保存的 `pero-app-location`，不另建稿件编辑器。重启后同一引用仍在，不重新请求模型。
 
 ### 共同验收
 
 - [x] 历史恢复/重启后可重现已保存的内容；回放不重新计算或调用模型。既有图表/表格已在此前的 Workbench 重启中验证。本次 Control Lab 回执验证了存储重放不再求解；没有再跑桌面重启。
 - [x] 内容主要在会话流可见，来源/长表/深入交互按需展开；不能只交付侧栏文件、源码或截图。
-- [ ] 实际检查明暗主题、窄窗、长公式/宽表、键盘与复制；Web/Wasm 和 Native 分别记录观察与截图，构建成功不代替界面验收。
+- [ ] 实际检查明暗主题、窄窗、长公式/宽表、键盘与复制；Web/Wasm 和 Native 分别记录观察与截图，构建成功不代替界面验收。2026-11-10：Electron 工作台加载完整 Wasm，经 Host 和真实 harness 跑通图表/表格回执。浅色、深色、780px 窄窗、公式源码复制、表格 `table:{artifactId}` 复制、原始 JSON 复制和重启不追加模型请求均已在会话流里观察到。Native `pero-native` 仍未在本机完成：`npm run dev:native` 拒绝非 macOS，Linux 上 `native_web.rs` 的 `webkit2gtk::prelude::WebViewExt` / `can_go_back` 与已安装的 webkit2gtk 2.0 不一致。生成字体已由官方字体脚本产出，不再是缺字体。因此 Native 这一半仍未验收。
 - [x] 用 PDE、控制优化、负二项分布和化学反应等材料检验表达能力；展示这些表达式不等于已经支持对应 CFD、MPC 或单细胞计算。
 - [x] fixture 接线、真实工具、真实模型和科学接受分别记录；首例真实计算使用既有受支持方法，不要求泛化到所有学科。
 
@@ -236,3 +236,42 @@ Control Lab 继续拥有求解和检查。新增只读 `project-result`（agent-
 公式的稳定引用是源码的 SHA-256，形如 `formula:{hash}`。它不使用公式在消息里的位置，因此前面的文字改动或重新编号不会把旧引用指到另一条公式。复制源码的原按钮保留。
 
 反应式仍只是 LaTeX，不是反应机理或 RDKit 反应绘图。文献编号、图/表编号、Paper 稿件关联、ngspice 会话闭环，以及分子图在 Workbench 里的明暗、窄窗和键盘验收都还没有做。Wasm 没有运行。
+
+## 2026-11-10 引用身份与支持范围
+
+图和表的稳定引用是回执内容哈希：`chart:{artifactId}`、`table:{artifactId}`。表格可以声明 `method` 和 `valueOrigin`（`reported`、`calculated` 或 `unspecified`）。未说明来源时界面写明不是实验验证。缺失单元格仍是 missing，null 仍是 null。图表方法写在 `source.method`，缺省时界面写明未说明计算方法。这些都是声明，不产生检查结论。
+
+公式引用是 `formula:{sha256(source)}`。DOI 引用是规范化后的 `doi:10…`。BibTeX 引用是条目原文的 `bibtex:{sha256}`。Paper 关联只接受现有 `pero-app-location://paper-agent/main/report/{64}/citation|passage/…`，版本留在该地址里。重新排序不会把旧 token 解析到另一条已保存内容。
+
+| 类型 | 本 issue 支持 | 明确不做 |
+| --- | --- | --- |
+| 数学公式 | 行内/块级、对齐、矩阵、复制源码、源码哈希引用 | 通用定理证明；显示序号不是身份 |
+| 科学图表 | 既有七种图、来源、单位轴、方法声明、内容哈希 | 误差线、热图、三维、相图 |
+| 实验结果 | 精确数字、样本字段、方法声明、报告值/计算值/未说明 | 不把声明当成独立统计检验 |
+| 物理单位 | 列单位、科学记数轴 | 没有接入通用量纲换算工具，所以不显示换算结论 |
+| 科学表格 | 单位、缺失/null、结果版本哈希 | 多级表头 |
+| 文献与交叉引用 | DOI、BibTeX 原文哈希、图/表/公式/Paper 位置 | GROBID/Docling 导入 |
+| 科学数据说明 | 回执中的方法、引擎版本、范围和未知项 | 不把文件侧栏当作正文 |
+| 数学推导 | 可展示步骤；无工具时保持未检查 | 通用证明器 |
+| 化学表达 | LaTeX 反应式；RDKit 二维结构、电荷和立体 SMILES、逐条错误 | 反应机理、三维结构、生物活性 |
+| 算法描述 | 普通 Markdown 伪代码 | 不把流程图当成验证 |
+
+ngspice 主动滤波器没有走会话改参闭环。完整论文编辑器不属于本 issue。
+
+## 2026-11-10 Workbench 会话流
+
+多个科学工具会收进同一个 “Tool” 组。组折叠时，图表、表格、控制结果和分子回执仍留在会话流里；工具日志继续折叠。
+
+`DISPLAY=:1 PERO_TEST_SOFTWARE_GL=1 node tests/e2e/scientific-chat.mjs` 启动 Electron 工作台、Host 和 `target/debug/pero-agent-acp`。模型是 loopback fixture，`table_render` 与 `chart_render` 是真实 harness。会话里看到：
+
+- 表：`Method: declared sample mean; not a statistical test`，`Declared as calculated values, not independently checked`，`table:1795f6214bc7076bc9410edef1ea6eb605658c06c5d13ce60cf53f15af8533b9`。`0.0100`、显式 `0`、`null` 和 `9007199254740993` 都保留。
+- 图：`Method: declared line of the supplied values`，`chart:126c469f26003d2bd7777a0373e016319dfae24754f1b20146ba27eb8e2f0597`，并写明来源声明不是实验验证。
+- 长公式、矩阵、负二项和反应式在同一条助手消息里；`\notACommand` 仍是局部失败。复制 PDE 源码得到 `\rho\left(`。
+- 深色和 780px 窄窗下，图注和公式仍在消息流中；窄窗里长引用换行。
+- 重启后同一 `artifact_id`，fixture 请求数仍是 2。原始记录打开 `results.json`，复制全文与数据集字节一致。
+
+同一条助手消息末尾还有 `doi:10.1000/scientific-chat.1`、对应 BibTeX 条目和一条 Paper 位置。会话显示这三个稳定 token。复制 DOI 得到 `doi:10.1000/scientific-chat.1`。打开 DOI 使用现有网页链接 `https://doi.org/…`。打开 Paper 使用现有 App 位置，不创建文稿。重启后这三个 token 仍在，fixture 请求数不增加。
+
+证据在 `test-results/scientific-chat/`：`table-light.png`、`equations-light.png`、`equations-dark.png`、`narrow-dark.png`、`literature-light.png`、`original-records.png`、`table-receipt.json`、`chart-receipt.json`、`result.json`。`realModel` 为 false。没有使用静态 HTML。
+
+Native 仍缺 macOS 上的 `npm run dev:native`，或先让 Linux `webkit2gtk` 调用与 `crates/pero-ui/src/native_web.rs` 一致后再构建 `pero-native`。这不是本 PR 的兼容层改造。

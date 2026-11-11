@@ -52,9 +52,17 @@ struct Source {
 struct TableDocument {
     title: String,
     description: String,
+    #[serde(default)]
+    method: String,
+    #[serde(default = "unspecified_origin", rename = "valueOrigin")]
+    value_origin: String,
     columns: Vec<Column>,
     rows: Vec<Vec<Cell>>,
     source: Source,
+}
+
+fn unspecified_origin() -> String {
+    "unspecified".into()
 }
 
 #[derive(Clone, Serialize)]
@@ -65,10 +73,14 @@ pub struct TableView {
     #[serde(skip)]
     pub(crate) source_bounds: crate::view_bounds::ViewBounds,
     #[serde(skip)]
+    pub(crate) cite_bounds: crate::view_bounds::ViewBounds,
+    #[serde(skip)]
     missing: bool,
     #[serde(skip)]
     nulls: bool,
     pub title: String,
+    pub method: String,
+    pub value_origin: String,
     pub rows: usize,
     pub total_records: usize,
     source: ScientificSource,
@@ -108,6 +120,9 @@ impl TableView {
             .matches_dataset(&table.source.dataset)
         {
             return Err("Table source identity does not match".into());
+        }
+        if !matches!(table.value_origin.as_str(), "reported" | "calculated" | "unspecified") || table.method.len() > 500 {
+            return Err("Table method or value origin is invalid".into());
         }
         if table.columns.is_empty()
             || table.columns.len() > 16
@@ -169,6 +184,7 @@ impl TableView {
             artifact_id: receipt.artifact_id,
             data_bounds: Default::default(),
             source_bounds: Default::default(),
+            cite_bounds: Default::default(),
             missing: table
                 .rows
                 .iter()
@@ -180,6 +196,8 @@ impl TableView {
                 .flatten()
                 .any(|cell| cell.kind == CellKind::Null),
             title: table.title,
+            method: table.method,
+            value_origin: table.value_origin,
             rows: table.rows.len(),
             total_records: table.source.total_records,
             source: receipt.source_document,
@@ -240,6 +258,19 @@ impl ChatPanel {
             .and_then(|chat| chat.tools.iter().find(|item| item.id == tool))
             .and_then(|tool| tool.chart_reader.clone());
         let chrome = pero_theme::Chrome::from_app(cx);
+        let citation = crate::scientific_citation::table_citation(&table.artifact_id);
+        let origin = match table.value_origin.as_str() {
+            "reported" => if zh { "数值声明为报告值，未经独立检查" } else { "Declared as reported values, not independently checked" },
+            "calculated" => if zh { "数值声明为计算值，未经独立检查" } else { "Declared as calculated values, not independently checked" },
+            _ => if zh { "未说明数值来源，不是实验验证" } else { "Value origin is not stated. Not an experimental verification" },
+        };
+        let method = if table.method.is_empty() {
+            if zh { "未说明计算方法".into() } else { "Calculation method is not stated".into() }
+        } else if zh {
+            format!("方法：{}", table.method)
+        } else {
+            format!("Method: {}", table.method)
+        };
         let mut legend = Vec::new();
         if table.missing {
             legend.push(if zh {
@@ -271,7 +302,10 @@ impl ChatPanel {
                             table.source.title, table.rows, table.total_records
                         )
                     })
-                    .when(!legend.is_empty(), |el| el.child(legend.join(" · "))),
+                    .when(!legend.is_empty(), |el| el.child(legend.join(" · ")))
+                    .child(origin)
+                    .child(method)
+                    .child(citation.clone()),
             )
             .child(
                 div()
@@ -329,6 +363,20 @@ impl ChatPanel {
                                 )
                             },
                         )),
+                    )
+                    .child(
+                        pero_theme::action_button(
+                            "table-cite",
+                            if zh { "复制引用" } else { "Copy citation" },
+                            pero_theme::ActionKind::Ghost,
+                            chrome,
+                            cx,
+                        )
+                        .relative()
+                        .child(table.cite_bounds.probe())
+                        .on_click(move |_, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(citation.clone()))
+                        }),
                     ),
             )
             .when_some(reader, |el, reader| el.child(reader))

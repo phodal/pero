@@ -155,10 +155,85 @@ impl ChatPanel {
                         })),
                 )
             })
+            .when(
+                !crate::scientific_citation::literature_in(&message.text).is_empty(),
+                |el| el.child(self.literature_chips(&conversation.id, index, &message.text, cx)),
+            )
             .when(!user && conversation.reply_actions.contains(index), |el| {
                 el.child(self.reply_actions(conversation, index, cx))
             })
             .into_any_element()
+    }
+
+    pub(crate) fn literature_snapshot(&self) -> Vec<serde_json::Value> {
+        let bounds = self.literature_bounds.borrow();
+        let mut rows = Vec::new();
+        for chat in &self.chats {
+            for (index, message) in chat.messages.iter().enumerate() {
+                for item in crate::scientific_citation::literature_in(&message.text) {
+                    let key = format!("{}/{index}/{}", chat.id, item.token);
+                    rows.push(serde_json::json!({
+                        "chat": chat.id,
+                        "index": index,
+                        "token": item.token,
+                        "open": match &item.open {
+                            Some(crate::scientific_citation::LiteratureOpen::Doi(url)) => serde_json::Value::String(url.clone()),
+                            Some(crate::scientific_citation::LiteratureOpen::Paper(locator)) => serde_json::Value::String(locator.clone()),
+                            None => serde_json::Value::Null,
+                        },
+                        "paper": matches!(item.open, Some(crate::scientific_citation::LiteratureOpen::Paper(_))),
+                        "copy": bounds.get(&format!("{key}/copy")).map(|bound| bound.snapshot()).unwrap_or(serde_json::Value::Null),
+                        "openBounds": bounds.get(&format!("{key}/open")).map(|bound| bound.snapshot()).unwrap_or(serde_json::Value::Null),
+                    }));
+                }
+            }
+        }
+        rows
+    }
+
+    fn literature_bound(&self, key: &str) -> crate::view_bounds::ViewBounds {
+        self.literature_bounds.borrow_mut().entry(key.to_owned()).or_default().clone()
+    }
+
+    fn literature_chips(&self, chat_id: &str, index: usize, text: &str, cx: &mut Context<Self>) -> AnyElement {
+        use crate::scientific_citation::{LiteratureOpen, literature_in};
+        let zh = self.locale.starts_with("zh");
+        let mut column = div().flex().flex_col().gap(px(4.));
+        for (number, item) in literature_in(text).into_iter().enumerate() {
+            let key = format!("{chat_id}/{index}/{}", item.token);
+            let token = item.token.clone();
+            let open = item.open.clone();
+            let copy_label = if zh { "复制引用" } else { "Copy citation" };
+            let open_label = match &open {
+                Some(LiteratureOpen::Paper(_)) => if zh { "打开文稿" } else { "Open paper" },
+                Some(LiteratureOpen::Doi(_)) => if zh { "打开 DOI" } else { "Open DOI" },
+                None => "",
+            };
+            column = column.child(
+                div().id(("literature", index * 16 + number)).flex().flex_wrap().items_center().gap(px(8.))
+                    .child(div().min_w_0().text_sm().child(token.clone()))
+                    .child(
+                        pero_theme::action_button(SharedString::from(format!("literature-copy-{index}-{number}")), copy_label, pero_theme::ActionKind::Ghost, pero_theme::Chrome::from_app(cx), cx)
+                            .relative()
+                            .child(self.literature_bound(&format!("{key}/copy")).probe())
+                            .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(token.clone()))),
+                    )
+                    .when(open.is_some(), |el| {
+                        let open = open.clone();
+                        el.child(
+                            pero_theme::action_button(SharedString::from(format!("literature-open-{index}-{number}")), open_label, pero_theme::ActionKind::Ghost, pero_theme::Chrome::from_app(cx), cx)
+                                .relative()
+                                .child(self.literature_bound(&format!("{key}/open")).probe())
+                                .on_click(cx.listener(move |_, event: &ClickEvent, _, cx| match open.clone() {
+                                    Some(LiteratureOpen::Paper(locator)) => cx.emit(crate::ChatAction::AppLink(locator)),
+                                    Some(LiteratureOpen::Doi(url)) => cx.emit(crate::ChatAction::FollowLink { href: url, middle: false, primary_modifier: event.modifiers().platform }),
+                                    None => {}
+                                })),
+                        )
+                    }),
+            );
+        }
+        column.into_any_element()
     }
 
     fn pull_request_chips(&self, text: &str, cx: &mut Context<Self>) -> AnyElement {
@@ -601,6 +676,11 @@ impl ChatPanel {
             })
             .when(!open, |el| {
                 el.children(
+                    tools
+                        .iter()
+                        .map(|tool| self.embedded_preview(&chat.id, tool, cx)),
+                )
+                .children(
                     tools
                         .iter()
                         .map(|tool| self.tool_notices(&chat.id, tool, true, cx)),
