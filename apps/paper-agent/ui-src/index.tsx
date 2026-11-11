@@ -356,6 +356,7 @@ export default function PaperAgent() {
         const report=await api.get<import('./types').Report>(`/api/reports/${(match??passage)![1]}`);
         const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
         const refs=[...(report.sections?.flatMap(section=>section.evidence??[])??[]),...(report.matrix?.cells.flatMap(cell=>cell.evidence)??[])];
+        if(passage&&new Set(refs.filter(ref=>ref.passageId===passage[2]).map(ref=>ref.quote)).size>1)throw Error('This passage has multiple saved quotations. Open the research plan and select a claim.');
         const ref=passage?refs.find(ref=>ref.passageId===passage[2]):refs[Number(match![2])];if(!ref)throw Error('Citation is unavailable');
         await cite(ref,intent);
       })().catch(onError);

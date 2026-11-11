@@ -7,7 +7,7 @@ import { resolve, extname } from 'node:path';
 const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/paper-programs');
 await mkdir(out,{recursive:true});
 const paper={id:'a'.repeat(64),source:'openalex',sourceId:'W1',title:'Synthetic model mismatch study with a deliberately long descriptive title',url:'https://openalex.org/W1',authors:[],contentKind:'abstract',contentDigest:'b'.repeat(64),fetchedAt:'2026-11-06T00:00:00Z',content:'Synthetic source; no scientific acceptance.'};
-const reportId='9'.repeat(64);
+const reportId='9'.repeat(64),passageId='8'.repeat(64);
 let program=null,run=null,failNext=false,failCancel=false;const calls=[],citations=[],errors=[];
 const browser=await chromium.launch({headless:true,...(process.env.PERO_CHROMIUM_PATH?{executablePath:process.env.PERO_CHROMIUM_PATH}:{})});
 const page=await browser.newPage({viewport:{width:1100,height:900}});
@@ -21,7 +21,7 @@ try {
     else if(path==='/api/library')value={papers:[paper],intents:[],reports:[]};
     else if(path==='/api/workspaces')value={items:[{workspaceId:'ws_fixture'}]};
     else if(path==='/api/harnesses')value={items:[{id:'pero',available:true}]};
-    else if(path==='/api/reports/'+reportId)value={id:reportId,intentId:'intent1',sections:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'First quotation'},{paperId:paper.id,passageId:'same-passage',quote:'Second quotation'}]}],matrix:{cells:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'Matrix quotation'}]}]}};
+    else if(path==='/api/reports/'+reportId)value={id:reportId,intentId:'intent1',sections:[{evidence:[{paperId:paper.id,passageId,quote:'First quotation'},{paperId:paper.id,passageId,quote:'Second quotation'}]}],matrix:{cells:[{evidence:[{paperId:paper.id,passageId,quote:'Matrix quotation'}]}]}};
     else if(path==='/api/intents/intent1')value={id:'intent1',papers:[paper]};
     else if(path==='/api/evidence'){citations.push(body);value={paperId:paper.id,start:0,end:body.quote.length,heading:'Saved original passage',before:'',quote:body.quote,after:''}}
     else if(path==='/api/programs'){
@@ -77,7 +77,7 @@ try {
   await expect.poll(()=>run.status,{timeout:10000}).toBe('cancelled');
   await expect(surface.getByRole('button',{name:'Resume research',exact:true})).toBeDisabled();
   await surface.getByRole('dialog').getByRole('button',{name:'Go back',exact:true}).click();
-  program.rounds=[{id:'round1',number:1,question:'Two quotations from one observed passage',newEvidence:1,gaps:['Independent replication missing'],nextAction:'Locate replication',claims:['First quotation','Second quotation'].map((quote,i)=>({text:'Synthetic claim '+(i+1),stance:i?'counterevidence':'support',quote,reportId,paperId:paper.id,passageId:'same-passage'}))}];
+  program.rounds=[{id:'round1',number:1,question:'Two quotations from one observed passage',newEvidence:1,gaps:['Independent replication missing'],nextAction:'Locate replication',claims:['First quotation','Second quotation'].map((quote,i)=>({text:'Synthetic claim '+(i+1),stance:i?'counterevidence':'support',quote,reportId,paperId:paper.id,passageId}))}];
   program.usage.rounds=1;
   await surface.getByRole('button',{name:'Refresh',exact:true}).click();
   await surface.getByRole('tab',{name:'Reports',exact:true}).click();
@@ -85,7 +85,7 @@ try {
   await surface.getByRole('button',{name:'Source report',exact:true}).nth(1).click();
   await expect(surface.locator('.pa-evidence mark')).toHaveText('Second quotation');
   assert.equal(citations.at(-1).quote,'Second quotation');
-  assert.equal(citations.at(-1).passageId,'same-passage');
+  assert.equal(citations.at(-1).passageId,passageId);
   await page.screenshot({path:resolve(out,'exact-second-quotation.png')});
   await surface.locator('.pa-evidence button').first().press('Escape');
   await expect(surface.locator('.pa-evidence')).toHaveCount(0);
@@ -94,6 +94,11 @@ try {
   assert.equal(citations.at(-1).quote,'Matrix quotation');
   await page.screenshot({path:resolve(out,'export-matrix-citation.png')});
   await surface.locator('.pa-evidence button').first().press('Escape');
+  const verifiedCitations=citations.length;
+  await page.evaluate(({reportId,passageId})=>document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:location',location:'report/'+reportId+'/passage/'+passageId},'*'),{reportId,passageId});
+  await expect(surface.getByText('This passage has multiple saved quotations. Open the research plan and select a claim.',{exact:true})).toBeVisible();
+  assert.equal(citations.length,verifiedCitations,'An ambiguous historical link must not silently choose the first quote');
+  await surface.locator('.pa-global-error button').click();
   await surface.getByRole('tab',{name:'Plan',exact:true}).click();
   await expect(surface.getByText('Not yet reported / 40',{exact:true})).toBeVisible();
   await page.screenshot({path:resolve(out,'unknown-accounting-light.png')});
