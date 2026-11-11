@@ -1,3 +1,4 @@
+import { expandMystEmbeds } from './myst-embeds.ts';
 import type { MystProjectReferenceTarget } from './myst-project-references.ts';
 import type { MystImageData } from './myst-assets.ts';
 import type { MystIncludeProvenance } from './myst-includes.ts';
@@ -45,7 +46,7 @@ export interface MystDocument {
   bibliography: Record<string, MystBibliographyEntry>;
 }
 export const MYST_SOURCE_MAX_BYTES = 256 * 1024;
-const disabledDirectives = new Set(['include', 'literalinclude', 'embed', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
+const disabledDirectives = new Set(['include', 'literalinclude', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
 const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment']);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
@@ -56,7 +57,9 @@ const identifier = normalizeMystIdentifier;
 export type MystParsedDocument = Omit<MystDocument, 'references' | 'bibliography'>;
 
 export function parseMystDocument(source: string): MystDocument {
-  return resolveMystDocument(parseMystSource(source));
+  const document = resolveMystDocument(parseMystSource(source));
+  expandMystEmbeds([{ path: '', document }]);
+  return document;
 }
 
 /** Parse and normalize before resource resolution; project callers supply typed inputs. */
@@ -106,12 +109,19 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
     if (node.type === 'cite' && node.position) node.citationShorthand = sourceLines[node.position.start.line - 1]?.[node.position.start.column - 1] === '@';
     if (node.type === 'mystDirective' || node.type === 'mystRole' || (node.type === 'mystDirectiveError' && node.name === 'csv-table')) {
       const name = string(node.name) ?? '';
-      if (disabledDirectives.has(name)) {
+      if (disabledDirectives.has(name) || name === 'embed') {
         node.directiveBody = node.value;
-        report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
+        if (name !== 'embed') report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
+        else if (record(node.options)) { const label = string(node.options.label) ?? string(node.options.name); if (label) { node.identifier = identifier(label); node.label = label; } }
         node.children = undefined;
         node.value = source.split('\n').slice((node.position?.start.line ?? 1) - 1, node.position?.end.line).join('\n');
         return [node];
+      }
+      if (name === 'figure' && node.args && node.children?.[0]?.type === 'container') {
+        const figure = node.children[0], children = figure.children ?? [];
+        const body = children.filter(child => child.type !== 'image');
+        figure.children = [...children.filter(child => child.type === 'image'), ...(body.length ? [{ type: 'caption', children: body }] : [])];
+        if (children.some(child => child.placeholder)) report('figure-placeholder-unsupported', 'Figure placeholders are retained but conditional fallback is not supported.', node);
       }
       if (node.children?.length) return node.children.flatMap(child => normalize({ ...child, position: child.position ?? node.position }));
       report('syntax-unsupported', `Unsupported ${node.type === 'mystRole' ? 'role' : 'directive'}: ${name}`, node);

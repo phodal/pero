@@ -1,3 +1,4 @@
+import { expandMystEmbeds, isMystEmbedImage } from './myst-embeds.ts';
 import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
@@ -74,7 +75,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     // of every key. Distinct resources with equal keys remain ambiguous.
     const bibliography = resolveMystBibliography([...new Map(resources.map(file => [file.path, file])).values()], parsed.metadata, resource.path);
     const visit = (node: MystNode) => {
-      if (node.type === 'image') {
+      if (node.type === 'image' && !isMystEmbedImage(node)) {
         const url = typeof node.url === 'string' ? node.url : '';
         if (notebookScholarly && url.startsWith('attachment:')) return;
         const resolution = resolveMystResource(snapshot, node.provenance?.path ?? resource.path, url);
@@ -118,6 +119,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     }
   }
   const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input).map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  expandMystEmbeds(referencePages, snapshot);
   resolveMystProjectReferences(snapshot, referencePages, notebookPages.filter(page => page.kind === 'ipynb').map(page => ({ path: page.path, identifier: '', label: page.path })));
   diagnostics.push(...referencePages.flatMap(page => page.document.diagnostics));
   for (const asset of snapshot.assets ?? []) if (!used.has(asset.path)) report('asset-unused', 'Provided binary resource is retained but not used by compiled pages.', asset.path);

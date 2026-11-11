@@ -37,3 +37,23 @@ Quoted delimiters, escaped quotes, multiline fields, header supplementation, hea
 Focused SDK tests cover includes and budgets, reference ambiguity and safe anchors, assets and signature mismatches, notebook context and static visibility, official CSV AST parity, exact snapshot source, and unsupported recovery. The shared fixture is exercised in Python with real revision persistence. Editor tests cover v2 clipboard round trips and future version 99 recovery. The browser journey covers nested includes, linked pages, recorded notebook output, CSV headers, admitted raster rendering, original-byte download, save/reopen/import/export, and screenshots. Browser syntax was checked during reconstruction; Chromium was not launched locally. Combined build/typecheck/browser CI results are tracked by the integrating change, not inferred from these focused tests.
 
 Reference implementation: pinned myst-parser/myst-directives 1.7.5 and MyST transforms source at upstream revision `50e8220`; include behavior is documented in the selector tests, and CSV tests compare the actual installed official directive AST.
+
+## Local labelled embeds
+
+The SDK expands `{embed} #label`, image shorthand `![](#label)`, and figure
+arguments from existing labelled Markdown AST nodes. Explicit `path#label` uses
+the same admitted project paths as references. Unqualified targets must be
+unique across supplied pages; sections include their body and subsections.
+Copies remove target identities while preserving reference nodes, source
+provenance and admitted relative images. A new figure owns its own caption and
+label; the copied figure's caption is replaced. Standalone documents resolve
+same-page targets through the same source codec.
+
+Depth 12, 128 expansions and 1 MiB repeated projected content reuse the existing
+include limits. Missing, ambiguous, cyclic, over-budget and unsupported embeds
+retain readable source and diagnostics. Remote projects, inline block embeds,
+conditional placeholders and cross-page citation/footnote context are not
+implemented. No external discovery or execution is enabled. This is a bounded
+local projection, not full upstream embed parity. Semantics were checked against
+MyST `docs/embed.md` and `packages/myst-cli/src/transforms/embed.ts` at
+`50e82202324dc36f10bd04877d00016879da6f6e`.
