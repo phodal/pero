@@ -47,7 +47,10 @@ export const structuredTableMessages = {
   retrySubmit: { en: 'Retry this submission', zh: '重试本次提交' },
   submitError: { en: 'Submission was not applied to this draft. Existing cells and receipts are retained; a catalog commit is not rolled back. Retry uses the same submission ID for unchanged input.', zh: '提交未应用到当前草稿。已有单元格和回执均已保留；已提交的目录记录不会回滚。输入不变时，重试将使用相同提交 ID。' },
   invalidResponse: { en: 'The catalog returned an invalid response.', zh: '目录返回了无效响应。' },
-  validation: { en: 'Resolve {count} validation issues before submitting.', zh: '请先修正 {count} 项验证问题再提交。' },
+  validation: { en: 'Check {count} invalid values or column settings.', zh: '请检查 {count} 项无效值或列设置。' },
+  incomplete: { en: 'Complete the table name and required cells to use these inputs.', zh: '填写表名和必填单元格后即可使用这些输入。' },
+  incompleteRegistration: { en: 'Complete the table name and required cells before registering rows.', zh: '登记数据行前，请填写表名和必填单元格。' },
+  requiredTableName: { en: 'Table name (required)', zh: '表名（必填）' },
   addRow: { en: 'Add row', zh: '添加行' },
   removeRow: { en: 'Remove row {number}', zh: '移除第 {number} 行' },
   addColumn: { en: 'Add column', zh: '添加列' },
@@ -152,12 +155,13 @@ function TypedCellEditor({ column, raw, label, disabled, onChange }: {
 }) {
   const { t } = useAppI18n(structuredTableMessages);
   const parsed = parseTypedCell(column, raw);
-  const error = 'error' in parsed ? parsed.error : null;
+  const [visited, setVisited] = useState(false);
+  const error = 'error' in parsed && (parsed.error !== 'required' || visited) ? parsed.error : null;
   const choices = column.type === 'boolean' ? [{ value: 'true', label: t('true') }, { value: 'false', label: t('false') }]
     : column.options.map(value => ({ value, label: value }));
   // A value invalidated by a schema edit remains visible and editable, never silently discarded.
   if (raw && choices.length && !choices.some(choice => choice.value === raw)) choices.unshift({ value: raw, label: raw });
-  return <div className="notebook-typed-cell">
+  return <div className="notebook-typed-cell" onBlurCapture={() => setVisited(true)}>
     {column.type === 'missing' ? <Input aria-label={label} value={raw} disabled={disabled} maxLength={4096} placeholder="—" onChange={event => onChange(event.target.value)} />
       : column.type === 'quantity' ? <QuantityCellEditor column={column} raw={raw} label={label} disabled={disabled} invalid={!!error} onChange={onChange} />
       : column.type === 'object' ? <Textarea aria-label={label} rows={2} maxLength={4096} readOnly={disabled} value={raw} placeholder="{}" aria-invalid={!!error} onChange={event => onChange(event.target.value)} />
@@ -229,6 +233,7 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   const editorEditable = useEditorState({ editor: view.editor, selector: ({ editor }) => editor.isEditable });
   const editable = editorEditable && !busy;
   const issues = validateStructuredTable(table);
+  const errors = issues.filter(issue => issue.code !== 'required' && !(issue.code === 'name' && !issue.columnId && !table.name.trim()));
   const submitted = receipts.some(receipt => receipt.tableId === table.id && receipt.inputHash === hash);
   const edit = (change: TableChange) => { if (!view.editor.isEditable || inFlight.current) return; view.updateAttributes({ table: changeStructuredTable(current.current.table, change) }); setError(''); };
   const submit = async (waive = false) => {
@@ -253,7 +258,7 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
   const kind = registration ? 'registrationTable' : 'inputTable';
   return <BlockFrame view={view} kind={kind}
     help={registration ? { title: t('registrationScope'), content: <p>{t('catalogScope')}</p> } : undefined}
-    title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t(kind)} maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
+    title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t('requiredTableName')} aria-required="true" maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
     caption={<Badge tone={submitted ? 'info' : 'neutral'}>{t(submitted ? 'submitted' : receipts.length ? 'changed' : 'inputDraft')}</Badge>}>
     <Disclosure variant="inline" summary={t('schema')}>
       <p><code>{table.schema.id}</code> · {t('revision', { number: table.schema.revision })}</p>
@@ -261,8 +266,9 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
     {activeView && !viewError && <p role="status">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
     {viewError && <Feedback kind="warning">{viewError}</Feedback>}
-    {issues.length > 0 && <Feedback kind="warning">{t('validation', { count: issues.length })}
-      <ul>{issues.filter(issue => !issue.rowId).map((issue, index) => <li key={index}>{issue.columnId ? `${table.schema.columns.find(col => col.id === issue.columnId)?.name || issue.columnId}: ` : ''}{t(issueKey(issue.code))}</li>)}</ul>
+    {issues.length > errors.length && <p className="notebook-note">{t(registration ? 'incompleteRegistration' : 'incomplete')}</p>}
+    {errors.length > 0 && <Feedback kind="warning">{t('validation', { count: errors.length })}
+      <ul>{errors.filter(issue => !issue.rowId).map((issue, index) => <li key={index}>{issue.columnId ? `${table.schema.columns.find(col => col.id === issue.columnId)?.name || issue.columnId}: ` : ''}{t(issueKey(issue.code))}</li>)}</ul>
     </Feedback>}
     <div className="notebook-structured-scroll"><table className="notebook-structured-grid"><thead><tr><th>{t('row')}</th>
       {projected.columns.map(col => <th key={col.id}>
