@@ -175,7 +175,7 @@ the bundle-budget issue above; its regression now passes. New-head real browser
 results and screenshot inspection remain pending. The earlier 50de2bb results do
 not establish acceptance of these new UI/SDK changes.
 
-## Current functional gaps after the text-project slice
+## Historical functional gaps after the text-project slice
 
 Bounded local text snapshots, root `myst.yml`, project/page scholarly inheritance
 and explicit BibTeX/CSL-JSON metadata resolution are now implemented as described
@@ -252,3 +252,30 @@ JavaScript accepted lone UTF-16 surrogates that UTF-8 export replaced, while Pyt
 rejected them. Shared MyST source admission now rejects those invalid scalar values
 before encoding. The cross-runtime corpus and both source/bundle format paths cover
 high/low lone surrogates and retain valid supplementary characters unchanged.
+
+
+## Published text-project acceptance (`20367200`)
+
+Run [42943619611](https://github.com/phodal/pero/actions/runs/42943619611)
+completed successfully on published head
+`20367200367432d9f9fed49c13416bb3606a129c`. Notebook job 130271022650 passed
+211 core, 99 editor, 143 real-OCR backend and six browser tests. Canvas job
+130271022695 passed both real-owner scenarios. Retained artifact 13820914534
+contains inspected project editor, preview and readonly recovery screenshots.
+The bibliography below the captured viewport was established by assertions,
+not visual inspection. Desktop acceptance was skipped; no Native/Electron GUI
+acceptance follows from these results.
+
+## Scientific workflow continuation: current verification boundary
+
+The continuation implements explicit bounded resources, cross-document references,
+recorded IPYNB interchange, real local CSL formatting and scientific publication
+through the same document SDK. The capability matrix and individual domain
+notes describe the admitted subset and unsupported features. Kernels, plugins,
+automatic resource retrieval and arbitrary TeX/Typst compilation remain off.
+
+An unpublished local continuation was interrupted before it reached the PR.
+Its earlier local test counts are historical, not acceptance for reconstructed
+source. This continuation is revalidated from the published `20367200` base;
+only tests rerun against the reconstructed integration will be recorded below.
+Original Notebook source/revisions are not migrated or replaced.

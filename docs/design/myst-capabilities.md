@@ -1,6 +1,6 @@
 # MyST capability boundary and implementation roadmap
 
-Status: first document slice published at `50de2bb`; SDK continuation locally verified after integrating `d1cdba2a`; new-head browser acceptance pending, audited 2026-11-11. This is not a claim of full MyST compatibility.
+Status: text-project baseline published and accepted at `20367200`; scientific workflow continuation is in progress, audited 2026-11-11. This is not a claim of full MyST compatibility.
 
 The request to add MyST capabilities extends the deliberately narrow projection in
 [#195](https://github.com/phodal/pero/issues/195) and [#196](https://github.com/phodal/pero/pull/196).
