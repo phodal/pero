@@ -13,19 +13,25 @@ export interface IpynbRenderOptions { namespace?: string; fragment?: boolean; ma
 /** Static, bounded recorded output. No kernel, scripts, plugins or remote assets. */
 export function renderIpynbHtml(document: IpynbDocument, options: IpynbRenderOptions = {}): string {
   let titleInContent = false;
+  const hasPublicationTitle = (compiled: MystDocument): boolean => {
+    const first = compiled.ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type));
+    return first?.type === 'heading' && first.depth === 1 && mystNodeText(first).trim() === options.scholarly?.title?.trim();
+  };
   const content = document.cells.map(cell => {
     const visible = ipynbCellVisibility(cell); if (!visible.cell) return '';
     const namespace = `${options.namespace ?? ''}:cell-${cell.index}`;
     const compiledCode = options.code?.get(cell.index);
-    if (cell.kind === 'code' && compiledCode) return `<section aria-label="Cell ${cell.index + 1}"><h2>Cell ${cell.index + 1}: code</h2>${renderMystHtml(compiledCode, { namespace, fragment: true, metadata: false, bibliography: false })}</section>`;
+    if (cell.kind === 'code' && compiledCode) {
+      titleInContent ||= hasPublicationTitle(compiledCode);
+      return `<section aria-label="Cell ${cell.index + 1}"><h2>Cell ${cell.index + 1}: code</h2>${renderMystHtml(compiledCode, { namespace, fragment: true, metadata: false, bibliography: false, source: false })}</section>`;
+    }
     let input = '';
     if (visible.input) {
       if (cell.kind === 'markdown') {
         try {
           const markdown = options.markdown?.get(cell.index) ?? parseMystDocument(cell.source);
           input = renderMystHtml(markdown, { namespace, fragment: true, metadata: !options.scholarly, bibliography: !options.citationRendering });
-          const first = markdown.ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type));
-          if (first?.type === 'heading' && first.depth === 1 && mystNodeText(first).trim() === options.scholarly?.title?.trim()) titleInContent = true;
+          titleInContent ||= hasPublicationTitle(markdown);
         }
         catch { input = `<p>Markdown preview unavailable; exact source retained.</p>${literal(cell.source)}`; }
       } else input = `<p>${cell.kind === 'code' ? 'Inert code input. Never executed here.' : 'Raw cell, shown as literal text.'}</p>${literal(cell.source)}`;

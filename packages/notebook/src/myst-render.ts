@@ -57,7 +57,7 @@ function math(value: string, displayMode: boolean): string {
 
 /** A publication is inert, self-contained HTML. Use an empty iframe sandbox
  * for previews. Authored HTML, includes, plugins and code never execute. */
-export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean; bibliography?: boolean }
+export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean; bibliography?: boolean; source?: boolean }
 export function renderMystHtml(document: MystDocument, options: MystHtmlOptions = {}): string {
   const notices = new Set<string>();
   const text = (node: MystNode, key: string) => typeof node[key] === 'string' ? node[key] as string : '';
@@ -181,7 +181,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   }).join('');
   const styledBibliography = options.bibliography !== false && document.citationRendering ? renderMystCitationBibliography(document.citationRendering, options.namespace) : '';
   const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
-  const content = `${header}${body}${styledBibliography}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
+  const content = `${header}${body}${styledBibliography}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}${options.source === false ? '' : `<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`}`;
   if (options.fragment) return `<section id="${anchor('')}">${content}</section>`;
   return renderMystHtmlShell(title, content);
 }

@@ -68,3 +68,19 @@ test('notebook metadata and compiled title share one numbered HTML heading', () 
   assert.equal((html.match(/<h1[^>]*>/g) ?? []).length, 1);
   assert.match(html, /1 Notebook title<\/h1>/);
 });
+
+test('code-first notebooks publish one title while keeping hidden code and author metadata intact', () => {
+  for (const tags of [[], ['hide-input'], ['hide-output'], ['hide-input', 'hide-output'], ['remove-cell']]) {
+    const source = JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: { title: 'Code-first title', authors: [{ name: 'Research Author' }], numbering: { title: true, headings: true } }, cells: [
+      { cell_type: 'code', id: 'code', metadata: { label: 'computation', tags }, source: 'PRIVATE_INPUT', execution_count: 1, outputs: [{ output_type: 'stream', name: 'stdout', text: 'RECORDED_OUTPUT' }] },
+      { cell_type: 'markdown', id: 'prose', metadata: {}, source: '## Results' },
+    ] });
+    const project = compileMystProject(parseMystProjectSnapshot({ format: 'pero-myst-project', version: 1, entry: 'book.ipynb', files: [{ path: 'book.ipynb', text: source }] }));
+    const html = renderMystProjectHtml(project);
+    assert.equal((html.match(/<h1[^>]*>/g) ?? []).length, 1, tags.join(','));
+    assert.match(html, /1 Code-first title<\/h1>/);
+    assert.equal((html.match(/Research Author/g) ?? []).length, 1);
+    assert.equal(html.includes('PRIVATE_INPUT'), !tags.includes('hide-input') && !tags.includes('remove-cell'));
+    assert.equal(html.includes('RECORDED_OUTPUT'), !tags.includes('hide-output') && !tags.includes('remove-cell'));
+  }
+});
