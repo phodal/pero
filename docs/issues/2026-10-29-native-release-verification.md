@@ -60,3 +60,13 @@ PR #13 integrates that preventive CI/build fix. Public downloads, checksum
 verification, four native package launch jobs and downloaded macOS acceptance
 passed; the local repackaging check preserves the App display name while emitting
 the safe archive filename. No remaining failure is tracked by this record.
+
+## Archive review, 2026-11-11
+
+The old CI branch also fixed reverse DNS in the real Virtual Cell server, but
+only its runtime fixture repair reached master. The production server still
+resolved 127.0.0.1 before announcing readiness. Use the same loopback TCP bind
+without DNS, retaining a dynamic port, threading and authentication. The existing
+HTTP integration case now runs the production server with DNS lookup forbidden.
+Virtual Cell Python suite: 62 tests, 50 passed and 12 optional cases skipped.
+This does not establish new packaged-platform acceptance.

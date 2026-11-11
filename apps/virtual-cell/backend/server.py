@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socketserver
 import threading
 
 from contract import Invalid, canonical
@@ -103,11 +104,19 @@ def handler(workbench, secret, comparisons=None, dataset=None):
     return Handler
 
 
+class LoopbackServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # Readiness must not wait for reverse DNS of our fixed loopback address.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
+
 def main():
     workbench = Workbench(os.environ["PERO_APP_DATA"])
     comparisons = ComparisonHistory(workbench)
     dataset = DatasetDownload(workbench.root)
-    server = ThreadingHTTPServer(("127.0.0.1", 0),
+    server = LoopbackServer(("127.0.0.1", 0),
                                 handler(workbench, os.environ["PERO_APP_TOKEN"], comparisons, dataset))
     server.daemon_threads = True
     print(json.dumps({"port": server.server_port}), flush=True)
