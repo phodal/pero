@@ -45,15 +45,17 @@ pub(super) fn ensure(home: &Path, log: &mut impl FnMut(String)) -> Result<PathBu
             "a8b361c86d8dc53ccf38fc11525e0d1703e26c075c9a356b7d82b5bdaa88febd",
         ),
         _ => {
-            return Err(
-                "Verified uv supports macOS, Linux and Windows on arm64 and x86_64".into(),
-            );
+            return Err("Verified uv supports macOS, Linux and Windows on arm64 and x86_64".into());
         }
     };
     let tools = home.join(format!("uv-{VERSION}"));
-    let windows=target.ends_with("windows-msvc");
-    let extension=if windows {"zip"} else {"tar.gz"};
-    let binary = if windows {tools.join("uv.exe")} else {tools.join(format!("uv-{target}/uv"))};
+    let windows = target.ends_with("windows-msvc");
+    let extension = if windows { "zip" } else { "tar.gz" };
+    let binary = if windows {
+        tools.join("uv.exe")
+    } else {
+        tools.join(format!("uv-{target}/uv"))
+    };
     if binary.is_file() && sha(&fs::read(&binary).map_err(|e| e.to_string())?) == binary_sha {
         return Ok(binary);
     }
@@ -79,14 +81,16 @@ pub(super) fn ensure(home: &Path, log: &mut impl FnMut(String)) -> Result<PathBu
         preparation::run(Command::new("powershell.exe")
             .args(["-NoProfile","-NonInteractive","-Command","Expand-Archive -LiteralPath $env:PERO_UV_ARCHIVE -DestinationPath $env:PERO_UV_DEST -Force"])
             .env("PERO_UV_ARCHIVE",&archive).env("PERO_UV_DEST",&tools),log)?;
-    } else { preparation::run(
-        Command::new("tar")
-            .arg("-xzf")
-            .arg(&archive)
-            .arg("-C")
-            .arg(&tools),
-        log,
-    )?; }
+    } else {
+        preparation::run(
+            Command::new("tar")
+                .arg("-xzf")
+                .arg(&archive)
+                .arg("-C")
+                .arg(&tools),
+            log,
+        )?;
+    }
     if sha(&fs::read(&binary).map_err(|e| e.to_string())?) != binary_sha {
         return Err("uv executable digest mismatch".into());
     }
