@@ -37,7 +37,15 @@ impl Action {
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Projection { title: String, fields: Vec<Field>, columns: Vec<String>, rows: Vec<Vec<String>>, notice: String, actions: Vec<Action> }
+struct Projection {
+    title: String, fields: Vec<Field>, columns: Vec<String>, rows: Vec<Vec<String>>, notice: String, actions: Vec<Action>,
+    #[serde(default, skip_serializing_if="Vec::is_empty")]
+    results: Vec<ViewResult>,
+}
+/// Inert owner data selected by the researcher; never an action or execution authority.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ViewResult { id: String, label: String, value: Value }
 type Store = Arc<Mutex<Result<AppStore, String>>>;
 type Instances = Arc<Mutex<CanvasInstances>>;
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 }
@@ -80,7 +88,10 @@ fn read_view(store: &Store, source: &CanvasSource) -> Result<Value, String> {
     if projection.title.len() > 200 || projection.notice.len() > 2000 || projection.fields.len() > 32 || projection.columns.len() > 16 || projection.rows.len() > 100 || projection.actions.len() > 8 ||
         projection.fields.iter().any(|field|field.label.len()>200 || field.value.len()>2000) ||
         projection.columns.iter().any(|label|label.len()>200) || projection.rows.iter().any(|row|row.len()!=projection.columns.len() || row.iter().any(|cell|cell.len()>2000)) ||
-        projection.actions.iter().any(|action| action.label.len()>200 || !action.valid_inputs() || !view.actions.contains(&action.name)) {
+        projection.actions.iter().any(|action| action.label.len()>200 || !action.valid_inputs() || !view.actions.contains(&action.name)) ||
+        projection.results.len() > 8 || projection.results.iter().enumerate().any(|(index, result)|
+            result.id.is_empty() || result.id.len()>128 || result.label.is_empty() || result.label.len()>200 || !result.value.is_object() ||
+            projection.results[..index].iter().any(|previous| previous.id == result.id)) {
         return Err("App view exceeds its declared display limits".into());
     }
     for action in &projection.actions {

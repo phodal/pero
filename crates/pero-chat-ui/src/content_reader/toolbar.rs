@@ -113,6 +113,8 @@ impl ContentReader {
             )
             .child(
                 Button::new("content-copy")
+                    .relative()
+                    .child(self.copy_bounds.probe())
                     .ghost()
                     .small()
                     .accessibility_label(self.t(if self.copied {

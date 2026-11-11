@@ -9,6 +9,43 @@ from test_verification import observed
 
 
 class StoreTest(unittest.TestCase):
+    def test_notebook_view_returns_only_completed_verification_results_without_executing(self):
+        from control_lab.canvas import NotebookExperiment, projection
+        from control_lab.experiments import canonical, digest
+        inputs = {'submissionId': 'a' * 32,
+                  'horizon': {'procedureId': 'method', 'parameterId': 'window', 'version': 1, 'value': '8'},
+                  'samples': {'procedureId': 'method', 'parameterId': 'count', 'version': 1, 'value': '1001'}}
+        submission = NotebookExperiment.parse(inputs)
+        calls = []
+        def execute(_engine, _model, _parameters, scenario, _directory, _cancelled):
+            calls.append(scenario)
+            selected = next(item for item in submission.spec.scenarios if dict(item.parameters) == scenario)
+            return observed(submission.spec, selected).to_dict()
+        with tempfile.TemporaryDirectory() as root:
+            store = ExperimentStore(root, execute)
+            self.addCleanup(store.close)
+            self.assertNotIn('results', projection(inputs, store))
+            record = store.notebook_experiment(submission, create=True)
+            store.start(record['id'], 'baseline'); store.worker.join(timeout=5)
+            self.assertFalse(store.worker.is_alive())
+            self.assertNotIn('results', projection(inputs, store))
+            store.lock_candidate(record['id'], 'baseline')
+            store.start(record['id'], 'verify'); store.worker.join(timeout=5)
+            self.assertFalse(store.worker.is_alive())
+            before = len(calls)
+            view = projection(inputs, store)
+            self.assertEqual(len(calls), before)
+            result = view['results'][0]['value']
+            exported = store.export(record['id'])
+            trial = exported['experiment']['trials'][-1]
+            self.assertEqual(result['snapshot']['trialId'], trial['id'])
+            self.assertEqual(result['snapshot']['reportId'], trial['report']['id'])
+            self.assertEqual(result['reference']['version'], trial['report']['id'])
+            self.assertEqual(result['snapshot']['phase'], 'verification')
+            self.assertEqual(result['snapshot']['exportSha256'], digest(exported))
+            self.assertEqual(result['snapshot']['checks'][0]['actual'], canonical(trial['report']['checks'][0]['actual']).decode())
+            self.assertLess(len(canonical(view)), 65536)
+
     def test_baseline_and_incremental_search_share_frozen_candidate_budget(self):
         spec=ExperimentSpec.parse({'templateId':'robust-pid','candidateBudget':3,'parameters':{'horizon':6,'samples':601}})
         def execute(_engine,_model,_parameters,scenario,_directory,_cancelled):

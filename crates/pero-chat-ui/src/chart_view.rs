@@ -71,6 +71,7 @@ impl ChatPanel {
         let source = chart.document(thread,true);
         let zh = self.locale.starts_with("zh");
         let thread_id = thread.to_owned(); let tool_id = tool.to_owned();
+        let citation = crate::scientific_citation::chart_citation(&chart.artifact_id);
         let source_thread = thread_id.clone(); let source_tool = tool_id.clone();
         let reader = self.chats.iter().find(|chat|chat.id == thread).and_then(|chat|chat.tools.iter().find(|item|item.id == tool)).and_then(|tool|tool.chart_reader.clone());
         pero_theme::research_result(chart.title.clone(), chrome).id(SharedString::from(format!("chart-{thread}-{tool}")))
@@ -78,10 +79,14 @@ impl ChatPanel {
             .when(chart.document["chart"]["xLabel"].is_string() || chart.document["chart"]["yLabel"].is_string(), |el| el.child(div().text_sm().child([chart.document["chart"]["xLabel"].as_str(),chart.document["chart"]["yLabel"].as_str()].into_iter().flatten().collect::<Vec<_>>().join(" / "))))
             .child(div().w_full().h(px(280.)).p_3().rounded_lg().border_1().border_color(palette.border).bg(palette.surface).child(chart.geometry.render(cx)))
             .child(pero_theme::research_note(chrome).child(chart.document["source"]["label"].as_str().unwrap_or_default().to_string())
+            .child(chart.document["source"]["method"].as_str().filter(|text| !text.is_empty()).map(|text| if zh { format!("方法：{text}") } else { format!("Method: {text}") }).unwrap_or_else(|| if zh { "未说明计算方法".into() } else { "Calculation method is not stated".into() }))
+            .child(crate::scientific_citation::chart_citation(&chart.artifact_id))
+            .child(if zh { "来源声明不是实验验证" } else { "A source declaration is not experimental verification" })
             .children(chart.document["source"]["caveats"].as_array().into_iter().flatten().filter_map(Value::as_str).map(|text|div().text_sm().text_color(palette.text_muted).child(text.to_string()))))
             .child(div().flex().flex_wrap().gap_2()
                 .child(pero_theme::action_button(SharedString::from(format!("chart-data-{tool}")), if zh {"数据与来源"} else {"Data and sources"}, pero_theme::ActionKind::Ghost, chrome, cx).relative().child(chart.data_bounds.probe()).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&thread_id,&tool_id,data.clone(),window,cx))))
-                .when(chart.source.is_some(),|el|el.child(pero_theme::action_button(SharedString::from(format!("chart-source-{tool}")), if zh {"原始记录"} else {"Original records"}, pero_theme::ActionKind::Ghost, chrome, cx).relative().child(chart.source_bounds.probe()).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&source_thread,&source_tool,source.clone(),window,cx))))))
+                .when(chart.source.is_some(),|el|el.child(pero_theme::action_button(SharedString::from(format!("chart-source-{tool}")), if zh {"原始记录"} else {"Original records"}, pero_theme::ActionKind::Ghost, chrome, cx).relative().child(chart.source_bounds.probe()).on_click(cx.listener(move |this,_,window,cx|this.open_result_document(&source_thread,&source_tool,source.clone(),window,cx)))))
+                .child(pero_theme::action_button(SharedString::from(format!("chart-cite-{tool}")), if zh {"复制引用"} else {"Copy citation"}, pero_theme::ActionKind::Ghost, chrome, cx).on_click(move |_,_,cx| cx.write_to_clipboard(ClipboardItem::new_string(citation.clone())))))
             .when_some(reader, |el,reader|el.child(reader))
             .into_any_element()
     }

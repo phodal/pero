@@ -75,7 +75,7 @@ def handler(store, secret):
                     data = json.loads(raw)
                     if not isinstance(data,dict): raise Invalid('Request must be a JSON object')
                     if self.path == '/internal/canvas/experiment':
-                        return self.reply(200, canvas.projection(data))
+                        return self.reply(200, canvas.projection(data, store))
                     if self.path == '/internal/canvas/status':
                         return self.reply(200, canvas.operation(store, data))
                     if self.path == '/api/canvas/create-experiment':

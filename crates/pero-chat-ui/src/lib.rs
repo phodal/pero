@@ -28,6 +28,7 @@ pub mod stream;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod comparison;
 pub mod scientific_math;
+pub mod scientific_citation;
 mod scientific_source;
 pub mod inline_images;
 pub mod image_references;

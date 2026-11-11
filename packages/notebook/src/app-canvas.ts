@@ -1,3 +1,6 @@
+import type { NotebookDocument, NotebookNode } from './document.ts';
+import { notebookContentRoots } from './workspace.ts';
+
 /** A persisted navigation binding, not an execution authority or installed-App claim. */
 export interface AppCanvasBinding { id: string; app: string; panel: string; view?: string; declaration?: string; inputs?: Record<string, unknown>; receipt?: Record<string, unknown> }
 export function parseAppCanvasBinding(value: unknown): AppCanvasBinding | null {
@@ -15,6 +18,18 @@ export function parseAppCanvasBinding(value: unknown): AppCanvasBinding | null {
     ...(data.receipt === undefined ? {} : { receipt: data.receipt as Record<string, unknown> }) };
 }
 export function appCanvasPath(binding: AppCanvasBinding): string { return `/apps/${binding.app}/${binding.panel}`; }
+
+/** Draft bindings must be saved before a view can ask Host to admit them. Receipts are not inputs. */
+export function isSavedCanvasBinding(document: NotebookDocument, blockId: string, binding: AppCanvasBinding): boolean {
+  let saved: AppCanvasBinding | null = null;
+  const visit = (node: NotebookNode) => {
+    if (node.type === 'appCanvas' && node.attrs?.blockId === blockId) saved = node.attrs.binding as AppCanvasBinding | null;
+    node.content?.forEach(visit);
+  };
+  notebookContentRoots(document).forEach(visit);
+  const input = (value: AppCanvasBinding | null) => value && [value.id, value.app, value.panel, value.view, value.declaration, value.inputs];
+  return saved !== null && JSON.stringify(input(saved)) === JSON.stringify(input(binding));
+}
 
 /** Availability is based only on a fresh Host catalog, never on a saved binding or error text. */
 export function appCanvasAvailability(binding: AppCanvasBinding | null, catalog: readonly {

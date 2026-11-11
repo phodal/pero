@@ -48,6 +48,7 @@ test('actual parameter editor binds typed fields and cross-step formulas, previe
   assert.match(document.querySelector('dialog')!.textContent!, /Preview: Resolved: 8/); await click(button('Apply parameter'));
   assert.match(row(total).textContent!, /Resolved: 8/);
   await click(button('Add parameter')); await input('Parameter name', 'Bound amount'); await select('Parameter source', 'table'); await select('Structured table field', 'block/table/sample/amount');
+  assert.equal(button('Structured table field').textContent, 'Amount · 3');
   assert.match(document.querySelector('dialog')!.textContent!, /Selected snapshot: 3/);
   const changed = structuredClone(value); changed.content.content[0].attrs.table.rows[0].cells.amount = '5';
   await React.act(async () => setDocument(changed));

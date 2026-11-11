@@ -165,6 +165,11 @@ try {
   await prompt('picker-other','Inspect the explicitly selected skill text',[frozen]);
   assert(events.slice(otherStart).some(event=>event.kind==='session_update'&&event.thread_id==='picker-other'&&event.data.sessionUpdate==='agent_message_chunk'&&event.data.content?.text?.includes('MARKET_RESEARCH_AUDIT_V1')),'An explicitly selected skill reaches another ACP Agent without global plugin selection');
   const enabled = (await ok('enable', { id, enabled: true })).items[0]; assert(enabled.selected);
+  const blockedStart = events.length;
+  send({ action: 'new_session', thread_id: 'selected-other', agent_id: 'other' });
+  const blocked = await wait(event => ['session_ready', 'session_error'].includes(event.kind) && event.thread_id === 'selected-other', blockedStart);
+  assert.equal(blocked.kind, 'session_error', blocked.text);
+  assert.match(blocked.text, /require the Pero Agent/);
   let startIndex = events.length;
   send({ action: 'new_session', thread_id: 'selected', agent_id: 'pero' });
   const created = await wait(event => event.kind === 'session_created' && event.thread_id === 'selected', startIndex);
@@ -224,7 +229,7 @@ try {
   await stop();
   const output = join(root, 'test-results/skills-market'); await mkdir(output, { recursive: true });
   const reportName=publicSource&&process.env.PERO_SKILLS_MARKET_PUBLIC_ID?'runtime-public-selected.json':publicSource?'runtime-public.json':'runtime.json';
-  await json(join(output, reportName), { passed: true, issue: 156, mode: publicSource ? 'real-host-public-git-loopback-provider' : 'real-host-local-git-loopback-provider', publicSource, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), worktree: 'development', hostSHA256: sha(await readFile(hostBinary)), harnessSHA256: sha(await readFile(harness)), providerRequests: requests.length, checks: ['installed skill discoverable without global enable', 'explicit picker context reaches the provider', 'explicit context works with another ACP identity', 'removed skill disappears and selected content stays frozen', 'caller authorization', 'pinned install', 'unknown license refused', 'isolated explicit invocation', 'update', 'rollback', 'active-session snapshot retained', 'remove', 'restart'], limitations: ['Another ACP identity uses a protocol fixture, not a real Codex model', 'Model responses are scripted over loopback; no paid model', 'Update and rollback use local Git fixture', 'No scientific acceptance or packaged/native UI acceptance'] });
+  await json(join(output, reportName), { passed: true, issue: 156, mode: publicSource ? 'real-host-public-git-loopback-provider' : 'real-host-local-git-loopback-provider', publicSource, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), worktree: 'development', hostSHA256: sha(await readFile(hostBinary)), harnessSHA256: sha(await readFile(harness)), providerRequests: requests.length, checks: ['installed skill discoverable without global enable', 'explicit picker context reaches the provider', 'explicit context works with another ACP identity', 'selected marketplace skills refuse an unadapted Agent', 'removed skill disappears and selected content stays frozen', 'caller authorization', 'pinned install', 'unknown license refused', 'isolated explicit invocation', 'update', 'rollback', 'active-session snapshot retained', 'remove', 'restart'], limitations: ['Another ACP identity uses a protocol fixture, not a real Codex model', 'Model responses are scripted over loopback; no paid model', 'Update and rollback use local Git fixture', 'No scientific acceptance or packaged/native UI acceptance'] });
   console.log('Skills market Host/Harness acceptance passed.');
 } finally {
   if (host) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await exit; clearTimeout(timer); }

@@ -149,3 +149,60 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     assert.equal(navigation.length, 1);
   });
 });
+
+test('production editor keeps MyST source while draft Canvas waits for a saved revision', async t => {
+  let editor: any;
+  t.after(() => React.act(() => editor?.destroy()));
+  const { React, ui, render, click } = await createUiRuntime(t, {
+    resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)),
+    contents: `export { NotebookEditor } from './editor'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';`,
+  });
+  const binding = { id: 'binding', app: 'data', panel: 'main', view: 'dataset-inspector', declaration: 'b'.repeat(64), inputs: { datasetId: 'dataset' } };
+  const source = '# Local method\n\nKept through saving the Canvas binding.\n';
+  const draft = { schemaVersion: 1, title: 'Mixed notebook', content: { type: 'doc', content: [
+    { type: 'mystDocument', attrs: { blockId: 'method', schemaVersion: 1, source } },
+    { type: 'appCanvas', attrs: { blockId: 'canvas', label: 'Dataset', binding } },
+  ] } };
+  const saved = { ...draft, content: { type: 'doc', content: [draft.content.content[0]] } };
+  const requests: any[] = [];
+  t.mock.method(globalThis, 'fetch', async (path: string, init: RequestInit) => {
+    if (path === '/host/sdk') return Response.json({ appViews: [{ app: 'data', title: 'Data', version: '1', revision: binding.declaration,
+      enabled: true, panels: [{ id: 'main', title: 'Data' }], actions: [], canvases: [{ id: binding.view, title: 'Dataset inspector', inputs: {} }] }] });
+    assert.equal(path, '/host/canvas');
+    const request = JSON.parse(init.body as string); requests.push(request);
+    return Response.json(request.operation === 'release' ? { state: 'released' } : {
+      instance: 'dataset-view', source: request.source,
+      projection: { title: 'Saved owner dataset', fields: [], columns: [], rows: [], notice: '', actions: [] },
+    });
+  });
+  let saves = 0, edits = 0;
+  const host = ui.createAppHost({ name: 'Notebook', locale: 'en', active: true });
+  const mount = async (savedDocument: typeof draft, readonly = false, saving = false) => {
+    await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
+      document: draft, content: draft.content, savedDocument, entryId: 'a'.repeat(32), revision: savedDocument === draft ? 2 : 1,
+      readonly, dirty: savedDocument !== draft, onSave: () => { saves++; }, onChange: () => { edits++; },
+      chrome: { status: 'Revision', saveDisabled: saving, saveBusy: saving },
+    })));
+    editor = (document.querySelector('.tiptap') as HTMLElement & { editor: any }).editor;
+  };
+  const saveButton = () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Save revision to enable App view');
+  await mount(saved);
+  assert.equal(requests.length, 0, 'draft Canvas must not request admission against an older saved revision');
+  assert.equal(saveButton()?.disabled, false);
+  await click(saveButton()!);
+  assert.equal(saves, 1);
+  await mount(saved, false, true);
+  assert.equal(saveButton()?.disabled, true);
+  await mount(draft);
+  assert.equal(saveButton(), undefined);
+  assert.match(document.body.textContent ?? '', /Saved owner dataset/);
+  assert.deepEqual(requests.filter(request => request.operation === 'mount').map(request => request.source), [{
+    entryId: 'a'.repeat(32), revision: 2, blockId: 'canvas', readOnly: false, binding,
+  }]);
+  assert.equal(editor.getJSON().content.find((node: any) => node.type === 'mystDocument').attrs.source, source);
+  assert.equal(edits, 0, 'adopting saved context must not rewrite the document');
+  await mount(draft, true);
+  assert.equal(requests.filter(request => request.operation === 'mount').at(-1).source.readOnly, true);
+  assert.equal(document.querySelector<HTMLTextAreaElement>('[aria-label="MyST source"]')?.readOnly, true);
+  assert.equal(saveButton(), undefined);
+});

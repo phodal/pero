@@ -449,6 +449,7 @@ function Notebook() {
               </section>}
               <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
                 dirty={!snapshot && current.dirty}
+                savedDocument={shown.document}
                 takeInitialFocus={() => {
                   if (pendingBodyFocus.current !== shown.id) return false;
                   pendingBodyFocus.current = '';

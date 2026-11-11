@@ -1,5 +1,5 @@
 import { useAppI18n } from '@pero/app-sdk';
-import { Feedback, Field, Select } from '@pero/app-sdk/ui';
+import { Button, Feedback, Field, Select } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { procedureParameterResolver } from '@pero/notebook/procedure-parameters';
 
@@ -8,7 +8,9 @@ const messages = {
   samples: { en: 'Sample count', zh: '采样点数' },
   choose: { en: 'Choose a procedure parameter', zh: '选择流程参数' },
   invalid: { en: 'Select a current quantity in seconds and a whole-number sample count.', zh: '请选择有效的秒数和整数采样点数。' },
-  stale: { en: 'The Notebook inputs changed. Review and save a new binding before creating an experiment.', zh: '笔记参数已变更。请核对并保存新的绑定后再创建实验。' },
+  stale: { en: 'Inputs changed. Save a new binding.', zh: '输入已变更，请保存新绑定。' },
+  review: { en: 'Review {name}', zh: '审阅 {name}' },
+  needsReview: { en: '{name} · needs review', zh: '{name} · 需要审阅' },
 } as const;
 
 type Field = 'horizon' | 'samples';
@@ -61,17 +63,24 @@ export function sameControlPins(pins: ReturnType<typeof controlPins>, inputs?: R
   });
 }
 
-export function ControlLabInputs({ choices, mapping, onChange }: {
+export function ControlLabInputs({ choices, mapping, onChange, document, onReview }: {
   choices: ReturnType<typeof controlParameterOptions>; mapping: ControlMapping; onChange(value: ControlMapping): void;
+  document?: NotebookDocument; onReview?(id: string): void;
 }) {
   const { t } = useAppI18n(messages);
   return <div className="notebook-control-canvas-inputs">
     <div className="notebook-science-fields">
-      {fields.map(field => <Field key={field} label={t(field)}>{control =>
-        <Select {...control} label={t(field)} placeholder={t('choose')} value={mapping[field]}
-          options={choices[field].map(({ label, pin }) => ({ label, value: key(pin) }))}
-          onChange={value => onChange({ ...mapping, [field]: value })} />}
-      </Field>)}
+      {fields.map(field => {
+        const parameter = document?.procedures?.flatMap(procedure => (procedure.parameters ?? []).map(parameter => ({ procedure, parameter })))
+          .find(({ procedure, parameter }) => key({ procedureId: procedure.id, parameterId: parameter.id }) === mapping[field])?.parameter;
+        const unresolved = parameter && !choices[field].some(({ pin }) => key(pin) === mapping[field]);
+        return <div key={field}><Field label={t(field)}>{control =>
+          <Select {...control} label={t(field)} placeholder={t('choose')} value={mapping[field]}
+            options={[...choices[field].map(({ label, pin }) => ({ label, value: key(pin) })),
+              ...(unresolved ? [{ value: mapping[field], label: t('needsReview', { name: parameter.name }), disabled: true }] : [])]}
+            onChange={value => onChange({ ...mapping, [field]: value })} />}
+        </Field>{unresolved && onReview && <Button variant="link" onClick={() => onReview(parameter.id)}>{t('review', { name: parameter.name })}</Button>}</div>;
+      })}
     </div>
   </div>;
 }
