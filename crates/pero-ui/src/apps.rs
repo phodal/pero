@@ -127,12 +127,28 @@ pub(crate) struct AppCatalog {
     pub category: AppCategory,
     pub loading: bool,
     pub error: Option<String>,
+    pub open_errors: std::collections::BTreeMap<(String, String), String>,
     pub error_details_open: bool,
     pub removing: Option<String>,
     pub preparation: Option<AppPreparationView>,
 }
 
 impl AppCatalog {
+    pub fn record_failure(&mut self, selection: Option<AppSelection>, message: String) {
+        if let Some(selection) = selection {
+            self.open_errors.insert((selection.name, selection.panel), message);
+        } else {
+            self.loading = false;
+            self.error = Some(message);
+        }
+    }
+
+    /// Catalog requests cannot turn a retained panel into a failed open.
+    pub fn panel_open_error(&self, name: &str, panel: &str, retained: bool) -> Option<&str> {
+        if retained { return None; }
+        self.open_errors.get(&(name.into(), panel.into())).map(String::as_str).or(self.error.as_deref())
+    }
+
     pub fn replace_catalog(&mut self, entries: Vec<InstalledApp>) {
         self.entries = entries;
         self.loading = false;
@@ -347,8 +363,9 @@ mod surface {
                     }
                 }
                 "apps_error" => {
-                    self.apps.loading = false;
-                    self.apps.error = Some(event.text.clone());
+                    let selection = (event.data["action"] == "apps_open")
+                        .then(|| serde_json::from_value::<AppSelection>(event.data.clone()).ok()).flatten();
+                    self.apps.record_failure(selection, event.text.clone());
                 }
                 "apps_opened" => {
                     // Re-publish current ownership after a potentially slow open.
@@ -357,16 +374,7 @@ mod surface {
                     if let Ok(selection) =
                         serde_json::from_value::<AppSelection>(event.data.clone())
                     {
-                        // Completion acknowledges this surface only. A slow backend
-                        // must not reopen an App after the user left it.
-                        if self.navigation.current()
-                            == Some(&WorkspaceItem::App {
-                                name: selection.name,
-                                panel: selection.panel,
-                            })
-                        {
-                            self.apps.error = None;
-                        }
+                        self.apps.open_errors.remove(&(selection.name, selection.panel));
                     }
                 }
                 _ => return false,
@@ -628,6 +636,26 @@ mod tests {
             workspace.replace_catalog(vec![]);
             assert!(!workspace.contains_panel("cell", "main"));
             assert!(!workspace.retains_panel("cell", "main"));
+        }
+    }
+
+    #[test]
+    fn retained_panels_survive_catalog_or_other_app_failures() {
+        let mut catalog = AppCatalog::default();
+        catalog.record_failure(None, "Catalog unavailable".into());
+        assert_eq!(catalog.error.as_deref(), Some("Catalog unavailable"));
+        assert_eq!(catalog.panel_open_error("notebook", "main", false), Some("Catalog unavailable"));
+        assert_eq!(catalog.panel_open_error("notebook", "main", true), None);
+        catalog.replace_catalog(vec![]);
+        catalog.record_failure(Some(AppSelection { name: "paper-agent".into(), panel: "main".into() }), "Open failed".into());
+        for (app, panel, retained, expected) in [
+            ("paper-agent", "main", false, Some("Open failed")),
+            ("paper-agent", "main", true, None),
+            ("paper-agent", "reader", false, None),
+            ("notebook", "main", false, None),
+            ("notebook", "main", true, None),
+        ] {
+            assert_eq!(catalog.panel_open_error(app, panel, retained), expected);
         }
     }
 }

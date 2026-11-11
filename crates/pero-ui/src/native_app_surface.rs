@@ -666,11 +666,10 @@ impl Workbench {
         if self.apps.preparation.as_ref().is_some_and(|value| value.name == name && value.phase != "ready") {
             return self.app_preparation_content(true, cx);
         }
-        let error = self
-            .native_app_pages
-            .get(&(name.into(), panel.into()))
+        let page = self.native_app_pages.get(&(name.into(), panel.into()));
+        let error = page
             .and_then(|page| page.view.read(cx).error.clone())
-            .or_else(|| self.apps.error.clone());
+            .or_else(|| self.apps.panel_open_error(name, panel, page.is_some()).map(str::to_owned));
         let key = (name.to_owned(), panel.to_owned());
         let name = name.to_owned();
         let panel = panel.to_owned();

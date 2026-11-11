@@ -254,8 +254,11 @@ impl NativeApps {
                 }
                 Ok(event)
             })();
-            let event = result
-                .unwrap_or_else(|error| HostEvent::new("apps_error", None, error.to_string()));
+            let event = result.unwrap_or_else(|error| {
+                let mut event = HostEvent::new("apps_error", None, error.to_string());
+                event.data = value;
+                event
+            });
             let _ = this.events.send_blocking(event);
         });
     }
