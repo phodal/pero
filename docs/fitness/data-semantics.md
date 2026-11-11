@@ -63,3 +63,89 @@ derived read-only copy here are research-local only.
 Adoption decision: retain the lightweight definition/receipt experiment; defer
 service adoption and semantic-benefit claims pending the frozen model comparison
 and later product/authorization acceptance.
+
+## Product light path acceptance — 2026-11-11
+
+The previous section describes the first offline-only iteration. The following
+additional evidence covers the later product implementation; it does not expand
+the original D results into model or upstream-service acceptance.
+
+Code under test: `c0286308` on `codex/data-semantic-product-152`, clean when the
+formal Host/browser run started. Host was built offline from base `5072cbc6` with
+only the `research_assets.rs` query handoff change, then copied before testing.
+Its SHA-256 is
+`3a97691cdb5a3f4b73ea84e6cbf504e906166ae91a998da0d4b5dc572252f861`.
+The exact changed Rust source hash and build command are in
+`test-results/data-semantic-product/bin/identity.json`.
+
+Formal product evidence:
+`test-results/data-semantic-product/run-7WBMTO/verification.json`.
+The test installs the real Data and Paper Apps into an isolated real Host, reuses
+an existing Python 3.12 environment, and serves their built UI through a loopback
+test proxy. No model, replacement backend or Agent performs these actions.
+
+Five scenario groups passed:
+
+1. Browser import of a labelled synthetic CSV → fixed projection → explicit
+   definition review → authenticated read-only query → Decimal recomputation
+   from the original export. Mean 3 cm matched; scientific review remained open.
+2. Paper selects the saved query through the existing Host grant, binds an exact
+   observed report quotation and the frozen PDF `SourceVersion`, and navigates
+   to the actual PDF page with a visible highlighted quotation. The saved source
+   file digest matches the real imported PDF bytes.
+3. Forged actor/token, private-route direct access, non-Paper caller,
+   browser-supplied replacement receipt and disabled Data access were refused.
+   These are single-profile local Host boundaries, not production tenant RBAC.
+4. A second dataset version and a reviewed mm definition leave the earlier
+   cm result, snapshot and definition unchanged.
+5. A real Host restart reopens identical saved Data evidence and Paper links;
+   the historical UI reads the prior result without executing SQL.
+
+Screenshots inspected at 1280×950 and 760×900:
+
+- `run-7WBMTO/data-query-light.png`: result and units/denominator are primary after
+  execution; preparation is reached through New query.
+- `run-7WBMTO/paper-query-light.png`: claim, exact quotation, review status and saved
+  Data table are visible; identity details use the shared Disclosure.
+- `run-7WBMTO/paper-exact-citation.png`: original PDF page and quote highlight.
+- `run-7WBMTO/data-history-narrow-dark.png`: actual `pero-dark` context, readable
+  wrapping and controls, explicit notice that the result belongs to the older
+  fixed version. The existing Data split stacks at the narrow width.
+
+No Electron/Native/package acceptance is claimed. The parent integration chat
+also independently rebuilt Data/Paper and passed the same five scenario groups
+on its integrated branch at `run-fNSOcv`; that run preceded the final duplicate
+SQL-column rejection, whose focused negatives were then rerun there.
+
+### Local verification
+
+- Data: 70 tests passed, including immutable query results, two-table projections,
+  failed numeric conversion, full 101-row retention with 100-row presentation,
+  unique result names, missing database/export files, independent arithmetic,
+  false results, interrupted-intent recovery and definition/history behavior.
+- Paper: new frozen Data evidence test passed, plus all five existing manual
+  research-record tests. The new case changes the PDF under the same Paper
+  metadata and confirms the old link still binds the original frozen PDF.
+- Data and Paper TypeScript checks and production App builds passed.
+- Original D rerun at `test-results/data-semantic-product/d-final`: 20/20 answers
+  per repetition, 90 complete receipts, all 15 engine/integrity probes passed,
+  independently recomputed. Cancellation uses observed VM progress and an Event;
+  this is an executor check, not a timed UI cancellation claim.
+- Comparison driver at `test-results/data-semantic-product/evaluation-final`:
+  270 scripted expected-response replays exercise A/B/C orchestration. Its mode
+  is `fixture_driver_only`, real comparison is `not_run`, and costs remain null.
+  Four evaluation/domain test methods passed. These are **not** A/B/C model scores.
+- Fixed upstream review hashes and Docker availability observation:
+  `test-results/data-semantic-product/upstream-source-review.json`. No images
+  were built/pulled and no upstream service was started.
+
+### #152 DoD mapping
+
+| Item | Evidence / remaining boundary |
+| --- | --- |
+| 1. Fixed versions and supported scope | Public/synthetic dataset, definitions and upstream commit are frozen. Product implementation and binary hashes recorded. Upstream image digests/deployed environment and real model revision are unverified. |
+| 2. A/B/C/D denominators, failures and cost | D fully checked. Runnable A/B/C driver retains 30 × 3 attempts per arm and generation overhead, including failures; fixture replay works. Actual A/B/C, measured model cost and human maintenance remain not run. |
+| 3. Permission, Vault, outbound, injection and isolation | Local Host negatives and shared read-only engine probes pass. Light path has no remote model/DB/Vault/prediction client. Upstream OAuth revoke/expiry/downgrade, Vault fail-closed and full-stack private ingress remain unverified; source review shows why direct adoption is rejected. |
+| 4. Product vertical slice | Real Data → query → Paper exact claim/source → independent recomputation → Host restart/history, observed in Chromium. No Electron/Native claim. |
+| 5. Version changes and incomplete outcomes | Fixed data/definition changes preserve history; missing inputs fail, partial results explicitly show truncation, failed query count is unknown, unfinished intents reopen as interrupted without retry. Executor cancellation is signal-tested; process-kill/UI cancellation is not claimed. |
+| 6. Decision | [ADR 0035](../adr/0035-data-semantic-contract.md): **reuse-contract-only**. Keep #152 open for real model comparison and upstream deployment hard gates. |

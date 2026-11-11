@@ -110,10 +110,58 @@ The next P1 comparison needs separately frozen equal model/budget settings,
 A schema-only, B automatic/unreviewed and C reviewed semantics, all attempts and
 at least three relevant repeats. It must measure actual usage/latency and review
 maintenance time, retain the frozen ambiguity/refusal denominators, and evaluate
-scope/injection behavior at the model boundary. P2 Data → query → Paper claim →
-independent recomputation and historical UI reopening is still unimplemented.
+scope/injection behavior at the model boundary. The later product integration now implements Data → query → Paper claim →
+independent recomputation and historical UI reopening; see the verification record.
 Production tenant isolation, Vault, outbound access, Native/Electron, packaging,
 large datasets and researcher acceptance remain outside this local evidence.
 
 See [verification record](../../docs/fitness/data-semantics.md) and the
 [canonical active issue record](../../docs/issues/2026-11-11-data-semantic-light-path.md).
+
+
+## Product light path and runnable comparison driver
+
+Data's Queries tab prepares an explicit read-only copy of a fixed version,
+saves a reviewed SQL definition, executes bound parameters and retains the full
+result behind a hashed receipt. Paper's Research results → Data query evidence
+selects that server-owned query and an exact saved report quotation. The existing
+Host grant carries the reference; source navigation uses the report's frozen PDF
+passage. New versions never overwrite those references.
+
+```sh
+# Deterministic driver regression only: never report this as model performance.
+python3 experiments/data-semantics/evaluate.py --fixture --output /tmp/semantic-driver-new
+# Explicit local model, if separately available; this command was not run here.
+python3 experiments/data-semantics/evaluate.py \
+  --endpoint http://127.0.0.1:8000/v1/chat/completions \
+  --model EXACT_LOCAL_MODEL_REVISION --output /tmp/semantic-model-new
+```
+
+The driver freezes its config before execution, retains all 30 questions × three
+repetitions per arm, raw responses, failures, per-group denominators, latency,
+usage when returned and variance. A has schema only; B generates unreviewed
+context per repetition; C receives the frozen reviewed definitions. All use the
+same model, temperature, output budget and no retries. Each arm has a 93-call
+ceiling; B spends three on generation and 90 on questions, while A/C need 90.
+B generation overhead is recorded separately. Unknown cost and human maintenance
+time are null, never zero. Full model revision/payload disclosure still depends
+on the actual local provider and must be audited before treating a model run as
+fixed-version evidence. Real A/B/C remains **not run**.
+
+Actual product verification (uses existing dependencies and a built Host):
+
+```sh
+PERO_HOST_PATH=/absolute/path/to/verified/pero-host \
+PERO_TEST_PYTHON=/absolute/path/to/existing/python312/bin/python \
+  node tests/runtime/data-semantic-product.mjs
+```
+
+Build the two App bundles first using `scripts/build/apps.mjs`; `--reader-dist`
+can reuse an existing verified Reader bundle without rebuilding Wasm. The driver
+creates isolated App data, uses real Host installation/authentication/handoff,
+and serves the real UI through a loopback test proxy. It makes no provider calls.
+
+Final selection: [ADR 0035](../../docs/adr/0035-data-semantic-contract.md).
+The upstream prediction gate is `KUMO_RFM_API_URL`, despite key-based comments
+elsewhere in that pinned source. No upstream prediction client is imported by
+this light path.

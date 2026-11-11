@@ -51,3 +51,22 @@ Host 使用原 research-assets 授权能力取服务端回执。UI 使用共享�
 
 首次验证：Data 69 个测试、原离线概念 3 个测试通过。后续真实 Host/browser、
 评估驱动和部署边界结论将在本记录追加；目前不能宣称完整 P2 或真实 A/B/C 验收完成。
+
+## 产品接线交付与选型结论
+
+- `772dbc52`：Data 固定投影、审查定义、查询回执、共用只读引擎。
+- `8f74f09c`：Queries UI、原始导出独立复算、结果优先与历史读取。
+- `b38e7c91`：现有 Host 授权 handoff，Paper 精确 Claim + 原 PDF SourceVersion。
+- `7fff4a86`：真实 Host/浏览器纵向验收与可运行 A/B/C 本地模型比较驱动。
+- `c0286308`：拒绝重复结果列名，避免跨表结果转为映射时丢列。
+
+正式 `run-7WBMTO` 的五组场景通过，包含授权负例、更新数据/定义后旧结果不变、
+真实 Host 重启与实际 PDF 页/引文高亮；截图已检查。Data 70 tests、Paper新链接测试
+及原记录5 tests、两个UI typecheck/build、原D独立复算与15项边界检查通过。
+完整证据和逐项DoD映射见 [fitness记录](../fitness/data-semantics.md)。
+
+[ADR 0035](../adr/0035-data-semantic-contract.md) 明确选择 **reuse-contract-only**。
+真实 A/B/C 模型对照、usage/成本、人类维护时间、上游全栈隔离/OAuth/Vault验收仍未验证。
+270次脚本回放只证明比较驱动可运行，不是模型对照结果。没有付费模型调用或新长期凭据。
+上游实际预测开关检查 `KUMO_RFM_API_URL`，不是旧注释声称的 API_KEY；轻路径不载入该客户端。
+本 issue 保持 open，不能以产品闭环或人工 D SQL 成功替代剩余验收。
