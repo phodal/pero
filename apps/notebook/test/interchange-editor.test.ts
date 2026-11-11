@@ -80,14 +80,17 @@ test('a note card renders through its editor adapter and survives the document p
     }
   ` });
   const { React, ui, render } = runtime;
-  const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
+  const host = ui.createAppHost({ name: 'Notebook', locale: 'zh' });
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
     content: { type: 'doc', content: [
       { type: 'noteCard', attrs: { blockId: 'note-1', schemaVersion: 1, text: 'Keep this note' } },
     ] },
     capture: (value: { getJSON(): { content: { type: string; attrs: { text?: string } }[] }; destroy(): void }) => { editor = value; },
   })));
-  assert.match(document.body.textContent ?? '', /Keep this note/);
+  const card = document.querySelector('[data-kind="noteCard"]');
+  assert.equal(card?.querySelector('.notebook-block-title')?.textContent, '笔记卡片');
+  assert.equal(card?.querySelector('.notebook-note')?.textContent, 'Keep this note');
+  assert.equal(card?.textContent?.split('Keep this note').length, 2, 'note text appears only once');
   assert.equal(editor?.getJSON().content[0].type, 'noteCard');
   assert.equal(editor?.getJSON().content[0].attrs.text, 'Keep this note');
   assert.equal(ui.isClipboardWidget('noteCard', { schemaVersion: 1, text: 'Keep this note' }), true);
