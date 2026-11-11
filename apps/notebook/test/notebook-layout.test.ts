@@ -75,7 +75,7 @@ test('narrow notebook chrome stays one row without hiding the title or more tool
   assert.equal(declarations(compact, '.notebook-toolbar-secondary').get('padding-top'), '0px');
   assert.equal(declarations(sheet, '.notebook-toolbar').get('flex-wrap'), 'nowrap');
   assert.equal(declarations(sheet, '.notebook-toolbar').get('overflow-x'), 'auto');
-  assert.equal(declarations(sheet, '.notebook-menu-panel').get('position'), 'absolute');
+  assert.equal(declarations(sheet, '.notebook-menu-panel').get('position'), 'fixed');
 
   for (const rule of styleRules(compact)) {
     assert.equal(rule.style?.display === 'none' && /\.notebook-title|(^|,)\s*h1\b/.test(rule.selectorText ?? ''), false, rule.selectorText);

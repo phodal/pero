@@ -1,3 +1,4 @@
+import { NotebookMenu } from './notebook-menu';
 import { EntryIdentity } from './entry-identity';
 import { EntryMentionDialog } from './entry-mention-dialog';
 import { EntryNotices } from './entry-notices';
@@ -246,38 +247,6 @@ export type NotebookChrome = {
   retainedContent?: NotebookDocument['content'];
 };
 
-export function NotebookMenu({ name, menu, children, closeOnSelect = false, caret = false, label, icon }: {
-  name: string; menu: string; children: ReactNode; closeOnSelect?: boolean; caret?: boolean; label?: string; icon?: string;
-}) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      const node = ref.current;
-      const target = event.target;
-      if (!node?.open || !(target instanceof Node) || node.contains(target)) return;
-      if (target instanceof Element && target.closest('dialog')) return;
-      node.open = false;
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, []);
-  return <details ref={ref} className="notebook-menu" data-menu={menu} data-icon={icon || undefined} onToggle={event => {
-    const node = event.currentTarget;
-    if (!node.open) return;
-    node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
-  }}>
-    <summary>
-      {label && <span className="notebook-visually-hidden">{label} </span>}
-      {icon ? <><Icon name={icon} size={16} /><span className="notebook-visually-hidden">{name}</span></> : name}
-      {caret && <Icon name="chevron-down" size={12} />}
-    </summary>
-    <div className="notebook-menu-panel" onClick={event => {
-      if (!closeOnSelect || !(event.target instanceof Element) || !event.target.closest('button, [role="tab"]')) return;
-      ref.current?.removeAttribute('open');
-    }}>{children}</div>
-  </details>;
-}
-
 export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, tools, helpTools, children }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
   onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
@@ -439,13 +408,15 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
         {chrome?.onSave && <IconButton className="notebook-save" label={notebook('save')} busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}><Icon name="save" /></IconButton>}
         <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
         <NotebookMenu name={t('file')} menu="file" icon="more">
-          {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={event => { chrome.onHistory?.(); event.currentTarget.closest('details')?.removeAttribute('open'); }}>{notebook('history')}</Button>}
+          {close => <>
+          {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={() => { chrome.onHistory?.(); close(); }}>{notebook('history')}</Button>}
           {chrome?.fileTools}
           {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
           <div className="notebook-menu-rule" role="separator" />
           <Button variant="ghost" onClick={downloadJson}>{t('export')}</Button>
           <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: exportContent() }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
           {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
+          </>}
         </NotebookMenu>
         <NotebookMenu name={t('helpMenu')} menu="help" icon="info">
           <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>

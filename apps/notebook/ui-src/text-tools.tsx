@@ -1,10 +1,11 @@
+import { NotebookMenu } from './notebook-menu';
 import { EntryAiTools } from './entry-ai-tools';
 import { NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
 import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Field, Icon, IconButton, Input, Select, Toolbar } from '@pero/app-sdk/ui';
 const textTones = ['blue', 'green', 'rose', 'amber', 'orange', 'violet'] as const;
@@ -171,43 +172,6 @@ const symbols = {
   ],
 } as const;
 
-/** Labeled overflow, outside the scrolling icon row so the panel is not clipped. */
-function FormatMenu({ name, children }: { name: string; children: ReactNode }) {
-  const ref = useRef<HTMLDetailsElement>(null), trigger = useRef<HTMLButtonElement>(null);
-  const menuId = useId();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      const node = ref.current;
-      const target = event.target;
-      if (!node?.open || !(target instanceof Node) || node.contains(target) || node.parentElement?.contains(target)) return;
-      if (target instanceof Element && target.closest('dialog')) return;
-      node.open = false;
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, []);
-  return <div className="notebook-overflow" onKeyDown={event => {
-    if (event.key !== 'Escape' || !ref.current?.open) return;
-    event.preventDefault();
-    event.stopPropagation();
-    ref.current.open = false;
-    trigger.current?.focus();
-  }}>
-    <Button ref={trigger} variant="ghost" className="notebook-overflow-trigger" aria-expanded={open} aria-controls={menuId} onClick={() => {
-      const node = ref.current;
-      if (!node) return;
-      node.open = !node.open;
-      if (!node.open) return;
-      node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
-    }}>{name}<Icon name="chevron-down" size={12} /></Button>
-    <details ref={ref} className="notebook-menu" data-menu="format" onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary className="notebook-visually-hidden" tabIndex={-1} aria-hidden="true">{name}</summary>
-      <div id={menuId} className="notebook-menu-panel">{children}</div>
-    </details>
-  </div>;
-}
-
 type Range = { from: number; to: number };
 type TextDialog = { kind: 'symbols'; selection: Range } | {
   kind: 'link'; selection: Range; range: Range; existing: boolean; href: string; text: string; error: boolean;
@@ -367,7 +331,7 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     {blockButton('taskList', 'task')}
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
-    <FormatMenu name={t('more')}>
+    <NotebookMenu name={t('more')} menu="format" caret triggerClassName="notebook-overflow-trigger">
       <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
       {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!status.inline || !editor.can().setHorizontalRule()}
@@ -380,7 +344,7 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
         onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>{t('clear')}</Button>
       <Button variant="ghost" aria-label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
         onClick={() => { const { from, to } = editor.state.selection; setDialog({ kind: 'symbols', selection: { from, to } }); }}>{t('symbols')}</Button>
-    </FormatMenu>
+    </NotebookMenu>
     {dialog?.kind === 'link' && <Dialog title={t(dialog.existing ? 'editLink' : 'insertLink')} closeLabel={t('close')}
       size="sm" restoreFocus={false} onClose={closeDialog} onSubmit={event => { event.preventDefault(); applyLink(); }}
       footerStart={dialog.existing && <Button variant="ghost" onClick={() => {

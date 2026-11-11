@@ -90,10 +90,12 @@ test('workspace empty states render their labels and guidance in the active view
     React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
   assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Notebook title"]')?.value, 'Empty');
   assert.equal(document.querySelector('.notebook-menubar'), null);
-  const viewMenu = document.querySelector<HTMLDetailsElement>('.notebook-command-row details[data-menu=view]');
+  const viewTrigger = document.querySelector<HTMLButtonElement>('[data-notebook-menu=view] button')!;
+  viewTrigger.getBoundingClientRect = () => ({ x: 10, y: 10, width: 30, height: 24, top: 10, left: 10, right: 40, bottom: 34, toJSON() {} });
+  await click(viewTrigger);
+  const viewMenu = document.querySelector<HTMLElement>('[data-notebook-menu-panel=view]');
   assert.ok(viewMenu);
-  assert.equal(document.querySelector('.notebook-statusbar details[data-menu=view]'), null);
-  viewMenu.open = true;
+  assert.equal(document.querySelector('.notebook-statusbar [data-notebook-menu=view]'), null);
   assert.deepEqual([...viewMenu.querySelectorAll('[role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
   for (const [tab, heading, guidance] of [
     ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],

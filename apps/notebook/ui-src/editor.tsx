@@ -26,6 +26,7 @@ import { contentBlockMessages, createAttachment } from './content-blocks';
 import { NotebookSurface } from './editor-context-menu';
 import { NotebookTextTools } from './text-tools';
 import { NotebookWorkspace, type NotebookChrome } from './workspace-views';
+import { NotebookMenu } from './notebook-menu';
 import { NotebookScienceTools } from './science-tools';
 import { createStructuredTable } from '@pero/notebook/structured-table';
 import { gridDimensionLimits } from '@pero/notebook/grid-presentation';
@@ -42,34 +43,6 @@ function insertBlocks(editor: Editor, insert: JSONContent[]) {
 }
 
 export type DocumentHistoryControls = { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void };
-
-function InsertMenu({ name, children }: { name: string; children: ReactNode }) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      const node = ref.current;
-      const target = event.target;
-      if (!node?.open || !(target instanceof Node) || node.contains(target) || node.parentElement?.contains(target)) return;
-      if (target instanceof Element && target.closest('dialog')) return;
-      node.open = false;
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, []);
-  return <div className="notebook-insert">
-    <Button variant="ghost" className="notebook-insert-trigger" onClick={() => {
-      const node = ref.current;
-      if (!node) return;
-      node.open = !node.open;
-      if (!node.open) return;
-      node.ownerDocument.querySelectorAll('details.notebook-menu[open]').forEach(other => { if (other !== node) other.removeAttribute('open'); });
-    }}>{name}<Icon name="chevron-down" size={12} /></Button>
-    <details ref={ref} className="notebook-menu" data-menu="insert">
-      <summary className="notebook-visually-hidden">{name}</summary>
-      <div className="notebook-menu-panel">{children}</div>
-    </details>
-  </div>;
-}
 
 function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
   historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode; entryId: string;
@@ -95,8 +68,8 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
   </div>;
 }
 
-function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revision }: {
-  editor: Editor; document: NotebookDocument; entryId: string; revision: number;
+function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revision, closeMenu }: {
+  editor: Editor; document: NotebookDocument; entryId: string; revision: number; closeMenu(): void;
   onCreateEntry?: (document: NotebookDocument) => Promise<void>;
 }) {
   const { t } = useAppI18n(messages);
@@ -113,7 +86,6 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setImporting(false); }
   };
-  const closeMenu = (node: HTMLElement) => node.closest('details')?.removeAttribute('open');
   const widgetButton = (name: string) => {
     const widget = widgets.find(item => item.name === name);
     if (!widget) return null;
@@ -125,22 +97,21 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
           rowHeights: Object.fromEntries(Array.from({ length: widget.defaults.sheet.rows }, (_, row) => [row, gridDimensionLimits.row.default])),
         } : ['inputTable', 'registrationTable'].includes(widget.name) ? { table: createStructuredTable(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()), receipts: [] } : undefined,
       }]);
-      closeMenu(event.currentTarget);
+      closeMenu();
     }}><Icon name={widget.icon} />{t(widget.name)}</Button>;
   };
   return <>
     <Button variant="ghost" role="menuitem" onClick={event => {
       insertBlocks(editor, [{ type: 'section', attrs: { label: '', date: '' }, content: [{ type: 'paragraph' }] }]);
-      closeMenu(event.currentTarget);
+      closeMenu();
     }}>{t('section')}</Button>
     {widgetButton('spreadsheet')}
     <details className="notebook-submenu">
-      <summary>{t('wellPlate')}</summary>
+      <summary tabIndex={0}>{t('wellPlate')}</summary>
       {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <Button variant="ghost" role="menuitem" key={rows} onClick={event => {
         insertBlocks(editor, [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }]);
-        const menu = event.currentTarget.closest('details.notebook-menu');
         event.currentTarget.closest('details.notebook-submenu')?.removeAttribute('open');
-        menu?.removeAttribute('open');
+        closeMenu();
       }}>{t('plateGeometry', { wells: rows * columns, rows, columns })}</Button>)}
     </details>
     <FilePicker compact label={t('attachment')} title={contentT('attachmentFileLimit')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
@@ -155,7 +126,7 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
     {widgetButton('experiment')}
     {widgetButton('finding')}
     <details className="notebook-submenu">
-      <summary>{t('moreBlocks')}</summary>
+      <summary tabIndex={0}>{t('moreBlocks')}</summary>
       {['sourceExcerpt', 'sampleIntake', 'appCanvas', 'mixturePrep', 'inputTable', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
       <p className="notebook-menu-label">{t('insertDocument')}</p>
       {widgetButton('mystDocument')}
@@ -241,9 +212,9 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={editorReadonly} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={editorReadonly ? undefined : onReplaceDocument} chrome={protection.errors.length ? { ...chrome, status: chrome?.status ?? '', saveDisabled: true, restoreDisabled: true, retainedContent: entryDocument.content } : chrome} historyControls={historyControls}
         tools={!editorReadonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
-        insertTools={<InsertMenu name={t('insertWord')}>
-          <NotebookInsertTools editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />
-        </InsertMenu>} />}
+        insertTools={<NotebookMenu name={t('insertWord')} menu="insert" caret triggerClassName="notebook-insert-trigger">
+          {close => <NotebookInsertTools closeMenu={close} editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />}
+        </NotebookMenu>} />}
       helpTools={<>
         <NotebookCommandTools entryId={entryId} readonly={editorReadonly} handlers={{ save: editorReadonly ? undefined : onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
