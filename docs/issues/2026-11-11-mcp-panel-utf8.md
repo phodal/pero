@@ -1,8 +1,8 @@
 ---
 kind: incident
-status: in_progress
+status: resolved
 github_issue: 185
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/185
 ---
 
@@ -50,6 +50,14 @@ building it and rerunning resolved that setup failure. The root TypeScript
 check stops at the absent generated `web/src/reader-wasm/pero_reader_web` module;
 the repository's core CI typecheck above covers the changed code.
 
-The fix is locally verified and awaits integration; GitHub #185 remains open.
+## Closure — 2026-11-11
+
+The fix is integrated into `master` as `6488b236` (source commit `d0f66145`).
+The actual issue acceptance is satisfied: complete, split-Chinese and split-emoji
+requests return and persist identical text; the 16,000,000-byte limit remains.
+After integration at `7ff7c637`, rebuilt the MCP sidecar and reran the two Node
+test files above: 14/14 passed. The core CI TypeScript check also passed.
+This record closes #185 with publication of the verified master commits.
+
 Electron rendering, Native GUI and signed packages were not run. No UI code,
 real model calls, credentials or external MCP servers are involved.
