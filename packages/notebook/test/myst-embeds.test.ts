@@ -87,3 +87,18 @@ test('actual source codecs and scientific archives include copied content and ex
     assert.equal(JSON.parse(await archive.file('source.json')!.async('string')).source, source);
   }
 });
+
+test('proof blocks accept local embeds while retaining shared expansion limits', () => {
+  const source = '(evidence)=\nRecorded evidence.\n\n::::{prf:proof} Argument\n\n```{embed} #evidence\n```\n\n::::';
+  const document = parseMystDocument(source);
+  const proof = nodes(document.ast).find(node => node.type === 'proof');
+  assert.ok(proof);
+  assert.equal(embeds(proof).length, 1);
+  assert.match(text(proof), /Recorded evidence/);
+  assert.ok(!document.diagnostics.some(item => item.code.startsWith('embed-')));
+  assert.equal(nodes(proof).filter(node => node.identifier === 'evidence').length, 0);
+  const repeated = '(evidence)=\nRecorded evidence.\n\n::::{prf:proof} Argument\n\n' + Array.from({ length: 140 }, () => '```{embed} #evidence\n```').join('\n\n') + '\n\n::::';
+  const bounded = parseMystDocument(repeated);
+  assert.ok(bounded.diagnostics.some(item => item.code === 'embed-budget'));
+  assert.equal(bounded.source, repeated);
+});

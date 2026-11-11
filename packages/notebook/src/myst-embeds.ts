@@ -41,7 +41,7 @@ export function expandMystEmbeds(pages: readonly MystEmbedPage[], snapshot?: Mys
         page.document.diagnostics.push({ severity: 'warning', code: `embed-${code}`, message, path: node.provenance?.path ?? origin.path, line: node.position?.start.line });
         return { ...node, type: 'mystUnsupported', children: undefined, value: directive ? node.value : `![${String(node.alt ?? '')}](${authored})` };
       };
-      if (parent && !['root', 'block', 'container', 'admonition', 'blockquote', 'listItem'].includes(parent.type)) return report('inline-unsupported', 'Block embeds inside inline content are not supported; source is retained.');
+      if (parent && !['root', 'block', 'container', 'admonition', 'proof', 'blockquote', 'listItem'].includes(parent.type)) return report('inline-unsupported', 'Block embeds inside inline content are not supported; source is retained.');
       const options = directive ? (node.options ?? {}) as Record<string, unknown> : {};
       if (Object.keys(options).some(key => !['remove-input', 'remove-output', 'name', 'label'].includes(key)) || (typeof node.directiveBody === 'string' && node.directiveBody.trim())) return report('options', 'Unsupported embed options or body; source is retained.');
       if (['remove-input', 'remove-output'].some(key => key in options && ![true, false, '', 'true', 'false'].includes(options[key] as string | boolean))) return report('options', 'Embed remove-input/remove-output must be Boolean flags.');
