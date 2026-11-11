@@ -208,3 +208,7 @@ register_definition(BlockDefinition('noteCard', 1, validate=validate_note_card))
 for _name in ('evidence', 'experiment'):
     if block(_name) is None:
         register_definition(BlockDefinition(_name, 1, historical=True, reference=accept_reference(_name)))
+
+from myst_project import MystProjectSnapshot
+
+register_definition(BlockDefinition('mystProject', 1, validate=MystProjectSnapshot.parse))
