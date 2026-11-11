@@ -9,6 +9,47 @@ github_url: https://github.com/phodal/pero/issues/195
 
 # Source-backed MyST documents on PR #196
 
+## Reconstructed continuation on draft PR #201
+
+#196 was merged; this continuation is based on current master `6756d134` and
+retains #198 catalog, #197 gates and subsequent Notebook UI changes. The first
+three continuation commits were retained at `d526035f`; the remaining SDK work
+was reconstructed and published at `eb39f831`, followed by the reviewed duplicate
+target repair. This section supersedes earlier stage descriptions for #201.
+
+Implemented: pinned official proof families/aliases and scientific text; labelled
+recorded code/output embeds with shared raster assets, provenance, visibility and
+stale notices; glossary/abbreviations with metadata inheritance and exact recovery;
+continuous Markdown/IPYNB counters in explicit TOC order, excluding hidden/unlisted
+resources. No second editor or persistence owner, kernel, plugin execution,
+remote inventory or website deployment is added.
+
+Review reproductions repaired: duplicated metadata titles in code/Markdown-first
+notebooks, hidden input exposed through derived HTML source disclosure, proof
+embeds rejected as inline, scientific glossary/abbreviation text lost, and
+ambiguous standalone labels selecting a first target. Duplicate destination IDs
+and references are inactive while unique path-qualified targets still work.
+Repeated reference/title/TOC expansion is admitted before allocation through one
+2 MiB/20,000-node document budget; abbreviation projection has its own bounded
+owner. Source and original snapshot recovery remain exact.
+
+Fresh final SDK checks: **321 tests**, Notebook TypeScript and production build
+passed. The integrated pre-duplicate-repair tree passed **110 editor tests**,
+**151 real-OCR backend tests** with no skips, and all **7 Bazel checks**. Real
+DOCX/TeX/Typst/JATS artifact assertions inspect publication bodies rather than
+recovery bytes. The final packaging checks and frozen Bazel rerun are tracked
+in the PR, not assumed from these earlier results.
+
+First-draft CI [43077461927](https://github.com/phodal/pero/actions/runs/43077461927)
+failed one browser locator because the new page navigation and authored reference
+share a title. The repaired test asserts both exact destinations separately; six
+other Notebook browser tests and Canvas journeys passed that earlier head. Fresh
+exact-head browser/PDF/CI acceptance remains pending. Local Chromium was attempted
+normally and with approved elevated execution; both fail at the environment's
+singleton socket restriction. No new local screenshot, Native/Electron GUI or
+full MyST compatibility is claimed. No merge or deployment was performed.
+
+
 This report supports the user's subsequent request to fill in MyST capabilities.
 It extends PR head `d65e798c740d49ceb3132c853e54304c4f1adf57`; it does not close
 the broader #195 roadmap or claim full MyST compatibility. The
