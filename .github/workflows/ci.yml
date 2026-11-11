@@ -505,7 +505,7 @@ jobs:
       # Stdlib-only disposable reader contracts still import the real PDF owner.
       - name: Package shared Paper parser before backend imports
         run: node scripts/build/source-parsers.mjs
-      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs tests/e2e/select-control.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
+      - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs packages/app-sdk/test/select.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
       - name: Offline research preflight, finalization and shutdown contracts
         run: node --test tests/runtime/research-quality/*.test.mjs
       - run: node --experimental-vm-modules --test tests/build/native-dev.test.mjs

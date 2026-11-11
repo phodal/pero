@@ -43,16 +43,21 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
       RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
-      - name: Checkout the gate program
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - name: Peel the tag to an immutable commit
+      - name: Peel the tag without checking out the tag commit
         id: pin
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/ci/deployment-gate.mjs pin-tag
+        run: |
+          url="https://github.com/${GH_REPO}.git"
+          peeled=$(git ls-remote "$url" "refs/tags/${RELEASE_TAG}^{}" | awk 'NR==1 { print $1 }')
+          if [[ -z "$peeled" ]]; then
+            peeled=$(git ls-remote "$url" "refs/tags/${RELEASE_TAG}" | awk 'NR==1 { print $1 }')
+          fi
+          if [[ ! "$peeled" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Tag ${RELEASE_TAG} does not resolve to a commit" >&2
+            exit 1
+          fi
+          echo "sha=${peeled}" >> "$GITHUB_OUTPUT"
       - name: Start native build with shared branch caches
         env:
           SHA: ${{ steps.pin.outputs.sha }}
@@ -88,7 +93,7 @@ jobs:
 
   resolve:
     name: Pin the requested tag
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -96,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: master
+          ref: ${{ github.sha }}
           persist-credentials: false
       - id: pin
         name: Peel the tag before checkout
@@ -108,7 +113,7 @@ jobs:
   gate:
     name: Require trusted CI for the tag commit
     needs: resolve
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -117,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: master
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Reject a missing, red, cancelled, or mismatched CI result
         env:
@@ -276,7 +281,7 @@ jobs:
       - name: Upload verified package
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.product == 'virtual-cell' && 'push' || 'release' }}-${{ matrix.product }}-${{ matrix.platform }}-${{ matrix.arch }}
+          name: ${{ matrix.product == 'virtual-cell' && format('push-{0}-{1}-{2}', matrix.product, matrix.platform, matrix.arch) || format('release-{0}-{1}-{2}-{3}', needs.resolve.outputs.sha, matrix.product, matrix.platform, matrix.arch) }}
           path: target/release-assets/
           if-no-files-found: error
           retention-days: 7
@@ -316,7 +321,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: master
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Reject a moved tag or a CI result that is no longer green
         run: |
@@ -324,11 +329,14 @@ jobs:
           node scripts/ci/deployment-gate.mjs ci
       - uses: actions/download-artifact@v8
         with:
-          pattern: release-*
+          pattern: release-${{ needs.resolve.outputs.sha }}-*
           path: release-assets
           merge-multiple: true
+          if-no-files-found: error
 
-      - name: Require every manifest to name the pinned SHA
+      - name: Require every dispatch manifest to match its archive
+        env:
+          GATE_REQUIRED_ARCHIVES: Pero-macos-arm64.dmg,Pero-Native-macos-arm64.dmg,Pero-linux-x64.tar.gz,Pero-windows-x64.zip
         run: node scripts/ci/deployment-gate.mjs manifests release-assets
 
       - name: Verify combined checksums
@@ -353,8 +361,12 @@ jobs:
           - Per-product build metadata and SHA256SUMS accompany every archive.
           EOF_NOTES
 
-      - name: Publish CI-built assets to GitHub Release
+      - name: Upload to a draft, then publish only if the tag still matches
         run: |
+          # The tag can still move between the last pin and the undraft call.
+          # Keeping the release drafted until that pin succeeds stops a moved
+          # tag from becoming a public release. The undraft call itself is not
+          # atomic with the tag, so that last window remains.
           draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
           if [[ -z "$draft" ]]; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Pero $RELEASE_TAG" --notes-file release-notes.md
@@ -362,7 +374,9 @@ jobs:
             echo 'A published release already exists; refusing to replace its packages.' >&2
             exit 1
           else
-            gh release edit "$RELEASE_TAG" --title "Pero $RELEASE_TAG" --notes-file release-notes.md
+            gh release edit "$RELEASE_TAG" --draft=true --title "Pero $RELEASE_TAG" --notes-file release-notes.md
           fi
+          node scripts/ci/deployment-gate.mjs pin-tag
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          node scripts/ci/deployment-gate.mjs pin-tag
           gh release edit "$RELEASE_TAG" --draft=false --prerelease=true

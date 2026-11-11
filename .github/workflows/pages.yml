@@ -3,10 +3,14 @@
 # GPUI shell in the browser. Agent, remote, and Apps actions still require Desktop.
 #
 # Pages must use GitHub Actions as its source (Settings → Pages → Build and
-# deployment). The custom domain stays openpero.com. Publication is not tied to
-# the push itself: it builds the immutable SHA whose trusted CI complete
-# succeeded. workflow_run uses this file from master and must not check out a
-# pull request or fork. The master checkout below only supplies this gate.
+# deployment). The custom domain stays openpero.com. Publication follows a
+# master push whose Linux CI gate succeeded. Schedule and manual full CI are a
+# different class and do not block or replace that decision. workflow_run
+# completed fires for every CI completion, including a run that was pending
+# and a re-run; this job still admits only a master push.
+# github.sha on workflow_run is the default-branch commit that supplied this
+# workflow file, frozen for the run. It is not a live branch tip and not the
+# CI head. The site checkout remains the admitted head SHA.
 name: Pages
 
 on:
@@ -42,7 +46,7 @@ jobs:
       (github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.status == 'completed' &&
-        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch') &&
+        github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.head_branch == 'master' &&
         github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
@@ -53,10 +57,10 @@ jobs:
     outputs:
       sha: ${{ steps.decision.outputs.sha }}
     steps:
-      - name: Checkout the gate program
+      - name: Checkout the workflow definition that is running
         uses: actions/checkout@v7
         with:
-          ref: master
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Admit the CI SHA, not the current default-branch tip
         id: decision

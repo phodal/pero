@@ -1,22 +1,36 @@
-// Pages and Release may build only a commit whose trusted CI complete succeeded.
-// Callers pass the immutable SHA and the runs they observed. This module does
-// not read the clock, the network, or the default-branch tip.
+// Pages and Release admit a commit only from master push CI.
+// Push runs the Linux CI gate. Schedule and manual CI run the full desktop
+// matrix. Those classes are not interchangeable: a pending or failed full run
+// does not veto a successful Linux push, and a full success is not a Linux
+// push. The release workflow's own package smoke remains the packaging
+// guarantee; daily full acceptance is not a publish precondition.
+// A newer push that is still running, red, or cancelled does veto an older
+// successful push. workflow_run types:[completed] fires again when that push
+// later completes, including after it was pending and on re-runs.
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const trustedEvents = new Set(['push', 'schedule', 'workflow_dispatch']);
 const rejectedConclusions = new Set(['failure', 'cancelled', 'timed_out', 'startup_failure', 'action_required', 'skipped', 'stale', 'neutral']);
-const completeJob = /^(?:Linux|Full-platform) CI gate$/;
+const linuxPushJob = 'Linux CI gate';
 const shaPattern = /^[0-9a-f]{40}$/;
+
+/** Dispatch publication is the four native packages. Virtual Cell stays a canary. */
+export const dispatchReleaseArchives = Object.freeze([
+  'Pero-macos-arm64.dmg',
+  'Pero-Native-macos-arm64.dmg',
+  'Pero-linux-x64.tar.gz',
+  'Pero-windows-x64.zip',
+]);
 
 function reject(reason, extra = {}) {
   return { ok: false, reason, ...extra };
 }
 
-function sourceGate(source, { repository, trustedBranch }) {
-  if (!trustedEvents.has(source.event)) return reject('untrusted-event');
+function linuxPushSource(source, { repository, trustedBranch }) {
+  if (source.event !== 'push') return reject('untrusted-event');
   if (!source.headRepository || source.headRepository !== repository) return reject('untrusted-repository');
   if (source.headBranch !== trustedBranch) return reject('untrusted-branch');
   return { ok: true };
@@ -31,15 +45,17 @@ function byNewest(left, right) {
  * @param {{
  *   repository: string,
  *   targetSha: string,
+ *   policy?: 'linux-push',
  *   trustedBranch?: string,
  *   trigger?: { event: string, headSha: string, headBranch: string, headRepository: string, status: string, conclusion: string | null } | null,
  *   runs?: Array<{ id: number, headSha: string, event: string, headBranch: string, headRepository: string, status: string, conclusion: string | null, createdAt: string, jobs?: Array<{ name: string, status: string, conclusion: string | null }> }>
  * }} input
  */
-export function decideDeployment({ repository, targetSha, trustedBranch = 'master', trigger = null, runs = [] }) {
+export function decideDeployment({ repository, targetSha, policy = 'linux-push', trustedBranch = 'master', trigger = null, runs = [] }) {
+  if (policy !== 'linux-push') return reject('unknown-policy');
   if (!shaPattern.test(targetSha ?? '')) return reject('invalid-sha');
   if (trigger) {
-    const triggerSource = sourceGate(trigger, { repository, trustedBranch });
+    const triggerSource = linuxPushSource(trigger, { repository, trustedBranch });
     if (!triggerSource.ok) return triggerSource;
     if (trigger.headSha !== targetSha) return reject('wrong-sha');
     if (trigger.status !== 'completed') return reject('pending');
@@ -54,13 +70,13 @@ export function decideDeployment({ repository, targetSha, trustedBranch = 'maste
         createdAt: trigger.createdAt || '', jobs: trigger.jobs,
       }]
     : runs;
-  const trusted = observed.filter(run => run.headSha === targetSha && sourceGate(run, { repository, trustedBranch }).ok);
+  const trusted = observed.filter(run => run.headSha === targetSha && linuxPushSource(run, { repository, trustedBranch }).ok);
   if (!trusted.length) return reject('missing');
   if (trusted.some(run => run.status !== 'completed')) return reject('pending');
   const latest = [...trusted].sort(byNewest)[0];
   if (latest.conclusion !== 'success') return reject(rejectedConclusions.has(latest.conclusion) ? latest.conclusion : 'failure');
   if (!latest.jobs) return { ok: false, reason: 'needs-jobs', sha: targetSha, candidateRunId: latest.id };
-  const complete = latest.jobs.filter(job => completeJob.test(job.name));
+  const complete = latest.jobs.filter(job => job.name === linuxPushJob);
   if (complete.length !== 1 || complete[0].status !== 'completed' || complete[0].conclusion !== 'success') return reject('missing-complete');
   return { ok: true, sha: targetSha, runId: latest.id };
 }
@@ -82,10 +98,23 @@ export function samePinnedSha(pinned, resolved) {
   return { ok: true, sha: pinned };
 }
 
-export function releaseManifestsMatch(sha, manifests) {
+function archiveStem(name) {
+  return name.endsWith('.tar.gz') ? name.slice(0, -'.tar.gz'.length) : name.replace(/\.(dmg|zip)$/, '');
+}
+
+/** Each required archive must have its own manifest, the admitted SHA, and matching bytes. */
+export function releaseAssetsMatch(sha, requiredArchives, entries) {
   if (!shaPattern.test(sha ?? '')) return reject('invalid-sha');
-  if (!Array.isArray(manifests) || manifests.length === 0) return reject('missing-manifest');
-  if (!manifests.every(item => item?.sourceRevision === sha)) return reject('wrong-sha');
+  if (!requiredArchives?.length) return reject('missing-manifest');
+  const byName = new Map(entries.map(entry => [entry.name, entry]));
+  for (const archive of requiredArchives) {
+    const manifestEntry = byName.get(`${archiveStem(archive)}.build.json`);
+    const archiveEntry = byName.get(archive);
+    if (!manifestEntry?.manifest) return reject('missing-manifest');
+    if (!archiveEntry) return reject('missing-archive');
+    if (manifestEntry.manifest.sourceRevision !== sha || manifestEntry.manifest.archive !== archive) return reject('wrong-sha');
+    if (!manifestEntry.manifest.archiveSha256 || manifestEntry.manifest.archiveSha256 !== archiveEntry.sha256) return reject('checksum-mismatch');
+  }
   return { ok: true, sha };
 }
 
@@ -176,12 +205,12 @@ function proveCi() {
   const targetSha = process.env.GATE_TARGET_SHA || '';
   const trigger = triggerFromEnv();
   const runs = ciRuns(repository, targetSha);
-  let decision = decideDeployment({ repository, targetSha, trigger, runs });
+  let decision = decideDeployment({ repository, targetSha, policy: 'linux-push', trigger, runs });
   if (decision.reason === 'needs-jobs') {
     const jobs = jobsFor(repository, decision.candidateRunId);
     if (trigger && trigger.id === decision.candidateRunId) trigger.jobs = jobs;
     decision = decideDeployment({
-      repository, targetSha, trigger,
+      repository, targetSha, policy: 'linux-push', trigger,
       runs: runs.map(run => run.id === decision.candidateRunId ? { ...run, jobs } : run),
     });
   }
@@ -192,9 +221,15 @@ function proveCi() {
 
 function manifests() {
   const sha = process.env.GATE_TARGET_SHA || '';
+  const required = (process.env.GATE_REQUIRED_ARCHIVES || dispatchReleaseArchives.join(',')).split(',').map(name => name.trim()).filter(Boolean);
   const directory = resolve(process.argv[3] || 'release-assets');
-  const manifests = readdirSync(directory).filter(name => name.endsWith('.build.json')).map(name => JSON.parse(readFileSync(resolve(directory, name), 'utf8')));
-  const decision = releaseManifestsMatch(sha, manifests);
+  const entries = readdirSync(directory).map(name => {
+    const bytes = readFileSync(resolve(directory, name));
+    const entry = { name, sha256: createHash('sha256').update(bytes).digest('hex') };
+    if (name.endsWith('.build.json')) entry.manifest = JSON.parse(bytes.toString('utf8'));
+    return entry;
+  });
+  const decision = releaseAssetsMatch(sha, required, entries);
   if (!decision.ok) return fail(decision);
   console.log(`manifests match ${decision.sha}`);
 }

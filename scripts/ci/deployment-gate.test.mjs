@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
-import { commitFromTagRefs, decideDeployment, releaseManifestsMatch, samePinnedSha } from './deployment-gate.mjs';
+import { commitFromTagRefs, decideDeployment, dispatchReleaseArchives, releaseAssetsMatch, samePinnedSha } from './deployment-gate.mjs';
 
 const repository = 'phodal/pero';
 const sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -28,9 +28,9 @@ function trigger(overrides = {}) {
 test('deployment admits only a trusted successful complete job for the exact SHA', () => {
   const cases = [
     ['push success', { runs: [run()] }, 'ok'],
-    ['full gate', { runs: [run({ jobs: fullComplete })] }, 'ok'],
-    ['schedule success', { runs: [run({ event: 'schedule' })] }, 'ok'],
-    ['manual CI on master', { runs: [run({ event: 'workflow_dispatch' })] }, 'ok'],
+    ['full job is not a Linux push gate', { runs: [run({ jobs: fullComplete })] }, 'missing-complete'],
+    ['schedule alone is not a Linux push', { runs: [run({ event: 'schedule', jobs: fullComplete })] }, 'missing'],
+    ['manual full CI alone is not a Linux push', { runs: [run({ event: 'workflow_dispatch', jobs: fullComplete })] }, 'missing'],
     ['newer success beats an older failure', { runs: [run({ id: 1, conclusion: 'failure', createdAt: '2026-11-10T00:00:00Z' }), run({ id: 2, createdAt: '2026-11-11T00:00:00Z' })] }, 'ok'],
     ['invalid sha', { targetSha: 'master' }, 'invalid-sha'],
     ['wrong trigger sha', { trigger: trigger({ headSha: other }), runs: [run()] }, 'wrong-sha'],
@@ -63,6 +63,24 @@ test('deployment admits only a trusted successful complete job for the exact SHA
   }
 });
 
+test('Linux push admission ignores full runs and still lets a newer push veto', () => {
+  const push = (overrides) => run({ id: 2, createdAt: '2026-11-11T00:00:00Z', ...overrides });
+  const schedule = (overrides) => run({ id: 8, event: 'schedule', jobs: fullComplete, createdAt: '2026-11-11T03:00:00Z', ...overrides });
+  const cases = [
+    ['successful push plus pending schedule', [push(), schedule({ status: 'in_progress', conclusion: null, jobs: undefined })], 'ok'],
+    ['successful push plus failed schedule', [push(), schedule({ conclusion: 'failure' })], 'ok'],
+    ['later red push vetoes an older success', [push({ id: 1, createdAt: '2026-11-10T00:00:00Z' }), push({ id: 3, conclusion: 'failure', createdAt: '2026-11-12T00:00:00Z' })], 'failure'],
+    ['later pending push vetoes an older success', [push({ id: 1, createdAt: '2026-11-10T00:00:00Z' }), push({ id: 3, status: 'queued', conclusion: null, jobs: undefined, createdAt: '2026-11-12T00:00:00Z' })], 'pending'],
+    ['later cancelled push vetoes an older success', [push({ id: 1, createdAt: '2026-11-10T00:00:00Z' }), push({ id: 3, conclusion: 'cancelled', createdAt: '2026-11-12T00:00:00Z' })], 'cancelled'],
+    ['schedule completion does not admit the SHA', { trigger: trigger({ event: 'schedule', jobs: fullComplete }), runs: [push()] }, 'untrusted-event'],
+  ];
+  for (const [name, input, expected] of cases) {
+    const runs = Array.isArray(input) ? input : input.runs;
+    const decision = decideDeployment({ repository, targetSha: sha, policy: 'linux-push', trigger: input.trigger, runs });
+    assert.equal(decision.ok ? 'ok' : decision.reason, expected, name);
+  }
+});
+
 test('a successful workflow still has to load its complete job', () => {
   const decision = decideDeployment({ repository, targetSha: sha, runs: [run({ jobs: undefined })] });
   assert.equal(decision.reason, 'needs-jobs');
@@ -80,9 +98,22 @@ test('tag resolution uses the peeled commit and rejects a move', () => {
   assert.equal(commitFromTagRefs('missing', []).reason, 'missing-tag');
   assert.equal(samePinnedSha(sha, sha).ok, true);
   assert.equal(samePinnedSha(sha, other).reason, 'tag-moved');
-  assert.equal(releaseManifestsMatch(sha, [{ sourceRevision: sha }, { sourceRevision: sha }]).ok, true);
-  assert.equal(releaseManifestsMatch(sha, [{ sourceRevision: other }]).reason, 'wrong-sha');
-  assert.equal(releaseManifestsMatch(sha, []).reason, 'missing-manifest');
+  const bytes = 'abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abcd';
+  const pack = (archive) => {
+    const stem = archive.endsWith('.tar.gz') ? archive.slice(0, -7) : archive.replace(/\.(dmg|zip)$/, '');
+    return [
+      { name: archive, sha256: bytes },
+      { name: `${stem}.build.json`, sha256: 'manifest', manifest: { sourceRevision: sha, archive, archiveSha256: bytes } },
+    ];
+  };
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], dispatchReleaseArchives.flatMap(pack)).ok, true);
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], dispatchReleaseArchives.slice(1).flatMap(pack)).reason, 'missing-manifest');
+  const wrong = dispatchReleaseArchives.flatMap(pack);
+  wrong[1].manifest = { ...wrong[1].manifest, sourceRevision: other };
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], wrong).reason, 'wrong-sha');
+  const mismatch = dispatchReleaseArchives.flatMap(pack);
+  mismatch[0] = { ...mismatch[0], sha256: other };
+  assert.equal(releaseAssetsMatch(sha, [...dispatchReleaseArchives], mismatch).reason, 'checksum-mismatch');
 });
 
 test('Pages builds the admitted SHA only after trusted CI, and Release republishes that same SHA', () => {
@@ -93,15 +124,15 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.deepEqual(pages.on.workflow_run.branches, ['master']);
   assert.equal(pages.on.workflow_dispatch.inputs.sha.required, true);
   assert.match(pages.jobs.gate.if, /workflow_run.event == 'push'/);
-  assert.match(pages.jobs.gate.if, /workflow_run.event == 'schedule'/);
-  assert.match(pages.jobs.gate.if, /workflow_run.event == 'workflow_dispatch'/);
+  assert.doesNotMatch(pages.jobs.gate.if, /workflow_run.event == 'schedule'/);
+  assert.doesNotMatch(pages.jobs.gate.if, /workflow_run.event == 'workflow_dispatch'/);
   assert.match(pages.jobs.gate.if, /head_branch == 'master'/);
   assert.match(pages.jobs.gate.if, /head_repository.full_name == github.repository/);
   assert.match(pages.jobs.gate.if, /github.ref == 'refs\/heads\/master'/);
   assert.equal(pages.jobs.gate.permissions.contents, 'read');
   assert.equal(pages.jobs.gate.permissions.actions, 'read');
   assert.equal(pages.jobs.gate.permissions.pages, undefined);
-  assert.equal(pages.jobs.gate.steps[0].with.ref, 'master');
+  assert.equal(pages.jobs.gate.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(pages.jobs.gate.steps[0].with['persist-credentials'], false);
   assert.match(pages.jobs.gate.steps.at(-1).run, /deployment-gate\.mjs ci/);
   assert.equal(pages.jobs.gate.steps.at(-1).env.GATE_TARGET_SHA, "${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}");
@@ -126,7 +157,12 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.on.workflow_dispatch.inputs.sha.required, false);
   assert.match(release.jobs.dispatch.if, /github.ref_type == 'tag'/);
   assert.match(release.jobs.dispatch.steps.at(-1).run, /--field "sha=\$SHA"/);
-  assert.equal(release.jobs.resolve.if, "github.event_name == 'workflow_dispatch'");
+  assert.equal(release.jobs.resolve.if, "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'");
+  assert.equal(release.jobs.gate.if, release.jobs.resolve.if);
+  assert.equal(release.jobs.resolve.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(release.jobs.gate.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(release.jobs.publish.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(release.jobs.dispatch.steps.some(step => step.uses?.startsWith('actions/checkout')), false);
   assert.match(release.jobs.resolve.steps.at(-1).run, /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.gate.steps.at(-1).run, /deployment-gate\.mjs ci/);
   assert.equal(release.jobs.gate.permissions.actions, 'read');
@@ -137,7 +173,11 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.match(release.jobs.publish.if, /needs.build.result == 'success'/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs ci/);
-  assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs manifests/);
+  const published = release.jobs.publish.steps.map(step => step.run || '').join('\n');
+  const manifestStep = release.jobs.publish.steps.find(step => (step.run || '').includes('deployment-gate.mjs manifests'));
+  assert.equal(manifestStep.env.GATE_REQUIRED_ARCHIVES, dispatchReleaseArchives.join(','));
+  assert.ok(published.lastIndexOf('deployment-gate.mjs pin-tag') < published.indexOf('--draft=false'));
+  assert.match(published, /--draft/);
   assert.equal(release.jobs.publish.permissions.contents, 'write');
   assert.doesNotMatch(JSON.stringify(release.jobs.build.strategy.matrix.include), /continue-on-error/);
   for (const job of Object.values(release.jobs)) for (const step of job.steps ?? []) assert.equal(step['continue-on-error'], undefined);
