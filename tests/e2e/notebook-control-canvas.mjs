@@ -260,6 +260,19 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   await openNotebookView(page, 'Notes');
   await expect(page.locator('[data-kind=experiment]')).toHaveCount(1);
   await expect(page.getByText(citation.evidence.quote, { exact: false }).first()).toBeVisible();
+  await expect(block.getByText('Loading declared App view…', { exact: true })).toHaveCount(0, { timeout: 15_000 });
+  await expect(block.getByRole('alert')).toHaveCount(0);
+  await expect(block).toContainText('8 s');
+  await expect(block).toContainText('1001');
+  const reopenedOwner = await backend('control-lab', '/api/experiments/' + firstRecord.id);
+  assert.equal(reopenedOwner.trials.find(trial => trial.id === first.trial.id).report.id, first.trial.report.id);
+  const previousOpens = opened.length;
+  await button('Open in Control Lab', page.locator('[data-kind=experiment]')).click();
+  await expect.poll(() => opened.length).toBe(previousOpens + 1);
+  assert.equal(opened.at(-1), `pero-app-location://control-lab/main/experiment/${firstRecord.id}/trial/${first.trial.id}`);
+  await button('Raw evidence / hash', owner).click();
+  await expect(raw).toContainText(first.trial.id);
+  await expect(raw).toContainText(first.trial.report.id);
   await page.screenshot({ path: resolve(output, 'interop-old-revision.png'), fullPage: true });
   await writeFile(resolve(output, 'control-canvas.json'), JSON.stringify({
     entryId: entry.id, originalRevision: originalRevision.revision, latestRevision: latest.revision,
