@@ -1,4 +1,6 @@
 export const mystProjectMessages = {
+  sourceRecoveryWarning: { en: 'Scientific downloads (DOCX, JATS, LaTeX, Typst and ZIPs) include the full original source, including comments and content omitted from the publication. Review before sharing.', zh: '科学格式下载（DOCX、JATS、LaTeX、Typst 及 ZIP）包含完整原始源码，也包括注释和出版物中省略的内容。分享前请检查。' },
+
   resource: { en: 'Project resource', zh: '项目资源' },
   source: { en: 'MyST resource source', zh: 'MyST 资源源码' },
   raw: { en: 'MyST project snapshot', zh: 'MyST 项目快照' },

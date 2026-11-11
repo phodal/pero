@@ -79,6 +79,7 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
   try {
     await show('pending-old', true, 1, snapshot.replace('Original reference', 'Obsolete pending reference'));
     await show('editable', true, 1);
+    assert.match(document.body.textContent ?? '', /Scientific downloads.*include the full original source, including comments/);
     assert.ok(requested);
     assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')?.disabled, true);
     assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download project snapshot')?.disabled, false);

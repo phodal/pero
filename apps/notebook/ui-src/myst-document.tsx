@@ -52,6 +52,9 @@ export function MystDocumentView(view: NodeViewProps) {
     }} />}</Field>
     <div className="notebook-myst-actions">
       {mystExportFormats.map(format => <Button key={format.id} disabled={!result && format.id !== 'source'} onClick={() => download(format)}>{exportLabels[format.id] ? t(exportLabels[format.id]) : format.label}</Button>)}
+    </div>
+    {result && <Feedback kind="warning">{t('sourceRecoveryWarning')}</Feedback>}
+    <div className="notebook-myst-actions">
       {mystCompiledPublicationFormats.map(format => <Button key={format.id} disabled={!result} onClick={() => void publicationDownload(format)}>{format.label}</Button>)}
       <Button disabled={!result} onClick={() => result && openNotebookPublicationPrint(result.html)}>{t('printPublication')}</Button>
     </div>

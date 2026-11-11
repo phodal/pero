@@ -93,6 +93,7 @@ export function MystProjectView(view: NodeViewProps) {
     <div className="notebook-myst-actions">{mystProjectExportFormats.map(format => <Button key={format.id} disabled={(!result || formatting) && format.id !== 'snapshot'} onClick={() => download(format)}>{format.id === 'snapshot' ? t('snapshotDownload') : format.id === 'html' ? t('htmlDownload') : format.label}</Button>)}</div>
     {result && <>
       <p>{t('entryPublication')}</p>
+      {result.projection.entry.kind === 'myst' && <Feedback kind="warning">{t('sourceRecoveryWarning')}</Feedback>}
       {result.projection.entry.kind === 'ipynb' && <Feedback kind="warning">{t('notebookRecoveryWarning')}</Feedback>}
       {result.projection.entry.kind === 'invalid' && <Feedback kind="warning">{t('publicationUnsupported')}</Feedback>}
       <div className="notebook-myst-actions">{mystCompiledPublicationFormats.map(format => <Button key={format.id} disabled={exporting || formatting || result.projection.entry.kind === 'invalid'} onClick={() => downloadPublication(format)}>{format.label}</Button>)}
