@@ -164,12 +164,45 @@ class ScientificBlockTests(unittest.TestCase):
             store.commit(created.identity, 1, lambda current: NotebookDocument.parse({**current.wire(), 'title': 'Saved later'}))
             with self.assertRaises(RevisionConflict):
                 proposals.review(created.identity, BlockReview('mismatch-1', 1, 'accept'))
-            rejected = proposals.review(created.identity, BlockReview('mismatch-1', 1, 'reject'))
+            rejected = proposals.review(created.identity, BlockReview('mismatch-1', 2, 'reject'))
             self.assertEqual(rejected['proposal']['decision'], 'reject')
             self.assertEqual(store.read(created.identity).revision, 2)
             other_entry = store.create(NotebookDocument.parse(entry_document()))
             with self.assertRaisesRegex(ValueError, 'not found'):
                 proposals.review(other_entry.identity, BlockReview('mismatch-1', 1, 'reject'))
+
+    def test_stale_reference_review_preserves_current_revision_and_replays_its_receipt(self):
+        from scientific_block import BlockProposalStore, BlockReview, ProposeReference
+        from store import RevisionConflict
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            proposals = BlockProposalStore(store)
+            created = store.create(NotebookDocument.parse(entry_document()))
+            proposals.propose(created.identity, 1, ProposeReference('stale', 'paper-block', 'Old proposal', SOURCE))
+            changed = entry_document()
+            changed['title'] = 'An unrelated saved edit'
+            current = store.commit(created.identity, 1, lambda _: NotebookDocument.parse(changed))
+            proposals.propose(created.identity, 2, ProposeReference('fresh', 'paper-block', 'Fresh proposal', SOURCE))
+            for decision, expected_revision in [('accept', 2), ('accept', 1), ('reject', 1)]:
+                with self.subTest(decision=decision, expected_revision=expected_revision):
+                    with self.assertRaises(RevisionConflict):
+                        proposals.review(created.identity, BlockReview('stale', expected_revision, decision))
+            rejected = proposals.review(created.identity, BlockReview('stale', 2, 'reject'))
+            self.assertEqual(rejected['entry'], current.wire())
+            self.assertEqual(rejected['proposal']['baseRevision'], 1)
+            self.assertEqual(rejected['proposal']['revision'], 2)
+            self.assertEqual(len(store.history(created.identity)), 2)
+            accepted = proposals.review(created.identity, BlockReview('fresh', 2, 'accept'))
+            self.assertEqual(accepted['entry']['revision'], 3)
+            self.assertEqual(accepted['entry']['document']['title'], changed['title'])
+            for replay in [proposals.review(created.identity, BlockReview('stale', 2, 'reject')),
+                           proposals.propose(created.identity, 1, ProposeReference('stale', 'paper-block', 'Old proposal', SOURCE))]:
+                self.assertTrue(replay['replayed'])
+                self.assertEqual(replay['entry'], rejected['entry'])
+                self.assertEqual(replay['proposal'], rejected['proposal'])
+            with self.assertRaisesRegex(ValueError, 'different decision'):
+                proposals.review(created.identity, BlockReview('stale', 3, 'accept'))
+            self.assertEqual(store.read(created.identity).revision, 3)
 
     def test_host_proposal_reviews_the_real_paper_reference(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -141,11 +141,13 @@ class BlockProposalStore:
                     raise ValueError('This proposal was already reviewed with a different decision')
                 entry = self.entries.read(identity, receipt['revision'])
                 return {'entry': entry.wire(), 'proposal': receipt, 'replayed': True}
+            if current.revision != review.expected_revision:
+                raise RevisionConflict(current.revision)
             if review.decision == 'reject':
-                receipt = {**receipt, 'decision': 'reject'}
+                receipt = {**receipt, 'decision': 'reject', 'revision': current.revision}
                 _save_receipt(connection, identity, review.proposal_id, receipt)
                 return {'entry': current.wire(), 'proposal': receipt, 'replayed': False}
-            if current.revision != review.expected_revision or current.revision != receipt['baseRevision']:
+            if current.revision != receipt['baseRevision']:
                 raise RevisionConflict(current.revision)
             pending['receipt'] = receipt
             return None
