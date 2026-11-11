@@ -1,8 +1,9 @@
 # Six frozen PyBaMM CPU experiments
 
 This method supports [#59](https://github.com/phodal/pero/issues/59) using the
-existing Task/Run/Worker owners. It makes no battery accuracy or two-machine
-acceptance claim. There is no model provider, Battery App, Campaign scheduler,
+existing Task/Run/Worker owners. Numerical consistency is not battery accuracy.
+The independent macOS + Linux VM acceptance is recorded in the issue tracker.
+There is no model provider, Battery App, Campaign scheduler,
 automatic retry, environment provisioning or arbitrary command input.
 
 ## Method and provenance
@@ -65,7 +66,8 @@ environment above; an installed `pero-worker`; operator-owned allowlist/config;
 one private writable workspace per machine; and access to the existing Go
 control plane/PostgreSQL over HTTPS. Both Workers must be admitted to the same
 project. A provisioned Worker ID or hostname alone is not proof of a second
-machine or permission to use it. This delivery has **not** executed that step.
+machine or permission to use it. The dedicated Lima reproduction below provides
+an opt-in example using an actual independent Linux kernel.
 
 Build the existing Worker with `node scripts/cargo.mjs build --locked -p pero-worker`
 on each supported host. Follow [Worker setup](../../../crates/pero-worker/README.md)
@@ -149,6 +151,64 @@ including work requiring operator reconciliation; never clear that journal to
 force a retry. Then run `collect` and inspect both result bytes and process logs.
 The report intentionally leaves `machine_acceptance` and `scientific_acceptance`
 as `not_assessed`; those are not inferred from Worker counts or numerical matches.
+
+## Inspect the collected report in Compute
+
+Open Compute → Experiment reports and import the JSON produced by `collect`.
+The page retains all six conditions and the observation timestamp. Execution
+state and recorded numerical verification remain separate. Expand a condition
+for its Task/Run/Worker identities, method digest and original result path;
+download its exact result bytes or complete Run record and bounded log events.
+The complete report also retains method inputs, environment and generation.
+Copy Task link uses the existing `pero://tasks/` route.
+
+This is an imported observation, not live monitoring. Collect and import again
+to refresh it. The latest valid report persists through App restart; invalid
+imports retain that report. No Worker or scheduler commands are issued by import.
+
+## Reproduce independent macOS + Linux VM acceptance
+
+Use only an explicitly authorized dedicated Lima VM with this checkout mounted
+read-only at the same absolute path. The verified configuration was Ubuntu 24.04
+ARM64, Apple VZ, 2 CPUs, 4 GiB RAM and a sparse 12 GiB disk. Leave sufficient host
+disk space for the image, Python dependencies and compilation. It is not Docker.
+Install the same pinned environment and an actual Linux `pero-worker` inside it;
+see [Linux ARM64 solver build](linux-arm64.md) for the 0.3.3 build prerequisite.
+
+The test uses private loopback endpoints and a guest TCP relay across Lima's
+private guest→host network. This preserves the Worker's loopback HTTP policy;
+it does not establish a production HTTPS deployment. `sudo iptables` in this
+dedicated VM blocks only its connection to the ephemeral test server port, then
+removes that exact rule. Management and other VM traffic are unaffected.
+
+```sh
+python3.12 scripts/science/pybamm-sweep/two_machine.py \
+  --server-bin /absolute/path/pero-server \
+  --worker-bin /absolute/path/macos/pero-worker \
+  --python /absolute/path/macos/pybamm-venv/bin/python \
+  --unprepared-python /absolute/path/unprepared-python3.12 \
+  --vm your-authorized-test-vm \
+  --guest-python /home/phodal.guest/pybamm59/venv/bin/python \
+  --guest-worker /home/phodal.guest/pybamm59/pero-worker \
+  --guest-library-path /home/phodal.guest/pybamm59/solver-source/.idaklu/lib \
+  --output /absolute/path/new-two-machine-evidence
+```
+
+The guest paths are explicit CLI options; adapt them to the VM user. An existing
+output directory is refused. Each execution creates a fresh private database,
+Worker enrollment, journal and six-item batches, with no model calls. Normal
+acceptance requires three real successful calculations per machine and 6/6
+numerically consistent results. Fault injection observes the child-start event
+inside the VM and SIGSTOPs that child before cancellation/network loss, avoiding
+a management round-trip racing a short calculation. It proves process cleanup,
+not cancellation at a particular solver timestep. Recovery reuses the original
+journal and asserts a single calculation start on the same Run.
+
+`inventory.json`, `normal-report.json`, `fault-report.json`, `network-block.txt`
+and `receipt.json` preserve the results. Full raw result/log files remain in the
+macOS workspace below the output directory and in `vm_directory/workspace` in
+the named VM. Test-owned server, database, relay and Worker processes stop on
+exit. The VM remains available for inspection; stop it explicitly when done.
 
 ## Reproduce the local integration evidence
 

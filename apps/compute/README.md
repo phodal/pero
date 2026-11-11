@@ -25,6 +25,14 @@ does not submit. Existing Host Worker settings and software Environments
 are explicit navigation destinations, not evidence of a connected Slurm cluster.
 HPC Benchmarks remains a separate App with its existing local reference methods.
 
+Experiment reports imports a collected six-experiment PyBaMM report as a dated
+snapshot. All six rows remain visible, including failures, cancellation and missing
+evidence. The latest valid import persists in `task-report.json`; invalid imports
+retain it. GET/POST `/api/task-report` read/import that observation. Original result
+bytes, Run records and bounded logs can be downloaded. Numerical verdicts are
+recorded collector observations, not live or scientific acceptance. See the
+[method workflow](../../scripts/science/pybamm-sweep/README.md) to collect a new report.
+
 The standard App Python backend stores non-secret drafts atomically beneath
 `PERO_APP_DATA/clusters.json`; Host owns installation, origin authentication and
 process lifecycle. GET `/api/state` reads configuration and any owner receipts in `executions/`.

@@ -26,7 +26,7 @@ inputs and tolerances after the six-case preflight, before reference/distributed
 comparison. Verification checks numerical consistency, not experimental battery
 accuracy. No new Battery App, generic Compute job or environment platform.
 
-## Environment observations and boundaries
+## Initial environment observations and boundaries
 
 - Local macOS has Python 3.12.11, uv, PostgreSQL tools and a built Rust Worker.
 - `limactl list --json` reports no VM; the Docker daemon is unavailable.
@@ -114,7 +114,7 @@ An attempted custom Cargo target under `test-results/` hit workspace inheritance
 in the existing GPUI path patches; the supported root `target/` build passed.
 No unrelated build or control-plane source was changed.
 
-## Remaining issue acceptance
+## Initial remaining acceptance (superseded by the follow-up below)
 
 GitHub #59 remains open. No second authorized independent machine/VM was available.
 The README supplies exact installation, allowlist, Worker, submission, report and
@@ -123,3 +123,115 @@ execution and network disconnect/recovery remain unverified. No Electron/Native
 GUI, packaged installation, remote deployment, or experimental battery-model
 accuracy acceptance is claimed. The Task UI can already read the existing events;
 the new batch report is a CLI-generated JSON projection, not a new product UI.
+
+## Product and independent VM follow-up — 2026-11-11
+
+Base `5072cbc606064cd6141848a23587c7bdcbdf997e`, isolated worktree
+`/Users/phodal/workspaces/pero-pybamm-product-59`. The user authorized a dedicated
+local test VM. Created Lima `pero-pybamm-59`, Ubuntu 24.04 ARM64 on Apple VZ,
+2 CPUs, 4 GiB RAM, a sparse 12 GiB disk and only this worktree mounted read-only.
+Existing Colima VMs were not used or changed; no SSH private key was read.
+
+Compute's existing result workspace now has an imported experiment-report view.
+It displays the observation timestamp and the collector's recorded numerical
+verdict, retains all six rows and exports exact result bytes plus Task/Run events
+and logs. Importing a report does not contact Workers, change their state or
+certify a scientific result. Invalid imports preserve the previous saved report.
+Task links retain the existing `pero://tasks/` route. The frozen scientific method
+and numerical checker remain unchanged; `collect` adds report metadata only.
+
+Linux ARM preparation exposed two upstream packaging/build problems in the
+locked pybammsolvers 0.3.3: no suitable wheel, an sdist missing CMakeLists.txt,
+and the Git-tag build's hard-coded old C++ ABI conflicting with the ARM CasADi
+3.6.7 wheel. The pinned official source is commit
+`6e0c9286e65a29b35ac9941951e738ddb58e1d5a` (`v0.3.3`); a one-line ABI build
+adjustment passed import and real calculations without changing solver/model versions or tolerance.
+The dedicated Linux Worker was built from the base source. Cargo resolution only
+changed unused gpui-component-macros 0.9.0 to 0.9.1; the Worker dependency versions
+were unchanged. Exact resolved lock and build logs are retained.
+
+Evidence root: `test-results/pybamm-59-vm/` in that worktree. The macOS Server
+and Worker binaries were copied from the previous isolated acceptance and their
+hashes retained in `binaries.sha256`, rather than rebuilding a second Rust target.
+Cross-machine numerical/fault acceptance passed as recorded below.
+
+
+## Independent-machine and product acceptance — 2026-11-11
+
+The completed run is `test-results/pybamm-59-vm/acceptance-2/` under
+`/Users/phodal/workspaces/pero-pybamm-product-59`. `receipt.json` and
+`inventory.json` record macOS physical host `Phodal-Studio.local` and independent
+Linux VM `lima-pero-pybamm-59` (Ubuntu 24.04 ARM64, Linux 6.8.0-134-generic).
+Both ran actual native Rust Workers and real pinned PyBaMM processes.
+
+| Check | Observed result |
+| --- | --- |
+| Independent-machine normal batch | 6/6 consistent; macOS 3, Linux VM 3 |
+| Repeat submit and persisted receipts | Zero extra Tasks; six original event/completion receipts |
+| Conflicting late events | 6/6 rejected with HTTP 409 |
+| Occupied VM slot | Second instance received no assignment |
+| Unprepared environment | Actual Run failed, retained process error |
+| VM cancellation | Actual child stopped, Run cancelled |
+| Actual VM→host network loss | 25 packets / 3824 bytes rejected at ephemeral server port; lease loss stopped child |
+| Network restored, original journal | Same Run `run_0396a50822ecfbfc4921574fd2735928`, `reconcile`, one start event, no replay |
+| Fault denominator | `failed, cancelled, queued, reconcile, queued, queued`; 0/6 consistent |
+| Compute real-report browser test | 8/8 passed; downloads match raw result digest and retained Run record |
+| Persistence and error recovery | Restart retains report; invalid five-row import preserves previous six |
+| Appearance | Real normal report light / fault report narrow dark visually inspected; no horizontal overflow |
+
+`normal-report.json` and `fault-report.json` retain raw events, complete method,
+inputs/environment and execution identities. macOS full result/log files are in
+`acceptance-2/macos/workspace/pybamm-results/`. Linux originals remain in
+`/home/phodal.guest/pybamm59/acceptance-7a0ae14e03f5/workspace/pybamm-results/`;
+a host copy is in `acceptance-2/linux-raw-results/pybamm-results/` and
+`linux-raw-results.tar.gz`. Neither binaries nor evidence archives are committed.
+Screenshots: `test-results/compute/task-report-normal-light.png` and
+`task-report-fault-narrow-dark.png`. `compute-browser-real-py312.log` and
+`compute-browser-real-default.log` both show 8/8; the latter uses system Python
+3.9 after adding deferred annotations to preserve existing App compatibility.
+Compute Python tests (8), typecheck, build with existing Reader/font artifacts,
+and scientific-template tests (4) passed. Electron/Native was not run.
+
+The final solver source/build recipe and artifact hash are in
+[linux-arm64.md](../../scripts/science/pybamm-sweep/linux-arm64.md).
+`linux-build-provenance.txt`, `linux-python-provenance.txt`, `linux-Cargo.lock`,
+`linux-worker-build.log` and `binaries.sha256` retain the exact local provenance.
+Linux Worker SHA-256:
+`cd89c63e6c3edcde0f420120e6b5c388ee571b9581b4d65816195fa467417eaa`.
+
+Preparation encountered host disk exhaustion during linking, causing guest I/O
+errors and a corrupted CMakeLists.txt. Only this task's VM was stopped/restarted;
+only its image download cache and disposable build intermediates were cleared.
+The fixed source file was restored from the pinned Git commit, ABI 1 reapplied,
+and the build/preflight rerun successfully. Existing VMs and others' caches were
+untouched. First fault attempt (`acceptance-1`) had already completed the fast
+calculation before a remote SIGSTOP arrived; the final test observes and freezes
+inside the VM, then asserts actual cancellation. That failed attempt is retained.
+No production Worker logic was changed to make the test pass.
+
+Re-run from this worktree with the retained binaries/environment; start the named
+VM if stopped. Use a new output path every time (the script refuses overwrite):
+
+```sh
+limactl start --tty=false pero-pybamm-59
+/Users/phodal/.local/bin/python3.12 scripts/science/pybamm-sweep/two_machine.py \
+  --server-bin /Users/phodal/workspaces/pero-pybamm-product-59/test-results/pybamm-59-vm/pero-server \
+  --worker-bin /Users/phodal/workspaces/pero-pybamm-product-59/test-results/pybamm-59-vm/pero-worker-macos \
+  --python /Users/phodal/workspaces/pero-issue-59/test-results/pybamm-59/venv/bin/python \
+  --unprepared-python /Users/phodal/.local/bin/python3.12 \
+  --vm pero-pybamm-59 \
+  --guest-library-path /home/phodal.guest/pybamm59/solver-source/.idaklu/lib \
+  --output /Users/phodal/workspaces/pero-pybamm-product-59/test-results/pybamm-59-vm/parent-review-1
+```
+
+This starts a small temporary PostgreSQL/server and the 2-CPU/4-GiB VM, runs six
+normal calculations plus a bounded fault batch, and takes roughly one minute.
+No compilation/download or paid model is needed. All test-owned processes stop
+and the firewall rule is removed; leave originals for inspection. Stop the VM
+with `limactl stop --tty=false pero-pybamm-59` after review. The VM was stopped
+at handoff; its disk, binaries, environments and evidence remain available.
+
+GitHub #59 remains open for parent review; this worktree does not push, merge or
+close it. Two independent execution environments and network recovery are now
+observed, while battery experimental accuracy, production HTTPS deployment,
+packaged installation and Electron/Native acceptance remain unverified.
