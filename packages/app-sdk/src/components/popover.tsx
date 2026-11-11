@@ -144,7 +144,13 @@ export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popo
       const rightEdge = (viewport?.offsetLeft ?? 0) + (viewport?.width ?? view.innerWidth) - 8;
       const bottomEdge = (viewport?.offsetTop ?? 0) + (viewport?.height ?? view.innerHeight) - 8;
       if (rect.bottom < topEdge || rect.top > bottomEdge || rect.right < leftEdge || rect.left > rightEdge) { commit(false); return; }
-      element.style.maxWidth = `${Math.max(0, rightEdge - leftEdge)}px`;
+      // Keep the consumer's size limit; placement only adds a viewport ceiling.
+      element.style.removeProperty('max-width');
+      element.style.removeProperty('max-height');
+      const authored = view.getComputedStyle(element);
+      const widthLimit = authored.maxWidth, heightLimit = authored.maxHeight;
+      const availableWidth = `${Math.max(0, rightEdge - leftEdge)}px`;
+      element.style.maxWidth = widthLimit && widthLimit !== 'none' ? `min(${widthLimit}, ${availableWidth})` : availableWidth;
       const width = element.offsetWidth;
       const height = element.offsetHeight;
       const preferred = align === 'start' ? rect.left : rect.right - width;
@@ -155,7 +161,7 @@ export const Popover = forwardRef<HTMLButtonElement, PopoverProps>(function Popo
       const above = Math.max(0, rect.top - topEdge - gap);
       const upward = below < height && above > below;
       const maxHeight = Math.max(0, upward ? above : below);
-      element.style.maxHeight = `${maxHeight}px`;
+      element.style.maxHeight = heightLimit && heightLimit !== 'none' ? `min(${heightLimit}, ${maxHeight}px)` : `${maxHeight}px`;
       const used = Math.min(height, maxHeight);
       const top = upward ? rect.top - used - gap : rect.bottom + gap;
       element.style.visibility = 'visible';

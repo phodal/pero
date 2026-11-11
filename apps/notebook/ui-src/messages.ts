@@ -1,4 +1,8 @@
 export const messages = {
+  insertData: { en: 'Data', zh: '数据' },
+  insertEvidence: { en: 'Evidence and experiments', zh: '证据与实验' },
+  bodyPlaceholder: { en: 'Write a research note, or use Insert to add data and evidence.', zh: '写下研究记录，或通过“插入”添加数据与证据。' },
+
   ipynbDocument: { en: 'Jupyter notebook', zh: 'Jupyter 笔记本' },
   mystProject: { en: 'MyST project', zh: 'MyST 项目' },
   mystDocument: { en: 'MyST document', zh: 'MyST 文档' },
@@ -33,8 +37,8 @@ export const messages = {
   moreTools: { en: 'More tools', zh: '更多工具' },
   documentActions: { en: 'Replace or restore document', zh: '替换或恢复文档' },
   hideMoreTools: { en: 'Hide more tools', zh: '收起更多工具' },
-  notebookHome: { en: 'Notebook home', zh: '笔记主页' },
-  notebookHomeTitle: { en: 'Notebook home and provenance', zh: '笔记主页与来源' },
+  notebookHome: { en: 'Properties', zh: '属性' },
+  notebookHomeTitle: { en: 'Notebook properties', zh: '笔记属性' },
   printOptions: { en: 'Print options', zh: '打印设置' },
   closePrintOptions: { en: 'Close print options', zh: '关闭打印设置' },
   printPaper: { en: 'Paper', zh: '纸张' },
@@ -192,7 +196,7 @@ export const messages = {
   start: { en: 'Record a method, organize observations, or write a finding with its evidence.', zh: '记录方法、整理观测数据，或为研究发现附上证据。' },
   refresh: { en: 'Refresh', zh: '刷新' },
   retry: { en: 'Retry', zh: '重试' },
-  save: { en: 'Save revision', zh: '保存修订' },
+  save: { en: 'Save revision', zh: '保存新修订' },
   savedRevision: { en: 'Revision saved', zh: '修订保存于' },
   worksheetTools: { en: 'Worksheet tools', zh: '工作表工具' },
   editReference: { en: 'Edit reference', zh: '编辑引用' },

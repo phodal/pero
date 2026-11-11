@@ -405,7 +405,7 @@ function Notebook() {
               const local = drafts[entry.id];
               return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
-                meta={local?.dirty ? t('unsaved') : t('revision', { number: entry.revision })}
+                meta={local?.dirty ? t(local.storageError ? 'draftNotStored' : local.durable ? 'draftStored' : 'draftStoring') : t('revision', { number: entry.revision })}
                 trailing={<DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>
@@ -473,10 +473,11 @@ function Notebook() {
                     } catch (cause) { setError(messageOf(cause)); }
                   },
                   restoreDisabled: !!busy || current.newer,
+                  propertyTools: <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
+                      onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />,
                   fileTools: <>
                     {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
-                    <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
-                      onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />
+
                     <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && current.dirty} />
                     <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={current.dirty} readonly={!!snapshot || !!busy}
                       onCommitted={entry => { adopt(readEntry(entry)); updateList(entry); }} />

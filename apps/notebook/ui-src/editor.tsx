@@ -105,7 +105,22 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       insertBlocks(editor, [{ type: 'section', attrs: { label: '', date: '' }, content: [{ type: 'paragraph' }] }]);
       closeMenu();
     }}>{t('section')}</Button>
+    <p className="notebook-menu-label">{t('insertData')}</p>
     {widgetButton('spreadsheet')}
+    {widgetButton('inputTable')}
+    <FilePicker compact label={t('attachment')} title={contentT('attachmentFileLimit')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
+      setImporting(true); setError('');
+      void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
+        .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
+    }} />
+    <p className="notebook-menu-label">{t('insertEvidence')}</p>
+    {widgetButton('appCanvas')}
+    {widgetButton('evidence')}
+    {widgetButton('experiment')}
+    {widgetButton('finding')}
+    <details className="notebook-submenu">
+      <summary tabIndex={0}>{t('moreBlocks')}</summary>
+      {['sampleIntake', 'mixturePrep', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
     <details className="notebook-submenu">
       <summary tabIndex={0}>{t('wellPlate')}</summary>
       {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <Button variant="ghost" role="menuitem" key={rows} onClick={event => {
@@ -114,20 +129,8 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
         closeMenu();
       }}>{t('plateGeometry', { wells: rows * columns, rows, columns })}</Button>)}
     </details>
-    <FilePicker compact label={t('attachment')} title={contentT('attachmentFileLimit')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
-      setImporting(true); setError('');
-      void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
-        .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
-    }} />
-    {widgetButton('chemical')}
-    {widgetButton('reactionScheme')}
-    <div className="notebook-menu-rule" role="separator" />
-    {widgetButton('evidence')}
-    {widgetButton('experiment')}
-    {widgetButton('finding')}
-    <details className="notebook-submenu">
-      <summary tabIndex={0}>{t('moreBlocks')}</summary>
-      {['sourceExcerpt', 'sampleIntake', 'appCanvas', 'mixturePrep', 'inputTable', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
+      {widgetButton('chemical')}
+      {widgetButton('reactionScheme')}
       <p className="notebook-menu-label">{t('insertDocument')}</p>
       {widgetButton('mystDocument')}
       {widgetButton('ipynbDocument')}
@@ -141,7 +144,6 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
       <p className="notebook-menu-label">{t('insertLibrary')}</p>
       <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
       <NotebookSavedSearchTools editor={editor} />
       <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
     </details>
@@ -169,7 +171,7 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
     content: protection.errors.length ? { type: 'doc', content: [{ type: 'paragraph' }] } : protection.content,
     editable: !readonly && protection.errors.length === 0,
     editorProps: {
-      attributes: { 'aria-label': t('body'), 'aria-multiline': 'true', role: 'textbox', class: 'notebook-prose' },
+      attributes: { 'aria-label': t('body'), 'aria-multiline': 'true', role: 'textbox', class: 'notebook-prose', 'data-placeholder': t('bodyPlaceholder') },
       handleDOMEvents: {
         focus(view, event) {
           if (event.target === view.dom && editor) rememberWidgetFocus(editor);
@@ -212,9 +214,9 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={editorReadonly} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={editorReadonly ? undefined : onReplaceDocument} chrome={protection.errors.length ? { ...chrome, status: chrome?.status ?? '', saveDisabled: true, restoreDisabled: true, retainedContent: entryDocument.content } : chrome} historyControls={historyControls}
         tools={!editorReadonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
-        insertTools={<NotebookMenu name={t('insertWord')} menu="insert" caret triggerClassName="notebook-insert-trigger">
+        insertTools={<><NotebookMenu name={t('insertWord')} menu="insert" caret triggerClassName="notebook-insert-trigger">
           {close => <NotebookInsertTools closeMenu={close} editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />}
-        </NotebookMenu>} />}
+        </NotebookMenu><NotebookTemplateTools editor={editor} document={entryDocument} onCreateEntry={onCreateEntry} /></>} />}
       helpTools={<>
         <NotebookCommandTools entryId={entryId} readonly={editorReadonly} handlers={{ save: editorReadonly ? undefined : onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
@@ -224,6 +226,6 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
         }} />
         {!editorReadonly && <NotebookEditorDiagnostics editor={editor} />}
       </>}>
-      <NotebookSurface editor={editor} readonly={editorReadonly}><EditorContent className="notebook-editor" editor={editor} /></NotebookSurface>
+      <NotebookSurface editor={editor} readonly={editorReadonly}><EditorContent className="notebook-editor" data-empty={editor.isEmpty || undefined} editor={editor} /></NotebookSurface>
     </NotebookWorkspace></NotebookContextProvider>;
 }
