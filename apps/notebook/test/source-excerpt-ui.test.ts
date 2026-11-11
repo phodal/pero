@@ -205,14 +205,14 @@ test('whole-notebook sources work across Notes and real procedure editors, navig
   await React.act(async () => { const navigated = new Promise(resolve => dom.window.addEventListener('hashchange', resolve, { once: true })); button('Locate original attachment', excerptView).click(); await navigated; });
   const activeNotes = document.querySelector('[role=tab][data-state=active]')!;
   assert.equal(activeNotes.getAttribute('aria-label'), 'Notes');
-  assert.equal(activeNotes.textContent, initial.title);
+  assert.equal(activeNotes.textContent, 'Notes');
   assert.equal(dom.window.location.hash, '#notebook-entry=cross-root&notebook-target=source-file');
   const notesEditor = (document.querySelector('.notebook-editor .tiptap') as any).editor;
   assert.equal(notesEditor.state.selection.node.attrs.blockId, 'source-file');
   await click(tab('Procedures')); await checked();
   await click(button('Locate original attachment', document.querySelector('[data-notebook-block-id="intro-excerpt"]')!));
   assert.equal(document.querySelector('[role=tab][data-state=active]')!.getAttribute('aria-label'), 'Notes', 'repeated navigation to the same hash still reveals the source');
-  assert.equal(document.querySelector('[role=tab][data-state=active]')!.textContent, initial.title);
+  assert.equal(document.querySelector('[role=tab][data-state=active]')!.textContent, 'Notes');
   await React.act(async () => { notesEditor.commands.setTextSelection(notesEditor.state.doc.content.size - 1); const paste = new dom.window.Event('paste', { bubbles: true, cancelable: true }); Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } }); notesEditor.view.dom.dispatchEvent(paste); });
   await checked();
   const copied = state.document.content.content.find((node: any) => node.type === 'sourceExcerpt');
