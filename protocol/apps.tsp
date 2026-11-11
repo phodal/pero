@@ -198,7 +198,8 @@ model LocalEnvironmentBind { operation:"bind";id:AppName;...AppClosed; }
 model LocalEnvironmentCreateLockedControl { operation:"create_locked_control";label:string;...AppClosed; }
 model LocalEnvironmentRebuild { operation:"rebuild";id:AppName;label:string;...AppClosed; }
 model LocalEnvironmentBindCompute { operation:"bind_compute";id:AppName;...AppClosed; }
-@oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind,LocalEnvironmentCreateLockedControl,LocalEnvironmentRebuild,LocalEnvironmentBindCompute }
+model LocalEnvironmentUnbindCompute { operation:"unbind_compute";...AppClosed; }
+@oneOf union LocalEnvironmentOperation { LocalEnvironmentCreate,LocalEnvironmentList,LocalEnvironmentPrepare,LocalEnvironmentBind,LocalEnvironmentCreateLockedControl,LocalEnvironmentRebuild,LocalEnvironmentBindCompute,LocalEnvironmentUnbindCompute }
 model ComputePackages is Record<string>;
 model PythonComputeObservation { version:string;build:string;platform:string;machine:string;executable_sha256:string;packages:ComputePackages;packages_sha256:string;...AppClosed; }
 model LockedPythonProfile { root:string;project_sha256:string;lock_sha256:string;python_request:string;python_archive_url:string;python_archive_sha256:string;uv_version:string;uv_sha256:string;observation:PythonComputeObservation;...AppClosed; }

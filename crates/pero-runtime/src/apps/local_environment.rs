@@ -87,6 +87,8 @@ pub enum Request {
     BindCompute {
         id: AppName,
     },
+    #[serde(rename = "unbind_compute")]
+    UnbindCompute,
     Create {
         target: ScientificMethod,
         label: EnvironmentLabel,
@@ -125,6 +127,7 @@ impl AppStore {
                 | Request::CreateLockedControl { .. }
                 | Request::Rebuild { .. }
                 | Request::BindCompute { .. }
+                | Request::UnbindCompute
         );
         match request {
             Request::List { .. } => {}
@@ -174,6 +177,14 @@ impl AppStore {
                 value.error = None;
                 value.bound = false;
                 save_environment(&self.environment_root(), &value)?;
+            }
+            Request::UnbindCompute => {
+                let binding = self.data.join("control-lab/.compute/binding.json");
+                match fs::remove_file(binding) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error.to_string()),
+                }
             }
             Request::BindCompute { id } => {
                 let value = self.environment_record(&id)?;

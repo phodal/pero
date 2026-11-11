@@ -169,7 +169,8 @@ export type LocalEnvironmentOperation =
   | LocalEnvironmentBind
   | LocalEnvironmentCreateLockedControl
   | LocalEnvironmentRebuild
-  | LocalEnvironmentBindCompute;
+  | LocalEnvironmentBindCompute
+  | LocalEnvironmentUnbindCompute;
 export type AgentRunRequest =
   | AgentRunPrepare
   | AgentRunTerminal
@@ -1940,6 +1941,9 @@ export interface LocalEnvironmentRebuild {
 export interface LocalEnvironmentBindCompute {
   operation: "bind_compute";
   id: AppName;
+}
+export interface LocalEnvironmentUnbindCompute {
+  operation: "unbind_compute";
 }
 /**
  * Software observations only; does not allocate or approve scientific execution.

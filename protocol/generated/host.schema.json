@@ -9878,6 +9878,9 @@
         },
         {
           "$ref": "#/$defs/LocalEnvironmentBindCompute"
+        },
+        {
+          "$ref": "#/$defs/LocalEnvironmentUnbindCompute"
         }
       ]
     },
@@ -10019,6 +10022,20 @@
         "log",
         "error",
         "bound"
+      ],
+      "additionalProperties": false
+    },
+    "LocalEnvironmentUnbindCompute": {
+      "title": "LocalEnvironmentUnbindCompute",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "unbind_compute"
+        }
+      },
+      "required": [
+        "operation"
       ],
       "additionalProperties": false
     },

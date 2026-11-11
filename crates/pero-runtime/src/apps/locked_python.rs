@@ -8,7 +8,7 @@ const PYTHON: &str = "3.12.14"; // uv 0.12.20's fixed python-build-standalone ta
 pub(super) fn verify(profile: &LockedPythonProfile, app: &Path) -> Result<(), String> {
     profile
         .require(&observe(&profile.root, app)?)
-        .map_err(|e| e.to_string())
+        .map_err(|_| "Compute environment changed; rebuild a new profile, then select it and create a new experiment".into())
 }
 
 fn observe(root: &Path, app: &Path) -> Result<PythonObservation, String> {
