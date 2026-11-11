@@ -1,6 +1,7 @@
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir,mkdtemp,rename,rm,rmdir} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,rename,rm,rmdir} from 'node:fs/promises';
+import {request} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {App} from '@modelcontextprotocol/ext-apps';
@@ -50,6 +51,68 @@ test('overlapping server saves both survive reload', async t => {
   await Promise.all([save('a', 'First'), save('b', 'Second')]);
   const entries = (await reload()).map(({id, title}) => [id, title]);
   assert.deepEqual(Object.fromEntries(entries), {a:'First', b:'Second'});
+});
+
+test('panel request bytes preserve Unicode and enforce the body limit', async t => {
+  const title = '数值实验🧪';
+  const command = Buffer.from(JSON.stringify({
+    action:'configure',
+    config:{id:'unicode', title, transport:'http', url:'http://example.invalid', header_env:{}},
+  }));
+  for (const scenario of [
+    {name:'complete request'},
+    {name:'split after first Chinese byte', character:'数'},
+    {name:'split after first emoji byte', character:'🧪'},
+    {name:'exact byte limit', size:16_000_000},
+    {name:'one byte over limit', size:16_000_001},
+  ]) await t.test(scenario.name, async t => {
+    const home = await mkdtemp(join(tmpdir(), 'pero-mcp-body-'));
+    const file = join(home, 'servers.json');
+    const host = new McpHost(file, home);
+    t.after(async () => { await host.close(); await rm(home, {recursive:true, force:true}); });
+    await host.start();
+    const panel = new URL(host.open('unicode-test'));
+    // JSON whitespace lets the same valid command exercise the exact wire-byte boundary.
+    const body = scenario.size ? Buffer.alloc(scenario.size, ' ') : Buffer.from(command);
+    command.copy(body);
+    const split = scenario.character ? body.indexOf(Buffer.from(scenario.character)) + 1 : 0;
+    let firstReadBytes = 0;
+    const result = await new Promise<{status:number|undefined; text:string}>((resolve, reject) => {
+      const req = request(new URL('/api', panel), {
+        method:'POST',
+        headers:{Origin:panel.origin, Authorization:`Bearer ${panel.searchParams.get('token')}`,
+          'Content-Type':'application/json', 'Content-Length':body.length},
+      }, res => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => { text += chunk; });
+        res.on('end', () => resolve({status:res.statusCode, text}));
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(5000, () => req.destroy(new Error('Panel request timed out')));
+      t.after(() => req.destroy());
+      if (split) {
+        // Observe the real server read before sending the rest; TCP cannot coalesce the split.
+        host['panel']!.once('request', incoming => incoming.once('data', chunk => {
+          firstReadBytes = chunk.length;
+          req.end(body.subarray(split));
+        }));
+        req.write(body.subarray(0, split));
+      } else req.end(body);
+    });
+    assert.equal(firstReadBytes, split);
+    if (scenario.size === 16_000_001) {
+      assert.equal(result.status, 400);
+      assert.deepEqual(JSON.parse(result.text), {error:'MCP source request exceeds limit'});
+      assert.deepEqual(host.sources.list(), []);
+      await assert.rejects(readFile(file), {code:'ENOENT'});
+    } else {
+      assert.equal(result.status, 200);
+      assert.equal(JSON.parse(result.text)[0].title, title);
+      assert.equal(JSON.parse(await readFile(file, 'utf8'))[0].title, title);
+    }
+  });
 });
 
 test('real MCP transport, scoped resource, official App handshake and interactive tools close together',async()=>{

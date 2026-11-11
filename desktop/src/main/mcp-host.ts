@@ -62,7 +62,13 @@ export class McpHost {
     }
     const token=request.headers.authorization?.replace(/^Bearer /,'')||'';
     if(request.method!=='POST'||url.pathname!=='/api'||!this.panels.has(token)||request.headers.origin!==this.origin)throw new Error('MCP source request is unavailable');
-    let body='';for await(const chunk of request){body+=chunk;if(Buffer.byteLength(body)>16_000_000)throw new Error('MCP source request exceeds limit');}
+    const chunks:Buffer[]=[];let bytes=0;
+    for await(const chunk of request){
+      bytes+=chunk.length;
+      if(bytes>16_000_000)throw new Error('MCP source request exceeds limit');
+      chunks.push(chunk);
+    }
+    const body=Buffer.concat(chunks,bytes).toString('utf8');
     const command=McpPanelCommandSchema.parse(JSON.parse(body));
     const thread=this.panels.get(token);
     if(command.action==='execute'&&command.thread_id!==thread)throw new Error('This conversation is outside the MCP panel binding');
