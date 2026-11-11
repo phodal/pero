@@ -219,11 +219,12 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await page.getByRole('button', { name: 'Print publication / Save as PDF', exact: true }).click();
   const print = page.locator('.notebook-print-output[data-publication="myst"]');
   await expect(print.locator('math')).toHaveCount(2);
-  await expectScientificText(print);
   await expect(print.locator('textarea, iframe, .source')).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Print', exact: true }).click();
   assert.equal(await page.evaluate(() => globalThis.publicationPrintInvoked), true);
   await page.emulateMedia({ media: 'print' });
+  // The publication-only surface is intentionally hidden in screen media.
+  await expectScientificText(print);
   const paperStyles = await page.evaluate(() => [document.documentElement, document.body].map(node => { const style = getComputedStyle(node); return { background: style.backgroundColor, minHeight: style.minHeight, overflow: style.overflow }; }));
   for (const style of paperStyles) assert.deepEqual(style, { background: 'rgb(255, 255, 255)', minHeight: '0px', overflow: 'visible' });
   await print.screenshot({ path: resolve(output, 'myst-publication-print.png') });

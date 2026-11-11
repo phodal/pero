@@ -66,6 +66,13 @@ misassigning a second description as the next term. Both defects are repaired: r
 parity work and do not require a new owner or persistence path.
 
 
+The extended browser fixture on `fc1828de` passed preview/reload/HTML checks but
+asserted print visibility before switching to print media. CI run 43081818190
+correctly reported the intentionally screen-hidden publication surface. The
+visibility check now follows `emulateMedia(print)`; all content, destination and
+real PDF assertions remain required. This is a test-stage correction, not a
+change to publication CSS or removal of the visibility requirement.
+
 This report supports the user's subsequent request to fill in MyST capabilities.
 It extends PR head `d65e798c740d49ceb3132c853e54304c4f1adf57`; it does not close
 the broader #195 roadmap or claim full MyST compatibility. The
