@@ -13,6 +13,9 @@ if (cachedBindgen.status !== 0 || cachedBindgen.stdout?.trim() !== `wasm-bindgen
   await run('cargo', ['install', 'wasm-bindgen-cli', '--version', bindgenVersion, '--locked', '--force', '--root', `${root}/target/tools`]);
 }
 await ensureGpuiLock();
+// Notebook Canvas installs stable only. Cargo can auto-install this nightly
+// without its Wasm standard library, so the target has to be requested here.
+await run('rustup', ['target', 'add', '--toolchain', 'nightly-2026-10-28', 'wasm32-unknown-unknown']);
 const chatOnly = process.argv.includes('--chat-only');
 const readerOnly = process.argv.includes('--reader-only');
 for (const [pkg, artifact, folder] of [

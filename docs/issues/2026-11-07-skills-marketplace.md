@@ -9,6 +9,23 @@ github_url: https://github.com/phodal/pero/issues/156
 
 # Skills 市场：发现、安装与按需使用
 
+## PR #193 CI 恢复（2026-11-11）
+
+[run 42846552882](https://github.com/phodal/pero/actions/runs/42846552882)
+的 Notebook Canvas 构建通过 Cargo 自动准备 nightly，却未安装该工具链的
+`wasm32-unknown-unknown` 标准库，因此报 E0463。复用 #194 的独立构建修复
+`3b994b29`，由 Wasm 构建入口显式安装目标；不复制科学会话功能，也不依赖先合并 #194。
+五项构建脚本回归通过。
+
+同一旧 run 的 Notebook 浏览器用例在点击表格块菜单时超时，日志记录了状态栏和
+滚动容器拦截点击。后续验证同时检查 PR 与当前 master 的合并树，保留真实点击与
+原有断言。本地合并树的三项 Chromium 浏览器测试均通过，远端该浏览器步骤也通过。
+
+新一轮 [run 42936600337](https://github.com/phodal/pero/actions/runs/42936600337)
+进一步暴露两处旧的编辑器断言：主线视图菜单已显示 `Notes`，但跨编辑器定位测试仍
+要求菜单显示文档标题。修正测试，使视图名仍为 `Notes`，并在文档标题输入框检查
+标题保留；定位目标、草稿内容及只读检查均保留。这不改变 #156 的真实模型验收缺口。
+
 研究者需要按实际任务发现 skill，核查来源和条件，安装后在普通聊天中选择使用，并能管理更新、回退、停用和移除。市场不能把“目录已解析”展示成“科研运行已验证”。本记录是 [上游 #156](https://github.com/phodal/pero/issues/156) 的本地活动记录。
 
 ## 已处理问题
@@ -27,4 +44,4 @@ github_url: https://github.com/phodal/pero/issues/156
 
 JSON、中文索引和截图已获用户明确授权纳入本次 PR。2026-11-09 将市场改动从旧的混合工作区移植到最新上游 `f0b8065eb300d4be0e5c5f89655d9fe3350fd995`，独立分支只提交市场相关内容，保留原工作区其他修改。
 
-[实施边界](../exec-plans/2026-11-07-skills-marketplace.md)与[验证记录](../fitness/skills-marketplace.md)维护完整命令和证据。Native、签名安装包、真实付费模型与科研方法结果尚未验收，#156 保持开放，PR 使用 `Refs #156`。
+[实施边界](../exec-plans/2026-11-07-skills-marketplace.md)与[验证记录](../fitness/skills-marketplace.md)维护完整命令和证据。签名安装包和科研结论认证不在 #156 原文验收里。2026-11-10 已补上深色/窄窗现场截图和第 9 条权限回归。显式 opt-in 真实模型仍未跑，#156 保持开放。
