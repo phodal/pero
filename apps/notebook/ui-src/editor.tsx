@@ -185,6 +185,7 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
   const { t } = useAppI18n(messages);
   const documentRef = useRef(entryDocument); documentRef.current = entryDocument;
   const protection = protectUnknownNodes(content);
+  const editorReadonly = readonly || protection.errors.length > 0;
   const blockedRef = useRef(protection.errors.length > 0);
   blockedRef.current = protection.errors.length > 0;
   const editor = useEditor({
@@ -228,24 +229,24 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     editor.view.dispatch(editor.state.tr.setSelection(restored));
   }, [editor, content, readonly]);
   if (!editor) return null;
-  return <NotebookContextProvider value={{ entryId, revision, readonly, dirty, document: entryDocument,
+  return <NotebookContextProvider value={{ entryId, revision, readonly: editorReadonly, dirty, document: entryDocument,
     getDocument: () => blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] } }}>
     {protection.errors.length > 0 && <Feedback kind="error">{t('documentBlocked')} {protection.errors[0]}</Feedback>}
-    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly || protection.errors.length > 0} onChange={change => onDocumentChange?.(change)}
-      onReplaceDocument={readonly || protection.errors.length ? undefined : onReplaceDocument} chrome={chrome ? { ...chrome, retainedContent: protection.errors.length ? entryDocument.content : undefined } : chrome} historyControls={historyControls}
-        tools={!readonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
+    <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={editorReadonly} onChange={change => onDocumentChange?.(change)}
+      onReplaceDocument={editorReadonly ? undefined : onReplaceDocument} chrome={protection.errors.length ? { ...chrome, status: chrome?.status ?? '', saveDisabled: true, restoreDisabled: true, retainedContent: entryDocument.content } : chrome} historyControls={historyControls}
+        tools={!editorReadonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
         insertTools={<InsertMenu name={t('insertWord')}>
           <NotebookInsertTools editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />
         </InsertMenu>} />}
       helpTools={<>
-        <NotebookCommandTools entryId={entryId} readonly={readonly || protection.errors.length > 0} handlers={{ save: onSave,
+        <NotebookCommandTools entryId={entryId} readonly={editorReadonly} handlers={{ save: editorReadonly ? undefined : onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
           print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
-          ...(!readonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
+          ...(!editorReadonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
             symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),
         }} />
-        {!readonly && <NotebookEditorDiagnostics editor={editor} />}
+        {!editorReadonly && <NotebookEditorDiagnostics editor={editor} />}
       </>}>
-      <NotebookSurface editor={editor} readonly={readonly}><EditorContent className="notebook-editor" editor={editor} /></NotebookSurface>
+      <NotebookSurface editor={editor} readonly={editorReadonly}><EditorContent className="notebook-editor" editor={editor} /></NotebookSurface>
     </NotebookWorkspace></NotebookContextProvider>;
 }

@@ -24,6 +24,7 @@ export type StoredReferenceProposal = {
   blockId: string;
   label: string;
   source: ScientificReference;
+  baseRevision: number;
   revision: number;
 };
 

@@ -135,3 +135,89 @@ test('cutting and pasting a retained block keeps its payload through the editor 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).content.content[0].attrs.payload.attrs.reading, 'kept exactly');
 });
+
+test('blocked notebooks hide mutation controls and retain read-only tools', async t => {
+  t.after(() => React.act(() => (document.querySelector('.tiptap') as HTMLElement & { editor?: { destroy(): void } })?.editor?.destroy()));
+  const { React, ui, render } = await createUiRuntime(t, {
+    resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)),
+    contents: `export { NotebookEditor } from './editor'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';`,
+  });
+  const host = ui.createAppHost({ name: 'notebook', locale: 'en', allowedApiPaths: ['/api'], fetch: async () => new Response('{}') });
+  const content = { type: 'doc', content: [{ type: 'instrumentReading', attrs: { blob: 'x'.repeat(70_000) } }] };
+  assert.ok(protectUnknownNodes(content).errors.length);
+  await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
+    entryId: 'blocked', revision: 1, content, chrome: { status: 'Blocked', onSave: () => assert.fail('blocked save') }, document: { schemaVersion: 1, title: 'Blocked notebook', content },
+    historyControls: { canUndo: true, canRedo: true, undo: () => assert.fail('blocked undo'), redo: () => assert.fail('blocked redo') },
+  })));
+  assert.match(document.body.textContent ?? '', /This notebook was not opened/);
+  assert.equal(document.querySelector('.notebook-commandbar'), null);
+  assert.equal(document.querySelector('.notebook-editor-surface'), null);
+  assert.equal(document.querySelector<HTMLButtonElement>('.notebook-save')?.disabled, true);
+  assert.equal(document.querySelector('.notebook-title input, input.notebook-title'), null);
+  assert.equal(document.querySelector('.notebook-prose')?.getAttribute('contenteditable'), 'false');
+  const buttons = [...document.querySelectorAll('button')].map(button => button.textContent?.trim());
+  assert.ok(buttons.includes('Keyboard shortcuts'));
+  assert.ok(buttons.includes('Export current JSON'));
+  assert.ok(!buttons.includes('Document actions'));
+});
+
+test('reference reviews prefer current proposals, clear reviewed controls and ignore old loads', async t => {
+  t.after(() => React.act(() => (document.querySelector('.tiptap') as HTMLElement & { editor?: { destroy(): void } })?.editor?.destroy()));
+  const { React, ui, render, click } = await createUiRuntime(t, {
+    resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)),
+    contents: `
+      import { useEditor, EditorContent } from '@tiptap/react';
+      import { notebookExtensions } from './editor-extensions';
+      import { NotebookContextProvider } from './notebook-context';
+      export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+      export function Fixture({ context, content }) {
+        const editor = useEditor({ extensions: notebookExtensions, content });
+        return <NotebookContextProvider value={context}><EditorContent editor={editor} /></NotebookContextProvider>;
+      }
+    `,
+  });
+  const source = { app: 'control-lab', kind: 'verification-report', id: experiment, version: report, locator: '' };
+  const proposal = (proposalId: string, baseRevision: number) => ({ proposalId, baseRevision, blockId: 'block-1', decision: 'pending', label: proposalId, source, revision: baseRevision });
+  let loads = 0;
+  const reviews: { proposalId: string; decision: string }[] = [];
+  let resolveOld: ((value: Response) => void) | undefined;
+  const response = (proposals: unknown[]) => new Response(JSON.stringify({ proposals }));
+  const host = ui.createAppHost({ name: 'notebook', locale: 'en', allowedApiPaths: ['/api'], fetch: async (path: string, init: RequestInit) => {
+    if (init.method === 'POST') {
+      const review = JSON.parse(init.body as string); reviews.push(review);
+      return new Response(JSON.stringify({ entry: { id: 'entry', revision: 3 }, proposal: { decision: review.decision, revision: 3 } }));
+    }
+    loads++;
+    if (path.includes('/old/')) return new Promise<Response>(resolve => { resolveOld = resolve; });
+    return response([proposal('stale', 1), proposal('current', 2), proposal('next', 2)]);
+  } });
+  const content = { type: 'doc', content: [{ type: 'evidence', attrs: { blockId: 'block-1', label: 'Receipt', source, snapshot: null } }] };
+  const mount = (entryId = 'entry', dirty = false) => render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
+    content, context: { entryId, revision: 2, readonly: false, dirty, document: { schemaVersion: 1, title: 'Review', content }, getDocument: () => ({ content }) },
+  })));
+  const button = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === name);
+  await mount();
+  assert.match(document.body.textContent ?? '', /Proposal wording: current/);
+  const initialLoads = loads;
+  await mount('entry', true);
+  await mount();
+  assert.equal(loads, initialLoads, 'new context objects must not refetch proposals');
+  await click(button('Reject proposal'));
+  assert.match(document.body.textContent ?? '', /Rejected. This revision was not changed./);
+  assert.match(document.body.textContent ?? '', /Proposal wording: next/);
+  await click(button('Accept proposal'));
+  assert.match(document.body.textContent ?? '', /Accepted as revision 3/);
+  assert.match(document.body.textContent ?? '', /Proposal wording: stale/);
+  assert.equal(button('Accept proposal')?.disabled, true);
+  await click(button('Reject proposal'));
+  assert.equal(button('Accept proposal'), undefined);
+  assert.match(document.body.textContent ?? '', /Rejected. This revision was not changed./);
+  assert.deepEqual(reviews.map(value => [value.proposalId, value.decision]), [['current', 'reject'], ['next', 'accept'], ['stale', 'reject']]);
+  await mount('old');
+  assert.ok(resolveOld);
+  await mount('new');
+  assert.match(document.body.textContent ?? '', /Proposal wording: current/);
+  await React.act(async () => resolveOld!(response([proposal('wrong-entry', 2)])));
+  assert.doesNotMatch(document.body.textContent ?? '', /wrong-entry/);
+  assert.match(document.body.textContent ?? '', /Proposal wording: current/);
+});

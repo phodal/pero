@@ -241,6 +241,7 @@ export const messages = {
   rejectProposal: { en: 'Reject proposal', zh: '拒绝提案' },
   proposalAccepted: { en: 'Accepted as revision {revision}. The previous revision is unchanged.', zh: '已接受为版本 {revision}。上一版本保持不变。' },
   proposalRejected: { en: 'Rejected. This revision was not changed.', zh: '已拒绝。当前版本没有改动。' },
+  proposalStale: { en: 'This proposal is based on a different revision. Reject it or request a new proposal for the current revision.', zh: '此提案基于其他版本。请拒绝它，或为当前版本请求新提案。' },
   proposalDirty: { en: 'Save or discard the open draft before reviewing a proposal.', zh: '审查提案前请先保存或放弃当前草稿。' },
   noteCard: { en: 'Note card', zh: '笔记卡片' },
   retainedBlock: { en: 'Unsupported block', zh: '暂不支持的块' },
