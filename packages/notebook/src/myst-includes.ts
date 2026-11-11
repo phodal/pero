@@ -1,4 +1,4 @@
-import { parseMystSource, type MystDiagnostic, type MystNode, type MystParsedDocument } from './myst.ts';
+import { MYST_SOURCE_MAX_BYTES, parseMystSource, type MystDiagnostic, type MystNode, type MystParsedDocument } from './myst.ts';
 import { resolveMystResource, type MystProjectSnapshot } from './myst-project-snapshot.ts';
 
 export interface MystIncludeProvenance { path: string; lines: number[]; stack: string[] }
@@ -94,6 +94,7 @@ export function expandMystIncludes(snapshot: MystProjectSnapshot, path: string, 
     if (node.name === 'literalinclude' || 'literal' in opts || ['lang', 'language', 'code'].some(key => key in opts)) children = [{ type: 'code', value: selected.text, lang: opts.lang ?? opts.language ?? opts.code }];
     else {
       if (/\.(?:ipynb|tex)$/i.test(resolution.path)) { report('include-format-unsupported', 'Parsed notebook/TeX includes are not supported. Use a project page link or literalinclude; source is retained.'); return node; }
+      if (new TextEncoder().encode(selected.text).length > MYST_SOURCE_MAX_BYTES) { report('include-parser-budget', 'Parsed include selection exceeds 256 KiB; directive source is retained.'); return node; }
       const included = parseMystSource(selected.text);
       diagnostics.push(...included.diagnostics.filter(item => item.code !== 'directive-disabled' || !/Directive (include|literalinclude) /.test(item.message)).map(item => ({ ...item, path: resolution.path, line: item.line ? selected.lines[item.line - 1] : undefined })));
       if (included.metadata.math || included.metadata.abbreviations) report('include-frontmatter-unsupported', 'Included math macros and abbreviations are preserved but not inherited.');

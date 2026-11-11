@@ -38,3 +38,15 @@ test('unsupported directive bodies and parsed notebook includes remain visible',
   for(const code of ['include-body-unsupported','include-format-unsupported']) assert.ok(result.diagnostics.some(d=>d.code===code));
   assert.match(renderMystHtml(result.entry.document),/Body/);
 });
+
+test('repeated line selection above parser limit retains directive without aborting other blocks',()=>{
+ const source='Before.\n\n```{include} big.txt\n:lines: 1,1\n```\n\nAfter.\n\n```{include} small.txt\n```';
+ const snapshot=project({'main.md':source,'big.txt':'x'.repeat(150000),'small.txt':'Unaffected include.'});
+ const before=exportMystProjectSnapshot(snapshot);
+ const result=compileMystProject(snapshot);
+ assert.ok(result.diagnostics.some(d=>d.code==='include-parser-budget'));
+ if(result.entry.kind!=='myst')throw Error('Expected Markdown');
+ const html=renderMystHtml(result.entry.document);
+ for(const text of ['Before.','After.','Unaffected include.',':lines: 1,1','big.txt'])assert.ok(html.includes(text),text);
+ assert.equal(exportMystProjectSnapshot(snapshot),before);
+});
