@@ -1,3 +1,4 @@
+import '@pero/notebook/myst-project-snapshot';
 import '@pero/notebook/myst';
 import { parseNamedReference } from '@pero/notebook/named-reference';
 import { isSourceExcerptAttributes } from '@pero/notebook/source-excerpt';
