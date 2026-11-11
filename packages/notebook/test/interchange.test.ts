@@ -108,6 +108,37 @@ test("sheets and structured tables are not flattened into rich-text cells or rec
   assert.equal((projected.canonical.content?.[0].attrs?.sheet as { cells: { A1: string } }).cells.A1, "=SUM(A1)");
 });
 
+test("a known document type with a future schema stays opaque, unlike a version-1 block or an unknown type", () => {
+  const detail = { samples: [{ id: "sample-kept", note: null }] };
+  const future: NotebookNode = { type: "noteCard", attrs: { blockId: "note-future", schemaVersion: 2, text: { rich: true }, detail } };
+  const current: NotebookNode = { type: "noteCard", attrs: { blockId: "note-1", schemaVersion: 1, text: "Keep this note" } };
+  const unknown: NotebookNode = { type: "instrumentReading", attrs: { blockId: "inst-1", schemaVersion: 2, detail } };
+  const protectedDocument = protectUnknownNodes(doc([future, current, unknown]));
+  assert.equal(protectedDocument.errors.length, 0);
+  const [futureNode, currentNode, unknownNode] = protectedDocument.content.content ?? [];
+  assert.equal(futureNode?.type, "retainedBlock");
+  assert.equal(futureNode?.attrs?.originalType, "noteCard");
+  assert.deepEqual(futureNode?.attrs?.payload, future);
+  assert.equal(currentNode?.type, "noteCard");
+  assert.equal(currentNode?.attrs?.text, "Keep this note");
+  assert.equal(unknownNode?.type, "retainedBlock");
+  assert.equal(unknownNode?.attrs?.originalType, "instrumentReading");
+  assert.equal(persistedBlockTypes.includes("noteCard"), true);
+  assert.equal(persistedBlockTypes.includes("instrumentReading"), false);
+  const stored = projectNotebook(doc([future]));
+  assert.deepEqual(stored.canonical, doc([future]));
+  assert.equal(canReplace(stored, "blockNote"), false);
+  assert.equal(canReplace(stored, "myst"), false);
+  assert.throws(() => restoreBlockNote(stored), /incomplete/);
+  assert.throws(() => restoreMyst(stored), /incomplete/);
+  assert.equal(JSON.stringify(stored.blockNote).includes("sample-kept"), false);
+  const envelope = projectNotebook(doc([futureNode as NotebookNode]));
+  assert.equal(envelope.losses.some(loss => loss.code === "retained-envelope"), true);
+  assert.throws(() => restoreBlockNote(envelope), /incomplete/);
+  assert.throws(() => restoreMyst(envelope), /incomplete/);
+  assert.deepEqual(envelope.canonical.content?.[0].attrs?.payload, future);
+});
+
 test("an unknown block is retained and restored, and a block without an id is refused intact", () => {
   const future: NotebookNode = { type: "instrumentReading", attrs: { blockId: "inst-1", reading: "kept" }, content: [paragraph("raw")] };
   const content = doc([future, paragraph("stays")]);

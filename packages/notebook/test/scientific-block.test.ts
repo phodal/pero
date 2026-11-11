@@ -31,7 +31,17 @@ test("document and reference definitions do not enumerate example types", () => 
   assert.equal(experimentReference.command, "propose_reference");
   assert.equal(defineReferenceBlock("sample").type, "sample");
   assert.throws(() => defineReferenceBlock("bad type"), /type name/);
-  note.validate(contract.noteCard.valid);
+  const current = note.validate(contract.noteCard.valid);
+  assert.equal(current.status, "current");
+  if (current.status === "current") assert.equal(current.attrs.text, "Keep this note");
+  const retained = note.validate({
+    blockId: "note-future", schemaVersion: 2, text: { rich: true }, detail: { samples: [{ id: "sample-kept", note: null }] },
+  });
+  assert.equal(retained.status, "opaque");
+  if (retained.status === "opaque") {
+    assert.deepEqual(retained.attrs.text, { rich: true });
+    assert.deepEqual(retained.attrs.detail, { samples: [{ id: "sample-kept", note: null }] });
+  }
   note.validate(contract.noteCard.retained);
   span.validate(contract.axisSpan.valid);
   span.validate(contract.axisSpan.retained);

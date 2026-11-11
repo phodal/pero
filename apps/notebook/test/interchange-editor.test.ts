@@ -4,6 +4,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createUiRuntime } from '../../../packages/app-sdk/test/ui-test-runtime.mjs';
 import { persistedBlockTypes, protectUnknownNodes } from '../../../packages/notebook/src/interchange.ts';
+import { notebookMarkdown } from '../../../packages/notebook/src/workspace.ts';
+import { isClipboardWidget } from '../ui-src/clipboard-block.ts';
 
 const experiment = 'a'.repeat(32);
 const report = 'b'.repeat(64);
@@ -181,6 +183,91 @@ with tempfile.TemporaryDirectory() as directory:
   await React.act(async () => { editor.commands.setContent(reopened.content); });
   assert.match(document.querySelector('[data-axis-span]')?.textContent ?? '', /2–9 mm/);
   assert.match(document.body.textContent ?? '', /Keep this note/);
+});
+
+test('a future note card stays opaque through the production editor, and an unknown type stays a different envelope', async t => {
+  let editor: any;
+  t.after(() => editor?.destroy());
+  const runtime = await createUiRuntime(t, { resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)), contents: `
+    import { useEditor, EditorContent } from '@tiptap/react';
+    import { notebookExtensions } from './editor-extensions';
+    export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+    export function Fixture({ content, capture }) {
+      const editor = useEditor({ extensions: notebookExtensions, content });
+      capture(editor);
+      return <EditorContent editor={editor} />;
+    }
+  ` });
+  const { React, ui, render } = runtime;
+  const detail = { samples: [{ id: 'sample-kept', note: null }] };
+  const future = { type: 'noteCard', attrs: { blockId: 'note-future', schemaVersion: 2, text: { rich: true }, detail } };
+  const unknown = { type: 'instrumentReading', attrs: { blockId: 'inst-1', schemaVersion: 2, detail } };
+  const protectedContent = protectUnknownNodes({ type: 'doc', content: [future, unknown] });
+  assert.equal(protectedContent.errors.length, 0);
+  assert.equal(protectedContent.content.content[0].attrs.originalType, 'noteCard');
+  assert.equal(protectedContent.content.content[1].attrs.originalType, 'instrumentReading');
+  assert.equal(persistedBlockTypes.includes('noteCard'), true);
+  assert.equal(persistedBlockTypes.includes('instrumentReading'), false);
+  assert.deepEqual(protectedContent.content.content[0].attrs.payload.attrs.text, { rich: true });
+  assert.equal(isClipboardWidget('retainedBlock', { originalType: 'noteCard', payload: future }), true);
+  assert.equal(isClipboardWidget('retainedBlock', {
+    originalType: 'noteCard', payload: { type: 'noteCard', attrs: { blockId: 'note-1', schemaVersion: 1, text: 'Keep this note' } },
+  }), false);
+  const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
+  await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
+    content: protectedContent.content, capture: (value: any) => { editor = value; },
+  })));
+  assert.equal(document.querySelector('[data-original-type="noteCard"]')?.textContent, 'noteCard');
+  assert.equal(document.querySelector('[data-original-type="instrumentReading"]')?.textContent, 'instrumentReading');
+  assert.match(document.body.textContent ?? '', /kept exactly/);
+  assert.equal((document.body.textContent ?? '').includes('sample-kept'), false);
+  const opened = editor.getJSON().content;
+  assert.deepEqual(opened[0].attrs.payload.attrs, future.attrs);
+  assert.notEqual(opened[0].attrs.payload.attrs.text, '');
+  const html = editor.view.serializeForClipboard(editor.state.doc.slice(0)).dom.innerHTML;
+  editor.commands.selectAll();
+  editor.commands.deleteSelection();
+  const paste = new window.Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } });
+  editor.view.dom.dispatchEvent(paste);
+  const pasted = editor.getJSON().content.filter((node: { type: string }) => node.type === 'retainedBlock');
+  const pastedNote = pasted.find((node: { attrs: { originalType: string } }) => node.attrs.originalType === 'noteCard');
+  const pastedUnknown = pasted.find((node: { attrs: { originalType: string } }) => node.attrs.originalType === 'instrumentReading');
+  assert.ok(pastedNote && pastedUnknown, JSON.stringify(editor.getJSON()));
+  assert.notEqual(pastedNote.attrs.blockId, 'note-future');
+  assert.equal(pastedNote.attrs.payload.attrs.blockId, pastedNote.attrs.blockId);
+  assert.deepEqual(pastedNote.attrs.payload.attrs.text, { rich: true });
+  assert.deepEqual(pastedNote.attrs.payload.attrs.detail, detail);
+  assert.equal(pastedNote.attrs.payload.attrs.schemaVersion, 2);
+  assert.equal(pastedUnknown.attrs.payload.attrs.blockId, pastedUnknown.attrs.blockId);
+  assert.deepEqual(pastedUnknown.attrs.payload.attrs.detail, detail);
+  assert.notEqual(pastedUnknown.attrs.blockId, pastedNote.attrs.blockId);
+  const stored = { schemaVersion: 1, title: 'Future', content: editor.getJSON() };
+  const markdown = notebookMarkdown(stored as never);
+  assert.match(markdown, /sample-kept/);
+  assert.match(markdown, /"rich": true/);
+  const script = `
+import json, sys, tempfile
+import scientific_block
+from document import NotebookDocument
+from store import EntryStore
+document = json.load(sys.stdin)
+with tempfile.TemporaryDirectory() as directory:
+    store = EntryStore(directory)
+    created = store.create(NotebookDocument.parse(document))
+    print(store.read(created.identity).document.serialized())
+`;
+  const result = spawnSync('python3', ['-c', script], {
+    cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(stored), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const reopened = JSON.parse(result.stdout);
+  const savedNote = reopened.content.content.find((node: { attrs: { originalType?: string } }) => node.attrs.originalType === 'noteCard');
+  assert.deepEqual(savedNote.attrs.payload.attrs.detail, detail);
+  assert.deepEqual(savedNote.attrs.payload.attrs.text, { rich: true });
+  await React.act(async () => { editor.commands.setContent(reopened.content); });
+  assert.equal(document.querySelector('[data-original-type="noteCard"]')?.textContent, 'noteCard');
+  assert.equal(editor.getJSON().content.find((node: { attrs: { originalType?: string } }) => node.attrs.originalType === 'noteCard').attrs.payload.attrs.schemaVersion, 2);
 });
 
 test('cutting and pasting a retained block keeps its payload through the editor and the document parser', async t => {

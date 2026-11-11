@@ -112,6 +112,19 @@ class ScientificBlockTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'does not accept reference proposals'):
                 proposals.propose(created.identity, 1, ProposeReference('note-proposal', 'note-1', 'unused', SOURCE))
 
+    def test_future_note_card_keeps_fields_the_version_one_editor_does_not_own(self):
+        detail = {'samples': [{'id': 'sample-kept', 'note': None}]}
+        attrs = {'blockId': 'note-future', 'schemaVersion': 2, 'text': {'rich': True}, 'detail': detail}
+        document = {'schemaVersion': 1, 'title': 'Future', 'content': {'type': 'doc', 'content': [
+            {'type': 'noteCard', 'attrs': attrs},
+        ]}}
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            created = store.create(NotebookDocument.parse(document))
+            reopened = store.read(created.identity)
+            self.assertEqual(reopened.document.block('note-future')['attrs'], attrs)
+            self.assertNotEqual(reopened.document.block('note-future')['attrs']['text'], '')
+
     def test_axis_span_persists_without_joining_blocks_and_reopens(self):
         from document_block_fixture import register_axis_span
         from block_registry import unregister_definition

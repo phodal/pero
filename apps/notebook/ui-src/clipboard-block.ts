@@ -17,6 +17,14 @@ import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/n
 import { persistedBlockTypes } from '@pero/notebook/interchange';
 import { registeredDocumentBlock } from '@pero/notebook/scientific-block';
 
+function opaquePayload(payload: Record<string, unknown>): boolean {
+  if (typeof payload.type !== 'string' || !object(payload.attrs)) return false;
+  const definition = registeredDocumentBlock(payload.type);
+  if (!definition) return false;
+  try { return definition.validate(payload.attrs).status === 'opaque'; }
+  catch { return false; }
+}
+
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -44,8 +52,7 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
   const registered = registeredDocumentBlock(kind);
   if (registered) {
     try {
-      registered.validate({ ...attrs, blockId: typeof attrs.blockId === 'string' && attrs.blockId ? attrs.blockId : 'clipboard' });
-      return true;
+      return registered.validate({ ...attrs, blockId: typeof attrs.blockId === 'string' && attrs.blockId ? attrs.blockId : 'clipboard' }).status === 'current';
     } catch { return false; }
   }
   switch (kind) {
@@ -81,8 +88,10 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
       const { originalType, payload, blockId } = attrs;
       const structural = new Set(['doc', 'text', 'hardBreak', 'referenceMention', 'listItem', 'taskItem']);
       if (typeof originalType !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,64}$/.test(originalType)) return false;
-      if (persistedBlockTypes.includes(originalType as typeof persistedBlockTypes[number]) || structural.has(originalType)) return false;
+      if (structural.has(originalType)) return false;
       if (!object(payload) || payload.type !== originalType) return false;
+      const known = persistedBlockTypes.includes(originalType as typeof persistedBlockTypes[number]);
+      if (known && !opaquePayload(payload)) return false;
       if (new TextEncoder().encode(JSON.stringify(payload)).length > 65_536) return false;
       if (object(payload.attrs) && 'blockId' in payload.attrs && blockId !== undefined && payload.attrs.blockId !== blockId) return false;
       return true;

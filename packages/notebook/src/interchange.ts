@@ -1,4 +1,5 @@
 import { scientificReferenceState, type NotebookNode, type ScientificReference } from "./document.ts";
+import { registeredDocumentBlock } from "./scientific-block.ts";
 
 /**
  * Versioned projection of a Notebook document.
@@ -374,6 +375,7 @@ function visit(node: NotebookNode, path: string, parentType = "doc"): Visit {
     const error = retainedError(node);
     return { node, changed: false, errors: error ? [`${path} ${error}`] : [] };
   }
+  if (opaqueDocument(node)) return wrapUnknown(node, path, parentType, true);
   if (!knownTypes.has(node.type)) return wrapUnknown(node, path, parentType);
   if (node.content === undefined) return { node, changed: false, errors: [] };
   if (!Array.isArray(node.content)) return { node, changed: false, errors: [`${path} content is not a list`] };
@@ -392,7 +394,14 @@ function visit(node: NotebookNode, path: string, parentType = "doc"): Visit {
 const retainedParents = new Set(["doc", "blockquote", "listItem", "taskItem", "section"]);
 const originalTypePattern = /^[A-Za-z][A-Za-z0-9_-]{0,64}$/;
 
-function wrapUnknown(node: NotebookNode, path: string, parentType: string): Visit {
+function opaqueDocument(node: NotebookNode): boolean {
+  const definition = registeredDocumentBlock(node.type);
+  if (!definition) return false;
+  try { return definition.validate(node.attrs).status === "opaque"; }
+  catch { return false; }
+}
+
+function wrapUnknown(node: NotebookNode, path: string, parentType: string, futureVersion = false): Visit {
   const id = node.attrs?.blockId;
   if (!retainedParents.has(parentType)) {
     return { node, changed: false, errors: [`${path} ${node.type} cannot be retained inside ${parentType}, so it was left untouched`] };
@@ -400,7 +409,8 @@ function wrapUnknown(node: NotebookNode, path: string, parentType: string): Visi
   if (typeof id !== "string" || !blockIdPattern.test(id)) {
     return { node, changed: false, errors: [`${path} ${node.type} has no editor block id, so it was left untouched and was not removed`] };
   }
-  if (!originalTypePattern.test(node.type) || persistedBlockTypes.includes(node.type as typeof persistedBlockTypes[number])) {
+  const persisted = persistedBlockTypes.includes(node.type as typeof persistedBlockTypes[number]);
+  if (!originalTypePattern.test(node.type) || (persisted && !(futureVersion && opaqueDocument(node)))) {
     return { node, changed: false, errors: [`${path} ${node.type} cannot be stored as a retained block, so it was left untouched`] };
   }
   if (new TextEncoder().encode(JSON.stringify(node)).length > 65_536) {

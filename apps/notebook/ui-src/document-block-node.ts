@@ -37,8 +37,8 @@ export function documentBlockNode<Attrs extends BlockIdentity, Type extends stri
           const attrs: Record<string, unknown> = { blockId: readAttribute(element, 'blockId', '') };
           for (const [key, value] of Object.entries(adapter.defaults)) attrs[key] = readAttribute(element, key, value);
           try {
-            adapter.validate(attrs);
-            return attrs;
+            const result = adapter.validate(attrs);
+            return result.status === 'current' ? result.attrs : false;
           } catch { return false; }
         },
       }];

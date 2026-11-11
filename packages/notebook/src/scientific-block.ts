@@ -43,6 +43,16 @@ export interface BlockIdentity {
  * not from this interface. Version 1 checks those defaults. A later integer
  * schemaVersion is returned unchanged.
  */
+/** Version 1 attrs. A future schema is not this type. */
+export type CurrentDocumentAttrs<Fields extends Record<string, BlockScalar>> = {
+  readonly blockId: string;
+  readonly schemaVersion: 1;
+} & Fields;
+
+export type DocumentValidation<Fields extends Record<string, BlockScalar>> =
+  | { readonly status: "current"; readonly attrs: CurrentDocumentAttrs<Fields> }
+  | { readonly status: "opaque"; readonly schemaVersion: number; readonly attrs: Readonly<Record<string, unknown>> };
+
 export interface DocumentBlockDefinition<
   Attrs extends BlockIdentity,
   Type extends string,
@@ -52,7 +62,7 @@ export interface DocumentBlockDefinition<
   readonly schemaVersion: 1;
   readonly role: "document";
   readonly defaults: { readonly schemaVersion: 1 } & Fields;
-  validate(value: unknown): Attrs;
+  validate(value: unknown): DocumentValidation<Fields>;
 }
 
 /** A reference block. The only command is propose_reference. The type name is not enumerated here. */
@@ -67,7 +77,7 @@ export function defineDocumentBlock<Type extends string, Fields extends Record<s
   type: Type;
   defaults: Fields;
   versionOne(attrs: { blockId: string; schemaVersion: 1 } & Fields): void;
-}): DocumentBlockDefinition<{ blockId: string; schemaVersion: number } & Fields, Type, Fields> {
+}): DocumentBlockDefinition<CurrentDocumentAttrs<Fields>, Type, Fields> {
   if (!blockTypeName.test(spec.type)) throw new Error("Invalid block type name.");
   if ("schemaVersion" in spec.defaults || "blockId" in spec.defaults) throw new Error("schemaVersion and blockId belong to the block contract, not its field defaults.");
   for (const [key, value] of Object.entries(spec.defaults)) {
@@ -85,16 +95,16 @@ export function defineDocumentBlock<Type extends string, Fields extends Record<s
       if (typeof blockId !== "string" || !id.test(blockId)) throw new Error("Block id must be stable.");
       const version = record.schemaVersion;
       if (typeof version !== "number" || !Number.isInteger(version) || version < 1) throw new Error("Invalid block schema version.");
-      const parsed = record as { blockId: string; schemaVersion: number } & Fields;
-      if (version !== 1) return parsed;
+      if (version !== 1) return { status: "opaque", schemaVersion: version, attrs: record };
       const allowed = new Set(["blockId", "schemaVersion", "templateOrigin", ...Object.keys(spec.defaults)]);
       if (Object.keys(record).some(key => !allowed.has(key))) throw new Error("Invalid document block fields.");
       for (const [key, sample] of Object.entries(spec.defaults)) {
         const got = record[key];
         if (sample === null ? got !== null : typeof got !== typeof sample) throw new Error(`Invalid document block ${key}.`);
       }
-      spec.versionOne(parsed as { blockId: string; schemaVersion: 1 } & Fields);
-      return parsed;
+      const attrs = record as CurrentDocumentAttrs<Fields>;
+      spec.versionOne(attrs);
+      return { status: "current", attrs };
     },
   };
 }
@@ -104,7 +114,7 @@ export function defineReferenceBlock(type: string): ReferenceBlockDefinition {
   return { type, schemaVersion: 1, role: "reference", command: "propose_reference" };
 }
 
-const documents = new Map<string, { readonly type: string; validate(value: unknown): BlockIdentity }>();
+const documents = new Map<string, { readonly type: string; validate(value: unknown): DocumentValidation<Record<string, BlockScalar>> }>();
 
 export function registerDocumentBlock<Attrs extends BlockIdentity, Type extends string, Fields extends Record<string, BlockScalar>>(
   definition: DocumentBlockDefinition<Attrs, Type, Fields>,
@@ -118,7 +128,7 @@ export function unregisterDocumentBlock(type: string) {
   documents.delete(type);
 }
 
-export function registeredDocumentBlock(type: string): { readonly type: string; validate(value: unknown): BlockIdentity } | undefined {
+export function registeredDocumentBlock(type: string): { readonly type: string; validate(value: unknown): DocumentValidation<Record<string, BlockScalar>> } | undefined {
   return documents.get(type);
 }
 
