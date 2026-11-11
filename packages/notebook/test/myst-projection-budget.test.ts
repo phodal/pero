@@ -54,3 +54,19 @@ test('project resolution retains the reference allowance used by local resolutio
   assert.equal(result.entry.document.diagnostics.filter(item => item.code === 'projection-limit').length, 1);
   assert.equal(result.entry.document.source, source);
 });
+
+test('numbering labels preflight repeated names and repeated expanded numbers', () => {
+  for (const [template, enumerator, caption] of [
+    ['{name}'.repeat(1000), '%s', '界&'.repeat(4000)],
+    ['{number}'.repeat(1000), '9'.repeat(8000) + '%s', 'Caption'],
+    ['%s'.repeat(1000), '9'.repeat(8000) + '%s', 'Caption'],
+  ]) {
+    const source = `---\nnumbering:\n  figure:\n    template: '${template}'\n    enumerator: '${enumerator}'\n---\n\n\`\`\`{figure} sample.png\n:label: large\n\n${caption}\n\`\`\``;
+    const doc = parseMystDocument(source);
+    assert.equal(exportMystMarkdown(doc), source);
+    assert.equal(doc.diagnostics.filter(item => item.code === 'projection-limit').length, 1);
+    const figure = walk(doc.ast).find(node => node.type === 'container')!;
+    assert.equal(figure.numberingLabel, '');
+    assert.ok(doc.references.large.label.length < MYST_PROJECTION_MAX_BYTES);
+  }
+});

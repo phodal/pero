@@ -74,6 +74,15 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
   attachMystTargets(ast);
   const references: Record<string, MystReferenceTarget> = Object.create(null);
   const { numbering } = state;
+  // Numbering templates can repeat a long authored caption or enumerator many
+  // times. Admit each replaceAll stage before it allocates its result.
+  const substitute = (template: string, token: string, value: string, node: MystNode): string => {
+    if (!template.includes(token)) return template;
+    let occurrences = 0, index = 0;
+    while ((index = template.indexOf(token, index)) >= 0) { occurrences++; index += token.length; }
+    const bytes = escapedMystBytes(template) + occurrences * (escapedMystBytes(value) - escapedMystBytes(token));
+    return budget.admit({ bytes, nodes: 0 }, report, node) ? template.replaceAll(token, value) : '';
+  };
   const visit = (node: MystNode) => {
     if (['crossReference', 'cite', 'link', 'footnoteReference', 'footnoteDefinition', 'comment'].includes(node.type)) { node.children?.forEach(visit); return; }
     const rawId = string(node.identifier) ?? (node.type === 'mystTarget' ? string(node.label) : undefined);
@@ -95,10 +104,10 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
         if (node.subcontainer || kind === 'subequation') {
           const letter = String.fromCharCode((count.sub++ % 26) + 97);
           value = node.subcontainer ? letter : `${count.main}${letter}`;
-          if (node.subcontainer) node.parentEnumerator = (numbering[countKind]?.enumerator ?? numbering.enumerator?.enumerator ?? '%s').replaceAll('%s', String(count.main));
+          if (node.subcontainer) node.parentEnumerator = substitute(numbering[countKind]?.enumerator ?? numbering.enumerator?.enumerator ?? '%s', '%s', String(count.main), node);
         } else { value = String(++count.main); count.sub = 0; }
       }
-      if (value) node.enumerator = prefix ? prefix.replaceAll('%s', value) : value;
+      if (value) node.enumerator = prefix ? substitute(prefix, '%s', value, node) : value;
     }
     if (eligible) {
       const number = string(node.enumerator);
@@ -110,7 +119,7 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
         : node.type === 'proof' || kind === 'exercise' ? `${kindName(kind)}${name ? ' ({name})' : ''}`
         : name ? '{name}' : kindName(kind);
       // Display numbering does not require an authored target label.
-      node.numberingLabel = number ? template.replaceAll('%s', `${node.parentEnumerator ?? ''}${number}`).replaceAll('{number}', `${node.parentEnumerator ?? ''}${number}`).replaceAll('{name}', name?.map(mystNodeText).join('') ?? rawId ?? '') : '';
+      node.numberingLabel = number ? substitute(substitute(substitute(template, '%s', `${node.parentEnumerator ?? ''}${number}`, node), '{number}', `${node.parentEnumerator ?? ''}${number}`, node), '{name}', name?.map(mystNodeText).join('') ?? rawId ?? '', node) : '';
       if (rawId) {
         const id = normalizeMystIdentifier(rawId);
         node.identifier = id;
