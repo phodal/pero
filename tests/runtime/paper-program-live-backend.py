@@ -34,7 +34,7 @@ def main():
         limits=dict(rounds=3, searches=4, candidates=12, reads=16, downloads=3,
                     downloadBytes=30 * 1024 * 1024, modelRequests=60, appCalls=100)), now())
     descriptor = program_request(programs, dict(operation='launch', programId=program['id']), now())
-    (store.root / 'fixture-seed.json').write_text(json.dumps(dict(context=descriptor['context'], paperId=paper.id)), encoding='utf-8')
+    (Path(os.environ['PERO_APP_DATA']) / 'fixture-seed.json').write_text(json.dumps(dict(context=descriptor['context'], paperId=paper.id)), encoding='utf-8')
     server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, os.environ['PERO_APP_TOKEN'], now=now))
     def stop():
         sys.stdin.buffer.read()

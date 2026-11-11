@@ -113,7 +113,9 @@ try {
       console.log(JSON.stringify({ event: event.kind, text: event.text?.slice(0, 140) }));
   });
   await wait(event => event.kind === 'ready');
-  await appRequest('install', { path: source }); access = await appRequest('resolve', { name: 'paper-agent', panel: 'main' });
+  await appRequest('install', { path: source });
+  await appRequest('enable', { name: 'paper-agent' });
+  access = await appRequest('resolve', { name: 'paper-agent' });
   seed = JSON.parse(await readFile(join(directory, 'app-data/paper-agent/fixture-seed.json'), 'utf8'));
   const catalog = await appRequest('agentcatalog', { name: 'paper-agent', path: '/api/workspaces' });
   startedAt = Date.now();
@@ -151,7 +153,10 @@ try {
   console.log(JSON.stringify(report, null, 2));
   if (!report.executionChecks.passed) process.exitCode = 1;
 } catch (error) {
-  await json(join(directory, 'failure.json'), redact({ error: String(error), stderr, events }));
+  await json(join(directory, 'failure.json'), redact({ caseId, model, provider: provider.origin, revision,
+    evaluationCode, sessionId: run?.sessionId ?? null,
+    startedAt: startedAt ? new Date(startedAt).toISOString() : null,
+    finishedAt: new Date().toISOString(), error: String(error), stderr, events }));
   throw error;
 } finally {
   await shutdownResearchRun({ host, hostExit, desktop,
