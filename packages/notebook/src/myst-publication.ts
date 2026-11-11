@@ -56,7 +56,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'root': case 'paragraph': case 'strong': case 'emphasis': case 'subscript': case 'superscript': case 'delete': case 'blockquote': case 'listItem': case 'definitionList': case 'definitionTerm': case 'definitionDescription': return { type: node.type, children: children() };
       case 'block': return { type: 'root', children: children() };
       case 'text': return plain(node.value ?? '');
-      case 'heading': return { type: 'heading', depth: Math.max(1, Math.min(6, Number(node.depth) || 1)), children: children() };
+      case 'heading': return { type: 'heading', depth: Math.max(1, Math.min(6, Number(node.depth) || 1)), children: [...(read(node, 'enumerator') ? [plain(`${read(node, 'enumerator')} `)] : []), ...children()] };
       case 'break': case 'thematicBreak': return { type: node.type };
       case 'inlineCode': return { type: node.type, value: node.value ?? '' };
       case 'code': return kind === 'latex' ? fallback('Code exported as escaped prose in LaTeX (no verbatim command boundary).', node.value ?? '') : { type: 'code', value: node.value ?? '', lang: /^[A-Za-z0-9_-]+$/.test(read(node, 'lang')) ? read(node, 'lang') : '' };
@@ -93,7 +93,8 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
   const flatten = (n: MystNode) => { n.children?.forEach(flatten); if (n.children) n.children = n.children.flatMap(c => c.type === 'root' ? c.children ?? [] : [c]); };
   flatten(ast); ast.children ??= [];
   const text = (n: MystNode): string => n.type === 'text' ? n.value ?? '' : (n.children ?? []).map(text).join('');
-  if (document.scholarly.title && !(ast.children[0]?.type === 'heading' && text(ast.children[0]) === document.scholarly.title)) ast.children.unshift({ type: 'heading', depth: 1, children: [plain(document.scholarly.title)] });
+  const firstContent = document.ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type) && !(node.type === 'text' && !node.value));
+  if (document.scholarly.title && !(firstContent?.type === 'heading' && text(firstContent) === document.scholarly.title)) ast.children.unshift({ type: 'heading', depth: 1, children: [plain(document.scholarly.title)] });
   const metadata = [document.scholarly.authors?.map(a => a.name).join(', '), document.scholarly.doi ? `DOI: ${document.scholarly.doi}` : ''].filter(Boolean).join('\n');
   if (metadata) ast.children.splice(document.scholarly.title ? 1 : 0, 0, paragraph(metadata));
   const refs = document.citationRendering?.bibliography.map(r => r.text) ?? Object.values(document.bibliography).map(r => [r.id, r.author, r.year, r.title, r.url].filter(Boolean).join('. '));
