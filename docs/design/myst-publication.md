@@ -40,8 +40,8 @@ editable citation fields and rich citation formatting are not promised.
 ## Resource and execution boundary
 
 Only explicit admitted PNG/JPEG bytes reach conversion. All formats share a pure
-image budget pass before serializer or archive rewriting: at most128 placements
-and16MiB decoded asset payload bytes, counted on every repeated placement. Excess
+image budget pass before serializer or archive rewriting: at most 128 placements
+and 16 MiB decoded asset payload bytes, counted on every repeated placement. Excess
 placements become visible missing-image placeholders and a diagnostic. This is
 payload size, not decompressed pixel size; image admission owns pixel limits.
 Archives contain only referenced admitted assets, renamed to assigned safe paths.
@@ -52,7 +52,7 @@ allowlist and rejects `^^` preprocessing escapes. Unsupported math remains liter
 source. Typst replaces the upstream tablex remote import with a native table macro.
 Generated TeX/Typst source and archives are not claims of compiled PDFs.
 
-DOCX equations use trust-disabled, bounded KaTeX MathML parsed by xml-js1.6.11,
+DOCX equations use trust-disabled, bounded KaTeX MathML parsed by xml-js 1.6.11,
 then native docx script/fraction/radical objects. Unsupported structures, including
 accents/matrices, become literal text with an exact loss. Math font/spacing and
 stretchy delimiter normalization are disclosed. No authored XML is parsed.
@@ -68,7 +68,7 @@ The rebuilt code has fresh real-artifact tests: deterministic DOCX ZIP/XML and
 native math, exact PNG bytes, tables, literal hostile math fallback, XML parsing,
 three actual offline archives, repeated/distinct image budgets, exact notebook
 recovery, alias-heavy canonical recovery, CSL groups and reviewed text goldens.
-The scientific XML fixture was validated against the official NLM Archiving1.3
+The scientific XML fixture was validated against the official NLM Archiving 1.3
 RELAX NG closure. This validates the fixture, not every possible document.
 
 Fresh LibreOffice opened the reconstructed DOCX and rendered its one-page PDF.
