@@ -9,6 +9,18 @@ github_url: https://github.com/phodal/pero/issues/156
 
 # Skills 市场：发现、安装与按需使用
 
+## PR #193 CI 恢复（2026-11-11）
+
+[run 42846552882](https://github.com/phodal/pero/actions/runs/42846552882)
+的 Notebook Canvas 构建通过 Cargo 自动准备 nightly，却未安装该工具链的
+`wasm32-unknown-unknown` 标准库，因此报 E0463。复用 #194 的独立构建修复
+`3b994b29`，由 Wasm 构建入口显式安装目标；不复制科学会话功能，也不依赖先合并 #194。
+五项构建脚本回归通过。
+
+同一旧 run 的 Notebook 浏览器用例在点击表格块菜单时超时，日志记录了状态栏和
+滚动容器拦截点击。后续验证同时检查 PR 与当前 master 的合并树，保留真实点击与
+原有断言；远端新一轮 CI 结果尚待确认。这不改变 #156 的真实模型验收缺口。
+
 研究者需要按实际任务发现 skill，核查来源和条件，安装后在普通聊天中选择使用，并能管理更新、回退、停用和移除。市场不能把“目录已解析”展示成“科研运行已验证”。本记录是 [上游 #156](https://github.com/phodal/pero/issues/156) 的本地活动记录。
 
 ## 已处理问题
