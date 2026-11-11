@@ -37,6 +37,7 @@ Upstream source links below use the same pinned source tree.
 | --- | --- | --- |
 | Source and prose | Source editing/import/export; headings, lists, tables, roles, admonitions, footnotes and explicit diagnostics; unknown source retained. | Not every MyST role/directive has native presentation. [Syntax](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e/docs) |
 | Math and local references | Safe MathML preview, labeled equations/figures/tables, local target numbering and links. | Duplicate/missing targets diagnose rather than guess; no arbitrary TeX execution. [Math](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/math.md) |
+| Glossary and abbreviations | Official glossary/term/abbr syntax; shared local/project/cell reference index; inherited project/page/include abbreviations, longest-first case-sensitive matching and null suppression; inert escaped HTML titles. | Static HTML projection; scientific formats retain diagnosed fallbacks and complete source. No automatic glossary discovery or index generation. [Terms](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-transforms/src/glossary.ts) |
 | Scholarly metadata | Official frontmatter validation/inheritance; authors, affiliations, ORCID, DOI, dates, licenses, funding. Raw metadata retained. | No network identity/DOI validation; unsupported metadata does not disappear from recovery. [Frontmatter](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/frontmatter.md) |
 | Project snapshots | Explicit versioned local text/binary resource snapshot; resource selection, editing, save/reopen and exact download. | No directory traversal, filesystem discovery or automatic downloading. [Configuration](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md) |
 | Includes | Recursive local include/literalinclude from provided text, provenance, line/marker selection, cycle and expansion limits. | Missing, unsupported or over-budget inputs retain source and diagnostics. Parsed IPYNB includes are not silently flattened. [Includes](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/embed.md) |
@@ -74,6 +75,12 @@ Upstream source links below use the same pinned source tree.
 - IPYNB: 1 MiB JSON, 1536 KiB escaped contribution, 256 cells, depth 64. Duplicate
   keys, unsafe integer values, invalid scalar text and non-string cell types
   reject at the boundary. TS/Python agree on integral JSON numbers.
+- Glossary/abbreviation expansion: per resolved document (including expanded includes),
+  1 MiB cumulative escaped title/text budget and 10000 generated-node allowance.
+  Admission happens before copying repeated title attributes; overflow leaves
+  remaining text literal with a visible diagnostic and exact source recovery.
+  Includes override page abbreviation values, which override project defaults;
+  null values suppress shorter matches, following pinned SDK semantics.
 - CSL inputs and engine calls are bounded, but synchronous formatting has no
   hard deadline. Unsupported formatting remains a diagnosed fallback.
 

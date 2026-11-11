@@ -99,6 +99,8 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
         return `<${tag}${id(node)}${start}>${children()}</${tag}>`;
       }
       case 'listItem': return `<li${id(node)}>${typeof node.checked === 'boolean' ? `<span class="notice">[${node.checked ? 'Completed' : 'Not completed'}] </span>` : ''}${children()}</li>`;
+      case 'glossary': return `<section${id(node)}>${children()}</section>`;
+      case 'abbreviation': return text(node, 'title') ? `<abbr${id(node)} title="${escapeMystHtml(text(node, 'title'))}">${children()}</abbr>` : children();
       case 'definitionList': return `<dl${id(node)}>${children()}</dl>`;
       case 'definitionTerm': return `<dt${id(node)}>${children()}</dt>`;
       case 'definitionDescription': return `<dd${id(node)}>${children()}</dd>`;

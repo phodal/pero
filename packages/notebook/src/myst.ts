@@ -1,4 +1,5 @@
 import { MystProjectionBudget } from './myst-projection-budget.ts';
+import { projectMystTerms } from './myst-terms.ts';
 import { expandMystEmbeds } from './myst-embeds.ts';
 import { attachMystTargets, createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
 import { prepareMystTocHeadings, expandMystTocs } from './myst-toc.ts';
@@ -56,7 +57,7 @@ export interface MystDocument {
 }
 export const MYST_SOURCE_MAX_BYTES = 256 * 1024;
 const disabledDirectives = new Set(['include', 'literalinclude', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
-const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc', 'proof']);
+const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc', 'proof', 'glossary', 'abbreviation']);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
 export const normalizeMystIdentifier = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -132,7 +133,7 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
         figure.children = [...children.filter(child => child.type === 'image'), ...(body.length ? [{ type: 'caption', children: body }] : [])];
         if (children.some(child => child.placeholder)) report('figure-placeholder-unsupported', 'Figure placeholders are retained but conditional fallback is not supported.', node);
       }
-      if (node.children?.length) return node.children.flatMap(child => normalize({ ...child, position: child.position ?? node.position }));
+      if (node.children?.length) return node.children.flatMap(child => normalize({ ...child, ...(node.type === 'mystRole' && name === 'term' ? { kind: 'term' } : {}), position: child.position ?? node.position }));
       report('syntax-unsupported', `Unsupported ${node.type === 'mystRole' ? 'role' : 'directive'}: ${name}`, node);
       if (node.type === 'mystDirective' && node.position) node.value = source.split('\n').slice(node.position.start.line - 1, node.position.end.line).join('\n');
       return [node];
@@ -169,6 +170,7 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   if (metadata.references) report('references-external', 'Cross-project references are retained but not loaded');
   if (metadata.plugins) report('plugins-disabled', 'Document plugins are not loaded');
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
+  projectMystTerms(ast, context?.scholarly ?? parsed.scholarly, report);
   attachMystTargets(ast);
   prepareMystTocHeadings(ast);
   Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report, projectionBudget));

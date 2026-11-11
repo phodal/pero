@@ -33,7 +33,7 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
       const isRef = node.type === 'crossReference';
       if (!isRef && node.type !== 'link') return;
       if (node.projectTarget) return;
-      const authored = isRef ? String(node.label ?? node.identifier ?? '') : String(node.url ?? '');
+      const authored = isRef ? String(node.kind === 'term' ? node.identifier : node.label ?? node.identifier ?? '') : String(node.url ?? '');
       if (!isRef && /^(?:https?:|mailto:)/i.test(authored)) return;
       const report = (code: string, message: string) => page.document.diagnostics.push({ severity: 'warning', code, message, path: page.path, line: node.position?.start.line });
       let candidates: MystProjectReferenceTarget[] = [];

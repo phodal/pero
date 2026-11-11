@@ -67,6 +67,7 @@ export function expandMystIncludes(snapshot: MystProjectSnapshot, path: string, 
   const diagnostics: MystDiagnostic[] = [];
   const resources = new Set<string>();
   let size = 0, count = 0;
+  const scholarly = structuredClone(parsed.scholarly);
   const annotate = (node: MystNode, provenance: MystIncludeProvenance) => { node.provenance = provenance; node.children?.forEach(child => annotate(child, provenance)); };
   const expand = (node: MystNode, current: string, stack: string[]): MystNode => {
     if (node.type !== 'mystDirective' || !['include', 'literalinclude'].includes(String(node.name))) {
@@ -97,12 +98,13 @@ export function expandMystIncludes(snapshot: MystProjectSnapshot, path: string, 
       if (new TextEncoder().encode(selected.text).length > MYST_SOURCE_MAX_BYTES) { report('include-parser-budget', 'Parsed include selection exceeds 256 KiB; directive source is retained.'); return node; }
       const included = parseMystSource(selected.text);
       diagnostics.push(...included.diagnostics.filter(item => item.code !== 'directive-disabled' || !/Directive (include|literalinclude) /.test(item.message)).map(item => ({ ...item, path: resolution.path, line: item.line ? selected.lines[item.line - 1] : undefined })));
-      if (included.metadata.math || included.metadata.abbreviations) report('include-frontmatter-unsupported', 'Included math macros and abbreviations are preserved but not inherited.');
+      if (included.metadata.math) report('include-frontmatter-unsupported', 'Included math macros are preserved but not inherited.');
+      if (included.scholarly.abbreviations) scholarly.abbreviations = { ...scholarly.abbreviations, ...included.scholarly.abbreviations };
       children = included.ast.children ?? [];
     }
     children.forEach(child => annotate(child, provenance));
     return { type: 'block', provenance, children: children.map(child => expand(child, resolution.path, provenance.stack)) };
   };
   const ast = expand(structuredClone(parsed.ast), path, [path]);
-  return { parsed: { ...parsed, ast, diagnostics: [...parsed.diagnostics.filter(item => item.code !== 'directive-disabled' || !/Directive (include|literalinclude) /.test(item.message)), ...diagnostics] }, resources: [...resources] };
+  return { parsed: { ...parsed, ast, scholarly, diagnostics: [...parsed.diagnostics.filter(item => item.code !== 'directive-disabled' || !/Directive (include|literalinclude) /.test(item.message)), ...diagnostics] }, resources: [...resources] };
 }

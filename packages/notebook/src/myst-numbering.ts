@@ -51,7 +51,7 @@ const headingDepth = (node: MystNode, numbering: Numbering) => Number(node.depth
 const numberedTemplate = (kind: string) => kind === 'section' ? 'Section %s' : `${kindName(kind)} %s`;
 const first = (node: MystNode, type: string): MystNode | undefined => node.type === type ? node : node.children?.map(child => first(child, type)).find(Boolean);
 function targetName(node: MystNode): MystNode[] | undefined {
-  if (node.type === 'heading') return node.children;
+  if (node.type === 'heading' || node.type === 'definitionTerm') return node.children;
   // The parser emits figure body paragraphs before the caption transform.
   const caption = first(node, 'caption') ?? first(node, 'admonitionTitle') ?? first(node, 'definitionTerm')
     ?? (node.type === 'container' ? node.children?.find(child => child.type === 'paragraph') : undefined);
