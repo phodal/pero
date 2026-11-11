@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 
-/** Open one notebook menu. Dialog-owning items stay mounted inside it. */
+/** Shared popup panels retain dialog-owning tools while closed. */
 export async function openNotebookMenu(page, menu) {
-  const details = page.locator(`details.notebook-menu[data-menu="${menu}"]`);
-  if (!(await details.evaluate(node => node.open))) await details.locator('summary').click();
-  await expect(details).toHaveJSProperty('open', true);
-  return details;
+  const trigger = page.locator(`[data-notebook-menu="${menu}"] .pero-ui-popover-trigger`);
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  return page.locator(`[data-notebook-menu-panel="${menu}"]`);
 }
 
 /** Workspace views live in the View menu. */
@@ -30,10 +30,8 @@ export async function toggleSpreadsheetPanel(page, grid, name) {
 
 /** Extended insert tools live in More blocks; both disclosures keep dialogs mounted. */
 export async function ensureMoreTools(page) {
-  const details = page.locator('details.notebook-menu[data-menu="insert"]');
-  if (!(await details.evaluate(node => node.open))) await page.getByRole('button', { name: 'Insert', exact: true }).click();
-  await expect(details).toHaveJSProperty('open', true);
-  const more = details.locator('details.notebook-submenu').filter({
+  const panel = await openNotebookMenu(page, 'insert');
+  const more = panel.locator('details.notebook-submenu').filter({
     has: page.locator('summary').filter({ hasText: /^More blocks$/ }),
   });
   if (!(await more.evaluate(node => node.open))) await more.locator(':scope > summary').click();
@@ -42,9 +40,9 @@ export async function ensureMoreTools(page) {
 
 /** Return to the document after a menu-owned dialog or file import has finished. */
 export async function closeInsertMenu(page) {
-  const details = page.locator('details.notebook-menu[data-menu="insert"]');
-  if (await details.evaluate(node => node.open)) await page.getByRole('button', { name: 'Insert', exact: true }).click();
-  await expect(details).toHaveJSProperty('open', false);
+  const trigger = page.locator('[data-notebook-menu="insert"] .pero-ui-popover-trigger');
+  if (await trigger.getAttribute('aria-expanded') === 'true') await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 }
 
 /** Creation retains the old draft while the real backend request is in flight. */
