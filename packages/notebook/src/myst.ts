@@ -104,7 +104,7 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
   const sourceLines = source.split('\n');
   const normalize = (node: MystNode): MystNode[] => {
     if (node.type === 'cite' && node.position) node.citationShorthand = sourceLines[node.position.start.line - 1]?.[node.position.start.column - 1] === '@';
-    if (node.type === 'mystDirective' || node.type === 'mystRole') {
+    if (node.type === 'mystDirective' || node.type === 'mystRole' || (node.type === 'mystDirectiveError' && node.name === 'csv-table')) {
       const name = string(node.name) ?? '';
       if (disabledDirectives.has(name)) {
         node.directiveBody = node.value;

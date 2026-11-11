@@ -1,3 +1,4 @@
+import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { resolveMystProjectReferences } from './myst-project-references.ts';
 import { expandMystIncludes } from './myst-includes.ts';
@@ -62,7 +63,9 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata): MystProjectPage => {
     used.add(resource.path);
     const expansion = expandMystIncludes(snapshot, resource.path, supplied ?? parseMystSource(resource.text));
-    const parsed = expansion.parsed;
+    const tables = expandMystCsvTables(snapshot, resource.path, expansion.parsed);
+    const parsed = tables.parsed;
+    tables.resources.forEach(path => used.add(path));
     expansion.resources.forEach(path => used.add(path));
     const inherited = inheritMystMetadata(parsed.scholarly, notebookScholarly ?? validated.normalized, notebookScholarly ? 'notebook' : 'project');
     const resources = [...projectBibliography, ...bibliographyResources(parsed.metadata.bibliography, resource.path)];
