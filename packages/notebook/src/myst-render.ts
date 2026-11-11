@@ -1,3 +1,4 @@
+import type { MystScholarlyMetadata } from './myst-metadata.ts';
 import { mystAnchor } from './myst-project-references.ts';
 import { safeMystImageDataUri } from './myst-assets.ts';
 import katex from 'katex';
@@ -53,7 +54,7 @@ function math(value: string, displayMode: boolean): string {
 
 /** A publication is inert, self-contained HTML. Use an empty iframe sandbox
  * for previews. Authored HTML, includes, plugins and code never execute. */
-export interface MystHtmlOptions { namespace?: string; fragment?: boolean }
+export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean }
 export function renderMystHtml(document: MystDocument, options: MystHtmlOptions = {}): string {
   const notices = new Set<string>();
   const text = (node: MystNode, key: string) => typeof node[key] === 'string' ? node[key] as string : '';
@@ -162,6 +163,34 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   const repeatedTitle = scholarly.title && firstContent?.type === 'heading' && firstContent.depth === 1 && plainText(firstContent).trim() === scholarly.title.trim() ? firstContent : undefined;
   const titleHtml = repeatedTitle ? render(repeatedTitle) : scholarly.title ? `<h1>${escapeMystHtml(scholarly.title)}</h1>` : '';
   const body = render(repeatedTitle ? { ...document.ast, children: document.ast.children?.filter(node => node !== repeatedTitle) } : document.ast);
+  const metadataResult = options.metadata === false ? { html: '', notices: [] } : renderMystMetadata(scholarly, options.namespace, titleHtml);
+  const header = metadataResult.html;
+  metadataResult.notices.forEach(notice => notices.add(notice));
+
+  const bibliography = Object.entries(document.bibliography).map(([key, entry]) => {
+    const description = [entry.author, entry.year, entry.title].filter(Boolean).join('. ') || entry.id;
+    return `<li id="${escapeMystHtml(anchor(`citation-${key}`))}">[${escapeMystHtml(entry.id)}] ${entry.url ? link(entry.url, escapeMystHtml(description)) : escapeMystHtml(description)}</li>`;
+  }).join('');
+  const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
+  const content = `${header}${body}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
+  if (options.fragment) return `<section id="${anchor('')}">${content}</section>`;
+  return renderMystHtmlShell(title, content);
+}
+export function renderMystHtmlShell(title: string, content: string): string {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><title>${escapeMystHtml(title)}</title><style>${publicationStyle}</style></head>
+<body><main>${content}</main></body></html>`;
+}
+
+/** Shared scholarly header for a document or one whole notebook publication. */
+export function renderMystMetadata(scholarly: MystScholarlyMetadata, namespace = '', titleHtml = scholarly.title ? `<h1>${escapeMystHtml(scholarly.title)}</h1>` : ''): { html: string; notices: string[] } {
+  const notices = new Set<string>();
+  const anchor = (identifier: string) => mystAnchor(identifier, namespace);
+  const link = (url: string, content: string) => {
+    const href = safeHref(url);
+    if (!href) { notices.add(`Link not activated: ${url}`); return content; }
+    return `<a href="${escapeMystHtml(href)}" rel="noopener noreferrer">${content}</a>`;
+  };
   const affiliations = scholarly.affiliations ?? [];
   const people = [...(scholarly.authors ?? []), ...(scholarly.contributors ?? [])];
   const personName = (person: (typeof people)[number]) => {
@@ -178,10 +207,10 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   const affiliationLink = (identifier: string) => {
     const index = affiliations.findIndex(item => item.id === identifier);
     if (index < 0) { notices.add(`Unresolved affiliation: ${identifier}`); return escapeMystHtml(`${identifier} [unresolved]`); }
-    return link(`#${options.namespace ? anchor(`publication-affiliation-${index + 1}`) : `publication-affiliation-${index + 1}`}`, String(index + 1));
+    return link(`#${namespace ? anchor(`publication-affiliation-${index + 1}`) : `publication-affiliation-${index + 1}`}`, String(index + 1));
   };
   const byline = (scholarly.authors ?? []).map(person => `<li>${escapeMystHtml(personName(person))}${person.affiliations?.length ? `<sup> ${person.affiliations.map(affiliationLink).join(', ')}</sup>` : ''}${person.orcid ? ` · ${link(`https://orcid.org/${person.orcid}`, `ORCID ${escapeMystHtml(person.orcid)}`)}` : ''}${person.corresponding ? ` · Corresponding author${person.email ? `: ${link(`mailto:${person.email}`, escapeMystHtml(person.email))}` : ''}` : ''}${person.equal_contributor ? ' · Equal contribution' : ''}${person.deceased ? ' · Deceased' : ''}${person.roles?.length ? `<div class="notice">${escapeMystHtml(person.roles.join(', '))}</div>` : ''}${person.note ? `<div class="notice">${escapeMystHtml(person.note)}</div>` : ''}</li>`).join('');
-  const affiliationList = affiliations.map((item, index) => `<li id="${options.namespace ? anchor(`publication-affiliation-${index + 1}`) : `publication-affiliation-${index + 1}`}">${escapeMystHtml(affiliationName(item))}</li>`).join('');
+  const affiliationList = affiliations.map((item, index) => `<li id="${namespace ? anchor(`publication-affiliation-${index + 1}`) : `publication-affiliation-${index + 1}`}">${escapeMystHtml(affiliationName(item))}</li>`).join('');
   const licenses = (['content', 'code'] as const).flatMap(kind => {
     const license = scholarly.license?.[kind];
     if (!license) return [];
@@ -208,18 +237,5 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   }).join('');
   const metadata = `${titleHtml}${scholarly.subtitle ? `<p>${escapeMystHtml(scholarly.subtitle)}</p>` : ''}${byline ? `<ul class="byline" aria-label="Authors">${byline}</ul>` : ''}${affiliationList ? `<ol aria-label="Affiliations">${affiliationList}</ol>` : ''}${scholarly.date ? `<p>Date: <time>${escapeMystHtml(scholarly.date)}</time></p>` : ''}${scholarly.doi ? `<p>DOI: ${link(`https://doi.org/${scholarly.doi}`, escapeMystHtml(scholarly.doi))}</p>` : ''}${licenses}${scholarly.copyright ? `<p>${escapeMystHtml(scholarly.copyright)}</p>` : ''}${scholarly.keywords?.length ? `<p>Keywords: ${escapeMystHtml(scholarly.keywords.join(', '))}</p>` : ''}${funding ? `<section aria-label="Funding"><h2>Funding</h2>${funding}</section>` : ''}`;
   const header = metadata ? `<header class="publication-metadata">${metadata}<p class="notice">Authored publication metadata; not externally verified.</p></header>` : '';
-
-  const bibliography = Object.entries(document.bibliography).map(([key, entry]) => {
-    const description = [entry.author, entry.year, entry.title].filter(Boolean).join('. ') || entry.id;
-    return `<li id="${escapeMystHtml(anchor(`citation-${key}`))}">[${escapeMystHtml(entry.id)}] ${entry.url ? link(entry.url, escapeMystHtml(description)) : escapeMystHtml(description)}</li>`;
-  }).join('');
-  const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
-  const content = `${header}${body}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
-  if (options.fragment) return `<section id="${anchor('')}">${content}</section>`;
-  return renderMystHtmlShell(title, content);
-}
-export function renderMystHtmlShell(title: string, content: string): string {
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><title>${escapeMystHtml(title)}</title><style>${publicationStyle}</style></head>
-<body><main>${content}</main></body></html>`;
+  return { html: header, notices: [...notices] };
 }
