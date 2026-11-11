@@ -1,3 +1,4 @@
+import { MystProjectionBudget } from './myst-projection-budget.ts';
 import { resolveMystReferenceContent } from './myst-numbering.ts';
 import { normalizeMystIdentifier, type MystDocument, type MystNode, type MystReferenceTarget } from './myst.ts';
 import { resolveMystResource, type MystProjectSnapshot } from './myst-project-snapshot.ts';
@@ -50,7 +51,7 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
         if (!label && !candidates.length && destination) candidates = [{ path: destination.path, identifier: '', label: destination.document.scholarly.title ?? destination.path }];
       } else if (isRef) candidates = (targets.get(normalizeMystIdentifier(authored)) ?? []).map(item => item.target);
       else return;
-      if (candidates.length === 1) { node.projectTarget = candidates[0]; node.resolved = true; delete node.error; if (candidates[0].reference) resolveMystReferenceContent(node, candidates[0].reference, report); }
+      if (candidates.length === 1) { node.projectTarget = candidates[0]; node.resolved = true; delete node.error; if (candidates[0].reference) resolveMystReferenceContent(node, candidates[0].reference, report, (page.document.projectionBudget ??= new MystProjectionBudget())); }
       else { node.resolved = false; delete node.target; report(candidates.length ? 'reference-ambiguous' : 'reference-unresolved', `${candidates.length ? 'Ambiguous' : 'Unresolved'} project reference: ${authored}`); }
     });
   }

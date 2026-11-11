@@ -1,3 +1,4 @@
+import { MystProjectionBudget } from './myst-projection-budget.ts';
 import { expandMystEmbeds } from './myst-embeds.ts';
 import { attachMystTargets, createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
 import { prepareMystTocHeadings, expandMystTocs } from './myst-toc.ts';
@@ -41,6 +42,8 @@ export interface MystCitationRendering {
   bibliography: Array<{ id: string; text: string; html: string }>;
 }
 export interface MystDocument {
+  /** Cumulative disposable projection allowance, retained through project resolution. */
+  projectionBudget?: MystProjectionBudget;
   version: 1;
   citationRendering?: MystCitationRendering;
   source: string;
@@ -155,6 +158,7 @@ export interface MystResolutionContext {
 export function resolveMystDocument(parsed: MystParsedDocument, context?: MystResolutionContext): MystDocument {
   const { source, metadata } = parsed;
   const ast = structuredClone(parsed.ast);
+  const projectionBudget = new MystProjectionBudget();
   const diagnostics = [...parsed.diagnostics, ...(context?.diagnostics ?? [])];
   const report = (code: string, message: string, node?: MystNode) => {
     diagnostics.push({ code, message, severity: 'warning', ...(node?.position ? { line: node.position.start.line } : {}) });
@@ -167,13 +171,13 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
   attachMystTargets(ast);
   prepareMystTocHeadings(ast);
-  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report));
+  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report, projectionBudget));
   walk(ast, node => {
     if (node.type === 'link' && typeof node.url === 'string' && node.url.startsWith('#')) {
       let id = node.url.slice(1);
       try { id = decodeURIComponent(id); } catch { /* Preserve invalid fragment escapes. */ }
       const target = references[identifier(id)];
-      if (target) resolveMystReferenceContent(node, target, report);
+      if (target) resolveMystReferenceContent(node, target, report, projectionBudget);
       return;
     }
     if (node.type === 'cite' && node.citationShorthand && references[identifier(String(node.identifier))] && !bibliography[identifier(String(node.identifier))]) node.type = 'crossReference';
@@ -182,10 +186,10 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
     const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id];
     node.identifier = id;
     node.resolved = resolved;
-    if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report); }
+    if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report, projectionBudget); }
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
-  const document: MystDocument = { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+  const document: MystDocument = { projectionBudget, version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
   if (!context?.deferProjectToc) expandMystTocs(document);
   return document;
 }

@@ -1,3 +1,5 @@
+import { MystProjectionBudget, countMystProjection, projectionCost } from './myst-projection-budget.ts';
+import { normalizeMystIdentifier } from './myst.ts';
 import type { ProjectFrontmatter } from 'myst-frontmatter';
 import type { MystDiagnostic, MystDocument, MystNode } from './myst.ts';
 import { resolveMystResource, type MystProjectSnapshot } from './myst-project-snapshot.ts';
@@ -87,6 +89,17 @@ export function expandMystTocs(document: MystDocument, project?: { toc: readonly
   const nodes: MystNode[] = [];
   const collect = (node: MystNode) => { if (node.type === 'toc' || node.type === 'heading') nodes.push(node); if (node.type !== 'toc') node.children?.forEach(collect); };
   collect(document.ast);
+  const budget = document.projectionBudget ??= new MystProjectionBudget();
+  const report = (code: string, message: string, node?: MystNode) => document.diagnostics.push({ severity: 'warning' as const, code, message, line: node?.position?.start.line });
+  const anchors = new Map<string, number>();
+  const countAnchors = (node: MystNode) => {
+    if (typeof node.identifier === 'string' && !['crossReference', 'cite', 'footnoteReference', 'comment'].includes(node.type)) {
+      const id = normalizeMystIdentifier(node.identifier);
+      anchors.set(id, (anchors.get(id) ?? 0) + 1);
+    }
+    if (node.type !== 'toc') node.children?.forEach(countAnchors);
+  };
+  countAnchors(document.ast);
   const allHeadings = nodes.filter(node => node.type === 'heading');
   const findPage = (entries: readonly MystProjectTocEntry[]): MystProjectTocEntry | undefined => {
     for (const entry of entries) { if (entry.path === project?.path) return entry; const child = findPage(entry.children); if (child) return child; }
@@ -101,8 +114,9 @@ export function expandMystTocs(document: MystDocument, project?: { toc: readonly
       if (depth > level.depth && level.item) { const list: MystNode = { type: 'list', ordered: false, children: [] }; level.item.children!.push(list); level = { depth, list }; stack.push(level); }
       else if (level.depth < 0) level.depth = depth;
       const title = mystNodeText(heading), id = typeof heading.identifier === 'string' ? heading.identifier : undefined;
+      const destination = id && anchors.get(normalizeMystIdentifier(id)) === 1 ? id : undefined;
       const text: MystNode = { type: 'text', value: title };
-      const item: MystNode = { type: 'listItem', children: [id ? { type: 'link', url: `#${id}`, ...(project ? { projectTarget: { path: project.namespace ?? project.path, identifier: id, label: title } } : {}), children: [text] } : text] };
+      const item: MystNode = { type: 'listItem', children: [destination ? { type: 'link', url: `#${destination}`, ...(project ? { projectTarget: { path: project.namespace ?? project.path, identifier: destination, label: title } } : {}), children: [text] } : text] };
       level.list.children!.push(item); level.item = item;
     }
     return root;
@@ -116,7 +130,22 @@ export function expandMystTocs(document: MystDocument, project?: { toc: readonly
         if (!deferProject) document.diagnostics.push({ severity: 'warning', code: 'toc-project-unavailable', message: `The ${kind} TOC requires an explicit project snapshot.`, line: toc.position?.start.line });
         continue;
       }
-      list = mystProjectTocList(kind === 'project' ? project.toc : findPage(project.toc)?.children ?? [], depth);
+      const entries = kind === 'project' ? project.toc : findPage(project.toc)?.children ?? [];
+      const cost = projectionCost();
+      const measure = (items: readonly MystProjectTocEntry[], remaining: number) => {
+        cost.nodes++; cost.bytes += 128;
+        if (remaining <= 0) return;
+        for (const entry of items) if (!entry.hidden) {
+          cost.nodes += 3; cost.bytes += 384;
+          // Title and destination appear in both link content and target metadata.
+          countMystProjection(entry.title, cost); countMystProjection(entry.title, cost);
+          countMystProjection(entry.path, cost); countMystProjection(entry.path, cost);
+          if (remaining > 1 && entry.children.length) measure(entry.children, remaining - 1);
+        }
+      };
+      measure(entries, depth);
+      if (!budget.admit(cost, report, toc)) continue;
+      list = mystProjectTocList(entries, depth);
     } else {
       let headings = allHeadings;
       if (kind === 'section') {
@@ -126,7 +155,18 @@ export function expandMystTocs(document: MystDocument, project?: { toc: readonly
         headings = end < 0 ? following : following.slice(0, end);
       }
       const firstDepth = Number(headings[0]?.depth ?? 1);
-      list = headingList(headings.filter(heading => Number(heading.depth) - firstDepth < depth));
+      headings = headings.filter(heading => Number(heading.depth) - firstDepth < depth);
+      const cost = projectionCost();
+      cost.nodes = 1; cost.bytes = 128;
+      for (const heading of headings) {
+        // At most one list, item, link and text per heading. Count title/anchor
+        // data twice because project navigation also carries target metadata.
+        cost.nodes += 4; cost.bytes += 512;
+        countMystProjection(heading, cost); countMystProjection(heading, cost);
+        countMystProjection(project?.namespace ?? project?.path, cost);
+      }
+      if (!budget.admit(cost, report, toc)) continue;
+      list = headingList(headings);
     }
     toc.type = 'block'; toc.data = { part: `toc:${kind}` }; delete toc.kind;
     toc.children = [...(toc.children ?? []), list];

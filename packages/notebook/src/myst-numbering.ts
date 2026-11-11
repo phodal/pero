@@ -1,3 +1,4 @@
+import { MystProjectionBudget, countMystProjection, projectionCost, escapedMystBytes } from './myst-projection-budget.ts';
 import { fillNumbering, type Numbering } from 'myst-frontmatter';
 import { normalizeMystIdentifier, type MystNode, type MystReferenceTarget } from './myst.ts';
 
@@ -69,7 +70,7 @@ export function attachMystTargets(node: MystNode): void {
   children.forEach(attachMystTargets);
 }
 
-export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, report: Report): Record<string, MystReferenceTarget> {
+export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, report: Report, budget = new MystProjectionBudget()): Record<string, MystReferenceTarget> {
   attachMystTargets(ast);
   const references: Record<string, MystReferenceTarget> = Object.create(null);
   const { numbering } = state;
@@ -102,7 +103,9 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
     if (eligible) {
       const number = string(node.enumerator);
       const title = targetName(node);
-      const name = title?.length ? structuredClone(title) : undefined;
+      const titleCost = projectionCost();
+      if (title) countMystProjection(title, titleCost);
+      const name = title?.length && budget.admit(titleCost, report, node) ? structuredClone(title) : undefined;
       const template = number ? numbering[key]?.template ?? numberedTemplate(kind)
         : node.type === 'proof' || kind === 'exercise' ? `${kindName(kind)}${name ? ' ({name})' : ''}`
         : name ? '{name}' : kindName(kind);
@@ -112,7 +115,7 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
         const id = normalizeMystIdentifier(rawId);
         node.identifier = id;
         const target: MystReferenceTarget = { identifier: id, kind, ...(number ? { number: `${node.parentEnumerator ?? ''}${number}` } : {}), template, ...(name ? { name } : {}), label: '' };
-        target.label = mystReferenceContent({ type: 'crossReference', identifier: id }, target).map(mystNodeText).join('');
+        target.label = mystReferenceContent({ type: 'crossReference', identifier: id }, target, report, budget).map(mystNodeText).join('');
         if (references[id]) report('reference-duplicate', `Duplicate label: ${rawId}`, node);
         else references[id] = target;
       }
@@ -125,11 +128,39 @@ export function enumerateMystTargets(ast: MystNode, state: MystNumberingState, r
 
 /** Substitutions apply only to text nodes; code/math are literal. Cloned title
  * links are flattened so inserting {name} never nests active links. */
-export function mystReferenceContent(node: MystNode, target: MystReferenceTarget, report?: Report): MystNode[] {
+export function mystReferenceContent(node: MystNode, target: MystReferenceTarget, report?: Report, budget = new MystProjectionBudget()): MystNode[] {
   const source = node.referenceContent ?? node.children ?? [];
   const name = target.name?.length ? target.name : [{ type: 'text', value: String(node.label ?? target.identifier) }];
   const template = !source.length && node.kind === 'ref' && target.name?.length && target.kind !== 'section'
     ? target.name : source.length ? source : [{ type: 'text', value: target.template }];
+  // Measure substitution before allocating any cloned title, split text, or
+  // non-text attribute payload. A rejected reference keeps its authored content.
+  const cost = projectionCost(), nameCost = projectionCost();
+  countMystProjection(name, nameCost);
+  const measure = (child: MystNode) => {
+    if (child.type === 'text') {
+      const value = child.value ?? '';
+      const attributes = projectionCost();
+      for (const [key, attribute] of Object.entries(child)) if (key !== 'value' && key !== 'children') countMystProjection(attribute, attributes);
+      cost.bytes += attributes.bytes;
+      let end = 0;
+      for (const match of value.matchAll(/%s|\{number\}|\{name\}/g)) {
+        cost.bytes += attributes.bytes;
+        cost.bytes += escapedMystBytes(value.slice(end, match.index)); cost.nodes++;
+        if (match[0] === '{name}') { cost.bytes += nameCost.bytes; cost.nodes += nameCost.nodes; }
+        else { cost.bytes += escapedMystBytes(target.number ?? '??'); cost.nodes++; }
+        end = match.index + match[0].length;
+      }
+      cost.bytes += escapedMystBytes(value.slice(end)); cost.nodes++;
+    } else {
+      cost.nodes++; cost.bytes += 128;
+      for (const [key, value] of Object.entries(child)) if (key !== 'children') countMystProjection(value, cost);
+      child.children?.forEach(measure);
+    }
+  };
+  template.forEach(measure);
+  cost.bytes += cost.nodes * 128;
+  if (!budget.admit(cost, report, node)) return source;
   let missing = false;
   const cleanName = (child: MystNode): MystNode[] => ['link', 'crossReference'].includes(child.type) ? (child.children ?? []).flatMap(cleanName)
     : [{ ...child, identifier: undefined, ...(child.children ? { children: child.children.flatMap(cleanName) } : {}) }];
@@ -145,7 +176,7 @@ export function mystReferenceContent(node: MystNode, target: MystReferenceTarget
   if (missing) report?.('reference-number-unavailable', `Reference ${target.identifier} requests a number, but its target is not numbered; filled with ??.`, node);
   return children;
 }
-export function resolveMystReferenceContent(node: MystNode, target: MystReferenceTarget, report?: Report): void {
-  node.referenceContent ??= structuredClone(node.children ?? []);
-  node.children = mystReferenceContent(node, target, report);
+export function resolveMystReferenceContent(node: MystNode, target: MystReferenceTarget, report?: Report, budget = new MystProjectionBudget()): void {
+  node.referenceContent ??= node.children ?? [];
+  node.children = mystReferenceContent(node, target, report, budget);
 }
