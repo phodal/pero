@@ -2,7 +2,8 @@ export type Source = {repository: string; commit: string; path: string; url: str
 export type EvidenceSection = {heading: string; text: string};
 export type Skill = {
   id: string; name: string; title_zh: string; description: string; description_zh: string;
-  category: string; category_zh: string; kind: 'research_skill' | 'research_support' | 'internal_dependency';
+  category: string; category_zh: string; kind: 'general_skill' | 'research_skill' | 'research_support' | 'internal_dependency';
+  installation?: {allowed: boolean; reason: string}; discovery_scopes?: string[];
   source: Source; sources: Source[];
   license: {spdx: string | null; evidence_url?: string | null; status: string};
   compatibility: {declared: string[]; status: string}; dependencies?: EvidenceSection[];

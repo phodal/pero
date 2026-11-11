@@ -12,7 +12,7 @@ const profiles = resolve(root,'target/skills-market-e2e');
 await mkdir(profiles,{recursive:true});
 const directory = await mkdtemp(resolve(profiles,'profile-'));
 const catalogPath = resolve(directory, 'catalog.json');
-const catalogText = await readFile(resolve(root, 'docs/design-docs/research-skills-catalog.json'), 'utf8');
+const catalogText = await readFile(resolve(root, 'apps/skills/dist/market-catalog.json'), 'utf8');
 const catalog = JSON.parse(catalogText);
 expect(catalog.skills.length).toBeGreaterThan(40);
 await writeFile(catalogPath, catalogText);
@@ -37,7 +37,7 @@ async function open() {
   await clickAppShortcut(page,'skills');
   frame = page.frameLocator('iframe[title="skills"]');
   await expect(frame.getByRole('heading',{name:'Skills',exact:true})).toBeVisible({timeout:30000});
-  await expect(frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(12,{timeout:30000});
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
 }
 async function capture(name) {
@@ -59,19 +59,19 @@ async function select(label,value) {
   await expect(trigger).toHaveText(value);
 }
 async function search(query) {
-  await frame.getByRole('searchbox',{name:'Search research skills'}).fill(query);
+  await frame.getByRole('searchbox',{name:'Search skills'}).fill(query);
 }
 try {
   await open();
   // A detail inspection is an explicit action and leaves the catalog available.
   await expect(frame.getByRole('dialog')).toHaveCount(0);
-  await frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
   await expect(frame.getByRole('dialog',{name:'Skill details',exact:true})).toBeVisible();
   await frame.getByRole('button',{name:'Close details',exact:true}).press('Enter');
   expect(await frame.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
   await expect(frame.locator('.skills-catalog-total')).toContainText(catalog.skills.length.toLocaleString('en'));
   await expect(frame.getByRole('link',{name:'#156',exact:true})).toHaveCount(0);
-  const rows = frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article');
+  const rows = frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article');
   const firstRows = await rows.allTextContents();
   const firstEntries = [];
   const displayedNames = await rows.locator('code').allTextContents();
@@ -83,18 +83,25 @@ try {
   }
   expect(new Set(firstEntries.map(item=>item.category)).size).toBeGreaterThan(1);
   await capture('catalog-light');
-  const firstName = await frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').getByRole('heading').first().textContent();
+  await select('Skill scope','General');
+  const generalCount = catalog.skills.filter(item=>item.kind==='general_skill'||item.discovery_scopes?.includes('general')).length;
+  await expect(frame.locator('.skills-summary')).toContainText(`${generalCount} matches`);
+  await capture('general-light');
+  await select('Skill scope','Research');
+  await expect(frame.locator('.skills-summary')).toContainText(`${catalog.skills.filter(item=>item.kind!=='general_skill').length.toLocaleString('en')} matches`);
+  await select('Skill scope','All');
+  const firstName = await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').getByRole('heading').first().textContent();
   await frame.getByRole('button',{name:'Next',exact:true}).press('Enter');
-  expect(await frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').getByRole('heading').first().textContent()).not.toBe(firstName);
+  expect(await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').getByRole('heading').first().textContent()).not.toBe(firstName);
   await frame.getByRole('button',{name:'Previous',exact:true}).press('Enter');
   await search('not-a-research-skill-156');
   await expect(frame.getByText('No matching skills',{exact:true})).toBeVisible();
   await frame.getByRole('button',{name:'Browse all skills',exact:true}).press('Enter');
-  await expect(frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(12);
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12);
   const category = catalog.skills.find(item => item.category)?.category;
-  await select('Research category',category.replace(/[-_]/g,' '));
+  await select('Task category',category.replace(/[-_]/g,' '));
   await expect(frame.locator('.skills-summary')).toContainText(`${catalog.skills.filter(item=>item.category===category).length.toLocaleString('en')} matches`);
-  await select('Research category','All categories');
+  await select('Task category','All categories');
   await frame.getByRole('checkbox',{name:'Ready to install',exact:true}).press('Space');
   const readyRows = await rows.allTextContents();
   expect(readyRows.length).toBeGreaterThan(0);
@@ -119,7 +126,7 @@ try {
   await rename(catalogPath,`${catalogPath}.saved`);
   await frame.getByRole('button',{name:'Refresh',exact:true}).press('Enter');
   await expect(frame.getByRole('alert')).toContainText('Skill catalog is unavailable');
-  await expect(frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(12);
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12);
   await capture('refresh-error-retained');
   await rename(`${catalogPath}.saved`,catalogPath);
   await frame.getByRole('button',{name:'Retry',exact:true}).press('Enter');
@@ -145,7 +152,7 @@ try {
   const installedTab = frame.getByRole('tab',{name:'Installed (1)',exact:true});
   await installedTab.focus(); await installedTab.press('Enter');
   await expect(installedTab).toHaveAttribute('aria-selected','true');
-  await frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
   const installedDetail=frame.getByRole('dialog',{name:'Skill details',exact:true});
   await expect(installedDetail.getByRole('heading',{name:entry.name,exact:true})).toBeVisible();
   for (const label of ['Inputs','Outputs','Dependencies']) await expect(installedDetail.getByRole('heading',{name:label,exact:true})).toBeVisible();
@@ -184,7 +191,7 @@ try {
   if (!aligned) throw new Error('canvas size did not match the settings control check');
   await setAppearance(page,'dark');
   await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
-  await frame.getByRole('region',{name:'科研技能',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'技能列表',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
   const narrowDetail = frame.getByRole('dialog',{name:'技能详情',exact:true});
   await expect(narrowDetail.getByRole('tab',{name:'来源与版本',exact:true})).toBeVisible();
   await narrowDetail.getByRole('tab',{name:'来源与版本',exact:true}).press('Enter');

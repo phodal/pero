@@ -4,19 +4,17 @@ export function skillCopy(item) {return editorial[item.id]?.revision === item.so
 
 /** Presentation of known entry conditions; Host remains the installation authority. */
 export function installationBlock(item) {
-  if (item.kind === 'internal_dependency') return 'internal';
-  if (item.license?.status === 'repository_only') return 'repository';
-  if (!item.license?.spdx || !item.license.evidence_url || ['unknown','missing','unverified'].includes(item.license.status)) return 'license';
-  if (item.source.path?.includes('!') || item.source.path?.includes('.zip/')) return 'archive';
-  return '';
+  return item.installation?.allowed ? '' : item.installation?.reason || 'Admission not provided by Host; refresh or update Pero.';
 }
 
 /** A bounded view of a catalog. Installation and compatibility rules stay in Host. */
-export function findSkills(skills, {query = '', category = '', view = 'discover', installed = [], page = 0, onlyReady = false, sort = 'name'} = {}) {
+export function findSkills(skills, {query = '', category = '', scope = '', view = 'discover', installed = [], page = 0, onlyReady = false, sort = 'name'} = {}) {
   const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const installedIds = new Set(installed.map(item => item.id));
   const matches = skills.filter(item => {
     if (view === 'installed' && !installedIds.has(item.id)) return false;
+    const scopes = item.discovery_scopes || (item.kind === 'general_skill' ? ['general'] : ['research']);
+    if (scope && !scopes.includes(scope)) return false;
     if (category && item.category !== category) return false;
     if (onlyReady && installationBlock(item)) return false;
     const copy = skillCopy(item);

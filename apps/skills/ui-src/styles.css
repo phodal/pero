@@ -16,7 +16,7 @@ html,body,#app{height:100%;min-height:0}
 .skills-search>svg{position:absolute;left:14px;color:var(--pero-text-muted);pointer-events:none}
 .skills-search input.pero-ui-input{padding-inline:42px 75px}
 .skills-search kbd{position:absolute;right:var(--pero-spacing-3);font-size:var(--pero-font-caption);color:var(--pero-text-muted);border:1px solid var(--pero-border);border-radius:var(--pero-radius-xs,4px);padding:0 5px;pointer-events:none}
-.skills-tools .pero-select-trigger{min-width:188px}
+.skills-tools .pero-select-trigger{min-width:128px;max-width:100%}
 .skills-status{display:grid;gap:var(--pero-spacing-2);margin-top:var(--pero-spacing-3)}
 .skills-status:empty{display:none}
 .skills-layout{display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:34px;margin-top:28px;align-items:start}

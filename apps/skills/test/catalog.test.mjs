@@ -43,10 +43,19 @@ test('discovery orders skill names across categories instead of inheriting colle
 
 // The researcher can narrow discovery to actionable entries without hiding installed disabled ones.
 test('installation filter and task ordering compose with discovery', () => {
-  const ready={...skills[0],name:'scientific-writing',license:{spdx:'MIT',status:'declared_in_skill',evidence_url:'https://example.org/LICENSE'},source:{repository:'lab/papers',path:'SKILL.md'}};
+  const ready={...skills[0],installation:{allowed:true,reason:''},name:'scientific-writing',license:{spdx:'MIT',status:'declared_in_skill',evidence_url:'https://example.org/LICENSE'},source:{repository:'lab/papers',path:'SKILL.md'}};
   const id='K-Dense-AI/scientific-agent-skills/skills/scientific-writing/SKILL.md';
-  const data=[{...ready,id:'blocked',name:'a',license:{...ready.license,status:'repository_only'}},{...ready,id}];
+  const data=[{...ready,id:'blocked',name:'a',installation:{allowed:false,reason:'License not reviewed'},license:{...ready.license,status:'repository_only'}},{...ready,id}];
   assert.deepEqual(findSkills(data,{onlyReady:true}).items.map(item=>item.id),[id]);
   assert.deepEqual(findSkills(data,{sort:'flow'}).items.map(item=>item.id),[id,'blocked']);
   assert.deepEqual(findSkills(data,{sort:'name'}).items.map(item=>item.id),['blocked',id]);
+});
+
+
+test('scope composes with disabled installed records and shared document identities', () => {
+  const data = [...skills, {...skills[0], id:'general', kind:'general_skill'}, {...skills[0], id:'document', discovery_scopes:['general','research']}];
+  assert.deepEqual(findSkills(data,{scope:'general'}).items.map(item=>item.id), ['document','general']);
+  assert.equal(findSkills(data,{scope:'research'}).total,4);
+  assert.deepEqual(findSkills(data,{scope:'general',view:'installed',installed:[{id:'general',enabled:false}]}).items.map(item=>item.id), ['general']);
+  assert.equal(findSkills(data,{scope:'general',onlyReady:true}).total,0,'Missing Host admission is unknown, not ready');
 });
