@@ -1,3 +1,4 @@
+import { projectNotebook, canReplace, protectUnknownNodes } from '../src/interchange.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -30,5 +31,17 @@ test('cell types admit actual enum strings, never coercible arrays', () => {
   for (const cell_type of cases) {
     const raw = { nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [{ id: 'invalid', cell_type, metadata: {}, source: '' }] };
     assert.throws(() => parseIpynb(JSON.stringify(raw)), /Invalid notebook cell/);
+  }
+});
+
+test('prose interchange retains canonical notebook and explicitly refuses lossy replacement', () => {
+  const content = { type: 'doc', content: [{ type: 'ipynbDocument', attrs: { blockId: 'notebook-1', schemaVersion: 1, source } }] };
+  assert.equal(protectUnknownNodes(content).changed, false);
+  const projected = projectNotebook(content);
+  assert.deepEqual(projected.canonical, content);
+  assert.deepEqual(projected.myst.children, []); assert.deepEqual(projected.blockNote, []);
+  for (const target of ['myst', 'blockNote'] as const) {
+    assert.equal(canReplace(projected, target), false);
+    assert.ok(projected.losses.some(loss => loss.target === target && loss.code === 'ipynb-source-document' && loss.detail.includes('.ipynb')));
   }
 });
