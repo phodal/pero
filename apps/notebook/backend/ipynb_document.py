@@ -32,6 +32,10 @@ def _validate(value, depth=0):
             _validate(child, depth + 1)
 
 
+def _integer(value):
+    return type(value) in (int, float) and math.isfinite(value) and int(value) == value
+
+
 def _text(value):
     return isinstance(value, str) or isinstance(value, list) and all(isinstance(s, str) for s in value)
 
@@ -50,7 +54,7 @@ class IpynbDocumentSource:
             _validate(raw)
         except (RecursionError, OverflowError) as error:
             raise ValueError('Notebook JSON exceeds portable limits') from error
-        if not isinstance(raw, dict) or raw.get('nbformat') != 4 or type(raw.get('nbformat_minor')) is not int or raw['nbformat_minor'] < 0 or not isinstance(raw.get('metadata'), dict) or not isinstance(raw.get('cells'), list) or len(raw['cells']) > 256:
+        if not isinstance(raw, dict) or raw.get('nbformat') != 4 or not _integer(raw.get('nbformat_minor')) or raw['nbformat_minor'] < 0 or not isinstance(raw.get('metadata'), dict) or not isinstance(raw.get('cells'), list) or len(raw['cells']) > 256:
             raise ValueError('Expected bounded nbformat 4 notebook')
         ids = set()
         for cell in raw['cells']:
@@ -67,7 +71,7 @@ class IpynbDocumentSource:
                 raise ValueError('Invalid attachment bundle')
             if cell['cell_type'] == 'code':
                 count = cell.get('execution_count', False)
-                if not (count is None or type(count) is int and count >= 0) or not isinstance(cell.get('outputs'), list) or any(not isinstance(v, dict) or not isinstance(v.get('output_type'), str) for v in cell['outputs']):
+                if not (count is None or _integer(count) and count >= 0) or not isinstance(cell.get('outputs'), list) or any(not isinstance(v, dict) or not isinstance(v.get('output_type'), str) for v in cell['outputs']):
                     raise ValueError('Invalid recorded code outputs')
 
     @classmethod

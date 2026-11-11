@@ -15,7 +15,8 @@ test('source is exact; edits preserve unknown fields, source shape, metadata, ou
   assert.equal(appendIpynbCell(doc, 'code', 'new').cells.length, 4); assert.equal(doc.source, source);
 });
 test('portable JSON boundary rejects loss and invalid schema', () => {
-  for (const invalid of [source.replace('"nbformat":4', '"nbformat":4,"nbformat":4'), source.replace('"unknown":42', '"unknown":9007199254740992'), source.replace('"unknown":42', '"unknown":1e999'), source.replace('"unknown":42', '"unknown":"\\ud800"'), source.replace('"id":"raw"', '"id":"code"'), source.replace('"nbformat":4', '"nbformat":5'), source.replace('"unknown":42', '"unknown":' + '['.repeat(66) + '0' + ']'.repeat(66)), ' '.repeat(1024 * 1024) + source]) assert.throws(() => parseIpynb(invalid));
+  assert.equal(parseIpynb(source.replace('"nbformat_minor":5', '"nbformat_minor":5.0')).raw.nbformat_minor, 5);
+  for (const invalid of [source.replace('"nbformat":4', '"nbformat":4,"nbformat":4'), source.replace('"unknown":42', '"unknown":9007199254740992'), source.replace('"unknown":42', '"unknown":1e999'), source.replace('"unknown":42', '"unknown":"\\ud800"'), source.replace('"id":"raw"', '"id":"code"'), source.replace('"nbformat":4', '"nbformat":5'), source.replace('"unknown":42', '"unknown":' + '['.repeat(66) + '0' + ']'.repeat(66)), ' '.repeat(1024 * 1024) + source, '\t'.repeat(800 * 1024) + source]) assert.throws(() => parseIpynb(invalid));
 });
 test('presentation-only MathML and static tags never authorize execution', () => {
   assert.ok(parseIpynbMathml('<math><mfrac><mi>x</mi><mn>2</mn></mfrac></math>'));
