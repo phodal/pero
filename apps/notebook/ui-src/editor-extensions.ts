@@ -1,3 +1,5 @@
+import { mystDocumentDefinition } from '@pero/notebook/myst';
+import { documentBlockNode } from './document-block-node';
 import { MystDocumentView } from './myst-document';
 import { NamedReferenceView } from './notebook-reference-controls';
 import { SourceExcerptView } from './source-excerpt';
@@ -31,7 +33,7 @@ import { NoteCardView } from './note-card';
 import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 export const widgets = [
-  { name: 'mystDocument', icon: 'document', defaults: { schemaVersion: 1, source: '' }, view: MystDocumentView },
+  { name: 'mystDocument', icon: 'document', defaults: editorAdapter(mystDocumentDefinition).defaults, view: MystDocumentView },
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
   { name: 'sourceExcerpt', icon: 'document', defaults: { label: '', excerpt: null }, view: SourceExcerptView },
   { name: 'reactionScheme', icon: 'flask', defaults: { reaction: emptyReaction(), record: null }, view: ReactionSchemeView },
@@ -67,7 +69,8 @@ export const notebookExtensions = [
   NotebookCodeBlock, ReferenceMention,
   TaskList,
   TaskItem.configure({ nested: true }),
-  ...widgets.map(widget => Node.create({
+  documentBlockNode(mystDocumentDefinition, MystDocumentView),
+  ...widgets.filter(widget => widget.name !== 'mystDocument').map(widget => Node.create({
     name: widget.name,
     group: 'block',
     atom: true,

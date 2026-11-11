@@ -1,4 +1,4 @@
-import { parseMystAttributes } from '@pero/notebook/myst';
+import '@pero/notebook/myst';
 import { parseNamedReference } from '@pero/notebook/named-reference';
 import { isSourceExcerptAttributes } from '@pero/notebook/source-excerpt';
 import { isScientificContentAttributes } from '@pero/notebook/scientific-designs';
@@ -49,8 +49,6 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
     } catch { return false; }
   }
   switch (kind) {
-    case 'mystDocument':
-      try { parseMystAttributes(attrs); return true; } catch { return false; }
     case 'namedReference': try { parseNamedReference(attrs); return true; } catch { return false; }
     case 'sourceExcerpt': return isSourceExcerptAttributes(attrs);
     case 'reactionScheme':

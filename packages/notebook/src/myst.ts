@@ -1,3 +1,4 @@
+import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { createTokenizer, mystParse } from 'myst-parser';
 import { VFile } from 'vfile';
 import { parseDocument } from 'yaml';
@@ -164,3 +165,16 @@ export function importMystBundle(text: string): { schemaVersion: 1; source: stri
   if (!record(value) || value.format !== 'pero-myst' || value.version !== 1) throw new TypeError('Unsupported MyST bundle');
   return parseMystAttributes({ schemaVersion: 1, source: value.source });
 }
+
+/** MyST uses the shared document-block adapter while its source domain remains
+ * deliberately strict: future schemas must not be pasted or saved as version 1. */
+const mystBlock = defineDocumentBlock({
+  type: 'mystDocument', defaults: { source: '' }, versionOne() {},
+});
+export const mystDocumentDefinition = registerDocumentBlock({
+  ...mystBlock,
+  validate(value: unknown) {
+    parseMystAttributes(value);
+    return mystBlock.validate(value);
+  },
+});

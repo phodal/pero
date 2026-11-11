@@ -11,7 +11,9 @@ test('MyST editor retains source and identity through reopen and clipboard; inva
     export { notebookExtensions } from './editor-extensions';
     export { isClipboardWidget } from './clipboard-block';
   ` });
-  const editor = new ui.Editor({ extensions: ui.notebookExtensions, content: { type: 'doc', content: [{ type: 'mystDocument', attrs: { blockId: 'myst-1', schemaVersion: 1, source } }] } });
+  const templateOrigin = { templateId: 'template', revision: 1, instanceId: 'instance', parameterValues: {}, idMap: {} };
+  assert.equal(ui.notebookExtensions.filter((extension: { name: string }) => extension.name === 'mystDocument').length, 1);
+  const editor = new ui.Editor({ extensions: ui.notebookExtensions, content: { type: 'doc', content: [{ type: 'mystDocument', attrs: { blockId: 'myst-1', schemaVersion: 1, source, templateOrigin } }] } });
 
   const saved = editor.getJSON();
   const reopened = new ui.Editor({ extensions: ui.notebookExtensions, content: saved });
@@ -21,10 +23,14 @@ test('MyST editor retains source and identity through reopen and clipboard; inva
   const clipboard = new ui.Editor({ extensions: ui.notebookExtensions, content: editor.getHTML() });
 
   assert.equal(clipboard.getJSON().content[0].attrs.source, source);
+  assert.deepEqual(clipboard.getJSON().content[0].attrs.templateOrigin, templateOrigin);
   assert.equal(ui.isClipboardWidget('mystDocument', { schemaVersion: 2, source }), false);
   assert.equal(ui.isClipboardWidget('mystDocument', { schemaVersion: 1, source, execute: true }), false);
   assert.equal(ui.isClipboardWidget('mystDocument', { schemaVersion: 1, source, plugins: ['remote'] }), false);
   assert.equal(ui.isClipboardWidget('mystDocument', { schemaVersion: 1, source: '界'.repeat(100000) }), false);
+  assert.equal(editor.commands.insertContent({ type: 'mystDocument', attrs: { schemaVersion: 1, source: 'new source' } }), true);
+  const inserted = editor.getJSON().content.find((node: any) => node.attrs?.source === 'new source');
+  assert.match(inserted.attrs.blockId, /^[A-Za-z0-9_-]{1,128}$/);
   clipboard.destroy(); reopened.destroy(); editor.destroy();
 });
 

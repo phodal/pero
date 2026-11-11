@@ -7,6 +7,10 @@ The request to add MyST capabilities extends the deliberately narrow projection 
 It does not silently complete #195 phases B/C, replace Tiptap, or authorize a new kernel.
 The prior implementation baseline below is PR head `d65e798c740d49ceb3132c853e54304c4f1adf57`.
 Current-task implementation and acceptance must be reported separately from that baseline.
+The final integration also preserves concurrent base `5891fcab` and its generic
+document-block SDK. MyST uses that shared definition/registration/editor-adapter
+path; the before-task comparison remains unchanged. Actual post-rebase checks
+are recorded in the [verification report](../issues/2026-11-11-myst-document-verification.md).
 
 ## Verified upstream and API
 

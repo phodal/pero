@@ -15,6 +15,10 @@ the broader #195 roadmap or claim full MyST compatibility. The
 [capability matrix](../design/myst-capabilities.md) links the pinned upstream
 sources and separates implemented features from remaining work.
 
+Final integration preserves concurrent base `5891fcab` (verified as an ancestor),
+including its generic document-block SDK. The original `d65e798c` comparison above
+remains the before-task baseline, not the current integration base.
+
 ## Implemented vertical slice
 
 - Official `myst-parser@1.7.5`, `vfile@5.3.7`, `yaml@2.8.3`, and
@@ -25,6 +29,13 @@ sources and separates implemented features from remaining work.
   original source, line endings and unknown syntax; schema/extra-field errors
   reject saves rather than silently dropping data. The prose-only interchange
   adapter reports a loss and directs users to the dedicated MyST export.
+- MyST registers a shared document-block definition and uses its editor adapter
+  and generic `documentBlockNode`, rather than replacing the concurrent SDK with
+  a separate widget implementation. Source validation remains MyST-specific.
+  Integration exposed an identity seam: the generic node's default block ID must
+  be `null`, not an empty string, for NotebookIdentity to assign a new ID. The
+  adapter now follows that contract; regressions check new IDs, source retention
+  and template origin alongside reopen and clipboard behavior.
 - MyST files and source bundles append a block without replacing the Notebook.
   Source editing, diagnostics, sandboxed preview and source/bundle/HTML downloads
   are real UI operations. Readonly/future schemas retain source download.
@@ -63,9 +74,10 @@ installs that target for `nightly-2026-10-28`; no gate is skipped or weakened.
 
 ## Verification scope
 
-- Notebook package: 177 tests passed, no skips. Editor: 94 tests passed.
-- Python backend: 134 tests passed with `NOTEBOOK_REAL_OCR=1`, no skips.
-- Notebook production build and TypeScript check passed.
+- Notebook package after rebase: 178 tests passed, no skips. Editor: 95 tests passed,
+  no skips.
+- Python backend after rebase: 135 tests passed with `NOTEBOOK_REAL_OCR=1`, no skips.
+- Notebook production build and TypeScript check passed again after rebase.
 - Official-parser and renderer fixtures test rich content, equations, citations,
   malformed YAML, inert directives, source roundtrips, local links, target IDs,
   task status, dangerous URLs and HTML escaping.
@@ -85,9 +97,10 @@ installs that target for `nightly-2026-10-28`; no gate is skipped or weakened.
   the actual PR CI. No browser, Electron, Native or Wasm acceptance is inferred
   from the package tests or build.
 
-- Bazel `//:checks`: normal lock refresh passed all 7 checks; the frozen-lock CI
-  run also passed all 7 checks (cached). Both run logs were inspected. These checks
-  cover schema, TypeScript, locale and theme consistency, not browser acceptance.
+- Bazel `//:checks`: normal lock refresh passed all 7 checks. The frozen-lock
+  `--config=ci` run passed all 7 checks again after the rebase (cached, exit 0).
+  These checks cover schema, TypeScript, locale and theme consistency, not browser
+  acceptance.
 
 Remote CI remains pending and must be checked against the published head.
 

@@ -23,7 +23,8 @@ export function documentBlockNode<Attrs extends BlockIdentity, Type extends stri
     selectable: true,
     addAttributes() {
       return {
-        blockId: { default: '', rendered: false },
+        // NotebookIdentity assigns IDs to null, including newly inserted blocks.
+        blockId: { default: null, rendered: false },
         ...Object.fromEntries(Object.entries(adapter.defaults).map(([key, value]) => [key, {
           default: value, rendered: false,
         }])),
