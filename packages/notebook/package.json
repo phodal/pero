@@ -48,12 +48,18 @@
     "./myst": "./src/myst.ts",
     "./myst-render": "./src/myst-render.ts",
     "./myst-formats": "./src/myst-formats.ts",
-    "./myst-metadata": "./src/myst-metadata.ts"
+    "./myst-metadata": "./src/myst-metadata.ts",
+    "./myst-project": "./src/myst-project.ts",
+    "./myst-project-snapshot": "./src/myst-project-snapshot.ts",
+    "./myst-project-formats": "./src/myst-project-formats.ts",
+    "./myst-bibliography": "./src/myst-bibliography.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
   },
   "dependencies": {
+    "@citation-js/core": "0.7.18",
+    "@citation-js/plugin-bibtex": "0.7.18",
     "exceljs": "4.4.0",
     "fast-formula-parser": "1.0.19",
     "katex": "0.16.22",
