@@ -4,17 +4,22 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { createNotebookCanvasHost } from '../fixtures/notebook-canvas-host.mjs';
-import { openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
+import { openNotebookMenu, openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
 import { readControlEvidence } from '../../packages/notebook/src/control-evidence.ts';
+import { readPaperEvidence } from '../../packages/notebook/src/paper-evidence.ts';
 import { appPresentation } from '../../web/src/app-sdk-presentation.ts';
 
-test('Notebook creates a real PI experiment once per saved input and keeps the original Finding resolvable', { timeout: 120_000 }, async t => {
-  const fixture = await createNotebookCanvasHost(t, { controlLab: true });
+test('Paper → Notebook → PI verification → Finding → Project preserves PASS, FAIL and old revisions', { timeout: 120_000 }, async t => {
+  const fixture = await createNotebookCanvasHost(t, { controlLab: true, interop: true });
   const { backend, backendResponse, origin } = fixture;
+  const paper = await readPaperEvidence(Uint8Array.from(fixture.paperExport).buffer);
+  const citation = paper.citations[0];
   const sampleColumn = { id: 'samples-column', name: 'Sample count', type: 'decimal', required: true, options: [], units: [] };
   const entry = await backend('notebook', '/api/entries', { document: {
     schemaVersion: 1, title: 'Notebook PI acceptance',
     content: { type: 'doc', content: [
+      { type: 'evidence', attrs: { blockId: 'paper-source', label: citation.label, source: citation.reference,
+        snapshot: { kind: 'paper-report', ...citation.evidence } } },
       { type: 'inputTable', attrs: { blockId: 'inputs', receipts: [], table: {
         id: 'table', name: 'PI inputs', schema: { id: 'schema', revision: 1, columns: [sampleColumn] },
         rows: [{ id: 'input-row', cells: { 'samples-column': '1001' } }],
@@ -64,7 +69,7 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
     });
   }
   await owner.goto(origin + '/control-lab/');
-  await expect(owner.getByRole('button', { name: 'Run experiment', exact: true })).toBeVisible();
+  await expect(owner.getByRole('button', { name: 'Run experiment', exact: true })).toBeVisible({ timeout: 30_000 });
   await page.exposeFunction('openControlLocation', async (operation, input) => {
     const location = appPresentation(operation, input);
     assert.equal(location.kind, 'research-source');
@@ -108,7 +113,7 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
     await expect(block.getByText('The App returned a completed result. This is not independent verification.')).toBeVisible();
   };
   const ownerExperiments = async () => (await backend('control-lab', '/api/experiments')).experiments;
-  const run = async record => {
+  const run = async (record, verdict = 'PASS') => {
     const path = '/api/experiments/' + record.id;
     await backend('control-lab', path + '/search', {});
     await expect.poll(async () => (await backend('control-lab', path)).status, { timeout: 20_000 }).not.toBe('running');
@@ -121,7 +126,8 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
     const exported = JSON.parse(bytes).experiment;
     const trial = exported.trials.find(item => item.phase === 'verification' && item.report);
     assert.ok(trial?.observation?.series);
-    assert.equal(trial.report.verdict, 'PASS');
+    assert.equal(trial.status, 'completed');
+    assert.equal(trial.report.verdict, verdict);
     return { bytes, trial, experiment: exported };
   };
   const references = page.locator('[data-kind=experiment]');
@@ -181,11 +187,12 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   await finding.getByRole('checkbox', { name: /Original PI trial/ }).check();
   await save();
   const originalRevision = await current();
+  const originalDescription = await backend('notebook', '/api/interop-describe', { entryId: entry.id });
 
   await openNotebookView(page, 'Procedures');
   await button('Edit parameter', page.locator('[data-parameter-id=window]')).click();
   const edit = page.getByRole('dialog', { name: 'Edit parameter', exact: true });
-  await edit.getByLabel('Raw value').fill('9 s');
+  await edit.getByLabel('Raw value').fill('2 s');
   await button('Apply parameter', edit).click();
   await openNotebookView(page, 'Notes');
   await expect(block.getByText('Inputs changed. Save a new binding.')).toBeVisible();
@@ -196,13 +203,13 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   await assert.rejects(canvas({ operation: 'mount', source: stale }), /scoped request/);
   await button('Save binding', block).click();
   await save();
-  await create(3, 9);
+  await create(3, 2);
   const records = await ownerExperiments();
   assert.equal(records.length, 2);
   const secondRecord = records.find(item => item.id !== firstRecord.id);
   assert.notEqual(firstRecord.specHash, secondRecord.specHash);
-  const second = await run(secondRecord);
-  assert.equal(second.experiment.parameters.horizon, 9);
+  const second = await run(secondRecord, 'FAIL');
+  assert.equal(second.experiment.parameters.horizon, 2);
   await button('Keep returned result in notebook', block).click();
   await button('Open created experiment', block).click();
   await expect.poll(() => opened.at(-1)).toBe(`pero-app-location://control-lab/main/experiment/${secondRecord.id}`);
@@ -227,11 +234,40 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   assert.deepEqual(errors, []);
   await page.screenshot({ path: resolve(output, 'control-notebook-finding.png'), fullPage: true });
   await owner.screenshot({ path: resolve(output, 'control-reopened-trial.png'), fullPage: true });
+  const sourceLocation = await backend('paper-agent', '/api/evidence', {
+    intentId: citation.evidence.intentId, paperId: citation.evidence.paperId,
+    passageId: citation.evidence.passageId, quote: citation.evidence.quote,
+  });
+  assert.equal(sourceLocation.pdf.fileDigest, citation.evidence.fileDigest);
+  assert.ok(sourceLocation.pdf.pages.includes(citation.evidence.page));
+  const historic = await backend('notebook', '/api/interop-describe', { entryId: entry.id, revision: originalRevision.revision });
+  assert.deepEqual(historic, originalDescription);
+  await openNotebookMenu(page, 'file');
+  await button('Properties').click();
+  await page.getByText('Linked projects', { exact: true }).click();
+  const projects = page.getByRole('region', { name: 'Host project associations' });
+  await projects.getByLabel('Host project', { exact: true }).selectOption('pi-study');
+  await button('Link saved entry', projects).click();
+  await expect(projects.getByText('Host project reference saved.')).toBeVisible();
+  assert.equal(fixture.projectConfirmations.length, 1);
+  await fixture.restart();
+  const catalog = await fixture.request('notebook-projects', { name: 'notebook', request: { operation: 'list' } });
+  assert.deepEqual(catalog.projects[0].entries, [{ id: entry.id, revision: String(latest.revision) }]);
+  await page.screenshot({ path: resolve(output, 'interop-project.png'), fullPage: true });
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await page.evaluate(location => window.postMessage({ type: 'pero:app:location', location }, window.location.origin),
+    new URL(historic.descriptor.location).pathname.replace(/^\/main\//, ''));
+  await openNotebookView(page, 'Notes');
+  await expect(page.locator('[data-kind=experiment]')).toHaveCount(1);
+  await expect(page.getByText(citation.evidence.quote, { exact: false }).first()).toBeVisible();
+  await page.screenshot({ path: resolve(output, 'interop-old-revision.png'), fullPage: true });
   await writeFile(resolve(output, 'control-canvas.json'), JSON.stringify({
     entryId: entry.id, originalRevision: originalRevision.revision, latestRevision: latest.revision,
     trials: [first, second].map(({ experiment, trial }) => ({
       experimentId: experiment.id, specHash: experiment.specHash, trialId: trial.id, observationId: trial.observation.id,
       reportId: trial.report.id, verdict: trial.report.verdict, parameters: experiment.parameters,
     })), opened, duplicatesAfterHostRestart: 0,
+    source: { reportId: paper.reportId, citation: citation.evidence, resolved: sourceLocation },
+    interop: historic, project: catalog.projects[0], scientificAcceptance: 'not-assessed',
   }, null, 2));
 });

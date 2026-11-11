@@ -1,7 +1,7 @@
 // Real installed Apps and Rust Host, with loopback HTTP in place of Electron's
 // custom protocol. Only the trusted-shell confirmation callback is test-driven.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { AppCanvasRequests } from '../../desktop/src/main/app-canvas.ts';
+import { NotebookProjectRequests } from '../../desktop/src/main/notebook-projects.ts';
 import { canvasPythonEnvironment } from './canvas-python.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -63,7 +64,7 @@ async function launchHost(directory) {
 }
 
 /** No synthetic App projection, owner receipt or approval ticket enters here. */
-export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
+export async function createNotebookCanvasHost(t, { controlLab = false, interop = false } = {}) {
   const pythonEnvironment = canvasPythonEnvironment();
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-canvas-browser-'));
   let host, server;
@@ -83,15 +84,28 @@ export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
       else signal.addEventListener('abort', abort, { once: true });
     }),
   );
+  const projects = new NotebookProjectRequests(
+    input => host.request('notebook-projects', { name: 'notebook', request: input }),
+    async summary => { projectConfirmations.push(summary); return true; },
+  );
+  const projectConfirmations = [];
   t.after(async () => {
     canvas.close();
+    projects.close();
     if (server) await new Promise(done => { server.close(done); server.closeAllConnections(); });
     try { await host?.close(); }
     finally { await rm(directory, { recursive: true, force: true }); }
   });
-  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ app_python: { default: pythonEnvironment } }));
+  await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ app_python: { default: pythonEnvironment },
+    ...(interop ? { workbench: { research_projects: [{ id: 'pi-study', title: 'Integral control study',
+      goal: 'Trace a source to authored PI verification and retained Findings', workspace: null, resources: [] }] } } : {}),
+  }));
   host = await launchHost(directory);
-  for (const name of ['notebook', 'data', ...(controlLab ? ['control-lab'] : [])]) {
+  let paperExport;
+  if (interop) paperExport = execFileSync(process.env.PERO_APP_PYTHON,
+    [resolve(root, 'tests/fixtures/notebook-interop-paper.py'), resolve(directory, 'app-data/paper-agent')],
+    { timeout: 30_000 });
+  for (const name of ['notebook', 'data', ...(controlLab ? ['control-lab'] : []), ...(interop ? ['paper-agent'] : [])]) {
     const target = resolve(directory, 'sources', name);
     await mkdir(resolve(target, 'dist'), { recursive: true });
     await cp(resolve(root, 'apps', name, 'backend'), resolve(target, 'backend'), { recursive: true });
@@ -102,6 +116,9 @@ export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
     } else if (name === 'control-lab') {
       for (const file of ['index.html', 'index.js', 'index.css'])
         await cp(resolve(root, 'apps/control-lab/dist', file), resolve(target, 'dist', file));
+    } else if (name === 'paper-agent') {
+      await cp(resolve(root, 'packages/source-extraction/python/pero_source_tools.py'), resolve(target, 'backend/pero_source_tools.py'));
+      await writeFile(resolve(target, 'dist/index.html'), '<h1>Paper Agent backend owner</h1>');
     } else {
       await mkdir(resolve(target, 'backend/_core'), { recursive: true });
       for (const name of ['dataset.py', 'view.py', 'chart_document.py'])
@@ -158,6 +175,10 @@ export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
         if (input.operation === 'mount') observed.instance = value.instance;
         return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(value));
       }
+      if (request.url === '/host/notebook-projects' && request.method === 'POST' && interop) {
+        const value = await projects.apply(JSON.parse(body));
+        return response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(value));
+      }
       if (request.url?.startsWith('/api/')) {
         await host.request('apiaccess', { name, path: new URL(request.url, 'http://localhost').pathname });
         const result = await backendResponse(name, request.url, request.method, body);
@@ -172,6 +193,7 @@ export async function createNotebookCanvasHost(t, { controlLab = false } = {}) {
   await once(server, 'listening');
   return {
     origin: `http://127.0.0.1:${server.address().port}`, confirmations, requests, backend, backendResponse,
+    paperExport, projectConfirmations,
     request: (action, fields) => host.request(action, fields),
     async restart() { canvas.close(); await host.close(); host = await launchHost(directory); },
     async changeDataDeclaration() {
