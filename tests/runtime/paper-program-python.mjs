@@ -93,7 +93,7 @@ function advance(result, previousStage) {
     state = result; reportId = result.result.reportId;
     return program('commit-round', { question: questions.at(-1), reportIds: [reportId], claims: [{
       text: passage.content, stance: round === 2 ? 'counterevidence' : 'support', reportId,
-      paperId: seed.paperId, passageId: passage.id, quote: passage.content,
+      paperId: seed.paperId, passageId: passage.id, evidenceIndex: 0,
     }], gaps: [gaps[round - 1]], nextAction: round < 3 ? gaps[round - 1] : 'Review the completed three-round evidence.' });
   }
   if (previousStage === 'commit-round') {

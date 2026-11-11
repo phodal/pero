@@ -153,3 +153,29 @@ journey, focused Go race tests, two Rust artifact tests and offline scoring test
 pass again. See [current readiness](../fitness/paper-research-quality-readiness.md)
 for build hashes, retained failure evidence and the remaining secure-credential,
 generated-reader, real-model and independent-review boundaries. #143 stays open.
+
+## Saved-run repair — 2026-11-11
+
+Rechecked upstream #143 (open) and PR #157 (merged), then isolated this work from
+`master@b1b952939f8986c150eb9d1b7d63166411657a63`. The November 9 retained runs
+are now available: A stopped at MaxTokens with zero rounds; B exhausted 60 model
+requests after one round. Neither meets the registered three-round gate.
+
+The PDF claim tool required a rewritten quote although the domain could resolve
+saved evidence by identity. B's seven quote-rejected claims all point to passages
+with multiple saved quotations. Omitting the quote alone is ambiguous. The claim
+owner now rejects that ambiguity and exposes stable indices within the immutable
+report; an explicit `evidenceIndex` selects the saved exact quotation. Incorrect
+explicit quotes still fail. The schema and bundled Skill expose this selection
+without changing the report, observation, scientific standard or overall budget.
+
+The live runner also still contained the pre-launch defects repaired only in the
+old evidence directory: omitted App enable, obsolete resolve argument and wrong
+seed receipt path. Those corrections and failure provenance are now in source.
+MaxTokens remains a hard stop with no automatic model continuation.
+
+[Repair verification](../fitness/paper-research-repair-143.md) records source,
+commands, exact evidence, original-failure replay, continuation/accounting and
+terminal delivery. Offline engineering passes do not revise the old failed runs
+or constitute a new provider run. Independent human scientific review and a new
+explicitly authorized provider attempt remain outstanding; #143 stays open.

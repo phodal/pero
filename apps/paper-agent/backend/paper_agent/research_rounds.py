@@ -1,5 +1,6 @@
 """Cross-study interpretations retain exact observed report evidence."""
 from dataclasses import asdict, dataclass
+import json
 
 from .model import Invalid, digest, mapping, sequence, text
 from .research_program import reference
@@ -24,15 +25,31 @@ class ResearchClaim:
         groups = list(report.report.sections)
         if report.report.matrix:
             groups.extend(report.report.matrix.cells)
-        matches = [ref for group in groups for ref in group.evidence
+        # The report is immutable: section evidence followed by matrix evidence
+        # gives a stable selector without asking the model to rewrite source bytes.
+        matches = [(index, ref) for index, ref in enumerate(ref for group in groups for ref in group.evidence)
                    if ref.paper_id == value.get('paperId') and ref.passage_id == value.get('passageId')]
-        if value.get('quote') is not None:
-            matches = [ref for ref in matches if ref.quote == value['quote']]
         if not matches:
-            raise Invalid('Claim must cite an exact observed passage in its saved report')
+            raise Invalid('Claim must cite an exact observed passage in its saved report; '
+                          'use reportId, paperId and passageId from the finalized report')
+        choices = json.dumps([dict(evidenceIndex=index, quote=ref.quote) for index, ref in matches], ensure_ascii=False)
+        if 'evidenceIndex' in value:
+            index = value['evidenceIndex']
+            if type(index) is not int or not any(index == i for i, _ in matches):
+                raise Invalid('Choose a saved evidenceIndex for this report/paper/passage: ' + choices)
+            matches = [(i, ref) for i, ref in matches if i == index]
+        if value.get('quote') is not None:
+            matches = [(i, ref) for i, ref in matches if ref.quote == value['quote']]
+            if not matches:
+                raise Invalid('Claim quote must exactly match a saved report quotation, including line endings. '
+                              'Omit quote and select a saved evidenceIndex; do not rewrite it or create another Study. '
+                              'Saved choices: ' + choices)
+        if len({ref.quote for _, ref in matches}) != 1:
+            raise Invalid('This report cites multiple quotations for the passage; '
+                          'select a saved evidenceIndex (omit quote), or supply its exact quote. Saved choices: ' + choices)
         if value.get('stance') not in ('support', 'counterevidence', 'limitation'):
             raise Invalid('Choose support, counterevidence or limitation')
-        ref = matches[0]
+        _, ref = matches[0]
         return cls(text(value.get('text'), 4000, 'claim'), value['stance'], report_id, ref.paper_id, ref.passage_id, ref.quote)
 
 

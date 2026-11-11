@@ -108,7 +108,7 @@ class ResearchProgramsAcceptance(unittest.TestCase):
             paper = store.save_paper(PaperSnapshot.from_reading(reading(), NOW))
             pdf_bytes = b'synthetic original PDF fixture'
             document = PdfDocument.create(paper.id, digest(pdf_bytes), paper.url,
-                (PdfPage(1, 600, 800, 'Formal method. Exact original evidence.'),), NOW)
+                (PdfPage(1, 600, 800, 'Formal method.\r\nExact original evidence.\r\n'),), NOW)
             store.save_pdf(document, pdf_bytes)
             programs = ResearchPrograms(store)
             state = programs.command(self.plan(paper), NOW)
@@ -124,8 +124,11 @@ class ResearchProgramsAcceptance(unittest.TestCase):
                 document=dict(studyId=study_id, action='read', paperId=paper.id, page=1, start=0))
             observation = state['result']['observation']['passages'][0]
             passage = PdfPassage.from_record(observation)
+            report = final_report(store.study(study_id), passage)
+            report['sections'][0]['evidence'] = [dict(paperId=paper.id, passageId=passage.id,
+                                                    startLine=1, endLine=2)]
             state = perform('study-step', 'finalize-seed', document=dict(studyId=study_id,
-                action='finalize', report=final_report(store.study(study_id), passage)))
+                action='finalize', report=report))
             report_id = state['result']['reportId']
             claim = dict(text='The source describes a formal method.', stance='support',
                          reportId=report_id, paperId=paper.id, passageId=passage.id)
@@ -147,6 +150,7 @@ class ResearchProgramsAcceptance(unittest.TestCase):
             self.assertGreater(state['usage']['reads'], 0)
             self.assertEqual(state['acceptance'], 'needs_review')
             self.assertEqual(len(state['rounds']), 1)
+            self.assertEqual(state['rounds'][0]['claims'][0]['quote'], passage.content)
             restored = ResearchPrograms(ResearchStore(root)).command(dict(operation='read', programId=state['id']), NOW)
             self.assertEqual(restored['rounds'], state['rounds'])
             self.assertEqual(restored['usage'], state['usage'])
