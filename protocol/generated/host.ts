@@ -1,4 +1,6 @@
 /* Generated from protocol/host.tsp by scripts/codegen/contracts.mjs. Do not edit. */
+import type { EnvironmentInspectionApp, EnvironmentInspectionReport, LocalEnvironmentApp, LocalEnvironmentRecord } from './host-environments';
+export type * from './host-environments';
 
 /**
  * Generated from protocol/host.tsp. Do not edit.
@@ -162,15 +164,6 @@ export type SkillMarketOperation =
 export type SkillMarketId = string;
 export type SkillRevision = string;
 export type SkillDigest = string;
-export type LocalEnvironmentOperation =
-  | LocalEnvironmentCreate
-  | LocalEnvironmentList
-  | LocalEnvironmentPrepare
-  | LocalEnvironmentBind
-  | LocalEnvironmentCreateLockedControl
-  | LocalEnvironmentRebuild
-  | LocalEnvironmentBindCompute
-  | LocalEnvironmentUnbindCompute;
 export type AgentRunRequest =
   | AgentRunPrepare
   | AgentRunTerminal
@@ -336,7 +329,6 @@ export type WebCommand =
   | WebControlCommand
   | WebSurfaceCommand
   | WebSurfacesCommand;
-
 export interface AutomationRequest {
   method: "automation";
   id: string;
@@ -1904,56 +1896,6 @@ export interface SkillMarketRollback {
 export interface SkillMarketCancel {
   operation: "cancel";
   id: SkillMarketId;
-}
-export interface LocalEnvironmentApp {
-  action: "localenvironment";
-  name: AppName;
-  request: LocalEnvironmentOperation;
-  method: "apps";
-  id: RequestId;
-}
-export interface LocalEnvironmentCreate {
-  operation: "create";
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
-  label: string;
-}
-export interface LocalEnvironmentList {
-  operation: "list";
-  compute?: boolean;
-}
-export interface LocalEnvironmentPrepare {
-  operation: "prepare";
-  id: AppName;
-}
-export interface LocalEnvironmentBind {
-  operation: "bind";
-  id: AppName;
-}
-export interface LocalEnvironmentCreateLockedControl {
-  operation: "create_locked_control";
-  label: string;
-}
-export interface LocalEnvironmentRebuild {
-  operation: "rebuild";
-  id: AppName;
-  label: string;
-}
-export interface LocalEnvironmentBindCompute {
-  operation: "bind_compute";
-  id: AppName;
-}
-export interface LocalEnvironmentUnbindCompute {
-  operation: "unbind_compute";
-}
-/**
- * Software observations only; does not allocate or approve scientific execution.
- */
-export interface EnvironmentInspectionApp {
-  action: "environment";
-  name: AppName;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
-  method: "apps";
-  id: RequestId;
 }
 export interface AppApiAccess {
   action: "apiaccess";
@@ -3998,52 +3940,6 @@ export interface SkillMarketUpdate {
 }
 export interface SkillMarketCancelled {
   cancelled: true;
-}
-export interface LocalEnvironmentRecord {
-  locked_compute?: boolean;
-  prepared?: LockedPythonProfile | null;
-  id: AppName;
-  label: string;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
-  dependencies: string[];
-  state: "created" | "preparing" | "ready" | "failed";
-  log: string[];
-  error: string | null;
-  bound: boolean;
-}
-export interface LockedPythonProfile {
-  root: string;
-  project_sha256: string;
-  lock_sha256: string;
-  python_request: string;
-  python_archive_url: string;
-  python_archive_sha256: string;
-  uv_version: string;
-  uv_sha256: string;
-  observation: PythonComputeObservation;
-}
-export interface PythonComputeObservation {
-  version: string;
-  build: string;
-  platform: string;
-  machine: string;
-  executable_sha256: string;
-  packages: ComputePackages;
-  packages_sha256: string;
-}
-export interface ComputePackages {
-  [k: string]: string | undefined;
-}
-export interface EnvironmentInspectionReport {
-  schema: "pero.environment.inspection.v1";
-  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
-  scope: "configured-interpreter";
-  evidence: "metadata_only";
-  observed_at_ms: string;
-  profile: AppDocumentSchema;
-  requirements: AppDocumentSchema;
-  matched: boolean;
-  missing: AppDocumentSchema[];
 }
 export interface AgentPreparedContext {
   context: AppDocumentSchema;

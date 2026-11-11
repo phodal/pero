@@ -85,6 +85,30 @@ const outputs = {
   [resolve(outDir, `${name}.schema.json`)]: JSON.stringify(schema, null, 2) + '\n',
   [resolve(outDir, `${name}.ts`)]: types,
 };
+// Environment contracts have their own generated module; host remains the public
+// import surface. Partition declarations by concept, preserving their comments.
+if (name === 'host') {
+  const banner = `/* Generated from protocol/${source}.tsp by scripts/codegen/contracts.mjs. Do not edit. */\n`;
+  const body = types.replace(banner, '').trim();
+  const declarations = [...body.matchAll(/^((?:\/\*\*[\s\S]*?\*\/\n)?export (?:type|interface) (\w+)[\s\S]*?)(?=\n(?:\/\*\*|export (?:type|interface))|$(?![\s\S]))/gm)]
+    .map(match => ({ text: match[1].trim(), name: match[2] }));
+  if (declarations.map(node => node.text).join('\n').replace(/\s/g, '') !== body.replace(/\s/g, '')) {
+    throw new Error('Unrecognized generated Host declaration format');
+  }
+  const environment = declaration => /^(LocalEnvironment|EnvironmentInspection|LockedPythonProfile|PythonComputeObservation|ComputePackages)/.test(declaration.name);
+  const groups = [declarations.filter(node => !environment(node)), declarations.filter(environment)];
+  const names = groups.map(nodes => new Set(nodes.map(node => node.name)));
+  const modules = ['host', 'host-environments'];
+  for (const [index, nodes] of groups.entries()) {
+    const imports = new Set(nodes.flatMap(node => [...node.text.matchAll(/\b\w+\b/g)]
+      .map(match => match[0]).filter(word => names[1 - index].has(word))));
+    const binding = [...imports].sort().join(', ');
+    const header = binding ? `import type { ${binding} } from './${modules[1 - index]}';\n` : '';
+    const exports = index === 0 ? `export type * from './host-environments';\n` : '';
+    outputs[resolve(outDir, `${modules[index]}.ts`)] = banner + header + exports + '\n'
+      + nodes.map(node => node.text).join('\n') + '\n';
+  }
+}
 if (!check) mkdirSync(outDir, { recursive: true });
 for (const [path, output] of Object.entries(outputs)) {
   if (check) {
