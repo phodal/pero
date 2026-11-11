@@ -34,6 +34,7 @@ from worksheet_amendments import WorksheetAmendmentStore, worksheet_amendment_ro
 from scientific_block import BlockProposalStore, block_proposal_route
 from source_parsers import source_extraction_route
 from notebook_home import notebook_home
+from interop import NotebookDescriptor
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -231,6 +232,11 @@ def handler(store, secret):
                     'content': {'type': 'doc', 'content': [{'type': 'paragraph', 'attrs': {'blockId': uuid4().hex}}]},
                 })
                 return self.reply(201, store.create(document).wire())
+            if self.path == '/api/interop-describe':
+                data = fields(self.body(), {'entryId'}, {'revision'})
+                revision = integer(data['revision'], 'revision') if 'revision' in data else None
+                entry = store.read(entry_id(data['entryId']), revision)
+                return self.reply(200, NotebookDescriptor(entry.identity, entry.revision, entry.document).wire())
             if self.path == '/api/agent-read':
                 data = fields(self.body(), {'entryId'}, {'revision', 'blockId', 'offset', 'view'})
                 if any(value is None for value in data.values()):

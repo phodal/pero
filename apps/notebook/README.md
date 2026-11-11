@@ -81,3 +81,24 @@ characters. Use the pinned revision as `baseRevision` when applying edits.
 
 Persisted documents with unsupported schema versions or unknown attributes are
 refused rather than opened and silently rewritten by an older editor.
+# Notebook Interop v0
+
+The App Use action `describe-notebook` posts `{entryId, revision?}` to
+`/api/interop-describe`. It describes one saved Notebook revision, its supported
+formats and evidence references. Omitting `revision` observes the current saved
+head; the reply always pins the actual revision. A resource revision identifies
+the saved object, while `snapshot.sha256` identifies the UTF-8 bytes returned by
+`NotebookDocument.serialized()`. Reassemble `read-entry` JSON chunks at that
+revision before checking the digest. Neither identifier is scientific acceptance.
+
+The returned `pero-app-location://notebook/main/entry/<id>/revision/<n>` opens the
+existing read-only revision view. New edits and new experiment results leave old
+descriptions and Findings resolvable. JSON is the complete entry exchange; `.ipynb`
+exchange applies to an embedded document, HTML is a publication snapshot, and XLSX
+exchanges worksheet values/formulas/names rather than the entire evidence record.
+
+The descriptor declares read/edit/export, and explicitly has no execute/cancel
+action. `apply-edits` still requires its existing Host grant and `baseRevision`;
+its `propose_reference` operation creates a proposal for existing review. Control
+Lab, Paper Agent and Host Projects retain their current execution, verification,
+source and association ownership. This adds no global Host protocol or kernel.

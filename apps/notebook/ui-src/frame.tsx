@@ -218,8 +218,14 @@ function Notebook() {
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
-      const match = /^entry\/([a-f0-9]{32})$/.exec(event.data.location);
+      const match = /^entry\/([a-f0-9]{32})(?:\/revision\/([1-9][0-9]*))?$/.exec(event.data.location);
       if (!match) return;
+      if (match[2]) {
+        window.dispatchEvent(new CustomEvent(NOTEBOOK_SEARCH_OPEN_EVENT, {
+          detail: { entryId: match[1], revision: Number(match[2]) },
+        }));
+        return;
+      }
       navigationRequest.current++;
       setSelected(match[1]); setSnapshot(null); setHistory(null); setError(''); setOpenError('');
     };

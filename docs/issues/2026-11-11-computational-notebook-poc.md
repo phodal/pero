@@ -8,6 +8,24 @@ github_url: https://github.com/phodal/pero/issues/180
 
 # Computational Notebook PoC B
 
+## 2026-11-11 completion pass in progress
+
+The expanded #180 scope now includes an implemented App-local Notebook Interop v0
+description and fixed-revision deep link, plus the existing owner chain. The
+canonical tracker stays here; the earlier PoC B conclusions below are historical.
+No Paper production files or environment-runtime owner are changed.
+
+Observed on base `5072cbc6`: authenticated Notebook tests (11) and typecheck pass.
+The real Host/Chromium scenario with an original Åström/Murray PID chapter passed
+in 35.8 s: Paper citation → saved Notebook → PI experiment → PASS at 8 s / FAIL at
+2 s → original Finding preserved → Host Project reference retained after restart.
+The fixed revision deep link reopened the original evidence in the actual App.
+The PDF motivates an authored analytic check; this is not book reproduction or
+scientific acceptance. Offline CI uses the existing synthetic Paper PDF fixture.
+Trusted-shell confirmations are test-driven; this pass does not establish Native
+or packaged Electron acceptance. Candidate service probes/cards and ADR-0033 are
+being completed separately before the final seven-item closure audit.
+
 ## What and why
 
 Issue #180 proposes multiple notebook types but has no same-input runtime

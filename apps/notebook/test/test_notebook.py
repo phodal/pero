@@ -297,6 +297,20 @@ class NotebookTest(unittest.TestCase):
                     })
                     self.assertEqual((status, page['revision'], page['format']), (200, 2, 'json-chunk'))
                     self.assertEqual(json.loads(page['content']), entry['document'])
+                    status, description = request('POST', '/api/interop-describe', {'entryId': entry_id, 'revision': 2})
+                    self.assertEqual(status, 200)
+                    self.assertEqual(description['snapshot']['sha256'], sha256(page['content'].encode()).hexdigest())
+                    self.assertEqual(description['resourceRef']['revision'], '2')
+                    self.assertTrue(description['resourceRef']['location'].endswith(f'/entry/{entry_id}/revision/2'))
+                    self.assertEqual(description['references'][0]['sourceRef']['id'], 'p-1')
+                    self.assertEqual(description['actions']['execute'], None)
+                    self.assertEqual(description['acceptance'], 'not-assessed')
+                    status, head = request('POST', '/api/interop-describe', {'entryId': entry_id})
+                    self.assertEqual((status, head['resourceRef']['revision']), (200, '3'))
+                    self.assertNotEqual(head['snapshot']['sha256'], description['snapshot']['sha256'])
+                    for body, expected in [({'entryId': entry_id, 'revision': 999}, 404),
+                                           ({'entryId': entry_id, 'revision': None}, 400)]:
+                        self.assertEqual(request('POST', '/api/interop-describe', body)[0], expected)
                     for invalid in ({'offset': 1}, {'revision': None}, {'offset': None}, {'blockId': None}):
                         self.assertEqual(request('POST', '/api/agent-read', {'entryId': entry_id, **invalid})[0], 400)
                     status, index = request('POST', '/api/agent-read', {'entryId': entry_id, 'view': 'index'})
