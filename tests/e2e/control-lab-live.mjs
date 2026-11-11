@@ -7,6 +7,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { fixtureExhaustionVerified, inspectSession } from '../runtime/control-lab/live-evidence.mjs';
+import { chooseSelect } from './select-control.mjs';
 import { startFixtureProvider } from '../runtime/control-lab/fixture-provider.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/control-lab-live');
@@ -68,7 +69,7 @@ try {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Template', { exact: true }).selectOption(scene);
+  await chooseSelect(frame, 'Template', scene);
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('2');
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
