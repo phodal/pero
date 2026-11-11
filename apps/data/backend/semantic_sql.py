@@ -47,7 +47,11 @@ class ReadOnlyQuery:
             connection.row_factory = sqlite3.Row
             connection.set_authorizer(authorize)
             connection.set_progress_handler(progress, 100)
-            rows = tuple(dict(row) for row in connection.execute(sql, parameters))
+            cursor = connection.execute(sql, parameters)
+            names = tuple(column[0] for column in cursor.description or ())
+            if len(names) != len(set(names)):
+                raise ValueError('Query result columns need unique names; alias duplicate join columns')
+            rows = tuple(dict(row) for row in cursor)
         finally:
             connection.close()
         return QueryRows(rows, perf_counter() - start)

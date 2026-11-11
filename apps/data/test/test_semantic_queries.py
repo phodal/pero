@@ -60,7 +60,7 @@ class QueryTests(unittest.TestCase):
             restart = SemanticQueries(Catalog(home))
             self.assertEqual(restart.evidence(result['id']), {k: v for k, v in result.items() if k != 'receiptId'})
             for sql in ['UPDATE sample SET n=7', 'DROP TABLE sample', "ATTACH DATABASE ':memory:' AS other",
-                        'SELECT load_extension(\'x\')', 'SELECT 1; SELECT 2', 'SELECT * FROM sqlite_master']:
+                        'SELECT load_extension(\'x\')', 'SELECT 1; SELECT 2', 'SELECT * FROM sqlite_master', 'SELECT 1 AS n, 2 AS n']:
                 with self.subTest(sql=sql):
                     bad = queries.definition(definition(sql))
                     refused = queries.execute(intent | dict(definitionId=bad['id']))
