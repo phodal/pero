@@ -128,7 +128,7 @@ passed all five browser tests, 179 package, 96 editor and 136 backend tests.
 This confirms base-head recovery, not the cause of the earlier transient failure
 or acceptance of the following SDK continuation.
 
-## SDK continuation: locally verified, new browser acceptance pending
+## Historical SDK checkpoint (before published `f88535f6` CI acceptance)
 
 The user continued with “继续按 SDK 实现”. Inspected changes:
 
@@ -175,21 +175,19 @@ the bundle-budget issue above; its regression now passes. New-head real browser
 results and screenshot inspection remain pending. The earlier 50de2bb results do
 not establish acceptance of these new UI/SDK changes.
 
-## Still open
+## Current functional gaps after the text-project slice
 
-Project loading and `myst.yml`, explicit assets/includes, cross-document references,
-standard BibTeX/CSL resolution, project-level metadata inheritance, lossless `.ipynb`
-interchange, site publishing and JATS/DOCX/TeX/PDF adapters remain open. Jupyter
-and reactive execution require a separate owner/permission design and stay off.
-These are functional gaps, not hidden successful paths or stub implementations.
+Bounded local text snapshots, root `myst.yml`, project/page scholarly inheritance
+and explicit BibTeX/CSL-JSON metadata resolution are now implemented as described
+below. They do not establish the full upstream MyST project compiler.
 
-
-Next SDK priorities: explicit project/resource descriptors and path/asset resolution;
-standard bibliography input/resolution with diagnostics; loss-aware `.ipynb` and
-publication codecs through shared format contracts. These require actual adapters
-and fixtures, not additional format labels. Keep file/network/execution effects in
-their existing owners. No kernel, automatic asset fetch, full-project converter or
-website deployment is introduced by the current continuation.
+CSL citation styling, binary assets, include expansion, cross-document references,
+lossless `.ipynb` interchange, site publishing and JATS/DOCX/TeX/PDF adapters remain
+open. Jupyter and reactive execution require a separate owner/permission design
+and stay off. These are functional gaps, not hidden successful paths or stubs.
+Future publication codecs must preserve loss reporting and keep file/network/
+execution effects in their existing owners. No automatic asset fetch, kernel or
+website deployment is introduced by this continuation.
 
 ## Published SDK stage, separate from project continuation
 
@@ -200,7 +198,7 @@ The published stage is `f88535f663e25a268ab13ecbc6281d2f56af669b` (same tree as 
 passed browser 5/5 and
 [Canvas job 130259449491](https://github.com/phodal/pero/actions/runs/42940058781/job/130259449491)
 passed 2/2. The overall run completed successfully. Package 197, editor 96 and Python 138 checks passed locally and in CI.
-The parent inspected artifact 13819869492 source/preview images: the repaired
+Screenshot review of artifact 13819869492 source/preview images showed the repaired
 textarea showed twelve readable monospaced lines; controls/diagnostics were clean;
 author, affiliation, ORCID, DOI and license appeared. Lower iframe body outside
 that viewport was not visually accepted. Native shell compiled, but Native and
