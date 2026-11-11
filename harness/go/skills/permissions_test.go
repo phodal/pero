@@ -93,7 +93,7 @@ func TestSkillDenialsApplyBeforeFirstRequestAndExpire(t *testing.T) {
 	requireCatalogPlatform(t)
 	root := canonicalTempDir(t)
 	selection := selectedFixture(t, root, "sample:limited")
-	selection.Definition.DisallowedTools = []string{"Write"}
+	selection.Definition.DisallowedTools = []string{"Write", "Skill"}
 	selection.Definition.AllowedTools = []string{"Write"}
 	catalog, err := OpenSelected(t.Context(), nil, []FileSelection{selection})
 	if err != nil {
@@ -106,6 +106,18 @@ func TestSkillDenialsApplyBeforeFirstRequestAndExpire(t *testing.T) {
 		visible := false
 		for _, tool := range request.Tools {
 			visible = visible || tool.Name == "Write"
+		}
+		var latest *catalogReminder
+		for _, message := range request.Messages {
+			if r, ok := readCatalogReminder(message); ok {
+				latest = &r
+			}
+		}
+		if request.Turn == 1 && latest != nil && len(latest.Entries) != 0 {
+			t.Error("pending Skill denial still advertised the catalog")
+		}
+		if request.Turn == 2 && (latest == nil || len(latest.Entries) != 1) {
+			t.Error("expired denial did not restore the catalog")
 		}
 		if visible != (request.Turn == 2) {
 			t.Errorf("turn %d: Write visibility=%v", request.Turn, visible)

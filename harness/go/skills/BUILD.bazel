@@ -6,6 +6,7 @@ go_library(
         "arguments.go",
         "catalog.go",
         "catalog_presentation.go",
+        "catalog_reminder.go",
         "claude_tool.go",
         "fork.go",
         "invocation.go",
@@ -36,6 +37,7 @@ go_test(
     srcs = [
         "arguments_test.go",
         "catalog_presentation_test.go",
+        "catalog_reminder_test.go",
         "catalog_test.go",
         "compaction_test.go",
         "expansion_guard_test.go",
@@ -48,6 +50,7 @@ go_test(
         "reattach_test.go",
         "selected_test.go",
     ],
+    data = ["testdata/catalog-publication.json"],
     embed = [":skills"],
     deps = [
         "//fstools",

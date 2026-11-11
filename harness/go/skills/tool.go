@@ -183,6 +183,9 @@ func MountCatalog(ctx context.Context, h *harness.Harness, catalog *Catalog, opt
 				return nil, err
 			}
 		}
+		if err := mountCatalogReminder(run, hooks, catalog, registration, rows, tool.Schema.Name, summaryBudget.AdvertisementBytes); err != nil {
+			return nil, err
+		}
 		_, err = hooks.PreStep.Use(run, func(ctx context.Context, input harness.StepInput, next point.Next[harness.StepInput]) (harness.StepInput, error) {
 			decision, err := next(input)
 			if err != nil || decision.Reject {

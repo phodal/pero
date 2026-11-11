@@ -1,0 +1,18 @@
+[
+  {"name":"visible lifecycle","steps":[
+    {"visible":true,"entries":[{"name":"demo","description":"selected workflow"}],"publish":true,"update":false,"names":["demo"]},
+    {"visible":true,"entries":[{"name":"demo","description":"selected workflow"}],"publish":false},
+    {"visible":true,"compact":true,"entries":[{"name":"demo","description":"selected workflow"}],"publish":true,"update":true,"names":["demo"]},
+    {"visible":false,"entries":[{"name":"demo","description":"selected workflow"}],"publish":true,"update":true,"names":[]},
+    {"visible":false,"entries":[{"name":"demo","description":"selected workflow"}],"publish":false},
+    {"visible":true,"entries":[{"name":"demo","description":"selected workflow"}],"publish":true,"update":true,"names":["demo"]}
+  ]},
+  {"name":"hidden at startup","steps":[
+    {"visible":false,"entries":[{"name":"demo","description":"selected workflow"}],"publish":false},
+    {"visible":true,"entries":[{"name":"demo","description":"selected workflow"}],"publish":true,"update":false,"names":["demo"]}
+  ]},
+  {"name":"empty catalog","steps":[
+    {"visible":true,"entries":[],"publish":false},
+    {"visible":true,"compact":true,"entries":[],"publish":false}
+  ]}
+]

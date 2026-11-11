@@ -11,8 +11,8 @@ import (
 )
 
 // Exercise the provider boundary, not just SchemasForAgent: the launch-time
-// advertisement survives real history replacement, but a loaded body is not
-// automatically republished. This deliberately does not assert DSH parity.
+// advertisement survives real history replacement and a durable catalog is
+// restored. Legacy loaded bodies are not republished; full parity is not claimed.
 func TestSkillAdvertisementAcrossCompaction(t *testing.T) {
 	requireCatalogPlatform(t)
 	ctx := t.Context()
@@ -47,12 +47,17 @@ func TestSkillAdvertisementAcrossCompaction(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+		catalogs := 0
 		for _, message := range req.Messages {
-			for _, block := range message.Content {
-				if strings.Contains(block.Text, "<available_skills>") {
-					t.Error("unexpected durable user-role skill catalog; update the documented contract if intentional")
+			if reminder, ok := readCatalogReminder(message); ok {
+				catalogs++
+				if message.Role != harness.RoleUser || len(reminder.Entries) != 1 || reminder.Entries[0].Name != "demo" || !strings.Contains(message.Content[0].Text, "unique-summary-73") {
+					t.Errorf("wrong durable catalog: %+v", message)
 				}
 			}
+		}
+		if catalogs != 1 {
+			t.Errorf("provider received %d visible catalogs, want one", catalogs)
 		}
 		if compacted.Load() && strings.Contains(string(encoded), body) {
 			t.Error("loaded body survived the selected replacement or was silently republished")
@@ -102,6 +107,27 @@ func TestSkillAdvertisementAcrossCompaction(t *testing.T) {
 	result, err := a.CompactNow(ctx, "compact-skills")
 	if err != nil || result == nil || len(result.ShadowedSeqs) == 0 || summaries.Load() != 1 {
 		t.Fatalf("real compaction did not replace history: %+v %v summaries=%d", result, err, summaries.Load())
+	}
+	// PostCompact must restore before any subsequent PreStep (overflow retries
+	// also consume this surface directly).
+	visibleCatalogs := 0
+	for _, event := range a.Session().Events() {
+		if event.Type != "user/message" {
+			continue
+		}
+		visible := false
+		for _, seq := range a.Session().SurfaceSeqs() {
+			visible = visible || seq == event.Seq
+		}
+		var message harness.Message
+		if visible && json.Unmarshal(event.Data, &message) == nil {
+			if _, ok := readCatalogReminder(message); ok {
+				visibleCatalogs++
+			}
+		}
+	}
+	if visibleCatalogs != 1 {
+		t.Fatalf("PostCompact restored %d catalogs", visibleCatalogs)
 	}
 	compacted.Store(true)
 	prompt("continue from the checkpoint")

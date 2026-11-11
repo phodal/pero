@@ -49,8 +49,14 @@ func TestExplicitSkillProviderRequest(t *testing.T) {
 			var expectedDigest string
 			adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
 				calls.Add(1)
-				count := 0
+				count, catalogs := 0, 0
 				for _, message := range req.Messages {
+					if _, ok := readCatalogReminder(message); ok {
+						catalogs++
+						if count != 0 {
+							t.Error("catalog background followed fresh instructions")
+						}
+					}
 					var source skillInvocation
 					_ = json.Unmarshal(message.Source, &source)
 					if source.Kind != "skill-invocation" || source.Form != "instructions" {
@@ -60,6 +66,13 @@ func TestExplicitSkillProviderRequest(t *testing.T) {
 					if source.Name != "demo" || source.Digest != expectedDigest || len(message.Content) != 1 || message.Content[0].Text != "<skill_content name=\"demo\">\n"+body+"\n</skill_content>" {
 						t.Errorf("wrong loaded instructions: %+v", message)
 					}
+				}
+				wantCatalog := 1
+				if tc.disabled || tc.noRoots || tc.masked || tc.shadowed || tc.deferred {
+					wantCatalog = 0
+				}
+				if catalogs != wantCatalog {
+					t.Errorf("catalogs=%d want=%d", catalogs, wantCatalog)
 				}
 				if count != tc.want {
 					t.Errorf("loaded %d skills, want %d", count, tc.want)
@@ -143,6 +156,15 @@ func TestExplicitSkillCancellationResume(t *testing.T) {
 	var calls atomic.Int32
 	adapter := harness.AdapterFunc(func(ctx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
 		n := calls.Add(1)
+		catalogs := 0
+		for _, message := range req.Messages {
+			if _, ok := readCatalogReminder(message); ok {
+				catalogs++
+			}
+		}
+		if catalogs != 1 {
+			t.Errorf("cancel/resume received %d catalogs", catalogs)
+		}
 		count := 0
 		for _, message := range req.Messages {
 			var source skillInvocation
