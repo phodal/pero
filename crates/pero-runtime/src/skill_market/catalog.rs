@@ -32,7 +32,7 @@ pub fn sanitize_catalog(bytes: &[u8]) -> Result<Vec<u8>, String> {
     serde_json::to_vec(&value).map_err(|error| error.to_string())
 }
 
-fn sanitize_skill(value: &mut Value) {
+pub(super) fn sanitize_skill(value: &mut Value) {
     let Some(object) = value.as_object_mut() else {
         return;
     };

@@ -211,6 +211,7 @@ impl SkillMarketStore {
     fn installed(&self) -> serde_json::Value {
         let items=self.state.items.values().map(|item|{
             let mut value=serde_json::json!({"id":item.id,"revision":item.revision,"enabled":item.enabled,"selected":item.selected,"invocation":item.invocation,"entry":item.entry,"versions":item.versions.iter().map(|version|&version.revision).collect::<Vec<_>>()});
+            super::catalog::sanitize_skill(&mut value["entry"]);
             if let Some(revision)=&item.previous_revision{value["previousRevision"]=serde_json::json!(revision);}
             value
         }).collect::<Vec<_>>();
@@ -349,6 +350,10 @@ mod context_tests {
             .save(SkillMarketState::default().publish(old.clone()))
             .unwrap();
         assert!(store.selections().unwrap().is_empty());
+        assert_eq!(
+            store.installed()["items"][0]["entry"]["installation"]["allowed"],
+            true
+        );
         assert!(store.context_candidates("uninstalled").unwrap().is_empty());
         for query in ["", "EVIDENCE", "Analyze", "Secondary", "fixture/research"] {
             assert_eq!(store.context_candidates(query).unwrap().len(), 1, "{query}");
