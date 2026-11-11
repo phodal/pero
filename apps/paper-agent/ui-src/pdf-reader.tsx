@@ -358,6 +358,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
     setBusy(true); setError('');
     try {
       const { annotation } = await api.post<{ annotation: PdfAnnotation }>('/api/fisher/step', { action: 'select', documentId: document.id });
+      // Opening the notes changes viewport width. Freeze the current zoom so
+      // automatic fit does not restore the previous page over this source jump.
+      zoom?.requestZoom(zoom.getState().currentZoomLevel);
       onSaved(annotation); go(annotation); setNotes(true); setFisherAnnotation(annotation.id);
     } catch (e) { fail(e); }
     finally { setBusy(false); }

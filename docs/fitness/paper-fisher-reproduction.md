@@ -267,3 +267,96 @@ failures**, 87.398 seconds (`python-final.log`). Paper TypeScript typecheck pass
 `web/src/reader-wasm/pero_reader_web` generated module (`root-check.log`), so its
 later generated-asset checks did not execute. `git diff --check` passed. Logs
 are under `test-results/fisher-app-20261107/`.
+
+## macOS browser and Electron acceptance — 2026-11-11
+
+Source: `b1b95293` plus `codex/paper-fisher-acceptance`; isolated checkout
+`/Users/phodal/workspaces/pero-issue-77`. This supersedes the prior browser and
+Electron acceptance gaps for this bounded Fisher path only. GitHub #77 is still
+open; original implementation PRs #160 and #166 were confirmed merged.
+Canonical engineering tracker: [Fisher acceptance](../issues/2026-11-11-paper-fisher-acceptance.md).
+
+The new Electron journey imports the university-hosted original bytes through
+Paper's PDF importer, inspects all 100 inputs, freezes the unchanged absolute
+0.00005 cm² policy, runs the real float method and independent exact checker,
+reruns under the same spec, exports the actual ZIP and rechecks it in a fresh
+directory with `python -I -S`. Both reported and independently measured values
+are **19.1434**, difference **0**; the exact total remains **95717/5000**.
+The active-store result annotation has the same source anchor and PDF page 4.
+
+A deliberate comment appended to the disposable installed method file changes
+its real fingerprint after freezing. Running then yields
+`environment_failed / INCONCLUSIVE`, no actual value or independent check, and
+readable failure logs. Restoring the file permits a new successful attempt under
+the original frozen spec. This is an injected environment-admission failure,
+not a claim that an external Environment/Compute machine failed and recovered.
+A separately frozen **bounds [0, 1]** test policy produces
+`completed / MISMATCH / independent PASS`; this intentionally excludes the actual
+value and never alters the default policy or earlier spec. Both protocols and
+all five attempts survive closing/reopening the reader and restarting Desktop/Host.
+
+Observed repairs: opening Fisher notes no longer lets automatic PDF fit return
+to the previous page; source navigation keeps the current zoom using the existing
+capability. Environment failures no longer claim a missing result annotation,
+and both environment failure and mismatch provide specific recovery guidance.
+Components remain the shared SDK controls and Feedback; no token migration or
+new state owner. The test runners use canonical SDK aliases, stage the existing
+PDF parser and accept `PERO_APP_PYTHON`; the CLI fixture resolves its temp parent.
+
+### Reproducible commands and local evidence
+
+Run from the isolated checkout with a Python 3.12 environment containing the
+App's declared dependencies and the exact PDF identified above:
+
+```sh
+export PERO_APP_PYTHON=/Users/phodal/.pero/environment/pero-python312/bin/python3
+export PERO_FISHER_PDF="$PWD/test-results/paper-fisher/fisher1936.pdf"
+node scripts/build/source-parsers.mjs
+PYTHONPATH=apps/paper-agent/backend "$PERO_APP_PYTHON" -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py'
+TMPDIR=/private/tmp PYTHONPATH=apps/paper-agent/backend "$PERO_APP_PYTHON" -m unittest discover -s apps/paper-agent/test -p 'test_*.py'
+node tests/e2e/paper-fisher-state.mjs
+node tests/e2e/paper-fisher-component.mjs
+node tests/e2e/paper-fisher-browser.mjs
+npm run typecheck --prefix apps/paper-agent
+node scripts/build/apps.mjs --app paper-agent --reader-dist /Users/phodal/workspaces/pero/web/dist-reader
+node tests/e2e/paper-fisher-desktop.mjs
+```
+
+Results: focused **18/18**; full **381 / 377 pass / 4 skip**, 62.308 seconds;
+state, component Chromium, real-source Chromium, Electron, App build and
+TypeScript all pass. The full suite's first run with macOS's default symlinked
+temp directory failed (43 errors / 1 failure); `python-full.log` retains that
+attempt. The CLI-specific fixture is fixed here; unrelated PC-Gym fixtures
+continue to require canonical TMPDIR. No domain path restrictions were relaxed.
+
+Artifacts are local, gitignored, and not remotely published CI evidence:
+`/Users/phodal/workspaces/pero-issue-77/test-results/paper-fisher/` contains
+`python-focused.log`, `python-full-canonical.log`, `state.log`, `component.log`,
+`browser.log`, `typecheck.log`, `desktop.log`, and `desktop/result.json`.
+The latter records immutable specs, five attempts and the disposable profile.
+`desktop/handoff.zip` contains the independently rechecked successful attempt.
+
+Visually inspected screenshots: `actual-reader-light.png`,
+`desktop/reproduced-light.png` (page-4 original cell with report/actual/difference),
+`desktop/environment-failed.png` (missing actual/check, recovery text),
+`desktop/mismatch-dark-narrow.png` (mismatch distinct from independent PASS),
+`desktop/mismatch-source-dark.png` (keyboard focus and original cell).
+Desktop window sizes: 1440×1000 and 1000×900; narrow notes intentionally overlay
+part of the PDF while the selected cell remains reachable. The 390px component
+fixture additionally verifies no document-level horizontal overflow. These are
+Web/Electron observations, not Native GPUI, physical IME or exhaustive accessibility
+acceptance. The result section and input review remain vertically scrollable.
+
+Runtime: macOS 27.2 (26B123), Node 26.8.1, Electron 45.1.0, Python 3.12.11.
+Paper was rebuilt from this checkout. Existing development Desktop, Host and
+Reader outputs were reused; they were not rebuilt or packaged here. SHA-256:
+
+- Desktop `main.cjs`: `1da42bd99b3ca1778d0cd30d2036fedeb23619d80725a8a2c239680c98015aa2`.
+- Host executable: `9fa3ce64d462609fc7f4cf7a36a4b68aeaaa783506ba248c37a72fd5ce35466d`.
+- Built Paper `index.js`: `08f9a5628a704e9d466293c16f62abaaf0e8f6adfd2e4a599f11a1a0b9fc4e5e`.
+
+Still not established: independent scientific review, a second non-curated paper,
+general Environment/Compute execution, Native GPUI, signed installation/update,
+other platforms or whole-paper reproduction. Fisher remains `NOT_ASSESSED` at
+whole-paper level; PC-Gym remains outside this increment. **Do not close #77 on
+this record alone.** No model call or external account was used.
