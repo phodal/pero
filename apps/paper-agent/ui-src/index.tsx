@@ -294,6 +294,16 @@ export default function PaperAgent() {
   function followUp(intent: Intent) {
     void ask({ paperIds: intent.paperIds ?? intent.papers.map(p => p.id), fullText: !!intent.fullText, parentIntentId: intent.id });
   }
+  async function openStudy(id: string) {
+    setQuestionMode(false); setSavingPaper(null);
+    const study=await api.get<import('./types').ResearchStudy>(`/api/studies/${id}`);
+    const paperId=study.paperIds[0];
+    if(!paperId)throw Error('The study has no saved source');
+    await read(await api.get<Paper>(`/api/papers/${paperId}`),false,true);
+    await refresh();
+    setRecordOpening(previous=>({studyId:study.id,intentId:study.intentId,token:(previous?.token??0)+1}));
+    setShowResearch(true);
+  }
   function continueStudy(study: StudySummary) {
     void ask({ paperIds: study.paperIds, fullText: true, studyId: study.id }, t('continueStudy'));
   }
@@ -338,13 +348,7 @@ export default function PaperAgent() {
             setRecordOpening(null);
             await read(await api.get<Paper>(`/api/papers/${resource[2]}`),false,true);
           }else{
-            const study=await api.get<import('./types').ResearchStudy>(`/api/studies/${resource[2]}`);
-            const paperId=study.paperIds[0];
-            if(!paperId)throw Error('The study has no saved source');
-            await read(await api.get<Paper>(`/api/papers/${paperId}`),false,true);
-            await refresh();
-            setRecordOpening(previous=>({studyId:study.id,intentId:study.intentId,token:(previous?.token??0)+1}));
-            setShowResearch(true);
+            await openStudy(resource[2]);
           }
           return;
         }
@@ -432,7 +436,11 @@ export default function PaperAgent() {
         {screen === 'library' && evidencePanel}
         {libraryLoaded ? <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} t={t}/> : loading && <p role="status">{t('loading')}</p>}
       </div>}
-      <div hidden={libraryScreen !== 'programs'}>{screen === 'library' && libraryScreen === 'programs' && evidencePanel}<ResearchPrograms api={api} papers={library.papers} seed={programSeed} active={screen === 'library' && libraryScreen === 'programs' && info.active} onLibrary={() => setLibraryScreen('papers')}/></div>
+      <div hidden={libraryScreen !== 'programs'}>{screen === 'library' && libraryScreen === 'programs' && evidencePanel}<ResearchPrograms api={api} papers={library.papers} seed={programSeed} active={screen === 'library' && libraryScreen === 'programs' && info.active} onLibrary={() => setLibraryScreen('papers')} onStudy={openStudy} onCitation={async claim => {
+        const report=await api.get<import('./types').Report>(`/api/reports/${claim.reportId}`);
+        const intent=await api.get<Intent>(`/api/intents/${report.intentId}`);
+        await cite(claim,intent);
+      }}/></div>
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
       <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>

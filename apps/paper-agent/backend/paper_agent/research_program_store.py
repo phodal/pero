@@ -76,6 +76,7 @@ class ResearchPrograms:
                     rounds=rounds, roundPage=dict(offset=round_offset, total=len(program.roundIds), nextOffset=round_offset + len(rounds) if round_offset + len(rounds) < len(program.roundIds) else None),
                     acceptance='needs_review', gaps=list(program.gaps), stopReason=program.stopReason,
                     researchRecordIds=list(program.researchRecordIds),
+                    studies=[self.store.study(identity).summary() for identity in program.studyIds],
                     runtime=self._read(runtime) if runtime.exists() else None,
                     jobs=[self.job_view(self._read(self.directory(program.id) / 'jobs' / identity / 'job.json')) for identity in program.jobIds[-10:]])
 

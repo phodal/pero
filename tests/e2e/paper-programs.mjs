@@ -7,19 +7,22 @@ import { resolve, extname } from 'node:path';
 const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/paper-programs');
 await mkdir(out,{recursive:true});
 const paper={id:'a'.repeat(64),source:'openalex',sourceId:'W1',title:'Synthetic model mismatch study with a deliberately long descriptive title',url:'https://openalex.org/W1',authors:[],contentKind:'abstract',contentDigest:'b'.repeat(64),fetchedAt:'2026-11-06T00:00:00Z',content:'Synthetic source; no scientific acceptance.'};
-let program=null,run=null,failNext=false,failCancel=false;const calls=[],errors=[];
+let program=null,run=null,failNext=false,failCancel=false;const calls=[],citations=[],errors=[];
 const browser=await chromium.launch({headless:true,...(process.env.PERO_CHROMIUM_PATH?{executablePath:process.env.PERO_CHROMIUM_PATH}:{})});
 const page=await browser.newPage({viewport:{width:1100,height:900}});
 page.on('pageerror',e=>errors.push(e.message));
 try {
   await page.route('**/*',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname,body=request.method()==='POST'?request.postDataJSON():null;
-    if(path==='/harness')return route.fulfill({contentType:'text/html',body:'<!doctype html><style>body{margin:0}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style><iframe sandbox="allow-scripts allow-same-origin" src="/"></iframe>'});
+    if(path==='/harness')return route.fulfill({contentType:'text/html',body:'<!doctype html><style>body{margin:0}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style><iframe sandbox="allow-scripts allow-same-origin allow-forms" src="/"></iframe>'});
     let value;
     if(path==='/host/sdk')value={name:'paper-agent',permissions:{api:['/api'],events:['chat:closed'],host:['agent']}};
     else if(path==='/api/library')value={papers:[paper],intents:[],reports:[]};
     else if(path==='/api/workspaces')value={items:[{workspaceId:'ws_fixture'}]};
     else if(path==='/api/harnesses')value={items:[{id:'pero',available:true}]};
+    else if(path==='/api/reports/report1')value={id:'report1',intentId:'intent1',sections:[{evidence:[{paperId:paper.id,passageId:'same-passage',quote:'First quotation'},{paperId:paper.id,passageId:'same-passage',quote:'Second quotation'}]}]};
+    else if(path==='/api/intents/intent1')value={id:'intent1',papers:[paper]};
+    else if(path==='/api/evidence'){citations.push(body);value={paperId:paper.id,start:0,end:body.quote.length,heading:'Saved original passage',before:'',quote:body.quote,after:''}}
     else if(path==='/api/programs'){
       if(failNext){failNext=false;return route.fulfill({status:503,body:'Synthetic research backend unavailable. Reload to retry.'})}
       if(body.operation==='list')value={programs:program?[program]:[]};
@@ -46,10 +49,10 @@ try {
   await page.goto('http://localhost/harness');
   const surface=page.frameLocator('iframe');
   await surface.getByRole('button',{name:'Autonomous research',exact:true}).click();
-  await expect(surface.getByRole('button',{name:'Save plan',exact:true})).toBeDisabled();
+  await expect(surface.getByRole('button',{name:'Save and review plan',exact:true})).toBeDisabled();
   await surface.getByLabel(paper.title,{exact:true}).check();
-  for(const [label,text] of [['Research question','Does the method remain reliable under model mismatch?'],['Scope','Original studies and replications.'],['Include','Methods with original observations.'],['Exclude','Unattributed summaries.']])await surface.getByLabel(label,{exact:true}).fill(text);
-  await surface.getByRole('button',{name:'Save plan',exact:true}).focus();
+  for(const [label,text] of [['Research question','Does the method remain reliable under model mismatch?'],['Scope','Original studies and replications.'],['Include','Methods with original observations.'],['Exclude','Unattributed summaries.']])await surface.getByRole('textbox',{name:label,exact:true}).fill(text);
+  await surface.getByRole('button',{name:'Save and review plan',exact:true}).focus();
   await page.screenshot({path:resolve(out,'plan-light-focus.png')});
   await page.keyboard.press('Enter');
   await expect(surface.getByRole('button',{name:'Start research',exact:true})).toBeEnabled();
@@ -69,8 +72,25 @@ try {
   assert.equal(calls.filter(c=>c.operation==='start').length,1,'Resuming must reuse the original Run');
   failCancel=true;
   await surface.getByRole('button',{name:'Stop research',exact:true}).click();
+  await surface.getByRole('dialog').getByRole('button',{name:'Stop research',exact:true}).click();
   await expect.poll(()=>run.status,{timeout:10000}).toBe('cancelled');
   await expect(surface.getByRole('button',{name:'Resume research',exact:true})).toBeDisabled();
+  await surface.getByRole('dialog').getByRole('button',{name:'Go back',exact:true}).click();
+  program.rounds=[{id:'round1',number:1,question:'Two quotations from one observed passage',newEvidence:1,gaps:['Independent replication missing'],nextAction:'Locate replication',claims:['First quotation','Second quotation'].map((quote,i)=>({text:'Synthetic claim '+(i+1),stance:i?'counterevidence':'support',quote,reportId:'report1',paperId:paper.id,passageId:'same-passage'}))}];
+  program.usage.rounds=1;
+  await surface.getByRole('button',{name:'Refresh',exact:true}).click();
+  await surface.getByRole('tab',{name:'Reports',exact:true}).click();
+  await expect(surface.getByText('Counterevidence',{exact:true})).toBeVisible();
+  await surface.getByRole('button',{name:'Source report',exact:true}).nth(1).click();
+  await expect(surface.locator('.pa-evidence mark')).toHaveText('Second quotation');
+  assert.equal(citations.at(-1).quote,'Second quotation');
+  assert.equal(citations.at(-1).passageId,'same-passage');
+  await page.screenshot({path:resolve(out,'exact-second-quotation.png')});
+  await surface.locator('.pa-evidence button').first().press('Escape');
+  await expect(surface.locator('.pa-evidence')).toHaveCount(0);
+  await surface.getByRole('tab',{name:'Plan',exact:true}).click();
+  await expect(surface.getByText('Not yet reported / 40',{exact:true})).toBeVisible();
+  await page.screenshot({path:resolve(out,'unknown-accounting-light.png')});
   await page.evaluate(()=>document.querySelector('iframe').contentWindow.postMessage({type:'pero:app:context',context:{locale:'zh-CN',dark:true,active:true}},'*'));
   await expect(surface.locator('html')).toHaveAttribute('lang','zh-CN');
   await page.setViewportSize({width:390,height:844});
@@ -78,12 +98,15 @@ try {
   await surface.getByRole('button',{name:'打开会话与产物',exact:true}).focus();
   await page.screenshot({path:resolve(out,'stopped-dark-narrow.png')});
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert.equal(overflow,false,'Narrow layout overflows');
-  failNext=true;await surface.getByRole('button',{name:'重新读取',exact:true}).click();
+  await surface.getByRole('tab',{name:'研究报告',exact:true}).click();
+  await expect(surface.getByText('反证',{exact:true})).toBeVisible();
+  await page.screenshot({path:resolve(out,'claims-dark-narrow.png')});
+  failNext=true;await surface.getByRole('button',{name:'刷新',exact:true}).click();
   await expect(surface.getByText('Synthetic research backend unavailable. Reload to retry.',{exact:false})).toBeVisible();
   await page.screenshot({path:resolve(out,'error-dark-narrow.png')});
-  await surface.getByRole('button',{name:'重新读取',exact:true}).click();
+  await surface.getByRole('button',{name:'刷新',exact:true}).click();
   await expect(surface.getByText('Synthetic research backend unavailable. Reload to retry.',{exact:false})).toHaveCount(0);
   assert.deepEqual(errors,[]);
-  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks:['explicit-start','same-run-resume','stop-disabled','error-recovery','keyboard-focus','light-dark','narrow-no-overflow'],limitations:['Fixture state; no provider or scientific acceptance']},null,2));
+  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks:['explicit-start','same-run-resume','stop-disabled','error-recovery','keyboard-focus','light-dark','narrow-no-overflow','same-passage-second-quote','unknown-runtime-not-zero','claim-stance'],limitations:['Fixture state; no provider or scientific acceptance']},null,2));
   console.log('PASS Paper research plan/start/pause/resume/stop/error and responsive UI');
 }catch(error){await page.screenshot({path:resolve(out,'failure.png')});throw error}finally{await browser.close()}

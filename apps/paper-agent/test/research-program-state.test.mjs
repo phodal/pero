@@ -230,19 +230,27 @@ test('the research form saves without starting and uses a new creation identity 
   assert.notEqual(creations[0].requestId, creations[1].requestId);
 });
 
-test('the report interface pages saved rounds while execution is unavailable', async t => {
-  const f = await fixture(t), saved = program('p1');
+test('saved reports retain exact quotation choices, stance, reading records and unknown accounting without execution', async t => {
+  const f = await fixture(t), saved = program('p1'), chosen = [], opened = [];
+  const claims = ['First quotation', 'Second quotation'].map((quote, i) => ({ text: `Claim ${i}`, quote, paperId: 'paper1', reportId: 'report1', passageId: 'same-passage', stance: i ? 'counterevidence' : 'support' }));
+  saved.studies = [{ id: 'study1', question: 'Retained unfinished reading' }];
   const { id, checkpoint, protocol, usage, stopReason } = saved;
   const api = { get: async () => ({ items: [] }), post: async (_path, request) => request.operation === 'list'
     ? { programs: [{ id, checkpoint, protocol, usage, stopReason }] }
     : { ...saved, roundPage: { offset: request.roundOffset ?? 0, total: 2, nextOffset: request.roundOffset ? null : 1 },
-      rounds: [{ id: `r${request.roundOffset ?? 0}`, number: (request.roundOffset ?? 0) + 1, question: request.roundOffset ? 'Second saved report' : 'First saved report', claims: [], gaps: [], nextAction: 'Review', newEvidence: 1 }] } };
+      rounds: [{ id: `r${request.roundOffset ?? 0}`, number: (request.roundOffset ?? 0) + 1, question: request.roundOffset ? 'Second saved report' : 'First saved report', claims, gaps: [], nextAction: 'Review', newEvidence: 1 }] } };
   await f.render(f.React.createElement(f.ui.AppApiProvider, { appName: 'paper-agent', locale: 'en', allowedApiPaths: ['/api'], surface: f.ui.appSurface,
     allowedEvents: [], subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {},
-  }, f.React.createElement(f.ui.ResearchPrograms, { api, papers: [], seed: null })));
+  }, f.React.createElement(f.ui.ResearchPrograms, { api, papers: [], seed: null, onCitation: async claim => chosen.push(claim), onStudy: async id => opened.push(id) })));
   await f.click(document.querySelector('.pa-program-list .pero-list-open'));
   const reports = document.querySelector('[role=tab][data-state=active]');
   assert.equal(reports.textContent, 'Reports');
+  await f.click(document.querySelectorAll('.pa-program-claim button')[1]);
+  assert.deepEqual(chosen, [claims[1]]);
+  assert.match(document.querySelectorAll('.pa-program-claim')[1].textContent, /Counterevidence/);
+  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Open reading record'));
+  assert.deepEqual(opened, ['study1']);
+  assert.equal([...document.querySelectorAll('.pa-program-usage dd')].filter(node => node.textContent.includes('Not yet reported')).length, 2);
   const next = [...document.querySelectorAll('.pa-program-pagination button')].find(node => node.textContent === 'Next');
   assert.ok(next && !next.disabled);
   await f.click(next);

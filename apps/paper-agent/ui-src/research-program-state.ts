@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useHostCapability, type AppAgentRun, type AppAgentScope } from '@pero/app-sdk';
-import type { Api, Paper } from './types';
+import type { Api, Paper, StudySummary } from './types';
 
 export type Limits = { rounds: number; searches: number; candidates: number; reads: number; downloads: number; downloadBytes: number; modelRequests: number; appCalls: number };
 export type Page = { offset: number; total: number; nextOffset: number | null };
 type Candidate = { id: string; title: string; url: string; decision: string; reason: string; blocker: string | null; documentId: string | null };
-type Round = { id: string; number: number; question: string; claims: { text: string; stance: string; quote: string; reportId: string; passageId?: string; sourceKind?: string; sourceUrl?: string }[]; gaps: string[]; nextAction: string; newEvidence: number };
+export type ProgramClaim = { text: string; stance: string; quote: string; reportId: string; paperId: string; passageId?: string; sourceKind?: string; sourceUrl?: string };
+type Round = { id: string; number: number; question: string; claims: ProgramClaim[]; gaps: string[]; nextAction: string; newEvidence: number };
 export type Program = {
   id: string; checkpoint: string;
-  protocol: { question: string; scope: string; inclusion: string; exclusion: string; seedPaperIds: string[]; acquisition: string; limits: Limits; deadline: string };
+  protocol: { question: string; scope: string; inclusion: string; exclusion: string; seedPaperIds: string[]; acquisition: string; limits: Limits; noProgressLimit?: number; deadline: string };
   candidatePage?: Page; roundPage?: Page; usage: Omit<Limits, 'modelRequests'>;
   runtime: { status: string; modelRequestsUsed: number; appCallsUsed: number } | null;
-  candidates: Candidate[]; rounds: Round[]; gaps: string[]; stopReason: string | null;
+  studies?: StudySummary[]; candidates: Candidate[]; rounds: Round[]; gaps: string[]; stopReason: string | null;
   jobs: { id: string; status: string; input: { operation: string; query?: { query?: string; relation?: string } }; error: string; outcome?: { status: string; errors: { source: string; error: string }[]; warnings: { source: string; message: string }[] } }[];
 };
 export type ProgramSummary = Pick<Program, 'id' | 'checkpoint' | 'protocol' | 'usage' | 'stopReason'>;
@@ -31,7 +32,7 @@ export function useResearchProgramState(api: Api, seed: Paper | null, visible = 
   const [failedSelection, setFailedSelection] = useState<ProgramSummary | null>(null), [selectionError, setSelectionError] = useState('');
   const [seeds, setSeeds] = useState<string[]>(seed ? [seed.id] : []), [question, setQuestion] = useState(''), [researchScope, setResearchScope] = useState(''), [inclusion, setInclusion] = useState(''), [exclusion, setExclusion] = useState('');
   const [candidateOffset, setCandidateOffset] = useState(0), [roundOffset, setRoundOffset] = useState(0), [listNext, setListNext] = useState<number | null>(null);
-  const [acquisition, setAcquisition] = useState('saved_only'), [limits, setLimits] = useState({ rounds: 3, searches: 8, reads: 24, modelRequests: 40 }), [minutes, setMinutes] = useState(30);
+  const [acquisition, setAcquisition] = useState('saved_only'), [limits, setLimits] = useState({ rounds: 3, searches: 8, reads: 24, modelRequests: 40 }), [minutes, setMinutes] = useState(30), [noProgressLimit, setNoProgressLimit] = useState(2);
   const [revision, setRevision] = useState(0);
   const active = !!run && ['running', 'cancelling', 'needs_input'].includes(run.status);
   const expired = !!selected && Date.now() >= Date.parse(selected.protocol.deadline);
@@ -109,7 +110,7 @@ export function useResearchProgramState(api: Api, seed: Paper | null, visible = 
     try { await action(); } catch (reason) { setError(errorText(reason)); } finally { setBusy(false); }
   }
   async function save() {
-    const saved = await api.post<Program>('/api/programs', { operation: 'create', requestId: createId.current, question, scope: researchScope, inclusion, exclusion, seedPaperIds: seeds, acquisition, limits, minutes });
+    const saved = await api.post<Program>('/api/programs', { operation: 'create', requestId: createId.current, question, scope: researchScope, inclusion, exclusion, seedPaperIds: seeds, acquisition, limits, minutes, noProgressLimit });
     selectionRequest.current++; setRunLookupReady(false); setFailedSelection(null); setSelectionError('');
     setCandidateOffset(0); setRoundOffset(0); setReadError(''); setSelected(saved); setRun(null); setPrograms(items => [saved, ...items.filter(item => item.id !== saved.id)]);
   }
@@ -158,7 +159,7 @@ export function useResearchProgramState(api: Api, seed: Paper | null, visible = 
     agent, programs, selected, run, scope, available, busy, loading: listLoading, listLoading, listLoaded, listRefreshing: listLoading && listLoaded, listError,
     capabilityError, capabilitiesLoading, runLookupReady, readLoading: readLoading || selectionLoading, error: actionError || selectionError || readError, setError, failedSelection,
     seeds, setSeeds, question, setQuestion, researchScope, setResearchScope, inclusion, setInclusion, exclusion, setExclusion,
-    acquisition, setAcquisition, limits, setLimits, minutes, setMinutes, candidateOffset, setCandidateOffset, roundOffset, setRoundOffset, listNext,
+    acquisition, setAcquisition, limits, setLimits, minutes, setMinutes, noProgressLimit, setNoProgressLimit, candidateOffset, setCandidateOffset, roundOffset, setRoundOffset, listNext,
     active, expired, reload, perform, save, start, control, newPlan, selectProgram, retryRead, morePrograms,
   };
 }

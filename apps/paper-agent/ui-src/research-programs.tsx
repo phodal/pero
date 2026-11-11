@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, Input, ListRow, Select, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { Api, Paper } from './types';
-import { useResearchProgramState, type Program } from './research-program-state';
+import { useResearchProgramState, type Program, type ProgramClaim } from './research-program-state';
 import './research-programs.css';
 
 const messages = {
@@ -13,7 +13,7 @@ const messages = {
   acquisition:{zh:'可读取的来源',en:'Sources to read'}, saved:{zh:'仅已保存原文',en:'Saved sources only'}, public:{zh:'已保存原文与公开 PDF',en:'Saved sources and public PDFs'}, publicFulltext:{zh:'含固定版本官方 HTML',en:'Also fixed-version official HTML'},
   execution:{zh:'执行范围',en:'Execution limits'}, adjust:{zh:'调整额度与时限',en:'Adjust limits and time'}, rounds:{zh:'轮',en:'rounds'}, searches:{zh:'检索',en:'searches'}, reads:{zh:'阅读',en:'reads'}, modelRequests:{zh:'模型请求',en:'model requests'}, minutes:{zh:'分钟',en:'minutes'},
   limitRounds:{zh:'研究轮数',en:'Research rounds'}, limitSearches:{zh:'检索次数',en:'Searches'}, limitReads:{zh:'阅读步数',en:'Reading steps'}, limitModelRequests:{zh:'模型请求总数',en:'Model requests'}, limitMinutes:{zh:'时限（分钟）',en:'Time limit (minutes)'},
-  limitsNote:{zh:'另含 24 篇候选、6 次下载 / 60 MiB、80 次应用调用。连续两轮无新进展时停止；额度跨暂停与重启累计。',en:'Also limited to 24 candidates, 6 downloads / 60 MiB and 80 App calls. Stops after two rounds without progress; allowances persist across pauses and restarts.'},
+  limitsNote:{zh:'另含 24 篇候选、6 次下载 / 60 MiB、80 次应用调用。额度跨暂停与重启累计。',en:'Also limited to 24 candidates, 6 downloads / 60 MiB and 80 App calls. Allowances persist across pauses and restarts.'},
   save:{zh:'保存并核对计划',en:'Save and review plan'}, saving:{zh:'正在保存…',en:'Saving…'}, saveNote:{zh:'保存不会启动 Agent。核对计划后，由你启动研究。',en:'Saving does not start an Agent. Review the plan before starting.'}, selectFirst:{zh:'选择至少一篇起始论文后即可保存。',en:'Select at least one starting paper to save.'},
   start:{zh:'启动研究',en:'Start research'}, pause:{zh:'暂停',en:'Pause'}, resume:{zh:'继续研究',en:'Resume research'}, stop:{zh:'停止研究',en:'Stop research'}, stopTitle:{zh:'停止这项研究？',en:'Stop this research?'}, stopNote:{zh:'已保存的报告与证据会保留。此计划停止后，需要新建计划继续研究。',en:'Saved reports and evidence will be kept. Create a new plan to continue after stopping.'}, cancel:{zh:'返回',en:'Go back'}, close:{zh:'关闭',en:'Close'}, chat:{zh:'打开会话与产物',en:'Open conversation and artifacts'},
   loading:{zh:'正在读取研究计划…',en:'Loading research plans…'}, refreshing:{zh:'正在更新…',en:'Updating…'}, retry:{zh:'刷新',en:'Refresh'}, retained:{zh:'显示上次读取的计划。',en:'Showing the last loaded plans.'}, readLoading:{zh:'正在读取记录…',en:'Loading record…'}, retryRead:{zh:'重试读取',en:'Retry loading'},
@@ -30,18 +30,19 @@ const messages = {
   deadline:{zh:'截止时间',en:'Deadline'}, candidates:{zh:'候选论文',en:'Candidate papers'}, reports:{zh:'研究报告',en:'Reports'}, plan:{zh:'研究计划',en:'Plan'}, progress:{zh:'进展与额度',en:'Progress and allowances'}, openQuestions:{zh:'尚待解决的问题',en:'Open questions'},
   noRounds:{zh:'尚未形成报告',en:'No report yet'}, noRoundsHint:{zh:'研究会按轮保存报告。运行中的步骤可以在会话中查看。',en:'Reports are saved after each round. Follow ongoing steps in the conversation.'}, noCandidates:{zh:'尚无候选论文',en:'No candidates yet'}, noCandidatesHint:{zh:'研究开始检索后，候选论文及筛选依据会出现在这里。',en:'Candidate papers and screening reasons will appear after searching begins.'},
   nextAction:{zh:'下一步',en:'Next action'}, round:{zh:'第',en:'Round'}, newEvidence:{zh:'新证据',en:'New evidence'}, previous:{zh:'上一页',en:'Previous'}, next:{zh:'下一页',en:'Next'}, more:{zh:'更多计划',en:'More plans'},
+  noProgressLimit:{zh:'连续无新进展轮数',en:'Rounds without progress'}, unknownUsage:{zh:'尚未报告',en:'Not yet reported'}, support:{zh:'支持证据',en:'Supporting evidence'}, counterevidence:{zh:'反证',en:'Counterevidence'}, limitation:{zh:'局限',en:'Limitation'}, originalSource:{zh:'原始来源',en:'Original source'}, studies:{zh:'已保存的阅读批次',en:'Saved reading batches'}, studiesNote:{zh:'阅读记录与来源报告独立保存，尚未汇入研究轮次的内容也可查看。',en:'Reading records and source reports are saved independently, including work not yet committed to a research round.'}, openStudy:{zh:'查看阅读记录',en:'Open reading record'},
   downloads:{zh:'下载次数',en:'Downloads'}, downloadBytes:{zh:'下载字节',en:'Download bytes'}, appCalls:{zh:'应用调用',en:'App calls'},
 } as const;
 
-export function ResearchPrograms({api,papers,seed,active=true,onLibrary}:{api:Api;papers:Paper[];seed:Paper|null;active?:boolean;onLibrary?:()=>void}) {
+export function ResearchPrograms({api,papers,seed,active=true,onLibrary,onCitation,onStudy}:{api:Api;papers:Paper[];seed:Paper|null;active?:boolean;onLibrary?:()=>void;onCitation?:(claim:ProgramClaim)=>Promise<void>;onStudy?:(id:string)=>Promise<void>}) {
   const {t}=useAppI18n(messages);
   const state=useResearchProgramState(api,seed,active);
   const {programs,selected,run,agent,scope,available,busy,listLoaded,listLoading,listRefreshing,listError,capabilityError,capabilitiesLoading,runLookupReady,readLoading,error,failedSelection,
-    seeds,setSeeds,question,setQuestion,researchScope,setResearchScope,inclusion,setInclusion,exclusion,setExclusion,acquisition,setAcquisition,limits,setLimits,minutes,setMinutes,
+    seeds,setSeeds,question,setQuestion,researchScope,setResearchScope,inclusion,setInclusion,exclusion,setExclusion,acquisition,setAcquisition,limits,setLimits,minutes,setMinutes,noProgressLimit,setNoProgressLimit,
     candidateOffset,setCandidateOffset,roundOffset,setRoundOffset,listNext,active:runActive,expired,reload,perform,save,start,control,newPlan,selectProgram,retryRead,morePrograms}=state;
   const panel=useRef<HTMLDivElement>(null),form=useRef<HTMLFormElement>(null);
   const [paperQuery,setPaperQuery]=useState(''),[stopOpen,setStopOpen]=useState(false),[detailTab,setDetailTab]=useState('plan');
-  useEffect(()=>{panel.current?.scrollTo({top:0});setDetailTab(selected&&(selected.rounds.length||selected.runtime)?'reports':'plan')},[selected?.id]);
+  useEffect(()=>{panel.current?.scrollTo({top:0});setDetailTab(selected&&(selected.rounds.length||selected.studies?.length||selected.runtime)?'reports':'plan')},[selected?.id]);
   useEffect(()=>{if(run)setDetailTab('reports')},[run?.id]);
   const visiblePapers=papers.filter(p=>p.title.toLocaleLowerCase().includes(paperQuery.toLocaleLowerCase()));
   const submit=()=>{if(!busy&&seeds.length&&form.current?.reportValidity())void perform(save)};
@@ -81,6 +82,7 @@ export function ResearchPrograms({api,papers,seed,active=true,onLibrary}:{api:Ap
       <h2>{t('execution')}</h2><p className="pa-program-budget-summary">{budgetSummary}</p>
       <Disclosure variant="inline" summary={t('adjust')}>
         <div className="pa-program-limits">{Object.entries(limits).map(([key,value])=><Field key={key} label={t('limit'+key[0].toUpperCase()+key.slice(1))}>{props=><Input {...props} type="number" min={1} max={key==='rounds'?32:key==='searches'?100:500} value={value} required disabled={busy} onChange={e=>setLimits(x=>({...x,[key]:Number(e.target.value)}))}/>}</Field>)}
+          <Field label={t('noProgressLimit')}>{props=><Input {...props} type="number" min={1} max={10} required value={noProgressLimit} disabled={busy} onChange={e=>setNoProgressLimit(Number(e.target.value))}/>}</Field>
           <Field label={t('limitMinutes')}>{props=><Input {...props} type="number" min={1} max={240} required value={minutes} disabled={busy} onChange={e=>setMinutes(Number(e.target.value))}/>}</Field>
         </div>
       </Disclosure>
@@ -110,12 +112,13 @@ export function ResearchPrograms({api,papers,seed,active=true,onLibrary}:{api:Ap
         {!!selected.rounds.length&&<Feedback kind="info"><strong>{t('review')}</strong> {t('reviewNote')}</Feedback>}
         {!selected.rounds.length&&<EmptyState heading={t('noRounds')} description={t('noRoundsHint')}/>}
         {selected.rounds.map(round=><article key={round.id} className="pa-program-report"><p className="pa-program-caption">{t('round')} {round.number} · {t('newEvidence')} {round.newEvidence}</p><h2>{round.question}</h2>
-          {round.claims.map((claim,i)=><section key={i} className="pa-program-claim"><p>{claim.text}</p><blockquote>{claim.quote}</blockquote><a href={claim.sourceKind==='html'?claim.sourceUrl:'pero-app-location://paper-agent/main/report/'+claim.reportId+'/passage/'+claim.passageId}>{t('source')}</a></section>)}
+          {round.claims.map((claim,i)=><section key={i} className="pa-program-claim"><Badge>{t(claim.stance)}</Badge><p>{claim.text}</p><blockquote>{claim.quote}</blockquote>{claim.sourceKind==='html'?<a href={claim.sourceUrl} target="_blank" rel="noreferrer">{t('originalSource')}</a>:<Button variant="link" disabled={busy||!onCitation} onClick={()=>void perform(()=>onCitation!(claim))}>{t('source')}</Button>}</section>)}
           {!!round.gaps.length&&<section><h3>{t('openQuestions')}</h3><ul>{round.gaps.map((gap,i)=><li key={i}>{gap}</li>)}</ul></section>}
           <p><strong>{t('nextAction')}: </strong>{round.nextAction}</p>
         </article>)}
         {selected.roundPage&&selected.roundPage.total>1&&<nav className="pa-program-pagination" aria-label={t('reports')}><Button disabled={busy||readLoading||roundOffset===0} onClick={()=>setRoundOffset(Math.max(0,roundOffset-1))}>{t('previous')}</Button><span>{selected.roundPage.offset+1} / {selected.roundPage.total}</span><Button disabled={busy||readLoading||selected.roundPage.nextOffset===null} onClick={()=>setRoundOffset(selected.roundPage!.nextOffset!)}>{t('next')}</Button></nav>}
         {!!selected.gaps.length&&<section className="pa-program-section"><h2>{t('openQuestions')}</h2><ul>{selected.gaps.map((g,i)=><li key={i}>{g}</li>)}</ul></section>}
+        {!!selected.studies?.length&&<section className="pa-program-section"><h2>{t('studies')}</h2><p className="pa-program-caption">{t('studiesNote')}</p><ul>{selected.studies.map(study=><li key={study.id}><span>{study.question}</span> <Button variant="link" disabled={busy||!onStudy} onClick={()=>void perform(()=>onStudy!(study.id))}>{t('openStudy')}</Button></li>)}</ul></section>}
         {!!selected.jobs.length&&<Disclosure variant="inline" defaultOpen={runActive} summary={t('jobs')}><ul className="pa-program-jobs">{selected.jobs.map(job=><li key={job.id}><span>{job.input.query?.query||job.input.query?.relation||job.input.operation}</span><Badge>{job.outcome?.status||job.status}</Badge>{job.error&&<Feedback kind="error">{job.error}</Feedback>}{job.outcome?.errors.map((e,i)=><Feedback key={i} kind="error">{e.source}: {e.error}</Feedback>)}{job.outcome?.warnings.map((w,i)=><Feedback key={i} kind="warning">{w.source}: {w.message}</Feedback>)}</li>)}</ul></Disclosure>}
       </TabsContent>
       <TabsContent value="candidates" forceMount>
@@ -125,7 +128,7 @@ export function ResearchPrograms({api,papers,seed,active=true,onLibrary}:{api:Ap
       </TabsContent>
       <TabsContent value="plan" forceMount>
         <dl className="pa-program-protocol"><div><dt>{t('scope')}</dt><dd>{selected.protocol.scope}</dd></div><div><dt>{t('inclusion')}</dt><dd>{selected.protocol.inclusion}</dd></div><div><dt>{t('exclusion')}</dt><dd>{selected.protocol.exclusion}</dd></div><div><dt>{t('seeds')}</dt><dd><ul>{selected.protocol.seedPaperIds.map(id=><li key={id}>{papers.find(p=>p.id===id)?.title??id}</li>)}</ul></dd></div><div><dt>{t('acquisition')}</dt><dd>{t(selected.protocol.acquisition==='public_fulltext'?'publicFulltext':selected.protocol.acquisition==='public_pdf'?'public':'saved')}</dd></div></dl>
-        <section className="pa-program-section"><h2>{t(run||selected.rounds.length||selected.stopReason?'progress':'execution')}</h2><dl className="pa-program-usage">{Object.entries(selected.protocol.limits).map(([key,limit])=><div key={key}><dt>{t(['rounds','searches','reads','modelRequests'].includes(key)?'limit'+key[0].toUpperCase()+key.slice(1):key)}</dt><dd>{run||selected.rounds.length||selected.stopReason?<>{allowance(key,key==='modelRequests'?selected.runtime?.modelRequestsUsed??0:key==='appCalls'?selected.runtime?.appCallsUsed??0:selected.usage[key as keyof Program['usage']]??0)} / </>:null}{allowance(key,limit)}</dd></div>)}</dl></section>
+        <p>{t('noProgressLimit')}: {selected.protocol.noProgressLimit ?? 2}</p><section className="pa-program-section"><h2>{t(run||selected.rounds.length||selected.stopReason?'progress':'execution')}</h2><dl className="pa-program-usage">{Object.entries(selected.protocol.limits).map(([key,limit])=><div key={key}><dt>{t(['rounds','searches','reads','modelRequests'].includes(key)?'limit'+key[0].toUpperCase()+key.slice(1):key)}</dt><dd>{run||selected.rounds.length||selected.stopReason?<>{(key==='modelRequests'||key==='appCalls')&&!selected.runtime?t('unknownUsage'):allowance(key,key==='modelRequests'?selected.runtime!.modelRequestsUsed:key==='appCalls'?selected.runtime!.appCallsUsed:selected.usage[key as keyof Program['usage']]??0)} / </>:null}{allowance(key,limit)}</dd></div>)}</dl></section>
       </TabsContent>
     </Tabs>
   </div>;

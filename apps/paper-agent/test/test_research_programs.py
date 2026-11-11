@@ -130,6 +130,10 @@ class ResearchProgramsAcceptance(unittest.TestCase):
             state = perform('study-step', 'finalize-seed', document=dict(studyId=study_id,
                 action='finalize', report=report))
             report_id = state['result']['reportId']
+            retained = ResearchPrograms(ResearchStore(root)).command(dict(operation='read', programId=state['id']), NOW)
+            self.assertEqual(retained['rounds'], [])
+            self.assertEqual(retained['studies'][0]['reportId'], report_id)
+            self.assertEqual(retained['studies'][0]['id'], study_id)
             claim = dict(text='The source describes a formal method.', stance='support',
                          reportId=report_id, paperId=paper.id, passageId=passage.id)
             before = state['checkpoint']
