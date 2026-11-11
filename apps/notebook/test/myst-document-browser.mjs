@@ -103,7 +103,7 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
     '<img src="https://myst-resource.invalid/raw.png" onerror="globalThis.mystExecuted = true">', '',
   ].join('\n');
   // The actual file input is deliberately hidden by the shared FilePicker.
-  await page.locator('input[type="file"][accept=".md,.myst,.myst.json"]').setInputFiles({ name: 'science.myst', mimeType: 'text/plain', buffer: Buffer.from(source) });
+  await page.locator('input[type="file"][accept*=".myst.json"]').setInputFiles({ name: 'science.myst', mimeType: 'text/plain', buffer: Buffer.from(source) });
   const editor = page.getByRole('textbox', { name: 'MyST source', exact: true });
   await expect(editor).toHaveValue(source);
   const sourceGeometry = await editor.evaluate(element => {
