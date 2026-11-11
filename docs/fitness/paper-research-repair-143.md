@@ -107,8 +107,12 @@ exits 1 when live prerequisites are absent; it makes zero provider requests.
 
 ## Remaining acceptance
 
-A new provider run needs explicit authorization and a credential in the same
-executor's secure configuration. The prepared comparison keeps both frozen
+The user subsequently authorized one new attempt for each of the two cases with
+DeepSeek Flash and the unchanged limits below. The authorized preflight at
+`test-results/paper-143-repair/preflight-authorized.json` passes every local check
+except `providerCredential`: this executor has no `DEEPSEEK_API_KEY`. No provider
+request has been sent. Authorization is settled; execution awaits secure credential
+configuration in this executor. The prepared comparison keeps both frozen
 cases and all original limits: each has 3 rounds, 60 model requests, 100 App
 calls, 4096 output tokens/request, 12 minutes, 4 searches, 12 candidates,
 16 reads and 3 downloads/30 MiB. There is no dollar-denominated cap in this
