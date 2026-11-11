@@ -15,8 +15,8 @@ let host,exit,stderr='',sequence=0;
 async function wait(predicate,after=0){
   const deadline=Date.now()+30000;
   while(true){const found=events.slice(after).find(predicate);if(found)return found;
-    const remaining=deadline-Date.now();assert(remaining>0,`Host timed out: ${stderr}`);
-    await new Promise((accept,reject)=>{const listener=()=>{clearTimeout(timer);accept();};const timer=setTimeout(()=>{changed.off('event',listener);reject(Error(`Host timed out: ${stderr}`));},remaining);changed.once('event',listener);});
+    const remaining=deadline-Date.now();assert(remaining>0,`Host timed out: ${stderr} ${JSON.stringify(events.slice(-8))}`);
+    await new Promise((accept,reject)=>{const listener=()=>{clearTimeout(timer);accept();};const timer=setTimeout(()=>{changed.off('event',listener);reject(Error(`Host timed out: ${stderr} ${JSON.stringify(events.slice(-8))}`));},remaining);changed.once('event',listener);});
   }
 }
 async function request(action,fields={}){const id=`concurrent-${++sequence}`;host.stdin.write(JSON.stringify({method:'apps',id,action,...fields})+'\n');return(await wait(e=>e.kind==='apps_result'&&e.request_id===id)).data;}
@@ -50,7 +50,9 @@ try{
   const completed=await ok('installed');assert.equal(completed.items.length,2);assert(completed.items.some(v=>v.id===fixture.fast.id&&v.selected),'Completion must merge into current installed state');
   await stop();await start();assert.equal((await ok('installed')).items.length,2,'Concurrent installs persist across restart');
   await rm(forwarder.ready);await rm(forwarder.release);
-  const shutdown=market('install',{id:fixture.slow.id});await readyFile(forwarder.ready);await stop();await shutdown;
+  // Closing stdin ends the Host; no response ordering is promised after shutdown.
+  host.stdin.write(JSON.stringify({method:'apps',id:'shutdown-acquisition',action:'skillsmarket',name:'skills',request:{operation:'install',id:fixture.slow.id}})+'\n');
+  await readyFile(forwarder.ready);await stop();
   const stored=JSON.parse(await readFile(join(directory,'skill-market/state.json'),'utf8'));assert.equal(Object.keys(stored.items).length,2);
   const output=join(root,'test-results/skills-market');await mkdir(output,{recursive:true});
   const report={passed:true,mode:'real-host-two-local-git-acquisitions',checks:['author/tags/dependencies metadata','independent parallel acquisition','same-id duplication rejected','catalog/installed reads during acquisition','one-id cancellation preserves another','completion merges latest state','restart persistence','shutdown cancels owned acquisition'],limitations:['Test-only delay forwarder; actual Go Git fetch/validation is executed','No model or scientific-result claim']};await writeFile(join(output,'runtime-concurrent.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));

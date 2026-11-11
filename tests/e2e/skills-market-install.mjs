@@ -29,7 +29,7 @@ async function open(){
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await expect.poll(async()=>JSON.parse(await page.evaluate(()=>window.peroDiagnostics.snapshot())).apps?.some(item=>item.name==='skills'),{timeout:30000}).toBe(true);
   await clickAppShortcut(page,'skills');frame=page.frameLocator('iframe[title="skills"]');
-  await expect(frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
 }
 async function closeDetails(){
@@ -38,8 +38,8 @@ async function closeDetails(){
 }
 async function choose(name){
   await closeDetails();
-  await frame.getByRole('searchbox',{name:'Search research skills'}).fill(name);
-  await frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('searchbox',{name:'Search skills'}).fill(name);
+  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
   await expect(frame.getByRole('dialog',{name:'Skill details',exact:true}).getByRole('heading',{name,exact:true})).toBeVisible();
 }
 async function capture(name){
@@ -90,7 +90,7 @@ try{
   const tab=frame.getByRole('tab',{name:'Installed (2)',exact:true});
   await tab.press('Enter');
   await expect(tab).toHaveAttribute('aria-selected','true');
-  await expect(frame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(2);
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(2);
   expect(errors).toEqual([]);
   const result={passed:true,checks:['no issue link in product header','held real acquisition leaves another skill installable','second skill installs and enables before first is released','refresh stays available during acquisition','cancelling one skill preserves the other','retry after cancellation installs both without losing selection','two real acquisitions persist across restart'],limitations:['Source is an explicit local Git fixture with author/tags/dependencies metadata. One subprocess is delayed by a test-only forwarder. No model or scientific effect is tested.']};
   await writeFile(resolve(out,'result.json'),JSON.stringify(result,null,2));

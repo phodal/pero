@@ -13,9 +13,11 @@ const root=resolve(import.meta.dirname,'../..'),base=join(root,'target/skills-ma
 await mkdir(base,{recursive:true});const profile=await mkdtemp(join(base,'sources-'));
 const hostBinary=process.env.PERO_HOST_PATH||join(root,'target/debug/pero-host'+(process.platform==='win32'?'.exe':''));
 const harness=process.env.PERO_SKILLS_HARNESS_PATH||join(root,'target/debug/pero-agent-acp'+(process.platform==='win32'?'.exe':''));
-const catalog=JSON.parse(await readFile(join(root,'docs/design-docs/research-skills-catalog.json'),'utf8'));
+const general = process.env.PERO_SKILLS_MARKET_GENERAL === '1';
+const catalogFile=join(root,general?'apps/skills/dist/market-catalog.json':'docs/design-docs/research-skills-catalog.json');
+const catalog=JSON.parse(await readFile(catalogFile,'utf8'));
 const names=new Set(['aer-consistency','analyze-results','aer-preregistration','aer-paper-body']);
-const selected=catalog.skills.filter(entry=>names.has(entry.name));assert.equal(selected.length,5);
+const selected=catalog.skills.filter(entry=>general ? (entry.kind==='general_skill'&&entry.compatibility.status==='static_instructions')||entry.id==='K-Dense-AI/scientific-agent-skills/skills/statistical-analysis/SKILL.md' : names.has(entry.name));assert.equal(selected.length,general?6:5);
 const schema=JSON.parse(await readFile(join(root,'protocol/generated/host.schema.json'),'utf8'));
 const ajv=new Ajv({strict:false});ajv.addSchema(schema);const validate=ajv.getSchema(`${schema.$id}#/$defs/AppsResultEvent`);
 const events=[],changed=new EventEmitter(),results=[];let sequence=0,stderr='',host,exit;
@@ -33,7 +35,7 @@ try{
   const app=join(profile,'app');await mkdir(join(app,'dist'),{recursive:true});await writeFile(join(app,'dist/index.html'),'<h1>Skills source acceptance</h1>');
   await writeFile(join(app,'app.json'),JSON.stringify({schemaVersion:1,name:'skills',version:'1',displayName:'Skills',permissions:{host:['skills']},contributes:{panels:[{id:'main',title:'Skills',entry:'dist/index.html'}]}}));
   await writeFile(join(profile,'agents.json'),JSON.stringify([{id:'pero',name:'Actual source acquisition',command:harness,args:[],env:{}}]));
-  host=spawn(hostBinary,['--stdio'],{cwd:root,env:{...process.env,PERO_AGENTS_FILE:join(profile,'agents.json'),PERO_SETTINGS_PATH:join(profile,'settings.json'),PERO_HISTORY_PATH:join(profile,'history.jsonl'),PERO_APPS_ROOT:join(profile,'apps'),PERO_BUILTIN_APPS_ROOT:'',PERO_REQUIRED_APPS:'',PERO_SKILLS_CATALOG:join(root,'docs/design-docs/research-skills-catalog.json')},stdio:['pipe','pipe','pipe']});
+  host=spawn(hostBinary,['--stdio'],{cwd:root,env:{...process.env,PERO_AGENTS_FILE:join(profile,'agents.json'),PERO_SETTINGS_PATH:join(profile,'settings.json'),PERO_HISTORY_PATH:join(profile,'history.jsonl'),PERO_APPS_ROOT:join(profile,'apps'),PERO_BUILTIN_APPS_ROOT:'',PERO_REQUIRED_APPS:'',PERO_SKILLS_CATALOG:catalogFile},stdio:['pipe','pipe','pipe']});
   exit=once(host,'exit');host.stderr.on('data',chunk=>stderr+=chunk);
   createInterface({input:host.stdout}).on('line',line=>{const event=JSON.parse(line);if(event.kind==='apps_result')assert(validate(event),ajv.errorsText(validate.errors));events.push(event);changed.emit('event');});
   for(const[action,input]of[['install',{path:app}],['enable',{name:'skills'}]]){const response=await request(action,input);assert(response.ok,response.error);}
@@ -52,6 +54,7 @@ try{
       assert((await readFile(join(shared,'references.bib'),'utf8')).includes('mckenzie_2012'));
       assert((await readFile(join(shared,'docs/methods-reference.md'),'utf8')).length>0);
     }
+    if(entry.source.repository==='obra/superpowers')assert((await readFile(join(version.directory,'source/LICENSE'),'utf8')).includes('MIT License'));
     let totalBytes=0;for(const file of packageFiles)totalBytes+=(await readFile(file)).length;
     results.push({id:entry.id,passed:true,revision:entry.source.commit,sha256:entry.source.sha256,files:packageFiles.length,bytes:totalBytes,seconds:Math.round((Date.now()-started)/100)/10});
     console.log(JSON.stringify(results.at(-1)));
@@ -59,8 +62,8 @@ try{
   const installed=await market('installed');assert(installed.ok,installed.error);
   const output=join(root,'test-results/skills-market');await mkdir(output,{recursive:true});
   const report={passed:results.every(item=>item.passed),hostSHA256:createHash('sha256').update(await readFile(hostBinary)).digest('hex'),harnessSHA256:createHash('sha256').update(await readFile(harness)).digest('hex'),results,installed:installed.value.items.length,limitations:['Actual public fixed sources; no model inference or scientific validation','Diagnostic profile is isolated; existing user installations are untouched']};
-  await writeFile(join(output,'runtime-public-sources.json'),JSON.stringify(report,null,2));
-  assert(report.passed,'Some reported public sources failed; see runtime-public-sources.json');assert.equal(report.installed,5);
+  await writeFile(join(output,general?'runtime-general-public-sources.json':'runtime-public-sources.json'),JSON.stringify(report,null,2));
+  assert(report.passed,'Some reported public sources failed; see runtime-public-sources.json');assert.equal(report.installed,selected.length);
 }finally{
   if(host){host.stdin.end();const timer=setTimeout(()=>host.kill('SIGKILL'),5000);await exit;clearTimeout(timer);}
   await rm(profile,{recursive:true,force:true});

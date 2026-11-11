@@ -101,10 +101,10 @@ try {
   const id = 'fixture/research-skills/skills/research-audit';
   const entry = {
     id, name: 'research-audit', title_zh: '科研数据核查', description: 'Verify observed data', description_zh: '核查真实数据并保留证据缺口',
-    category: 'data-analysis', category_zh: '统计与实证分析', kind: 'research_skill',
+    category: 'data-analysis', category_zh: '统计与实证分析', kind: 'general_skill',
     source: { repository: 'fixture/research-skills', commit: revision, path: 'skills/research-audit/SKILL.md', url: `https://github.com/fixture/research-skills/blob/${revision}/skills/research-audit/SKILL.md`, git_blob_sha: git('hash-object', 'skills/research-audit/SKILL.md'), sha256: sha(skill) },
     sources: [], license: { spdx: 'MIT', status: 'declared_in_skill', evidence_url: 'https://github.com/fixture/research-skills' },
-    compatibility: { declared: [], status: 'unverified' }, dependencies: [], verification: { content: 'parsed', runtime: 'not_run', notes: [] },
+    compatibility: { declared: [], status: 'static_instructions' }, dependencies: [], verification: { content: 'parsed', runtime: 'not_run', notes: [] },
   };
   const catalog = { schema_version: 1, generated_at: '2026-11-07', issue_url: 'https://github.com/phodal/pero/issues/156', source_document: '', sources: [], skills: [entry, { ...entry, id: 'unknown-license', license: { spdx: null, status: 'unknown', evidence_url: null } }], resources: [], exclusions: [], stats: {} };
   const catalogPath = join(profile, 'catalog.json'); await json(catalogPath, catalog);
@@ -203,7 +203,7 @@ try {
   await stop(); await start();
   assert.deepEqual((await ok('installed')).items, []);
   if (process.env.PERO_SKILLS_MARKET_PUBLIC === '1') {
-    const actualCatalog = JSON.parse(await readFile(join(root, 'docs/design-docs/research-skills-catalog.json'), 'utf8'));
+    const actualCatalog = JSON.parse(await readFile(join(root, 'apps/skills/dist/market-catalog.json'), 'utf8'));
     const requested=process.env.PERO_SKILLS_MARKET_PUBLIC_ID;
     const actual = actualCatalog.skills.find(item => requested ? item.id===requested : item.source.repository === 'blader/humanizer');
     assert(actual, 'The real catalog must include the requested reviewed source');
@@ -229,7 +229,7 @@ try {
   await stop();
   const output = join(root, 'test-results/skills-market'); await mkdir(output, { recursive: true });
   const reportName=publicSource&&process.env.PERO_SKILLS_MARKET_PUBLIC_ID?'runtime-public-selected.json':publicSource?'runtime-public.json':'runtime.json';
-  await json(join(output, reportName), { passed: true, issue: 156, mode: publicSource ? 'real-host-public-git-loopback-provider' : 'real-host-local-git-loopback-provider', publicSource, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), worktree: 'development', hostSHA256: sha(await readFile(hostBinary)), harnessSHA256: sha(await readFile(harness)), providerRequests: requests.length, checks: ['installed skill discoverable without global enable', 'explicit picker context reaches the provider', 'explicit context works with another ACP identity', 'selected marketplace skills refuse an unadapted Agent', 'removed skill disappears and selected content stays frozen', 'caller authorization', 'pinned install', 'unknown license refused', 'isolated explicit invocation', 'update', 'rollback', 'active-session snapshot retained', 'remove', 'restart'], limitations: ['Another ACP identity uses a protocol fixture, not a real Codex model', 'Model responses are scripted over loopback; no paid model', 'Update and rollback use local Git fixture', 'No scientific acceptance or packaged/native UI acceptance'] });
+  await json(join(output, reportName), { passed: true, issue: 200, mode: publicSource ? 'real-host-public-git-loopback-provider' : 'real-host-local-git-loopback-provider', publicSource, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), worktree: 'development', hostSHA256: sha(await readFile(hostBinary)), harnessSHA256: sha(await readFile(harness)), providerRequests: requests.length, checks: ['installed skill discoverable without global enable', 'explicit picker context reaches the provider', 'explicit context works with another ACP identity', 'selected marketplace skills refuse an unadapted Agent', 'removed skill disappears and selected content stays frozen', 'caller authorization', 'pinned install', 'unknown license refused', 'isolated explicit invocation', 'update', 'rollback', 'active-session snapshot retained', 'remove', 'restart'], limitations: ['Another ACP identity uses a protocol fixture, not a real Codex model', 'Model responses are scripted over loopback; no paid model', 'Update and rollback use local Git fixture', 'No scientific acceptance or packaged/native UI acceptance'] });
   console.log('Skills market Host/Harness acceptance passed.');
 } finally {
   if (host) { host.stdin.end(); const timer = setTimeout(() => host.kill('SIGKILL'), 5000); await exit; clearTimeout(timer); }

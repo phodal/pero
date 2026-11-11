@@ -31,7 +31,8 @@ const provider = createServer(async (request,response) => {
     let raw = ''; for await (const chunk of request) raw += chunk;
     const input = JSON.parse(raw); requests.push(input);
     const wire = JSON.stringify(input.messages);
-    assert(wire.includes(marker),'Actual installed SKILL.md body must reach the provider');
+    assert(wire.includes(marker),'Actual installed general SKILL.md body must reach the provider');
+    assert(wire.includes('MARKET_SLOW_EVIDENCE'),'Explicitly selected research skill must reach the same provider request');
     assert(wire.includes('Keep missing observations visible.'),'The complete selected skill instructions must be delivered');
     response.writeHead(200,{'content-type':'text/event-stream'});
     response.end('data: {"choices":[{"index":0,"delta":{"content":"Selected research skill received."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
@@ -74,9 +75,9 @@ try {
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await expect.poll(async()=>(await state()).apps?.some(item=>item.name==='skills'),{timeout:30000}).toBe(true);
   await clickAppShortcut(page,'skills');marketFrame=page.frameLocator('iframe[title="skills"]');
-  await expect(marketFrame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
-  await marketFrame.getByRole('searchbox',{name:'Search research skills'}).fill('fast');
-  await marketFrame.getByRole('region',{name:'Research skills',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await expect(marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
+  await marketFrame.getByRole('searchbox',{name:'Search skills'}).fill('fast');
+  await marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
   await expect(marketFrame.getByRole('dialog',{name:'Skill details',exact:true}).getByRole('heading',{name:'fast',exact:true})).toBeVisible();
   stage='install through visible Skills App';
   await marketFrame.getByRole('dialog',{name:'Skill details',exact:true}).getByRole('button',{name:'Install',exact:true}).press('Enter');
@@ -87,6 +88,17 @@ try {
   expect(record.enabled).toBe(false);expect(record.selected).toBe(false);
   installProof={id:record.id,revision:record.revision,enabled:record.enabled,selected:record.selected};
   await capture('installed-not-globally-selected');
+
+  stage='install a research method alongside the general method';
+  await writeFile(forwarder.release,'release research source');
+  await marketFrame.getByRole('button',{name:'Close details',exact:true}).press('Enter');
+  await marketFrame.getByRole('searchbox',{name:'Search skills'}).fill('slow');
+  await marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await marketFrame.getByRole('dialog').getByRole('button',{name:'Install',exact:true}).press('Enter');
+  await expect(marketFrame.getByRole('tab',{name:'Installed (2)',exact:true})).toBeVisible({timeout:45000});
+  await marketFrame.getByRole('button',{name:'Close details',exact:true}).press('Enter');
+  await marketFrame.getByRole('searchbox',{name:'Search skills'}).fill('fast');
+  await marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
 
   stage='market handoff creates an ordinary draft with the installed skill';
   await marketFrame.getByRole('button',{name:'Use in new chat',exact:true}).press('Enter');
@@ -115,6 +127,17 @@ try {
   await expect.poll(async()=>(await state()).attachments).toContain('fast');
   expect(requests).toHaveLength(0);
 
+  stage='explicitly combine a research skill without enabling automatic assembly';
+  await appendComposer('@skill slow');
+  await expect.poll(async()=>{const snapshot=await state();return snapshot.completion?.open&&!snapshot.completion.loading;},{timeout:15000}).toBe(true);
+  expect(lastSnapshot.completion.items).toContain('slow');
+  const researchChoices=lastSnapshot.completion.items;
+  for(let step=0;step<(researchChoices.indexOf('slow')-lastSnapshot.completion.selected+researchChoices.length)%researchChoices.length;step++)await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).attachments).toEqual(['fast','slow']);
+  expect(requests).toHaveLength(0);
+  await capture('mixed-skill-unsent-draft');
+
   stage='selected installed skill reaches actual Agent provider';
   await appendComposer(' Read the selected research skill and follow its evidence policy.');
   const count=(await activeChat()).messages.filter(message=>message.role==='user').length;
@@ -127,7 +150,7 @@ try {
   const finalRecord=(await installed())[fixture.fast.id];
   expect(finalRecord.enabled).toBe(false);expect(finalRecord.selected).toBe(false);
   const result={passed:true,hostSHA256:createHash('sha256').update(await readFile(hostPath)).digest('hex'),skillRevision:record.revision,installProof,selectionAfterSend:{enabled:finalRecord.enabled,selected:finalRecord.selected},
-    skill:fixture.fast.id,checks:['real visible market installation from local Git via Go Harness','installed remains globally disabled and unselected','Use in new chat opens an ordinary unsent draft','market handoff resolves the installed skill into a chip without global activation','separate ordinary chat picker still offers the installed skill','real ACP/provider receives installed source body marker'],providerRequests:requests.length,
+    skill:fixture.fast.id,skills:[fixture.fast,fixture.slow].map(item=>({id:item.id,revision:item.source.commit,sha256:item.source.sha256})),checks:['real visible market installation from local Git via Go Harness','installed remains globally disabled and unselected','Use in new chat opens an ordinary unsent draft','market handoff resolves the installed skill into a chip without global activation','separate ordinary chat picker still offers the installed skill','explicit general and research ID/version references remain unsent until user submission','real ACP/provider receives both installed source bodies'],providerRequests:requests.length,
     limitations:['Local Git and loopback model fixture; no paid model or scientific-effect claim. Other Apps, Native UI and signed packages are not covered.']};
   await writeFile(resolve(out,'result.json'),JSON.stringify(result,null,2));
   await writeFile(resolve(out,'provider-requests.json'),JSON.stringify(requests,null,2));
