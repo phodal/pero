@@ -105,3 +105,56 @@ node tests/e2e/skills-market-chat.mjs
 - 第 12 条的显式 opt-in 真实模型没有跑。正常配置位置是仓库 `.env` 的 `DEEPSEEK_API_KEY`，或已登录的 Codex。当前没有这份 `.env`，进程里也没有 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`；`node_modules/.bin/codex login status` 为 Not logged in。回环模型不算真实模型。这一项保持未验收。
 
 目录包含不支持安装的 ZIP/动态执行条目。未知或仅仓库级许可不会强行安装。静态技能不自动安装第三方依赖。旧会话已加载的正文不能通过停用/移除抹除。#156 在第 12 条真实模型完成前保持开放。
+
+## #200 通用增量（2026-11-11）
+
+工作区 `/Users/phodal/workspaces/pero-skills-200`，分支 `codex/skills-general-200`，
+源码基线 `b1b95293`。Host、Harness、Skills App 和 Electron JS 从该分支构建；
+未改动的 Web/Wasm 静态产物复制于共享工作区 `2dbb72f8cd7a692131c34b47bf8c8fa9543fecd1`
+时点，不宣称独立重编译或重新认证 GPUI。macOS arm64、开发 Electron；使用临时 profile。
+
+| 实际命令 | 结果 / 范围 |
+| --- | --- |
+| `python -m unittest discover -s scripts/research-skills -p 'test_*.py' -v` | 11 passed，通用复审去向、双指纹去重、旧 ID/source/license 不变、共享发现投影 |
+| `python scripts/research-skills/verify.py` | 科研子集独立对账，1766 项/1985 路径 |
+| `npm run check --prefix apps/skills` / `npm test --prefix apps/skills` | TypeScript 通过；6 tests passed |
+| `node scripts/cargo.mjs test -p pero-runtime skill_market --lib` | 9 passed，准入/旧 state/投影/重复身份/取消 |
+| `node scripts/cargo.mjs test -p pero-host skill_market` | 4 passed，目录缓存、失效刷新、能力缺失与打包优先级 |
+| `go -C harness/go test -race ./plugins` | passed；许可文本保留和原有未知执行字段/hooks/来源拒绝路径 |
+| `node tests/runtime/skills-market.mjs` | 实际 Host/Git/Harness + 回环 provider；更新、回退、重启、旧会话、未启用选择、不同 ACP fixture |
+| `node tests/runtime/skills-market-concurrent.mjs` | 一项取消不阻塞另一项、重试、重启、关闭进程保留已安装 state |
+| `PERO_SKILLS_MARKET_PUBLIC=1 PERO_SKILLS_MARKET_PUBLIC_ID=obra/superpowers/skills/verification-before-completion/SKILL.md node tests/runtime/skills-market.mjs` | 真实固定公共 Git、摘要核对、正文到回环 provider |
+| `PERO_SKILLS_MARKET_PUBLIC=1 PERO_SKILLS_MARKET_GENERAL=1 node tests/runtime/skills-market-public-sources.mjs` | 5 个通用+1 个统计来源全部获取，核对实际正文和根 MIT 文件；未运行第三方脚本 |
+| `node tests/e2e/skills-market.mjs` | 实际 Electron：1778 项、All/General/Research、键盘筛选、刷新失败恢复、旧安装管理、中文/暗色/窄窗 |
+| `node tests/e2e/skills-market-install.mjs` | 7 checks，逐项获取/取消/重试、另一项继续成功、重启保留 |
+| `node tests/e2e/skills-market-chat.mjs` | 7 checks，通用+科研两个已安装未启用技能在同一草稿，提交前 0 provider 请求，提交后两份实际正文到同一次请求 |
+| `python3 -m unittest discover -s tests/fixtures/skills-mixed -p 'test_*.py' -v` | 2 tables passed；重复 ID、非有限值、单位、零值、缺测与空完整配对 |
+| `python3 tests/fixtures/skills-mixed/analyze.py --output test-results/skills-market/mixed-task` | 实际 JSON 与 Markdown 报告；固定 CSV 输入身份和环境 |
+| `python3 tests/fixtures/skills-mixed/check.py test-results/skills-market/mixed-task` | 9 checks passed，独立 Decimal 计算且方法版本匹配真实公共获取回执 |
+
+Python 目录检查使用 `/tmp/pero-200-python/bin/python`（仅安装 PyYAML）；App 构建
+使用 `PYTHON=/tmp/pero-200-python/bin/python node scripts/build/apps.mjs --app skills`。
+独立 checkout 缺少 Connectors 构建依赖时复用其既有 node_modules 后重新构建 Desktop，
+无依赖或 workflow 变更。最初 UI 用例仍查找旧中文 region 名称，修正定位后整套通过。
+
+本地证据根：`/Users/phodal/workspaces/pero-skills-200/test-results/skills-market/`。
+日志在 `logs/`，机器可读回执为 `runtime.json`、`runtime-concurrent.json`、
+`runtime-public-selected.json`、`runtime-general-public-sources.json`、`result.json`、
+`install/result.json`、`chat/result.json` 与 `mixed-task/independent-check.json`。
+
+已实际检查的截图：`general-light.png`（17 个通用范围匹配，许可阻塞仍显示条件）、
+`installed-dark-narrow-zh.png`（抽屉、路径换行和焦点可见，无横向溢出）、
+`install/fast-installed-while-slow-running.png`（一项已完成，另一项仍可取消）、
+`chat/mixed-skill-unsent-draft.png`（两个可移除引用，仍未发送）。
+截图是独立临时 profile 的测试状态，不是用户科研数据；未提交二进制截图。
+
+P0/P1/P2 的本地增量可审查；P3 为确定性准备和混合选择接线，真实模型仍需显式 opt-in。
+报告由手写代码产生，不能冒充模型自主研究；Notebook 附件、真实其他 ACP 模型、Native、
+Windows/Linux 和签名包均未本轮验证。7 个通用候选仍待适配，5 个共享旧文档条目的
+未知/专有许可保持原限制。#200 保持开放。
+
+最终产品代码包含 `f9b3c5b4e8515ab4c51f62b0a8229a84207ce6ca` 的已安装快照投影修正；
+之后重新构建 Host 并重跑 runtime、concurrent 和三套 Electron，全部通过。
+最终取消场景明确以 `general_skill` 作为被取消/重试项，另一科研项继续安装成功。
+最后的 UI 清理只内联原先无逻辑的 condition 转发函数，已随最终 App 构建和三套验收覆盖。
+最终源码/二进制 SHA、各 concern 完整提交以及结果文件索引保存在证据根 `delivery.json`。
