@@ -6,7 +6,7 @@ import { readControlEvidence } from '@pero/notebook/control-evidence';
 import { maxPaperReportBytes, readPaperEvidence } from '@pero/notebook/paper-evidence';
 import { messages } from './messages';
 
-type ImportedReference = { label: string; reference: ScientificReference; snapshot: ReferenceSnapshot };
+export type ImportedReference = { label: string; reference: ScientificReference; snapshot: ReferenceSnapshot };
 type ReferenceKind = 'evidence' | 'experiment';
 type ImportState =
   | { status: 'idle' | 'loading' }

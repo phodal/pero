@@ -11,6 +11,7 @@ import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { BlockFrame } from './block-frame';
 import { notebookEvidence } from './evidence-model';
 import { messages } from './messages';
+import { SavedReferencePicker } from './saved-reference-picker';
 import { ReferenceImport, SnapshotDetails } from './reference-import';
 
 const emptyReference: ScientificReference = { app: '', kind: '', id: '', version: '', locator: '' };
@@ -36,6 +37,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const api = useAppApi();
   const notebook = useNotebookContext();
   const [citation, setCitation] = useState('');
+  const [choosingSaved, setChoosingSaved] = useState(false);
   const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
   const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
@@ -135,12 +137,14 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       : <strong>{label || t(kind)}</strong>}
     caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
-    <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
+    <Disclosure variant="inline" summary={t('recordIdentifiers')}>
+      <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
       {t('editorBlock')}: {stored.editorBlockId ?? t('interchangeMissing')}
       {' · '}
       {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
     </p>
     {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
+    </Disclosure>
     {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
       <legend>{t('reviewReference')}</legend>
       <p>{t('proposalWording')}: {pendingProposal.label}</p>
@@ -157,6 +161,14 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     {editable && <Disclosure variant="inline" className="notebook-reference-edit"
       summary={t(snapshot ? 'editReference' : 'attachSource')} open={editingReference}
       onOpenChange={setEditingReference}>
+      <Disclosure variant="inline" summary={t('chooseSavedSnapshot')} open={choosingSaved} onOpenChange={setChoosingSaved}>
+      {editingReference && choosingSaved && <SavedReferencePicker kind={kind} replacing={!!snapshot}
+        onAttach={value => {
+          view.updateAttributes({ label: value.label, source: value.reference, snapshot: value.snapshot });
+          setCitation(''); setCitationError(false); setEditingReference(false); setChoosingSaved(false);
+          requestAnimationFrame(() => labelInput.current?.focus());
+        }} />}
+      </Disclosure>
       <ReferenceImport kind={kind} replacing={!!snapshot}
         onAttach={value => {
           view.updateAttributes({ label: value.label, source: value.reference, snapshot: value.snapshot });
