@@ -1,0 +1,5 @@
+/* Keep shared Textarea chrome; override only source-editor geometry and type. */
+.notebook-myst-source.pero-ui-textarea:not([data-unstyled]) { min-height: 16rem; resize: vertical; font-family: var(--pero-font-family-mono, monospace); }
+.notebook-myst-preview { display: block; width: 100%; min-height: 26rem; border: var(--pero-hairline); background: var(--pero-surface); }
+.notebook-myst-actions { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-2); margin-block: var(--pero-spacing-3); }
+.notebook-myst-diagnostics { overflow-wrap: anywhere; }

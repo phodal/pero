@@ -57,8 +57,9 @@ export async function createUiRuntime(t, component) {
   });
   const { build } = require('esbuild');
   const outfile = resolve(temporary, 'ui.mjs');
+  // Embed actual Wasm bytes so native Node fetch can load them without an asset server or fetch mock.
   const contents = typeof component === 'object' ? component.contents : component ? `export * from './components/${component}';` : "export * from './ui'; export * as UI from './ui';";
-  await build({ stdin: { contents, resolveDir: typeof component === 'object' ? component.resolveDir : resolve(import.meta.dirname, '../src'), loader: 'tsx' }, outfile, banner: { js: "import { createRequire as sdkTestCreateRequire } from 'node:module'; const require = sdkTestCreateRequire(import.meta.url);" }, bundle: true, jsx: 'automatic', platform: 'node', format: 'esm', mainFields: ['module', 'main'], loader: { '.css': typeof component === 'object' && component.cssText ? 'text' : 'empty' }, plugins: [{ name: 'host-react', setup(b) {
+  await build({ stdin: { contents, resolveDir: typeof component === 'object' ? component.resolveDir : resolve(import.meta.dirname, '../src'), loader: 'tsx' }, outfile, banner: { js: "import { createRequire as sdkTestCreateRequire } from 'node:module'; const require = sdkTestCreateRequire(import.meta.url);" }, bundle: true, jsx: 'automatic', platform: 'node', format: 'esm', mainFields: ['module', 'main'], loader: { '.css': typeof component === 'object' && component.cssText ? 'text' : 'empty', '.wasm': 'dataurl' }, plugins: [{ name: 'host-react', setup(b) {
     // ESM accepts file URLs; CommonJS require still needs a filesystem path.
     const externalReact = (path, kind) => ({ path: kind.startsWith('require-') ? path : pathToFileURL(path).href, external: true });
     for (const [name, root] of Object.entries(typeof component === 'object' ? component.modules ?? {} : {})) b.onResolve({ filter: new RegExp(`^${name}$`) }, () => ({ path: require.resolve(name, { paths: [root] }) }));

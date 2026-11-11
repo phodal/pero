@@ -27,7 +27,7 @@
       },
       {
         "name": "apply-edits",
-        "description": "Commit scoped edits to the saved entry at baseRevision. Read the target first. replace_text requires a unique exact match within one formatted text segment. set_cells stores raw inputs at uppercase addresses; empty values clear cells. Formulas that contact another program or service are rejected. add_finding references pinned evidence or experiments in this entry. Insert operations append when afterBlockId is omitted. Move and delete address top-level blocks; referenced evidence cannot be deleted. The batch commits together or fails. Re-read after a revision conflict.",
+        "description": "Commit scoped edits to the saved entry at baseRevision. Read the target first. replace_text requires a unique exact match within one formatted text segment. set_cells stores raw inputs at uppercase addresses; empty values clear cells. Formulas that contact another program or service are rejected. add_finding references pinned evidence or experiments in this entry. Insert operations append when afterBlockId is omitted. Move and delete address top-level blocks; referenced evidence cannot be deleted. The edit batch commits together or fails. propose_reference is a standalone operation: it stores a pending proposal for an existing evidence or experiment block without editing the document. Supply a stable proposalId and pinned source identity from the owner; the user accepts or rejects it in Notebook. Do not mix it with edits or reuse its ID with different input. Re-read after a revision conflict.",
         "path": "/api/agent-apply",
         "schema": {
           "type": "object",
@@ -101,6 +101,27 @@
                       "side": { "type": "string", "enum": ["before", "after"] }
                     },
                     "required": ["op", "blockId", "anchorBlockId", "side"], "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "op": { "type": "string", "enum": ["propose_reference"] },
+                      "proposalId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+                      "blockId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+                      "label": { "type": "string", "maxLength": 200 },
+                      "source": {
+                        "type": "object",
+                        "properties": {
+                          "app": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                          "kind": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                          "id": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                          "version": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                          "locator": { "type": "string", "maxLength": 1024 }
+                        },
+                        "required": ["app", "kind", "id", "version", "locator"], "additionalProperties": false
+                      }
+                    },
+                    "required": ["op", "proposalId", "blockId", "label", "source"], "additionalProperties": false
                   },
                   {
                     "type": "object",

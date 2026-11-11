@@ -1,0 +1,14 @@
+{
+  "noteCard": {
+    "valid": { "blockId": "note-1", "schemaVersion": 1, "text": "Keep this note" },
+    "retained": { "blockId": "note-2", "schemaVersion": 2, "text": "kept", "extra": true },
+    "badVersion": { "blockId": "note-1", "schemaVersion": 0, "text": "" },
+    "extraField": { "blockId": "note-1", "schemaVersion": 1, "text": "Keep this note", "extra": true }
+  },
+  "axisSpan": {
+    "valid": { "blockId": "axis-1", "schemaVersion": 1, "low": 2, "high": 9, "unit": "mm" },
+    "retained": { "blockId": "axis-2", "schemaVersion": 2, "low": "kept", "span": [2, 9] },
+    "badOrder": { "blockId": "axis-1", "schemaVersion": 1, "low": 9, "high": 2, "unit": "mm" },
+    "badVersion": { "blockId": "axis-1", "schemaVersion": "1", "low": 0, "high": 1, "unit": "" }
+  }
+}

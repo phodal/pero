@@ -1,3 +1,10 @@
+import { ipynbDocumentDefinition } from '@pero/notebook/ipynb';
+import { IpynbDocumentView } from './ipynb-document';
+import { mystProjectDefinition } from '@pero/notebook/myst-project-snapshot';
+import { MystProjectView } from './myst-project';
+import { mystDocumentDefinition } from '@pero/notebook/myst';
+import { documentBlockNode } from './document-block-node';
+import { MystDocumentView } from './myst-document';
 import { NamedReferenceView } from './notebook-reference-controls';
 import { SourceExcerptView } from './source-excerpt';
 import { ReactionSchemeView, ChemicalView } from './scientific-content';
@@ -25,8 +32,14 @@ import { MixturePrepView } from './mixture';
 import { emptyMixturePreparation } from '@pero/notebook/mixture';
 import { NotebookTemplateOrigin } from './template-origin';
 import { SavedSearchView } from './saved-search';
+import { RetainedBlockView } from './retained-block';
+import { NoteCardView } from './note-card';
+import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 export const widgets = [
+  { name: 'ipynbDocument', icon: 'document', defaults: editorAdapter(ipynbDocumentDefinition).defaults, view: IpynbDocumentView },
+  { name: 'mystProject', icon: 'document', defaults: editorAdapter(mystProjectDefinition).defaults, view: MystProjectView },
+  { name: 'mystDocument', icon: 'document', defaults: editorAdapter(mystDocumentDefinition).defaults, view: MystDocumentView },
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
   { name: 'sourceExcerpt', icon: 'document', defaults: { label: '', excerpt: null }, view: SourceExcerptView },
   { name: 'reactionScheme', icon: 'flask', defaults: { reaction: emptyReaction(), record: null }, view: ReactionSchemeView },
@@ -35,6 +48,7 @@ export const widgets = [
   { name: 'appCanvas', icon: 'document', defaults: { label: '', binding: null }, view: AppCanvasView },
   { name: 'mixturePrep', icon: 'flask', defaults: { label: '', mixture: emptyMixturePreparation() }, view: MixturePrepView },
   { name: 'savedSearch', icon: 'search', defaults: { label: '', queryId: '', queryRevision: 1, mode: 'live', snapshot: null }, view: SavedSearchView },
+  { name: 'noteCard' as const, icon: 'document' as const, defaults: editorAdapter(noteCardDefinition).defaults, view: NoteCardView },
   { name: 'inputTable', icon: 'table', defaults: structuredTableDefaults, view: InputTableView },
   { name: 'registrationTable', icon: 'table', defaults: structuredTableDefaults, view: RegistrationTableView },
   { name: 'lookupTable', icon: 'search', defaults: lookupTableDefaults, view: LookupTableView },
@@ -46,7 +60,7 @@ export const widgets = [
 ] as const;
 
 const addressed = ['section', 'paragraph', 'heading', 'blockquote', 'horizontalRule', 'codeBlock', 'bulletList', 'orderedList', 'listItem', 'taskList', 'taskItem',
-  ...widgets.map(widget => widget.name)];
+  'retainedBlock', ...widgets.map(widget => widget.name)];
 
 function readAttribute(element: HTMLElement, key: string, fallback: unknown) {
   const raw = element.getAttribute(`data-notebook-${key.toLowerCase()}`);
@@ -61,7 +75,10 @@ export const notebookExtensions = [
   NotebookCodeBlock, ReferenceMention,
   TaskList,
   TaskItem.configure({ nested: true }),
-  ...widgets.map(widget => Node.create({
+  documentBlockNode(ipynbDocumentDefinition, IpynbDocumentView),
+  documentBlockNode(mystDocumentDefinition, MystDocumentView),
+  documentBlockNode(mystProjectDefinition, MystProjectView),
+  ...widgets.filter(widget => widget.name !== 'ipynbDocument' && widget.name !== 'mystDocument' && widget.name !== 'mystProject').map(widget => Node.create({
     name: widget.name,
     group: 'block',
     atom: true,
@@ -92,6 +109,40 @@ export const notebookExtensions = [
     renderText() { return `[${messages[widget.name].en}]`; },
     addNodeView() { return ReactNodeViewRenderer(widget.view); },
   })),
+  Node.create({
+    name: 'retainedBlock',
+    group: 'block',
+    atom: true,
+    selectable: true,
+    addAttributes() {
+      return {
+        originalType: { default: '', rendered: false },
+        payload: { default: null, rendered: false },
+      };
+    },
+    parseHTML() {
+      return [{
+        tag: 'div[data-notebook-block="retainedBlock"]',
+        getAttrs: (element: HTMLElement) => {
+          const attrs = {
+            originalType: readAttribute(element, 'originalType', ''),
+            payload: readAttribute(element, 'payload', null),
+          };
+          return isClipboardWidget('retainedBlock', attrs) ? attrs : false;
+        },
+      }];
+    },
+    renderHTML({ HTMLAttributes, node }) {
+      return ['div', {
+        ...HTMLAttributes,
+        'data-notebook-block': 'retainedBlock',
+        'data-notebook-originaltype': JSON.stringify(node.attrs.originalType),
+        'data-notebook-payload': JSON.stringify(node.attrs.payload),
+      }];
+    },
+    renderText() { return `[${messages.retainedBlock.en}]`; },
+    addNodeView() { return ReactNodeViewRenderer(RetainedBlockView); },
+  }),
   NotebookTemplateOrigin.configure({ types: addressed }),
   NotebookIdentity.configure({ attributeName: 'blockId', types: addressed }),
 ];

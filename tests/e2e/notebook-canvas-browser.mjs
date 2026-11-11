@@ -162,6 +162,8 @@ test('Notebook Canvas renders actual Data, confirms writes, and recovers across 
 
   scenario = 'stale-declaration-and-explicit-saved-rebinding';
   await fixture.changeDataDeclaration();
+  await button('Configure App view', block).click();
+  await expect(button('Configure App view', block)).toHaveAttribute('aria-expanded', 'true');
   await button('Refresh installed Apps', block).click();
   await expect(block.getByText('The App declaration changed. Review and explicitly save a new binding before mounting.', { exact: true })).toBeVisible();
   response = canvasResponse('read');
@@ -170,16 +172,27 @@ test('Notebook Canvas renders actual Data, confirms writes, and recovers across 
   await expect(button('Restore dataset', view)).toHaveCount(0);
   assert.equal((await savedEntry()).document.content.content.find(node => node.type === 'appCanvas').attrs.binding.declaration, binding.declaration);
   await shot('canvas-stale-binding');
-  response = canvasResponse('mount');
+  const mountsBeforeBinding = fixture.requests.filter(request => request.operation === 'mount').length;
   await button('Save binding', block).click();
-  assert.equal((await response).ok(), false, 'An unsaved changed binding cannot mount');
-  await expect(button('Restore dataset', view)).toHaveCount(0);
-  await button('Save revision').click();
+  await expect(button('Save revision to enable App view', block)).toBeEnabled();
+  await expect(view).toHaveCount(0);
+  assert.equal(fixture.requests.filter(request => request.operation === 'mount').length, mountsBeforeBinding,
+    'An unsaved changed binding must not attempt a speculative mount');
+  const changedDeclaration = (await fixture.request('sdkcontext', { name: 'notebook' })).appViews.find(app => app.app === 'data').revision;
+  await assert.rejects(fixture.request('canvas', { name: 'notebook', request: { operation: 'mount', source: {
+    entryId: entry.id, revision: 2, blockId: 'canvas', readOnly: false,
+    binding: { ...binding, declaration: changedDeclaration },
+  } } }), /scoped request/, 'Host must independently reject an unsaved changed binding');
+  assert.equal((await savedEntry()).document.content.content.find(node => node.type === 'appCanvas').attrs.binding.declaration, binding.declaration);
+  response = canvasResponse('mount');
+  await button('Save revision to enable App view', block).click();
   await expect(page.locator('.notebook-status')).toHaveText('Revision 3');
+  assert.equal((await response).ok(), true, 'Saving the exact new binding enables its mount');
   await expect(button('Restore dataset', view)).toBeEnabled();
   const rebound = (await savedEntry()).document.content.content.find(node => node.type === 'appCanvas').attrs.binding;
   assert.equal(rebound.id, binding.id);
   assert.notEqual(rebound.declaration, binding.declaration);
+  assert.equal(rebound.declaration, changedDeclaration);
   assert.deepEqual(rebound.inputs, binding.inputs);
   assert.equal(fixture.confirmations.length, 3);
   assert.equal((await dataset()).archived, true);

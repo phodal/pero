@@ -30,6 +30,11 @@ export function copyNotebookBlocks(slice: Slice): Slice {
         attrs.table = { ...attrs.table, id: ids.get(attrs.table.id), rows: attrs.table.rows.map((row: { id: string }) => ({ ...row, id: ids.get(row.id) })) };
       }
       if (attrs.templateOrigin) attrs.templateOrigin = copyTemplateOrigin(attrs.templateOrigin, ids, copiedInstances, () => crypto.randomUUID());
+      if (node.type.name === 'retainedBlock' && attrs.payload && typeof attrs.payload === 'object') {
+        const payload = { ...attrs.payload };
+        if (payload.attrs && typeof payload.attrs === 'object') payload.attrs = { ...payload.attrs, blockId: attrs.blockId };
+        attrs.payload = payload;
+      }
       if (node.type.name === 'finding') attrs.evidenceIds = references(attrs.evidenceIds);
       if (node.type.name === 'sourceExcerpt') attrs.excerpt = copySourceExcerpt(attrs.excerpt, copiedAttachments);
       if (node.type.name === 'spreadsheet') {

@@ -1,0 +1,50 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\begin{document}
+\section{Scientific publication}
+
+Ada Example
+DOI: 10.1234/example
+
+A real formula $x^2$ and equation:
+
+\begin{equation}
+N = N_0 e^{rt} + \frac{x^2}{\sqrt{y}}
+\end{equation}
+
+[Image: Figure]
+
+\bigskip\noindent
+\begin{tabular}{p{\dimexpr 0.500\linewidth-2\tabcolsep}p{\dimexpr 0.500\linewidth-2\tabcolsep}}
+\toprule
+Trial & Result \\
+\hline
+A & 42 \\
+\bottomrule
+\end{tabular}
+
+\bigskip
+
+\begin{itemize}
+\item First
+\item Second
+\end{itemize}
+
+\subsection{Discussion}
+
+A \textbf{bold} finding.
+\end{document}
+% PERO PUBLICATION LOSSES
+% Image not embedded in latex: figure.png
+% Full frontmatter and exact source retained in source record; only title, author names and DOI projected into document metadata.
+% PERO ORIGINAL SOURCE JSON
+% {
+%   "format": "pero-myst",
+%   "version": 1,
+%   "source": "---\ntitle: Scientific publication\nauthors:\n  - name: Ada Example\ndoi: 10.1234/example\n---\n# Scientific publication\n\nA real formula $x^2$ and equation:\n\n$$\nN = N_0 e^{rt} + \\frac{x^2}{\\sqrt{y}}\n$$\n\n![Figure](figure.png)\n\n| Trial | Result |\n| --- | --- |\n| A | 42 |\n\n- First\n- Second\n\n## Discussion\n\nA **bold** finding.\n"
+% }
+%

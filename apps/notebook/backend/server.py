@@ -31,6 +31,7 @@ from ai_proposals import AIProposalStore
 from ai_routes import ai_route
 from app_canvas import verify_source
 from worksheet_amendments import WorksheetAmendmentStore, worksheet_amendment_route
+from scientific_block import BlockProposalStore, block_proposal_route
 from source_parsers import source_extraction_route
 from notebook_home import notebook_home
 
@@ -61,6 +62,7 @@ def handler(store, secret):
     scientific = ScientificDesignStore(store)
     proposals = AIProposalStore(store)
     amendments = WorksheetAmendmentStore(store)
+    block_proposals = BlockProposalStore(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -127,7 +129,7 @@ def handler(store, secret):
         def get(self):
             if self.path == '/api/notebook-home':
                 return self.reply(200, notebook_home(store))
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments)):
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
                 response = route(owner, 'GET', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)
@@ -179,7 +181,7 @@ def handler(store, secret):
                 return self.reply(*response)
             if self.path == '/internal/canvas/source':
                 return self.reply(200, verify_source(store, self.body()))
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments)):
+            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
                 response = route(owner, 'POST', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)
@@ -245,8 +247,13 @@ def handler(store, secret):
                 identity = entry_id(data['entryId'])
                 revision = integer(data['baseRevision'], 'base revision')
                 operations = parse_operations(data['operations'], lambda: uuid4().hex)
+                reference_proposals = [operation for operation in operations if getattr(operation, 'registry_op', None) == 'propose_reference']
+                if reference_proposals:
+                    if len(reference_proposals) != 1 or len(operations) != 1:
+                        raise ValueError('A reference proposal cannot be mixed with document edits')
+                    return self.reply(200, block_proposals.propose(identity, revision, reference_proposals[0]))
                 entry = store.commit(identity, revision, lambda document: apply_operations(document, operations))
-                return self.reply(200, {**entry.wire(summary=True), 'blockIds': [op.identity for op in operations]})
+                return self.reply(200, {**entry.wire(summary=True), 'blockIds': [operation.identity for operation in operations]})
             match = ENTRY_PATH.fullmatch(self.path)
             if match and not match[2]:
                 data = fields(self.body(), {'baseRevision', 'document'})

@@ -1,9 +1,12 @@
 import type { NodeViewProps } from '@tiptap/react';
 import { useEditorState } from '@tiptap/react';
-import { useRef, useState } from 'react';
-import { requestAppShell, useAppContext, useAppI18n } from '@pero/app-sdk';
+import { useEffect, useRef, useState } from 'react';
+import { requestAppShell, useAppApi, useAppContext, useAppI18n } from '@pero/app-sdk';
+import { referenceReview, type StoredReferenceProposal } from '@pero/notebook/scientific-block';
+import { useNotebookContext } from './notebook-context';
 import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
+import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
 import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { BlockFrame } from './block-frame';
 import { notebookEvidence } from './evidence-model';
@@ -30,17 +33,26 @@ function ownerAction(source: ScientificReference | null) {
 function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' | 'experiment' }) {
   const { t } = useAppI18n(messages);
   const { name: appName } = useAppContext();
+  const api = useAppApi();
+  const notebook = useNotebookContext();
   const [citation, setCitation] = useState('');
   const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
   const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
+  const [proposalList, setProposalList] = useState<{ scope: string; proposals: StoredReferenceProposal[] } | null>(null);
+  const [reviewReceipt, setReviewReceipt] = useState<{ decision: 'accept' | 'reject'; revision: number } | null>(null);
+  const [proposalError, setProposalError] = useState('');
+  const [proposalBusy, setProposalBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<{ locator: string; message: string } | null>(null);
   const { label, source, snapshot } = view.node.attrs as { label: string; source: ScientificReference | null; snapshot: ReferenceSnapshot | null };
   const referenceState = scientificReferenceState(source);
+  const stored = readStoredReference(view.node.toJSON());
+  const interchange = projectNotebook({ type: 'doc', content: [view.node.toJSON()] });
+  const snapshotStays = interchange.losses.some(loss => loss.code === 'snapshot-not-in-editor-props');
   const complete = referenceState === 'unpinned' || referenceState === 'pinned';
   const pinned = referenceState === 'pinned';
-  const editable = view.editor.isEditable;
+  const editable = view.editor.isEditable && !notebook?.readonly;
   const openAction = window.parent !== window || appName === 'notebook' ? ownerAction(source) : null;
 
   const changeSource = (field: keyof ScientificReference, value: string) => {
@@ -63,6 +75,56 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     catch (cause) { setOpenError({ locator, message: cause instanceof Error ? cause.message : String(cause) }); }
     finally { setOpening(false); }
   };
+  const entryId = notebook?.entryId;
+  const revision = notebook?.revision;
+  const blockId = view.node.attrs.blockId;
+  const proposalScope = JSON.stringify([entryId, blockId, revision]);
+  const currentScope = useRef(proposalScope);
+  currentScope.current = proposalScope;
+  const proposals = proposalList?.scope === proposalScope ? proposalList.proposals : [];
+  const pendingProposal = proposals.find(item => item.baseRevision === revision) ?? proposals[0] ?? null;
+  const staleProposal = pendingProposal !== null && pendingProposal.baseRevision !== revision;
+  useEffect(() => {
+    if (!entryId || !pinned || typeof blockId !== 'string') { setProposalList(null); return; }
+    let live = true;
+    void api.get<{ proposals: StoredReferenceProposal[] }>(`/api/entries/${entryId}/block-proposals`).then(result => {
+      if (!live) return;
+      const forBlock = result.proposals.filter(item => item.blockId === blockId);
+      setProposalList({ scope: proposalScope, proposals: forBlock.filter(item => item.decision === 'pending') });
+      const reviewed = forBlock.filter(item => item.decision !== 'pending' && item.revision === revision).at(-1);
+      setReviewReceipt(reviewed && reviewed.decision !== 'pending' ? { decision: reviewed.decision, revision: reviewed.revision } : null);
+    }).catch(() => { if (live) setProposalList(null); });
+    return () => { live = false; };
+  }, [api, entryId, revision, pinned, blockId, proposalScope]);
+  useEffect(() => {
+    setReviewReceipt(null);
+    setProposalError('');
+  }, [entryId, blockId]);
+  useEffect(() => { setProposalBusy(false); }, [proposalScope]);
+  const reviewProposal = async (decision: 'accept' | 'reject') => {
+    if (!notebook || !pendingProposal || proposalBusy || !editable || (decision === 'accept' && staleProposal)) return;
+    if (typeof view.node.attrs.blockId !== 'string') { setProposalError(t('interchangeMissing')); return; }
+    if (notebook.dirty) {
+      setProposalError(t('proposalDirty'));
+      return;
+    }
+    setProposalBusy(true);
+    setProposalError('');
+    setReviewReceipt(null);
+    try {
+      const body = referenceReview({ proposalId: pendingProposal.proposalId, expectedRevision: notebook.revision, decision });
+      const result = await api.post<{ entry: { id: string; revision: number; document: { schemaVersion: number } }; proposal: { decision: string; revision: number } }>(
+        `/api/entries/${notebook.entryId}/block-proposals`, body);
+      if (currentScope.current !== proposalScope) return;
+      setProposalList(current => current?.scope === proposalScope ? { ...current, proposals: current.proposals.filter(item => item.proposalId !== pendingProposal.proposalId) } : current);
+      setReviewReceipt({ decision: result.proposal.decision === 'accept' ? 'accept' : 'reject', revision: result.proposal.revision });
+      if (result.proposal.decision === 'accept') window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
+    } catch (cause) {
+      if (currentScope.current === proposalScope) setProposalError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      if (currentScope.current === proposalScope) setProposalBusy(false);
+    }
+  };
   const reference = source && <dl className="notebook-reference-details">{referenceFields.map(([field, labelKey]) =>
     source[field] && <div key={field}><dt>{t(labelKey)}</dt><dd>{source[field]}</dd></div>)}</dl>;
   const status = snapshot ? 'referenceImported' : pinned ? 'referencePinned' : complete ? 'referenceUnpinned' : 'referenceMissing';
@@ -73,6 +135,21 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       : <strong>{label || t(kind)}</strong>}
     caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
+    <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
+      {t('editorBlock')}: {stored.editorBlockId ?? t('interchangeMissing')}
+      {' · '}
+      {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
+    </p>
+    {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
+    {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
+      <legend>{t('reviewReference')}</legend>
+      <p>{t('proposalWording')}: {pendingProposal.label}</p>
+      {staleProposal && <Feedback kind="warning">{t('proposalStale')}</Feedback>}
+      <Button variant="primary" disabled={staleProposal} onClick={() => void reviewProposal('accept')}>{t('acceptProposal')}</Button>
+      <Button variant="ghost" onClick={() => void reviewProposal('reject')}>{t('rejectProposal')}</Button>
+    </fieldset>}
+    {reviewReceipt && <Feedback kind="success">{t(reviewReceipt.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: reviewReceipt.revision })}</Feedback>}
+    {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
       <SnapshotDetails snapshot={snapshot} source={reference} />

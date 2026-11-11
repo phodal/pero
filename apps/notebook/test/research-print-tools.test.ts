@@ -260,3 +260,43 @@ test('mixture QS estimate and history show readable quantities without rewriting
   assert.equal(mixtureState().records[0].actual.salt.value, residue);
   await React.act(async () => editor.destroy());
 });
+
+test('print owner opens dialogs outside a closed File menu and preserves cleanup and focus', async t => {
+  const runtime = await createUiRuntime(t, { resolveDir, contents: "export * from './notebook-print'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';" });
+  const { React, ui, render, click, dom } = runtime, { button } = controls(runtime);
+  const documentValue = { schemaVersion: 1, title: 'Whole notebook', content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: 'p' }, content: [{ type: 'text', text: 'Ordinary notebook content' }] }] } };
+  await render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) },
+    React.createElement(React.Fragment, null,
+      React.createElement('button', { id: 'publication-trigger' }, 'Publication action'),
+      React.createElement('details', { id: 'closed-file-menu' }, React.createElement('summary', null, 'File'),
+        React.createElement(ui.NotebookPrintTools, { document: documentValue, entryId: 'entry', revision: 1 })))));
+  const menu = document.querySelector('#closed-file-menu') as HTMLDetailsElement;
+  const trigger = document.querySelector('#publication-trigger') as HTMLButtonElement;
+  const publication = '<main><h1>Only publication</h1><p>Result</p><details class="source">Hidden original source</details></main>';
+  const openPublication = async () => { trigger.focus(); await React.act(async () => ui.openNotebookPublicationPrint(publication)); };
+  const assertDialog = () => {
+    const dialog = document.querySelector('dialog') as HTMLDialogElement;
+    assert.ok(dialog.open); assert.equal(dialog.parentElement, document.body);
+    assert.equal(dialog.closest('details'), null); assert.equal(menu.open, false);
+    assert.ok([...dialog.querySelectorAll('button')].some(node => node.textContent === 'Print'));
+  };
+  await openPublication(); assertDialog();
+  assert.match(document.querySelector('.notebook-print-output')!.textContent!, /Only publication/);
+  assert.doesNotMatch(document.querySelector('.notebook-print-output')!.textContent!, /Hidden original source|Ordinary notebook content/);
+  let printed = 0; dom.window.print = () => { printed++; };
+  await click(button('Print')); assert.equal(printed, 1);
+  await React.act(async () => window.dispatchEvent(new Event('afterprint')));
+  assert.equal(document.querySelector('dialog, .notebook-print-output'), null);
+  assert.equal(document.activeElement, trigger); assert.equal(menu.open, false);
+  await openPublication(); await click(button('Close print options'));
+  assert.equal(document.querySelector('dialog, .notebook-print-output'), null);
+  assert.equal(document.activeElement, trigger);
+  trigger.focus();
+  await React.act(async () => window.dispatchEvent(new dom.window.CustomEvent(ui.NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId: 'entry' } })));
+  assertDialog();
+  assert.match(document.querySelector('.notebook-print-output')!.textContent!, /Ordinary notebook content/);
+  assert.doesNotMatch(document.querySelector('.notebook-print-output')!.textContent!, /Only publication/);
+  await click(button('Close print options'));
+  assert.equal(document.querySelector('dialog, .notebook-print-output'), null);
+  assert.equal(menu.open, false); assert.equal(document.activeElement, trigger);
+});

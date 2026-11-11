@@ -30,6 +30,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
+      - name: Prepare pinned reader Wasm target for Control Lab
+        run: rustup toolchain install nightly-2026-10-28 --profile minimal --target wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
