@@ -26,7 +26,7 @@ class ProgramHTML(unittest.TestCase):
             programs = ResearchPrograms(store)
             jobs = ResearchJobs(programs, worker=official_html_fixture)
             programs.jobs = jobs
-            plan = programs.command(acceptance.ResearchProgramsAcceptance.plan(paper, acquisition='public_fulltext'), NOW)
+            plan = programs.command(acceptance.ResearchProgramsAcceptance.plan(paper, acquisition='public_fulltext', limits=dict(rounds=6)), NOW)
             try:
                 started = jobs.command(dict(operation='acquire', representation='html', programId=plan['id'],
                     candidateId=plan['candidates'][0]['id'], expectedCheckpoint=plan['checkpoint'], operationId='html'), NOW)
@@ -70,5 +70,28 @@ class ProgramHTML(unittest.TestCase):
                 exported = programs.command(dict(operation='export', programId=plan['id']), NOW)
                 self.assertIn(document.source.url, exported['documents'][0]['content'])
                 self.assertEqual(programs.command(command, NOW)['checkpoint'], observed['checkpoint'])
+                self.assertEqual(completed['rounds'][0]['newEvidence'], 1)
+                # A different observed window in the same block is new evidence;
+                # re-reading that window or shortening its quote is not.
+                last_observation = None
+                for number, start, expected in ((2, 2, 1), (3, 2, 0), (4, 2, 0)):
+                    window = programs.command({**command, 'operationId': f'window-{number}',
+                        'expectedCheckpoint': completed['checkpoint'],
+                        'document': {**command['document'], 'start': start}}, NOW)
+                    observation_id = window['result']['observationId']
+                    if last_observation:
+                        self.assertEqual(observation_id, last_observation)
+                    last_observation = observation_id
+                    saved_report = programs.command(dict(operation='source-report', programId=plan['id'],
+                        expectedCheckpoint=window['checkpoint'], operationId=f'report-{number}',
+                        bundleId=bundle.id, title=f'Reading {number}', observationIds=[observation_id]), NOW)
+                    changed_claim = {**claim, 'reportId': saved_report['sourceReport']['id'],
+                        'observationId': observation_id, 'quote': window['result']['content'][:10 + number]}
+                    completed = programs.command({**commit, 'operationId': f'round-{number}',
+                        'expectedCheckpoint': saved_report['checkpoint'], 'reportIds': [changed_claim['reportId']],
+                        'claims': [changed_claim]}, NOW)
+                    self.assertEqual(completed['rounds'][-1]['newEvidence'], expected)
+                self.assertEqual(completed['stopReason'], 'no_progress')
+
             finally:
                 jobs.close()

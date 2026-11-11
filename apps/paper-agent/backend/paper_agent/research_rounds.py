@@ -93,7 +93,7 @@ class DocumentClaim:
 
 def evidence_key(claim):
     return (claim.get('sourceKind', 'pdf'), claim['paperId'], claim.get('passageId') or claim.get('documentId'),
-            claim.get('blockId', ''), claim['quote'] if claim.get('sourceKind') == 'html' else '')
+            claim.get('blockId', ''), claim.get('observationId', ''))
 
 
 @dataclass(frozen=True)
