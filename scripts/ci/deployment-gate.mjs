@@ -98,6 +98,37 @@ export function samePinnedSha(pinned, resolved) {
   return { ok: true, sha: pinned };
 }
 
+/**
+ * Records come from git ancestry, not from SHA text order.
+ * `descendant: null` or `trusted: null` means the query did not answer.
+ */
+export function newerTrustedFromRecords(targetSha, records) {
+  if (!shaPattern.test(targetSha ?? '')) return null;
+  for (const record of records) {
+    if (!record || record.sha === targetSha) continue;
+    if (record.descendant == null) return null;
+    if (record.descendant === true && record.trusted == null) return null;
+  }
+  return records.some(record => record && record.sha !== targetSha && record.descendant === true && record.trusted === true);
+}
+
+/**
+ * Automatic Pages may publish the target only when no newer master descendant
+ * already has a trusted Linux push success or a successful Pages deployment.
+ * Equality with the master tip does not need that scan. Query gaps refuse.
+ * Manual rollback is a workflow_dispatch input only.
+ */
+export function pagesCurrentDecision({ targetSha, masterTip, relation, newerTrusted = null, manualRollback = false, event = 'workflow_run' }) {
+  if (!shaPattern.test(targetSha ?? '')) return reject('invalid-sha');
+  if (manualRollback && event !== 'workflow_dispatch') return reject('rollback-forbidden');
+  if (!shaPattern.test(masterTip ?? '')) return reject('tip-unknown');
+  if (targetSha === masterTip || relation === 'same') return { ok: true, sha: targetSha, rollback: false };
+  if (relation !== 'ancestor') return reject(relation === 'unknown' ? 'ancestry-unknown' : 'not-on-master');
+  if (newerTrusted == null) return reject('history-unknown');
+  if (newerTrusted && !manualRollback) return reject('superseded');
+  return { ok: true, sha: targetSha, rollback: Boolean(manualRollback && newerTrusted) };
+}
+
 function archiveStem(name) {
   return name.endsWith('.tar.gz') ? name.slice(0, -'.tar.gz'.length) : name.replace(/\.(dmg|zip)$/, '');
 }
@@ -219,6 +250,99 @@ function proveCi() {
   console.log(`trusted CI ${decision.runId} for ${decision.sha}`);
 }
 
+function gitExit(args) {
+  try {
+    execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return 0;
+  } catch (error) {
+    if (typeof error.status === 'number') return error.status;
+    throw error;
+  }
+}
+
+function masterTip() {
+  const line = execFileSync('git', ['ls-remote', 'origin', 'refs/heads/master'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)[0] || '';
+  const sha = line.split(/\s+/)[0] || '';
+  if (!shaPattern.test(sha)) throw new Error('master tip missing');
+  return sha;
+}
+
+function ghFailedClosed(error) {
+  const text = `${error.stderr || ''} ${error.message || ''}`;
+  return error.status === 404 || text.includes('404');
+}
+
+function ghList(path) {
+  try {
+    const body = ghJson(path);
+    return Array.isArray(body) ? body : (body.workflow_runs ?? []);
+  } catch (error) {
+    if (ghFailedClosed(error)) return [];
+    throw error;
+  }
+}
+
+function commitTrusted(repository, sha) {
+  const runs = ciRuns(repository, sha).filter(run => run.headSha === sha && run.event === 'push' && run.headBranch === 'master' && run.headRepository === repository && run.status === 'completed' && run.conclusion === 'success');
+  for (const run of runs) {
+    const jobs = jobsFor(repository, run.id);
+    if (jobs.filter(job => job.name === linuxPushJob && job.status === 'completed' && job.conclusion === 'success').length === 1) return true;
+  }
+  const deployments = ghList(`repos/${repository}/deployments?environment=github-pages&sha=${sha}&per_page=20`);
+  for (const deployment of deployments) {
+    if (deployment.sha !== sha) continue;
+    const statuses = ghList(`repos/${repository}/deployments/${deployment.id}/statuses?per_page=10`);
+    if (statuses.some(status => status.state === 'success')) return true;
+  }
+  return false;
+}
+
+function pagesCurrent() {
+  const repository = process.env.GATE_REPOSITORY || '';
+  const targetSha = process.env.GATE_TARGET_SHA || '';
+  const event = process.env.GATE_EVENT || 'workflow_run';
+  const manualRollback = process.env.GATE_MANUAL_ROLLBACK === 'true';
+  let tip;
+  try { tip = masterTip(); } catch { return fail({ reason: 'tip-unknown' }); }
+  if (tip === targetSha) {
+    const decision = pagesCurrentDecision({ targetSha, masterTip: tip, relation: 'same', newerTrusted: false, manualRollback, event });
+    if (!decision.ok) return fail(decision);
+    output('publish', 'true');
+    output('rollback', 'false');
+    console.log(`pages current ${targetSha}`);
+    return;
+  }
+  let ancestorStatus;
+  try {
+    execFileSync('git', ['fetch', '--no-tags', '--depth=50', 'origin', 'master'], { stdio: 'inherit' });
+    if (execFileSync('git', ['rev-parse', 'origin/master'], { encoding: 'utf8' }).trim() !== tip) return fail({ reason: 'tip-unknown' });
+    ancestorStatus = gitExit(['merge-base', '--is-ancestor', targetSha, tip]);
+  } catch { return fail({ reason: 'ancestry-unknown' }); }
+  const relation = ancestorStatus === 0 ? 'ancestor' : ancestorStatus === 1 ? 'not-ancestor' : 'unknown';
+  let newerTrusted = null;
+  if (relation === 'ancestor') {
+    let commits;
+    try {
+      commits = execFileSync('git', ['rev-list', '--first-parent', `${targetSha}..${tip}`], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    } catch { return fail({ reason: 'history-unknown' }); }
+    if (commits.length > 20) return fail({ reason: 'history-unknown' });
+    try {
+      newerTrusted = newerTrustedFromRecords(targetSha, commits.map(sha => ({ sha, descendant: true, trusted: commitTrusted(repository, sha) })));
+    } catch { return fail({ reason: 'history-unknown' }); }
+  }
+  const decision = pagesCurrentDecision({ targetSha, masterTip: tip, relation, newerTrusted, manualRollback, event });
+  if (!decision.ok && decision.reason === 'superseded') {
+    output('publish', 'false');
+    output('rollback', 'false');
+    console.log(`pages superseded ${targetSha}; not publishing`);
+    return;
+  }
+  if (!decision.ok) return fail(decision);
+  output('publish', 'true');
+  output('rollback', decision.rollback ? 'true' : 'false');
+  console.log(decision.rollback ? `manual rollback ${targetSha}` : `pages current ${targetSha}`);
+}
+
 function manifests() {
   const sha = process.env.GATE_TARGET_SHA || '';
   const required = (process.env.GATE_REQUIRED_ARCHIVES || dispatchReleaseArchives.join(',')).split(',').map(name => name.trim()).filter(Boolean);
@@ -238,6 +362,7 @@ function main() {
   const command = process.argv[2] || 'ci';
   if (command === 'pin-tag') pinTag();
   else if (command === 'ci') proveCi();
+  else if (command === 'pages-current') pagesCurrent();
   else if (command === 'manifests') manifests();
   else throw new Error(`Unknown deployment gate command: ${command}`);
 }

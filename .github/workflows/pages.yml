@@ -21,15 +21,21 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Full master commit SHA whose trusted CI complete already succeeded
+        description: Full master commit SHA whose trusted Linux push CI already succeeded
         required: true
         type: string
+      rollback:
+        description: Explicit manual rollback to an older master commit that already passed Linux CI. Automatic runs cannot set this.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-# One publication at a time. A newer push waits; an in-progress deploy finishes
-# so Pages is not left mid-upload.
+# One publication at a time. Ordering is still not SHA order: before deploy,
+# refuse a target that is an ancestor of a newer trusted Linux push success
+# or a successful Pages deployment. A query failure does not publish.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -56,6 +62,7 @@ jobs:
       actions: read
     outputs:
       sha: ${{ steps.decision.outputs.sha }}
+      publish: ${{ steps.current.outputs.publish }}
     steps:
       - name: Checkout the workflow definition that is running
         uses: actions/checkout@v7
@@ -77,10 +84,20 @@ jobs:
           GATE_TRIGGER_STATUS: ${{ github.event.workflow_run.status }}
           GATE_TRIGGER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: node scripts/ci/deployment-gate.mjs ci
+      - name: Refuse an older target after a newer trusted master publish
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ steps.decision.outputs.sha }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_MANUAL_ROLLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback && 'true' || 'false' }}
+        run: node scripts/ci/deployment-gate.mjs pages-current
 
   build:
     name: Build site and workbench
     needs: gate
+    if: needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -195,16 +212,34 @@ jobs:
 
   deploy:
     name: Deploy GitHub Pages
-    needs: build
+    needs: [gate, build]
+    if: needs.gate.outputs.publish == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
+      contents: read
+      actions: read
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout the workflow definition that is running
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recheck ancestry immediately before publish
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ needs.gate.outputs.sha }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_MANUAL_ROLLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback && 'true' || 'false' }}
+        run: node scripts/ci/deployment-gate.mjs pages-current
       - name: Deploy
         id: deployment
+        if: steps.current.outputs.publish == 'true'
         uses: actions/deploy-pages@v5

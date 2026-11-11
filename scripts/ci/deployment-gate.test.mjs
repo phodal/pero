@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
-import { commitFromTagRefs, decideDeployment, dispatchReleaseArchives, releaseAssetsMatch, samePinnedSha } from './deployment-gate.mjs';
+import { commitFromTagRefs, decideDeployment, dispatchReleaseArchives, newerTrustedFromRecords, pagesCurrentDecision, releaseAssetsMatch, samePinnedSha } from './deployment-gate.mjs';
 
 const repository = 'phodal/pero';
 const sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -81,6 +81,35 @@ test('Linux push admission ignores full runs and still lets a newer push veto', 
   }
 });
 
+test('automatic Pages refuses an older ancestor after a newer trusted success', () => {
+  const old = 'ffffffffffffffffffffffffffffffffffffffff';
+  const newer = '0000000000000000000000000000000000000000';
+  const cases = [
+    ['tip is the target', { targetSha: old, masterTip: old, relation: 'same', newerTrusted: false }, 'ok'],
+    ['later commits exist but none are trusted', { targetSha: old, masterTip: newer, relation: 'ancestor', newerTrusted: false }, 'ok'],
+    ['lexically smaller descendant is still newer', { targetSha: old, masterTip: newer, relation: 'ancestor', newerTrusted: true }, 'superseded'],
+    ['unknown newer history does not publish', { targetSha: old, masterTip: newer, relation: 'ancestor', newerTrusted: null }, 'history-unknown'],
+    ['unknown ancestry does not publish', { targetSha: old, masterTip: newer, relation: 'unknown', newerTrusted: false }, 'ancestry-unknown'],
+    ['missing tip does not publish', { targetSha: old, masterTip: '', relation: 'ancestor', newerTrusted: false }, 'tip-unknown'],
+    ['target not on master does not publish', { targetSha: old, masterTip: newer, relation: 'not-ancestor', newerTrusted: false }, 'not-on-master'],
+    ['automatic rollback flag is ignored', { targetSha: old, masterTip: newer, relation: 'ancestor', newerTrusted: true, manualRollback: true, event: 'workflow_run' }, 'rollback-forbidden'],
+    ['explicit dispatch rollback is labeled', { targetSha: old, masterTip: newer, relation: 'ancestor', newerTrusted: true, manualRollback: true, event: 'workflow_dispatch' }, 'rollback'],
+  ];
+  for (const [name, input, expected] of cases) {
+    const decision = pagesCurrentDecision(input);
+    const actual = decision.rollback ? 'rollback' : decision.ok ? 'ok' : decision.reason;
+    assert.equal(actual, expected, name);
+    if (decision.ok) assert.equal(decision.sha, old);
+  }
+  assert.equal(newerTrustedFromRecords(old, [
+    { sha: newer, descendant: true, trusted: true },
+    { sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', descendant: false, trusted: true },
+  ]), true);
+  assert.equal(newerTrustedFromRecords(old, [{ sha: newer, descendant: false, trusted: true }]), false);
+  assert.equal(newerTrustedFromRecords(old, [{ sha: newer, descendant: null, trusted: true }]), null);
+  assert.equal(newer < old, true);
+});
+
 test('a successful workflow still has to load its complete job', () => {
   const decision = decideDeployment({ repository, targetSha: sha, runs: [run({ jobs: undefined })] });
   assert.equal(decision.reason, 'needs-jobs');
@@ -134,17 +163,27 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(pages.jobs.gate.permissions.pages, undefined);
   assert.equal(pages.jobs.gate.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(pages.jobs.gate.steps[0].with['persist-credentials'], false);
-  assert.match(pages.jobs.gate.steps.at(-1).run, /deployment-gate\.mjs ci/);
-  assert.equal(pages.jobs.gate.steps.at(-1).env.GATE_TARGET_SHA, "${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}");
+  const admit = pages.jobs.gate.steps.find(step => (step.run || '').includes('deployment-gate.mjs ci'));
+  assert.match(admit.run, /deployment-gate\.mjs ci/);
+  assert.equal(admit.env.GATE_TARGET_SHA, "${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}");
+  assert.equal(pages.jobs.gate.outputs.publish, '${{ steps.current.outputs.publish }}');
+  assert.match(pages.jobs.gate.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pages-current/);
+  assert.equal(pages.jobs.gate.steps.find(step => (step.run || '').includes('pages-current')).env.GATE_MANUAL_ROLLBACK, "${{ github.event_name == 'workflow_dispatch' && inputs.rollback && 'true' || 'false' }}");
+  assert.equal(pages.on.workflow_dispatch.inputs.rollback.default, false);
+  assert.equal(pages.jobs.build.if, "needs.gate.outputs.publish == 'true'");
   assert.equal(pages.jobs.build.needs, 'gate');
+  assert.equal(pages.jobs.deploy.if, "needs.gate.outputs.publish == 'true' && needs.build.result == 'success'");
+  assert.match(pages.jobs.deploy.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pages-current/);
+  assert.equal(pages.jobs.deploy.steps.find(step => step.uses?.startsWith('actions/deploy-pages')).if, "steps.current.outputs.publish == 'true'");
   const checkout = pages.jobs.build.steps.find(step => step.uses?.startsWith('actions/checkout@'));
   assert.equal(checkout.with.ref, '${{ needs.gate.outputs.sha }}');
   assert.equal(checkout.with['persist-credentials'], false);
   assert.match(pages.jobs.build.steps.find(step => step.name === 'Refuse a tree that is not the admitted SHA').run, /git rev-parse HEAD/);
-  assert.equal(pages.jobs.deploy.needs, 'build');
+  assert.deepEqual(pages.jobs.deploy.needs, ['gate', 'build']);
   assert.equal(pages.jobs.deploy.permissions.pages, 'write');
   assert.equal(pages.jobs.deploy.permissions['id-token'], 'write');
-  assert.equal(pages.jobs.deploy.permissions.contents, undefined);
+  assert.equal(pages.jobs.deploy.permissions.contents, 'read');
+  assert.equal(pages.jobs.deploy.permissions.actions, 'read');
   for (const job of Object.values(pages.jobs)) for (const step of job.steps) assert.equal(step['continue-on-error'], undefined);
 
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
