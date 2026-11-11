@@ -306,3 +306,75 @@ test('reference reviews prefer current proposals, clear reviewed controls and ig
   assert.doesNotMatch(document.body.textContent ?? '', /wrong-entry/);
   assert.match(document.body.textContent ?? '', /Proposal wording: current/);
 });
+
+test('review receipts survive committed revision adoption and editor reload without leaking across blocks or revisions', async t => {
+  const editors = new Set<{ destroy(): void }>();
+  t.after(() => React.act(() => { for (const editor of editors) editor.destroy(); }));
+  const { React, ui, render, click } = await createUiRuntime(t, {
+    resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)),
+    contents: `export { NotebookEditor } from './editor'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';`,
+  });
+  const source = { app: 'control-lab', kind: 'verification-report', id: experiment, version: report, locator: '' };
+  const content = (label: string) => ({ type: 'doc', content: [
+    { type: 'evidence', attrs: { blockId: 'receipt-block', label, source, snapshot: null } },
+  ] });
+  const original = { id: 'receipt-entry', revision: 1, document: { schemaVersion: 1, title: 'Review receipts', content: content('Original reference') } };
+  const accepted = { ...original, revision: 2, document: { ...original.document, content: content('Reviewed reference') } };
+  let stored = [{ proposalId: 'reviewed-proposal', blockId: 'receipt-block', baseRevision: 1, decision: 'pending', revision: 1, label: 'Reviewed reference', source }];
+  let submissions = 0;
+  const host = ui.createAppHost({ name: 'notebook', locale: 'en', allowedApiPaths: ['/api'], fetch: async (path: string, init: RequestInit) => {
+    if (!path.endsWith('/block-proposals')) return new Response('{}');
+    if (init.method === 'POST') {
+      submissions++;
+      assert.deepEqual(JSON.parse(init.body as string), { proposalId: 'reviewed-proposal', expectedRevision: 1, decision: 'accept' });
+      stored = [{ ...stored[0], decision: 'accept', revision: 2 }];
+      return new Response(JSON.stringify({ entry: accepted, proposal: stored[0] }));
+    }
+    return new Response(JSON.stringify({ proposals: [
+      ...stored,
+      { ...stored[0], proposalId: 'another-block', blockId: 'other-block', decision: 'reject', revision: 2 },
+      { ...stored[0], proposalId: 'older-review', decision: 'reject', revision: 1 },
+      { ...stored[0], proposalId: 'future-review', decision: 'reject', revision: 4 },
+    ] }));
+  } });
+  let committed: typeof accepted | undefined;
+  const onCommit = (event: Event) => { committed = (event as CustomEvent<typeof accepted>).detail; };
+  const eventTarget = window;
+  eventTarget.addEventListener('pero-notebook-entry-committed', onCommit);
+  t.after(() => eventTarget.removeEventListener('pero-notebook-entry-committed', onCommit));
+  const mount = async (entry: typeof original, epoch: number) => {
+    await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
+      key: `receipt-entry:draft:${epoch}`, entryId: entry.id, revision: entry.revision, document: entry.document, content: entry.document.content,
+      chrome: { status: `Revision ${entry.revision}` },
+    })));
+    const editor = (document.querySelector('.tiptap') as HTMLElement & { editor: { destroy(): void } }).editor;
+    editors.add(editor);
+  };
+  const reviewButtons = () => [...document.querySelectorAll<HTMLButtonElement>('button')].filter(node => /^(Accept|Reject) proposal$/.test(node.textContent?.trim() ?? ''));
+  await mount(original, 0);
+  const accept = reviewButtons().find(button => button.textContent?.trim() === 'Accept proposal');
+  assert.ok(accept);
+  await click(accept);
+  assert.deepEqual(committed, accepted, 'acceptance must notify the entry owner of the actual committed document');
+  // Frame adopts the commit with a new editor epoch: local node-view feedback is lost.
+  await mount(committed!, 1);
+  assert.equal(document.querySelector('.notebook-status')?.textContent, 'Revision 2');
+  assert.equal(document.querySelector<HTMLInputElement>('input[aria-label="Label"]')?.value, 'Reviewed reference');
+  assert.match(document.body.textContent ?? '', /Accepted as revision 2\. The previous revision is unchanged\./);
+  assert.doesNotMatch(document.body.textContent ?? '', /Rejected\. This revision was not changed\./);
+  assert.equal(reviewButtons().length, 0);
+  // A fresh mount must reconstruct the same receipt from persisted proposals.
+  await render(null);
+  await mount(accepted, 2);
+  assert.match(document.body.textContent ?? '', /Accepted as revision 2\. The previous revision is unchanged\./);
+  assert.equal(reviewButtons().length, 0);
+  // An ordinary later save keeps the editor mounted but must not keep the old receipt.
+  const later = { ...accepted, revision: 3 };
+  await mount(later, 2);
+  assert.doesNotMatch(document.body.textContent ?? '', /Accepted as revision|Rejected\. This revision was not changed\./);
+  stored = [{ ...stored[0], proposalId: 'rejected-proposal', decision: 'reject', baseRevision: 2, revision: 3 }];
+  await mount(later, 3);
+  assert.match(document.body.textContent ?? '', /Rejected\. This revision was not changed\./);
+  assert.equal(reviewButtons().length, 0);
+  assert.equal(submissions, 1, 'reload and receipt recovery must not resubmit reviews');
+});

@@ -40,7 +40,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const labelInput = useRef<HTMLInputElement>(null);
   const [citationError, setCitationError] = useState(false);
   const [proposalList, setProposalList] = useState<{ scope: string; proposals: StoredReferenceProposal[] } | null>(null);
-  const [proposalNote, setProposalNote] = useState('');
+  const [reviewReceipt, setReviewReceipt] = useState<{ decision: 'accept' | 'reject'; revision: number } | null>(null);
   const [proposalError, setProposalError] = useState('');
   const [proposalBusy, setProposalBusy] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -91,13 +91,13 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       if (!live) return;
       const forBlock = result.proposals.filter(item => item.blockId === blockId);
       setProposalList({ scope: proposalScope, proposals: forBlock.filter(item => item.decision === 'pending') });
-      const recorded = forBlock.find(item => item.decision !== 'pending' && item.revision === revision);
-      if (recorded) setProposalNote(t(recorded.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: recorded.revision }));
+      const reviewed = forBlock.filter(item => item.decision !== 'pending' && item.revision === revision).at(-1);
+      setReviewReceipt(reviewed && reviewed.decision !== 'pending' ? { decision: reviewed.decision, revision: reviewed.revision } : null);
     }).catch(() => { if (live) setProposalList(null); });
     return () => { live = false; };
-  }, [api, entryId, revision, pinned, blockId, proposalScope, t]);
+  }, [api, entryId, revision, pinned, blockId, proposalScope]);
   useEffect(() => {
-    setProposalNote('');
+    setReviewReceipt(null);
     setProposalError('');
   }, [entryId, blockId]);
   useEffect(() => { setProposalBusy(false); }, [proposalScope]);
@@ -110,14 +110,14 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     }
     setProposalBusy(true);
     setProposalError('');
-    setProposalNote('');
+    setReviewReceipt(null);
     try {
       const body = referenceReview({ proposalId: pendingProposal.proposalId, expectedRevision: notebook.revision, decision });
       const result = await api.post<{ entry: { id: string; revision: number; document: { schemaVersion: number } }; proposal: { decision: string; revision: number } }>(
         `/api/entries/${notebook.entryId}/block-proposals`, body);
       if (currentScope.current !== proposalScope) return;
       setProposalList(current => current?.scope === proposalScope ? { ...current, proposals: current.proposals.filter(item => item.proposalId !== pendingProposal.proposalId) } : current);
-      setProposalNote(t(result.proposal.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: result.proposal.revision }));
+      setReviewReceipt({ decision: result.proposal.decision === 'accept' ? 'accept' : 'reject', revision: result.proposal.revision });
       if (result.proposal.decision === 'accept') window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
     } catch (cause) {
       if (currentScope.current === proposalScope) setProposalError(cause instanceof Error ? cause.message : String(cause));
@@ -148,7 +148,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       <Button variant="primary" disabled={staleProposal} onClick={() => void reviewProposal('accept')}>{t('acceptProposal')}</Button>
       <Button variant="ghost" onClick={() => void reviewProposal('reject')}>{t('rejectProposal')}</Button>
     </fieldset>}
-    {proposalNote && <Feedback kind="success">{proposalNote}</Feedback>}
+    {reviewReceipt && <Feedback kind="success">{t(reviewReceipt.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: reviewReceipt.revision })}</Feedback>}
     {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
