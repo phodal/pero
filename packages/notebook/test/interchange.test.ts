@@ -162,6 +162,37 @@ test("retention refuses an illegal type name, an oversized payload, and an unkno
   assert.equal(nested.content.content?.[0].content?.[1].type, "instrumentReading");
 });
 
+test("a document block that is outside the interchange subset is not flattened", () => {
+  const note = { type: "noteCard", attrs: contractAttrs("note-1", { schemaVersion: 1, text: "Keep this note" }) };
+  const axis = { type: "axisSpan", attrs: contractAttrs("axis-1", { schemaVersion: 1, low: 2, high: 9, unit: "mm" }) };
+  const content = doc([paragraph("Intro"), note, axis]);
+  const projected = projectNotebook(content);
+  assert.deepEqual(projected.canonical, content);
+  assert.equal(canReplace(projected, "blockNote"), false);
+  assert.equal(canReplace(projected, "myst"), false);
+  assert.throws(() => restoreBlockNote(projected), /incomplete/);
+  assert.throws(() => restoreMyst(projected), /incomplete/);
+  const exported = JSON.stringify({ blockNote: projected.blockNote, myst: projected.myst });
+  assert.equal(exported.includes("Keep this note"), false);
+  assert.equal(exported.includes("mm"), false);
+  assert.match(projected.losses.map(loss => loss.detail).join("\n"), /noteCard is outside the v1 interchange subset/);
+  assert.match(projected.losses.map(loss => loss.detail).join("\n"), /axisSpan is outside the v1 interchange subset/);
+  assert.equal(persistedBlockTypes.includes("noteCard"), true);
+  assert.equal(persistedBlockTypes.includes("axisSpan"), false);
+  const kept = protectUnknownNodes(doc([note]));
+  assert.equal(kept.changed, false);
+  assert.equal(kept.content.content?.[0].type, "noteCard");
+  const wrapped = protectUnknownNodes(doc([axis]));
+  assert.equal(wrapped.content.content?.[0].type, "retainedBlock");
+  const payload = wrapped.content.content?.[0].attrs?.payload;
+  assert.equal(payload && typeof payload === "object" && "type" in payload ? payload.type : undefined, "axisSpan");
+  assert.equal(restoreRetainedNodes(wrapped.content).content?.[0].type, "axisSpan");
+});
+
+function contractAttrs(blockId: string, attrs: Record<string, unknown>) {
+  return { blockId, ...attrs };
+}
+
 test("the persisted block list is the parser list plus the retention envelope", () => {
   assert.equal(persistedBlockTypes.includes("retainedBlock"), true);
   assert.equal(new Set(persistedBlockTypes).size, persistedBlockTypes.length);

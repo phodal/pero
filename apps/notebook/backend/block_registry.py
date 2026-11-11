@@ -7,6 +7,8 @@ command.
 
 import re
 
+from document import block_id
+
 _definitions = {}
 _operations = {}
 _TYPE = re.compile(r'[A-Za-z][A-Za-z0-9_-]{0,64}')
@@ -34,6 +36,25 @@ class BlockDefinition:
         if self.historical:
             raise ValueError(f'{self.type_name} is validated by the notebook document parser')
         self._validate(value)
+
+
+def document_block(value, defaults, version_one):
+    """Version 1 checks the declared fields. A later integer version is kept as stored."""
+    if not isinstance(value, dict):
+        raise ValueError('Invalid document block')
+    version = value.get('schemaVersion')
+    if type(version) is not int or version < 1:
+        raise ValueError('Invalid block schema version')
+    block_id(value.get('blockId'))
+    if version != 1:
+        return
+    domain = {key: sample for key, sample in defaults.items() if key != 'schemaVersion'}
+    if set(value) - {'blockId', 'schemaVersion', 'templateOrigin', *domain}:
+        raise ValueError('Invalid document block fields')
+    for key, sample in domain.items():
+        if key not in value or type(value[key]) is not type(sample):
+            raise ValueError(f'Invalid document block {key}')
+    version_one(value)
 
 
 def register_definition(definition):

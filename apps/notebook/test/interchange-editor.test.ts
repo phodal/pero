@@ -98,6 +98,91 @@ test('a note card renders through its editor adapter and survives the document p
   assert.equal(JSON.parse(result.stdout).content.content[0].attrs.text, 'Keep this note');
 });
 
+test('an axis span renders, pastes, and reopens without joining the product block list', async t => {
+  let editor: any;
+  t.after(() => editor?.destroy());
+  const runtime = await createUiRuntime(t, { resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)), contents: `
+    import { useEditor, EditorContent, NodeViewWrapper } from '@tiptap/react';
+    import { notebookExtensions } from './editor-extensions';
+    import { documentBlockNode } from './document-block-node';
+    import { defineDocumentBlock, registerDocumentBlock, unregisterDocumentBlock } from '@pero/notebook/scientific-block';
+    export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+    const axisSpan = defineDocumentBlock({
+      type: 'axisSpan',
+      defaults: { low: 0, high: 1, unit: '' },
+      versionOne(attrs) {
+        if (!Number.isInteger(attrs.low) || !Number.isInteger(attrs.high) || attrs.low >= attrs.high) throw new Error('Invalid axis span order.');
+        if (attrs.unit.length > 32) throw new Error('Invalid axis span unit.');
+      },
+    });
+    registerDocumentBlock(axisSpan);
+    function AxisSpanView(view) {
+      const { low, high, unit } = view.node.attrs;
+      return <NodeViewWrapper data-axis-span="">{low}–{high} {unit}</NodeViewWrapper>;
+    }
+    const extension = documentBlockNode(axisSpan, AxisSpanView);
+    export function Fixture({ content, capture }) {
+      const editor = useEditor({ extensions: [...notebookExtensions, extension], content });
+      capture(editor);
+      return <EditorContent editor={editor} />;
+    }
+    export { unregisterDocumentBlock };
+  ` });
+  const { React, ui, render } = runtime;
+  t.after(() => ui.unregisterDocumentBlock('axisSpan'));
+  const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
+  const content = { type: 'doc', content: [
+    { type: 'noteCard', attrs: { blockId: 'note-1', schemaVersion: 1, text: 'Keep this note' } },
+    { type: 'axisSpan', attrs: { blockId: 'axis-1', schemaVersion: 1, low: 2, high: 9, unit: 'mm' } },
+  ] };
+  await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
+    content, capture: (value: any) => { editor = value; },
+  })));
+  assert.match(document.body.textContent ?? '', /Keep this note/);
+  assert.match(document.querySelector('[data-axis-span]')?.textContent ?? '', /2–9 mm/);
+  const html = editor.view.serializeForClipboard(editor.state.doc.slice(0)).dom.innerHTML;
+  assert.match(html, /data-notebook-block="noteCard"/);
+  assert.match(html, /data-notebook-block="axisSpan"/);
+  assert.match(html, /data-notebook-unit="&quot;mm&quot;"/);
+  assert.match(html, /data-notebook-low="2"/);
+  editor.commands.selectAll();
+  editor.commands.deleteSelection();
+  const paste = new window.Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } });
+  editor.view.dom.dispatchEvent(paste);
+  const pasted = editor.getJSON().content;
+  assert.equal(pasted[0].type, 'noteCard');
+  assert.equal(pasted[0].attrs.text, 'Keep this note');
+  assert.equal(pasted[1].type, 'axisSpan');
+  assert.deepEqual({ low: pasted[1].attrs.low, high: pasted[1].attrs.high, unit: pasted[1].attrs.unit }, { low: 2, high: 9, unit: 'mm' });
+  const saved = { schemaVersion: 1, title: 'Span', content: editor.getJSON() };
+  const script = `
+import json, sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import scientific_block
+from document_block_fixture import register_axis_span
+from document import BLOCKS, NotebookDocument
+from store import EntryStore
+assert "axisSpan" not in BLOCKS and "noteCard" not in BLOCKS
+register_axis_span()
+document = json.load(sys.stdin)
+with tempfile.TemporaryDirectory() as directory:
+    store = EntryStore(directory)
+    created = store.create(NotebookDocument.parse(document))
+    store.commit(created.identity, 1, lambda current: NotebookDocument.parse({**current.wire(), "title": "Reopened"}))
+    print(store.read(created.identity).document.serialized())
+`;
+  const result = spawnSync('python3', ['-c', script, fileURLToPath(new URL('.', import.meta.url))], {
+    cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(saved), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const reopened = JSON.parse(result.stdout);
+  assert.equal(reopened.title, 'Reopened');
+  await React.act(async () => { editor.commands.setContent(reopened.content); });
+  assert.match(document.querySelector('[data-axis-span]')?.textContent ?? '', /2–9 mm/);
+  assert.match(document.body.textContent ?? '', /Keep this note/);
+});
+
 test('cutting and pasting a retained block keeps its payload through the editor and the document parser', async t => {
   let editor: any;
   t.after(() => editor?.destroy());

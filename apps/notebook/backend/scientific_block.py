@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from block_registry import BlockDefinition, block, reference_capability, register_definition, register_operation
+from block_registry import BlockDefinition, block, document_block, reference_capability, register_definition, register_operation
 from document import NotebookDocument, _snapshot, block_id, fields, integer, string
 from store import RevisionConflict
 
@@ -195,18 +195,10 @@ def block_proposal_route(owner, method, path, body):
 
 
 def validate_note_card(value):
-    """Pure document block. Version 1 is text. A later integer version is retained, not interpreted."""
-    if not isinstance(value, dict):
-        raise ValueError('Invalid note card')
-    version = value.get('schemaVersion')
-    if type(version) is not int or version < 1:
-        raise ValueError('Invalid note card schema version')
-    block_id(value.get('blockId'))
-    if version != 1:
-        return
-    string(value.get('text', ''), 'note card text', 4000)
-    if set(value) - {'blockId', 'schemaVersion', 'text', 'templateOrigin'}:
-        raise ValueError('Invalid note card fields')
+    """Product document block. Its fields are text, not the core definition."""
+    def version_one(attrs):
+        string(attrs['text'], 'note card text', 4000)
+    document_block(value, {'text': ''}, version_one)
 
 
 register_definition(BlockDefinition('noteCard', 1, validate=validate_note_card))

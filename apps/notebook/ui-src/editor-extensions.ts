@@ -38,7 +38,7 @@ export const widgets = [
   { name: 'appCanvas', icon: 'document', defaults: { label: '', binding: null }, view: AppCanvasView },
   { name: 'mixturePrep', icon: 'flask', defaults: { label: '', mixture: emptyMixturePreparation() }, view: MixturePrepView },
   { name: 'savedSearch', icon: 'search', defaults: { label: '', queryId: '', queryRevision: 1, mode: 'live', snapshot: null }, view: SavedSearchView },
-  { name: editorAdapter(noteCardDefinition).name, icon: 'document', defaults: editorAdapter(noteCardDefinition).defaults, view: NoteCardView },
+  { name: 'noteCard' as const, icon: 'document' as const, defaults: editorAdapter(noteCardDefinition).defaults, view: NoteCardView },
   { name: 'inputTable', icon: 'table', defaults: structuredTableDefaults, view: InputTableView },
   { name: 'registrationTable', icon: 'table', defaults: structuredTableDefaults, view: RegistrationTableView },
   { name: 'lookupTable', icon: 'search', defaults: lookupTableDefaults, view: LookupTableView },

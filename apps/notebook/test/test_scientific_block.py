@@ -12,7 +12,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from block_registry import BlockDefinition, register_definition, register_operation, unregister_definition, unregister_operation
-from document import NotebookDocument, block_id
+from document import BLOCKS, NotebookDocument, block_id
 from server import handler
 from store import EntryStore, RevisionConflict
 
@@ -111,6 +111,42 @@ class ScientificBlockTests(unittest.TestCase):
             created = store.create(NotebookDocument.parse(document))
             with self.assertRaisesRegex(ValueError, 'does not accept reference proposals'):
                 proposals.propose(created.identity, 1, ProposeReference('note-proposal', 'note-1', 'unused', SOURCE))
+
+    def test_axis_span_persists_without_joining_blocks_and_reopens(self):
+        from document_block_fixture import register_axis_span
+        from block_registry import unregister_definition
+        contract = json.loads((Path(__file__).resolve().parents[3] / 'packages/notebook/test/fixtures/document-block-contract.json').read_text())
+        self.addCleanup(lambda: unregister_definition('axisSpan'))
+        register_axis_span()
+        self.assertNotIn('axisSpan', BLOCKS)
+        self.assertNotIn('noteCard', BLOCKS)
+        document = {'schemaVersion': 1, 'title': 'Span', 'content': {'type': 'doc', 'content': [
+            {'type': 'noteCard', 'attrs': contract['noteCard']['valid']},
+            {'type': 'axisSpan', 'attrs': contract['axisSpan']['valid']},
+        ]}}
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            created = store.create(NotebookDocument.parse(document))
+            store.commit(created.identity, 1, lambda current: NotebookDocument.parse({**current.wire(), 'title': 'Reopened'}))
+            reopened = store.read(created.identity)
+            self.assertEqual(reopened.revision, 2)
+            self.assertEqual(reopened.document.block('note-1')['attrs'], contract['noteCard']['valid'])
+            self.assertEqual(reopened.document.block('axis-1')['attrs'], contract['axisSpan']['valid'])
+        retained = {'schemaVersion': 1, 'title': 'Span', 'content': {'type': 'doc', 'content': [
+            {'type': 'axisSpan', 'attrs': contract['axisSpan']['retained']},
+        ]}}
+        self.assertEqual(NotebookDocument.parse(retained).block('axis-2')['attrs'], contract['axisSpan']['retained'])
+        for name in ('badOrder', 'badVersion'):
+            rejected = {'schemaVersion': 1, 'title': 'Span', 'content': {'type': 'doc', 'content': [
+                {'type': 'axisSpan', 'attrs': contract['axisSpan'][name]},
+            ]}}
+            with self.assertRaises(ValueError):
+                NotebookDocument.parse(rejected)
+        overlong = {'schemaVersion': 1, 'title': 'Note', 'content': {'type': 'doc', 'content': [
+            {'type': 'noteCard', 'attrs': {**contract['noteCard']['valid'], 'text': 'x' * 4001}},
+        ]}}
+        with self.assertRaises(ValueError):
+            NotebookDocument.parse(overlong)
 
     def test_accept_rejects_an_adapter_that_drops_template_lineage(self):
         origin = {'templateId': 'template-1', 'revision': 1, 'instanceId': 'instance-1', 'parameterValues': {}, 'idMap': {}}
