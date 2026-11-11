@@ -61,7 +61,10 @@ test('print preview preserves cross-section calculations, filters real output an
   await React.act(async () => window.dispatchEvent(new dom.window.CustomEvent(ui.NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId: 'other' } }))); assert.equal(document.querySelector('dialog'), null);
 });
 
-test('scoped commands preserve widget/native/IME/modal keys and symbol command uses existing text picker', async t => {
+for (const platform of ['MacIntel', 'Linux x86_64']) test(`scoped commands preserve widget/native/IME/modal keys and symbol command uses existing text picker (${platform})`, async t => {
+  const navigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { platform, userAgent: 'node-test' } });
+  t.after(() => { if (navigator) Object.defineProperty(globalThis, 'navigator', navigator); else delete (globalThis as any).navigator; });
   let editor: any; t.after(() => editor?.destroy());
   const runtime = await createUiRuntime(t, { resolveDir, contents: "export * from './notebook-commands'; export * from './text-tools'; export { Editor } from '@tiptap/core'; export { default as StarterKit } from '@tiptap/starter-kit'; export { AppSdkProvider, createAppHost } from '@pero/app-sdk';" });
   const { React, ui, render, dom, click } = runtime, { button } = controls(runtime);
@@ -74,7 +77,13 @@ test('scoped commands preserve widget/native/IME/modal keys and symbol command u
   const press = async (target: Element, key: string, extra = {}) => { let event: any; await React.act(async () => { event = new dom.window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, ctrlKey: true, key, ...extra }); target.dispatchEvent(event); }); return event.defaultPrevented; };
   assert.equal(await press(editor.view.dom, '\\'), true); assert.deepEqual(calls, ['section']);
   assert.equal(await press(scope.querySelector('#widget')!, '\\'), false); assert.equal(await press(editor.view.dom, '\\', { isComposing: true }), false);
-  assert.equal(await press(editor.view.dom, 's'), true); assert.equal(await press(editor.view.dom, 's', { shiftKey: true }), false); assert.equal(await press(editor.view.dom, 'p'), true);
+  assert.equal(await press(editor.view.dom, 's'), true);
+  await React.act(async () => editor.commands.setTextSelection({ from: 1, to: 5 }));
+  // Tiptap owns Mod+Shift+S (strike). Notebook must leave that edit intact, not export.
+  assert.equal(await press(editor.view.dom, 's', { shiftKey: true, ctrlKey: platform !== 'MacIntel', metaKey: platform === 'MacIntel' }), true);
+  assert.equal(editor.isActive('strike'), true);
+  assert.deepEqual(calls, ['section', 'save']);
+  assert.equal(await press(editor.view.dom, 'p'), true);
   assert.deepEqual(calls, ['section', 'save', 'print']);
   await React.act(async () => editor.commands.setTextSelection(3));
   assert.equal(await press(editor.view.dom, ';'), true); assert.match(document.querySelector('dialog')!.textContent!, /Insert symbol/);

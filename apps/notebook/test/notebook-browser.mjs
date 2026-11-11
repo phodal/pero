@@ -373,7 +373,13 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
-  await expect(page.locator('.notebook-command-row [data-notebook-menu=view]')).toHaveCount(1);
+  const views = page.locator('.notebook-workspace-navigation');
+  await expect(views.getByRole('tablist')).toHaveCount(1);
+  await expect(views.getByRole('tab', { name: 'Notes', exact: true })).toHaveAttribute('aria-selected', 'true');
+  for (const name of ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']) {
+    await expect(views.getByRole('tab', { name, exact: true })).toBeVisible();
+  }
+  await expect(views.locator('[data-notebook-menu=view]')).toHaveCount(1);
   await expect(page.locator('.notebook-statusbar [data-notebook-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();

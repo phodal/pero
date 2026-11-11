@@ -18,10 +18,12 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await button('Properties').click();
   let dialog = page.getByRole('dialog', { name: 'Notebook properties', exact: true });
   await expect(dialog).toContainText(created.id); await expect(dialog).toContainText('does not change project membership');
-  await dialog.getByRole('textbox', { name: 'Project label', exact: true }).fill('Workflow acceptance');
-  await dialog.getByRole('textbox', { name: 'Author label', exact: true }).fill('Unverified local label');
+  await dialog.getByLabel('Project label', { exact: true }).fill('Workflow acceptance');
+  await dialog.getByLabel('Author label', { exact: true }).fill('Unverified local label');
   await button('Apply labels to draft', dialog).click(); await save();
-  await button('Properties').click(); await expect(page.getByRole('dialog')).toContainText('Workflow acceptance');
+  await button('Properties').click();
+  await expect(dialog.getByLabel('Project label', { exact: true })).toHaveValue('Workflow acceptance');
+  await expect(dialog.getByLabel('Author label', { exact: true })).toHaveValue('Unverified local label');
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
   await button('Close', page.getByRole('dialog')).click();
 
