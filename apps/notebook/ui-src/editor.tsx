@@ -159,6 +159,7 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       {['sourceExcerpt', 'sampleIntake', 'appCanvas', 'mixturePrep', 'inputTable', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
       <p className="notebook-menu-label">{t('insertDocument')}</p>
       {widgetButton('mystDocument')}
+      {widgetButton('ipynbDocument')}
       <NotebookMystTools editor={editor} onInsert={nodes => insertBlocks(editor, nodes)} />
       <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
       <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />

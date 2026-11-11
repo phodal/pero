@@ -1,3 +1,4 @@
+import { ipynbImportFormats } from '@pero/notebook/ipynb';
 import { mystProjectImportFormats } from '@pero/notebook/myst-project-formats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
@@ -11,7 +12,7 @@ import { BlockFrame } from './block-frame';
 import { mystMessages } from './myst-document-messages';
 import './myst-document.css';
 
-const importFormats = [...mystImportFormats.map(format => ({ format, type: 'mystDocument' })), ...mystProjectImportFormats.map(format => ({ format, type: 'mystProject' }))];
+const importFormats = [...ipynbImportFormats.map(format => ({ format, type: 'ipynbDocument' })), ...mystImportFormats.map(format => ({ format, type: 'mystDocument' })), ...mystProjectImportFormats.map(format => ({ format, type: 'mystProject' }))];
 const exportLabels: Record<string, keyof typeof mystMessages> = { source: 'sourceDownload', bundle: 'bundleDownload', html: 'htmlDownload' };
 
 export function MystDocumentView(view: NodeViewProps) {
@@ -68,7 +69,8 @@ export function NotebookMystTools({ editor, onInsert }: { editor: Editor; onInse
       if (!selected) throw new Error(t('fileType'));
       const { format } = selected;
       if (format.maxBytes !== undefined && file.size > format.maxBytes) throw new Error(t('fileLimit'));
-      const attrs = format.parse(await file.text());
+      const text = selected.type === 'ipynbDocument' ? new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer()) : await file.text();
+      const attrs = format.parse(text);
       if (!alive.current) return;
       if (editor.isDestroyed || !editor.isEditable || !onInsert([{ type: selected.type, attrs }])) throw new Error(t('insertFailed'));
       setNotice(t('imported'));

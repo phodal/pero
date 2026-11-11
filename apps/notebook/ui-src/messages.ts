@@ -1,4 +1,5 @@
 export const messages = {
+  ipynbDocument: { en: 'Jupyter notebook', zh: 'Jupyter 笔记本' },
   mystProject: { en: 'MyST project', zh: 'MyST 项目' },
   mystDocument: { en: 'MyST document', zh: 'MyST 文档' },
   namedReference: { en: 'Named reference', zh: '命名引用' },

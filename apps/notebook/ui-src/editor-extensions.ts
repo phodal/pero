@@ -1,3 +1,5 @@
+import { ipynbDocumentDefinition } from '@pero/notebook/ipynb';
+import { IpynbDocumentView } from './ipynb-document';
 import { mystProjectDefinition } from '@pero/notebook/myst-project-snapshot';
 import { MystProjectView } from './myst-project';
 import { mystDocumentDefinition } from '@pero/notebook/myst';
@@ -35,6 +37,7 @@ import { NoteCardView } from './note-card';
 import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 export const widgets = [
+  { name: 'ipynbDocument', icon: 'document', defaults: editorAdapter(ipynbDocumentDefinition).defaults, view: IpynbDocumentView },
   { name: 'mystProject', icon: 'document', defaults: editorAdapter(mystProjectDefinition).defaults, view: MystProjectView },
   { name: 'mystDocument', icon: 'document', defaults: editorAdapter(mystDocumentDefinition).defaults, view: MystDocumentView },
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
@@ -72,9 +75,10 @@ export const notebookExtensions = [
   NotebookCodeBlock, ReferenceMention,
   TaskList,
   TaskItem.configure({ nested: true }),
+  documentBlockNode(ipynbDocumentDefinition, IpynbDocumentView),
   documentBlockNode(mystDocumentDefinition, MystDocumentView),
   documentBlockNode(mystProjectDefinition, MystProjectView),
-  ...widgets.filter(widget => widget.name !== 'mystDocument' && widget.name !== 'mystProject').map(widget => Node.create({
+  ...widgets.filter(widget => widget.name !== 'ipynbDocument' && widget.name !== 'mystDocument' && widget.name !== 'mystProject').map(widget => Node.create({
     name: widget.name,
     group: 'block',
     atom: true,
