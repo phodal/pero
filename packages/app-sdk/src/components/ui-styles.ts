@@ -364,6 +364,17 @@ input.pero-ui-input:not([data-unstyled])[aria-invalid=true]:focus-visible, texta
 /* Minimum hit area: small controls keep their drawn size but take pointer input over at least --pero-size-hit-min (24px) in every style. */
 .pero-ui-help-tip-button, .pero-ui-checkbox:not([data-unstyled]), .pero-ui-radio-item:not([data-unstyled]), .pero-ui-switch:not([data-unstyled]) { position: relative; }
 .pero-ui-help-tip-button::after, .pero-ui-checkbox:not([data-unstyled])::after, .pero-ui-radio-item:not([data-unstyled])::after, .pero-ui-switch:not([data-unstyled])::after { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, var(--pero-size-hit-min, 24px)); height: max(100%, var(--pero-size-hit-min, 24px)); transform: translate(-50%, -50%); }
+.pero-app-canvas { display: grid; gap: var(--pero-spacing-3); min-width: 0; }
+.pero-app-canvas-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-spacing-2); }
+.pero-app-canvas-heading > .pero-ui-icon-button { margin-inline-start: auto; }
+.pero-app-canvas-fields { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-3) var(--pero-spacing-5); margin: 0; }
+.pero-app-canvas-fields > div { min-width: 0; }
+.pero-app-canvas-fields dt { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.pero-app-canvas-fields dd { margin: var(--pero-spacing-1) 0 0; overflow-wrap: anywhere; }
+.pero-app-canvas-attach, .pero-app-canvas-action { display: flex; flex-wrap: wrap; align-items: end; gap: var(--pero-spacing-2); min-width: 0; }
+.pero-app-canvas-attach > .pero-select { flex: 1 1 14rem; min-width: 0; }
+.pero-app-canvas-action > .pero-ui-field { flex: 1 1 14rem; min-width: 0; }
+.pero-app-canvas pre { max-width: 100%; overflow: auto; }
 `;
 
 /** Same-document Apps share one style element, scoped to Pero controls. */

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  isControlEvidenceSnapshot, parseControlEvidenceLocation, readControlEvidence,
+  isControlEvidenceSnapshot, parseControlEvidenceLocation, parseControlEvidenceReceipt, readControlEvidence,
 } from "../src/control-evidence.ts";
 
 // Generated with fixtures/control-export.py from the actual Control Lab store
@@ -46,4 +46,15 @@ test("refuses detached or modified Control Lab evidence at the owning digest bou
     assert.notEqual(mutated, raw, "fixture must exercise " + reason);
     await assert.rejects(readControlEvidence(new Blob([mutated])), reason);
   }
+});
+
+test('live owner receipts retain exact snapshots and reject detached trial or report identities', async () => {
+  const receipt = (await readControlEvidence(new Blob([raw])))[1];
+  assert.deepEqual(parseControlEvidenceReceipt(receipt), receipt);
+  for (const value of [null, { ...receipt, title: '' },
+    { ...receipt, reference: { ...receipt.reference, version: 'a'.repeat(64) } },
+    { ...receipt, reference: { ...receipt.reference, id: 'b'.repeat(32) } },
+    { ...receipt, snapshot: { ...receipt.snapshot, trialId: 'c'.repeat(32) } },
+    { ...receipt, snapshot: { ...receipt.snapshot, checks: [] } },
+  ]) assert.throws(() => parseControlEvidenceReceipt(value));
 });

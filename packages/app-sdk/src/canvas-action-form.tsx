@@ -8,12 +8,12 @@ export interface CanvasAction {
   params: Record<string, unknown>;
   inputs?: { name: string; label: string; maxLength: number }[];
 }
-export function CanvasActionForm({ action, disabled, onSubmit }: {
-  action: CanvasAction; disabled: boolean; onSubmit(action: CanvasAction): void;
+export function CanvasActionForm({ action, disabled, primary = false, onSubmit }: {
+  action: CanvasAction; disabled: boolean; primary?: boolean; onSubmit(action: CanvasAction): void;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
-  return <div>{action.inputs?.map(input => <Field key={input.name} label={input.label}>{control =>
+  return <div className="pero-app-canvas-action">{action.inputs?.map(input => <Field key={input.name} label={input.label}>{control =>
     <Input {...control} value={Object.hasOwn(draft, input.name) ? draft[input.name] : String(action.params[input.name] ?? '')}
       maxLength={input.maxLength} disabled={disabled} onChange={event => setDraft(current => ({ ...current, [input.name]: event.target.value }))} />
-  }</Field>)}<Button disabled={disabled} onClick={() => onSubmit({ ...action, params: { ...action.params, ...draft } })}>{action.label}</Button></div>;
+  }</Field>)}<Button variant={primary ? 'primary' : 'secondary'} disabled={disabled} onClick={() => onSubmit({ ...action, params: { ...action.params, ...draft } })}>{action.label}</Button></div>;
 }

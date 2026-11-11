@@ -114,6 +114,17 @@ export function isControlEvidenceSnapshot(value: unknown): value is ControlEvide
     value.checks.every(isCheck) && matches(value.exportSha256, DIGEST);
 }
 
+/** Live owner result from an admitted Host Canvas read; validates identity, not scientific truth. */
+export function parseControlEvidenceReceipt(value: unknown): ControlEvidenceReceipt {
+  if (!isRecord(value) || !boundedText(value.title, 200) || !value.title.trim() ||
+      !isControlEvidenceSnapshot(value.snapshot) || !isRecord(value.reference)) throw new Error('Invalid Control Lab result');
+  const { reference, snapshot } = value;
+  const location = typeof reference.locator === 'string' ? parseControlEvidenceLocation(reference.locator) : null;
+  if (reference.app !== 'control-lab' || reference.kind !== 'verification-report' || reference.id !== location?.experimentId ||
+      reference.version !== snapshot.reportId || location?.trialId !== snapshot.trialId) throw new Error('Control Lab result identity does not match its trial');
+  return { title: value.title, reference: reference as unknown as ScientificReference, snapshot };
+}
+
 function parseExport(buffer: ArrayBuffer): Record<string, unknown> {
   let value: unknown;
   let nodes = 0;

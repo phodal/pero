@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import re
 
-from .experiments import ExperimentSpec, Invalid, digest, template
+from .experiments import ExperimentSpec, Invalid, canonical, digest, template
 
 
 def identifier(value, pattern):
@@ -41,13 +41,43 @@ class NotebookExperiment:
         return cls(inputs['submissionId'], digest(inputs), spec)
 
 
-def projection(inputs):
+def projection(inputs, store=None):
     submission = NotebookExperiment.parse(inputs)
-    return {'title': template(submission.spec.template_id).title, 'fields': [
+    view = {'title': template(submission.spec.template_id).title, 'fields': [
         {'label': 'Observation window', 'value': f"{inputs['horizon']['value']} s"},
         {'label': 'Samples', 'value': inputs['samples']['value']},
     ], 'columns': [], 'rows': [], 'notice': 'Creation saves a specification. Run and verify it in Control Lab.',
         'actions': [{'name': 'create-experiment', 'label': 'Create experiment', 'params': {}}]}
+    record = store.notebook_experiment(submission, create=False) if store else None
+    trials = [trial for trial in (record or {}).get('trials', [])
+              if trial['phase'] == 'verification' and trial['status'] == 'completed' and trial.get('report')]
+    if trials:
+        # Same canonical bytes as the existing export route; no solver or verifier is rerun.
+        exported = store.export(submission.identity)
+        export_hash = digest(exported)
+        results = []
+        for trial in reversed(exported['experiment']['trials']):
+            if trial['phase'] != 'verification' or trial['status'] != 'completed' or not trial.get('report'):
+                continue
+            report, observation = trial['report'], trial['observation']
+            source = {'app': 'control-lab', 'kind': 'verification-report', 'id': record['id'], 'version': report['id'],
+                      'locator': f"pero-app-location://control-lab/main/experiment/{record['id']}/trial/{trial['id']}"}
+            checks = [{**check, **{name: None if check[name] is None else canonical(check[name]).decode('utf-8')
+                                  for name in ('actual', 'limit')}} for check in report['checks']]
+            snapshot = {'kind': 'control-receipt', 'trialId': trial['id'], 'observationId': observation['id'],
+                        'candidateId': trial['candidateId'], 'scenarioId': trial['scenarioId'], 'phase': trial['phase'],
+                        'specHash': record['specHash'], 'inputDigest': observation['inputDigest'], 'reportId': report['id'],
+                        'verifierVersion': report['verifierVersion'], 'verdict': report['verdict'], 'checks': checks,
+                        'exportSha256': export_hash}
+            result = {'id': trial['id'], 'label': f"Verification {trial['id'][:12]} · {report['verdict']} · {trial['scenarioId']}",
+                      'value': {'title': record['title'], 'reference': source, 'snapshot': snapshot}}
+            if len(results) < 8 and len(canonical([*results, result])) <= 48 * 1024:
+                results.append(result)
+        view['results'] = results
+        view['notice'] = ''
+        if len(results) < len(trials):
+            view['notice'] += f' Showing {len(results)} of {len(trials)} trials; export in Control Lab to inspect the others.'
+    return view
 
 
 def operation(store, value, *, create=False):
