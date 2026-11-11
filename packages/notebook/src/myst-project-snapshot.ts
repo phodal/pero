@@ -1,8 +1,9 @@
+import { parseMystImageData, type MystBinaryAsset } from './myst-assets.ts';
 import { defineDocumentBlock, registerDocumentBlock } from './scientific-block.ts';
 
 export interface MystTextResource { readonly path: string; readonly text: string }
 /** Explicit authored resources, never a filesystem or Host ResearchProject. */
-export interface MystProjectSnapshot { readonly entry: string; readonly files: readonly MystTextResource[] }
+export interface MystProjectSnapshot { readonly entry: string; readonly files: readonly MystTextResource[]; readonly assets?: readonly MystBinaryAsset[] }
 export const MYST_PROJECT_MAX_FILES = 32;
 export const MYST_PROJECT_RESOURCE_MAX_BYTES = 256 * 1024;
 export const MYST_PROJECT_MAX_BYTES = 1024 * 1024;
@@ -23,8 +24,8 @@ function pathValid(value: unknown): value is string {
 
 /** The only wire boundary: unknown versions/fields are not interpreted as current. */
 export function parseMystProjectSnapshot(value: unknown): MystProjectSnapshot {
-  if (!record(value) || !exact(value, ['format', 'version', 'entry', 'files']) || value.format !== 'pero-myst-project' || value.version !== 1) throw new TypeError('Unsupported MyST project snapshot');
-  if (!pathValid(value.entry) || !/\.(?:md|myst)$/i.test(value.entry)) throw new TypeError('MyST entry must be a canonical Markdown resource path');
+  if (!record(value) || ![1, 2].includes(value.version as number) || !exact(value, value.version === 2 ? ['format', 'version', 'entry', 'files', 'assets'] : ['format', 'version', 'entry', 'files']) || value.format !== 'pero-myst-project') throw new TypeError('Unsupported MyST project snapshot');
+  if (!pathValid(value.entry) || !/\.(?:md|myst|ipynb)$/i.test(value.entry)) throw new TypeError('MyST entry must be a canonical Markdown or IPYNB resource path');
   if (!Array.isArray(value.files) || !value.files.length || value.files.length > MYST_PROJECT_MAX_FILES) throw new RangeError('MyST projects require 1–32 text resources');
   const paths = new Set<string>();
   let total = 0;
@@ -39,7 +40,17 @@ export function parseMystProjectSnapshot(value: unknown): MystProjectSnapshot {
     return Object.freeze({ path: resource.path, text: resource.text });
   });
   if (!paths.has(value.entry)) throw new TypeError('MyST entry resource is missing');
-  const snapshot = Object.freeze({ entry: value.entry, files: Object.freeze(files) });
+  let assets: readonly MystBinaryAsset[] | undefined;
+  if (value.version === 2) {
+    if (!Array.isArray(value.assets) || files.length + value.assets.length > MYST_PROJECT_MAX_FILES) throw new RangeError('MyST projects allow at most 32 combined resources');
+    assets = Object.freeze(value.assets.map(asset => {
+      if (!record(asset) || !exact(asset, ['path', 'mediaType', 'base64']) || !pathValid(asset.path)) throw new TypeError('Invalid MyST binary asset');
+      if (paths.has(asset.path)) throw new TypeError(`Duplicate MyST resource: ${asset.path}`);
+      paths.add(asset.path);
+      return Object.freeze({ path: asset.path, ...parseMystImageData(asset.mediaType, asset.base64) });
+    }));
+  }
+  const snapshot = Object.freeze({ entry: value.entry, files: Object.freeze(files), ...(assets ? { assets } : {}) });
   validatePersistedContribution(exportMystProjectSnapshot(snapshot));
   return snapshot;
 }
@@ -54,11 +65,12 @@ export function importMystProjectSnapshot(text: string): MystProjectSnapshot {
   return parseMystProjectSnapshot(JSON.parse(text));
 }
 export function exportMystProjectSnapshot(snapshot: MystProjectSnapshot): string {
-  return JSON.stringify({ format: 'pero-myst-project', version: 1, entry: snapshot.entry, files: snapshot.files }, null, 2) + '\n';
+  return JSON.stringify({ format: 'pero-myst-project', version: snapshot.assets ? 2 : 1, entry: snapshot.entry, files: snapshot.files, ...(snapshot.assets ? { assets: snapshot.assets.map(({ path, mediaType, base64 }) => ({ path, mediaType, base64 })) } : {}) }, null, 2) + '\n';
 }
 export function replaceMystProjectResource(snapshot: MystProjectSnapshot, path: string, text: string): MystProjectSnapshot {
   if (!snapshot.files.some(file => file.path === path)) throw new TypeError('Cannot edit an unprovided MyST resource');
-  return parseMystProjectSnapshot({ format: 'pero-myst-project', version: 1, entry: snapshot.entry,
+  return parseMystProjectSnapshot({ format: 'pero-myst-project', version: snapshot.assets ? 2 : 1, entry: snapshot.entry,
+    ...(snapshot.assets ? { assets: snapshot.assets.map(({ path, mediaType, base64 }) => ({ path, mediaType, base64 })) } : {}),
     files: snapshot.files.map(file => file.path === path ? { path, text } : file) });
 }
 export type MystResourceResolution =
