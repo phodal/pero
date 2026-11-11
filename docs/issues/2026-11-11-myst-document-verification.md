@@ -279,3 +279,59 @@ Its earlier local test counts are historical, not acceptance for reconstructed
 source. This continuation is revalidated from the published `20367200` base;
 only tests rerun against the reconstructed integration will be recorded below.
 Original Notebook source/revisions are not migrated or replaced.
+
+
+## Reconstructed integration published at `dda9a5fe`
+
+Published `dda9a5feb4a01f3306e7f3503ec50ad717d20170` has the same tree as local
+`65b68ffacb1194cbb099ea83bda224c8cb0174fd`. It preserves master `ccc13945`,
+including the concurrent Canvas saved-document/inline-save workflow. Actual
+editor regression proves mixed MyST/Canvas drafts do not mount old saved inputs,
+save adoption uses the exact new revision, and historical views remain read-only.
+The original PR remains open and unmerged.
+
+Fresh aggregate checks against this combined tree:
+
+- Core: **266/266 passed**, no skips.
+- Complete editor suite: **102/102 passed**, no skips, serial local invocation.
+- Backend: **149/149 passed** with `NOTEBOOK_REAL_OCR=1`, no skips.
+- Notebook TypeScript check and production build passed.
+- Exact emitted RefKit Wasm/hash and staged notices test: **1/1 passed**.
+- All **40 registered source files** are ready with exact current byte digests.
+- CI-frozen Bazel `//:checks`: **7/7 passed** on committed generated inputs.
+- Actual LibreOffice render shows native superscripts/subscripts, fraction/root,
+  table, raster and headings. Native Microsoft Word was not tested.
+- The rebuilt scientific XML fixture validates against the official NLM JATS
+  Archiving & Interchange 1.3 schema. This does not certify every arbitrary input
+  or the separate Publishing/Authoring profiles.
+
+Independent review reproduced and verified fixes for comments leaking into
+publication bodies, oversized repeated include selections aborting compilation,
+coerced array-valued notebook cell types, JSON numeric admission differences and
+hidden-cell reference targets. A missing IPYNB interchange registration was found
+by the complete editor suite and fixed without weakening its parity assertion.
+Twenty-five independent focused checks/reproductions subsequently passed.
+
+The initial reconstructed 101-test editor run had one genuine interchange parity
+failure; the final 102-test run above includes its fix and the master compatibility
+regression. Earlier lost-workspace/concurrent esbuild failures are not counted as
+successful final checks. Root npm and derived pnpm resolve one `docx@8.5.0`; the
+npm workspace listing still reports the upstream adapter's declared 7.x range.
+Actual clean installation, type checking and binary artifact tests validate the
+scoped override; no casts conceal mixed classes.
+
+New browser journeys exercise custom CSL editing and exact HTML reuse, notebook
+save/reopen and original recovery, binary image decode, DOCX/ZIP bytes, dedicated
+print DOM and actual PDF text/page inspection, without external network requests.
+[CI 42964204936](https://github.com/phodal/pero/actions/runs/42964204936) was launched
+for this published head. Browser/PDF/Canvas results and inspected retained
+screenshots are reported on the PR when their matching run completes; this local
+report does not imply that those checks have already passed. No local Chromium
+retry was attempted after the environment's earlier launch denial.
+
+A subsequent UI-only disclosure makes every scientific download's full original
+source recovery explicit, including comments and omitted content, before users
+share it. The existing notebook warning remains. HTML and printing omit original
+source, and publication bodies omit comments/hidden cells. Six focused actual
+component checks and type checking pass for that disclosure; source/publisher
+behavior is unchanged.
