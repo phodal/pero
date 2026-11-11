@@ -1,0 +1,27 @@
+{
+  "method_id": "pybamm-dfn-chen2020-v1",
+  "python": "3.12.11",
+  "model": "DFN",
+  "parameter_set": "Chen2020",
+  "thermal": "isothermal",
+  "initial_soc": 1.0,
+  "capacity_ah": 5.0,
+  "duration_s": 600,
+  "sample_period_s": 10,
+  "mesh_points": 20,
+  "solver": "IDAKLU",
+  "solver_rtol": 1e-8,
+  "solver_atol": 1e-8,
+  "comparison_atol_v": 0.00001,
+  "comparison_rtol": 0.000001,
+  "current_atol_a": 1e-9,
+  "capacity_atol_ah": 1e-7,
+  "experiments": [
+    {"id": "c05-t298", "c_rate": 0.5, "temperature_k": 298.15},
+    {"id": "c05-t308", "c_rate": 0.5, "temperature_k": 308.15},
+    {"id": "c10-t298", "c_rate": 1.0, "temperature_k": 298.15},
+    {"id": "c10-t308", "c_rate": 1.0, "temperature_k": 308.15},
+    {"id": "c20-t298", "c_rate": 2.0, "temperature_k": 298.15},
+    {"id": "c20-t308", "c_rate": 2.0, "temperature_k": 308.15}
+  ]
+}
