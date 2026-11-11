@@ -1,3 +1,4 @@
+import { mystProjectImportFormats } from '@pero/notebook/myst-project-formats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
 import type { NodeViewProps } from '@tiptap/react';
@@ -10,6 +11,7 @@ import { BlockFrame } from './block-frame';
 import { mystMessages } from './myst-document-messages';
 import './myst-document.css';
 
+const importFormats = [...mystImportFormats.map(format => ({ format, type: 'mystDocument' })), ...mystProjectImportFormats.map(format => ({ format, type: 'mystProject' }))];
 const exportLabels: Record<string, keyof typeof mystMessages> = { source: 'sourceDownload', bundle: 'bundleDownload', html: 'htmlDownload' };
 
 export function MystDocumentView(view: NodeViewProps) {
@@ -52,7 +54,7 @@ export function MystDocumentView(view: NodeViewProps) {
   </BlockFrame>;
 }
 
-/** Imports append a new source block. An awaited file read never replaces a draft. */
+/** Imports append a new source or project block. An awaited file read never replaces a draft. */
 export function NotebookMystTools({ editor, onInsert }: { editor: Editor; onInsert(nodes: JSONContent[]): boolean }) {
   const { t } = useAppI18n(mystMessages);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -62,17 +64,18 @@ export function NotebookMystTools({ editor, onInsert }: { editor: Editor; onInse
     if (pending.current || !editor.isEditable) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try {
-      const format = mystImportFormats.find(candidate => candidate.extensions.some(extension => file.name.toLowerCase().endsWith(extension)));
-      if (!format) throw new Error(t('fileType'));
+      const selected = importFormats.find(({ format }) => format.extensions.some(extension => file.name.toLowerCase().endsWith(extension)));
+      if (!selected) throw new Error(t('fileType'));
+      const { format } = selected;
       if (format.maxBytes !== undefined && file.size > format.maxBytes) throw new Error(t('fileLimit'));
       const attrs = format.parse(await file.text());
       if (!alive.current) return;
-      if (editor.isDestroyed || !editor.isEditable || !onInsert([{ type: 'mystDocument', attrs }])) throw new Error(t('insertFailed'));
+      if (editor.isDestroyed || !editor.isEditable || !onInsert([{ type: selected.type, attrs }])) throw new Error(t('insertFailed'));
       setNotice(t('imported'));
     } catch (cause) { if (alive.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { pending.current = false; if (alive.current) setBusy(false); }
   };
-  return <div><FilePicker compact variant="ghost" label={t('import')} emptyLabel="" title={t('importHint')} accept={mystImportFormats.flatMap(format => format.extensions).join(',')} busy={busy} disabled={!editor.isEditable} onFile={file => void importFile(file)} />
+  return <div><FilePicker compact variant="ghost" label={t('import')} emptyLabel="" title={t('importHint')} accept={importFormats.flatMap(({ format }) => format.extensions).join(',')} busy={busy} disabled={!editor.isEditable} onFile={file => void importFile(file)} />
     {error && <Feedback kind="error">{error}</Feedback>}{notice && <p role="status">{notice}</p>}
   </div>;
 }
