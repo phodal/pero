@@ -423,3 +423,29 @@ Focused actual-component and preview regressions passed **11/11**, no skips;
 Notebook TypeScript checking and both browser-test syntax checks passed.
 The expanded metadata/citation/escaped-source preview fixtures passed **3/3**
 again after their final edit. These are local DOM/URL results, not browser acceptance.
+
+## Print dialog visibility repair after `42c40e37`
+
+[CI 42966549583](https://github.com/phodal/pero/actions/runs/42966549583) passed
+267 core, 105 editor, 149 backend and six of seven Notebook browser journeys.
+Both actual Canvas owner journeys passed, including declaration rebinding and
+bounded owner metadata writes. Actual DOCX/artifact downloads and repeated
+project navigation now pass. All other required CI jobs passed. The remaining
+standalone publication journey reached the print-only DOM but could not see its
+`Print` button, so scientific PDF acceptance was still incomplete.
+
+The retained screenshot shows no visible dialog. `NotebookPrintTools` is owned
+beneath the collapsed File menu: the output already portals to the page body,
+but its dialog remained under closed `details`. Both normal and publication
+print dialogs now portal to the same body, retaining the existing state owner,
+shared modal behavior, action and output. No browser selector or PDF assertion
+was weakened. Eight actual-component checks pass, including an owner mounted
+inside closed details, exact Print action, focus restoration, cancellation,
+afterprint cleanup and distinct normal/publication output. Fresh real browser
+and PDF acceptance requires the subsequent matching CI run.
+
+Current retained evidence: [Notebook screenshots](https://github.com/phodal/pero/actions/runs/42966549583/artifacts/13831837148)
+and [Canvas screenshots/receipts](https://github.com/phodal/pero/actions/runs/42966549583/artifacts/13832230284).
+Both archives were checksum-verified; actual project/CSV/Canvas and failure
+pixels were inspected. Native/Electron GUI and arbitrary TeX/Typst compilation
+remain outside this evidence.
