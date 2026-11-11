@@ -17,6 +17,8 @@ mod conda;
 mod python;
 mod preparation;
 mod micromamba;
+mod uv_tool;
+mod locked_python;
 pub mod docling_runtime;
 mod environment;
 mod environment_catalog;

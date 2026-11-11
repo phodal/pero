@@ -273,9 +273,9 @@ impl Apps {
                 serde_json::from_value(value).map_err(|error| error.to_string())?;
             if let Request::Localenvironment { ref name, request: pero_runtime::apps::local_environment::Request::Prepare {ref id}, .. } = request {
                 let job={let guard=self.store.lock().map_err(|e|e.to_string())?;guard.as_ref().map_err(Clone::clone)?.environment_preparation(name,id)?};
-                job.run(&mut |_| {})?;
+                let compute = job.run(&mut |_| {})?;
                 let guard=self.store.lock().map_err(|e|e.to_string())?;
-                return serde_json::to_value(guard.as_ref().map_err(Clone::clone)?.local_environments(name,pero_runtime::apps::local_environment::Request::List)?).map_err(|e|e.to_string());
+                return serde_json::to_value(guard.as_ref().map_err(Clone::clone)?.local_environments(name,pero_runtime::apps::local_environment::Request::List { compute })?).map_err(|e|e.to_string());
             }
             if let Request::Canvas { name, request, .. } = &request {
                 return crate::app_canvas::execute(self.store.clone(), self.canvas.clone(), name, request.clone());

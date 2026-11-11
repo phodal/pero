@@ -55,6 +55,10 @@ impl EnvironmentState {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocalEnvironment {
+    #[serde(default)]
+    pub locked_compute: bool,
+    #[serde(default)]
+    pub prepared: Option<crate::environments::LockedPythonProfile>,
     pub id: AppName,
     pub label: EnvironmentLabel,
     pub target: ScientificMethod,
@@ -67,7 +71,22 @@ pub struct LocalEnvironment {
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "lowercase", deny_unknown_fields)]
 pub enum Request {
-    List,
+    List {
+        #[serde(default)]
+        compute: bool,
+    },
+    #[serde(rename = "create_locked_control")]
+    CreateLockedControl {
+        label: EnvironmentLabel,
+    },
+    Rebuild {
+        id: AppName,
+        label: EnvironmentLabel,
+    },
+    #[serde(rename = "bind_compute")]
+    BindCompute {
+        id: AppName,
+    },
     Create {
         target: ScientificMethod,
         label: EnvironmentLabel,
@@ -100,8 +119,77 @@ impl AppStore {
         request: Request,
     ) -> Result<Vec<LocalEnvironment>, String> {
         self.require_grant(caller, "environments")?;
+        let compute = matches!(
+            &request,
+            Request::List { compute: true }
+                | Request::CreateLockedControl { .. }
+                | Request::Rebuild { .. }
+                | Request::BindCompute { .. }
+        );
         match request {
-            Request::List => {}
+            Request::List { .. } => {}
+            Request::CreateLockedControl { label } => {
+                let app = self
+                    .installed
+                    .get(&AppName::try_from("control-lab".to_owned())?)
+                    .ok_or("Control Lab is not installed")?;
+                let value = LocalEnvironment {
+                    id: AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?,
+                    label,
+                    target: ScientificMethod::Control,
+                    dependencies: app
+                        .definition
+                        .backend
+                        .as_ref()
+                        .ok_or("App has no backend")?
+                        .dependencies
+                        .clone(),
+                    locked_compute: true,
+                    prepared: None,
+                    state: EnvironmentState::Created,
+                    log: vec![],
+                    error: None,
+                    bound: false,
+                };
+                save_environment(&self.environment_root(), &value)?;
+            }
+            Request::Rebuild { id, label } => {
+                let mut value = self.environment_record(&id)?;
+                let profile = value
+                    .prepared
+                    .as_ref()
+                    .ok_or("Only a published locked profile can be rebuilt")?;
+                let new_id = AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?;
+                super::locked_python::copy_recipe(
+                    &self.environment_root(),
+                    id.as_str(),
+                    new_id.as_str(),
+                    profile,
+                )?;
+                value.id = new_id;
+                value.label = label;
+                value.prepared = None;
+                value.state = EnvironmentState::Created;
+                value.log.clear();
+                value.error = None;
+                value.bound = false;
+                save_environment(&self.environment_root(), &value)?;
+            }
+            Request::BindCompute { id } => {
+                let value = self.environment_record(&id)?;
+                value.state.require_ready()?;
+                let profile = value.prepared.ok_or("Select a locked compute profile")?;
+                super::locked_python::verify(&profile, &self.root.join("control-lab"))?;
+                let directory = self.data.join("control-lab/.compute");
+                fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+                let pending = directory.join("binding.pending");
+                fs::write(
+                    &pending,
+                    serde_json::to_vec(&profile).map_err(|e| e.to_string())?,
+                )
+                .map_err(|e| e.to_string())?;
+                fs::rename(pending, directory.join("binding.json")).map_err(|e| e.to_string())?;
+            }
             Request::Create { target, label } => {
                 let app = self
                     .installed
@@ -123,6 +211,8 @@ impl AppStore {
                 let value = LocalEnvironment {
                     id: AppName::try_from(format!("env-{}", uuid::Uuid::new_v4()))?,
                     label,
+                    locked_compute: false,
+                    prepared: None,
                     target,
                     dependencies,
                     state: EnvironmentState::Created,
@@ -139,6 +229,17 @@ impl AppStore {
         if !root.exists() {
             return Ok(Vec::new());
         }
+        let compute_binding = self.data.join("control-lab/.compute/binding.json");
+        let selected_compute = if compute && compute_binding.exists() {
+            Some(
+                serde_json::from_slice::<crate::environments::LockedPythonProfile>(
+                    &fs::read(compute_binding).map_err(|e| e.to_string())?,
+                )
+                .map_err(|e| e.to_string())?,
+            )
+        } else {
+            None
+        };
         let mut values = Vec::new();
         for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
@@ -146,11 +247,21 @@ impl AppStore {
                 let mut value: LocalEnvironment =
                     serde_json::from_slice(&fs::read(entry.path()).map_err(|e| e.to_string())?)
                         .map_err(|e| e.to_string())?;
+                if value.locked_compute != compute {
+                    continue;
+                }
                 let app = AppName::try_from(value.target.target().0.to_owned())?;
-                value.bound = self
-                    .python
-                    .select(&app)
-                    .is_some_and(|p| p.root() == self.environment_root().join(value.id.as_str()));
+                value.bound = if value.locked_compute {
+                    value.prepared.as_ref().is_some_and(|profile| {
+                        selected_compute
+                            .as_ref()
+                            .is_some_and(|selected| selected.root == profile.root)
+                    })
+                } else {
+                    self.python.select(&app).is_some_and(|p| {
+                        p.root() == self.environment_root().join(value.id.as_str())
+                    })
+                };
                 values.push(value);
             }
         }
@@ -165,6 +276,12 @@ impl AppStore {
         self.require_grant(caller, "environments")?;
         let value = self.environment_record(&id)?;
         value.state.require_ready()?;
+        if value.locked_compute {
+            return Err(
+                "Use bind_compute for this scientific profile; App service binding is unchanged"
+                    .into(),
+            );
+        }
         let app = AppName::try_from(value.target.target().0.to_owned())?;
         let root = self.environment_root().join(id.as_str());
         let environment = PythonEnvironment::try_from(root.clone())?;
@@ -181,7 +298,7 @@ impl AppStore {
         self.processes.remove(&app);
         self.python.bind(app.clone(), root)?;
         self.resolve(&app)?;
-        self.local_environments(caller, Request::List)
+        self.local_environments(caller, Request::List { compute: false })
     }
 }
 
@@ -203,7 +320,7 @@ pub struct EnvironmentPreparation {
     value: LocalEnvironment,
 }
 impl EnvironmentPreparation {
-    pub fn run(self, progress: &mut impl FnMut(super::AppPreparation)) -> Result<(), String> {
+    pub fn run(self, progress: &mut impl FnMut(super::AppPreparation)) -> Result<bool, String> {
         let mut value = self.value;
         let app = AppName::try_from(value.target.target().0.to_owned())?;
         value.state = EnvironmentState::Preparing;
@@ -213,6 +330,28 @@ impl EnvironmentPreparation {
         let result = (|| {
             let dependencies = value.dependencies.clone();
             let id = value.id.as_str().to_owned();
+            if value.locked_compute {
+                let profile = super::locked_python::prepare(
+                    &self.catalog,
+                    &id,
+                    &dependencies,
+                    &self.app_root,
+                    &mut |line| {
+                        value.log.push(line.clone());
+                        if value.log.len() > 80 {
+                            value.log.remove(0);
+                        }
+                        let _ = save_environment(&self.catalog, &value);
+                        progress(super::AppPreparation {
+                            name: app.clone(),
+                            phase: preparation::PreparationPhase::Installing,
+                            message: line,
+                        });
+                    },
+                )?;
+                value.prepared = Some(profile);
+                return Ok(());
+            }
             let environment = super::micromamba::prepare(
                 &self.catalog,
                 &id,
@@ -278,7 +417,7 @@ impl EnvironmentPreparation {
         value.error = result.err();
         save_environment(&self.catalog, &value)?;
 
-        Ok(())
+        Ok(value.locked_compute)
     }
 }
 impl AppStore {
@@ -294,6 +433,12 @@ impl AppStore {
             .python
             .select(&app)
             .is_some_and(|p| p.root() == self.environment_root().join(id.as_str()));
+        if value.prepared.is_some() {
+            return Err(
+                "Published compute profiles are immutable; use rebuild to create another profile"
+                    .into(),
+            );
+        }
         let mut value = value;
         value.state = value.state.preparing(in_use)?;
         save_environment(&self.environment_root(), &value)?;
@@ -346,6 +491,8 @@ mod tests {
             id: AppName::try_from("env-recovery".to_owned()).unwrap(),
             label: EnvironmentLabel::try_from("Recovery".to_owned()).unwrap(),
             target: ScientificMethod::Control,
+            locked_compute: false,
+            prepared: None,
             dependencies: vec![],
             state: Preparing,
             log: vec!["Downloaded wheel".into()],

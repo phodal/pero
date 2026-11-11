@@ -6,6 +6,8 @@ mod matching;
 mod model;
 mod record;
 mod software;
+mod prepared_python;
+pub use prepared_python::*;
 mod usage;
 pub use composition::*;
 pub use matching::*;
