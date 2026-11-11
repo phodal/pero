@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from research_quality import QualityPacket, digest, measured_accounting
+from research_quality_review import render_review
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -65,10 +66,13 @@ def collect(directory):
             source = sources.get(passage.document_id) if passage else None
             page = next((p for p in source['pages'] if p['number'] == passage.page), None) if source else None
             # A saved quote is not proof of entailment. It only qualifies the citation for human review.
-            compact = lambda s: ''.join(s.split())
+            report = next((r for r in reports if r['id'] == claim['reportId']), None)
+            refs = [ref for group in (report.get('sections', []) + report.get('matrix', {}).get('cells', []))
+                    for ref in group.get('evidence', [])] if report else []
             verified = bool(passage and source and page and passage.paper_id == claim['paperId']
-                and compact(claim['quote']) and compact(claim['quote']) in compact(passage.content)
-                and compact(passage.content) in compact(page['text']))
+                and passage.file_digest == source['sha256'] and claim['quote'] and claim['quote'] in passage.content
+                and page['text'][passage.start:passage.start + len(passage.content)] == passage.content
+                and any(all(ref.get(key) == claim.get(key) for key in ('paperId', 'passageId', 'quote')) for ref in refs))
             claims.append(dict(id=f'claim-{len(claims) + 1}', round=row['number'], **claim,
                 sourceId=source['id'] if source else None, page=passage.page if passage else None,
                 observedText=passage.content if passage else None, citationVerified=verified))
@@ -110,6 +114,7 @@ def collect(directory):
         integrityErrors=errors, evidenceSHA256=sha256((directory / 'evidence.json').read_bytes()).hexdigest())
     packet = QualityPacket.parse(dict(**body, sha256=digest(body)))
     write(review_dir / 'packet.json', packet.value)
+    (review_dir / 'review.html').write_text(render_review(packet), encoding='utf-8')
     # Never overwrite a completed review on repeated export.
     template = review_dir / 'review-template.json'
     write(template, packet.template())

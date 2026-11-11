@@ -40,7 +40,7 @@ const redact = value => typeof value === 'string' ? value.replaceAll(process.env
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redact(item)])) : value;
 const sha = data => createHash('sha256').update(data).digest('hex');
 const evaluationCode = {};
-for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research-quality/finalization.mjs', 'research-quality/preflight.mjs', 'research-quality/shutdown.mjs']) {
+for (const name of ['paper-program-live.mjs', 'paper-program-live-backend.py', 'paper-program-quality.py', 'research_quality.py', 'research_quality_review.py', 'research-quality/finalization.mjs', 'research-quality/preflight.mjs', 'research-quality/shutdown.mjs']) {
   evaluationCode[name] = sha(await readFile(join(root, 'tests/runtime', name)));
 }
 async function wait(predicate, seconds = 45) {

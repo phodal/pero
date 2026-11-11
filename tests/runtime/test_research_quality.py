@@ -192,6 +192,24 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual((target / source['file']).read_bytes(), data)
             self.assertEqual(result.value['integrityErrors'], [])
             self.assertEqual(module.read(target / 'status.json')['scientificAcceptance'], 'needs_independent_human_review')
+            dossier = (target / 'review.html').read_text()
+            self.assertIn('Unreviewed.', dossier)
+            self.assertIn(source['file'] + '#page=1', dossier)
+            self.assertIn('A material final assertion must be reviewed.', dossier)
+            self.assertIn('review-template.json', dossier)
+            program = fixture.programs.read(fixture.state['id'])
+            round_path = fixture.programs.directory(program.id) / 'rounds' / (program.roundIds[0] + '.json')
+            original = module.read(round_path)
+            for field, changed in (('quote', original['claims'][0]['quote'].replace(' ', '')),
+                                   ('reportId', 'f' * 64)):
+                with self.subTest(citation_integrity=field):
+                    edited = deepcopy(original); edited['claims'][0][field] = changed
+                    module.write(round_path, edited)
+                    module.collect(directory)
+                    invalid = module.read(target / 'packet.json')
+                    self.assertFalse(invalid['claims'][0]['citationVerified'])
+                    self.assertEqual(len(invalid['integrityErrors']), 1)
+                    module.write(round_path, original)
             # Wrong original version must not be accepted just because quote text is unchanged.
             (store.root / 'pdf-files' / (byte_digest(data) + '.pdf')).write_bytes(b'changed original')
             module.collect(directory)
