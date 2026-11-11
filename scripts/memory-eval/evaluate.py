@@ -21,7 +21,7 @@ MARKER = "EVAL_PAYLOAD="
 
 
 class JsonProcess:
-    def __init__(self, args, cwd, env, stderr):
+    def __init__(self, args, cwd, env, stderr, timeout=20):
         self.log = stderr.open("w")
         self.process = subprocess.Popen(args, cwd=cwd, env=env, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=self.log, text=True, bufsize=1)
@@ -29,19 +29,20 @@ class JsonProcess:
         self.selector.register(self.process.stdout, selectors.EVENT_READ)
         self.index = 0
         self.received_bytes = 0
+        self.timeout = timeout
 
     def exchange(self, request):
         self.process.stdin.write(json.dumps(request) + "\n")
         self.process.stdin.flush()
         while True:
-            if not self.selector.select(timeout=20):
-                raise TimeoutError("local process did not respond within 20 seconds")
+            if not self.selector.select(timeout=self.timeout):
+                raise TimeoutError(f"local process did not respond within {self.timeout} seconds")
             line = self.process.stdout.readline()
             if not line:
                 raise RuntimeError(f"local process exited {self.process.poll()}; inspect stderr log")
             self.received_bytes += len(line.encode())
             response = json.loads(line)
-            if "id" not in request or response.get("id") == request["id"]:
+            if request.get("jsonrpc") != "2.0" or response.get("id") == request["id"]:
                 return response
 
     def rpc(self, method, params):
@@ -73,6 +74,16 @@ class JsonProcess:
         self.process.stdout.close()
         self.selector.close()
         self.log.close()
+
+
+
+def start_hindsight(stack, python, root, logs, suffix):
+    process = JsonProcess([str(python.absolute()),
+        str(Path(__file__).with_name("hindsight_arm.py").resolve()), "--root", str(root / "hindsight")],
+        root, {"PATH": os.environ.get("PATH", ""), "HOME": os.environ["HOME"]},
+        logs / f"hindsight-{suffix}.stderr", timeout=100)
+    stack.callback(process.close)
+    return process
 
 
 def start_engram(stack, binary, root, project, logs, suffix):
@@ -171,8 +182,23 @@ def run(args):
     receipt_path.write_text(json.dumps(asdict(receipt), sort_keys=True))
     receipts = (Receipt(**json.loads(receipt_path.read_text())),)
     observations, revoked, lifecycle = [], set(), []
+    backends = ["no_memory", "search_files", "engram"]
+    hindsight = None
+    hindsight_probe = None
     started = time.perf_counter()
     with ExitStack() as stack:
+        if args.hindsight_python:
+            hindsight = start_hindsight(stack, args.hindsight_python, root, logs, "initial")
+            hindsight_probe = hindsight.exchange({"action": "init"})
+            if hindsight_probe.get("error"):
+                hindsight.close()
+                hindsight = None
+            else:
+                backends.append("hindsight_chunks")
+                for claim in claims:
+                    saved = hindsight.exchange({"action": "save", "text": claim.text()})
+                    if saved.get("error"):
+                        raise RuntimeError(saved)
         search = JsonProcess([str(args.search_binary.resolve())], root,
                              {"PATH": os.environ.get("PATH", "")}, logs / "search.stderr")
         stack.callback(search.close)
@@ -197,9 +223,21 @@ def run(args):
                     if not read.get("isError"):
                         raise AssertionError("deleted note remains readable by ID")
                     lifecycle.append({"phase": last_phase, "delete": result, "readback": read})
+                    if hindsight:
+                        deleted = hindsight.exchange({"action": "delete", "id": "a10", "project": "alpha"})
+                        if deleted.get("absent") is not True:
+                            raise AssertionError(deleted)
+                        lifecycle.append({"phase": "hindsight_note_deleted", **deleted})
                 elif last_phase == "restarted":
                     processes["alpha"].close()
                     processes["alpha"] = start_engram(stack, args.engram.resolve(), root, "alpha", logs, "restart")
+                    if hindsight:
+                        hindsight.close()
+                        hindsight = start_hindsight(stack, args.hindsight_python, root, logs, "restart")
+                        reopened = hindsight.exchange({"action": "init"})
+                        if reopened.get("ready") is not True:
+                            raise AssertionError(reopened)
+                        lifecycle.append({"phase": "hindsight_process_restart", "fresh_process": True})
                 elif last_phase == "source_changed":
                     changed = replace(by_id["a12"], value="REPLACED-19", statement="mutabletext: REPLACED-19")
                     paths["a12"].write_text(changed.text() + "\n")
@@ -213,23 +251,36 @@ def run(args):
                     rebuild = root / "rebuild"
                     rebuild.mkdir()
                     processes["alpha"] = start_engram(stack, args.engram.resolve(), rebuild, "alpha", logs, "rebuilt")
+                    if hindsight:
+                        hindsight.exchange({"action": "rebuild"})
                     for snapshot in before.values():
                         source = snapshot.claim
                         if source.project == "alpha" and source.source_ref not in revoked:
                             save(processes["alpha"], source)
+                            if hindsight:
+                                saved = hindsight.exchange({"action": "save", "text": source.text()})
+                                if saved.get("error"):
+                                    raise RuntimeError(saved)
                     lifecycle.append({"phase": last_phase, "sources": sorted(s.claim.id for s in before.values()
                                       if s.claim.project == "alpha" and s.claim.source_ref not in revoked)})
                 else:
                     raise ValueError("unknown phase")
             sources = source_snapshot(root, claims)
-            for backend in ("no_memory", "search_files", "engram"):
+            for backend in backends:
                 begin = time.perf_counter()
                 if backend == "no_memory":
                     hits, size, calls = [], 0, 0
                 elif backend == "search_files":
                     hits, size, calls = search_native(search, root, question)
-                else:
+                elif backend == "engram":
                     hits, size, calls = search_engram(processes[question.project], question)
+                else:
+                    before = hindsight.received_bytes
+                    result = hindsight.exchange({"action": "query", "project": question.project, "query": question.query})
+                    if result.get("error"):
+                        raise RuntimeError(result)
+                    hits = [Retrieved(**row) for row in result["hits"]]
+                    size, calls = hindsight.received_bytes - before, result["calls"]
                 elapsed_ms = (time.perf_counter() - begin) * 1000
                 decision = assess(question, hits, sources, revoked, receipts)
                 raw_ids = sorted({by_id_ref.id for hit in hits for by_id_ref in claims if hit.source_ref == by_id_ref.source_ref})
@@ -243,9 +294,14 @@ def run(args):
                        "source_readback_valid": sum(h.source_ref in sources and sources[h.source_ref].sha256 == h.source_sha256 for h in hits),
                        "response_bytes": size, "tool_calls": calls, "retrieval_ms": elapsed_ms}
                 observations.append(row)
+                with (root / "observations.jsonl").open("a") as journal:
+                    journal.write(json.dumps(row) + "\n")
         stats = {p: process.tool("mem_stats", {}) for p, process in processes.items()}
+        if hindsight:
+            hindsight_probe["caller_selected_beta_bank"] = hindsight.exchange({"action": "query", "project": "beta", "query": "BETA-ONLY-77"})
+            hindsight_probe["reflect_attempt"] = hindsight.exchange({"action": "reflect"})
     summary = {}
-    for backend in ("no_memory", "search_files", "engram"):
+    for backend in backends:
         rows = [r for r in observations if r["backend"] == backend]
         positive = [r for r in rows if r["expected_ids"]]
         times = sorted(r["retrieval_ms"] for r in rows)
@@ -269,9 +325,10 @@ def run(args):
               "model": None, "llm_answer_accuracy": None, "dreaming_quality": None, "wiki_quality": None,
               "model_tokens": None, "paid_api_calls": 0, "api_cost_usd": 0,
               "ingest_and_startup_ms": ingest_ms, "summary": summary, "observations": observations,
+              "hindsight_probe": hindsight_probe,
               "lifecycle": lifecycle, "stats": stats,
               "disk_bytes": {label: sum(p.stat().st_size for p in (root / label).rglob('*') if p.is_file())
-                             for label in ("transcripts", "engram", "rebuild")},
+                             for label in ("transcripts", "engram", "rebuild", "hindsight")},
               "binary_sha256": {"engram": sha256(args.engram.read_bytes()).hexdigest(),
                                 "search_files": sha256(args.search_binary.read_bytes()).hexdigest()}}
     (root / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -284,4 +341,5 @@ if __name__ == "__main__":
     parser.add_argument("--engram", type=Path, required=True)
     parser.add_argument("--search-binary", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="new, isolated experiment directory")
+    parser.add_argument("--hindsight-python", type=Path, help="isolated pinned Hindsight environment; no model execution")
     run(parser.parse_args())
