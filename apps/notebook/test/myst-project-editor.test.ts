@@ -58,7 +58,18 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
     if (active) await React.act(async () => active.destroy());
     await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, { key, editable, schemaVersion, snapshot: raw, capture: (value: any) => { active = value; } })));
   };
+  const formatted = async () => {
+    const ready = () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')?.disabled === false;
+    const deadline = Date.now() + 10_000;
+    while (!ready() && Date.now() < deadline) await React.act(async () => new Promise<void>(done => setImmediate(done)));
+    assert.ok(ready(), document.body.textContent ?? 'Citation formatting did not finish');
+    const html = document.querySelector('iframe')?.getAttribute('srcdoc') ?? '';
+    assert.match(html, /refkit-js@0\.4\.0/, 'The actual Wasm engine must format the preview, not an unstyled fallback');
+    assert.doesNotMatch(document.body.textContent ?? '', /Citation formatting unavailable/);
+    return html;
+  };
   await show('editable', true, 1);
+  await formatted();
   assert.equal(document.querySelector('iframe')?.getAttribute('sandbox'), '');
   assert.match(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Project Researcher/);
   assert.match(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Original reference/);
@@ -72,7 +83,11 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
     Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, '@article{Study, title={Revised reference}, author={Doe, Jane}, year={2025}}');
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  assert.match(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Revised reference/);
+  const revisedHtml = await formatted();
+  assert.match(revisedHtml, /Revised reference/);
+  assert.match(revisedHtml, /Doe \(2025\)/);
+  await React.act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')!.click());
+  assert.equal(await downloads.at(-1)!.text(), revisedHtml, 'Download uses the same formatted projection as preview');
   assert.equal(active.getJSON().content[0].attrs.blockId, 'project-1');
   assert.match(JSON.parse(active.getJSON().content[0].attrs.snapshot).files[2].text, /Revised reference/);
   await show('history', false, 1);
@@ -92,6 +107,17 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
   await show('future-block', true, 2);
   assert.equal(document.querySelector('iframe'), null);
   assert.equal(document.querySelector('textarea')?.value, snapshot);
+  const notebook = JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [
+    { id: 'visible', cell_type: 'markdown', metadata: {}, source: 'Visible notebook [@Study]' },
+    { id: 'hidden', cell_type: 'markdown', metadata: { tags: ['remove-cell'] }, source: 'Hidden recovery sentinel' },
+  ] });
+  const project = JSON.parse(snapshot); project.entry = 'study.ipynb'; project.files[0] = { path: 'study.ipynb', text: notebook };
+  await show('notebook', true, 1, JSON.stringify(project));
+  await formatted();
+  assert.match(document.body.textContent ?? '', /Scientific exports include the full original notebook, including content omitted by remove\/hide tags/);
+  const word = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('Word'));
+  assert.ok(word && !word.disabled, 'Notebook entry exposes the same scientific codecs');
+  assert.doesNotMatch(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Hidden recovery sentinel/);
   await React.act(async () => active.destroy());
 });
 

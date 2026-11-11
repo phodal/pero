@@ -24,5 +24,9 @@
   "packages/notebook/src/myst-project-references.ts",
   "packages/notebook/src/myst-project-render.ts",
   "packages/notebook/src/myst-csv-table.ts",
-  "apps/notebook/backend/myst_assets.py"
+  "apps/notebook/backend/myst_assets.py",
+  "packages/notebook/src/myst-citations.ts",
+  "packages/notebook/src/myst-project-citations.ts",
+  "packages/notebook/src/myst-citation-render.ts",
+  "apps/notebook/ui-src/myst-citation-runtime.ts"
 ]

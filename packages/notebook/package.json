@@ -64,7 +64,8 @@
     "./myst-project-references": "./src/myst-project-references.ts",
     "./myst-project-render": "./src/myst-project-render.ts",
     "./myst-csv-table": "./src/myst-csv-table.ts",
-    "./myst-project-citations": "./src/myst-project-citations.ts"
+    "./myst-project-citations": "./src/myst-project-citations.ts",
+    "./ipynb-publication": "./src/ipynb-publication.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
