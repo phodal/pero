@@ -157,9 +157,9 @@ export function parseMystDocument(source: string): MystDocument {
 }
 
 export function exportMystMarkdown(document: { source: string }): string { return document.source; }
-/** A portable, deterministic source + diagnostic bundle; no assets are fetched. */
+/** A portable source envelope. Projections are rederived, never duplicated into the file. */
 export function exportMystBundle(document: MystDocument): string {
-  return JSON.stringify({ format: 'pero-myst', version: 1, source: document.source, metadata: document.metadata, scholarly: document.scholarly, bibliography: document.bibliography, diagnostics: document.diagnostics }, null, 2) + '\n';
+  return JSON.stringify({ format: 'pero-myst', version: 1, source: document.source }, null, 2) + '\n';
 }
 
 /** Validate persisted source at the adapter boundary, without accepting AST as state. */

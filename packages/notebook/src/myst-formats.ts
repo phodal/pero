@@ -3,7 +3,7 @@ import { MYST_SOURCE_MAX_BYTES, exportMystBundle, exportMystMarkdown, importMyst
 import { renderMystHtml } from './myst-render.ts';
 
 export type MystSourceAttributes = { schemaVersion: 1; source: string };
-/** Imports own their file budgets. Bundle headroom covers JSON escaping and derived projections. */
+/** Imports own their file budgets. Bundle headroom covers worst-case JSON escaping (6× source bytes) plus its envelope. */
 export const mystImportFormats: readonly DocumentImportFormat<MystSourceAttributes>[] = [
   {
     id: 'source', label: 'MyST Markdown', extensions: ['.md', '.myst'], mediaType: 'text/markdown',

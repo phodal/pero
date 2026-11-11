@@ -48,3 +48,15 @@ test('HTML codec publishes actual parsed scientific content as inert HTML', () =
   assert.equal(output('html').mediaType, 'text/html');
   assert.deepEqual(output('html').extensions, ['.html']);
 });
+
+
+test('every legal source fits its own bundle import budget despite metadata aliases or JSON escaping', () => {
+  const aliased = '---\ntitle: &text ' + 'a'.repeat(240000) + '\nsubtitle: *text\ndescription: *text\nshort_title: *text\nabstract: *text\n---\n';
+  for (const source of [aliased, '\u0001'.repeat(MYST_SOURCE_MAX_BYTES)]) {
+    assert.ok(Buffer.byteLength(source) <= MYST_SOURCE_MAX_BYTES);
+    const serialized = output('bundle').serialize({ source });
+    assert.ok(Buffer.byteLength(serialized) <= input('bundle').maxBytes!);
+    assert.deepEqual(JSON.parse(serialized), { format: 'pero-myst', version: 1, source });
+    assert.equal(input('bundle').parse(serialized).source, source);
+  }
+});
