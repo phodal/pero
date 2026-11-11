@@ -212,3 +212,7 @@ for _name in ('evidence', 'experiment'):
 from myst_project import MystProjectSnapshot
 
 register_definition(BlockDefinition('mystProject', 1, validate=MystProjectSnapshot.parse))
+
+from ipynb_document import IpynbDocumentSource
+
+register_definition(BlockDefinition('ipynbDocument', 1, validate=IpynbDocumentSource.parse))

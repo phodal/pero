@@ -53,7 +53,9 @@
     "./myst-project-snapshot": "./src/myst-project-snapshot.ts",
     "./myst-project-formats": "./src/myst-project-formats.ts",
     "./myst-bibliography": "./src/myst-bibliography.ts",
-    "./myst-citations": "./src/myst-citations.ts"
+    "./myst-citations": "./src/myst-citations.ts",
+    "./ipynb": "./src/ipynb.ts",
+    "./ipynb-visibility": "./src/ipynb-visibility.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
@@ -74,6 +76,7 @@
     "myst-to-tex": "1.0.48",
     "myst-to-typst": "0.0.40",
     "refkit-js": "0.4.0",
+    "unified": "10.1.2",
     "vfile": "5.3.7",
     "xml-js": "1.6.11",
     "yaml": "2.8.3"

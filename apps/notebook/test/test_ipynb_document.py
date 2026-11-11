@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 import unittest
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from ipynb_document import IpynbDocumentSource
 
 SOURCE = (Path(__file__).resolve().parents[3] / 'packages/notebook/test/fixtures/ipynb-contract.json').read_text()
