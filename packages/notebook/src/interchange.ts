@@ -1,3 +1,4 @@
+import { blockCatalog, lossProjection, persistedBlockTypes } from "./block-catalog.ts";
 import { scientificReferenceState, type NotebookNode, type ScientificReference } from "./document.ts";
 import { registeredDocumentBlock } from "./scientific-block.ts";
 
@@ -10,19 +11,9 @@ import { registeredDocumentBlock } from "./scientific-block.ts";
  */
 export const interchangeVersion = "pero-notebook-interchange/1";
 
-/** Block types accepted by the Notebook document parser, including the retention envelope. */
-export const persistedBlockTypes = [
-  "paragraph", "heading", "blockquote", "horizontalRule", "codeBlock",
-  "bulletList", "orderedList", "taskList", "spreadsheet", "evidence",
-  "experiment", "finding", "section", "attachment", "savedSearch", "inputTable",
-  "registrationTable", "lookupTable", "mixturePrep", "appCanvas", "sampleIntake",
-  "reactionScheme", "chemical", "sourceExcerpt", "namedReference", "noteCard", "mystDocument", "mystProject", "retainedBlock",
-] as const;
+export { persistedBlockTypes } from "./block-catalog.ts";
 
-const knownTypes = new Set<string>([
-  "doc", "text", "hardBreak", "referenceMention", "listItem", "taskItem",
-  ...persistedBlockTypes,
-]);
+const knownTypes = new Set<string>(blockCatalog.map(entry => entry.type));
 
 const referenceTypes = new Set(["evidence", "experiment"]);
 const blockIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
@@ -159,18 +150,12 @@ function projectChildren(nodes: NotebookNode[], handlers: Record<string, (node: 
 }
 
 const handlers: Record<string, (node: NotebookNode, path: string) => Attempt> = {
-  paragraph: proseHandler,
-  heading: proseHandler,
-  codeBlock: proseHandler,
-  evidence: referenceHandler,
-  experiment: referenceHandler,
-  spreadsheet: (_node, path) => ({ losses: both(path, "formula-not-exported", "Spreadsheet formulas stay in the notebook sheet. They are not BlockNote table cells, MyST phrasing cells, or a new computed result.") }),
-  inputTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A structured table keeps its own rows, types, and units. BlockNote TableContent and MyST table cells are rich text, so this table was not exported.") }),
-  registrationTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A registration table is not rich-text table content and was not exported.") }),
-  lookupTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A lookup table is not rich-text table content and was not exported.") }),
-  mystProject: (_node, path) => ({ losses: both(path, "myst-project-snapshot", "Use the MyST project snapshot export to retain every authored resource. Entry HTML is not a lossless project export.") }),
-  mystDocument: (_node, path) => ({ losses: both(path, "myst-source-document", "Use the MyST source or bundle export for this document. Its original source and metadata cannot be replaced by this prose-only projection.") }),
-  retainedBlock: (_node, path) => ({ losses: both(path, "retained-envelope", "The original block is inside the retention envelope and was not converted.") }),
+  ...Object.fromEntries(blockCatalog.filter(entry => entry.projection.kind === "prose" && entry.group === "block").map(entry => [entry.type, proseHandler])),
+  ...Object.fromEntries(blockCatalog.filter(entry => entry.projection.kind === "reference").map(entry => [entry.type, referenceHandler])),
+  ...Object.fromEntries(blockCatalog.flatMap(entry => {
+    const loss = lossProjection(entry);
+    return loss ? [[entry.type, (_node: NotebookNode, path: string): Attempt => ({ losses: both(path, loss.code, loss.detail) })]] : [];
+  })),
 };
 
 function proseHandler(node: NotebookNode, path: string): Attempt {

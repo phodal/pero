@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from block_registry import BlockDefinition, block, document_block, reference_capability, register_definition, register_operation
+from block_registry import BlockDefinition, block, document_block, reference_capability, register_definition, register_historical_catalog, register_operation
 from document import NotebookDocument, _snapshot, block_id, fields, integer, string
 from store import RevisionConflict
 
@@ -212,3 +212,4 @@ for _name in ('evidence', 'experiment'):
 from myst_project import MystProjectSnapshot
 
 register_definition(BlockDefinition('mystProject', 1, validate=MystProjectSnapshot.parse))
+register_historical_catalog()

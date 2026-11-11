@@ -70,6 +70,14 @@ def block(type_name):
     return _definitions.get(type_name)
 
 
+def register_historical_catalog():
+    """Point every historical stored type at the document parser. This does not replace that parser."""
+    from document import BLOCKS
+    for name in sorted(BLOCKS):
+        if name not in _definitions:
+            register_definition(BlockDefinition(name, 1, historical=True))
+
+
 def extension_type_names():
     """New persisted types. Historical types stay in the document parser set."""
     return sorted(name for name, definition in _definitions.items() if not definition.historical)

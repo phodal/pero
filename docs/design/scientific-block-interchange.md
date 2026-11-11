@@ -66,11 +66,14 @@ A block enters through one `BlockDefinition`. `defineDocumentBlock` takes a type
 
 The evidence card sends this request only when a saved entry is open. The frame adopts the returned revision. The first real object in the persistence test is the paper report export in `packages/notebook/test/fixtures/snapshot-contract.json`, not a synthetic id.
 
+## Phase B catalog
+
+`packages/notebook/src/block-catalog.ts` names every stored block and the inline or structural nodes around it. Historical types stay on the document parser through `register_historical_catalog`. Sheets, structured tables, MyST documents, MyST projects, and retained blocks take their projection loss from that catalog. Saving still writes Notebook JSON. A lossy BlockNote or MyST projection is not read back. Tables and attachments are not turned into rich text.
+
 ## Not in this phase
 
 - Replacing the Notebook editor with BlockNote.
-- Embedding MyST build, execute, or reactive packages.
-- Moving every existing Notebook capability onto this registry. That migration is phase B. The evidence and experiment reference proposal is part of phase A.
+- Embedding the MyST site, PDF, JATS, Jupyter, or execute stack. The document and project slices already on this branch stay as they are.
 - New AI4S blocks for Control Lab, chemistry, or Virtual Cell. That is phase C, and only where those apps already have a real closed loop.
 - Yjs, multiplayer, or a second revision store. Notebook revisions remain the citation freeze.
 - Electron, Wasm, and Native GPUI were not launched here. The Web app was opened in Chrome against the Notebook backend.
