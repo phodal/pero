@@ -49,7 +49,7 @@ class SavedReport:
 
 class ResearchStore:
     def __init__(self, root, embedder=None):
-        self.root = Path(root) / "research-v1"
+        self.root = Path(root).resolve() / "research-v1"
         self.lock = threading.RLock()
         self.embedder = embedder
         from .research_imports import ResearchImports
