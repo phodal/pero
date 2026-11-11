@@ -65,7 +65,31 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
       case 'comment': case 'mystTarget': return '';
       case 'footnoteReference': return `<xref ref-type="fn" rid="${key(str(n, 'identifier'))}">${xml(str(n, 'identifier'))}</xref>`;
       case 'footnoteDefinition': footnotes.push(`<fn${id(n)}>${children(n)}</fn>`); return '';
-      case 'definitionList': { let out = ''; const list = n.children ?? []; for (let i = 0; i < list.length; i += 2) out += `<def-item><term>${xml(text(list[i]))}</term><def><p>${list[i + 1] ? xml(text(list[i + 1])) : ''}</p></def></def-item>`; return `<def-list>${out}</def-list>`; }
+      case 'definitionList': {
+        let out = '', terms = '', definitions = '';
+        const flush = () => {
+          if (terms || definitions) out += `<def-item>${terms}<def>${definitions || '<p/>'}</def></def-item>`;
+          terms = ''; definitions = '';
+        };
+        for (const item of n.children ?? []) {
+          if (item.type === 'definitionTerm') {
+            if (definitions) flush();
+            terms += `<term${id(item)}>${children(item, true)}</term>`;
+          } else if (item.type === 'definitionDescription') {
+            // Tight lists contain inline children; loose definitions contain
+            // paragraphs and other blocks. Wrap only contiguous inline runs.
+            let run = '';
+            const flushInline = () => { if (run) definitions += `<p>${run}</p>`; run = ''; };
+            for (const child of item.children ?? []) {
+              if (['text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'inlineMath', 'break', 'image', 'link', 'crossReference', 'cite', 'citeGroup', 'footnoteReference', 'abbreviation'].includes(child.type)) run += render(child, true);
+              else { flushInline(); definitions += render(child); }
+            }
+            flushInline();
+          }
+        }
+        flush();
+        return `<def-list>${out}</def-list>`;
+      }
       default: losses.add(`Unsupported JATS node: ${n.type}; original source retained.`); return inline ? xml(`[${n.type}: ${text(n)}]`) : `<p>${xml(`[${n.type}: ${text(n)}]`)}</p>`;
     }
   };

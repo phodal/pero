@@ -89,3 +89,27 @@ test('scientific references retain resolved rich wording locally and across page
   for (const kind of ['docx', 'latex', 'typst'] as const) assert.equal(text(projectMystPublication({ document: ambiguous }, kind).ast.children!.at(-1)!), '[Unresolved reference: thm]');
   assert.match(exportMystJatsResult({ document: ambiguous }).xml, /<p>\[Unresolved reference: thm\]<\/p>/);
 });
+
+
+test('JATS groups multiple glossary definitions by term and preserves rich block content', () => {
+  for (const detail of ['', '\n\n  More detail.\n\n  - Item one\n  - Item two']) {
+    const source = `\`\`\`{glossary}\n**Apple**\n: A *fruit*.\n: A **company**.${detail}\n\nPear\n: Another fruit.\n\`\`\``;
+    const document = parseMystDocument(source), before = JSON.stringify(document);
+    const result = exportMystJatsResult({ document });
+    const checked = spawnSync('python3', ['-c', `import sys,xml.etree.ElementTree as E,json
+r=E.fromstring(sys.stdin.read()); b=r.find('body'); items=b.findall('.//def-item')
+assert len(items)==2
+assert [''.join(i.find('term').itertext()) for i in items]==['Apple','Pear']
+assert items[0].find('term/bold').text=='Apple'
+assert [''.join(p.itertext()) for p in items[0].findall('def/p')][:2]==['A fruit.','A company.']
+assert items[0].find('def/p/italic').text=='fruit'
+assert items[0].find('def/p/bold').text=='company'
+assert items[1].find('def/p').text=='Another fruit.'
+assert b.find('.//p/p') is None
+assert len(items[0].findall('def/list/list-item'))==${detail ? 2 : 0}
+assert json.loads(r.find('.//custom-meta/meta-value').text)['source']==${JSON.stringify(source)}`], { input: result.xml, encoding: 'utf8' });
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.ok(!result.losses.some(loss => /Unsupported JATS node/.test(loss)));
+    assert.equal(JSON.stringify(document), before);
+  }
+});
