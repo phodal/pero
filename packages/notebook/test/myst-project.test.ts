@@ -63,12 +63,10 @@ test('missing resources, unsafe paths, inert includes/plugins and malformed bibl
     'unread.txt': 'preserved',
   });
   const result = compileMystProject(snapshot);
-  for (const code of ['resource-missing', 'resource-unsupported', 'include-resolved', 'include-unsupported', 'bibliography-invalid', 'project-feature-inert', 'citation-unresolved', 'resource-unused']) assert.ok(result.diagnostics.some(d => d.code === code), code);
-  const included = result.diagnostics.find(d => d.code === 'include-resolved')!;
-  assert.equal(included.path, 'pages/article.md');
-  assert.equal(included.line, 1);
-  assert.match(included.message, /inert/);
-  assert.ok(!renderMystHtml(result.entry).includes('throw Error'));
+  for (const code of ['resource-missing', 'resource-unsupported', 'include-unsupported', 'bibliography-invalid', 'project-feature-inert', 'citation-unresolved', 'resource-unused']) assert.ok(result.diagnostics.some(d => d.code === code), code);
+  assert.ok(result.diagnostics.some(d => d.code === 'html-inert' && d.path === 'provided.txt'));
+  assert.ok(renderMystHtml(result.entry).includes('&lt;script&gt;'));
+  assert.ok(!renderMystHtml(result.entry).includes('<script>'));
   assert.deepEqual(result, compileMystProject(snapshot));
 });
 

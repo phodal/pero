@@ -1,3 +1,4 @@
+import { expandMystIncludes } from './myst-includes.ts';
 import { parseMystSource, parseMystYamlMapping, resolveMystDocument, type MystDocument, type MystDiagnostic, type MystNode } from './myst.ts';
 import { inheritMystMetadata, validateMystProjectMetadata } from './myst-metadata.ts';
 import { resolveMystBibliography, type MystBibliographyRecord } from './myst-bibliography.ts';
@@ -52,19 +53,15 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   const pages: MystProjectPage[] = [];
   for (const resource of snapshot.files.filter(file => /\.(md|myst)$/i.test(file.path))) {
     used.add(resource.path);
-    const parsed = parseMystSource(resource.text);
+    const expansion = expandMystIncludes(snapshot, resource.path, parseMystSource(resource.text));
+    const parsed = expansion.parsed;
+    expansion.resources.forEach(path => used.add(path));
     const inherited = inheritMystMetadata(parsed.scholarly, validated.normalized);
     const resources = [...projectBibliography, ...bibliographyResources(parsed.metadata.bibliography, resource.path)];
     // Repeated declarations of one physical resource are one input, not two copies
     // of every key. Distinct resources with equal keys remain ambiguous.
     const bibliography = resolveMystBibliography([...new Map(resources.map(file => [file.path, file])).values()], parsed.metadata, resource.path);
     const visit = (node: MystNode) => {
-      if (node.type === 'mystDirective' && ['include', 'literalinclude'].includes(String(node.name))) {
-        const argument = typeof node.args === 'string' ? node.args : typeof node.argument === 'string' ? node.argument : '';
-        const resolution = resolveMystResource(snapshot, resource.path, argument);
-        if (resolution.status === 'resolved') used.add(resolution.path);
-        report(`include-${resolution.status}`, `${node.name} ${argument}: ${resolution.status === 'resolved' ? 'provided, but remains inert (not expanded)' : resolution.status === 'missing' ? 'not provided; remains inert' : resolution.reason}`, resource.path, node.position?.start.line);
-      }
       if (node.type === 'image' || node.type === 'link') {
         const url = typeof node.url === 'string' ? node.url : '';
         if (url && !url.startsWith('#')) {

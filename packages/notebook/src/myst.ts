@@ -1,3 +1,4 @@
+import type { MystIncludeProvenance } from './myst-includes.ts';
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { createTokenizer, mystParse } from 'myst-parser';
@@ -7,6 +8,7 @@ import { parseDocument } from 'yaml';
 /** Source is the document. AST, references and diagnostics are disposable projections. */
 export interface MystNode {
   type: string;
+  provenance?: MystIncludeProvenance;
   children?: MystNode[];
   value?: string;
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
@@ -91,6 +93,7 @@ export function parseMystSource(source: string): MystParsedDocument {
     if (node.type === 'mystDirective' || node.type === 'mystRole') {
       const name = string(node.name) ?? '';
       if (disabledDirectives.has(name)) {
+        node.directiveBody = node.value;
         report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
         node.children = undefined;
         node.value = source.split('\n').slice((node.position?.start.line ?? 1) - 1, node.position?.end.line).join('\n');
