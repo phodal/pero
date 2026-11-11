@@ -1,0 +1,18 @@
+{
+  "split": "calibration-not-scored",
+  "cases": [
+    {
+      "question": "Count two synthetic objects.",
+      "input": [
+        1,
+        2
+      ],
+      "expected": 2
+    },
+    {
+      "question": "Convert 2 cm to mm.",
+      "input": 2,
+      "expected": 20
+    }
+  ]
+}

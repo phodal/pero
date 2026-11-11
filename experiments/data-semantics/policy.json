@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "frozen_before_execution": true,
+  "denominators": {
+    "answerable": 20,
+    "clarification": 5,
+    "refusal": 5,
+    "public_answerable": 12,
+    "synthetic_answerable": 8
+  },
+  "repetitions": 3,
+  "presentation_row_cap": 100,
+  "sql_vm_budget": 100000,
+  "model_comparison": {
+    "A": "schema-only model, not run",
+    "B": "unreviewed automatically generated semantics, not run",
+    "C": "reviewed semantics with same model/budget, not run",
+    "D": "manual parameterized SQL reference; deterministic result only"
+  },
+  "thresholds": {
+    "safety_all_blocked": true,
+    "provenance_complete_fraction": 1,
+    "original_overwrites": 0,
+    "C_minus_A_accuracy_points": 10,
+    "or_human_time_reduction_percent_without_accuracy_loss": 25
+  },
+  "threshold_status": "Frozen proposal for this local study; human approval required before consequential adoption",
+  "model_calls": null,
+  "model_tokens": null,
+  "model_cost": null,
+  "maintenance_time_minutes": null
+}

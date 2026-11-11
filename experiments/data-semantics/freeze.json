@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "files": {
+    "fixtures/iris.data": "6f608b71a7317216319b4d27b4d9bc84e6abd734eda7872b71a458569e2656c0",
+    "fixtures/synthetic.json": "c4e05bf3dfc84119b39382deeb2d240d34db071bdcf918fa575b53e87e0e6df6",
+    "definitions.v1.json": "4edb7808ef7e334e327546111eaa758f1c7dc7e7c64a72fe883be338c4b69b40",
+    "definitions.v2.json": "17c3d327139c006ab69899bb237b1fae36726dcebeae405a7da38a87ca2e2434",
+    "questions.json": "cfbd36dca500008409f5371662a078fe0cb42167b22b8cae94adcb97eb7fd929",
+    "calibration.json": "b837066382b3a2d047af001f99b70087dd25da9e1ebed4fb0e43eed75ada38c7",
+    "policy.json": "4d1e3c562aa8d81b66e762e5bbe1f0a5a2999bbbc2fcfe5d36fa3a7ee24b6275",
+    "sources.json": "0228d94f96a6602c959b87e523601d29c50a3dbb4e881406d5d314355ae3fc9a",
+    "manual-plans.json": "38ebb56ad49e403199cb936e837b6c69288905879c655b40cc45533dfc501318",
+    "schema.sql": "51610aaa611ed718151a072afec80f14cc28fe4702eaa74adda632200d183ee9"
+  }
+}
