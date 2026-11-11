@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import vm from 'node:vm';
+import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import JSZip from 'jszip';
@@ -101,4 +103,17 @@ test('editor comments stay invisible in publication bodies but exact source reco
   assert.ok(!typst.split('// PERO ORIGINAL SOURCE JSON')[0].includes('INTERNAL EDITOR NOTE'));
   assert.ok(!xml.split('<body>')[1].split('</body>')[0].includes('INTERNAL EDITOR NOTE'));
   for (const record of [tex, typst, xml]) assert.ok(record.includes('INTERNAL EDITOR NOTE'));
+});
+
+test('actual browser bundle creates DOCX without Node Buffer or process globals', async () => {
+  const built = await build({ stdin: { contents: "export { exportMystDocx } from './myst-publication-sdk.ts'; export { parseMystDocument } from './myst.ts';", resolveDir: new URL('../src/', import.meta.url).pathname }, bundle: true, write: false, format: 'iife', globalName: 'publication', platform: 'browser' });
+  const scope = vm.createContext({ Blob, TextEncoder, TextDecoder, Uint8Array, ArrayBuffer, setTimeout, clearTimeout, structuredClone, crypto, atob, btoa });
+  vm.runInContext(built.outputFiles[0].text, scope);
+  assert.equal(vm.runInContext('typeof Buffer', scope), 'undefined');
+  assert.equal(vm.runInContext('typeof process', scope), 'undefined');
+  const bytes = await vm.runInContext("publication.exportMystDocx({ document: publication.parseMystDocument('# Browser publication\\n\\n$x^2$') })", scope);
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = await zip.file('word/document.xml')!.async('string');
+  assert.ok(xml.includes('Browser publication')); assert.ok(xml.includes('<m:sSup>'));
+  assert.ok((await zip.file('pero/source.json')!.async('string')).includes('Browser publication'));
 });

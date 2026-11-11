@@ -53,7 +53,7 @@ export async function exportMystDocx(input: MystPublicationInput): Promise<Uint8
   } }, { title: input.document.scholarly.title });
   state.renderChildren(projection.ast as Root); state.closeBlock();
   projection.losses.push(...file.messages.map(m => String(m)));
-  const original = await JSZip.loadAsync(await Packer.toBuffer(createDocFromState(state)));
+  const original = await JSZip.loadAsync(await (await Packer.toBlob(createDocFromState(state))).arrayBuffer());
   const archive = new JSZip();
   const names = new Map(Object.keys(original.files).filter(p => p.startsWith('word/media/') && !original.files[p].dir).map((path, i) => [path, `word/media/image${i + 1}.${path.split('.').pop()}`]));
   for (const [path, file] of Object.entries(original.files)) {
