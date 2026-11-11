@@ -125,6 +125,7 @@ func TestPaperResearchStopsWithoutExtraRequestsOnTerminalOrFailedFeedback(t *tes
 		{"feedback-error", 1},
 		{"feedback-unavailable", 1},
 		{"provider-error", 0},
+		{"max-tokens", 0},
 		{"cancel", 0},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
@@ -137,6 +138,11 @@ func TestPaperResearchStopsWithoutExtraRequestsOnTerminalOrFailedFeedback(t *tes
 				if scenario.name == "cancel" {
 					request.Agent.Cancel(errors.New("user stopped research"))
 					return harness.Completion{}, context.Canceled
+				}
+				if scenario.name == "max-tokens" {
+					answer := researchAnswer()
+					answer.Finish = harness.FinishMaxTokens
+					return answer, nil
 				}
 				return researchAnswer(), nil
 			}), func(context.Context, harness.ToolRequest) (harness.ToolResult, error) {
