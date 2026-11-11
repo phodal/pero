@@ -173,8 +173,9 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
   </>;
 }
 
-export function NotebookEditor({ content, document: entryDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, historyControls, onSave, onReplaceDocument, chrome, takeInitialFocus }: {
+export function NotebookEditor({ content, document: entryDocument, savedDocument, onDocumentChange, onCreateEntry, entryId, revision, readonly = false, onChange, historyControls, onSave, onReplaceDocument, chrome, takeInitialFocus }: {
   content: NotebookDocument['content']; document: NotebookDocument; onDocumentChange?: (change: Partial<NotebookDocument>) => void;
+  savedDocument?: NotebookDocument;
   onCreateEntry?: (document: NotebookDocument) => Promise<void>; entryId: string; revision: number;
   historyControls?: DocumentHistoryControls;
   takeInitialFocus?(): boolean;
@@ -215,7 +216,8 @@ export function NotebookEditor({ content, document: entryDocument, onDocumentCha
     editor.view.dispatch(editor.state.tr.setSelection(restored));
   }, [editor, content]);
   if (!editor) return null;
-  return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument,
+  return <NotebookContextProvider value={{ entryId, revision, readonly, document: entryDocument, savedDocument,
+    saveRevision: onSave, saveDisabled: chrome?.saveDisabled, saving: chrome?.saveBusy,
     getDocument: () => ({ ...documentRef.current, content: editor.getJSON() as NotebookDocument['content'] }) }}>
     <NotebookWorkspace editor={editor} entryId={entryId} revision={revision} document={entryDocument} readonly={readonly} onChange={change => onDocumentChange?.(change)}
       onReplaceDocument={readonly ? undefined : onReplaceDocument} chrome={chrome} historyControls={historyControls}

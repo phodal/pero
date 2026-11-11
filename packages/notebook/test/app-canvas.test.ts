@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAppCanvasBinding, appCanvasPath, appCanvasAvailability } from '../src/app-canvas.ts';
+import { parseAppCanvasBinding, appCanvasPath, appCanvasAvailability, isSavedCanvasBinding } from '../src/app-canvas.ts';
+import type { NotebookDocument } from '../src/document.ts';
 test('App bindings retain identity and admit only Host panel navigation', () => {
   const binding = { id: 'binding-1', app: 'control-lab', panel: 'main' };
   assert.deepEqual(parseAppCanvasBinding(binding), binding);
@@ -32,4 +33,14 @@ test('embedded availability uses actual current declaration rather than panel av
   assert.equal(appCanvasAvailability(binding, [app]), 'available');
   assert.equal(appCanvasAvailability(binding, [{ ...app, canvases: [] }]), 'missing-view');
   assert.equal(appCanvasAvailability(binding, [{ ...app, revision: 'b'.repeat(64) }]), 'changed-declaration');
+});
+
+test('draft binding admission waits for its own saved inputs, ignoring retained action receipts', () => {
+  const binding = { id: 'binding', app: 'control-lab', panel: 'main', view: 'notebook-experiment', declaration: 'a'.repeat(64), inputs: { samples: '1001' } };
+  const document: NotebookDocument = { schemaVersion: 1, title: 'Run', content: { type: 'doc', content: [
+    { type: 'section', attrs: { blockId: 'section' }, content: [{ type: 'appCanvas', attrs: { blockId: 'canvas', binding } }] },
+  ] } };
+  assert.equal(isSavedCanvasBinding(document, 'canvas', { ...binding, inputs: { samples: '2001' } }), false);
+  assert.equal(isSavedCanvasBinding(document, 'absent', binding), false);
+  assert.equal(isSavedCanvasBinding(document, 'canvas', { ...binding, receipt: { result: 'stored' } }), true);
 });
