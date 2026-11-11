@@ -5,7 +5,7 @@ import { Button, Checkbox, Disclosure, Feedback, Input, Select, Table, Textarea 
 type QuerySummary = { id: string; question: string; startedAt: string; snapshotId: string; definitionId: string };
 type Receipt = { status: string; reason: string; rows: Record<string, unknown>[]; rowCount: number | null; truncated: boolean };
 type QueryEvidence = { id: string; intent: { question: string; snapshotId: string; definitionId: string }; receipt: Receipt;
-  definition: { sql: string; unit: string; denominator: string; reviewer: string }; snapshot: { sources: { manifest: { name: string; assetId: string } }[] } };
+  definition: { sql: string; unit: string; denominator: string; reviewer: string; check: { operation: string } | null }; snapshot: { sources: { manifest: { name: string; assetId: string } }[] } };
 
 export function SemanticPanel({ datasetId, assetId, fields }: { datasetId: string; assetId: string; fields: string[] }) {
   const api = useAppApi();
@@ -81,10 +81,11 @@ export function SemanticPanel({ datasetId, assetId, fields }: { datasetId: strin
       {evidence.receipt.truncated && <p>Showing 100 of {evidence.receipt.rowCount} rows. The full result is saved.</p>}
       {!!resultColumns.length && <Table label="Query result" className="data-rows-scroll" tableClassName="data-rows"><thead><tr>{resultColumns.map(c => <th key={c}>{c}</th>)}</tr></thead>
         <tbody>{evidence.receipt.rows.map((row, index) => <tr key={index}>{resultColumns.map(c => <td key={c}>{row[c] === null ? 'NULL' : String(row[c])}</td>)}</tr>)}</tbody></Table>}
-      <div className="data-actions"><Button disabled={busy || evidence.receipt.status !== 'completed'} onClick={() => void act(async () => {
+      <div className="data-actions"><Button disabled={busy || evidence.receipt.status !== 'completed' || !evidence.definition.check} onClick={() => void act(async () => {
         const result = await request<{ status: string; expected: string; actual: unknown }>({ operation: 'check', queryId: evidence.id });
         setCheckResult(`${result.status}: expected ${result.expected ?? 'NULL'}, observed ${result.actual ?? 'NULL'}. Scientific review remains required.`);
       })}>Recompute from source</Button><Button onClick={() => downloadFile(`query-${evidence.id}.json`, JSON.stringify(evidence, null, 2), 'application/json')}>Export receipt</Button></div>
+      {!evidence.definition.check && <p>This definition has no supported independent check.</p>}
       {checkResult && <p role="status">{checkResult}</p>}
       <p className="data-note">Query {evidence.id}. In Paper, choose this saved query when linking a claim.</p>
     </section>}
