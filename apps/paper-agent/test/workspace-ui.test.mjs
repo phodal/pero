@@ -144,7 +144,7 @@ test('Paper results recover first-load failure, retain records on 503, and remov
   const saved = { ...library, intents: [intent] };
   const pending = [];
   const fetch = async path => path === '/api/library' ? new Promise(resolve => pending.push(resolve))
-    : new Response(JSON.stringify(path === '/api/intents/question1' ? intent : { records: [] }));
+    : new Response(JSON.stringify(path === '/api/intents/question1' ? intent : path === '/api/data-evidence' ? { links: [] } : { records: [] }));
   const mount = active => f.render(f.React.createElement(f.ui.AppApiProvider, {
     appName: 'paper-agent', locale: 'en', active, allowedApiPaths: ['/api'], allowedEvents: [], fetch,
     surface: f.ui.appSurface, subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {},
@@ -228,7 +228,7 @@ test('research results select a stable detail and keep manual editing directly a
   const f = await fixture(t), reads = [], continued = [];
   const intents = ['first', 'second'].map((id, index) => ({ id, question: `${id} question`, papers: [paper], paperIds: ['p1'], createdAt: `2026-11-0${index + 1}` }));
   const saved = { ...library, intents };
-  const api = { get: async path => { reads.push(path); return intents.find(item => path.endsWith(item.id)); }, post: async () => ({ records: [] }) };
+  const api = { get: async path => { reads.push(path); return intents.find(item => path.endsWith(item.id)); }, post: async path => path === '/api/data-evidence' ? { links: [] } : { records: [] } };
   await f.mount(f.React.createElement(f.ui.ResearchRecords, { api, library: saved, paper: null, results: true, matrixOpen: false, t: f.t,
     onMatrixOpen() {}, onFollowUp: value => continued.push(value.id), onContinue() {}, onCite() {}, onRead() {}, onAttempt() {} }));
   assert.match(document.querySelector('.pa-result-content').textContent, /second question/);
