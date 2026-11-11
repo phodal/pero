@@ -2,6 +2,7 @@
 use super::{AppName, PythonEnvironment, definition::PythonDependency, python::PythonPreparation};
 use serde::Serialize;
 use std::{
+    path::Path,
     io::{BufRead, BufReader},
     process::{Command, Stdio},
     sync::mpsc,
@@ -204,61 +205,12 @@ fn locked_packages_ready(
     Ok(false)
 }
 
-// A pinned official installer avoids requiring Python or pip to bootstrap uv.
-// UV_UNMANAGED_INSTALL leaves shell profiles and PATH untouched.
+// The same verified tool owns legacy App preparation and locked compute recipes.
 fn installer(
     environment: &PythonEnvironment,
     log: &mut impl FnMut(String),
 ) -> Result<std::path::PathBuf, String> {
-    if Command::new("uv")
-        .arg("--version")
-        .output()
-        .ok()
-        .is_some_and(|output| output.status.success())
-    {
-        return Ok(std::path::PathBuf::from("uv"));
-    }
-    let tools = environment
-        .root()
-        .parent()
-        .ok_or("Environment needs a parent")?
-        .join("tools");
-    let uv = tools.join(if cfg!(windows) { "uv.exe" } else { "uv" });
-    if uv.is_file() {
-        return Ok(uv);
-    }
-    log("Downloading uv 0.12.20".into());
-    std::fs::create_dir_all(&tools).map_err(|e| e.to_string())?;
-    let filename = if cfg!(windows) {
-        "install.ps1"
-    } else {
-        "install.sh"
-    };
-    let script = tools.join(filename);
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let bytes = client
-        .get(format!("https://astral.sh/uv/0.12.20/{filename}"))
-        .send()
-        .and_then(|r| r.error_for_status())
-        .and_then(|r| r.bytes())
-        .map_err(|e| format!("Cannot download uv: {e}"))?;
-    std::fs::write(&script, bytes).map_err(|e| e.to_string())?;
-    let mut command = if cfg!(windows) {
-        let mut command = Command::new("powershell.exe");
-        command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]);
-        command
-    } else {
-        Command::new("sh")
-    };
-    command.arg(&script).env("UV_UNMANAGED_INSTALL", &tools);
-    run(&mut command, log)?;
-    if !uv.is_file() {
-        return Err("uv installer did not create its executable".into());
-    }
-    Ok(uv)
+    super::uv_tool::ensure(environment.root().parent().ok_or("Environment needs a parent")?, log)
 }
 
 fn interpreter_request(minor: &str) -> std::ffi::OsString {
@@ -345,27 +297,26 @@ pub(super) fn install_from_index(
 }
 
 fn uv_command(uv: &std::path::Path, environment: &PythonEnvironment) -> Command {
-    let home = environment.root().parent().expect("environment parent");
-    let mut command = Command::new(uv);
-    command
-        .env("UV_PYTHON_INSTALL_DIR", home.join("python"))
-        .env("UV_CACHE_DIR", home.join("cache"))
-        .env("UV_PYTHON_INSTALL_BIN", "0")
-        .arg("--no-config");
-    command
+    super::uv_tool::command(uv, environment.root().parent().expect("environment parent"))
 }
 
 /// Stream installer output while bounding the wait. No installation timeout is
 /// mistaken for backend readiness; the backend starts only after this succeeds.
 pub(super) fn run(command: &mut Command, log: &mut impl FnMut(String)) -> Result<(), String> {
-    let mut child = command
+    run_cancellable(command, log, None)
+}
+
+pub(super) fn run_cancellable(command: &mut Command, log: &mut impl FnMut(String), cancel: Option<&Path>) -> Result<(), String> {
+    if cancel.is_some_and(Path::exists) { return Err("Preparation cancelled by operator".into()); }
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    let mut owned = crate::owned_process::OwnedProcess::spawn(command)
         .map_err(|e| {
             format!("Cannot prepare Python environment: {e}. Check the installation log and retry.")
         })?;
+    let child = owned.child_mut();
     let (send, receive) = mpsc::channel();
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
@@ -389,11 +340,15 @@ pub(super) fn run(command: &mut Command, log: &mut impl FnMut(String)) -> Result
     let deadline = Instant::now() + Duration::from_secs(600);
     let mut tail = String::new();
     loop {
+        if cancel.is_some_and(Path::exists) {
+            owned.stop().map_err(|e|e.to_string())?;
+            return Err("Preparation cancelled by operator".into());
+        }
         if let Ok(line) = receive.recv_timeout(Duration::from_millis(100)) {
             tail = line.chars().take(2000).collect();
             log(tail.clone());
         }
-        match child.try_wait() {
+        match owned.try_wait() {
             Ok(Some(status)) => {
                 for line in receive.try_iter() {
                     tail = line.chars().take(2000).collect();
@@ -409,10 +364,25 @@ pub(super) fn run(command: &mut Command, log: &mut impl FnMut(String)) -> Result
             }
             Ok(None) if Instant::now() < deadline => {}
             result => {
-                let _ = child.kill();
-                let _ = child.wait();
+                let _ = owned.stop();
                 return Err(match result { Err(e) => e.to_string(), _ => "Python environment installation exceeded 10 minutes. Check the network and retry.".into() });
             }
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod cancellation_tests {
+    use super::*;
+    #[test]
+    fn cancellation_stops_the_preparation_group_after_readiness() {
+        let cancel=std::env::temp_dir().join(format!("pero-prepare-cancel-{}",uuid::Uuid::new_v4()));
+        let mut command=Command::new("/bin/sh");
+        command.args(["-c","echo ready; exec sleep 600"]);
+        let error=run_cancellable(&mut command,&mut |line| {
+            if line=="ready" { std::fs::write(&cancel,b"cancel").unwrap(); }
+        },Some(&cancel)).unwrap_err();
+        assert_eq!(error,"Preparation cancelled by operator");
+        std::fs::remove_file(cancel).unwrap();
     }
 }
