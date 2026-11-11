@@ -88,10 +88,14 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     if (!entryId || !pinned || typeof blockId !== 'string') { setProposalList(null); return; }
     let live = true;
     void api.get<{ proposals: StoredReferenceProposal[] }>(`/api/entries/${entryId}/block-proposals`).then(result => {
-      if (live) setProposalList({ scope: proposalScope, proposals: result.proposals.filter(item => item.decision === 'pending' && item.blockId === blockId) });
+      if (!live) return;
+      const forBlock = result.proposals.filter(item => item.blockId === blockId);
+      setProposalList({ scope: proposalScope, proposals: forBlock.filter(item => item.decision === 'pending') });
+      const recorded = forBlock.find(item => item.decision !== 'pending' && item.revision === revision);
+      if (recorded) setProposalNote(t(recorded.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: recorded.revision }));
     }).catch(() => { if (live) setProposalList(null); });
     return () => { live = false; };
-  }, [api, entryId, revision, pinned, blockId, proposalScope]);
+  }, [api, entryId, revision, pinned, blockId, proposalScope, t]);
   useEffect(() => {
     setProposalNote('');
     setProposalError('');
