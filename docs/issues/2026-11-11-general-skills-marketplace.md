@@ -76,3 +76,31 @@ Notebook 专属附件、Native、其他平台/Agent 与签名包保持未验，�
 `/Users/phodal/workspaces/pero-skills-p3-200/test-results/skills-market/mixed-host/run-AxvkSa/`。
 真实模型、科学接受、Notebook 专属附件、其他平台/Agent 和签名包不冒充已验；
 原文要求分列这些范围，未要求所有模型/平台都通过才可关闭。
+
+## 发布构建回归修复（2026-11-11）
+
+主协调在已发布 `master@1ef505bf` 的
+[Linux CI job](https://github.com/phodal/pero/actions/runs/43007928527/job/130480162163)
+发现 Skills App 构建被 `ModuleNotFoundError: yaml` 阻塞。根因是 JSON 发布入口
+`publish.py` 导入 `catalog.py` 时，顶层强制加载仅采集 frontmatter 才需要的 PyYAML；
+此前本机测试环境已安装 PyYAML，掩盖了干净构建环境的依赖泄漏。
+
+独立分支 `codex/skills-publish-200` 从 `origin/master@1ef505bf` 修复：
+只将 `import yaml` 移入现有 `parse_skill`。采集仍使用同一 YAML 解析/序列化实现；
+发布/合并/投影已审查 JSON 只需标准库。没有给 CI 补装依赖或修改 workflow。
+新增既有 catalog 回归：子进程 `python -S publish.py` 分别发布合并与科研子集。
+
+本地验证：
+
+- 修复前 `python -S .../publish.py` 重现同一 `ModuleNotFoundError`。
+- 修复后无 site packages 的合并/科研发布分别为 1778 / 1766 项；合并输出与
+  `1ef505bf` 在有 PyYAML 环境中的发布输出逐字节一致。
+- `PYTHON=/tmp/pero-skills-publish-clean/bin/python node --test scripts/build/apps.test.mjs`：
+  7/7 通过。该隔离 venv 使用 `--without-pip` 创建，确认 `find_spec('yaml') is None`；
+  没有安装任何 Python 包。复用现有 Node 依赖，不影响 Python 依赖检查。
+- `python -m unittest discover -s scripts/research-skills -p 'test_*.py' -v`：12/12 通过，
+  覆盖 YAML metadata、dependencies、许可/分类/去重及无 site packages 发布。
+- 科研目录离线对账、`git diff --check` 通过。
+
+证据目录：`/Users/phodal/workspaces/pero-skills-publish-200/test-results/skills-publish/`。
+本机是 macOS；Linux CI 的重新执行由主协调发布后观察，不将本机通过冒充远程 CI 已绿。

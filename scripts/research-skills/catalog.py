@@ -6,7 +6,6 @@ import re
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 
-import yaml
 
 CATEGORIES = {
     "research-design": "选题与研究设计",
@@ -189,6 +188,9 @@ NATURE_SUMMARIES = {
 }
 
 def parse_skill(content: str, fallback: str) -> dict:
+    # Only source collection parses YAML; publishing reviewed JSON uses the stdlib.
+    import yaml
+
     metadata, notes, frontmatter, body = {}, [], "", content
     if content.lstrip("\ufeff").startswith("---\n") or content.startswith("---\r\n"):
         parts = re.split(r"(?m)^---\s*$", content.lstrip("\ufeff"), maxsplit=2)

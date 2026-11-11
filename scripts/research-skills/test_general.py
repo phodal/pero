@@ -1,8 +1,11 @@
 """General discovery keeps the research inventory and stable source pins intact."""
 import json
+import subprocess
+import sys
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from catalog import runtime_catalog
 from general import merge_catalog
@@ -61,3 +64,16 @@ class GeneralCatalogTests(unittest.TestCase):
                 self.assertIn(other['source'], kept['sources'])
         with self.assertRaisesRegex(ValueError, 'Duplicate skill identity'):
             merge_catalog(self.research, {**self.general, 'skills': [original]})
+
+    def test_json_publication_without_site_packages(self):
+        for options, count in [([], 1778), (['--research-only'], 1766)]:
+            with self.subTest(options=options), TemporaryDirectory() as directory:
+                output = Path(directory) / 'market-catalog.json'
+                result = subprocess.run(
+                    [sys.executable, '-S', str(ROOT / 'scripts/research-skills/publish.py'),
+                     '--output', str(output), *options], capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                published = json.loads(output.read_text(encoding='utf-8'))
+                self.assertEqual(len(published['skills']), count)
+                self.assertTrue(all('frontmatter_yaml' not in item for item in published['skills']))
