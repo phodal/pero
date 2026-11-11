@@ -1,4 +1,4 @@
-import { validatePageFrontmatter, type PageFrontmatter } from 'myst-frontmatter';
+import { validatePageFrontmatter, validateProjectFrontmatter, fillPageFrontmatter, type PageFrontmatter, type ProjectFrontmatter } from 'myst-frontmatter';
 
 /** Upstream page schema, including normalized contributors, affiliations and funding.
  * This is a derived projection, never a replacement for authored YAML metadata.
@@ -27,6 +27,14 @@ const calendarDate = /^(?:\d{4}(?:-\d{2})?(?:-\d{2})?(?:T.*)?|(?:(?:Mon|Tue|Wed|
  * template loading or project-level inheritance is involved.
  */
 export function validateMystMetadata(metadata: Record<string, unknown>): MystMetadataValidation {
+  return validateMetadata(metadata, validatePageFrontmatter);
+}
+
+export function validateMystProjectMetadata(metadata: Record<string, unknown>): { normalized: ProjectFrontmatter; diagnostics: MystMetadataDiagnostic[] } {
+  return validateMetadata(metadata, validateProjectFrontmatter);
+}
+
+function validateMetadata<T extends PageFrontmatter>(metadata: Record<string, unknown>, validator: (input: unknown, options: Parameters<typeof validatePageFrontmatter>[1]) => T): { normalized: T; diagnostics: MystMetadataDiagnostic[] } {
   // The upstream DOI alias and contributor normalization can mutate nested input.
   const input = structuredClone(metadata);
   const diagnostics: MystMetadataDiagnostic[] = [];
@@ -38,9 +46,9 @@ export function validateMystMetadata(metadata: Record<string, unknown>): MystMet
     });
     delete input.date;
   }
-  let normalized: MystScholarlyMetadata = {};
+  let normalized = {} as T;
   try {
-    normalized = validatePageFrontmatter(input, { property: 'frontmatter', messages });
+    normalized = validator(input, { property: 'frontmatter', messages });
   } catch (error) {
     // Some malformed nested values (for example a null author) throw in upstream
     // rather than reporting validation errors. Keep the source usable and expose
@@ -58,5 +66,21 @@ export function validateMystMetadata(metadata: Record<string, unknown>): MystMet
   }
   // Remove undefined properties left by invalid fields. The projection must have
   // the same shape in memory and in a portable JSON bundle.
-  return { normalized: JSON.parse(JSON.stringify(normalized)) as MystScholarlyMetadata, diagnostics };
+  return { normalized: JSON.parse(JSON.stringify(normalized)) as T, diagnostics };
+}
+
+/** Official contributor-aware inheritance. Never replace this with an object spread. */
+export function inheritMystMetadata(page: PageFrontmatter, project: ProjectFrontmatter): MystMetadataValidation {
+  const messages: Parameters<typeof fillPageFrontmatter>[2]['messages'] = { errors: [], warnings: [] };
+  const diagnostics: MystMetadataDiagnostic[] = [];
+  let normalized: PageFrontmatter = structuredClone(page);
+  try {
+    normalized = fillPageFrontmatter(structuredClone(page), structuredClone(project), { property: 'frontmatter', messages });
+  } catch (error) {
+    diagnostics.push({ severity: 'error', code: 'frontmatter-validator-error', property: 'frontmatter', message: `Unable to inherit project metadata: ${error instanceof Error ? error.message : 'upstream validation failed'}` });
+  }
+  for (const [severity, entries] of [['error', messages.errors], ['warning', messages.warnings]] as const) {
+    for (const entry of entries ?? []) diagnostics.push({ severity, code: 'frontmatter-validation', property: entry.property, message: `${entry.property}: ${entry.message}` });
+  }
+  return { normalized: JSON.parse(JSON.stringify(normalized)) as PageFrontmatter, diagnostics };
 }

@@ -12,7 +12,7 @@ export interface MystNode {
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
   [key: string]: unknown;
 }
-export interface MystDiagnostic { severity: 'warning' | 'error'; code: string; message: string; line?: number }
+export interface MystDiagnostic { severity: 'warning' | 'error'; code: string; message: string; line?: number; path?: string }
 export interface MystReferenceTarget {
   identifier: string;
   kind: 'figure' | 'table' | 'equation' | 'section' | 'target';
@@ -39,7 +39,14 @@ export const normalizeMystIdentifier = (value: string): string => value.trim().t
 const identifier = normalizeMystIdentifier;
 
 /** No compiler, plugins, execution, file resolution or network access is installed. */
+export type MystParsedDocument = Omit<MystDocument, 'references' | 'bibliography'>;
+
 export function parseMystDocument(source: string): MystDocument {
+  return resolveMystDocument(parseMystSource(source));
+}
+
+/** Parse and normalize before resource resolution; project callers supply typed inputs. */
+export function parseMystSource(source: string): MystParsedDocument {
   parseMystAttributes({ schemaVersion: 1, source });
   const diagnostics: MystDiagnostic[] = [];
   const report = (code: string, message: string, node?: MystNode, severity: MystDiagnostic['severity'] = 'warning') => {
@@ -65,12 +72,7 @@ export function parseMystDocument(source: string): MystDocument {
   const first = ast.children?.[0];
   if (frontmatter && first?.type === 'code' && first.position?.start.line === 1) {
     try {
-      const yaml = parseDocument(first.value ?? '', { schema: 'core', uniqueKeys: true });
-      if (yaml.errors.length || yaml.warnings.length) throw new Error([...yaml.errors, ...yaml.warnings].map(item => item.message).join('; '));
-      const value: unknown = yaml.toJS({ maxAliasCount: 50 });
-      if (value != null && !record(value)) throw new Error('Frontmatter must be a mapping');
-      // Reject recursive YAML aliases and keep metadata JSON-portable for export.
-      metadata = value == null ? {} : JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+      metadata = parseMystYamlMapping(first.value ?? '');
     } catch (error) {
       report('frontmatter-invalid', error instanceof Error ? error.message : 'Invalid YAML', first, 'error');
     }
@@ -105,24 +107,27 @@ export function parseMystDocument(source: string): MystDocument {
     return [node];
   };
   ast = normalize(ast)[0];
+  return { version: 1, source, ast, metadata, scholarly: scholarly.normalized, diagnostics };
+}
+
+export interface MystResolutionContext {
+  bibliography: Record<string, MystBibliographyEntry>;
+  scholarly: MystScholarlyMetadata;
+  diagnostics: MystDiagnostic[];
+}
+
+/** Resolve exactly once, after bibliography/metadata inputs have been collected. */
+export function resolveMystDocument(parsed: MystParsedDocument, context?: MystResolutionContext): MystDocument {
+  const { source, metadata } = parsed;
+  const ast = structuredClone(parsed.ast);
+  const diagnostics = [...parsed.diagnostics, ...(context?.diagnostics ?? [])];
+  const report = (code: string, message: string, node?: MystNode) => {
+    diagnostics.push({ code, message, severity: 'warning', ...(node?.position ? { line: node.position.start.line } : {}) });
+  };
   const references: Record<string, MystReferenceTarget> = Object.create(null);
-  const bibliography: Record<string, MystBibliographyEntry> = Object.create(null);
-  // Pero's local CSL-like metadata extension, not a BibTeX/CSL style engine.
-  // Keeping entries in source makes source/bundle roundtrips lossless.
-  const localBibliography = record(metadata.pero) ? metadata.pero.bibliography : undefined;
-  const entries: unknown[] = Array.isArray(localBibliography) ? localBibliography : [];
-  if (localBibliography !== undefined && !Array.isArray(localBibliography)) report('bibliography-invalid', 'pero.bibliography must be a list of local bibliography entries');
+  const bibliography = context?.bibliography ?? readMystLocalBibliography(metadata, report);
+  if (!context && metadata.bibliography) report('bibliography-external', 'Bibliography files are not loaded. Use authored pero.bibliography metadata for local citation previews.');
   if (metadata.references) report('references-external', 'Cross-project references are retained but not loaded');
-  for (const entry of entries) {
-    if (!record(entry) || typeof entry.id !== 'string' || !entry.id.trim()) { report('bibliography-invalid', 'Bibliography entries require a nonempty id'); continue; }
-    const id = identifier(entry.id);
-    if (bibliography[id]) { report('citation-duplicate', `Duplicate bibliography key: ${entry.id}`); continue; }
-    const author = Array.isArray(entry.author) ? entry.author.map(person => record(person) ? [person.given, person.family].filter(Boolean).join(' ') || person.literal : '').filter(Boolean).join(', ') : string(entry.author);
-    const issued = record(entry.issued) ? entry.issued['date-parts'] : undefined;
-    const year = typeof entry.year === 'number' ? String(entry.year) : string(entry.year) ?? (Array.isArray(issued) && Array.isArray(issued[0]) ? String(issued[0][0]) : undefined);
-    bibliography[id] = { id: entry.id, title: string(entry.title), author, year, url: string(entry.url) ?? string(entry.URL) };
-  }
-  if (metadata.bibliography) report('bibliography-external', 'Bibliography files are not loaded. Use authored pero.bibliography metadata for local citation previews.');
   if (metadata.plugins) report('plugins-disabled', 'Document plugins are not loaded');
   const counts = { figure: 0, table: 0, equation: 0, section: 0, target: 0 };
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
@@ -153,7 +158,36 @@ export function parseMystDocument(source: string): MystDocument {
     if (resolved) node.target = id;
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
-  return { version: 1, source, ast, metadata, scholarly: scholarly.normalized, diagnostics, references, bibliography };
+  return { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+}
+
+/** Existing authored Pero bibliography projection, shared with project ambiguity checks. */
+export function readMystLocalBibliography(metadata: Record<string, unknown>, report: (code: string, message: string) => void): Record<string, MystBibliographyEntry> {
+  const bibliography: Record<string, MystBibliographyEntry> = Object.create(null);
+  // Pero's local CSL-like metadata extension, not a BibTeX/CSL style engine.
+  // Keeping entries in source makes source/bundle roundtrips lossless.
+  const localBibliography = record(metadata.pero) ? metadata.pero.bibliography : undefined;
+  const entries: unknown[] = Array.isArray(localBibliography) ? localBibliography : [];
+  if (localBibliography !== undefined && !Array.isArray(localBibliography)) report('bibliography-invalid', 'pero.bibliography must be a list of local bibliography entries');
+  for (const entry of entries) {
+    if (!record(entry) || typeof entry.id !== 'string' || !entry.id.trim()) { report('bibliography-invalid', 'Bibliography entries require a nonempty id'); continue; }
+    const id = identifier(entry.id);
+    if (bibliography[id]) { report('citation-duplicate', `Duplicate bibliography key: ${entry.id}`); continue; }
+    const author = Array.isArray(entry.author) ? entry.author.map(person => record(person) ? [person.given, person.family].filter(Boolean).join(' ') || person.literal : '').filter(Boolean).join(', ') : string(entry.author);
+    const issued = record(entry.issued) ? entry.issued['date-parts'] : undefined;
+    const year = typeof entry.year === 'number' ? String(entry.year) : string(entry.year) ?? (Array.isArray(issued) && Array.isArray(issued[0]) ? String(issued[0][0]) : undefined);
+    bibliography[id] = { id: entry.id, title: string(entry.title), author, year, url: string(entry.url) ?? string(entry.URL) };
+  }
+  return bibliography;
+}
+
+/** YAML is admitted once as a portable mapping, with aliases/tags/errors bounded. */
+export function parseMystYamlMapping(source: string): Record<string, unknown> {
+  const yaml = parseDocument(source, { schema: 'core', uniqueKeys: true });
+  if (yaml.errors.length || yaml.warnings.length) throw new Error([...yaml.errors, ...yaml.warnings].map(item => item.message).join('; '));
+  const value: unknown = yaml.toJS({ maxAliasCount: 50 });
+  if (value != null && !record(value)) throw new TypeError('Frontmatter must be a mapping');
+  return value == null ? {} : JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
 
 export function exportMystMarkdown(document: { source: string }): string { return document.source; }
