@@ -1,5 +1,6 @@
 import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
+import { ipynbCellVisibility } from './ipynb-visibility.ts';
 import { resolveMystProjectReferences } from './myst-project-references.ts';
 import { expandMystIncludes } from './myst-includes.ts';
 import { parseMystSource, parseMystYamlMapping, resolveMystDocument, type MystDocument, type MystDiagnostic, type MystNode, type MystParsedDocument } from './myst.ts';
@@ -22,8 +23,8 @@ export interface MystProjectProjection {
 }
 const mapping = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-/** Compile only text explicitly present in the snapshot. No filesystem, network,
- * plugin loading, include expansion, execution or cross-document target search. */
+/** Compile only explicitly provided resources, including bounded includes and
+ * project references. No filesystem discovery, network, plugins or execution. */
 export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectProjection {
   const diagnostics: MystDiagnostic[] = [];
   const report = (code: string, message: string, path: string, line?: number) => diagnostics.push({ severity: 'warning' as const, code, message, path, ...(line ? { line } : {}) });
@@ -116,12 +117,12 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       notebookPages.push({ kind: 'invalid', path: resource.path, source: resource.text, diagnostics: [item] }); diagnostics.push(item);
     }
   }
-  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input).map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
   resolveMystProjectReferences(snapshot, referencePages, notebookPages.filter(page => page.kind === 'ipynb').map(page => ({ path: page.path, identifier: '', label: page.path })));
   diagnostics.push(...referencePages.flatMap(page => page.document.diagnostics));
   for (const asset of snapshot.assets ?? []) if (!used.has(asset.path)) report('asset-unused', 'Provided binary resource is retained but not used by compiled pages.', asset.path);
   for (const file of snapshot.files) if (!used.has(file.path)) report('resource-unused', 'Provided text resource is retained but not used by the compiled entry/pages.', file.path);
-  // Snapshot admission guarantees that entry names a provided Markdown resource.
+  // Snapshot admission guarantees a provided Markdown or notebook entry.
   const markdownEntry = pages.find(page => page.path === snapshot.entry);
   const entry: MystProjectEntry = markdownEntry ? { kind: 'myst', path: markdownEntry.path, document: markdownEntry.document } : notebookPages.find(page => page.path === snapshot.entry)!;
   return { entry, pages, notebookPages, rawConfig, diagnostics };

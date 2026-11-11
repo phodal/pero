@@ -38,3 +38,14 @@ test('notebook and first-cell bibliographies combine once and remain available i
  for(const cell of result.entry.markdownCells){assert.ok(cell.document.bibliography.first);assert.ok(cell.document.bibliography.notebook);assert.ok(cell.document.bibliography.shared);assert.equal(cell.bibliography.filter(record=>record.path==='shared.bib').length,1);}
  assert.ok(!result.diagnostics.some(d=>d.code==='citation-unresolved'||d.code==='citation-duplicate'));
 });
+
+test('references never resolve into notebook cells omitted from static publication',()=>{
+ const hidden={...markdown('hidden','(hidden-target)=\n# Hidden'),metadata:{tags:['remove-cell']}};
+ const source=notebook([markdown('visible','{ref}`hidden-target`'),hidden]);
+ const result=compileMystProject(project(source));
+ assert.ok(result.diagnostics.some(d=>d.code==='reference-unresolved'));
+ const html=renderMystProjectHtml(result);
+ assert.ok(!html.includes(`href="#${mystAnchor('hidden-target','experiment.ipynb:cell-1')}"`));
+ assert.ok(!html.includes(`id="${mystAnchor('hidden-target','experiment.ipynb:cell-1')}"`));
+ assert.equal(result.entry.kind,'ipynb');if(result.entry.kind==='ipynb')assert.equal(result.entry.document.source,source);
+});
