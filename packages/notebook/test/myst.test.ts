@@ -177,7 +177,7 @@ test('an include nested inside a supported admonition remains opaque and inert',
 
 test('MyST uses the shared SDK domain validator without reinterpreting future schemas', () => {
   const source = '# Exact source\r\n';
-  assert.equal(mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 1, source }).source, source);
+  assert.deepEqual(mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 1, source }), { status: 'current', attrs: { blockId: 'myst-one', schemaVersion: 1, source } });
   assert.deepEqual(parseMystAttributes({ schemaVersion: 1, source, blockId: 'myst-one' }), { schemaVersion: 1, source });
   assert.throws(() => mystDocumentDefinition.validate({ blockId: 'myst-one', schemaVersion: 2, source }));
   assert.throws(() => mystDocumentDefinition.validateFields({ schemaVersion: 2, source }));
