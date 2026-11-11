@@ -1,5 +1,19 @@
 # Scientific conversation acceptance — #145
 
+## Shared Notebook CI recovery (2026-11-11)
+
+PR #194 originally restored the document title in the Notes view menu to satisfy
+two stale navigation assertions. The final change retains master's `Notes` label
+and checks the document title in its title input instead. Source selection,
+unsaved draft preservation and read-only assertions remain in place. The related
+nine editor tests pass locally; the full editor suite passes 82/83, with the
+previously recorded macOS scoped-keyboard assertion still failing.
+
+PR #193 uses the same test correction and the existing Wasm target installation
+fix independently. Its current-master merge tree passed all three Chromium
+browser tests locally. The previous #194 CI passed after retrying an Ubuntu
+package-index download timeout; final-head Actions verification is pending.
+
 2026-11-06, macOS arm64, development worktree `codex/scientific-chat-145`,
 base `1766b667` plus this issue's commits. GPUI Kit 0.8.1 from the pinned
 repository version, Rust nightly-2026-10-28 for Native/Wasm. The main checkout's

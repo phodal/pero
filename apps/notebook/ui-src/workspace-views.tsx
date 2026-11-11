@@ -365,7 +365,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
       </div> : tools}
         <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
           <NotebookMenu name={t('viewMenu')} menu="view" icon="chevron-down">
-            {views.map(value => <TabsTrigger key={value} value={value} {...(value === 'notes' ? { 'data-view': 'notes', 'aria-label': t('notes') } : {})}>{value === 'notes' ? (document.title.trim() || notebook('untitled')) : t(value)}</TabsTrigger>)}
+            {views.map(value => <TabsTrigger key={value} value={value} {...(value === 'notes' ? { 'data-view': 'notes', 'aria-label': t('notes') } : {})}>{t(value)}</TabsTrigger>)}
             <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}
               onToggleSplit={() => setSplit(value => !value)}
               onAdded={(procedures, id) => { onChange({ procedures }); setSelectedProcedure(id); setSplit(true); setError(''); }}
