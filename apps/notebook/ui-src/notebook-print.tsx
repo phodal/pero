@@ -33,7 +33,7 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
   useEffect(() => {
     const show = (event: Event) => {
       if (!(event instanceof CustomEvent) || typeof event.detail !== 'string') return;
-      const parsed = new DOMParser().parseFromString(event.detail, 'text/html');
+      const parsed = new window.DOMParser().parseFromString(event.detail, 'text/html');
       const main = parsed.querySelector('main'); if (!main) return;
       main.querySelectorAll('.source').forEach(node => node.remove());
       setPublication(main.innerHTML); setOpen(false); setError('');
@@ -48,14 +48,14 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
   const saveSettings = () => { try { window.localStorage.setItem(storageKey, JSON.stringify(settings)); setNotice(t('printPreferencesSaved')); } catch { setError(t('printSettingsUnsaved')); } };
   const output = <NotebookPrintContent document={notebook} settings={settings} entryId={entryId} revision={revision} dirty={dirty} preparedAt={preparedAt} />;
   return <>
-    {publication !== null && <Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setPublication(null)}>
+    {publication !== null && createPortal(<Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setPublication(null)}>
       <p>{t('printHint')}</p>{error && <Feedback kind="error">{error}</Feedback>}
       <Button variant="primary" onClick={() => { try { window.print(); } catch (cause) { setError(String(cause)); } }}>{t('printAction')}</Button>
       <div className="notebook-print-preview notebook-print-document" dangerouslySetInnerHTML={{ __html: publication }} />
-    </Dialog>}
+    </Dialog>, document.body)}
     {publication !== null && createPortal(<div className="notebook-print-output notebook-print-document" data-publication="myst"><style>{notebookPageRule(settings)}</style><div dangerouslySetInnerHTML={{ __html: publication }} /></div>, document.body)}
     <Button variant="ghost" onClick={load}>{t('printOptions')}</Button>
-    {open && <Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setOpen(false)}>
+    {open && createPortal(<Dialog title={t('printOptions')} closeLabel={t('closePrintOptions')} size="lg" onClose={() => setOpen(false)}>
       <div className="notebook-science-fields">
         <Field label={t('printPaper')}>{control => <NativeSelect {...control} value={settings.paper} onChange={event => change({ paper: event.target.value as NotebookPrintSettings['paper'] })}><option>A4</option><option>Letter</option></NativeSelect>}</Field>
         <Field label={t('printOrientation')}>{control => <NativeSelect {...control} value={settings.orientation} onChange={event => change({ orientation: event.target.value as NotebookPrintSettings['orientation'] })}><option value="portrait">{t('printPortrait')}</option><option value="landscape">{t('printLandscape')}</option></NativeSelect>}</Field>
@@ -69,7 +69,7 @@ export function NotebookPrintTools({ document: notebook, entryId, revision, dirt
       <div className="notebook-science-actions"><Button disabled={!valid} onClick={saveSettings}>{t('savePrintPreferences')}</Button><Button variant="primary" disabled={!valid} onClick={() => { setError(''); try { window.print(); } catch (cause) { setError(String(cause)); } }}>{t('printAction')}</Button></div>
       <p>{t('printPreviewHint')}</p>
       <div className="notebook-print-preview" data-orientation={settings.orientation} aria-label={t('printPreviewLabel')}>{output}</div>
-    </Dialog>}
+    </Dialog>, document.body)}
     {open && valid && createPortal(<div className="notebook-print-output"><style>{notebookPageRule(settings)}</style>{output}</div>, document.body)}
   </>;
 }
