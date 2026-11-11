@@ -51,6 +51,8 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
     reported: { zh: '论文值', en: 'Reported' }, actual: { zh: '实际值', en: 'Actual' }, difference: { zh: '差值', en: 'Difference' },
     independent: { zh: '独立数值核验', en: 'Independent numerical check' }, notChecked: { zh: '未核验', en: 'Not checked' },
     logs: { zh: '读取运行日志', en: 'Read attempt logs' }, export: { zh: '导出独立交接 ZIP', en: 'Export standalone handoff ZIP' },
+    environmentRecovery: { zh: '环境与冻结方案不一致，尚未计算结果。请恢复原运行环境，或核对当前环境后建立新方案；旧方案与记录会保留。', en: 'The environment differs from the frozen protocol; no result was computed. Restore the frozen environment, or review the current environment and create a new protocol. Earlier records are retained.' },
+    mismatchRecovery: { zh: '计算已完成，但实际值不满足冻结的比较规则。请核对原始输入、方法和日志；重跑沿用相同规则。', en: 'Computation completed, but the actual value does not satisfy the frozen comparison rule. Review the source inputs, method and logs; rerunning keeps the same rule.' },
     annotationMissing: { zh: '数值检查与证据回写不同：结果标注尚未确认保存，交接流程不完整。可查看日志定位原因。', en: 'Numerical verification and evidence write-back are separate: the result annotation has not been confirmed saved. The handoff workflow is incomplete; inspect the logs.' },
     archive: { zh: '包含原始 PDF、数据、冻结方案、运行证据与可独立运行的核验器。', en: 'Includes original PDF, data, frozen protocol, execution evidence and a standalone verifier.' },
   });
@@ -163,13 +165,15 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
       {!!selected.attempts.length && <label>{t('attempt')}<Select label={t('attempt')} value={chosen?.attemptId ?? ''} onChange={setAttemptId} options={selected.attempts.map(a => ({ value: a.attemptId, label: `${a.execution.status} · ${a.attemptId.slice(0, 12)}` }))}/></label>}
       {chosen && <section aria-label={t('result')}>
         <p>{t('execution')}: <strong>{chosen.execution.status}</strong></p>
+        {chosen.execution.status === 'environment_failed' && <Feedback kind="warning">{t('environmentRecovery')}</Feedback>}
+        {chosen.report?.result_verdict === 'MISMATCH' && <Feedback kind="warning">{t('mismatchRecovery')}</Feedback>}
         {chosen.execution.error && <Feedback kind="error">{chosen.execution.error}</Feedback>}
         <p>{t('result')}: <strong>{chosen.report?.result_verdict ?? 'INCONCLUSIVE'}</strong></p>
         <dl><dt>{t('reported')}</dt><dd>{chosen.report?.reported ?? selected.spec.reported}</dd><dt>{t('actual')}</dt><dd>{chosen.report?.actual ?? '—'}</dd><dt>{t('difference')}</dt><dd>{chosen.report?.difference ?? '—'}</dd></dl>
         {chosen.report?.reason && <p>{chosen.report.reason}</p>}
         <p>{t('independent')}: <strong>{chosen.independent?.numeric_recomputation ?? t('notChecked')}</strong></p>
         {chosen.independent?.independence && <p>{chosen.independent.independence}</p>}{chosen.independent?.reason && <p>{chosen.independent.reason}</p>}
-        {chosen.report && (!chosen.annotation || chosen.report.annotation_status === 'failed' || chosen.report.workflow_status === 'incomplete') && <Feedback kind="warning">{t('annotationMissing')}</Feedback>}
+        {chosen.execution.status === 'completed' && chosen.report && (!chosen.annotation || chosen.report.annotation_status === 'failed' || chosen.report.workflow_status === 'incomplete') && <Feedback kind="warning">{t('annotationMissing')}</Feedback>}
         <p>{t('scope')}</p><Button variant="ghost" onClick={() => void readLogs()}>{t('logs')}</Button>
         {logs?.attemptId === chosen.attemptId && <pre tabIndex={0}>{logs.text}</pre>}
         {chosen.execution.status === 'completed' && chosen.report && <><Button disabled={busy} onClick={() => void exportArchive()}>{t('export')}</Button><p>{t('archive')}</p></>}

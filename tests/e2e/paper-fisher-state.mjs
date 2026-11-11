@@ -32,7 +32,7 @@ const api = { post: async (_path, body) => {
     if (runMode === 'not-received') throw Error('Request did not reach server');
     const row = items.find(i => i.itemId === body.itemId);
     const existing = row.attempts.find(a => a.execution.request_id === body.requestId); if (existing) return existing;
-    const a = { attemptId: `attempt-${++count}`, execution: { status: runMode === 'environment' ? 'environment_failed' : 'completed', request_id: body.requestId }, report: runMode === 'lost' ? null : { result_verdict: runMode === 'environment' ? 'INCONCLUSIVE' : 'REPRODUCED', actual: 19.1434, difference: 0 }, independent: runMode === 'environment' ? null : { numeric_recomputation: 'PASS' }, annotation: { resultAnnotationId: 'saved' } };
+    const a = { attemptId: `attempt-${++count}`, execution: { status: runMode === 'environment' ? 'environment_failed' : 'completed', request_id: body.requestId }, report: runMode === 'lost' ? null : { result_verdict: runMode === 'environment' ? 'INCONCLUSIVE' : 'REPRODUCED', actual: 19.1434, difference: 0 }, independent: runMode === 'environment' ? null : { numeric_recomputation: 'PASS' }, annotation: runMode === 'environment' ? null : { resultAnnotationId: 'saved' } };
     row.attempts.push(a); if (runMode === 'lost') throw Error('Response lost'); return structuredClone(a);
   }
   if (body.action === 'logs') return { text: 'Actual fixture log' };
@@ -85,6 +85,8 @@ try {
   assert.equal(count, 3);
   runMode = 'environment'; await click('Confirm and run a new attempt');
   assert.match(text(), /Execution status: environment_failed/);
+  assert.match(text(), /Restore the frozen environment/);
+  assert.doesNotMatch(text(), /result annotation has not been confirmed saved/);
   assert.equal(button('Confirm and run a new attempt').disabled, false);
   assert.match(text(), /Independent numerical check: Not checked/);
   const uniqueRuns = requests.filter(r => r.action === 'run');
