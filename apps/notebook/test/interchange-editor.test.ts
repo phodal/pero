@@ -468,3 +468,34 @@ test('review receipts survive committed revision adoption and editor reload with
   assert.equal(reviewButtons().length, 0);
   assert.equal(submissions, 1, 'reload and receipt recovery must not resubmit reviews');
 });
+
+test('cutting a finding remaps only its block id and the claim is not sent through a projection', async t => {
+  let editor: any;
+  t.after(() => editor?.destroy());
+  const runtime = await createUiRuntime(t, { resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)), contents: `
+    import { Editor } from '@tiptap/core';
+    import { notebookExtensions } from './editor-extensions';
+    export { Editor, notebookExtensions };
+  ` });
+  const { ui } = runtime;
+  editor = new ui.Editor({ extensions: ui.notebookExtensions, content: { type: 'doc', content: [
+    { type: 'finding', attrs: { blockId: 'find-1', claim: 'Kept claim', limitations: 'none', evidenceIds: [] } },
+  ] } });
+  const html = editor.view.serializeForClipboard(editor.state.doc.slice(0)).dom.innerHTML;
+  editor.commands.selectAll();
+  editor.commands.deleteSelection();
+  const paste = new window.Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { getData: (type: string) => type === 'text/html' ? html : '', types: ['text/html'], files: [], items: [] } });
+  editor.view.dom.dispatchEvent(paste);
+  const pasted = editor.getJSON().content.find((node: { type: string }) => node.type === 'finding');
+  assert.equal(pasted.attrs.claim, 'Kept claim');
+  assert.deepEqual(pasted.attrs.evidenceIds, []);
+  assert.notEqual(pasted.attrs.blockId, 'find-1');
+  const saved = { schemaVersion: 1, title: 'Finding', content: editor.getJSON() };
+  const result = spawnSync('python3', ['-c', 'import json,sys; import scientific_block; from document import NotebookDocument; print(NotebookDocument.parse(json.load(sys.stdin)).serialized())'], {
+    cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(saved), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const reopened = JSON.parse(result.stdout);
+  assert.equal(reopened.content.content.find((node: { type: string }) => node.type === 'finding').attrs.claim, 'Kept claim');
+});
