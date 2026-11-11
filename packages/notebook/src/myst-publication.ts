@@ -66,7 +66,10 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
     if (node.projectTarget) losses.add('Cross-document reference exported as display text; other project pages are not included in this entry-only publication.');
     switch (node.type) {
       case 'root': case 'paragraph': case 'strong': case 'emphasis': case 'subscript': case 'superscript': case 'delete': case 'blockquote': case 'listItem': case 'definitionList': case 'definitionTerm': case 'definitionDescription': return { type: node.type, children: children() };
-      case 'block': return { type: 'root', children: children() };
+      case 'block': case 'glossary': return { type: 'root', children: children() };
+      case 'abbreviation':
+        if (read(node, 'title')) losses.add('Abbreviation text preserved; tooltip expansions are retained in source, not interactive publication fields.');
+        return { type: 'root', children: children() };
       case 'text': return plain(node.value ?? '');
       case 'heading': return { type: 'heading', depth: Math.max(1, Math.min(6, Number(node.depth) || 1)), children: [...(read(node, 'enumerator') ? [plain(`${read(node, 'enumerator')} `)] : []), ...children()] };
       case 'break': case 'thematicBreak': return { type: node.type };

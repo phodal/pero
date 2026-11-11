@@ -25,7 +25,10 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
     const formatted = typeof n.citationId === 'string' ? document.citationRendering?.citations[n.citationId] : undefined;
     if (formatted && ['cite', 'citeGroup'].includes(n.type)) { losses.add('CSL text retained without rich styling or citation fields.'); return xml(formatted.text); }
     switch (n.type) {
-      case 'root': case 'block': return blocks(n.children ?? []);
+      case 'root': case 'block': case 'glossary': return blocks(n.children ?? []);
+      case 'abbreviation':
+        if (str(n, 'title')) losses.add('Abbreviation text preserved; tooltip expansions are retained in source, not interactive publication fields.');
+        return children(n, true);
       case 'text': return xml(n.value ?? '');
       case 'paragraph': return `<p${id(n)}>${children(n, true)}</p>`;
       case 'strong': return `<bold>${children(n, true)}</bold>`;
