@@ -368,6 +368,7 @@ impl ChatPanel {
             return div().into_any_element();
         };
         let appearance = pero_theme::UiAppearance::global(cx);
+        let chrome = pero_theme::Chrome::from_app(cx);
         let p = &appearance.palette.clone();
         let review = &chat.changes;
         let selected_record = review
@@ -410,12 +411,7 @@ impl ChatPanel {
         let menu_owner = cx.entity().downgrade();
         let current_thread = thread.to_owned();
         let icon_button = |id: &'static str, icon: &str, label: &str| {
-            Button::new(id)
-                .ghost()
-                .small()
-                .w(px(28.))
-                .h(px(28.))
-                .p_0()
+            pero_theme::ghost_icon_button(id, chrome, cx)
                 .icon(Icon::default().path(crate::assets::UiIcon::named(icon).path()))
                 .tooltip(label.to_owned())
                 .accessibility_label(label.to_owned())
@@ -499,7 +495,7 @@ impl ChatPanel {
                         .pb(px(4.))
                         .flex()
                         .gap(px(8.))
-                        .text_size(px(12.))
+                        .text_size(appearance.text(pero_theme::TextRole::Caption))
                         .child(
                             div()
                                 .text_color(p.success)
@@ -670,7 +666,7 @@ impl ChatPanel {
                             .flex_1()
                             .min_w_0()
                             .truncate()
-                            .text_size(px(13.))
+                            .text_size(appearance.text(pero_theme::TextRole::Body))
                             .child(file.path.clone()),
                     )
                     .child(

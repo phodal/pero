@@ -294,7 +294,8 @@ pub fn reader_frame(
         .child(
             div()
                 .flex_shrink_0()
-                .h(chrome.geo(ROW_NAV))
+                .min_h(chrome.control(ROW_NAV))
+                .py(chrome.geo(SPACE_4))
                 .px(chrome.geo(SPACE_16))
                 .flex()
                 .items_center()
@@ -305,7 +306,7 @@ pub fn reader_frame(
                 .child(
                     div()
                         .min_w_0()
-                        .text_ellipsis()
+                        .flex_1()
                         .text_size(chrome.text(TYPE_HEADING))
                         .font_weight(weight(WEIGHT_HEADING))
                         .text_color(chrome.palette.text)

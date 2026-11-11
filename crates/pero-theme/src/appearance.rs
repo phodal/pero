@@ -55,7 +55,7 @@ impl WorkbenchStyle {
             .id("composer-field")
             .min_w_0()
             .border_1()
-            .border_color(if focused { p.focus } else { p.border })
+            .border_color(if focused { p.text_muted } else { p.input_border })
             .rounded(px(crate::RADIUS_PANEL))
             .bg(p.surface)
             .text_color(p.text)
