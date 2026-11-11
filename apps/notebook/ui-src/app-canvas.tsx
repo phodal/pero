@@ -105,7 +105,7 @@ export function AppCanvasView(view: NodeViewProps) {
         void requestAppShell('open-research-source', { href: `pero-app-location://control-lab/main/experiment/${experimentId}` }).catch(cause => setError(String(cause)));
       }}><Icon name="open" />{t('openExperiment')}</Button>}
       {binding && !experimentId && <Button variant="ghost" busy={busy === 'navigation'} disabled={!!busy} onClick={() => void load(binding)}>{t('open')}</Button>}
-      {(view.editor.isEditable || !binding?.view || showConfiguration || availability !== 'available') && <IconButton label={t('refresh')} disabled={!!busy} onClick={() => void load()}><Icon name="sync" /></IconButton>}
+      {(!binding?.view || showConfiguration || availability !== 'available') && <IconButton label={t('refresh')} disabled={!!busy} onClick={() => void load()}><Icon name="sync" /></IconButton>}
       {binding && view.editor.isEditable && <IconButton ref={configurationTrigger} label={t('configure')} aria-expanded={showConfiguration} onClick={() => setConfiguring(value => !value)}><Icon name="settings" /></IconButton>}
     </>}
     help={{ title: t('help'), content: <><p>{t('limits')}</p><p>{t('saved')}</p></> }}>

@@ -139,21 +139,6 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     assert.equal(navigation.length, 1);
   });
 
-  await t.test('an editable embedded view can refresh the catalog without opening configuration', async () => {
-    const embedded = { ...declaration, canvases: [{ id: 'dataset-inspector', title: 'Dataset', inputs: {} }] };
-    catalog = [embedded];
-    const saved = { id: 'binding-original', app: 'control-lab', panel: 'main', view: 'dataset-inspector', declaration: embedded.revision, inputs: {} };
-    const canvasDocument = { ...content, content: [{ ...content.content[0], attrs: { ...content.content[0].attrs, binding: saved } }] };
-    await mount(true, canvasDocument);
-    assert.equal(document.querySelector('button[aria-label="Refresh installed Apps"]'), null);
-    await mount(false, canvasDocument);
-    assert.equal(button('Configure App view').getAttribute('aria-expanded'), 'false');
-    catalog = [{ ...embedded, revision: 'b'.repeat(64) }];
-    await click(button('Refresh installed Apps'));
-    assert.match(document.body.textContent!, /declaration changed/);
-    assert.deepEqual(before(), saved);
-  });
-
   await t.test('unknown manual bindings survive reload without guessing a replacement', async () => {
     const manual = { id: 'legacy', app: 'old-app', panel: 'old-panel' };
     await mount(false, { ...content, content: [{ ...content.content[0], attrs: { ...content.content[0].attrs, binding: manual } }] });
