@@ -1,4 +1,6 @@
 export const messages = {
+  formattingTools: { en: 'Format', zh: '格式' },
+  libraryTools: { en: 'Library actions', zh: '笔记库操作' },
   searchNotebooks: { en: 'Search notebooks', zh: '搜索笔记' },
   sortNotebooks: { en: 'Sort notebooks', zh: '笔记排序' },
   recentNotebooks: { en: 'Recently saved', zh: '最近保存' },

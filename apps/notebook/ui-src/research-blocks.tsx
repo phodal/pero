@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { requestAppShell, useAppApi, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { referenceReview, type StoredReferenceProposal } from '@pero/notebook/scientific-block';
 import { useNotebookContext } from './notebook-context';
-import { Badge, Button, Checkbox, Disclosure, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Disclosure, DropdownMenuItem, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
 import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
 import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
@@ -129,6 +129,14 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   };
   const reference = source && <dl className="notebook-reference-details">{referenceFields.map(([field, labelKey]) =>
     source[field] && <div key={field}><dt>{t(labelKey)}</dt><dd>{source[field]}</dd></div>)}</dl>;
+  const identifiers = <>
+    <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
+      {t('editorBlock')}: {stored.editorBlockId ?? t('interchangeMissing')}
+      {' · '}
+      {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
+    </p>
+    {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
+  </>;
   const status = snapshot ? 'referenceImported' : pinned ? 'referencePinned' : complete ? 'referenceUnpinned' : 'referenceMissing';
 
   return <BlockFrame view={view} kind={kind}
@@ -136,15 +144,8 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       placeholder={t(kind)} maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} />
       : <strong>{label || t(kind)}</strong>}
     caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
+    menuActions={editable && snapshot && <DropdownMenuItem onSelect={() => setEditingReference(true)}>{t('editReference')}</DropdownMenuItem>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
-    <Disclosure variant="inline" summary={t('recordIdentifiers')}>
-      <p className="notebook-note" data-editor-block-id={stored.editorBlockId ?? ''} data-object-version={stored.reference?.version ?? ''}>
-      {t('editorBlock')}: {stored.editorBlockId ?? t('interchangeMissing')}
-      {' · '}
-      {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
-    </p>
-    {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
-    </Disclosure>
     {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
       <legend>{t('reviewReference')}</legend>
       <p>{t('proposalWording')}: {pendingProposal.label}</p>
@@ -156,9 +157,10 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
     {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}
     {snapshot && <>
-      <SnapshotDetails snapshot={snapshot} source={reference} />
+      <SnapshotDetails snapshot={snapshot} source={<>{reference}{identifiers}</>} />
     </>}
-    {editable && <Disclosure variant="inline" className="notebook-reference-edit"
+    {!snapshot && <Disclosure variant="inline" summary={t('recordIdentifiers')}>{identifiers}</Disclosure>}
+    {editable && (!snapshot || editingReference) && <Disclosure variant="inline" className="notebook-reference-edit"
       summary={t(snapshot ? 'editReference' : 'attachSource')} open={editingReference}
       onOpenChange={setEditingReference}>
       <Disclosure variant="inline" summary={t('chooseSavedSnapshot')} open={choosingSaved} onOpenChange={setChoosingSaved}>

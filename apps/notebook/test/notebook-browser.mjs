@@ -97,6 +97,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await newBody.press('ControlOrMeta+a');
   await page.setViewportSize({ width: 620, height: 900 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, location.origin));
+  await page.getByRole('button', { name: '格式', exact: true }).click();
   const color = page.getByRole('button', { name: '文字颜色', exact: true });
   await color.click();
   const palette = page.getByRole('listbox', { name: '文字颜色', exact: true });
@@ -222,7 +223,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
   const editReference = evidence.locator('summary').filter({ hasText: 'Edit reference' });
   await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeHidden();
-  await editReference.click();
+  await evidence.getByRole('button', { name: 'Block actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit reference', exact: true }).click();
   await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeVisible();
   await evidence.locator('input[type=file]').setInputFiles({
     name: 'invalid-report.json', mimeType: 'application/json', buffer: Buffer.from('{invalid'),
@@ -384,7 +386,10 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
+  await expect(page.locator('.notebook-toolbar')).toBeHidden();
+  await page.getByRole('button', { name: 'Format', exact: true }).click();
   await expect(page.locator('.notebook-toolbar')).toBeVisible();
+  await page.getByRole('button', { name: 'Format', exact: true }).click();
   await page.screenshot({ path: resolve(output, 'copied-references.png'), fullPage: true });
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   // The Host context, not the OS media query, owns an App's actual theme.

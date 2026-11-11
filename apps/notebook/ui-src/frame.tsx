@@ -1,3 +1,4 @@
+import { NotebookMenu } from './notebook-menu';
 import { NotebookHomeTools } from './notebook-home';
 import { NotebookPrintTools } from './notebook-print';
 import { WorksheetAmendments } from './worksheet-amendments';
@@ -390,10 +391,11 @@ function Notebook() {
 
   const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
-  const catalogActions = <>
-    <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>
+  const createAction = <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>;
+  const libraryActions = <>
     <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />
-    <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
+    <Button variant="ghost" disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" />{t('refresh')}</Button>
+    <Select label={t('sortNotebooks')} value={entryOrder} options={[{ value: 'recent', label: t('recentNotebooks') }, { value: 'title', label: t('titleOrder') }]} onChange={setEntryOrder} />
   </>;
   return <AppFrame label={t('notebook')} className="notebook-app">
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
@@ -401,17 +403,17 @@ function Notebook() {
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
-        heading={t('noNotebooks')} description={t('start')} actions={catalogActions} />
+        heading={t('noNotebooks')} description={t('start')} actions={<>{createAction}{libraryActions}</>} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <div className="notebook-nav-tools">
-            <Button variant="ghost" aria-expanded={navigationOpen} aria-controls="notebook-list"
-              onClick={() => setNavigationOpen(false)}>{t('notebooks')}</Button>
-            {catalogActions}
+            <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(false)}><Icon name="chevron-left" /></IconButton>
+            {createAction}
+            <NotebookMenu name={t('libraryTools')} menu="library" icon="more">{libraryActions}</NotebookMenu>
           </div>
           <div className="notebook-library-tools">
             <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
-            <Select label={t('sortNotebooks')} value={entryOrder} options={[{ value: 'recent', label: t('recentNotebooks') }, { value: 'title', label: t('titleOrder') }]} onChange={setEntryOrder} />
           </div>
           {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
           <ul className="notebook-list">

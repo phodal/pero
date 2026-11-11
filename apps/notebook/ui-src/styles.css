@@ -657,3 +657,12 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-library-tools { display: grid; gap: var(--pero-spacing-2); padding: var(--pero-spacing-2); }
 .notebook-library-tools > * { min-width: 0; width: 100%; }
 .notebook-split[data-stacked] > .notebook-nav[data-sized] { max-height: min(16rem, 35dvh); }
+
+/* Everyday writing exposes a compact command row; formatting is opt-in. */
+.notebook-commandbar { flex-wrap: wrap; }
+.notebook-commandbar > .notebook-text-tools { flex: 1 0 100%; width: 100%; }
+.notebook-commandbar > .notebook-text-tools[hidden] { display: none; }
+.notebook-documentbar .notebook-status { flex-basis: 6rem; }
+.notebook-nav-tools { flex-wrap: nowrap; }
+.notebook-nav-tools > .notebook-menu-anchor { margin-inline-start: auto; }
+.notebook-menu-library-panel { width: 18rem; }

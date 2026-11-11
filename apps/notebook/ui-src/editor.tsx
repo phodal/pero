@@ -25,6 +25,7 @@ import { messages } from './messages';
 import { contentBlockMessages, createAttachment } from './content-blocks';
 import { NotebookSurface } from './editor-context-menu';
 import { NotebookTextTools } from './text-tools';
+import { EntryAiTools } from './entry-ai-tools';
 import { NotebookWorkspace, type NotebookChrome } from './workspace-views';
 import { NotebookMenu } from './notebook-menu';
 import { NotebookScienceTools } from './science-tools';
@@ -48,6 +49,7 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
   historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode; entryId: string;
 }) {
   const { t } = useAppI18n(messages);
+  const [formatting, setFormatting] = useState(false);
   const status = useEditorState({
     editor,
     selector: ({ editor: instance }) => ({
@@ -57,14 +59,15 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
   });
   return <div className="notebook-commandbar">
     <div className="notebook-command-fixed">
-      <Button variant="ghost" className="notebook-print-trigger" aria-label={t('printAction')} onClick={() => window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } }))}><Icon name="print" size={12} /><Icon name="chevron-down" size={12} /></Button>
       <span className="notebook-history">
         <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
         <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
       </span>
       {insertTools}
+      <Button variant="ghost" aria-expanded={formatting} aria-controls={`notebook-formatting-${entryId}`} onClick={() => setFormatting(value => !value)}>{t('formattingTools')}<Icon name="chevron-down" size={12} /></Button>
+      <EntryAiTools editor={editor} />
     </div>
-    <span className="notebook-text-tools"><NotebookTextTools editor={editor} entryTools /></span>
+    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools" hidden={!formatting}><NotebookTextTools editor={editor} /></div>
   </div>;
 }
 
