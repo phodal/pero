@@ -45,6 +45,7 @@
     "./source-extraction": "./src/source-extraction.ts",
     "./interchange": "./src/interchange.ts",
     "./scientific-block": "./src/scientific-block.ts",
+    "./ipynb-render": "./src/ipynb-render.ts",
     "./myst": "./src/myst.ts",
     "./myst-render": "./src/myst-render.ts",
     "./myst-formats": "./src/myst-formats.ts",
