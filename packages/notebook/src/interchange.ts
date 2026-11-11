@@ -15,7 +15,7 @@ export const persistedBlockTypes = [
   "bulletList", "orderedList", "taskList", "spreadsheet", "evidence",
   "experiment", "finding", "section", "attachment", "savedSearch", "inputTable",
   "registrationTable", "lookupTable", "mixturePrep", "appCanvas", "sampleIntake",
-  "reactionScheme", "chemical", "sourceExcerpt", "namedReference", "noteCard", "retainedBlock",
+  "reactionScheme", "chemical", "sourceExcerpt", "namedReference", "noteCard", "mystDocument", "retainedBlock",
 ] as const;
 
 const knownTypes = new Set<string>([
@@ -167,6 +167,7 @@ const handlers: Record<string, (node: NotebookNode, path: string) => Attempt> = 
   inputTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A structured table keeps its own rows, types, and units. BlockNote TableContent and MyST table cells are rich text, so this table was not exported.") }),
   registrationTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A registration table is not rich-text table content and was not exported.") }),
   lookupTable: (_node, path) => ({ losses: both(path, "table-content-is-not-measurement", "A lookup table is not rich-text table content and was not exported.") }),
+  mystDocument: (_node, path) => ({ losses: both(path, "myst-source-document", "Use the MyST source or bundle export for this document. Its original source and metadata cannot be replaced by this prose-only projection.") }),
   retainedBlock: (_node, path) => ({ losses: both(path, "retained-envelope", "The original block is inside the retention envelope and was not converted.") }),
 };
 

@@ -201,6 +201,9 @@ def validate_note_card(value):
     document_block(value, {'text': ''}, version_one)
 
 
+from myst_document import MystDocumentSource
+
+register_definition(BlockDefinition('mystDocument', 1, validate=MystDocumentSource.parse))
 register_definition(BlockDefinition('noteCard', 1, validate=validate_note_card))
 for _name in ('evidence', 'experiment'):
     if block(_name) is None:
