@@ -12,7 +12,7 @@ export async function mixedProvider(root, python, evidence) {
   for (const name of ['analyze.py', 'test_analysis.py', 'workflow.py', 'check_task.py'])
     sources[name] = await readFile(join(root, 'tests/fixtures/skills-mixed', name), 'utf8');
   const calls = [], errors = [], artifacts = [], expected = new Map();
-  let requests = 0, selected, iterator, receiptArtifact;
+  let requests = 0, selected, selectedTexts, iterator, receiptArtifact;
   function* invoke(name, args) {
     const raw = yield {name, args};
     let value = JSON.parse(raw);
@@ -72,7 +72,7 @@ export async function mixedProvider(root, python, evidence) {
       assert.equal(input.model, 'fixture');
       if (requests === 1) {
         const wire = JSON.stringify(input.messages);
-        for (const method of selected.methods) assert(wire.includes(method.marker), `Missing selected instruction: ${method.id}`);
+        for (const text of selectedTexts) assert(wire.includes(JSON.stringify(text).slice(1, -1)), 'Complete frozen skill context must reach the provider');
       } else {
         const last = input.messages.filter(message => message.role === 'tool').at(-1);
         assert.equal(last.tool_call_id, calls.at(-1).id);
@@ -96,6 +96,6 @@ export async function mixedProvider(root, python, evidence) {
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   return {endpoint: `http://127.0.0.1:${server.address().port}/v1`, calls, errors, expected, artifacts,
-    select(value) {selected = value; iterator = plan();}, receipt: () => receiptArtifact, requests: () => requests,
+    select(value, contexts) {selected = value; selectedTexts = contexts.map(context => context.content.text); iterator = plan();}, receipt: () => receiptArtifact, requests: () => requests,
     async close() {server.closeAllConnections(); await new Promise(done => server.close(done));}};
 }

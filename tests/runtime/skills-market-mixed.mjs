@@ -137,7 +137,7 @@ try {
   }
   assert.deepEqual(methods.map(item => item.kind), ['general_skill', 'research_skill']);
   const selection = {methods}; await json(join(workspace, 'skill-selection.json'), selection);
-  provider.select(selection);
+  provider.select(selection, contexts);
   const before = events.length;
   send({action: 'new_session', thread_id: thread, agent_id: 'pero'});
   const ready = await wait(event => event.thread_id === thread && ['session_ready', 'session_error'].includes(event.kind), before);
