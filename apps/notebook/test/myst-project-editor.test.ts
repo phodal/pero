@@ -68,7 +68,23 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
     assert.doesNotMatch(document.body.textContent ?? '', /Citation formatting unavailable/);
     return html;
   };
-  await show('editable', true, 1);
+  const nativeFetch = globalThis.fetch;
+  let release!: () => void;
+  const assetReady = new Promise<void>(done => { release = done; });
+  let requested = false;
+  globalThis.fetch = async (input, init) => {
+    if (String(input).startsWith('data:')) { requested = true; await assetReady; }
+    return nativeFetch(input, init); // Real package bytes and initializer, only I/O timing is controlled.
+  };
+  try {
+    await show('pending-old', true, 1, snapshot.replace('Original reference', 'Obsolete pending reference'));
+    await show('editable', true, 1);
+    assert.ok(requested);
+    assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')?.disabled, true);
+    assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download project snapshot')?.disabled, false);
+    await React.act(async () => { release(); });
+    assert.doesNotMatch(await formatted(), /Obsolete pending reference/);
+  } finally { release(); globalThis.fetch = nativeFetch; }
   await formatted();
   assert.equal(document.querySelector('iframe')?.getAttribute('sandbox'), '');
   assert.match(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Project Researcher/);
