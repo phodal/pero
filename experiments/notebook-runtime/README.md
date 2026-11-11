@@ -1,5 +1,9 @@
 # Computational Notebook runtime experiment
 
+Completion pass: [native services, AI/MCP discovery and dependency inventory](SERVICES.md).
+The comparison lock now uses nbconvert 7.17.1 after the 2026-11-11 advisory check;
+the original report still identifies its measured 7.17.0 environment.
+
 Opt-in evidence for [#180](https://github.com/phodal/pero/issues/180), not a
 product runtime or an editor migration. See the
 [evaluation report](../../docs/fitness/notebook-runtime-poc.md) for measurements,
