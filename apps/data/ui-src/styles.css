@@ -31,7 +31,7 @@ html, body, #app { height: 100%; }
 .data-rows input:not([type="checkbox"]) { min-width: 5rem; max-width: 9rem; }
 .data-missing { color: var(--pero-text-muted); }
 .data-form { display: grid; gap: var(--pero-spacing-1); margin-top: var(--pero-spacing-2); }
-.data-form label { display: grid; gap: var(--pero-spacing-1); }
+.data-form label:not(.data-checkbox) { display: grid; gap: var(--pero-spacing-1); }
 .data-history section, .data-saved-view { padding: var(--pero-spacing-1) 0; border-bottom: var(--pero-hairline); }
 .data-history code, .data-sources code { display: block; font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
 .data-archive { padding-top: var(--pero-spacing-3); }

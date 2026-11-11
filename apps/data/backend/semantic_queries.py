@@ -1,7 +1,6 @@
 """Data owns frozen projections, reviewed definitions and query receipts."""
 from dataclasses import asdict
 from datetime import datetime, timezone
-from decimal import Decimal
 from hashlib import sha256
 import json
 import math
@@ -120,7 +119,7 @@ class SemanticQueries:
         cancel = Event()
         with self.catalog.lock:
             self.running[query_id] = cancel
-        receipt = dict(queryId=query_id, status='failed', reason='', rows=[], rowCount=0, truncated=False, elapsedSeconds=None)
+        receipt = dict(queryId=query_id, status='failed', reason='', rows=[], rowCount=None, truncated=False, elapsedSeconds=None)
         try:
             database = self.root / (snapshot['databaseHash'] + '.sqlite')
             if not database.exists() or sha256(database.read_bytes()).hexdigest() != snapshot['databaseHash']:
@@ -130,7 +129,8 @@ class SemanticQueries:
             receipt.update(status='completed', resultId=result_id, rows=result.rows[:100], rowCount=len(result.rows),
                            truncated=len(result.rows) > 100, elapsedSeconds=result.elapsed_seconds)
         except (sqlite3.Error, ValueError) as error:
-            receipt.update(status='cancelled' if cancel.is_set() else 'failed', reason=str(error))
+            receipt.update(status='cancelled' if cancel.is_set() else 'failed',
+                reason='Query exceeded the 250000 VM-operation budget' if str(error) == 'interrupted' and not cancel.is_set() else str(error))
         finally:
             with self.catalog.lock:
                 self.running.pop(query_id, None)
@@ -177,22 +177,14 @@ class SemanticQueries:
             raise ValueError('Independent source export is unavailable or changed')
         # Independent arithmetic reads original exported records, never SQLite or SQL result expressions.
         rows = json.loads(path.read_bytes())['rows']
-        if spec.operation == 'count':
-            expected = Decimal(len(rows))
-        else:
-            if (spec.column, 'number') not in map(tuple, source['projection']['columns']):
-                raise ValueError('Independent arithmetic requires an explicitly numeric projected column')
-            values = [Decimal(str(row[spec.column])) for row in rows if row[spec.column] is not None and row[spec.column] != '']
-            expected = sum(values, Decimal(0)) if values else None
-            if spec.operation == 'mean' and values:
-                expected /= len(values)
+        if spec.operation != 'count' and (spec.column, 'number') not in map(tuple, source['projection']['columns']):
+            raise ValueError('Independent arithmetic requires an explicitly numeric projected column')
         result = self.read('rows', evidence['receipt']['resultId'])
         actual = result[0].get(spec.result_column) if len(result) == 1 else None
-        matched = len(result) == 1 and spec.result_column in result[0] and (
-            actual is None if expected is None else type(actual) in (int, float) and abs(Decimal(str(actual)) - expected) <= Decimal('0.000001'))
+        comparison = spec.compare(tuple(row.get(spec.column) for row in rows), len(rows), actual,
+                                  len(result) == 1 and spec.result_column in result[0])
         check = dict(queryId=identity, method='source-export Decimal arithmetic; absolute tolerance 0.000001',
-                     status='matched' if matched else 'mismatch', expected=str(expected) if expected is not None else None,
-                     actual=actual, exportId=source['exportId'], acceptance='needs_review')
+                     **asdict(comparison), actual=actual, exportId=source['exportId'], acceptance='needs_review')
         return dict(id=self.save('check', check), **check)
 
     def request(self, value):

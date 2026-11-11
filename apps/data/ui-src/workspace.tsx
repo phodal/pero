@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
+import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
 import { DataForm, SubmitButton } from './submit-button';
@@ -43,7 +44,7 @@ export function Workspace(props: Props) {
   const stale = Boolean(inspected && !currentInspection);
   const displayedView = currentInspection ? view : props.retained?.view ?? view;
   const analysis = canInspect(asset);
-  const available = analysis ? ['overview', 'table', 'fields', 'chart', 'checks', 'history'] : ['overview', 'history'];
+  const available = analysis ? ['overview', 'table', 'fields', 'chart', 'queries', 'checks', 'history'] : ['overview', 'history'];
   const tab = available.includes(props.tab) ? props.tab : 'overview';
   const failure = !loading && result && result.status !== 'ok' ? result : null;
   const columns = view.columns.length ? view.columns : fields?.columns ?? [];
@@ -87,9 +88,10 @@ export function Workspace(props: Props) {
       <TabsList aria-label="Dataset views">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         {analysis ? <><TabsTrigger value="table">Table</TabsTrigger><TabsTrigger value="fields">Fields</TabsTrigger>
-        <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
+        <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="queries">Queries</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
         <TabsTrigger value="history">History</TabsTrigger>
       </TabsList>
+      <TabsContent value="queries" forceMount><SemanticPanel key={asset.id} datasetId={dataset.id} assetId={asset.id} fields={fields?.columns ?? []} /></TabsContent>
       <TabsContent value="overview">
         <div className="data-overview">
           {!analysis ? <p>{dataset.kind === 'model' ? 'This model file is stored without table inspection or chart analysis.' : `This ${format} file is stored as an original file. Table inspection and chart analysis are not available for this format.`} You can review its source identity, edit its details or add a version.</p> : <p className="data-note">The table pages through a full inspection of this file.</p>}

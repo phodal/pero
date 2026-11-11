@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from catalog import Catalog, ImportFile
-from semantic_domain import QueryDefinition
+from semantic_domain import QueryDefinition, Recalculation
 from semantic_queries import SemanticQueries, encoded
 
 
@@ -32,6 +32,17 @@ class QueryTests(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError):
                         QueryDefinition.parse(definition() | patch).bind(params)
+
+    def test_independent_arithmetic(self):
+        for operation, values, count, actual, scalar, expected in [
+            ('count', (), 3, 3, True, 'matched'), ('count', (), 3, 2, True, 'mismatch'),
+            ('mean', ('1', '3', None, ''), 4, 2, True, 'matched'),
+            ('sum', ('1', '3'), 2, 4, True, 'matched'),
+            ('sum', (None, ''), 2, None, True, 'matched'),
+            ('mean', ('1', '3'), 2, 2, False, 'mismatch'),
+            ('mean', ('1', '3'), 2, True, True, 'mismatch')]:
+            with self.subTest(operation=operation, values=values, actual=actual):
+                self.assertEqual(Recalculation(operation, 'sample', 'n', 'value').compare(values, count, actual, scalar).status, expected)
 
     def test_fixed_queries_recompute_restart_and_failure_receipts(self):
         with tempfile.TemporaryDirectory() as home:

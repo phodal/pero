@@ -1,5 +1,6 @@
 """Reviewed query definitions and explicit projections of fixed Data versions."""
 from dataclasses import dataclass
+from decimal import Decimal
 import math
 import re
 
@@ -52,6 +53,26 @@ class Recalculation:
         if raw['operation'] not in ('count', 'sum', 'mean') or any(not isinstance(v, str) for v in raw.values()):
             raise ValueError('Independent checks support whole-table count, sum and mean')
         return cls(raw['operation'], raw['table'], raw['column'], raw['resultColumn'])
+
+
+    def compare(self, values: tuple[str | int | float | None, ...], record_count: int,
+                actual: str | int | float | None, scalar_result: bool):
+        if self.operation == 'count':
+            expected = Decimal(record_count)
+        else:
+            present = tuple(Decimal(str(value)) for value in values if value is not None and value != '')
+            expected = sum(present, Decimal(0)) if present else None
+            if self.operation == 'mean' and present:
+                expected /= len(present)
+        matched = scalar_result and (actual is None if expected is None else
+            type(actual) in (int, float) and abs(Decimal(str(actual)) - expected) <= Decimal('0.000001'))
+        return RecalculationResult('matched' if matched else 'mismatch', str(expected) if expected is not None else None)
+
+
+@dataclass(frozen=True)
+class RecalculationResult:
+    status: str
+    expected: str | None
 
 
 @dataclass(frozen=True)
