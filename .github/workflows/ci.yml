@@ -193,11 +193,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install real numerical engines
         run: |
+          node scripts/build/scientific-runtime.mjs
           sudo apt-get update
           sudo apt-get install --yes ngspice
           python -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
@@ -403,7 +407,9 @@ jobs:
         with:
           node-version: "22"
       - name: Package shared Paper parser before backend imports
-        run: node scripts/build/source-parsers.mjs
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
       - name: Paper metadata worker lifecycle on Windows
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -514,7 +520,9 @@ jobs:
       - run: node scripts/codegen/contracts.mjs --check
       # Stdlib-only disposable reader contracts still import the real PDF owner.
       - name: Package shared Paper parser before backend imports
-        run: node scripts/build/source-parsers.mjs
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
       - run: node --test scripts/ci/*.test.mjs tests/build/wasm-bindgen.mjs tests/e2e/sidebar-controls.test.mjs packages/app-sdk/test/select.test.mjs tests/build/product-chat-startup.test.mjs tests/build/product-shutdown.test.mjs
       - name: Offline research preflight, finalization and shutdown contracts
         run: node --test tests/runtime/research-quality/*.test.mjs
@@ -593,6 +601,7 @@ jobs:
         if: ${{ !cancelled() && steps.python.outcome == 'success' }}
         run: |
           node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
           python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Prepare pinned Notebook Canvas Python environment
         id: notebook_canvas_python
