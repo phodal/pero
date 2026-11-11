@@ -58,7 +58,12 @@
     "./ipynb": "./src/ipynb.ts",
     "./ipynb-visibility": "./src/ipynb-visibility.ts",
     "./myst-publication-sdk": "./src/myst-publication-sdk.ts",
-    "./myst-publication": "./src/myst-publication.ts"
+    "./myst-publication": "./src/myst-publication.ts",
+    "./myst-assets": "./src/myst-assets.ts",
+    "./myst-includes": "./src/myst-includes.ts",
+    "./myst-project-references": "./src/myst-project-references.ts",
+    "./myst-project-render": "./src/myst-project-render.ts",
+    "./myst-csv-table": "./src/myst-csv-table.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"

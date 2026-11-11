@@ -18,5 +18,11 @@
   "packages/notebook/src/myst-project.ts",
   "packages/notebook/src/myst-project-formats.ts",
   "packages/notebook/src/myst-bibliography.ts",
-  "apps/notebook/backend/myst_project.py"
+  "apps/notebook/backend/myst_project.py",
+  "packages/notebook/src/myst-assets.ts",
+  "packages/notebook/src/myst-includes.ts",
+  "packages/notebook/src/myst-project-references.ts",
+  "packages/notebook/src/myst-project-render.ts",
+  "packages/notebook/src/myst-csv-table.ts",
+  "apps/notebook/backend/myst_assets.py"
 ]
