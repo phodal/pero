@@ -1,12 +1,22 @@
 import sys
 from pathlib import Path
 import unittest
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python'))
-from pero_environment_proposal import Declaration, EnvironmentProposal
+from pero_environment_proposal import Declaration, EnvironmentProposal, inspect
 
 
 class ProjectDeclarations(unittest.TestCase):
+    def test_absolute_local_project_including_windows_drive_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve()
+            (root/'requirements.txt').write_text('numpy==2.2.6\n')
+            proposal=inspect(str(root))
+            self.assertEqual(proposal.dependencies,('numpy==2.2.6',))
+            self.assertEqual(proposal.source,str(root))
+            self.assertEqual([p.name for p in root.iterdir()],['requirements.txt'])
+
     def test_review_preserves_sources_and_discloses_unresolved_inputs(self):
         for name, content, expected in [
             ('pyproject.toml', '[project]\nrequires-python=">=3.12"\ndependencies=["numpy==2.2.6"]\n[build-system]\nrequires=["untrusted-build"]', 'Build hooks'),

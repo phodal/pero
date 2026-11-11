@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 import re
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    raise SystemExit('Project declaration review requires Python 3.11 or newer; select an existing compatible App Python.')
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -92,7 +95,7 @@ class EnvironmentProposal:
 def inspect(source):
     parsed = urlparse(source)
     documents = []
-    if parsed.scheme:
+    if parsed.scheme and not Path(source).is_absolute():
         match = re.fullmatch(r'/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/tree/([0-9a-f]{40})(/[^?#]*)?', parsed.path)
         if parsed.scheme != 'https' or parsed.netloc != 'github.com' or parsed.query or parsed.fragment or not match:
             raise ValueError('Use https://github.com/OWNER/REPO/tree/FULL_COMMIT[/DIRECTORY]')
