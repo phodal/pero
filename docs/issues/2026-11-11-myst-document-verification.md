@@ -15,11 +15,11 @@ the broader #195 roadmap or claim full MyST compatibility. The
 [capability matrix](../design/myst-capabilities.md) links the pinned upstream
 sources and separates implemented features from remaining work.
 
-Final integration preserves concurrent base `5891fcab` (verified as an ancestor),
-including its generic document-block SDK. The original `d65e798c` comparison above
+Final integration preserves concurrent bases `5891fcab` and `d1cdba2a` (verified
+as ancestors), including the generic SDK and its opaque future-version contract. The original `d65e798c` comparison above
 remains the before-task baseline, not the current integration base.
 
-## Implemented vertical slice
+## Published first-stage vertical slice (`50de2bb`)
 
 - Official `myst-parser@1.7.5`, `vfile@5.3.7`, `yaml@2.8.3`, and
   `katex@0.16.22` are exact dependencies. Authored source is authoritative, not
@@ -45,7 +45,8 @@ remains the before-task baseline, not the current integration base.
   unsupported syntax produce diagnostics.
 - `pero.bibliography` is an explicitly namespaced, authored local citation preview
   convenience. It is not standard MyST BibTeX/CSL bibliography support. Metadata
-  mappings are retained, but typed scholarly frontmatter is not yet validated.
+  mappings are retained. Typed scholarly validation was not in this first stage;
+  it is implemented and locally verified in the SDK continuation below.
 - Standalone HTML is an inert download with CSP, escaped HTML, no JavaScript and
   self-contained MathML. Code, includes, plugins, reactive expressions and asset
   fetches do not run. Images remain links/placeholders. No website is deployed.
@@ -72,7 +73,7 @@ The Canvas workflow previously failed before Host/browser checks because the
 pinned reader toolchain lacked `wasm32-unknown-unknown`. Its setup now explicitly
 installs that target for `nightly-2026-10-28`; no gate is skipped or weakened.
 
-## Verification scope
+## First-stage verification scope (`50de2bb`, not new-stage results)
 
 - Notebook package after rebase: 178 tests passed, no skips. Editor: 95 tests passed,
   no skips.
@@ -89,25 +90,103 @@ installs that target for `nightly-2026-10-28`; no gate is skipped or weakened.
 - The new real-backend browser test imports an actual file, edits and saves a
   revision, reopens exact source, verifies scientific preview and sandbox, rejects
   attempted outbound requests, and checks all three downloaded file contents.
-  Its fixture and JavaScript syntax checks passed. CI writes
-  `myst-document-publication.png` beside the existing Notebook evidence.
+  Its fixture and JavaScript syntax checks passed. The published first-stage CI
+  passed this browser test; see the exact run below.
 - Local Chromium cannot start because this container denies its singleton Unix
   socket. That outcome was already checked, including an approved elevated
   attempt; it was not retried or bypassed. Browser checks and screenshots require
-  the actual PR CI. No browser, Electron, Native or Wasm acceptance is inferred
-  from the package tests or build.
+  the actual PR CI. First-stage Notebook browser results below are actual CI, not
+  inferred from package tests/build. Electron, Native and Wasm remain unverified.
 
 - Bazel `//:checks`: normal lock refresh passed all 7 checks. The frozen-lock
   `--config=ci` run passed all 7 checks again after the rebase (cached, exit 0).
   These checks cover schema, TypeScript, locale and theme consistency, not browser
   acceptance.
 
-Remote CI remains pending and must be checked against the published head.
+Published first-stage evidence: [run 42935112946](https://github.com/phodal/pero/actions/runs/42935112946),
+[Notebook job 130243135769](https://github.com/phodal/pero/actions/runs/42935112946/job/130243135769)
+on `50de2bb` passed all five browser tests. The task's browser review inspected
+[artifact 13816949905](https://github.com/phodal/pero/actions/runs/42935112946/artifacts/13816949905)
+and found the source textarea approximately 830 × 43 px. Thus functional green CI
+was not sufficient visual acceptance. In the same run, the Canvas job's Data flow
+passed, but Control Lab failed waiting for its initial “Run experiment” button.
+TAP completed with one failure and the process did not exit before cancellation.
+[Canvas job 130243136054](https://github.com/phodal/pero/actions/runs/42935112946/job/130243136054)
+and [artifact 13818368520](https://github.com/phodal/pero/actions/runs/42935112946/artifacts/13818368520)
+contain no Control Lab startup screenshot. The cause is not established. The
+continuation adds bounded, secret-safe startup evidence and guaranteed browser
+cleanup, without changing the selector, timeout or production behavior. Control
+Lab workbench/request tests pass 25/25 and test syntax checks pass locally; the
+next CI must establish the browser outcome, not assume a timing fix.
+
+The concurrent base `d1cdba2a` subsequently passed the unchanged Canvas flow in
+[run 42937428310](https://github.com/phodal/pero/actions/runs/42937428310):
+[Canvas job 130251152512](https://github.com/phodal/pero/actions/runs/42937428310/job/130251152512)
+passed both scenarios, including the exact prior failing PI experiment test at
+01:19:23Z. [Notebook job 130251152591](https://github.com/phodal/pero/actions/runs/42937428310/job/130251152591)
+passed all five browser tests, 179 package, 96 editor and 136 backend tests.
+This confirms base-head recovery, not the cause of the earlier transient failure
+or acceptance of the following SDK continuation.
+
+## SDK continuation: locally verified, new browser acceptance pending
+
+The user continued with “继续按 SDK 实现”. Inspected changes:
+
+- Shared Notebook document-block SDK now exposes explicit future-version policy
+  (`preserve` by default, MyST `reject`) and identity-free `validateFields` for
+  current-version field admission. Full validation still checks block identity
+  and preserves the `current | opaque` result added by concurrent `d1cdba2a`.
+  MyST consumes these contracts instead of repeating page-specific validators.
+- Shared typed import/export descriptors own extension/media-type metadata,
+  byte budgets and pure codecs. `myst-formats.ts` supplies source/bundle/HTML
+  codecs; the UI consumes them and retains only file I/O and presentation.
+  Independent review found alias-expanded metadata could produce a bundle larger
+  than its own import budget. Bundles now write only their authoritative source
+  envelope. Legacy derived fields remain accepted but ignored on import. Tests
+  cover alias-heavy metadata and worst-case JSON escaping within the file budget.
+- Direct pinned `myst-frontmatter@1.10.2` validates page metadata into a typed
+  `scholarly` projection. Source and raw metadata remain authoritative and
+  unchanged. Validation diagnostics, malformed nested values and deterministic
+  date handling are explicit. Standalone HTML displays normalized authors and
+  affiliations, DOI, licenses and funding; it does not externally verify them.
+- TypeScript and Python now consume the same MyST source-wire fixture, covering
+  acceptance/rejection, preserved Unicode/line endings and the UTF-8 boundary.
+- The observed textarea defect is repaired using shared Textarea with `rows={12}`
+  and a narrow CSS specificity override for source geometry. Browser assertions
+  measure height/min-height and at least ten lines; separate source/preview
+  screenshots supplement the earlier full-page screenshot. These changes have
+  not yet passed a fresh remote CI run or screenshot review.
+- Derived Bazel lock changes are limited to three importer/hash replacements
+  (three lines removed and three added). The continuation's frozen seven cached
+  checks passed, as reported by the integration owner. This is not browser evidence.
+
+Review follow-up also removes noteCard's full-body title override, restoring the
+existing localized block title and avoiding duplicate content. Its editor regression
+checks the Chinese header and single body occurrence. The separate render-time
+scope-ref review comment remains unconfirmed: no abandoned scope render path was
+reproduced, and proposal/reload regressions pass. No speculative concurrency
+mechanism is added under the repository's architecture rule.
+
+New-stage local validation after integrating `d1cdba2a`: **197 package tests,
+96 editor tests, and 138 Python backend tests with real OCR enabled passed**, no
+skips. Notebook typecheck and production build passed. All seven frozen-lock Bazel checks
+passed again on the integrated tree (cached, exit 0). Independent review identified
+the bundle-budget issue above; its regression now passes. New-head real browser
+results and screenshot inspection remain pending. The earlier 50de2bb results do
+not establish acceptance of these new UI/SDK changes.
 
 ## Still open
 
 Project loading and `myst.yml`, explicit assets/includes, cross-document references,
-standard BibTeX/CSL resolution, typed scholarly metadata, lossless `.ipynb`
+standard BibTeX/CSL resolution, project-level metadata inheritance, lossless `.ipynb`
 interchange, site publishing and JATS/DOCX/TeX/PDF adapters remain open. Jupyter
 and reactive execution require a separate owner/permission design and stay off.
 These are functional gaps, not hidden successful paths or stub implementations.
+
+
+Next SDK priorities: explicit project/resource descriptors and path/asset resolution;
+standard bibliography input/resolution with diagnostics; loss-aware `.ipynb` and
+publication codecs through shared format contracts. These require actual adapters
+and fixtures, not additional format labels. Keep file/network/execution effects in
+their existing owners. No kernel, automatic asset fetch, full-project converter or
+website deployment is introduced by the current continuation.
