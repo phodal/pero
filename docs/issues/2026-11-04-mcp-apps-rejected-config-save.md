@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-04
 github_issue: 128
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/128
 ---
 
@@ -51,3 +51,14 @@ Rebased onto `f0b8065e` on 2026-11-09. All eight standalone/managed MCP tests,
 targeted TypeScript checks, the MCP provider build and the two-process
 write-failure/reload check passed. The fixture bundle uses a temporary checkout
 without spaces because its existing entry-point conversion retains URL escapes.
+
+## Status reconciliation — 2026-11-11
+
+GitHub #128 is closed as of 2026-11-09. The configuration publication repair
+is present on the current mainline in `ac3d46fe`; the existing rejected-save
+and overlapping-save regressions also passed during the November 11 MCP
+verification (14 tests including the separate #185 increment). Both persistence
+regressions were also rerun directly on the `561e2850` mainline checkout and
+passed with `node --test --test-name-pattern='a rejected server edit|overlapping server saves' desktop/src/main/mcp-sources.test.ts`. This record
+is resolved for its configuration-persistence scope, not a new platform or
+release-package acceptance claim.

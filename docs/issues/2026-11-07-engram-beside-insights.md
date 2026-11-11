@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-07
 github_issue: 162
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/162
 ---
 
@@ -156,3 +156,13 @@ Use synthetic values only.
 
 Hindsight, LangMem, Graphiti, EverOS, Mastra, a claim database, dreaming,
 wiki pages, and automatic promotion of a memory into a system instruction.
+
+## Status reconciliation — 2026-11-11
+
+GitHub #162 is closed as of 2026-11-10. The mainline contains optional startup
+(`098c8631`), write approval (`d5798fb9`) and real-process acceptance
+(`712dd6b1`). The latter records cross-session recall, workspace-directory
+isolation, restricted tools and the existing topic-key overwrite limitation.
+This resolves the optional admission scope above. Dreaming, transcript-wide
+search and knowledge representation remain separate research under #161;
+closure does not establish scientific memory quality or signed-package acceptance.
