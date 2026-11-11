@@ -26,8 +26,16 @@ export interface MystReferenceTarget {
   label: string;
 }
 export interface MystBibliographyEntry { id: string; title?: string; author?: string; year?: string; url?: string }
+export interface MystCitationRendering {
+  engine: 'refkit-js@0.4.0';
+  style: { path: string; id: string; title: string };
+  locale: string;
+  citations: Record<string, { text: string; html: string }>;
+  bibliography: Array<{ id: string; text: string; html: string }>;
+}
 export interface MystDocument {
   version: 1;
+  citationRendering?: MystCitationRendering;
   source: string;
   ast: MystNode;
   metadata: Record<string, unknown>;
@@ -88,7 +96,7 @@ export function parseMystSource(source: string): MystParsedDocument {
   if (handledPero !== undefined) {
     if (!record(handledPero)) report('frontmatter-validation', 'pero metadata must be a mapping; authored value retained');
     else for (const key of Object.keys(handledPero)) {
-      if (key !== 'bibliography') report('frontmatter-validation', `Unknown pero metadata field: ${key}; authored value retained`);
+      if (key !== 'bibliography' && key !== 'citation') report('frontmatter-validation', `Unknown pero metadata field: ${key}; authored value retained`);
     }
   }
   const scholarly = validateMystMetadata(standardMetadata);

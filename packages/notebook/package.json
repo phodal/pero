@@ -52,7 +52,8 @@
     "./myst-project": "./src/myst-project.ts",
     "./myst-project-snapshot": "./src/myst-project-snapshot.ts",
     "./myst-project-formats": "./src/myst-project-formats.ts",
-    "./myst-bibliography": "./src/myst-bibliography.ts"
+    "./myst-bibliography": "./src/myst-bibliography.ts",
+    "./myst-citations": "./src/myst-citations.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
