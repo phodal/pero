@@ -100,7 +100,7 @@ test('creation uses visible radio choices and respects IME confirmation before o
   const control=document.querySelector('[role=radio][aria-label=Control]');
   await click(control);
   assert.equal(control.getAttribute('aria-checked'),'true');
-  assert.equal(document.querySelectorAll('[role=radio]').length,3);
+  assert.equal(document.querySelectorAll('[role=radio]').length,4);
   await React.act(async () => document.querySelector('form').requestSubmit());
   assert.match(document.querySelector('[role=alert]').textContent,/Could not create the environment/);
   assert.equal(name.value,'实验');assert.equal(button('Retry'),undefined);
@@ -125,11 +125,38 @@ test('actual environment tabs associate panels and support arrow keys; tables ex
   const first=document.querySelector('[role=tab]');
   const panel=document.getElementById(first.getAttribute('aria-controls'));
   assert.equal(panel.getAttribute('aria-labelledby'),first.id);assert.equal(panel.hidden,false);
-  const region=panel.querySelector('[role=region]');assert.equal(region.getAttribute('aria-label'),'Local environments');assert.equal(region.tabIndex,0);
+  const region=panel.querySelector('[role=region]');assert.equal(region.getAttribute('aria-label'),'App environments');assert.equal(region.tabIndex,0);
   t.mock.timers.enable({apis:['setTimeout']});
   await focus(first);
   await React.act(async () => {first.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));t.mock.timers.runAll();});
   const second=document.querySelectorAll('[role=tab]')[1];
   assert.equal(document.activeElement,second);assert.equal(second.getAttribute('aria-selected'),'true');
   assert.equal(panel.hidden,true);
+});
+
+test('compute preparation polls persisted progress while Prepare waits and preserves failure recovery', async t => {
+  const {React,ui,render,click,button,focus} = await runtime(t);
+  t.mock.timers.enable({apis:['setInterval']});
+  let value={...profile,state:'created',locked_compute:true,prepared:null,log:[]}, finish;
+  const fetchFn=async (_, options) => {
+    const input=JSON.parse(options.body);
+    if(input.operation==='prepare') {
+      value={...value,state:'preparing',log:['Downloading scipy wheel']};
+      return new Promise(resolve=>{finish=resolve;});
+    }
+    return response(input.compute?[value]:[]);
+  };
+  await render(React.createElement(ui.EnvironmentManager,{fetchFn}));
+  await focus(button('Control compute')); await click(button('Research'));
+  await click(button('Prepare environment'));
+  await React.act(async()=>t.mock.timers.tick(1000));
+  assert.match(document.querySelector('.env-preparation-progress').textContent,/Downloading scipy wheel/);
+  assert.equal(document.querySelector('progress').hasAttribute('value'),false);
+  assert.equal(button('Use for Control calculations'),undefined);
+  value={...value,state:'failed',error:'No compatible wheel',log:['No compatible wheel']};
+  await React.act(async()=>finish(response([value])));
+  assert.match(document.querySelector('[role=alert]').textContent,/No compatible wheel/);
+  assert.equal(button('Retry preparation').disabled,false);
+  assert.equal(document.querySelector('progress'),null);
+  assert.match(document.querySelector('.env-compute').textContent,/original compute environment/);
 });

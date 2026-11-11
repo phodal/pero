@@ -73,3 +73,6 @@
 .pero-env .pero-ui-feedback{overflow-wrap:anywhere}
 .env-load-error{display:grid;gap:var(--pero-spacing-2);justify-items:start}
 @media(max-width:580px){.env-workspace{padding:var(--pero-spacing-4)}.env-toolbar .pero-ui-toggle-group{margin-left:0}.env-heading{align-items:flex-start}.env-observation{grid-template-columns:1fr;gap:var(--pero-spacing-1)}.env-observation dd{margin-bottom:var(--pero-spacing-2)}.env-footer .env-note{min-width:100%}}
+
+.env-compute,.env-preparation-progress{display:grid;gap:var(--pero-spacing-4);min-width:0}
+.env-compute .env-tile>.pero-ui-button{justify-self:start;white-space:normal;text-align:start;overflow-wrap:anywhere}
