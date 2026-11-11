@@ -100,7 +100,8 @@ adds no native file/shell tools or permission to publish source images.
 
 Without `--workspace`, no native tools are registered. An explicit workspace
 enables bounded read/write/edit/list/search; `--enable-shell` separately enables
-approved foreground Bash. Writes, edits and every shell call require approval.
+foreground Bash. Writes, edits and shell calls enter the existing approval policy;
+approval does not necessarily mean a human prompt (see session modes below).
 Optional `--sandbox strict-workspace-write` or `strict-read-only`, with explicit
 `--sandbox-runtime` paths, requires the strict backend and denies network access.
 
@@ -129,10 +130,21 @@ service. Deploy process/container and network isolation separately.
 `--approval ask` is the default. `--approval never` rejects tools marked
 `RequiresApproval`. The existing unattended Rust Worker still rejects permission
 requests; changing this CLI default does not grant unattended execution.
-`--approval ask` asks the ACP client for allow-once/reject-once decisions. This
-policy is **not a universal tool sandbox**: upstream MCP tools are not marked
-`RequiresApproval` and an explicit MCP server grant authorizes their calls.
-The CLI does not install such servers on its own. Permission refusal is tested against the actual file/shell tools in temporary
+`--approval ask` consults the session mode and configured answerers, including
+the ACP client when a prompt is required. The `auto-review` mode permits ordinary
+gated operations without a prompt; it is not an independent model review.
+In auto-review, explicit mandatory asks still reach an answerer; `--approval never` rejects
+gated operations even in auto-review mode. Modes do not install an OS sandbox.
+
+This policy is **not a universal tool sandbox**. Without an operator tool policy,
+MCP tools with explicit mutating annotations enter approval; read-only hints and
+legacy tools without annotations add no approval gate. Those hints are not proof
+that a server has no side effects. Negotiated `pero.mcpToolPolicy` can instead
+freeze per-tool allow/ask/deny rules: deny cannot be bypassed by server hints,
+ask remains mandatory in auto-review, and allow retains existing approval gates.
+An explicit MCP server grant is trusted configuration; the CLI does not install
+servers on its own. Host/App route, scope and business checks remain independent.
+Permission refusal is tested against the actual file/shell tools in temporary
 workspaces, as well as the earlier isolated protocol fixture.
 
 ## Preserved execution and deliberate exclusions
@@ -215,9 +227,10 @@ harness, ACP, persistence and GPUI surface, without opening Data Agent.
 ## Behavioral comparison with official DSH
 
 The [pinned capability matrix](../../docs/fitness/harness-behavior-parity.md)
-distinguishes tested subsets, deliberate restrictions, missing Skill reminder
-semantics and unverified runtime parity. Source/AST extraction is not proof of
-complete behavior equivalence.
+distinguishes tested subsets, deliberate restrictions and unverified runtime
+parity. Durable Skill catalog publication/recovery is covered by a shared fixture
+and the actual pinned official hook. The seven-item audit acceptance record does
+not claim complete behavior equivalence; source/AST extraction alone cannot do so.
 
 Compatible providers can opt into `--disable-streaming` to request complete
 JSON Chat completions. SSE remains the default. JSON responses use the same

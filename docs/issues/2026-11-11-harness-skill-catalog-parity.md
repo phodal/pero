@@ -1,13 +1,13 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-11
 github_issue: 73
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/73
 ---
 
-# Harness Skill catalog visibility and recovery
+# Harness behavior audit and Skill catalog recovery
 
 The #73 fitness matrix described the 2026-11-01 implementation, although current
 plugin Skills already support user-only invocation and bounded post-compaction
@@ -43,8 +43,37 @@ packages also pass race/vet, and Skills Bazel plus Gazelle checks pass. The shar
 mounting fails the new catalog/provider/compaction regressions as expected.
 Full commands, environment qualification and log names are in the fitness record.
 
-Scripted providers and the actual pinned official catalog
-hook with mocked registration/snapshot/session boundaries require no credentials
-or real-model spend. Full official runtime A/B, live-provider quality/usage,
-Desktop/Native/package acceptance and dynamic discovery/precedence remain open.
-This bounded increment does not close #73.
+Scripted providers and the actual pinned official catalog hook with mocked
+registration/snapshot/session boundaries require no credentials or real-model
+spend. The initial catalog increment alone did not complete the wider audit.
+
+## Seven-item acceptance completed
+
+The follow-up starts from master `7ff7c637732606286940b50bafee4d0d3b47a2f5`
+in a new isolated checkout. It checks the original issue's seven deliverables,
+not an expanded demand for full runtime equivalence. The fitness record now
+contains a numbered acceptance matrix, separate native/MCP/Host-App/auto-review
+authority evidence, additional core capability rows and trace dimensions with
+explicit historical-artifact/usage limits.
+
+Actual missing deliverables were bounded:
+
+- Connect the pinned actual official hook to the existing full/daily/manual AST
+  job and retain its JSON receipts; ordinary Go/Bazel fixtures remain unchanged.
+- Make the existing App transport regression invoke an advertised alias before
+  any describe request, then separately exercise generic describe/write.
+- Correct stale README approval/MCP claims and SOURCE's legacy-versus-plugin
+  scope. No runtime authorization or tool registration changed.
+
+All 38 Go packages pass race tests; the official hook passes ten fixed steps;
+App transport/lifecycle passes nine tests; CI mode/required-job contracts pass
+nine tests with one unrelated existing Darwin archive skip. Local docs/JSON,
+diff and file limits pass. Hosted CI for the new commits is not yet observed.
+
+Resolution: the auditable behavior matrix and all seven original deliverables
+are complete. The coordinator publishes this record and closes #73 after
+integration and independent rechecks of App transport, CI routing and the
+pinned official hook. Dynamic official discovery/precedence is an intentional
+scope difference; full-runtime/live-provider/platform/scientific comparisons
+remain explicitly unverified, not extra closure conditions. No #161 rerun,
+paid model request, new scheduler, persistence owner or default permission.

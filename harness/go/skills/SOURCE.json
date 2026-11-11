@@ -28,12 +28,12 @@
     "role": "IsSkillName validation adapted with a 64-byte cap; Point SkillRegistry and scoped provider precedence not copied",
     "blob": "876769a1de42d975f94c7f5e1ea09d3541d1ec43"
   },
-  "scope": "New opt-in headless read-only composition; this is not a wholesale or behavior-equivalent DSH skills migration.",
+  "scope": "Legacy explicit-root read-only composition plus locally implemented selected-plugin behavior; this is not a wholesale or behavior-equivalent DSH skills migration. Selected-plugin resources and hooks have their own admitted owners; legacy-root exclusions below do not describe that profile.",
   "adaptations": [
-    "No implicit home/project/environment roots, bundles, resource loading or script execution.",
+    "Legacy explicit roots: no implicit home/project/environment roots, bundles, resource loading or script execution.",
     "Fixed descriptor-owned manifest and digest reads use existing fstools.OpenScopedTextFiles; catalog is not a second runtime registry or permission engine.",
     "Existing Harness runtime, ToolRegistry and PreStep own registration/generation and admission; one exact-key skill tool lists or reads. Explicit gestures reuse the same frozen catalog read.",
-    "Only direct child SKILL.md files. Duplicate names and invalid files fail closed. Bounded UTF-8 text; model-disabled skills remain unavailable.",
+    "Legacy explicit roots: only direct child SKILL.md files. Duplicate names and invalid files fail closed. Bounded UTF-8 text; model-disabled skills remain unavailable. Selected plugins separately support user-only invocation without model publication.",
     "Explicit slash invocation and reattachment use exact authorized registration availability before deferred discovery; denied or shadowed skills remain unavailable. This is a local integration fix, not a claim of upstream equivalence.",
     "Post-compaction restoration filters exact activated instruction content already present on the current surface, correlating successful Skill results separately from short activation notices. Restored text continues checkpoint progress instead of implying a fresh invocation; preprocessing and turn grants are not rerun.",
     "Durable bounded summary catalogs reconcile against Session surface identity and pending messages. Existing exact visible registration and Skill denial rules own visibility; PostCompact restores guidance before overflow retries. No filesystem discovery, resource execution, permission changes or new persistent state."
@@ -45,6 +45,8 @@
     "path": "packages/skill/tool-skill/src/index.ts",
     "blob": "f08fb8206433bb40ec415c65e9a50382386a3bd0",
     "role": "Behavioral reference, not copied implementation: direct-user legacy gestures and visibility-matched durable catalog publication through existing hooks. Same-input actual official catalog-hook runner uses mocked registration/snapshot/session seams; full runtime parity remains unverified.",
-    "record": "docs/fitness/harness-behavior-parity.md"
+    "record": "docs/fitness/harness-behavior-parity.md",
+    "acceptance_baseline": "7ff7c637732606286940b50bafee4d0d3b47a2f5",
+    "acceptance_scope": "Issue 73's seven-item auditable behavior matrix, not full Harness equivalence. Lightweight local fixtures run in ordinary CI; the pinned official catalog hook runs in full/daily CI. Intentional discovery/precedence differences and unverified full-runtime/model/platform comparisons are explicit."
   }
 }
