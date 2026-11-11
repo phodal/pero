@@ -46,7 +46,9 @@
     "./interchange": "./src/interchange.ts",
     "./scientific-block": "./src/scientific-block.ts",
     "./myst": "./src/myst.ts",
-    "./myst-render": "./src/myst-render.ts"
+    "./myst-render": "./src/myst-render.ts",
+    "./myst-formats": "./src/myst-formats.ts",
+    "./myst-metadata": "./src/myst-metadata.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
@@ -55,6 +57,7 @@
     "exceljs": "4.4.0",
     "fast-formula-parser": "1.0.19",
     "katex": "0.16.22",
+    "myst-frontmatter": "1.10.2",
     "myst-parser": "1.7.5",
     "vfile": "5.3.7",
     "yaml": "2.8.3"

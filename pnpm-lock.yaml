@@ -164,6 +164,9 @@ importers:
       katex:
         specifier: 0.16.22
         version: 0.16.22
+      myst-frontmatter:
+        specifier: 1.10.2
+        version: 1.10.2
       myst-parser:
         specifier: 1.7.5
         version: 1.7.5
