@@ -27,3 +27,29 @@ test("the catalog names each persisted block once and does not give tables a pro
   assert.equal(JSON.stringify(notebook.blockNote).includes("nbformat"), false);
   assert.equal(notebook.canonical.content?.[0].attrs?.source, "{\"nbformat\":4}");
 });
+
+test("catalog losses and outside-subset blocks stay in the notebook document", () => {
+  const samples: [string, Record<string, unknown>][] = [
+    ["inputTable", { blockId: "t1", marker: "kept-input-table" }],
+    ["registrationTable", { blockId: "t2", marker: "kept-registration-table" }],
+    ["lookupTable", { blockId: "t3", marker: "kept-lookup-table" }],
+    ["mystDocument", { blockId: "m1", source: "kept-myst-source" }],
+    ["mystProject", { blockId: "p1", marker: "kept-myst-project" }],
+    ["retainedBlock", { blockId: "r1", originalType: "instrumentReading", payload: { type: "instrumentReading", attrs: { blockId: "r1", marker: "kept-retained" } } }],
+    ["attachment", { blockId: "a1", filename: "kept-attachment.bin" }],
+  ];
+  for (const [type, attrs] of samples) {
+    const entry = blockCatalog.find(item => item.type === type);
+    const content = { type: "doc" as const, content: [{ type, attrs }] };
+    const projected = projectNotebook(content);
+    assert.deepEqual(projected.canonical, content, type);
+    const code = entry?.projection.kind === "loss" ? entry.projection.code : "outside-subset";
+    assert.equal(projected.losses.some(loss => loss.code === code), true, type);
+    assert.equal(canReplace(projected, "blockNote"), false, type);
+    assert.equal(canReplace(projected, "myst"), false, type);
+    assert.throws(() => restoreBlockNote(projected), /incomplete/, type);
+    assert.throws(() => restoreMyst(projected), /incomplete/, type);
+    const marker = JSON.stringify(attrs).match(/kept-[a-z-]+/)?.[0] ?? "";
+    assert.equal(JSON.stringify({ blockNote: projected.blockNote, myst: projected.myst }).includes(marker), false, type);
+  }
+});
