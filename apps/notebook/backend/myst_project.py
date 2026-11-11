@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 import re
 from document import fields, block_id
+from myst_assets import MystBinaryAsset, MystImageData
 
 MAX_FILES = 32
 MAX_RESOURCE_BYTES = 256 * 1024
@@ -45,14 +46,15 @@ class MystTextResource:
 class MystProjectSnapshot:
     entry: str
     files: tuple[MystTextResource, ...]
+    assets: tuple[MystBinaryAsset, ...] | None = None
 
     @classmethod
     def from_wire(cls, value):
-        if not isinstance(value, dict) or set(value) != {'format', 'version', 'entry', 'files'} or value['format'] != 'pero-myst-project' or type(value['version']) not in (int, float) or value['version'] != 1:
+        if not isinstance(value, dict) or type(value.get('version')) not in (int, float) or value['version'] not in (1, 2) or set(value) != ({'format', 'version', 'entry', 'files', 'assets'} if value['version'] == 2 else {'format', 'version', 'entry', 'files'}) or value['format'] != 'pero-myst-project':
             raise ValueError('Unsupported MyST project snapshot')
         entry = canonical_path(value['entry'])
-        if not re.search(r'\.(md|myst)$', entry, re.IGNORECASE):
-            raise ValueError('MyST entry must name a Markdown resource')
+        if not re.search(r'\.(md|myst|ipynb)$', entry, re.IGNORECASE):
+            raise ValueError('MyST entry must name a Markdown or IPYNB resource')
         resources = value['files']
         if not isinstance(resources, list) or not 1 <= len(resources) <= MAX_FILES:
             raise ValueError('MyST projects require 1–32 text resources')
@@ -71,12 +73,30 @@ class MystProjectSnapshot:
             files.append(MystTextResource(path, resource['text']))
         if entry not in paths:
             raise ValueError('MyST entry resource is missing')
-        snapshot = cls(entry, tuple(files))
-        canonical = json.dumps({'format': 'pero-myst-project', 'version': 1, 'entry': entry,
-                                'files': [{'path': file.path, 'text': file.text} for file in files]},
+        assets = None
+        if value['version'] == 2:
+            if not isinstance(value['assets'], list) or len(files) + len(value['assets']) > MAX_FILES:
+                raise ValueError('MyST projects allow at most 32 combined resources')
+            assets = []
+            for asset in value['assets']:
+                if not isinstance(asset, dict) or set(asset) != {'path', 'mediaType', 'base64'}:
+                    raise ValueError('Invalid MyST binary asset')
+                path = canonical_path(asset['path'])
+                if path in paths:
+                    raise ValueError('Duplicate MyST resource')
+                paths.add(path)
+                assets.append(MystBinaryAsset(path, MystImageData.parse(asset['mediaType'], asset['base64'])))
+            assets = tuple(assets)
+        snapshot = cls(entry, tuple(files), assets)
+        canonical = json.dumps(snapshot.wire(),
                                ensure_ascii=False, indent=2) + '\n'
         validate_persisted_contribution(canonical)
         return snapshot
+
+    def wire(self):
+        return {'format': 'pero-myst-project', 'version': 2 if self.assets is not None else 1,
+                'entry': self.entry, 'files': [{'path': file.path, 'text': file.text} for file in self.files],
+                **({'assets': [asset.wire() for asset in self.assets]} if self.assets is not None else {})}
 
     @classmethod
     def parse(cls, attrs):

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppInfo, useAppI18n } from "./host";
-import { Button, Feedback, Table } from "./ui";
+import { Button, Disclosure, Feedback, Icon, IconButton, Select, Table } from "./ui";
 import { CanvasActionForm, type CanvasAction } from "./canvas-action-form";
 
 export interface CanvasSource {
@@ -24,6 +24,7 @@ interface Projection {
   rows: string[][];
   notice: string;
   actions: CanvasAction[];
+  results?: { id: string; label: string; value: Record<string, unknown> }[];
 }
 interface MountedView {
   instance: string;
@@ -51,6 +52,11 @@ async function request<T>(body: object): Promise<T> {
   return response.json();
 }
 const messages = {
+  otherActions: { en: 'Other actions', zh: '其他操作' },
+  receipt: { en: 'Action details', zh: '操作详情' },
+  results: { en: 'Completed results', zh: '已完成的结果' },
+  chooseResult: { en: 'Choose a result to attach', zh: '选择要附加的结果' },
+  attachResult: { en: 'Attach selected result', zh: '附加所选结果' },
   loading: { en: "Loading declared App view…", zh: "正在载入声明的 App 视图…" },
   refresh: { en: "Refresh App view", zh: "刷新 App 视图" },
   confirm: {
@@ -89,9 +95,15 @@ const messages = {
 export function DeclaredAppCanvas({
   source,
   onResult,
+  onAttachResult,
+  secondaryActions = false,
+  primaryAction,
 }: {
   source: CanvasSource;
   onResult?: (receipt: Record<string, unknown>) => void;
+  onAttachResult?: (value: Record<string, unknown>) => void;
+  secondaryActions?: boolean;
+  primaryAction?: string;
 }) {
   const { t } = useAppI18n(messages),
     active = useAppInfo().active;
@@ -100,6 +112,7 @@ export function DeclaredAppCanvas({
   const [loading, setLoading] = useState(false),
     [running, setRunning] = useState(false),
     [result, setResult] = useState<ActionResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState('');
   const instance = useRef(""),
     pending = useRef(false),
     operation = useRef(""),
@@ -131,6 +144,7 @@ export function DeclaredAppCanvas({
     const generation = ++epoch.current;
     setView(null);
     setResult(null);
+    setSelectedResult('');
     setRunning(false);
     pending.current = false;
     operation.current = "";
@@ -231,18 +245,25 @@ export function DeclaredAppCanvas({
   };
   const ownerResult = result?.receipt?.result;
   const notApplied = !!ownerResult && typeof ownerResult === 'object' && 'outcome' in ownerResult && ownerResult.outcome === 'not-applied';
+  const actionForms = view?.projection.actions.map(action => <CanvasActionForm
+    key={`${view.instance}:${action.name}`} action={action} primary={!secondaryActions && action.name === primaryAction}
+    disabled={running || loading || result?.state === 'outcome-unknown' || !!view.history?.some(item => item.state === 'outcome-unknown')}
+    onSubmit={value => void act(value)} />);
   return (
-    <section aria-label="Declared App view" aria-busy={loading || running}>
+    <section className="pero-app-canvas" aria-label="Declared App view" aria-busy={loading || running}>
+      <div className="pero-app-canvas-heading">
+        {view && <strong>{view.projection.title}</strong>}
+        <IconButton label={t('refresh')} disabled={loading || running} onClick={() => void refresh()}><Icon name="sync" /></IconButton>
+      </div>
       {loading && <p role="status">{t("loading")}</p>}
       {view && (
         <>
-          <strong>{view.projection.title}</strong>
-          <dl>
+          <dl className="pero-app-canvas-fields">
             {view.projection.fields.map((field, index) => (
-              <React.Fragment key={index}>
+              <div key={index}>
                 <dt>{field.label}</dt>
                 <dd>{field.value || "—"}</dd>
-              </React.Fragment>
+              </div>
             ))}
           </dl>
           {!!view.projection.columns.length && (
@@ -266,30 +287,24 @@ export function DeclaredAppCanvas({
             </Table>
           )}
           {view.projection.notice && <p>{view.projection.notice}</p>}
+          {onAttachResult && !source.readOnly && !!view.projection.results?.length && <div className="pero-app-canvas-attach">
+            <Select label={t('results')} placeholder={t('chooseResult')} value={selectedResult}
+              disabled={loading || running} options={view.projection.results.map(item => ({ value: item.id, label: item.label }))}
+              onChange={setSelectedResult} />
+            <Button variant="primary" disabled={loading || running || !view.projection.results.some(item => item.id === selectedResult)} onClick={() => {
+              const selected = view.projection.results?.find(item => item.id === selectedResult);
+              if (selected) onAttachResult(selected.value);
+            }}>{t('attachResult')}</Button>
+          </div>}
           {source.readOnly ? (
             <p>{t("readonly")}</p>
-          ) : (
-            view.projection.actions.map((action) => (
-              <CanvasActionForm
-                key={`${view.instance}:${action.name}`}
-                action={action}
-                disabled={
-                  running ||
-                  loading ||
-                  result?.state === "outcome-unknown" ||
-                  !!view.history?.some(
-                    (item) => item.state === "outcome-unknown",
-                  )
-                }
-                onSubmit={value => void act(value)}
-              />
-            ))
-          )}
+          ) : secondaryActions ? (
+            <Disclosure variant="inline" summary={t('otherActions')}>{actionForms}</Disclosure>
+          ) : actionForms}
         </>
       )}
       {!!view?.history?.length && (
-        <details>
-          <summary>{t("history")}</summary>
+        <Disclosure variant="inline" summary={t('history')}>
           {view.history.map((item) => (
             <p key={item.operationId}>
               {item.action} · {item.operationId} · {item.state}{" "}
@@ -301,11 +316,8 @@ export function DeclaredAppCanvas({
               </Button>
             </p>
           ))}
-        </details>
+        </Disclosure>
       )}
-      <Button disabled={loading || running} onClick={() => void refresh()}>
-        {t("refresh")}
-      </Button>
       {running && (
         <>
           <p role="status">{t("confirm")}</p>
@@ -330,7 +342,7 @@ export function DeclaredAppCanvas({
       )}
       {result?.receipt && (
         <>
-          <pre>{JSON.stringify(result.receipt, null, 2)}</pre>
+          <Disclosure variant="inline" summary={t('receipt')}><pre>{JSON.stringify(result.receipt, null, 2)}</pre></Disclosure>
           {onResult && !source.readOnly && (
             <Button onClick={() => onResult(result.receipt!)}>
               {t("retain")}

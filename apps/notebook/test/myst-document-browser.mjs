@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -127,7 +127,7 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(preview.getByRole('heading', { name: 'Revised local science', exact: true })).toBeVisible();
   await expect(preview.getByRole('heading', { name: 'Scientific browser fixture', exact: true })).toHaveCount(1);
   await expect(preview.getByRole('list', { name: 'Authors', exact: true })).toContainText('Example Researcher');
-  await expect(preview.locator('.byline a[href="#publication-affiliation-1"]')).toHaveCount(1);
+  await expect(preview.locator('.byline a[href="about:srcdoc#publication-affiliation-1"]')).toHaveCount(1);
   await expect(preview.locator('#publication-affiliation-1')).toHaveText('Example Institute');
   await expect(preview.locator('a[href="https://orcid.org/0000-0000-0000-0001"]')).toHaveCount(1);
   await expect(preview.locator('a[href="https://doi.org/10.5555/example-myst-browser"]')).toHaveCount(1);
@@ -135,7 +135,11 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
   await expect(preview.locator('math')).toHaveCount(2);
   await expect(preview.getByRole('cell', { name: '42', exact: true })).toBeVisible();
   await expect(preview.getByText('Keep the control.', { exact: true })).toBeVisible();
-  await expect(preview.locator('a[href="#myst-eq-growth"]')).toHaveCount(1);
+  const equationLink = preview.locator('a[href="about:srcdoc#myst-eq-growth"]');
+  await expect(equationLink).toHaveCount(1);
+  await equationLink.click();
+  await expect(preview.locator('#myst-eq-growth')).toBeInViewport();
+  assert.equal(await preview.locator('body').evaluate(() => location.href), 'about:srcdoc#myst-eq-growth');
   await expect(preview.locator('script, img, iframe, object')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'MyST diagnostics', exact: true })).toContainText('Document plugins are not loaded');
   assert.equal(await page.evaluate(() => globalThis.mystExecuted), undefined);
@@ -172,6 +176,55 @@ test('MyST imports, edits, persists and exports an inert scientific publication'
       assert.doesNotMatch(text, /<script[ >]|<img[ >]/i);
     }
   }
+  for (const [button, extension] of [['Word (DOCX)', '.docx'], ['JATS XML', '.xml'], ['LaTeX source', '.tex'], ['Typst source', '.typ']]) {
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: button, exact: true }).click();
+    const download = await pending, destination = resolve(directory, `publication${extension}`);
+    await download.saveAs(destination);
+    if (extension === '.docx') {
+      const checked = spawnSync('python3', ['-c', 'import sys,zipfile,json,xml.etree.ElementTree as E; z=zipfile.ZipFile(sys.argv[1]); E.fromstring(z.read("word/document.xml")); assert "Scientific browser fixture" in z.read("word/document.xml").decode(); assert "source" in json.loads(z.read("pero/source.json"))', destination], { encoding: 'utf8' });
+      assert.equal(checked.status, 0, checked.stderr);
+    } else assert.ok((await readFile(destination, 'utf8')).includes('Scientific browser fixture'));
+  }
+  await mkdir(output, { recursive: true });
+  await page.evaluate(() => { window.print = () => { globalThis.publicationPrintInvoked = true; }; });
+  await page.getByRole('button', { name: 'Print publication / Save as PDF', exact: true }).click();
+  const print = page.locator('.notebook-print-output[data-publication="myst"]');
+  await expect(print.locator('math')).toHaveCount(2);
+  await expect(print.locator('textarea, iframe, .source')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Print', exact: true }).click();
+  assert.equal(await page.evaluate(() => globalThis.publicationPrintInvoked), true);
+  await page.emulateMedia({ media: 'print' });
+  const paperStyles = await page.evaluate(() => [document.documentElement, document.body].map(node => { const style = getComputedStyle(node); return { background: style.backgroundColor, minHeight: style.minHeight, overflow: style.overflow }; }));
+  for (const style of paperStyles) assert.deepEqual(style, { background: 'rgb(255, 255, 255)', minHeight: '0px', overflow: 'visible' });
+  await print.screenshot({ path: resolve(output, 'myst-publication-print.png') });
+  const pdfPath = resolve(output, 'myst-publication.pdf');
+  const pdf = await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  const checked = spawnSync('python3', ['-c', `import sys, math, pypdfium2 as P
+d = P.PdfDocument(sys.argv[1])
+assert len(d) > 0
+text = "".join(p.get_textpage().get_text_range() for p in d)
+assert "Scientific browser fixture" in text
+assert "Existing notebook text stays" not in text
+page = d[len(d) - 1]
+text_page = page.get_textpage()
+rects = [text_page.get_rect(i) for i in range(text_page.count_rects())]
+assert rects
+image = page.render(scale=1).to_pil().convert("RGB")
+image.save(sys.argv[1].replace(".pdf", "-last-page.png"))
+# This fixture's last page ends with diagnostics, followed by empty paper.
+start = math.ceil(page.get_height() - min(rect[1] for rect in rects) + 12)
+end = image.height - 40
+assert end - start >= 20, "Expected blank paper after the final diagnostic"
+blank = image.crop((image.width // 4, start, image.width * 3 // 4, end))
+assert all(low >= 254 for low, high in blank.getextrema()), "Screen chrome background leaked into blank printed paper"
+`, pdfPath], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stderr);
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await expect(print).toHaveCount(0);
+
   await mkdir(output, { recursive: true });
   await editor.scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, 'myst-document-source.png'), fullPage: true });

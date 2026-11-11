@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { createNotebookCanvasHost } from '../fixtures/notebook-canvas-host.mjs';
-import { ensureMoreTools, openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
+import { openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
+import { readControlEvidence } from '../../packages/notebook/src/control-evidence.ts';
 import { appPresentation } from '../../web/src/app-sdk-presentation.ts';
 
 test('Notebook creates a real PI experiment once per saved input and keeps the original Finding resolvable', { timeout: 120_000 }, async t => {
@@ -126,14 +127,13 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   const references = page.locator('[data-kind=experiment]');
   const attach = async (run, label) => {
     const existing = await references.evaluateAll(nodes => nodes.map(node => node.dataset.notebookBlockId));
-    await ensureMoreTools(page);
-    await page.getByRole('menuitem', { name: 'Experiment reference', exact: true }).click();
+    await button('Refresh App view', block).click();
+    await button('Completed results', block).click();
+    await page.getByRole('option', { name: new RegExp(run.trial.id.slice(0, 12)) }).click();
+    await button('Attach selected result', block).click();
     await expect(references).toHaveCount(existing.length + 1);
     const reference = page.locator('[data-kind=experiment]' + existing.map(id => `:not([data-notebook-block-id="${id}"])`).join(''));
-    await reference.locator('input[type=file]').setInputFiles({ name: 'control.json', mimeType: 'application/json', buffer: run.bytes });
-    await button('Choose a trial receipt', reference).click();
-    await page.getByRole('option', { name: new RegExp(run.trial.id.slice(0, 12)) }).click();
-    await button('Attach snapshot', reference).click();
+    await expect(reference.getByText('Verification', { exact: true })).toBeVisible();
     await reference.getByLabel('Label').fill(label);
     const id = await reference.getAttribute('data-notebook-block-id');
     return references.and(page.locator(`[data-notebook-block-id="${id}"]`));
@@ -145,8 +145,11 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   await choose('Sample count', /Samples.*1001/);
   await block.screenshot({ path: resolve(output, 'control-canvas-mapping.png') });
   await button('Save binding', block).click();
+  await expect(button('Save revision to enable App view', block)).toBeVisible();
+  await expect(block.getByRole('alert')).toHaveCount(0);
   await expect(button('Create experiment', block)).toHaveCount(0);
-  await save();
+  await button('Save revision to enable App view', block).click();
+  await expect(button('Create experiment', block)).toBeVisible();
   await create(1, 8);
   assert.equal((await ownerExperiments()).length, 1);
   const [firstRecord] = await ownerExperiments();
@@ -185,7 +188,7 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   await edit.getByLabel('Raw value').fill('9 s');
   await button('Apply parameter', edit).click();
   await openNotebookView(page, 'Notes');
-  await expect(block.getByText(/Notebook inputs changed/)).toBeVisible();
+  await expect(block.getByText('Inputs changed. Save a new binding.')).toBeVisible();
   await expect(button('Create experiment', block)).toHaveCount(0);
   await save();
   const stale = await source();
@@ -210,6 +213,8 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
   const latest = await current();
   const evidence = type => latest.document.content.content.filter(node => node.type === type);
   const original = evidence('experiment').find(node => node.attrs.snapshot.trialId === first.trial.id);
+  const imported = (await readControlEvidence(new Blob([first.bytes]))).find(item => item.snapshot.trialId === first.trial.id);
+  assert.deepEqual(original.attrs.snapshot, imported.snapshot, 'direct owner read must retain the same snapshot as the integrity-checked export');
   assert.deepEqual(evidence('finding')[0].attrs.evidenceIds, [original.attrs.blockId]);
   assert.deepEqual(new Set(evidence('experiment').map(node => node.attrs.snapshot.trialId)), new Set([first.trial.id, second.trial.id]));
   assert.equal(originalRevision.document.content.content.find(node => node.type === 'experiment').attrs.snapshot.reportId, first.trial.report.id);

@@ -31,6 +31,36 @@ const projection = {
   ],
 };
 
+test('owner results require explicit selection, preserve their data, and never dispatch an action', async t => {
+  const { ui, React, render, click, dom } = await createUiRuntime(t, {
+    contents: "export { DeclaredAppCanvas } from './app-canvas'; export { AppSdkProvider, createAppHost } from './host';",
+    resolveDir: new URL('../src', import.meta.url).pathname,
+  });
+  dom.window.HTMLElement.prototype.getBoundingClientRect = function () { return { left: 20, right: 320, top: 20, bottom: 50, width: 300, height: 30, x: 20, y: 20, toJSON() {} }; };
+  dom.window.HTMLElement.prototype.scrollIntoView = function () {};
+  const value = { trialId: 'trial', verdict: 'FAIL' }, attached = [], requests = [];
+  let results = [{ id: 'trial', label: 'Verification trial · FAIL', value }];
+  t.mock.method(globalThis, 'fetch', async (_path, init) => {
+    const request = JSON.parse(init.body); requests.push(request.operation);
+    return Response.json({ instance: 'view', source, projection: { ...projection, actions: [], results } });
+  });
+  const mount = readOnly => render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', active: true }) },
+    React.createElement(ui.DeclaredAppCanvas, { source: { ...source, readOnly }, onAttachResult: value => attached.push(value) })));
+  const button = label => [...document.querySelectorAll('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label);
+  await mount(false);
+  assert.equal(button('Attach selected result').disabled, true);
+  await click(button('Completed results'));
+  await click(document.querySelector('[role=option]'));
+  await click(button('Attach selected result'));
+  assert.deepEqual(attached, [value]);
+  assert.equal(requests.includes('act'), false);
+  results = [];
+  await click(button('Refresh App view'));
+  assert.equal(button('Attach selected result'), undefined);
+  await mount(true);
+  assert.equal(button('Completed results'), undefined);
+});
+
 test("declared view renders owner data and routes one explicitly confirmed action with its returned receipt", async (t) => {
   const env = await createUiRuntime(t, {
     contents:

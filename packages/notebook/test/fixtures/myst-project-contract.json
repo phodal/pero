@@ -261,7 +261,7 @@
       "accepted": false,
       "snapshot": {
         "format": "pero-myst-project",
-        "version": 2,
+        "version": 99,
         "entry": "pages/article.md",
         "files": [
           {
@@ -504,6 +504,21 @@
     {
       "base": "pages/article.md",
       "reference": "../*.bib",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../[ab].md",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../*.md",
+      "status": "unsupported"
+    },
+    {
+      "base": "pages/article.md",
+      "reference": "../${HOME}/a.md",
       "status": "unsupported"
     }
   ],

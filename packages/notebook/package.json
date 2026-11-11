@@ -45,6 +45,7 @@
     "./source-extraction": "./src/source-extraction.ts",
     "./interchange": "./src/interchange.ts",
     "./scientific-block": "./src/scientific-block.ts",
+    "./ipynb-render": "./src/ipynb-render.ts",
     "./myst": "./src/myst.ts",
     "./myst-render": "./src/myst-render.ts",
     "./myst-formats": "./src/myst-formats.ts",
@@ -52,7 +53,19 @@
     "./myst-project": "./src/myst-project.ts",
     "./myst-project-snapshot": "./src/myst-project-snapshot.ts",
     "./myst-project-formats": "./src/myst-project-formats.ts",
-    "./myst-bibliography": "./src/myst-bibliography.ts"
+    "./myst-bibliography": "./src/myst-bibliography.ts",
+    "./myst-citations": "./src/myst-citations.ts",
+    "./ipynb": "./src/ipynb.ts",
+    "./ipynb-visibility": "./src/ipynb-visibility.ts",
+    "./myst-publication-sdk": "./src/myst-publication-sdk.ts",
+    "./myst-publication": "./src/myst-publication.ts",
+    "./myst-assets": "./src/myst-assets.ts",
+    "./myst-includes": "./src/myst-includes.ts",
+    "./myst-project-references": "./src/myst-project-references.ts",
+    "./myst-project-render": "./src/myst-project-render.ts",
+    "./myst-csv-table": "./src/myst-csv-table.ts",
+    "./myst-project-citations": "./src/myst-project-citations.ts",
+    "./ipynb-publication": "./src/ipynb-publication.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.ts"
@@ -60,12 +73,22 @@
   "dependencies": {
     "@citation-js/core": "0.7.18",
     "@citation-js/plugin-bibtex": "0.7.18",
+    "buffer": "6.0.3",
+    "csv-parse": "5.6.0",
+    "docx": "8.5.0",
     "exceljs": "4.4.0",
     "fast-formula-parser": "1.0.19",
+    "jszip": "3.10.1",
     "katex": "0.16.22",
     "myst-frontmatter": "1.10.2",
     "myst-parser": "1.7.5",
+    "myst-to-docx": "1.0.18",
+    "myst-to-tex": "1.0.48",
+    "myst-to-typst": "0.0.40",
+    "refkit-js": "0.4.0",
+    "unified": "10.1.2",
     "vfile": "5.3.7",
+    "xml-js": "1.6.11",
     "yaml": "2.8.3"
   }
 }

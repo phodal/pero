@@ -175,7 +175,7 @@ the bundle-budget issue above; its regression now passes. New-head real browser
 results and screenshot inspection remain pending. The earlier 50de2bb results do
 not establish acceptance of these new UI/SDK changes.
 
-## Current functional gaps after the text-project slice
+## Historical functional gaps after the text-project slice
 
 Bounded local text snapshots, root `myst.yml`, project/page scholarly inheritance
 and explicit BibTeX/CSL-JSON metadata resolution are now implemented as described
@@ -252,3 +252,226 @@ JavaScript accepted lone UTF-16 surrogates that UTF-8 export replaced, while Pyt
 rejected them. Shared MyST source admission now rejects those invalid scalar values
 before encoding. The cross-runtime corpus and both source/bundle format paths cover
 high/low lone surrogates and retain valid supplementary characters unchanged.
+
+
+## Published text-project acceptance (`20367200`)
+
+Run [42943619611](https://github.com/phodal/pero/actions/runs/42943619611)
+completed successfully on published head
+`20367200367432d9f9fed49c13416bb3606a129c`. Notebook job 130271022650 passed
+211 core, 99 editor, 143 real-OCR backend and six browser tests. Canvas job
+130271022695 passed both real-owner scenarios. Retained artifact 13820914534
+contains inspected project editor, preview and readonly recovery screenshots.
+The bibliography below the captured viewport was established by assertions,
+not visual inspection. Desktop acceptance was skipped; no Native/Electron GUI
+acceptance follows from these results.
+
+## Scientific workflow continuation: current verification boundary
+
+The continuation implements explicit bounded resources, cross-document references,
+recorded IPYNB interchange, real local CSL formatting and scientific publication
+through the same document SDK. The capability matrix and individual domain
+notes describe the admitted subset and unsupported features. Kernels, plugins,
+automatic resource retrieval and arbitrary TeX/Typst compilation remain off.
+
+An unpublished local continuation was interrupted before it reached the PR.
+Its earlier local test counts are historical, not acceptance for reconstructed
+source. This continuation is revalidated from the published `20367200` base;
+only tests rerun against the reconstructed integration will be recorded below.
+Original Notebook source/revisions are not migrated or replaced.
+
+
+## Reconstructed integration published at `dda9a5fe`
+
+Published `dda9a5feb4a01f3306e7f3503ec50ad717d20170` has the same tree as local
+`65b68ffacb1194cbb099ea83bda224c8cb0174fd`. It preserves master `ccc13945`,
+including the concurrent Canvas saved-document/inline-save workflow. Actual
+editor regression proves mixed MyST/Canvas drafts do not mount old saved inputs,
+save adoption uses the exact new revision, and historical views remain read-only.
+The original PR remains open and unmerged.
+
+Fresh aggregate checks against this combined tree:
+
+- Core: **266/266 passed**, no skips.
+- Complete editor suite: **102/102 passed**, no skips, serial local invocation.
+- Backend: **149/149 passed** with `NOTEBOOK_REAL_OCR=1`, no skips.
+- Notebook TypeScript check and production build passed.
+- Exact emitted RefKit Wasm/hash and staged notices test: **1/1 passed**.
+- All **40 registered source files** are ready with exact current byte digests.
+- CI-frozen Bazel `//:checks`: **7/7 passed** on committed generated inputs.
+- Actual LibreOffice render shows native superscripts/subscripts, fraction/root,
+  table, raster and headings. Native Microsoft Word was not tested.
+- The rebuilt scientific XML fixture validates against the official NLM JATS
+  Archiving & Interchange 1.3 schema. This does not certify every arbitrary input
+  or the separate Publishing/Authoring profiles.
+
+Independent review reproduced and verified fixes for comments leaking into
+publication bodies, oversized repeated include selections aborting compilation,
+coerced array-valued notebook cell types, JSON numeric admission differences and
+hidden-cell reference targets. A missing IPYNB interchange registration was found
+by the complete editor suite and fixed without weakening its parity assertion.
+Twenty-five independent focused checks/reproductions subsequently passed.
+
+The initial reconstructed 101-test editor run had one genuine interchange parity
+failure; the final 102-test run above includes its fix and the master compatibility
+regression. Earlier lost-workspace/concurrent esbuild failures are not counted as
+successful final checks. Root npm and derived pnpm resolve one `docx@8.5.0`; the
+npm workspace listing still reports the upstream adapter's declared 7.x range.
+Actual clean installation, type checking and binary artifact tests validate the
+scoped override; no casts conceal mixed classes.
+
+New browser journeys exercise custom CSL editing and exact HTML reuse, notebook
+save/reopen and original recovery, binary image decode, DOCX/ZIP bytes, dedicated
+print DOM and actual PDF text/page inspection, without external network requests.
+[CI 42964204936](https://github.com/phodal/pero/actions/runs/42964204936) was launched
+for this published head. Browser/PDF/Canvas results and inspected retained
+screenshots are reported on the PR when their matching run completes; this local
+report does not imply that those checks have already passed. No local Chromium
+retry was attempted after the environment's earlier launch denial.
+
+A subsequent UI-only disclosure makes every scientific download's full original
+source recovery explicit, including comments and omitted content, before users
+share it. The existing notebook warning remains. HTML and printing omit original
+source, and publication bodies omit comments/hidden cells. Six focused actual
+component checks and type checking pass for that disclosure; source/publisher
+behavior is unchanged.
+
+## Canvas CI reconciliation with the current Notebook design
+
+Run [42964513846](https://github.com/phodal/pero/actions/runs/42964513846)
+tested PR head `2c6a3267` merged into master `7607c741`, rather than the older
+local master `ccc13945`. The actual PI owner journey passed. The Data owner
+journey passed projection, confirmation denial/cancellation, archive and retained
+receipt, historical inspection, and Host restart recovery, then stopped while
+looking for the hidden `Refresh installed Apps` control. Its retained screenshots
+and `browser-context.json` show the healthy bound view with no browser errors.
+The current design places configuration behind `Configure App view`; the test
+had not opened it. No timeout or production permission change is needed.
+
+The rebinding portion also still expected an unsaved binding to attempt a mount
+and fail. The current saved-document contract deliberately avoids that request.
+The repaired journey explicitly opens configuration, refreshes declarations,
+checks that an edited binding makes no speculative mount, directly verifies that
+Host rejects that unsaved source, then saves the revision through its inline
+action and verifies successful remount with unchanged binding identity/inputs.
+The merged-tree Notebook typecheck, browser-scenario syntax check and all 18
+focused Canvas domain/SDK/actual-editor tests passed. The editor regression
+uses the real configuration disclosure and confirms source preservation through
+a changed-declaration save and read-only revision. Actual repaired browser
+acceptance awaits the next CI run; no local Chromium was launched for this repair.
+
+## Browser findings on published `2c6a3267`
+
+Actual [CI 42964513846](https://github.com/phodal/pero/actions/runs/42964513846)
+ran against GitHub's merge tree with newer master `7607c741`. Linux core/runtime,
+Native compilation, and Notebook's 266 core, 102 editor and 149 real-OCR backend
+checks passed. Notebook Chromium passed 5/7 journeys and Canvas passed 1/2.
+These are failures requiring correction, not complete product acceptance.
+
+- Scientific DOCX download called the official adapter's Node-only
+  `Packer.toBuffer`. An actual browser-target bundle without Node globals
+  reproduced `nodebuffer is not supported by this platform`. The adapter now
+  uses official Blob output and converts its ArrayBuffer to bytes. A real ZIP,
+  equation and source-recovery regression passes in that same browser-API realm.
+  The expanded publication assertions had also been accidentally placed in
+  teardown; they now run in the test body before resources close. All download,
+  XML, PDF and source checks are retained. The complete local core suite now
+  passes 267/267; typecheck and production build pass.
+- Project preview reached a blank iframe after clicking a cross-document link.
+  The exact target exists in both base and CSL-enriched HTML. The inherited
+  `srcdoc` base resolves fragment-only links to the embedding App URL; preview
+  fragment URLs must stay within the inert publication, independently of the
+  standalone HTML export.
+- Canvas Data recovery completed actual owner projection, denied/cancelled and
+  confirmed writes, read-only receipt review and Host restart. It then failed
+  opening configuration after master moved controls behind a gear. Its test
+  must follow that current UI and the existing saved-revision admission rule.
+  The separate real PI experiment/Finding journey passed.
+
+Retained [Notebook artifact 13831226001](https://github.com/phodal/pero/actions/runs/42964513846/artifacts/13831226001)
+and [Canvas artifact 13830497306](https://github.com/phodal/pero/actions/runs/42964513846/artifacts/13830497306)
+were downloaded with verified archive digests. Inspected pixels show the inert
+IPYNB outputs, publication metadata, blank project frame at failure and recovered
+Data Canvas. They do not establish corrected browser behavior. A fresh run on
+the subsequent repaired head is required; no local Chromium retry was attempted.
+
+
+## Project preview fragment navigation repair
+
+Run [42964513846](https://github.com/phodal/pero/actions/runs/42964513846),
+Notebook job 130338695127, reached the project cross-document click and then
+could not find its target. The retained `myst-project-publication.png` shows an
+empty iframe after the click. Both the base and CSL-enriched renderers retain
+the correct `myst-notes~2e~md:note-label` ID. The defect is the srcdoc URL base:
+a fragment-only href resolves against the embedding App URL, navigating the
+sandbox away from the publication instead of scrolling its target. This URL
+behavior and the explicit `about:srcdoc#…` fix match the
+[MDN srcdoc example](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#embedding_source_code_in_an_iframe).
+
+All three static publication previews now specialize generated fragment hrefs
+to `about:srcdoc#…` at the UI boundary. Downloaded HTML and the print input keep
+the original relative fragments, so each standalone file navigates within itself.
+The HTML content, source, identifiers, empty iframe sandbox and restrictive CSP
+remain unchanged. No script, parent access or additional fetching is enabled.
+Regression coverage checks source/metadata/citation links, unchanged external
+links and source escaping, exact preview/export equivalence after this sole URL
+specialization, and the real-browser target plus repeated page navigation.
+Local Chromium remains unrun after its earlier launch denial; actual browser
+navigation and screenshot acceptance require the next matching CI run.
+
+Focused actual-component and preview regressions passed **11/11**, no skips;
+Notebook TypeScript checking and both browser-test syntax checks passed.
+The expanded metadata/citation/escaped-source preview fixtures passed **3/3**
+again after their final edit. These are local DOM/URL results, not browser acceptance.
+
+## Print dialog visibility repair after `42c40e37`
+
+[CI 42966549583](https://github.com/phodal/pero/actions/runs/42966549583) passed
+267 core, 105 editor, 149 backend and six of seven Notebook browser journeys.
+Both actual Canvas owner journeys passed, including declaration rebinding and
+bounded owner metadata writes. Actual DOCX/artifact downloads and repeated
+project navigation now pass. All other required CI jobs passed. The remaining
+standalone publication journey reached the print-only DOM but could not see its
+`Print` button, so scientific PDF acceptance was still incomplete.
+
+The retained screenshot shows no visible dialog. `NotebookPrintTools` is owned
+beneath the collapsed File menu: the output already portals to the page body,
+but its dialog remained under closed `details`. Both normal and publication
+print dialogs now portal to the same body, retaining the existing state owner,
+shared modal behavior, action and output. No browser selector or PDF assertion
+was weakened. Eight actual-component checks pass, including an owner mounted
+inside closed details, exact Print action, focus restoration, cancellation,
+afterprint cleanup and distinct normal/publication output. Fresh real browser
+and PDF acceptance requires the subsequent matching CI run.
+
+Current retained evidence: [Notebook screenshots](https://github.com/phodal/pero/actions/runs/42966549583/artifacts/13831837148)
+and [Canvas screenshots/receipts](https://github.com/phodal/pero/actions/runs/42966549583/artifacts/13832230284).
+Both archives were checksum-verified; actual project/CSV/Canvas and failure
+pixels were inspected. Native/Electron GUI and arbitrary TeX/Typst compilation
+remain outside this evidence.
+
+## Accepted scientific workflow checkpoint `d190b80d`
+
+[CI 42967754932](https://github.com/phodal/pero/actions/runs/42967754932)
+completed successfully on `d190b80db49ff9401cf7a88e6be2e2aef99647f9`.
+Notebook passed 267 core, 106 complete editor, 149 real-OCR backend and all seven
+Chromium journeys. Both Canvas real-owner journeys and the Linux CI gate passed.
+The local complete editor rerun independently passed 106/106 after print repair.
+Native compilation passed; skipped Native/Electron GUI acceptance is not claimed.
+
+Actual scientific downloads, repeated internal navigation, same-origin CSL,
+IPYNB source recovery, print invocation/cleanup and PDF bytes/text/pages now pass.
+[Notebook artifact 13831913303](https://github.com/phodal/pero/actions/runs/42967754932/artifacts/13831913303)
+(archive SHA-256 `658b5dfaf7139bccd34580d398628db31c4f8c2b9d309f94d43f965ce01ed0a2`)
+and [Canvas artifact 13831996896](https://github.com/phodal/pero/actions/runs/42967754932/artifacts/13831996896)
+(`26acc6510821bbea551c82b62a8200c5d14b6095d054c468a4ca93113f812e12`)
+were downloaded and verified. Both real PDF pages were rendered and inspected,
+alongside project/source/CSV and Canvas screenshots. Scientific metadata, native
+MathML rendering and the table are readable; original host prose is absent.
+A light gray background remains below the final print content and is a visual
+follow-up, not a claim of complete print-template certification.
+
+The continuation proceeds separately with local embeds, upstream numbering and
+reference presentation, proof blocks, explicit contents and terminology. These
+new stages are not covered by this checkpoint's acceptance. Existing execution,
+external-service, native GUI and publication-toolchain boundaries remain.

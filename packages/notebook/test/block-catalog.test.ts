@@ -20,4 +20,10 @@ test("the catalog names each persisted block once and does not give tables a pro
   assert.throws(() => restoreMyst(sheet), /incomplete/);
   assert.equal(JSON.stringify(sheet.blockNote).includes("SUM"), false);
   assert.equal((sheet.canonical.content?.[0].attrs?.sheet as { cells: { A1: string } }).cells.A1, "=SUM(A1)");
+  const notebook = projectNotebook({ type: "doc", content: [{ type: "ipynbDocument", attrs: { blockId: "nb-1", schemaVersion: 1, source: "{\"nbformat\":4}" } }] });
+  assert.equal(notebook.losses.some(loss => loss.code === "ipynb-source-document"), true);
+  assert.equal(canReplace(notebook, "myst"), false);
+  assert.throws(() => restoreMyst(notebook), /incomplete/);
+  assert.equal(JSON.stringify(notebook.blockNote).includes("nbformat"), false);
+  assert.equal(notebook.canonical.content?.[0].attrs?.source, "{\"nbformat\":4}");
 });

@@ -1,3 +1,4 @@
+import { mystCompiledPublicationFormats } from './myst-publication-sdk.ts';
 import type { DocumentImportFormat, DocumentExportFormat } from './scientific-block.ts';
 import { MYST_SOURCE_MAX_BYTES, exportMystBundle, exportMystMarkdown, importMystBundle, parseMystAttributes, parseMystDocument } from './myst.ts';
 import { renderMystHtml } from './myst-render.ts';
@@ -26,3 +27,6 @@ export const mystExportFormats: readonly DocumentExportFormat<{ source: string }
   { id: 'bundle', label: 'MyST bundle', extensions: ['.myst.json'], mediaType: 'application/json', serialize: document => exportMystBundle(parseMystDocument(document.source)) },
   { id: 'html', label: 'HTML publication', extensions: ['.html'], mediaType: 'text/html', serialize: document => renderMystHtml(parseMystDocument(document.source)) },
 ];
+
+/** Publication codecs share the compiled SDK boundary; source imports stay unchanged. */
+export const mystPublicationExportFormats = mystCompiledPublicationFormats.map(format => ({ ...format, serialize: (input: { source: string }) => format.serialize({ document: parseMystDocument(input.source) }) }));

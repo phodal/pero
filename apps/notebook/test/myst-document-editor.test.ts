@@ -61,6 +61,7 @@ test('MyST source view is labelled, sandboxed and read-only for history or futur
   const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
   await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, { schemaVersion: 1, editable: false, key: 'history', capture })));
   assert.equal(document.querySelector('textarea')?.readOnly, true);
+  assert.match(document.body.textContent ?? '', /Scientific downloads.*include the full original source, including comments/);
   assert.equal(document.querySelector('textarea')?.getAttribute('aria-label'), 'MyST source');
   assert.equal(document.querySelector('iframe')?.getAttribute('sandbox'), '');
   assert.match(document.querySelector('iframe')?.getAttribute('srcdoc') ?? '', /Content-Security-Policy/);

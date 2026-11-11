@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, Feedback, Field, Input, Select } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Input, Select } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { type NotebookProcedure, type ProcedureChange } from '@pero/notebook/workspace';
 import { columnTypes, type ColumnType } from '@pero/notebook/structured-table';
@@ -56,7 +56,7 @@ export function ProcedureParameters({ procedure, readonly, apply }: { procedure:
       </div>
       <p>{parameter.stepId === null ? t('procedure') : (procedure.steps.some(step => step.id === parameter.stepId) ? procedure.steps.find(step => step.id === parameter.stepId)!.text || parameter.stepId : t('deletedStep', { id: parameter.stepId }))}</p>
       <p role="status">{statusText(result.status)}{result.status === 'ok' ? `: ${labelValue(result)}` : ''}</p>
-      {parameter.source.kind === 'table' && <p className="notebook-workspace-hint">{parameter.source.blockId} / {parameter.source.rowId} / {parameter.source.column.name} · schema v{parameter.source.schemaRevision} · draft base {parameter.source.observedRevision} · {t('pinHint', { value: parameter.source.raw })}</p>}
+      {parameter.source.kind === 'table' && <Disclosure variant="inline" summary={t('source')}><p className="notebook-workspace-hint">{parameter.source.blockId} / {parameter.source.rowId} / {parameter.source.column.name} · schema v{parameter.source.schemaRevision} · draft base {parameter.source.observedRevision} · {t('pinHint', { value: parameter.source.raw })}</p></Disclosure>}
     </div>; })}
     {error && <Feedback kind="error">{error}</Feedback>}
     {!disabled && editing && <ParameterEditor key={`${editing.parameter.id}:${editing.parameter.version}`} parameter={editing.parameter} procedure={procedure} document={document} revision={context?.revision ?? 1}
@@ -110,7 +110,13 @@ function ParameterEditor({ parameter, procedure, document, revision, onClose, on
       <Select label={t('source')} value={mode} options={(['literal', 'table', 'formula'] as const).map(kind => ({ value: kind, label: t(kind) }))} onChange={value => { const kind = value as ProcedureParameterSource['kind']; setMode(kind); if (kind !== draft.source.kind) patch({ source: sourceDefault(kind) }); }} />
       {mode === 'literal' && source.kind === 'literal' && <Field label={t('value')}>{control => <Input {...control} maxLength={4096} value={source.raw} onChange={event => patch({ source: { kind: 'literal', raw: event.target.value } })} />}</Field>}
       {mode === 'table' && <>
-        {!fields.length ? <p>{t('noFields')}</p> : <Select label={t('field')} value={selectedField} options={[{ value: '', label: t('choose') }, ...fields.map(choice => ({ value: fieldKey(choice), label: `${choice.table.name || choice.table.id} · ${choice.rowId} · ${choice.column.name} · ${choice.raw || '∅'}` }))]} onChange={key => {
+        {!fields.length ? <p>{t('noFields')}</p> : <Select label={t('field')} showHint value={selectedField} options={[{ value: '', label: t('choose') }, ...fields.map(choice => {
+          const rowIndex = choice.table.rows.findIndex(row => row.id === choice.rowId);
+          const nameColumn = choice.table.schema.columns.find(column => column.type === 'text');
+          const rowName = nameColumn && choice.table.rows[rowIndex]?.cells[nameColumn.id];
+          return { value: fieldKey(choice), label: `${choice.column.name} · ${choice.raw || '∅'}`,
+            hint: `${choice.table.name || choice.table.id} · ${rowName || `#${rowIndex + 1}`}` };
+        })]} onChange={key => {
           const choice = fields.find(item => fieldKey(item) === key); if (choice) { setUnitsRaw(choice.column.units.join(', ')); setOptionsRaw(choice.column.options.join(', ')); patch({ ...parameterColumn(choice.column), id: draft.id, name: draft.name || choice.column.name, source: pinProcedureField(choice, revision) }); }
         }} />}
         {source.kind === 'table' && <><p>{t('pinHint', { value: source.raw })} · {source.column.type} · schema v{source.schemaRevision}</p>

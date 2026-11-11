@@ -14,7 +14,8 @@
 .notebook-amendment-fields { display: grid; gap: var(--pero-spacing-3); }
 @media print {
   body:has(> .notebook-print-output) > :not(.notebook-print-output) { display: none !important; }
-  body:has(> .notebook-print-output), .notebook-print-output { margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; background: white !important; color: black !important; }
+  html:has(body > .notebook-print-output) { color-scheme: light; }
+  html:has(body > .notebook-print-output), body:has(> .notebook-print-output), .notebook-print-output { margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; overflow: visible !important; background: white !important; color: black !important; }
   .notebook-print-output { display: block !important; font: 10pt/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
   .notebook-print-document th, .notebook-print-document td { border: 1px solid #777; }
   .notebook-print-document thead { display: table-header-group; }

@@ -1,3 +1,6 @@
+import type { MystProjectReferenceTarget } from './myst-project-references.ts';
+import type { MystImageData } from './myst-assets.ts';
+import type { MystIncludeProvenance } from './myst-includes.ts';
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { createTokenizer, mystParse } from 'myst-parser';
@@ -7,6 +10,9 @@ import { parseDocument } from 'yaml';
 /** Source is the document. AST, references and diagnostics are disposable projections. */
 export interface MystNode {
   type: string;
+  provenance?: MystIncludeProvenance;
+  projectTarget?: MystProjectReferenceTarget;
+  imageData?: MystImageData;
   children?: MystNode[];
   value?: string;
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
@@ -20,8 +26,16 @@ export interface MystReferenceTarget {
   label: string;
 }
 export interface MystBibliographyEntry { id: string; title?: string; author?: string; year?: string; url?: string }
+export interface MystCitationRendering {
+  engine: 'refkit-js@0.4.0';
+  style: { path: string; id: string; title: string };
+  locale: string;
+  citations: Record<string, { text: string; html: string }>;
+  bibliography: Array<{ id: string; text: string; html: string }>;
+}
 export interface MystDocument {
   version: 1;
+  citationRendering?: MystCitationRendering;
   source: string;
   ast: MystNode;
   metadata: Record<string, unknown>;
@@ -46,7 +60,7 @@ export function parseMystDocument(source: string): MystDocument {
 }
 
 /** Parse and normalize before resource resolution; project callers supply typed inputs. */
-export function parseMystSource(source: string): MystParsedDocument {
+export function parseMystSource(source: string, options: { frontmatter?: boolean } = {}): MystParsedDocument {
   parseMystAttributes({ schemaVersion: 1, source });
   const diagnostics: MystDiagnostic[] = [];
   const report = (code: string, message: string, node?: MystNode, severity: MystDiagnostic['severity'] = 'warning') => {
@@ -56,9 +70,9 @@ export function parseMystSource(source: string): MystParsedDocument {
   let frontmatter = false;
   let ast: MystNode;
   try {
-    const tokens = createTokenizer({ extensions: { smartquotes: false } }).parse(source, { vfile: file });
+    const tokens = createTokenizer({ extensions: { smartquotes: false, frontmatter: options.frontmatter !== false } }).parse(source, { vfile: file });
     frontmatter = tokens[0]?.type === 'fence' && tokens[0].info === 'yaml' && source.replace(/^\uFEFF/, '').startsWith('---');
-    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false }, mdast: { listItemParagraphs: true } }) as MystNode;
+    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
   } catch (error) {
     report('parse-error', error instanceof Error ? error.message : 'Unable to parse MyST', undefined, 'error');
     ast = { type: 'root', children: [{ type: 'mystUnsupported', value: source }] };
@@ -82,15 +96,18 @@ export function parseMystSource(source: string): MystParsedDocument {
   if (handledPero !== undefined) {
     if (!record(handledPero)) report('frontmatter-validation', 'pero metadata must be a mapping; authored value retained');
     else for (const key of Object.keys(handledPero)) {
-      if (key !== 'bibliography') report('frontmatter-validation', `Unknown pero metadata field: ${key}; authored value retained`);
+      if (key !== 'bibliography' && key !== 'citation') report('frontmatter-validation', `Unknown pero metadata field: ${key}; authored value retained`);
     }
   }
   const scholarly = validateMystMetadata(standardMetadata);
   diagnostics.push(...scholarly.diagnostics);
+  const sourceLines = source.split('\n');
   const normalize = (node: MystNode): MystNode[] => {
-    if (node.type === 'mystDirective' || node.type === 'mystRole') {
+    if (node.type === 'cite' && node.position) node.citationShorthand = sourceLines[node.position.start.line - 1]?.[node.position.start.column - 1] === '@';
+    if (node.type === 'mystDirective' || node.type === 'mystRole' || (node.type === 'mystDirectiveError' && node.name === 'csv-table')) {
       const name = string(node.name) ?? '';
       if (disabledDirectives.has(name)) {
+        node.directiveBody = node.value;
         report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
         node.children = undefined;
         node.value = source.split('\n').slice((node.position?.start.line ?? 1) - 1, node.position?.end.line).join('\n');

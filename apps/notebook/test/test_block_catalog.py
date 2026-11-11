@@ -23,6 +23,8 @@ class BlockCatalogTests(unittest.TestCase):
             self.assertIsNone(reference_capability(name), name)
         self.assertTrue(block('paragraph').historical)
         self.assertFalse(block('noteCard').historical)
+        self.assertFalse(block('ipynbDocument').historical)
+        self.assertIsNone(reference_capability('ipynbDocument'))
 
     def test_old_prose_and_reference_json_round_trips_without_a_projection(self):
         document = {'schemaVersion': 1, 'title': 'Method', 'content': {'type': 'doc', 'content': [

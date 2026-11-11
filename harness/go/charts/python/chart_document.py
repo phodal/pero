@@ -125,6 +125,7 @@ class ChartDocument:
     generated_at: str = ""
     executed_at: str = ""
     sql: str = ""
+    method: str = ""
 
     @classmethod
     def admit(cls, value):
@@ -143,16 +144,16 @@ class ChartDocument:
                 raise Invalid("Chart rows must contain scalar JSON values")
         mapping.validate_rows(rows)
         source = value.get("source")
-        if not isinstance(source, dict) or set(source) - {"label", "caveats", "executedAt", "sql"} or not isinstance(source.get("label"), str) or not source["label"].strip() or len(source["label"]) > 256:
+        if not isinstance(source, dict) or set(source) - {"label", "caveats", "executedAt", "sql", "method"} or not isinstance(source.get("label"), str) or not source["label"].strip() or len(source["label"]) > 256:
             raise Invalid("A chart needs a source label; externally supplied provenance is a declaration")
         caveats = source.get("caveats", [])
         if not isinstance(caveats, list) or len(caveats) > 20 or any(not isinstance(item, str) or len(item) > 1000 for item in caveats):
             raise Invalid("Invalid source caveats")
         query_id, generated_at = value.get("queryId", ""), value.get("generatedAt", "")
-        executed_at, sql = source.get("executedAt", ""), source.get("sql", "")
-        if any(not isinstance(item, str) or len(item) > limit for item, limit in ((query_id, 128), (generated_at, 64), (executed_at, 64), (sql, 4096))):
+        executed_at, sql, method = source.get("executedAt", ""), source.get("sql", ""), source.get("method", "")
+        if any(not isinstance(item, str) or len(item) > limit for item, limit in ((query_id, 128), (generated_at, 64), (executed_at, 64), (sql, 4096), (method, 500))):
             raise Invalid("Invalid chart source metadata")
-        return cls(identity, title, description, mapping, tuple(tuple(row.items()) for row in rows), source["label"], tuple(caveats), query_id, generated_at, executed_at, sql)
+        return cls(identity, title, description, mapping, tuple(tuple(row.items()) for row in rows), source["label"], tuple(caveats), query_id, generated_at, executed_at, sql, method)
 
     def json(self):
         result = {"schemaVersion": 1, "id": self.id, "title": self.title, "description": self.description,
@@ -161,14 +162,14 @@ class ChartDocument:
         for key, value in (("queryId", self.query_id), ("generatedAt", self.generated_at)):
             if value:
                 result[key] = value
-        for key, value in (("executedAt", self.executed_at), ("sql", self.sql)):
+        for key, value in (("executedAt", self.executed_at), ("sql", self.sql), ("method", self.method)):
             if value:
                 result["source"][key] = value
         return result
 
 
 def document_for_view(dataset: Dataset, view: DatasetView, request, aggregation=None):
-    if not isinstance(request, dict) or set(request) - {"title", "description", "chart"}:
+    if not isinstance(request, dict) or set(request) - {"title", "description", "chart", "method"}:
         raise Invalid("A chart request needs a title and chart mapping")
     mapping = ChartMapping.admit(request.get("chart"))
     records = view.selection.apply(view.query.apply(dataset))
@@ -218,9 +219,12 @@ def document_for_view(dataset: Dataset, view: DatasetView, request, aggregation=
                 else:
                     raise Invalid("Chart fields must contain strings or numbers")
             rows.append(row)
+    method = request.get("method", "")
+    if not isinstance(method, str) or len(method) > 500:
+        raise Invalid("Chart method must be a declaration of at most 500 characters")
     value = {"schemaVersion": 1, "id": "dataset-chart", "title": request.get("title"),
              "description": request.get("description", ""), "chart": mapping.json(), "rows": rows,
-             "source": {"label": dataset.name, "caveats": ["Plot coordinates use floating-point values; the source retains exact numbers."]}}
+             "source": {"label": dataset.name, "method": method, "caveats": ["Plot coordinates use floating-point values; the source retains exact numbers. The method is a declaration, not a scientific check."]}}
     document = ChartDocument.admit(value).json()
     identity = view.identity(dataset)
     document["source"].update({"dataset": dataset.id, "revision": 1, "viewId": identity, "view": view.spec(),

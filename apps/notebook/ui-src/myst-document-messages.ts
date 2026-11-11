@@ -1,8 +1,11 @@
 export const mystMessages = {
+  sourceRecoveryWarning: { en: 'Scientific downloads (DOCX, JATS, LaTeX, Typst and ZIPs) include the full original source, including comments and content omitted from the publication. Review before sharing.', zh: '科学格式下载（DOCX、JATS、LaTeX、Typst 及 ZIP）包含完整原始源码，也包括注释和出版物中省略的内容。分享前请检查。' },
+
+  printPublication: { en: 'Print publication / Save as PDF', zh: '打印出版物 / 另存为 PDF' },
   source: { en: 'MyST source', zh: 'MyST 源码' },
   preview: { en: 'MyST preview', zh: 'MyST 预览' },
   import: { en: 'Import MyST document', zh: '导入 MyST 文档' },
-  importHint: { en: 'Import .md, .myst, .myst.json or .myst-project.json as a new block. Existing content is kept.', zh: '将 .md、.myst、.myst.json 或 .myst-project.json 导入为新块，保留现有内容。' },
+  importHint: { en: 'Import .md, .myst, .myst.json, .ipynb or .myst-project.json as a new block. Existing content is kept.', zh: '将 .md、.myst、.myst.json、.ipynb 或 .myst-project.json 导入为新块，保留现有内容。' },
   imported: { en: 'MyST document inserted. Save the notebook to keep this draft.', zh: '已插入 MyST 文档，请保存笔记以保留此草稿。' },
   sourceDownload: { en: 'Download source', zh: '下载源码' },
   bundleDownload: { en: 'Download MyST bundle', zh: '下载 MyST 文件包' },
@@ -10,7 +13,7 @@ export const mystMessages = {
   downloaded: { en: 'Download prepared.', zh: '已准备下载。' },
   limit: { en: 'MyST source must be at most 256 KiB (UTF-8). The previous source is unchanged.', zh: 'MyST 源码不能超过 256 KiB（UTF-8），原有源码未更改。' },
   fileLimit: { en: 'The file is too large to import.', zh: '文件过大，无法导入。' },
-  fileType: { en: 'Choose a .md, .myst, .myst.json or .myst-project.json file.', zh: '请选择 .md、.myst、.myst.json 或 .myst-project.json 文件。' },
+  fileType: { en: 'Choose a .md, .myst, .myst.json, .ipynb or .myst-project.json file.', zh: '请选择 .md、.myst、.myst.json、.ipynb 或 .myst-project.json 文件。' },
   unavailable: { en: 'This MyST block uses an unsupported or invalid schema. Source is read-only; it can still be downloaded.', zh: '此 MyST 块使用不支持或无效的格式。源码为只读，仍可下载。' },
   boundaries: { en: 'Local static preview. Code, plugins and remote assets are not executed or fetched. Unsupported syntax is kept in the original source.', zh: '本地静态预览，不执行代码或插件，也不获取远程资源。不支持的语法保留在原始源码中。' },
   diagnostics: { en: 'MyST diagnostics', zh: 'MyST 诊断' },

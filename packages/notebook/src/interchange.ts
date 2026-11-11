@@ -11,7 +11,8 @@ import { registeredDocumentBlock } from "./scientific-block.ts";
  */
 export const interchangeVersion = "pero-notebook-interchange/1";
 
-export { persistedBlockTypes } from "./block-catalog.ts";
+/** Block types accepted by the Notebook document parser, including the retention envelope. */
+export { persistedBlockTypes };
 
 const knownTypes = new Set<string>(blockCatalog.map(entry => entry.type));
 

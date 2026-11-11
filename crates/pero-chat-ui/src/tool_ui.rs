@@ -136,12 +136,7 @@ mod rendering {
                 .id(("tool-group", row))
                 .mb(px(2.))
                 .min_w_0()
-                .when(embedded, |el| {
-                    el.children(tool.table.as_ref().map(|table| self.inline_table(conversation_id, &tool.id, table, cx)))
-                        .children(tool.chart.as_ref().map(|chart| self.inline_chart(conversation_id, &tool.id, chart, cx)))
-                        .children(tool.control.as_ref().map(|result| self.inline_control(conversation_id, &tool.id, result, cx)))
-                        .children(tool.molecule.as_ref().map(|result| self.inline_molecule(conversation_id, &tool.id, result, cx)))
-                })
+                .child(self.embedded_preview(conversation_id, tool, cx))
                 .child(
                     Button::new(("tool-toggle", row))
                         .relative()
@@ -311,6 +306,19 @@ mod rendering {
                     )
                 })
                 .child(self.tool_notices(conversation_id, tool, !open, cx))
+                .into_any_element()
+        }
+
+        /// Chart, table, control and molecule receipts stay in the message
+        /// stream. A collapsed multi-tool group hides the tool log, not them.
+        pub(crate) fn embedded_preview(&self, conversation_id: &str, tool: &Tool, cx: &mut Context<Self>) -> AnyElement {
+            div().min_w_0().flex().flex_col()
+                .when(embedded_result(tool), |el| {
+                    el.children(tool.table.as_ref().map(|table| self.inline_table(conversation_id, &tool.id, table, cx)))
+                        .children(tool.chart.as_ref().map(|chart| self.inline_chart(conversation_id, &tool.id, chart, cx)))
+                        .children(tool.control.as_ref().map(|result| self.inline_control(conversation_id, &tool.id, result, cx)))
+                        .children(tool.molecule.as_ref().map(|result| self.inline_molecule(conversation_id, &tool.id, result, cx)))
+                })
                 .into_any_element()
         }
 

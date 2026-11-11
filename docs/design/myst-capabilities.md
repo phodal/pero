@@ -1,275 +1,105 @@
-# MyST capability boundary and implementation roadmap
+# MyST capability boundary
 
-Status: first document slice published at `50de2bb`; SDK continuation locally verified after integrating `d1cdba2a`; new-head browser acceptance pending, audited 2026-11-11. This is not a claim of full MyST compatibility.
+Status: the published text-project baseline is `20367200`. The scientific
+workflow continuation below is implemented through the existing document SDK;
+its final integration and browser acceptance are tracked in the
+[verification report](../issues/2026-11-11-myst-document-verification.md).
+This is not a claim of complete MyST CLI or Jupyter Book parity, and does not
+close the broader [#195](https://github.com/phodal/pero/issues/195) roadmap.
 
-The request to add MyST capabilities extends the deliberately narrow projection in
-[#195](https://github.com/phodal/pero/issues/195) and [#196](https://github.com/phodal/pero/pull/196).
-It does not silently complete #195 phases B/C, replace Tiptap, or authorize a new kernel.
-The prior implementation baseline below is PR head `d65e798c740d49ceb3132c853e54304c4f1adf57`.
-Current-task implementation and acceptance must be reported separately from that baseline.
-The final integration also preserves concurrent bases `5891fcab` and `d1cdba2a`, including their generic
-document-block SDK. MyST uses that shared definition/registration/editor-adapter
-path; the before-task comparison remains unchanged. Actual post-rebase checks
-are recorded in the [verification report](../issues/2026-11-11-myst-document-verification.md).
+## Architecture and upstream contract
 
-## Verified upstream and API
+`defineDocumentBlock`, `documentBlockNode`, shared field validation and the
+Notebook revision owner remain the only document registration/edit/persistence
+path. Source is authoritative; parser AST, rendered publications and previews
+are disposable projections. Unknown future schemas remain opaque/read-only
+with original recovery. Code and imported recorded outputs never execute.
 
-All upstream links below are pinned to MyST source commit
-[`50e82202324dc36f10bd04877d00016879da6f6e`](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e).
-These are versions read from package manifests at that commit, not a claim that they are latest:
+The source audit uses pinned MyST commit
+[`50e82202324dc36f10bd04877d00016879da6f6e`](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e),
+not an unversioned claim about the latest upstream. Its parser is `1.7.5`,
+frontmatter `1.10.2`, DOCX adapter `1.0.18`, TeX adapter `1.0.48` and Typst adapter
+`0.0.40`. MyST AST specification `0.0.6` describes nodes, not execution or the
+full compiler. See the official [AST primer](https://mystmd.org/spec/ast-primer).
 
-| Package | Version | Responsibility |
+The official parser may preserve an unknown directive in `mystDirective.value`
+but discard invalid known-directive children in a `mystDirectiveError` result.
+Consequently no transformed AST replaces authored source during an unrelated
+Notebook edit. Known/unknown/malformed directives and nested source survive
+source, bundle and revision roundtrips. Unsupported display semantics are
+reported rather than claimed as implemented.
+
+## Traceable capability matrix
+
+Upstream source links below use the same pinned source tree.
+
+| Capability | Implemented contract | Remaining boundary / upstream reference |
 | --- | --- | --- |
-| `myst-parser` | 1.7.5 | Markdown tokenization, directives and roles into MyST AST |
-| `myst-spec` | 0.0.6 | AST types; not a compiler or runtime |
-| `myst-frontmatter` | 1.10.2 | Frontmatter types/validation |
-| `myst-cli` | 1.12.0 | Project processing, transforms and build orchestration |
-| `myst-to-docx` | 1.0.18 | Word rendering |
-| `myst-to-tex` | 1.0.48 | TeX rendering |
-| `myst-to-jats` | 1.0.37 | JATS rendering |
-| `myst-execute` | 0.5.0 | Jupyter execution and output caching |
-| `myst-ext-reactive` | 1.0.10 | Reactive syntax nodes; not itself a reactive runtime |
+| Source and prose | Source editing/import/export; headings, lists, tables, roles, admonitions, footnotes and explicit diagnostics; unknown source retained. | Not every MyST role/directive has native presentation. [Syntax](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e/docs) |
+| Math and local references | Safe MathML preview, labeled equations/figures/tables, local target numbering and links. | Duplicate/missing targets diagnose rather than guess; no arbitrary TeX execution. [Math](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/math.md) |
+| Scholarly metadata | Official frontmatter validation/inheritance; authors, affiliations, ORCID, DOI, dates, licenses, funding. Raw metadata retained. | No network identity/DOI validation; unsupported metadata does not disappear from recovery. [Frontmatter](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/frontmatter.md) |
+| Project snapshots | Explicit versioned local text/binary resource snapshot; resource selection, editing, save/reopen and exact download. | No directory traversal, filesystem discovery or automatic downloading. [Configuration](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md) |
+| Includes | Recursive local include/literalinclude from provided text, provenance, line/marker selection, cycle and expansion limits. | Missing, unsupported or over-budget inputs retain source and diagnostics. Parsed IPYNB includes are not silently flattened. [Includes](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/embed.md) |
+| Cross-document links | Explicit path/label and unambiguous project labels, notebook cell targets, per-page numbering and self-contained internal HTML links. | Remote inventories, external projects and global book numbering are not implemented. Hidden notebook cells cannot supply visible targets. [Cross-references](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/cross-references.md) |
+| Figures/assets | Explicit original binary preservation, bounded PNG/JPEG previews, real image bytes in exports. | SVG/HTML and unsupported types remain inert/recoverable. Structural admission is not complete image decoding. [Figures](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/figures.md) |
+| CSV tables | Bounded inline and supplied-file CSV through the official directive converter, with captions/headers/quoted cells. | Local `:file:` is an explicit Pero extension: the pinned upstream file option is not active. No spreadsheet execution. [Tables](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/tables.md) |
+| Bibliography | Explicit local BibTeX/CSL-JSON parsing, provenance, complete CSL records, duplicate/missing-key diagnostics. | Parser format autodetection and URL retrieval disabled. [Citations](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/citations.md) |
+| CSL formatting | Real pinned RefKit/Hayagriva Wasm, APA or supplied custom CSL, grouped/narrative/numeric citations and one notebook-wide citation history. | Explicit `pero.citation` extension, not native MyST configuration. Note-style placement/custom locale loading/prefix-suffix parity remain unsupported and diagnosed. See [CSL contract](myst-citations.md). |
+| IPYNB | nbformat 4 original JSON, cell edits/addition/output clearing, metadata/unknown fields/attachments/MIME retention; outputs marked stale after code edits. Safe recorded previews and static remove/hide tags. | No kernel, widget runtime or imported script execution. Untouched JSON is exact; edited JSON may change whitespace. [Upstream notebooks](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/execute-notebooks.md), [Pero interchange](ipynb-interchange.md) |
+| HTML/project publication | Inert self-contained whole-project HTML, internal navigation, shared metadata/citations/assets and sandboxed preview. | Not the themed MyST website builder/search/deployment service. No site deployed. |
+| Word | Actual official adapter and DOCX bytes, metadata, tables, raster, citations and editable native common algebra/fractions/roots/scripts. | Unsupported math/layout explicitly loses presentation and retains literal/source recovery. Actual LibreOffice rendering is not native Word acceptance. See [publication](myst-publication.md). |
+| JATS | Bounded direct scientific XML serializer with MathML, references, assets and complete recovery. A scientific fixture validates against official Archiving & Interchange 1.3. | Not a claim that all inputs meet every JATS profile; no fabricated journal metadata. Official MyST JATS dependency closure was not adopted because of incompatible citation licensing. |
+| TeX/Typst | Actual pinned official source adapters; offline ZIP assets/recovery/loss reports; restricted inert TeX command subset and native Typst tables without remote imports. | No arbitrary source compilation, external templates or toolchain installation. Format-specific losses are explicit. |
+| PDF/print | Existing Notebook print owner displays a dedicated publication-only surface and invokes browser printing; CI inspects real PDF bytes/text/pages. | Browser-mediated PDF, not a TeX/Typst PDF compiler; current browser acceptance must be read from the verification report. |
+| Execution/plugins/reactive | Source retained and execution boundaries diagnosed. | Kernels, executable plugins and reactive computation stay disabled; they need their own owner/permissions/runtime design. [Execution](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-execute), [reactive](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-ext-reactive) |
 
-Manifests are under `packages/<package>/package.json` in the pinned tree. Each lists
-MIT. The root [MIT license](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/LICENSE)
-requires retaining its copyright and permission notice in copies/substantial portions.
-Transitive dependencies and export templates have their own licenses to verify when shipped.
+## Admission and recovery limits
 
-The verified parser entry point is
-[`mystParse(content, opts?)`](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-parser/src/myst.ts).
-Options include `vfile`, `markdownit`, `extensions`, `mdast`, `directives`, and `roles`.
-It returns the parsed tree and supports `VFile` diagnostics; `mystParser` is its unified-plugin form.
-Parsing is not project compilation: bibliography lookup, cross-document target resolution,
-asset collection, export templates and execution are separate responsibilities.
+- MyST document source: 256 KiB UTF-8; invalid Unicode scalar text is rejected.
+  The source bundle contains only authoritative source, not alias-expanded AST
+  or metadata that could exceed its own import budget.
+- Project block schema 1: text envelope v1, or v2 with explicit binary assets.
+  At most32 combined resources, 256 KiB per text/decoded asset, 1 MiB total text,
+ 8 MiB pre-read input, 1536 KiB escaped persisted snapshot contribution. Notebook
+  total remains 2 MiB. Canonical paths reject collisions, root escapes and schemes.
+- PNG/JPEG dimensions: 4096 per side and 16 megapixels. Scientific export separately
+  limits 128 image placements and 16 MiB decoded placed bytes, counting repeats.
+  Excess placements become diagnosed placeholders without altering source.
+- Includes: depth 12, count 128,1 MiB total expansion including repeated resources.
+  Parsed selections also obey the parser's 256 KiB input bound; overflow retains
+  the directive rather than aborting the entire project.
+- CSV: 1000 rows, 64 columns, 16 KiB cells, 64 KiB records; page totals 64 tables,
+ 1 MiB CSV input and 10000 cells. See [resource graph](myst-resource-graph.md).
+- IPYNB: 1 MiB JSON, 1536 KiB escaped contribution, 256 cells, depth 64. Duplicate
+  keys, unsafe integer values, invalid scalar text and non-string cell types
+  reject at the boundary. TS/Python agree on integral JSON numbers.
+- CSL inputs and engine calls are bounded, but synchronous formatting has no
+  hard deadline. Unsupported formatting remains a diagnosed fallback.
 
-Important source-over-README distinctions:
+Scientific DOCX/ZIP and explicit text/XML recovery include the complete original
+source. The UI warns that this includes content hidden/removed from the visible
+notebook publication. Body renderers omit hidden cells and editor comments;
+HTML/print do not embed the original notebook. Imported outputs remain recorded
+content, not new evidence of execution. Source recovery must not be shared as
+though it were redacted output.
 
-- The parser source enables colon fences, frontmatter, math, footnotes, citations,
-  definition lists, task lists and tables. Its README's old “not yet complete” list
-  includes features now present and is not the acceptance checklist.
-- `markdownit.html` defaults to `true`. Rendering parsed nodes as raw HTML is not safe
-  merely because the parser is official. Preview/publication rendering must remain inert.
-- [`myst-ext-reactive/src/index.ts`](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-ext-reactive/src/index.ts)
-  emits `r:range`/`r:dynamic`/`r:display` and `r:var` nodes, including expression strings.
-  Preserving these nodes must not evaluate those strings.
+## Dependencies, licensing and acceptance
 
-## Capability matrix
+All new dependencies are exact pins, including `docx@8.5.0`, `jszip@3.10.1`,
+`buffer@6.0.3`, `unified@10.1.2`, `xml-js@1.6.11`, `csv-parse@5.6.0` and
+`refkit-js@0.4.0`. Scoped npm/pnpm overrides align the official DOCX adapter with
+8.5.0. Clean dependency installation and real artifact tests establish the
+actual resolved graph; the upstream adapter's declared 7.x range alone does not.
 
-“Current work” describes code inspected in this working tree, not completed cross-surface acceptance.
-The durable Notebook JSON and existing revision owner remain canonical. Source bundles
-are not a declaration that arbitrary MyST AST can be edited losslessly as Tiptap blocks.
+Actual licenses are staged through the App's existing notices path. RefKit's
+Rust/Wasm release, 89 registry checksums and pinned Git sources are re-audited;
+CSL styles/locales have separate CC-BY-SA 3.0 notices. No CPAL/AGPL citation engine
+is introduced. See the detailed [citation audit](myst-citations.md) and
+[publication audit](myst-publication.md), rather than inferring closure rights
+from a top-level MIT label.
 
-| Scientific capability | Upstream evidence | Before this task | Current work and remaining boundary |
-| --- | --- | --- | --- |
-| Markdown, directives, roles, nested prose | [Parser source](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-parser/src/myst.ts) | Only own projection of paragraph/heading/code plus bold/italic/code. No source parser. | Implemented official `myst-parser@1.7.5`, source-backed derived AST/diagnostics, and bounded Notebook import/edit/export. Unsupported constructs stay recoverable, not silently flattened. |
-| Equations, labels and numbered cross-references | [Cross-reference docs](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/cross-references.md) | `crossReference` shape did not supply a resolver or equation renderer. | Implemented KaTeX MathML (`trust: false`) and bounded single-document labeled targets/numbering, including missing/duplicate diagnostics. Cross-document resolution and upstream numbering equivalence require later project compilation. |
-| Figures, captions, images and scientific tables | [Figures](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/figures.md), [tables](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/tables.md) | Notebook tables existed, but projection deliberately withheld formula and typed measurement tables. | Implemented supported AST figure containers, captions and tables. Images are link/alt-text placeholders, not embedded assets; relative image paths are not activated. A MyST table is not a unit-aware measurement table or spreadsheet; preserve existing scientific blocks and report export loss. CSV/file-backed directives need explicit asset resolution. |
-| Bibliography and citations | [Citations](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/citations.md) | Cite identifier was explicitly not a Pero owner record; snapshots/references withheld. | Implemented citation syntax and simple key-linked previews from authored `pero.bibliography` entries, plus a local references list. This namespaced extension is not standard MyST bibliography input, a BibTeX reader, CSL validation or a CSL style engine. The separate project snapshot slice now resolves explicit local BibTeX and CSL-JSON metadata (see below). Standard citation styles and DOI metadata retrieval remain absent. Do not pretend parsing a cite resolves it. DOI and remote bibliography lookup can cause network access. |
-| Scientific frontmatter | [Fields](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/frontmatter.md), [configuration](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md) | No MyST document metadata pipeline. | Implemented source retention and JSON-portable YAML mapping extraction with duplicate-key, custom-tag, invalid-input and alias safeguards. The SDK continuation adds official `myst-frontmatter@1.10.2` page validation and a typed normalized scholarly projection alongside unchanged raw metadata/source. Standalone HTML displays authors/affiliations, DOI, licenses and funding. The separate project snapshot slice adds official project/page inheritance (see below). External validation and complete scholarly export parity remain open; this is not the full upstream project compiler. |
-| Markdown and AST exchange | [Parser](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-parser/src/myst.ts), [export docs](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/documents-exports.md) | Own small AST-shaped projection only. `restoreMyst` was not a general upstream importer. | Implemented exact source download and version-1 `pero-myst` JSON bundle containing only source, not duplicated projections, AST or assets. Import trusts only source and rederives projections. Unsupported syntax stays in source. Invalid/future block versions are not editable as version 1; this is not arbitrary AST or future-schema import compatibility. |
-| `.ipynb` input and existing outputs | [Execution docs](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/execute-notebooks.md), [notebook metadata](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md) | No MyST notebook import. | Separate future importer/exporter acceptance: preserve cells, IDs, metadata, attachments and MIME output bundles; sanitize rendered output. A Markdown code fence is not a lossless notebook. |
-| HTML publication | [Static HTML build flag](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/execute-notebooks.md) | No MyST publication path. | Implemented bounded standalone inert HTML download and sandboxed iframe preview, with CSP, escaped authored HTML, no scripts and no automatic resource fetches. It is not the MyST website builder, interactive theme, search/index, or multi-page site pipeline. |
-| JATS, DOCX, TeX and PDF | [Export formats](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/documents-exports.md), [JATS](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/creating-jats-xml.md), [static export caveats](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/quickstart-static-exports.md) | No MyST converters. Existing Notebook print does not establish MyST PDF export. | Planned explicit build adapter. Pin templates and toolchains, collect assets, report diagnostics and output provenance. PDF needs a TeX/Typst toolchain; exporting print formats can lose semantic metadata. DOCX/PDF output does not imply equivalent input support. |
-| `myst.yml`, multiple pages, includes and assets | [Configuration](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md), [include/export docs](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/documents-exports.md) | No project loader or MyST asset graph. | Implemented bounded source-only project snapshots with root-relative paths, explicit text resources and missing/unsupported-resource diagnostics (see below). Includes are resolved only to provided-resource status, never expanded. Binary assets, full project compilation and site generation remain absent. No automatic downloads or executable plugins. |
-| Jupyter execution and caching | [Execution](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/execute-notebooks.md), [execute package](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-execute/README.md) | Not embedded; owner execution elsewhere in Pero. | Off. Upstream execution is also disabled by default; `--execute` starts/uses Jupyter, runs cells and inline expressions, and caches outputs. Future opt-in must use Host authorization, explicit environment/input versions, cancellation and provenance. Cache reuse is not proof of a reproducible scientific result. |
-| Reactive expressions and in-page computation | [Reactive source](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-ext-reactive/src/index.ts) | Not embedded. | Preserve inertly; no automatic recomputation, script execution or second kernel. Changes may mark results stale, never implicitly launch HPC or paid models. |
-
-## Implemented document workflow and exact boundaries
-
-The current package manifest pins `myst-parser@1.7.5`, `katex@0.16.22`,
-`vfile@5.3.7`, `yaml@2.8.3`, `myst-frontmatter@1.10.2`,
-`@citation-js/core@0.7.18` and `@citation-js/plugin-bibtex@0.7.18`; it does not install the MyST CLI, execution engine
-or export converters.
-
-The inspected implementations are [`myst.ts`](../../packages/notebook/src/myst.ts),
-[`myst-render.ts`](../../packages/notebook/src/myst-render.ts),
-[`myst-document.tsx`](../../apps/notebook/ui-src/myst-document.tsx), and
-[`myst_document.py`](../../apps/notebook/backend/myst_document.py).
-
-- A `mystDocument` block stores `schemaVersion: 1` and authored `source`, with the
-  existing block identity and Notebook revision ownership. Both language boundaries
-  enforce the 256 KiB UTF-8 source limit. AST, targets and diagnostics are derived,
-  not a second durable document or accepted imported AST.
-- The UI appends `.md`, `.myst` or `.myst.json` as a new block. Existing Notebook
-  content is retained; insertion is a draft until saved. The block has a source
-  editor, diagnostics, sandboxed preview, and separate source/bundle/HTML downloads.
-  Editing respects the editor's readonly state. Unsupported block schemas expose
-  readonly source and source download instead of treating them as editable version 1.
-- The JSON bundle has format `pero-myst`, version 1. Its source is authoritative.
-  Export carries only the source envelope, keeping every valid source within the
-  import byte budget even with YAML aliases or worst-case JSON escaping. Import
-  remains compatible with earlier bundles containing derived fields but does not
-  trust them; parsing rederives metadata, bibliography and diagnostics. It carries neither resolved project assets nor the rest of the Notebook.
-- Local citation preview is an explicitly Pero-specific convenience. For example:
-
-  ```yaml
-  pero:
-    bibliography:
-      - id: smith2024
-        author: Alice Smith
-        title: Example authored reference
-        year: 2024
-        url: https://example.org/paper
-  ```
-
-  `@smith2024` can link to that authored entry. A few CSL-like author/date fields are
-  tolerated for convenience, but this is neither complete CSL input support nor a
-  formatting processor. References are marked as authored, not externally verified.
-  In standalone source blocks, standard `bibliography` paths and cross-project
-  `references` produce a diagnostic and are not loaded. Project blocks resolve
-  only explicitly provided bibliography text files. No DOI metadata is fetched.
-- The renderer supports a bounded subset of parsed prose, admonitions, lists,
-  tables, captions, math, local labels and citations. It retains unknown/disabled
-  source with visible diagnostics. Includes, CSV-file tables, raw directives,
-  widgets, code cells, embeds, executable plugins and reactive evaluation remain off.
-- Standalone HTML means a downloaded local document with inline styles and MathML,
-  not a deployed website. Images remain links/placeholders; no relative or remote
-  asset bundle is produced. There is no MyST theme/site pipeline, multi-page
-  publishing, Notebook-to-MyST conversion, `.ipynb` conversion, or JATS/DOCX/TeX/PDF
-  export. Browser print is not a separately validated PDF publishing adapter.
-
-Package/test additions are implementation evidence, not a claim that all tests or
-browser/Native/Electron/Wasm acceptance have passed. The task's final verification
-report must record actual completed checks and any failures separately.
-
-## SDK continuation after `50de2bb`
-
-The user requested “继续按 SDK 实现”. This continuation extends the shared Notebook
-SDK in `scientific-block.ts`, not a parallel MyST-only page framework:
-
-- `DocumentBlockDefinition` declares `futureVersions: preserve | reject`; existing
-  definitions preserve by default, while MyST explicitly rejects unsupported
-  versions for validation/persistence. `validateFields` validates current-version
-  fields before identity assignment; full `validate` additionally checks identity
-  and retains the concurrent `current | opaque` result contract. Future generic
-  document schemas are never typed or edited as version 1.
-- Typed `DocumentImportFormat` and `DocumentExportFormat` describe extensions,
-  media types, import byte budgets and pure parse/serialize functions. MyST supplies
-  codecs in `myst-formats.ts`; UI retains file I/O, downloads and notifications and
-  consumes descriptors instead of embedding each conversion branch.
-- `myst-metadata.ts` clones raw input before official page-frontmatter validation,
-  retains validation diagnostics, guards nondeterministic date parsing and handles
-  upstream validation exceptions. `scholarly` is a normalized projection, not
-  replacement source. Its authors, affiliations, DOI, license and funding display
-  does not verify those claims with external registries.
-- One fixture, `packages/notebook/test/fixtures/myst-document-contract.json`, is
-  consumed by TypeScript SDK and Python persistence tests. It covers accepted and
-  rejected attribute wires, source line endings/Unicode and the UTF-8 byte limit.
-- Review of the first-stage CI screenshot found a source textarea only about
-  830 × 43 px despite five passing browser tests. The working tree now keeps the
-  shared Textarea component, adds `rows={12}` and a narrow geometry selector, and
-  asserts computed height/min-height and visible line capacity. Separate source
-  and preview screenshots are added. New-stage CI visual acceptance is pending.
-
-Next SDK priorities are explicit project/resource descriptors (without automatic
-fetch/execute), standard bibliography resolution with diagnostics, and loss-aware
-notebook/publication adapters. Reuse current block validation and pure format seams;
-do not turn UI components into project loaders or execution owners. Jupyter and
-reactive execution remain a separate Host-authorized design.
-
-## Phased acceptance
-
-1. **Document foundation (current implementation):** official pinned parser;
-   source-backed derived AST and diagnostics; versioned source
-   bundle (no AST or assets); durable Notebook block; editor import and export; inert
-   scientific preview and standalone HTML download. Test malformed input,
-   unsupported nodes, source save/reopen, readonly handling, download contents,
-   unsafe HTML/links and execution remaining off. Record exact installed versions.
-2. **Project and scholarly resolution:** `myst.yml`, explicit assets/includes,
-   project/page frontmatter merging, BibTeX/citation styles, multi-document references,
-   and `.ipynb` exchange with existing outputs. Use upstream fixtures plus real
-   multi-file articles, including unresolved references and missing resources.
-3. **Publication adapters:** explicit reproducible JATS/DOCX/TeX/PDF builds, pinned
-   templates, artifact downloads and truthful loss reports. Validate scientific
-   metadata/citations and inspect rendered results, not just file extensions.
-4. **Optional execution:** only after a separately accepted owner/permission design.
-   Jupyter environments, resource limits, cancellation, cache provenance and stale
-   inputs must have end-to-end acceptance. Reactive execution remains a separate
-   decision; parsing its syntax is not a reason to enable it.
-
-A passing package test is not browser, Electron, Native or Wasm acceptance. Each
-surface must have its own observed evidence. Do not mark this matrix complete from
-shape compatibility, successful bundling, or the upstream project's feature list.
-
-## Baseline CI evidence, separate from new MyST work
-
-[Run 42930515786](https://github.com/phodal/pero/actions/runs/42930515786) was verified
-against head `d65e798c740d49ceb3132c853e54304c4f1adf57` (`pull_request`).
-The Notebook and Canvas jobs completed by 2026-11-11 00:24:11 UTC; other jobs were still running at inspection:
-
-- [Notebook job 130227987709](https://github.com/phodal/pero/actions/runs/42930515786/job/130227987709): document/formula/XLSX/Agent revision step failed;
-  typecheck succeeded. Completed logs show editor tests 88 passed / 2 failed (Notes
-  title expectations in `procedure-workspace.test.ts` and `source-excerpt-ui.test.ts`).
-  Browser tests were 3 passed / 1 failed: `scientific-block-browser.mjs:109` timed out
-  waiting for “Accepted as revision 2. The previous revision is unchanged.” This is
-  a failed acceptance-feedback check, not successful reference-review UI acceptance.
-  The [uploaded artifact](https://github.com/phodal/pero/actions/runs/42930515786/artifacts/13816262284)
-  contains 54 files (6,391,792 bytes); its contents were not visually inspected in this audit.
-- [Canvas job 130227988042](https://github.com/phodal/pero/actions/runs/42930515786/job/130227988042): failed during build preparation, before real Host/browser acceptance.
-  Retrieved logs show `nightly-2026-10-28` auto-installed, then `E0463: can't find crate
-  for core` with `wasm32-unknown-unknown` target missing at 00:22:54 UTC. Host build and
-  browser verification were skipped. Artifact upload reported no files in
-  `test-results/notebook-canvas/`. This run supplies no Canvas visual acceptance.
-
-No workflow files were changed for this audit. Recheck the overall run before claiming final CI status; this historical snapshot is not the new implementation's validation.
-
-## Local text-project SDK slice (PR #196 continuation)
-
-This slice adds a distinct `mystProject` schema-1 block; existing `mystDocument`
-and `pero-myst` version-1 bundles are unchanged and are never automatically promoted.
-`MystProjectSnapshot` owns an entry path and exact authored text resources. Its
-scalar wire is `{format:"pero-myst-project",version:1,entry,files:[{path,text}]}`.
-Notebook EntryStore and revisions remain the only persistence owner, not Host
-`ResearchProject` or a new file service.
-
-- Limits: 32 resources, 256 KiB UTF-8 per resource, 1 MiB total text, 1024-byte
-  paths. Import reads at most 8 MiB. Independently, the actual snapshot scalar
-  after JSON escaping and its canonical exported form must each fit 1536 KiB.
-  This leaves room within Notebook's existing 2 MiB total document cap; other
-  blocks still count toward that total. Quotes/control characters may reach the
-  persisted limit before the raw-text limit. Neither document nor HTTP caps grow.
-- Stored paths are canonical root-relative `/` paths. Duplicate names, absolute
-  paths, drives/schemes, backslashes, query/fragment, empty/dot/traversal segments
-  and invalid Unicode are rejected. References may normalize `../` within the
-  root only. Exact provided names are used without decoding, globbing, directory
-  discovery, environment expansion, networking or filesystem access.
-- Root `myst.yml` is explicit configuration. Official `validateProjectFrontmatter`
-  and `fillPageFrontmatter` normalize cloned metadata and inherit contributor
-  identity/affiliations; project title is deliberately not inherited. Raw config
-  and page source remain intact. Future config versions are diagnosed and not
-  applied. Other config locations and unsupported options remain inert/diagnosed.
-- Project bibliography paths are relative to `myst.yml`; page declarations are
-  relative to each page. Both are collected in declared order; repeated references
-  to one resource are deduplicated. Distinct records colliding after MyST identifier
-  normalization are ambiguous and unresolved, including legacy `pero.bibliography`.
-- Exact `@citation-js/core@0.7.18` plus `@citation-js/plugin-bibtex@0.7.18` parse
-  BibTeX with explicit `forceType: '@bibtex/text'`, `generateGraph: false`.
-  CSL-JSON is parsed directly as item arrays with required IDs/types. Complete
-  derived records and resource provenance are retained alongside safe display
-  author/title/year/DOI. Macro expansion, TeX accents, corporate authors and
-  crossref inheritance have executable fixtures. The parser preserves authored
-  BibTeX keys, while MyST resolves normalized keys. For Unicode citation keys the
-  pinned MyST parser requires explicit roles such as `{cite}` with a backtick key;
-  bare `@García2024` is tokenized as `@Garc` plus text. Source is never rewritten.
-- This is metadata resolution, **not CSL citation styling**, complete CSL schema
-  validation, remote DOI verification or the full MyST CLI. No `plugin-csl`,
-  `citation-js-utils` or `citeproc` is installed. The new dependency closure is
-  MIT/BSD, with notices in `apps/notebook/licenses/myst-bibliography.txt`.
-- Parsing/normalization now precedes typed resolution. Standalone document behavior
-  is preserved; project compilation supplies inherited scholarly metadata and
-  bibliography before any citation lookup. Each page numbers local references
-  independently. Cross-document targets are still deferred.
-- Includes/literalinclude report whether their resource is provided, missing or
-  unsupported but **never expand** it. Images/links report resource status and stay
-  nonembedded. Plugins, kernels, raw authored HTML/scripts and filesystem/network
-  loaders remain off. Binary assets, site build, `.ipynb`, JATS/DOCX/TeX/PDF and
-  execution remain incomplete; this slice does not mark phase 2 complete.
-- Shared format descriptors import `.myst-project.json` as one draft block. The
-  generic block editor provides resource selection/editing, path diagnostics,
-  sandboxed entry preview, snapshot and inert entry-HTML downloads. Unknown block
-  or envelope versions expose readonly raw recovery, not editable version 1.
-  Snapshot export preserves every file's text; HTML exports only the entry.
-  Notebook interchange explicitly reports project projection loss.
-
-Current test/visual evidence belongs in the verification report. Added browser
-assertions/screenshots are not evidence that a browser has run or been inspected.
+Acceptance requires shared wire fixtures, revision tests, package/editor/backend
+checks, type/build/frozen generated checks, actual offline browser journeys and
+inspected screenshots. Builds and unit tests do not establish Native/Electron,
+Word, browser or arbitrary publication-template acceptance. No PR merge or
+website deployment is performed by this continuation.

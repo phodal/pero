@@ -60,6 +60,7 @@ export const blockCatalog: readonly BlockCatalogEntry[] = [
   { type: "savedSearch", group: "block", validation: "document-parser", projection: { kind: "outside-subset" } },
   { type: "noteCard", group: "block", validation: "document-definition", projection: { kind: "outside-subset" } },
   { type: "mystDocument", group: "block", validation: "document-definition", projection: { kind: "loss", code: "myst-source-document", detail: "Use the MyST source or bundle export for this document. Its original source and metadata cannot be replaced by this prose-only projection." } },
+  { type: "ipynbDocument", group: "block", validation: "document-definition", projection: { kind: "loss", code: "ipynb-source-document", detail: "Use the original .ipynb export to retain cell IDs, metadata, attachments, recorded outputs and unknown fields. This prose-only projection cannot replace the notebook source." } },
   { type: "mystProject", group: "block", validation: "document-definition", projection: { kind: "loss", code: "myst-project-snapshot", detail: "Use the MyST project snapshot export to retain every authored resource. Entry HTML is not a lossless project export." } },
   { type: "retainedBlock", group: "block", validation: "document-parser", projection: { kind: "loss", code: "retained-envelope", detail: "The original block is inside the retention envelope and was not converted." } },
 ];

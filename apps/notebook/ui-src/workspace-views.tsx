@@ -7,6 +7,7 @@ import { NamedReferenceTools, NotebookReplacementTools, NotebookStatusBar } from
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
 import { ProcedureParameters } from './procedure-parameters';
+import { NOTEBOOK_OPEN_TARGET_EVENT } from './notebook-context';
 import { ProcedureMaterials } from './procedure-materials';
 import { ReviewerPanel } from './review-panel';
 import type { Editor } from '@tiptap/core';
@@ -309,6 +310,15 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     else { setPendingBlock(null); setSelectedProcedure(target.procedureId!); setProcedureTarget({ id, ownerId: target.ownerId }); }
   };
   const navigate = useRef(openBlock); navigate.current = openBlock;
+  useEffect(() => {
+    const element = editor.view.dom;
+    const open = (event: Event) => {
+      const id = (event as CustomEvent<unknown>).detail;
+      if (typeof id === 'string') navigate.current(id);
+    };
+    element.addEventListener(NOTEBOOK_OPEN_TARGET_EVENT, open);
+    return () => element.removeEventListener(NOTEBOOK_OPEN_TARGET_EVENT, open);
+  }, [editor]);
   useEffect(() => {
     const fromHash = () => { const target = parseNotebookLink(window.location.hash); if (target?.entryId === entryId && target.targetId) navigate.current(target.targetId); };
     fromHash(); window.addEventListener('hashchange', fromHash);
