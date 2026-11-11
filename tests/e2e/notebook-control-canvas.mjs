@@ -28,14 +28,40 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
           schemaId: 'schema', schemaRevision: 1, observedRevision: 1, column: sampleColumn, raw: '1001' } },
     ] }],
   } });
-  const browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_EXECUTABLE });
-  t.after(() => browser.close());
   const output = resolve(import.meta.dirname, '../../test-results/notebook-canvas');
   await mkdir(output, { recursive: true });
-  const page = await browser.newPage({ viewport: { width: 1320, height: 1000 } });
-  const owner = await browser.newPage();
-  const opened = [], errors = [];
-  for (const tab of [page, owner]) tab.on('pageerror', error => errors.push(error.message));
+  const browser = await chromium.launch({ executablePath: process.env.PERO_CHROMIUM_EXECUTABLE });
+  let page, owner;
+  const opened = [], errors = [], responses = [], failedRequests = [];
+  // Register evidence before navigation so owner startup failures are retained too.
+  t.after(async () => {
+    try {
+      if (!page || !owner) return;
+      await writeFile(resolve(output, 'control-browser-context.json'), JSON.stringify({
+        errors, responses, failedRequests, opened,
+        owner: { path: new URL(owner.url()).pathname, body: (await owner.locator('body').innerText({ timeout: 3000 })).slice(0, 16000) },
+        notebook: { path: new URL(page.url()).pathname, body: (await page.locator('body').innerText({ timeout: 3000 })).slice(0, 16000) },
+      }, null, 2));
+      await owner.screenshot({ path: resolve(output, 'control-owner-checkpoint.png'), fullPage: true, timeout: 5000 });
+      await page.screenshot({ path: resolve(output, 'control-notebook-checkpoint.png'), fullPage: true, timeout: 5000 });
+    } catch {
+      // Diagnostic capture must not replace the original test failure.
+      t.diagnostic('Control Lab checkpoint capture incomplete; inspect retained artifacts.');
+    } finally { await browser.close(); }
+  });
+  page = await browser.newPage({ viewport: { width: 1320, height: 1000 } });
+  owner = await browser.newPage();
+  for (const [name, tab] of [['notebook', page], ['control-lab', owner]]) {
+    tab.on('pageerror', error => {
+      if (errors.length < 50) errors.push(`${name}: ${error.message.slice(0, 2000)}`);
+    });
+    tab.on('response', response => {
+      if (responses.length < 200) responses.push({ app: name, path: new URL(response.url()).pathname, status: response.status() });
+    });
+    tab.on('requestfailed', request => {
+      if (failedRequests.length < 50) failedRequests.push({ app: name, path: new URL(request.url()).pathname, error: request.failure()?.errorText });
+    });
+  }
   await owner.goto(origin + '/control-lab/');
   await expect(owner.getByRole('button', { name: 'Run experiment', exact: true })).toBeVisible();
   await page.exposeFunction('openControlLocation', async (operation, input) => {
