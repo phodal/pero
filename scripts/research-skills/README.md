@@ -34,3 +34,21 @@ python scripts/research-skills/collect.py --cache C:/Temp/pero-skills-new-snapsh
 - 网盘包、二级通用工具和无法固定源码的页面作为资源保留，不计入虚构技能数量。网络、YAML 或 ZIP 失败记录原因，不能隐去后声称全部已验证。
 
 离线验证不证明宿主兼容、第三方依赖可用、科学方法有效或作者已授权全部资源。产品安装和真实运行由市场的后续阶段分别验收。
+
+## 通用增量（#200）
+
+`general.py` 维护逐条审查的通用候选，JSON / 中文索引位于
+`docs/design-docs/general-skills-catalog.*`。从指定的本地来源 checkout 读取固定提交：
+
+```sh
+python scripts/research-skills/general.py --superpowers /path/to/superpowers --anthropics /path/to/skills
+python -m unittest discover -s scripts/research-skills -p 'test_*.py'
+python scripts/research-skills/publish.py --output /tmp/market-catalog.json
+```
+
+发布将两份审查输入合成一个市场；`--research-only` 保留旧科研投影及独立对账。
+已有文档 ID 仅增加发现范围，不更改其旧来源/许可。旧排除项逐个记录
+`reviewed` / `excluded` / `needs_review`，待核查项不批量准入。
+同正文与同资源指纹才可合并别名，重名不能合并。通用条目必须通过许可及
+静态指引兼容审查；`requires_adaptation` 保留具体工具/宿主缺口。
+外部脚本只是资源，不自动执行或安装依赖。执行、审批与 App 会话装配保持原 owner。
