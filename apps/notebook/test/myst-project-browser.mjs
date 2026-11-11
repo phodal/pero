@@ -85,12 +85,15 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await page.goto(`${origin}/#notebook-entry=${entry.id}`);
   const english = () => page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   await english();
-  const project = { format: 'pero-myst-project', version: 1, entry: 'pages/article.md', files: [
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAATklEQVR4nO3PUQkAIBTAwBfHdOY0liH8OITBAtxm7fN1wwUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjx2AdM/8JeZhLHoAAAAAElFTkSuQmCC';
+  const project = { format: 'pero-myst-project', version: 2, entry: 'pages/article.md', files: [
     { path: 'myst.yml', text: 'version: 1\nproject:\n  title: Project title is not the page title\n  authors:\n    - name: Project Researcher\n  bibliography: references.bib\n  plugins:\n    - https://myst-resource.invalid/plugin.js\n' },
-    { path: 'pages/article.md', text: '---\ntitle: Project article\n---\n# Findings\n\nSee @Study.\n\n```{include} ../notes.md\n```\n\n![Remote](https://myst-resource.invalid/figure.png)\n\n<script>globalThis.mystExecuted = true</script>\n' },
+    { path: 'pages/article.md', text: '---\ntitle: Project article\n---\n# Findings\n\nSee @Study and {ref}`../notes.md#note-label`.\n\n![Provided figure](../images/figure.png)\n\n```{include} ../notes.md\n```\n\n```{csv-table} Recorded measurements\n:file: ../data/results.csv\n:header-rows: 1\n```\n\n![Remote](https://myst-resource.invalid/figure.png)\n\n<script>globalThis.mystExecuted = true</script>\n' },
     { path: 'references.bib', text: '@article{Study, title={Original citation}, author={Doe, Jane}, year={2024}}' },
-    { path: 'notes.md', text: '# Inert included text\nThis must not become page content.' },
-  ] };
+    { path: 'notes.md', text: '(note-label)=\n# Included findings\nThis becomes included page content.' },
+    { path: 'data/results.csv', text: 'Sample,Value\n"Quoted, sample",42\n' },
+    { path: 'experiment.ipynb', text: JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [{ id: 'result', cell_type: 'code', metadata: {}, source: 'print(42)', execution_count: 1, outputs: [{ output_type: 'stream', name: 'stdout', text: 'Recorded project result: 42' }] }] }) },
+  ], assets: [{ path: 'images/figure.png', mediaType: 'image/png', base64: png }] };
   const picker = page.locator('input[type="file"][accept*=".myst-project.json"]');
   await picker.setInputFiles({ name: 'research.myst-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
   const editor = page.getByRole('textbox', { name: 'MyST resource source', exact: true });
@@ -100,10 +103,29 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await expect(iframe).toHaveAttribute('sandbox', '');
   const preview = page.frameLocator('iframe[title="MyST project preview"]');
   await expect(preview.getByRole('heading', { name: 'Project article', exact: true })).toBeVisible();
-  await expect(preview.getByRole('list', { name: 'Authors', exact: true })).toContainText('Project Researcher');
+  await expect(preview.getByRole('list', { name: 'Authors', exact: true }).first()).toContainText('Project Researcher');
   await expect(preview.locator('body')).toContainText('Original citation');
-  await expect(preview.locator('body')).not.toContainText('This must not become page content.');
-  await expect(preview.locator('script, img, iframe, object')).toHaveCount(0);
+  await expect(preview.locator('body')).toContainText('This becomes included page content.');
+  await expect(preview.locator('script, iframe, object')).toHaveCount(0);
+  await expect(preview.getByRole('img', { name: 'Provided figure' })).toHaveCount(1);
+  await expect(preview.getByRole('img', { name: 'Provided figure' })).toHaveJSProperty('naturalWidth', 64);
+  await expect(preview.getByRole('navigation', { name: 'Project pages' })).toBeVisible();
+  const crossref = preview.getByRole('link', { name: 'Section 1', exact: true });
+  await expect(crossref).toHaveAttribute('href', '#myst-notes~2e~md:note-label');
+  await crossref.click();
+  await expect(preview.locator('[id="myst-notes~2e~md:note-label"]')).toBeVisible();
+  await expect(preview.locator('body')).toContainText('Recorded project result: 42');
+  await expect(preview.getByRole('table')).toContainText('Quoted, sample');
+  await expect(preview.getByRole('columnheader', { name: 'Sample' })).toBeVisible();
+  await page.getByRole('button', { name: 'Project resource', exact: true }).click();
+  await page.getByRole('option', { name: 'images/figure.png', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Binary resource' })).toContainText('64 × 32');
+  const originalDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download original asset', exact: true }).click();
+  const downloadedAsset = await originalDownload;
+  const assetDestination = resolve(directory, 'figure.png');
+  await downloadedAsset.saveAs(assetDestination);
+  assert.deepEqual(await readFile(assetDestination), Buffer.from(png, 'base64'));
   await page.getByRole('button', { name: 'Project resource', exact: true }).click();
   await page.getByRole('option', { name: 'references.bib', exact: true }).click();
   const revised = '@article{Study, title={Revised citation}, author={{Example Institute}}, year={2025}}';
@@ -131,10 +153,12 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   };
   const roundtrip = await downloadText('Download project snapshot', 'project.myst-project.json');
   assert.deepEqual(JSON.parse(roundtrip), project);
-  const html = await downloadText('Download entry HTML', 'project.html');
+  const html = await downloadText('Download project HTML', 'project.html');
   assert.match(html, /Revised citation/);
   assert.match(html, /default-src 'none'/);
-  assert.doesNotMatch(html, /<script[ >]|<img[ >]/i);
+  assert.doesNotMatch(html, /<script[ >]/i);
+  assert.match(html, /src="data:image\/png;base64,/);
+  assert.match(html, /Quoted, sample/);
   await mkdir(output, { recursive: true });
   await page.getByRole('button', { name: 'Project resource', exact: true }).click();
   await page.getByRole('option', { name: 'references.bib', exact: true }).click();
@@ -142,6 +166,8 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await page.screenshot({ path: resolve(output, 'myst-project-resource-editor.png'), fullPage: true });
   await iframe.scrollIntoViewIfNeeded();
   await iframe.screenshot({ path: resolve(output, 'myst-project-entry-preview.png') });
+  await preview.getByRole('table').scrollIntoViewIfNeeded();
+  await iframe.screenshot({ path: resolve(output, 'myst-project-csv-table.png') });
   await picker.setInputFiles({ name: 'roundtrip.myst-project.json', mimeType: 'application/json', buffer: Buffer.from(roundtrip) });
   await expect(page.getByTitle('MyST project preview', { exact: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'Save revision', exact: true }).click();
@@ -154,7 +180,7 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   // Emulate a snapshot written by a newer app at the read boundary. The current
   // backend correctly refuses to persist unknown versions, so no invalid write
   // is used to manufacture this recovery case.
-  const futureSnapshot = JSON.stringify({ ...project, version: 2 });
+  const futureSnapshot = JSON.stringify({ ...project, version: 99 });
   await page.route(`**/api/entries/${entry.id}`, async route => {
     if (route.request().method() !== 'GET') return route.continue();
     const response = await route.fetch();
@@ -167,7 +193,7 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await expect(recovery).toHaveValue(futureSnapshot);
   await expect(recovery).toHaveAttribute('readonly', '');
   await expect(page.getByTitle('MyST project preview', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Download entry HTML', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Download project HTML', exact: true })).toBeDisabled();
   const recovered = await downloadText('Download project snapshot', 'project.myst-project.json');
   assert.equal(recovered, futureSnapshot);
   assert.deepEqual(externalRequests, []);

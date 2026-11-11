@@ -79,7 +79,7 @@ export type MystResourceResolution =
   | { status: 'unsupported'; reason: string };
 /** Resolve exact names only; no decoding, globbing, discovery, I/O or expansion. */
 export function resolveMystResource(snapshot: MystProjectSnapshot, containingFile: string, authoredPath: string): MystResourceResolution {
-  if (!authoredPath || !scalarText(authoredPath) || forbiddenPath.test(authoredPath) || authoredPath.startsWith('/') || authoredPath.split('/').some(part => !part) || /[*${}]/u.test(authoredPath)) return { status: 'unsupported', reason: 'Resource references must be explicit local relative paths' };
+  if (!authoredPath || !scalarText(authoredPath) || forbiddenPath.test(authoredPath) || authoredPath.startsWith('/') || authoredPath.split('/').some(part => !part) || /[*${}\[\]]/u.test(authoredPath)) return { status: 'unsupported', reason: 'Resource references must be explicit local relative paths' };
   const segments = containingFile.split('/').slice(0, -1);
   for (const part of authoredPath.split('/')) {
     if (part === '.') continue;

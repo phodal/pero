@@ -23,8 +23,14 @@ test('project editor retains exact snapshot and identity on reopen and clipboard
   assert.equal(clipboard.getJSON().content[0].attrs.snapshot, snapshot);
   assert.equal(saved.content[0].attrs.blockId, 'project-1');
   assert.equal(ui.isClipboardWidget('mystProject', { schemaVersion: 2, snapshot }), false);
-  assert.equal(ui.isClipboardWidget('mystProject', { schemaVersion: 1, snapshot: snapshot.replace('"version":1', '"version":2') }), false);
+  assert.equal(ui.isClipboardWidget('mystProject', { schemaVersion: 1, snapshot: snapshot.replace('"version":1', '"version":99') }), false);
   assert.equal(ui.isClipboardWidget('mystProject', { schemaVersion: 1, snapshot, execute: true }), false);
+  const binarySnapshot = JSON.stringify({ ...JSON.parse(snapshot), version: 2, assets: [{ path: 'retained.svg', mediaType: 'image/svg+xml', base64: btoa('<svg><script>never()</script></svg>') }] });
+  const binary = new ui.Editor({ extensions: ui.notebookExtensions, content: { type: 'doc', content: [{ type: 'mystProject', attrs: { blockId: 'binary-1', schemaVersion: 1, snapshot: binarySnapshot } }] } });
+  const binaryClipboard = new ui.Editor({ extensions: ui.notebookExtensions, content: binary.getHTML() });
+  assert.equal(binaryClipboard.getJSON().content[0].attrs.snapshot, binarySnapshot);
+  assert.equal(ui.isClipboardWidget('mystProject', { schemaVersion: 1, snapshot: binarySnapshot }), true);
+  binaryClipboard.destroy(); binary.destroy();
   clipboard.destroy(); reopened.destroy(); editor.destroy();
 });
 
@@ -71,12 +77,12 @@ test('project view edits a resource, resolves metadata and keeps readonly/future
   assert.match(JSON.parse(active.getJSON().content[0].attrs.snapshot).files[2].text, /Revised reference/);
   await show('history', false, 1);
   assert.equal(document.querySelector('textarea')?.readOnly, true);
-  const future = snapshot.replace('"version":1', '"version":2');
+  const future = snapshot.replace('"version":1', '"version":99');
   await show('future-envelope', true, 1, future);
   assert.equal(document.querySelector('textarea')?.readOnly, true);
   assert.equal(document.querySelector('textarea')?.value, future);
   assert.equal(document.querySelector('iframe'), null);
-  assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download entry HTML')?.disabled, true);
+  assert.equal([...document.querySelectorAll('button')].find(button => button.textContent === 'Download project HTML')?.disabled, true);
   await React.act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Download project snapshot')!.click());
   assert.equal(await downloads.at(-1)!.text(), future);
   await show('invalid-envelope', true, 1, '{bad JSON');
@@ -106,7 +112,7 @@ test('project file picker appends a draft, rejects future snapshots and ignores 
   await choose(async () => snapshot);
   assert.equal(inserted[0].type, 'mystProject');
   assert.deepEqual(JSON.parse(inserted[0].attrs.snapshot), JSON.parse(snapshot));
-  await choose(async () => snapshot.replace('"version":1', '"version":2'));
+  await choose(async () => snapshot.replace('"version":1', '"version":99'));
   assert.equal(inserted.length, 1);
   let finishRead!: (text: string) => void;
   await choose(() => new Promise(resolve => { finishRead = resolve; }));
