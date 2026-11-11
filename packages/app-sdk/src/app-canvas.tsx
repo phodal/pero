@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAppInfo, useAppI18n } from "./host";
-import { Button, Feedback, Table } from "./ui";
+import { Button, Feedback, Select, Table } from "./ui";
 import { CanvasActionForm, type CanvasAction } from "./canvas-action-form";
 
 export interface CanvasSource {
@@ -24,6 +24,7 @@ interface Projection {
   rows: string[][];
   notice: string;
   actions: CanvasAction[];
+  results?: { id: string; label: string; value: Record<string, unknown> }[];
 }
 interface MountedView {
   instance: string;
@@ -51,6 +52,9 @@ async function request<T>(body: object): Promise<T> {
   return response.json();
 }
 const messages = {
+  results: { en: 'Completed results', zh: '已完成的结果' },
+  chooseResult: { en: 'Choose a result to attach', zh: '选择要附加的结果' },
+  attachResult: { en: 'Attach selected result', zh: '附加所选结果' },
   loading: { en: "Loading declared App view…", zh: "正在载入声明的 App 视图…" },
   refresh: { en: "Refresh App view", zh: "刷新 App 视图" },
   confirm: {
@@ -89,9 +93,11 @@ const messages = {
 export function DeclaredAppCanvas({
   source,
   onResult,
+  onAttachResult,
 }: {
   source: CanvasSource;
   onResult?: (receipt: Record<string, unknown>) => void;
+  onAttachResult?: (value: Record<string, unknown>) => void;
 }) {
   const { t } = useAppI18n(messages),
     active = useAppInfo().active;
@@ -100,6 +106,7 @@ export function DeclaredAppCanvas({
   const [loading, setLoading] = useState(false),
     [running, setRunning] = useState(false),
     [result, setResult] = useState<ActionResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState('');
   const instance = useRef(""),
     pending = useRef(false),
     operation = useRef(""),
@@ -131,6 +138,7 @@ export function DeclaredAppCanvas({
     const generation = ++epoch.current;
     setView(null);
     setResult(null);
+    setSelectedResult('');
     setRunning(false);
     pending.current = false;
     operation.current = "";
@@ -266,6 +274,15 @@ export function DeclaredAppCanvas({
             </Table>
           )}
           {view.projection.notice && <p>{view.projection.notice}</p>}
+          {onAttachResult && !source.readOnly && !!view.projection.results?.length && <div>
+            <Select label={t('results')} placeholder={t('chooseResult')} value={selectedResult}
+              disabled={loading || running} options={view.projection.results.map(item => ({ value: item.id, label: item.label }))}
+              onChange={setSelectedResult} />
+            <Button disabled={loading || running || !view.projection.results.some(item => item.id === selectedResult)} onClick={() => {
+              const selected = view.projection.results?.find(item => item.id === selectedResult);
+              if (selected) onAttachResult(selected.value);
+            }}>{t('attachResult')}</Button>
+          </div>}
           {source.readOnly ? (
             <p>{t("readonly")}</p>
           ) : (
