@@ -81,7 +81,7 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       }
       case 'cite': { const ref = document.bibliography[read(node, 'identifier')]; losses.add('Citations use authored author/year text when no CSL rendering is supplied.'); return plain(ref ? `[${[ref.author, ref.year].filter(Boolean).join(', ') || ref.id}]` : `[Unresolved citation: ${read(node, 'identifier')}]`); }
       case 'citeGroup': return { type: 'strong', children: children() };
-      case 'mystTarget': return plain('');
+      case 'comment': case 'mystTarget': return plain('');
       case 'footnoteReference': losses.add('Footnotes exported as labelled text, not editable fields.'); return plain(`[${read(node, 'identifier')}]`);
       case 'footnoteDefinition': return { type: 'blockquote', children: [paragraph(`[${read(node, 'identifier')}]`), ...children()] };
       default: return fallback(`Unsupported ${kind} node: ${node.type}; original source retained.`, node.value);

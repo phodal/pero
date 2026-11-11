@@ -89,3 +89,16 @@ test('compiled CSL groups and bibliography preserve rendered text exactly once',
   for (const kind of ['docx', 'latex', 'typst'] as const) { const text = JSON.stringify(projectMystPublication({ document }, kind).ast); assert.equal(text.split('(Styled, 2026)').length - 1, 1); assert.ok(text.includes('Styled bibliography.')); }
   assert.equal(exportMystJats(document).split('(Styled, 2026)').length - 1, 1);
 });
+
+test('editor comments stay invisible in publication bodies but exact source recovery retains them', async () => {
+  const source = '# Visible title\n\n% INTERNAL EDITOR NOTE\n\nVisible paragraph.\n';
+  const input = { document: parseMystDocument(source) };
+  const zip = await JSZip.loadAsync(await exportMystDocx(input));
+  assert.ok(!(await zip.file('word/document.xml')!.async('string')).includes('INTERNAL EDITOR NOTE'));
+  assert.equal(importMystBundle(await zip.file('pero/source.json')!.async('string')).source, source);
+  const tex = exportMystLatex(input), typst = exportMystTypst(input), xml = exportMystJats(input.document);
+  assert.ok(!tex.split('% PERO ORIGINAL SOURCE JSON')[0].includes('INTERNAL EDITOR NOTE'));
+  assert.ok(!typst.split('// PERO ORIGINAL SOURCE JSON')[0].includes('INTERNAL EDITOR NOTE'));
+  assert.ok(!xml.split('<body>')[1].split('</body>')[0].includes('INTERNAL EDITOR NOTE'));
+  for (const record of [tex, typst, xml]) assert.ok(record.includes('INTERNAL EDITOR NOTE'));
+});

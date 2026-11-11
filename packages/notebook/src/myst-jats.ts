@@ -57,7 +57,7 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
       case 'crossReference': { const t = n.projectTarget; if (t) losses.add('Cross-document reference is display text; other pages absent from entry-only publication.'); const label = t && typeof t === 'object' && 'label' in t && typeof t.label === 'string' ? t.label : document.references[str(n, 'identifier')]?.label; return xml(label ?? `[Unresolved reference: ${str(n, 'identifier')}]`); }
       case 'cite': { const r = document.bibliography[str(n, 'identifier')]; return r ? `<xref ref-type="bibr" rid="${key(r.id)}">${xml([r.author, r.year].filter(Boolean).join(', ') || r.id)}</xref>` : xml(`[Unresolved citation: ${str(n, 'identifier')}]`); }
       case 'citeGroup': return children(n, true);
-      case 'mystTarget': return '';
+      case 'comment': case 'mystTarget': return '';
       case 'footnoteReference': return `<xref ref-type="fn" rid="${key(str(n, 'identifier'))}">${xml(str(n, 'identifier'))}</xref>`;
       case 'footnoteDefinition': footnotes.push(`<fn${id(n)}>${children(n)}</fn>`); return '';
       case 'definitionList': { let out = ''; const list = n.children ?? []; for (let i = 0; i < list.length; i += 2) out += `<def-item><term>${xml(text(list[i]))}</term><def><p>${list[i + 1] ? xml(text(list[i + 1])) : ''}</p></def></def-item>`; return `<def-list>${out}</def-list>`; }
