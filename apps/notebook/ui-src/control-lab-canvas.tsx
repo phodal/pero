@@ -21,7 +21,7 @@ const key = (pin: Pick<Pin, 'procedureId' | 'parameterId'>) => `${pin.procedureI
 
 export function controlParameterOptions(document: NotebookDocument) {
   const resolve = procedureParameterResolver(document);
-  const choices: Record<Field, { label: string; pin: Pin }[]> = { horizon: [], samples: [] };
+  const choices: Record<Field, { label: string; hint: string; pin: Pin }[]> = { horizon: [], samples: [] };
   for (const procedure of document.procedures ?? []) {
     for (const parameter of procedure.parameters ?? []) {
       if (parameter.source.kind === 'formula') continue;
@@ -32,7 +32,8 @@ export function controlParameterOptions(document: NotebookDocument) {
         value.type === 'decimal' && Number.isSafeInteger(Number(value.value)) ? 'samples' : null;
       if (!field || (value.type !== 'decimal' && value.type !== 'quantity') || value.value.length > 128) continue;
       choices[field].push({
-        label: `${procedure.title} / ${parameter.name} · ${value.value}${field === 'horizon' ? ' s' : ''}`,
+        label: `${parameter.name} · ${value.value}${field === 'horizon' ? ' s' : ''}`,
+        hint: procedure.title,
         pin: { procedureId: procedure.id, parameterId: parameter.id, version: parameter.version, value: value.value },
       });
     }
@@ -75,8 +76,8 @@ export function ControlLabInputs({ choices, mapping, onChange, document, onRevie
           .find(({ procedure, parameter }) => key({ procedureId: procedure.id, parameterId: parameter.id }) === mapping[field])?.parameter;
         const unresolved = parameter && !choices[field].some(({ pin }) => key(pin) === mapping[field]);
         return <div key={field}><Field label={t(field)}>{control =>
-          <Select {...control} label={t(field)} placeholder={t('choose')} value={mapping[field]}
-            options={[...choices[field].map(({ label, pin }) => ({ label, value: key(pin) })),
+          <Select {...control} label={t(field)} placeholder={t('choose')} value={mapping[field]} showHint menuMinWidth={260}
+            options={[...choices[field].map(({ label, hint, pin }) => ({ label, hint, value: key(pin) })),
               ...(unresolved ? [{ value: mapping[field], label: t('needsReview', { name: parameter.name }), disabled: true }] : [])]}
             onChange={value => onChange({ ...mapping, [field]: value })} />}
         </Field>{unresolved && onReview && <Button variant="link" onClick={() => onReview(parameter.id)}>{t('review', { name: parameter.name })}</Button>}</div>;

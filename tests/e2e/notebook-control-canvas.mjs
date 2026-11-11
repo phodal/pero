@@ -107,7 +107,7 @@ test('Notebook creates a real PI experiment once per saved input and keeps the o
     await button('Attach selected result', block).click();
     await expect(references).toHaveCount(existing.length + 1);
     const reference = page.locator('[data-kind=experiment]' + existing.map(id => `:not([data-notebook-block-id="${id}"])`).join(''));
-    await expect(reference.getByText('Recorded Control Lab verdict')).toBeVisible();
+    await expect(reference.getByText('Verification', { exact: true })).toBeVisible();
     await reference.getByLabel('Label').fill(label);
     const id = await reference.getAttribute('data-notebook-block-id');
     return references.and(page.locator(`[data-notebook-block-id="${id}"]`));

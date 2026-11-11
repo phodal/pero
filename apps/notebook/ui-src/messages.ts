@@ -274,7 +274,7 @@ export const messages = {
   controlRecordedVerdict: { en: 'Recorded Control Lab verdict', zh: 'Control Lab 记录的判定' },
   controlVerificationPhase: { en: 'Verification', zh: '验证' },
   controlSearchPhase: { en: 'Search', zh: '搜索' },
-  controlSnapshotScope: { en: 'Saved simulation receipt from Control Lab.', zh: '来自 Control Lab 的已保存仿真回执。' },
+  controlSnapshotScope: { en: 'Numerical simulation', zh: '数值仿真' },
   controlSnapshotChecks: { en: 'Recorded checks ({count})', zh: '已记录检查（{count} 项）' },
   controlActual: { en: 'Actual', zh: '实际值' },
   controlLimit: { en: 'Limit', zh: '阈值' },

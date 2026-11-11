@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Disclosure, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
 import type { ScientificReference, ReferenceSnapshot } from '@pero/notebook';
@@ -99,13 +99,14 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
   </div>;
 }
 
-export function SnapshotDetails({ snapshot }: { snapshot: ReferenceSnapshot }) {
+export function SnapshotDetails({ snapshot, source }: { snapshot: ReferenceSnapshot; source?: ReactNode }) {
   const { t } = useAppI18n(messages);
   if (snapshot.kind === 'paper-report') return <div className="notebook-snapshot">
     <p className="notebook-note">{t('paperSnapshotPage', { page: snapshot.page })}</p>
     <blockquote className="notebook-snapshot-quote">{snapshot.quote}</blockquote>
     {snapshot.occurrences > 1 && <Feedback kind="warning">{t('paperRepeatedQuote', { count: snapshot.occurrences })}</Feedback>}
     <Disclosure variant="inline" summary={t('snapshotDetails')}>
+      {source}
       <dl className="notebook-reference-details">
         <div><dt>{t('snapshotReportId')}</dt><dd><code>{snapshot.reportId}</code></dd></div>
         <div><dt>{t('paperPassageId')}</dt><dd><code>{snapshot.passageId}</code></dd></div>
@@ -118,9 +119,8 @@ export function SnapshotDetails({ snapshot }: { snapshot: ReferenceSnapshot }) {
 
   return <div className="notebook-snapshot">
     <div className="notebook-reference-actions">
-      <strong>{t('controlRecordedVerdict')}</strong>
+      <strong>{t(snapshot.phase === 'verification' ? 'controlVerificationPhase' : 'controlSearchPhase')}</strong>
       <Badge tone={verdictTone[snapshot.verdict]}>{snapshot.verdict}</Badge>
-      <span className="notebook-note">{t(snapshot.phase === 'verification' ? 'controlVerificationPhase' : 'controlSearchPhase')}</span>
     </div>
     <p className="notebook-note">{t('controlSnapshotScope')}</p>
     <Disclosure variant="inline" summary={t('controlSnapshotChecks', { count: snapshot.checks.length })}>
@@ -136,6 +136,7 @@ export function SnapshotDetails({ snapshot }: { snapshot: ReferenceSnapshot }) {
       </ul>
     </Disclosure>
     <Disclosure variant="inline" summary={t('snapshotDetails')}>
+      {source}
       <dl className="notebook-reference-details">
         <div><dt>{t('controlTrialId')}</dt><dd><code>{snapshot.trialId}</code></dd></div>
         <div><dt>{t('controlObservationId')}</dt><dd><code>{snapshot.observationId}</code></dd></div>

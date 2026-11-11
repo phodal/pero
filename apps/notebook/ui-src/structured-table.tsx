@@ -1,7 +1,7 @@
 import { useEditorState, type NodeViewProps } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Input, NativeSelect, Select, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Icon, IconButton, Input, NativeSelect, Select, Textarea } from '@pero/app-sdk/ui';
 import {
   createRegistrationWaiver, applyCatalogCellSelection, applyRegistrationReceipt, canonicalStructuredTable, changeStructuredTable, columnTypes, isCatalogSnapshot, isRegistrationReceipt,
   isStructuredColumn, lookupTableDefaults, parseTypedCell, structuredTableLimits, validateStructuredTable,
@@ -270,10 +270,10 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
       </th>)}{editable && <th />}</tr></thead>
       <tbody>{projected.rows.map(row => { const index = table.rows.findIndex(item => item.id === row.id); return <tr key={row.id}><th scope="row" title={row.id}>{index + 1}</th>
         {projected.columns.map(col => { const label = `${col.name}, ${t('row')} ${index + 1}`; return <td key={col.id}>
-          <TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={label} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} />
-          {editable && col.type !== 'missing' && <Button variant="ghost" onClick={() => setPicker({ scope: viewScope, table: structuredClone(table), rowId: row.id, column: col, label })}>{t('pickCatalog', { cell: label })}</Button>}
+          <div className="notebook-structured-cell"><TypedCellEditor column={col} raw={row.cells[col.id] ?? ''} label={label} disabled={!editable} onChange={value => edit({ type: 'cell', rowId: row.id, columnId: col.id, value })} />
+          {editable && col.type !== 'missing' && <IconButton label={t('pickCatalog', { cell: label })} onClick={() => setPicker({ scope: viewScope, table: structuredClone(table), rowId: row.id, column: col, label })}><Icon name="search" /></IconButton>}</div>
         </td>; })}
-        {editable && <td><Button variant="ghost" onClick={() => edit({ type: 'removeRow', id: row.id })}>{t('removeRow', { number: index + 1 })}</Button></td>}
+        {editable && <td><IconButton label={t('removeRow', { number: index + 1 })} onClick={() => edit({ type: 'removeRow', id: row.id })}><Icon name="close" /></IconButton></td>}
       </tr>; })}</tbody></table></div>
     {!!table.rows.length && !projected.rows.length && <p>{t('filteredEmpty')}</p>}
     {!table.rows.length && !editable && <p className="notebook-note">{t('noRows')}</p>}

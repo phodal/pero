@@ -60,7 +60,7 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
       React.createElement(ui.Fixture, { key: ++generation, content: document, readonly, capture: (value: any) => { editor = value; } })));
   };
   const button = (label: string) => {
-    const found = [...document.querySelectorAll('button')].find(item => item.textContent === label);
+    const found = [...document.querySelectorAll('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label);
     assert.ok(found, `Missing button ${label}: ${document.body.textContent}`); return found;
   };
   const snapshot = () => JSON.stringify(editor.getJSON());
@@ -90,6 +90,7 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     assert.match(document.body.textContent!, /no longer installed/);
     assert.deepEqual(before(), binding);
     catalog = [{ ...declaration, enabled: false }];
+    await click(button('Configure App view'));
     await click(button('Refresh installed Apps'));
     assert.match(document.body.textContent!, /installed but disabled/);
     assert.equal(button('Save binding').disabled, true);
@@ -143,6 +144,7 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     await mount(false, { ...content, content: [{ ...content.content[0], attrs: { ...content.content[0].attrs, binding: manual } }] });
     assert.deepEqual(before(), manual);
     assert.match(document.body.textContent!, /no longer installed/);
+    await click(button('Configure App view'));
     assert.equal(button('Save binding').disabled, true);
     await click(button('Remove binding'));
     assert.equal(before(), null);
