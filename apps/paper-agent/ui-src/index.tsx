@@ -432,7 +432,7 @@ export default function PaperAgent() {
         {screen === 'library' && evidencePanel}
         {libraryLoaded ? <ResearchRecords api={api} library={library} paper={null} results onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} t={t}/> : loading && <p role="status">{t('loading')}</p>}
       </div>}
-      {libraryScreen === 'programs' && <>{screen === 'library' && evidencePanel}<ResearchPrograms api={api} papers={library.papers} seed={programSeed}/></>}
+      <div hidden={libraryScreen !== 'programs'}>{screen === 'library' && libraryScreen === 'programs' && evidencePanel}<ResearchPrograms api={api} papers={library.papers} seed={programSeed} active={screen === 'library' && libraryScreen === 'programs' && info.active} onLibrary={() => setLibraryScreen('papers')}/></div>
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
       <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>

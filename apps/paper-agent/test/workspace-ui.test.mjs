@@ -45,6 +45,36 @@ async function fixture(t, fullApp = false) {
 const paper = { id: 'p1', title: 'Saved source', source: 'local', sourceId: 'local-1', authors: [], url: 'https://example.test/paper', contentKind: 'abstract', fetchedAt: '2026-11-06', contentDigest: 'digest' };
 const library = { papers: [paper], intents: [], reports: [] };
 
+test('Paper navigation retains the unsaved autonomous research draft', async t => {
+  const f = await fixture(t, true), operations = [];
+  const fetch = async (path, init) => {
+    if (path === '/api/library') return new Response(JSON.stringify(library));
+    if (path === '/api/programs') {
+      const request = JSON.parse(init.body); operations.push(request.operation);
+      return new Response(JSON.stringify({ programs: [] }));
+    }
+    return new Response(JSON.stringify({ items: [], records: [] }));
+  };
+  await f.render(f.React.createElement(f.ui.AppApiProvider, { appName: 'paper-agent', locale: 'en', active: true,
+    allowedApiPaths: ['/api'], allowedEvents: [], fetch, surface: f.ui.appSurface,
+    subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {},
+  }, f.React.createElement(f.ui.PaperAgent)));
+  const nav = label => [...document.querySelectorAll('.pa-workspace-nav button')].find(node => node.getAttribute('aria-label')?.startsWith(label));
+  await f.click(nav('Autonomous research'));
+  const question = [...document.querySelectorAll('.pa-programs textarea')].find(node => [...node.labels].some(label => label.textContent.trim() === 'Research question'));
+  assert.ok(question, 'Research question has an associated visible label');
+  await f.React.act(async () => {
+    Object.getOwnPropertyDescriptor(f.dom.window.HTMLTextAreaElement.prototype, 'value').set.call(question, 'Retain my scientific question');
+    question.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
+  });
+  await f.click(nav('Library'));
+  await f.click(nav('Autonomous research'));
+  assert.ok(document.querySelector('.pa-programs textarea') === question, 'Research navigation preserves the focused draft field');
+  assert.equal(question.value, 'Retain my scientific question');
+  assert.ok(operations.includes('list'));
+  assert.ok(operations.every(operation => operation === 'list'), 'Viewing and editing do not start or create research');
+});
+
 test('reactivating Paper retains the actual search input, selection and sources through refresh failure', async t => {
   const f = await fixture(t);
   let fail, state;
