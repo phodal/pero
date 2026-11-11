@@ -8,6 +8,24 @@ pub struct OwnedProcess {
     child: Child,
     stopped: Option<ExitStatus>,
 }
+
+/// Stop a registered scientific group after its original App owner has closed.
+/// It may contain native descendants even after the scientific Python exited.
+#[cfg(unix)]
+pub(crate) fn stop_process_group(group:u32)->std::io::Result<()> {
+    let absent=||unsafe {libc::kill(-(group as i32),0)==-1 && std::io::Error::last_os_error().raw_os_error()==Some(libc::ESRCH)};
+    for signal in [libc::SIGTERM,libc::SIGKILL] {
+        if absent() {return Ok(());}
+        unsafe {libc::kill(-(group as i32),signal);}
+        let deadline=Instant::now()+Duration::from_secs(2);
+        while !absent() && Instant::now()<deadline {std::thread::sleep(Duration::from_millis(10));}
+    }
+    if absent() {Ok(())} else {Err(std::io::Error::other("Scientific process group stop is not confirmed"))}
+}
+#[cfg(not(unix))]
+pub(crate) fn stop_process_group(_group:u32)->std::io::Result<()> {
+    Err(std::io::Error::other("Scientific process groups are unsupported"))
+}
 impl OwnedProcess {
     pub fn spawn(command: &mut Command) -> std::io::Result<Self> {
         #[cfg(unix)]

@@ -58,7 +58,7 @@ class ComputeProfile:
             raise Invalid('Compute environment changed; rebuild and create a new experiment')
 
     def inspect(self):
-        from . import compute_observation
+        import pero_scientific as compute_observation
         try:
             result = subprocess.run([str(self.executable), '-I', '-B', str(Path(compute_observation.__file__).resolve())],
                 env={}, capture_output=True, text=True, timeout=30, check=False)
@@ -68,7 +68,7 @@ class ComputeProfile:
         except (OSError, subprocess.TimeoutExpired, ValueError) as error:
             raise Invalid(f'Compute profile unavailable: {error}') from error
 
-    def execute(self, engine, model, parameters, scenario, directory, cancelled, native=None):
+    def execute(self, engine, model, parameters, scenario, directory, cancelled, native=None, authorization=None):
         directory = Path(directory).resolve()
         directory.mkdir(parents=True, exist_ok=True)
         (directory / 'compute-profile.json').write_bytes(self.payload)
@@ -81,12 +81,15 @@ class ComputeProfile:
         # No inherited Python, index, model credential or App token environment.
         environment = {key: os.environ[key] for key in ('HOME', 'TMPDIR') if key in os.environ}
         environment['MPLCONFIGDIR'] = str(directory / '.matplotlib')
+        from pero_scientific import ScientificUse
+        use = ScientificUse(directory, json.loads(self.payload), *authorization, native=native.to_dict() if native else None)
         with (directory / 'compute-stdout.log').open('wb') as stdout, (directory / 'compute-stderr.log').open('wb') as stderr:
             process = subprocess.Popen([str(self.executable), '-E', '-s', '-B', '-m',
                 'control_lab.compute_runtime', str(directory)], cwd=Path(__file__).resolve().parents[1],
-                env=environment, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr)
+                env=environment, stdin=subprocess.PIPE, stdout=stdout, stderr=stderr, process_group=0)
             deadline = time.monotonic() + 120
             try:
+                use.started(process)
                 while process.poll() is None:
                     if cancelled.wait(.025):
                         raise engines.EngineCancelled('Scientific Python computation cancelled')
@@ -98,12 +101,14 @@ class ComputeProfile:
                     raise engines.EngineError(f'Scientific Python failed ({process.returncode}); inspect compute-stderr.log')
             finally:
                 if process.poll() is None:
-                    process.terminate()
+                    use.stop(process)
                     try:
-                        process.wait(timeout=1)
+                        process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        process.kill()
+                        use.stop(process, force=True)
                         process.wait()
+                use.stop(process, force=True)
+                use.finish()
         return json.loads((directory / 'compute-result.json').read_text())
 
 
@@ -121,10 +126,13 @@ def selected(root):
 class ComputeBinding:
     profile: ComputeProfile | None
     native: NativeExecutable | None
+    authorization: tuple[str, str]
 
     def execute(self, engine, model, parameters, scenario, directory, cancelled):
-        execute = self.profile.execute if self.profile else engines.execute
-        return execute(engine, model, parameters, scenario, directory, cancelled, native=self.native)
+        if self.profile:
+            return self.profile.execute(engine, model, parameters, scenario, directory, cancelled,
+                                        native=self.native, authorization=self.authorization)
+        return engines.execute(engine, model, parameters, scenario, directory, cancelled, native=self.native)
 
 
 def admit(root, record, engine):
@@ -144,7 +152,7 @@ def admit(root, record, engine):
     record['computeProfile'] = identity
     if native:
         record['nativeExecutable'] = native.to_dict()
-    return ComputeBinding(profile, native) if profile or native else None
+    return ComputeBinding(profile, native, (record['id'], record['specHash'])) if profile or native else None
 
 
 if __name__ == '__main__':
@@ -152,8 +160,13 @@ if __name__ == '__main__':
     directory = Path(sys.argv[1])
     profile = ComputeProfile.parse(json.loads((directory / 'compute-profile.json').read_bytes()))
     profile.require(observe())
+    if sys.stdin.readline() != 'execute\n':
+        raise Invalid('Host did not admit this scientific child')
+    import signal
+    cancelled = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: cancelled.set())
     inputs = json.loads((directory / 'compute-input.json').read_bytes())
     native_path = directory / 'native-executable.json'
     native = NativeExecutable.parse(json.loads(native_path.read_bytes())) if native_path.exists() else None
-    output = engines.execute(**inputs, directory=directory, cancelled=threading.Event(), native=native)
+    output = engines.execute(**inputs, directory=directory, cancelled=cancelled, native=native)
     (directory / 'compute-result.json').write_bytes(canonical(output))

@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import select
+import shutil
 import subprocess
 import sys
 import time
@@ -17,6 +18,8 @@ import urllib.error
 import urllib.request
 
 root = Path(sys.argv[1]).resolve()
+if os.environ.get('PERO_SCIENTIFIC_USE_ADDRESS'):
+    assert sys.stdin.readline() == 'execute\n', 'Wait for the Rust process owner'
 repository = Path(__file__).resolve().parents[2]
 profiles = json.loads((root / 'profiles.json').read_text())
 first, rebuilt = [next(p['prepared'] for p in profiles if p['label'] == label) for label in ('first', 'rebuild')]
@@ -34,7 +37,8 @@ service_log = (root / 'service.log').open('w')
 def start_service():
     process = subprocess.Popen([sys.executable, '-E', '-s', '-B', str(repository / 'apps/control-lab/backend/server.py')],
         env={**{k: os.environ[k] for k in ('HOME', 'PATH', 'TMPDIR') if k in os.environ},
-             'PERO_APP_DATA': str(data), 'PERO_APP_TOKEN': secret},
+             'PERO_APP_DATA': str(data), 'PERO_APP_TOKEN': secret,
+             **{k:os.environ[k] for k in ('PERO_SCIENTIFIC_USE_ADDRESS','PERO_SCIENTIFIC_USE_TOKEN') if k in os.environ}},
         stdout=subprocess.PIPE, stderr=service_log, text=True)
     assert select.select([process.stdout], [], [], 15)[0], 'service readiness deadline'
     return process, json.loads(process.stdout.readline())['port']
@@ -81,6 +85,8 @@ try:
     (root / 'original-export.json').write_text(json.dumps(exported, sort_keys=True))
     artifact = next(a for a in exported['artifacts'] if a['name'] == 'compute-profile.json')
     assert json.loads(artifact['text']) == first
+    use = json.loads(next(a['text'] for a in exported['artifacts'] if a['name'] == 'environment-use.json'))
+    assert use['use']['state'] == 'Released', use
     bind(rebuilt)
     refusal = action(original, 'verify', 400)
     # Lock first so the next rejection exercises runtime identity, not candidate admission.
@@ -128,6 +134,43 @@ try:
     assert stopped['status'] == 'cancelled', stopped
     assert all(t['status'] != 'running' for t in stopped['trials'])
     assert service.poll() is None
+    if shutil.which('ngspice'):
+        # Reproduce the actual orphan case: native computation outlives SIGKILL
+        # of its Python parent. The Rust owner must refuse a false release.
+        sys.path.insert(0, str(repository / 'apps/control-lab/backend'))
+        from pero_scientific import ScientificUse
+        from control_lab.native_executable import NativeExecutable
+        native = NativeExecutable.observe()
+        orphan = root / 'native-orphan-use'
+        orphan.mkdir(exist_ok=True)
+        circuit = orphan / 'long.cir'
+        circuit.write_text('native stop check\nV1 in 0 DC 1\nR1 in 0 1k\n.control\nrepeat 10000000\nop\nend\n.endc\n.end\n')
+        use = ScientificUse(orphan, first, recovered['id'], recovered['specHash'], native=native.to_dict())
+        code = ('import subprocess,sys,time; assert sys.stdin.readline()=="execute\\n"; '
+                'p=subprocess.Popen([sys.argv[1],"-b",sys.argv[2]],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); '
+                'print(p.pid,flush=True); time.sleep(600)')
+        owner = subprocess.Popen([sys.executable,'-c',code,native.path,str(circuit)],
+                                 stdin=subprocess.PIPE,stdout=subprocess.PIPE,process_group=0)
+        try:
+            use.started(owner)
+            assert select.select([owner.stdout],[],[],10)[0], 'native startup deadline'
+            native_pid = int(owner.stdout.readline())
+            owner.kill();owner.wait(timeout=5)
+            os.kill(native_pid,0)
+            try:
+                use.finish()
+            except ValueError as refusal:
+                assert 'stop is not confirmed' in str(refusal), refusal
+            else:
+                raise AssertionError('Rust released Use while native process survived')
+            use.stop(owner,force=True)
+            released = use.finish()
+            assert released['state']=='Released', released
+            (root/'native-group-stop.json').write_text(json.dumps(dict(native_pid=native_pid,
+                python_killed=True,false_release_refused=True,group_stop_confirmed=True)))
+        finally:
+            use.stop(owner,force=True)
+            owner.wait(timeout=5)
     original_pid = service.pid
     service.terminate()
     service.wait(timeout=40)
@@ -138,7 +181,7 @@ try:
         lock_sha256=first['lock_sha256'], analytic_max_error=error, original_attempt=trial['attemptId'],
         checks=['real numerical trial', 'same backend PID across compute selection', 'old experiment rejects new profile',
                 'historical artifacts unchanged', 'missing dependency refuses before attempt', 'same-version package byte drift rejected', 'explicit binding recovery', 'scientific cancellation', 'historical export after service restart'],
-        limitation='Local Control CPU integration only; no live EnvironmentUse authority or scientific acceptance')
+        limitation='Local Control CPU and Rust Use bridge integration; no Native or scientific acceptance')
     (root / 'verification.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2))
 finally:

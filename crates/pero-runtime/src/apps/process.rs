@@ -45,6 +45,7 @@ impl ReproductionDeployment {
 pub(super) struct AppProcess {
     child: OwnedProcess,
     access: BackendAccess,
+    _scientific_uses: Option<super::scientific_uses::ScientificUses>,
 }
 
 impl AppProcess {
@@ -135,10 +136,14 @@ impl AppProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
-        let child = OwnedProcess::spawn(&mut command)
+        let scientific_uses = super::scientific_uses::ScientificUses::start(definition.name.as_str(), data)?;
+        if let Some(uses) = &scientific_uses { uses.configure(&mut command); }
+        let mut child = OwnedProcess::spawn(&mut command)
             .map_err(|error| format!("Cannot start App {label} backend {}: {error}. Check its configured interpreter and environment.", definition.name.as_str()))?;
+        if let Some(uses) = &scientific_uses { uses.bind(child.child_mut().id()); }
         let mut process = Self {
             child,
+            _scientific_uses: scientific_uses,
             access: BackendAccess {
                 url: String::new(),
                 token,

@@ -11,6 +11,7 @@ mod builtins;
 use builtins::BuiltinDiscovery;
 mod definition;
 mod process;
+mod scientific_uses;
 mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
 mod conda;
