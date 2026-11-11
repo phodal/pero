@@ -67,7 +67,7 @@ test('official MyST syntax produces formulas, directives, rich content and local
     assert.ok(all.some(node => node.type === type), type);
   }
   assert.equal(all.find(node => node.type === 'math')?.value, 'N(t) = N_0 e^{rt}');
-  assert.equal(document.references['fig-growth'].label, 'Figure 1');
+  assert.equal(document.references['fig-growth'].label, 'Figure 1');
   assert.equal(document.references['tab-samples'].kind, 'table');
   assert.equal(document.references['eq-growth'].kind, 'equation');
   assert.equal(document.references.intro.kind, 'section');

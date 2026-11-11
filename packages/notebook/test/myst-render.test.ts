@@ -13,19 +13,19 @@ test('static publication renders scientific structures, math and resolved refere
   const html = renderMystHtml(publication([
     { type: 'heading', depth: 1, children: [text('A result')] },
     { type: 'paragraph', children: [text('Inline '), { type: 'inlineMath', value: 'x^2' }] },
-    { type: 'math', identifier: 'eq-a', value: '\\frac{a}{b}' },
+    { type: 'math', identifier: 'eq-a', numberingLabel: '(1)', value: '\\frac{a}{b}' },
     { type: 'crossReference', identifier: 'eq-a' },
-    { type: 'container', kind: 'figure', identifier: 'fig-a', children: [{ type: 'image', url: 'https://example.com/a.png', alt: 'A figure' }] },
+    { type: 'container', kind: 'figure', identifier: 'fig-a', numberingLabel: 'Figure 1', children: [{ type: 'image', url: 'https://example.com/a.png', alt: 'A figure' }] },
     { type: 'table', children: [{ type: 'tableRow', children: [{ type: 'tableCell', header: true, children: [text('Result')] }] }] },
     { type: 'admonition', children: [{ type: 'admonitionTitle', children: [text('Note')] }, { type: 'paragraph', children: [text('Reproduce carefully.')] }] },
     { type: 'list', ordered: true, start: 2, children: [{ type: 'listItem', children: [text('Item')] }] },
     { type: 'blockquote', children: [text('Quote')] },
     { type: 'cite', identifier: 'smith' },
   ], {
-    references: { 'eq-a': { identifier: 'eq-a', kind: 'equation', number: 1, label: 'Equation 1' }, 'fig-a': { identifier: 'fig-a', kind: 'figure', number: 1, label: 'Figure 1' } },
+    references: { 'eq-a': { identifier: 'eq-a', kind: 'equation', number: '1', template: '(%s)', label: '(1)' }, 'fig-a': { identifier: 'fig-a', kind: 'figure', number: '1', template: 'Figure %s', label: 'Figure 1' } },
     bibliography: { smith: { id: 'smith', author: 'Smith', title: 'A study', year: '2025', url: 'https://example.com/study' } },
   }));
-  for (const expected of ['<h1>A result</h1>', '<math', '<mfrac>', 'id="myst-eq-a"', 'href="#myst-eq-a"', 'Equation 1', 'Figure 1', '<th scope="col">Result</th>', '<aside>', '<ol start="2">', '<blockquote>Quote</blockquote>', 'href="#myst-citation-smith"', 'Smith. 2025. A study', 'Authored citation metadata; not externally verified.']) assert.ok(html.includes(expected), expected);
+  for (const expected of ['<h1>A result</h1>', '<math', '<mfrac>', 'id="myst-eq-a"', 'href="#myst-eq-a"', '(1)', 'Figure 1', '<th scope="col">Result</th>', '<aside>', '<ol start="2">', '<blockquote>Quote</blockquote>', 'href="#myst-citation-smith"', 'Smith. 2025. A study', 'Authored citation metadata; not externally verified.']) assert.ok(html.includes(expected), expected);
   assert.doesNotMatch(html, /<script|<img|<iframe|<link\b/);
   assert.match(html, /image not embedded/);
 });

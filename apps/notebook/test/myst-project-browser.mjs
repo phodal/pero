@@ -119,7 +119,7 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
   await expect(preview.getByRole('img', { name: 'Provided figure' })).toHaveCount(1);
   await expect(preview.getByRole('img', { name: 'Provided figure' })).toHaveJSProperty('naturalWidth', 64);
   await expect(preview.getByRole('navigation', { name: 'Project pages' })).toBeVisible();
-  const crossref = preview.getByRole('link', { name: 'Section 1', exact: true });
+  const crossref = preview.getByRole('link', { name: 'Included findings', exact: true });
   await expect(crossref).toHaveAttribute('href', 'about:srcdoc#myst-notes~2e~md:note-label');
   await crossref.click();
   const target = preview.locator('[id="myst-notes~2e~md:note-label"]');

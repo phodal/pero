@@ -1,4 +1,5 @@
 import { expandMystEmbeds } from './myst-embeds.ts';
+import { createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
 import type { MystProjectReferenceTarget } from './myst-project-references.ts';
 import type { MystImageData } from './myst-assets.ts';
 import type { MystIncludeProvenance } from './myst-includes.ts';
@@ -15,6 +16,7 @@ export interface MystNode {
   projectTarget?: MystProjectReferenceTarget;
   imageData?: MystImageData;
   children?: MystNode[];
+  referenceContent?: MystNode[];
   value?: string;
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
   [key: string]: unknown;
@@ -22,8 +24,10 @@ export interface MystNode {
 export interface MystDiagnostic { severity: 'warning' | 'error'; code: string; message: string; line?: number; path?: string }
 export interface MystReferenceTarget {
   identifier: string;
-  kind: 'figure' | 'table' | 'equation' | 'section' | 'target';
-  number: number;
+  kind: string;
+  number?: string;
+  name?: MystNode[];
+  template: string;
   label: string;
 }
 export interface MystBibliographyEntry { id: string; title?: string; author?: string; year?: string; url?: string }
@@ -138,6 +142,7 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
 }
 
 export interface MystResolutionContext {
+  numberingState?: MystNumberingState;
   bibliography: Record<string, MystBibliographyEntry>;
   scholarly: MystScholarlyMetadata;
   diagnostics: MystDiagnostic[];
@@ -156,33 +161,23 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   if (!context && metadata.bibliography) report('bibliography-external', 'Bibliography files are not loaded. Use authored pero.bibliography metadata for local citation previews.');
   if (metadata.references) report('references-external', 'Cross-project references are retained but not loaded');
   if (metadata.plugins) report('plugins-disabled', 'Document plugins are not loaded');
-  const counts = { figure: 0, table: 0, equation: 0, section: 0, target: 0 };
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
-  const index = (node: MystNode) => {
-    const children = node.children ?? [];
-    children.forEach((child, offset) => {
-      if (child.type === 'mystTarget' && typeof child.label === 'string') {
-        const next = children[offset + 1];
-        if (next && !next.identifier) { next.identifier = identifier(child.label); next.label = child.label; child.type = 'comment'; }
-      }
-    });
-    const rawId = string(node.identifier) ?? (node.type === 'mystTarget' ? string(node.label) : undefined);
-    if (rawId && node.type !== 'crossReference' && node.type !== 'cite' && node.type !== 'footnoteReference') {
-      const id = identifier(rawId);
-      const kind = node.type === 'math' ? 'equation' : node.type === 'heading' ? 'section' : node.kind === 'figure' ? 'figure' : node.kind === 'table' || node.type === 'table' ? 'table' : 'target';
-      if (references[id]) report('reference-duplicate', `Duplicate label: ${rawId}`, node);
-      else { node.identifier = id; references[id] = { identifier: id, kind, number: ++counts[kind], label: kind === 'target' ? rawId : `${kind[0].toUpperCase()}${kind.slice(1)} ${counts[kind]}` }; }
-    }
-    children.forEach(index);
-  };
-  index(ast);
+  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report));
   walk(ast, node => {
+    if (node.type === 'link' && typeof node.url === 'string' && node.url.startsWith('#')) {
+      let id = node.url.slice(1);
+      try { id = decodeURIComponent(id); } catch { /* Preserve invalid fragment escapes. */ }
+      const target = references[identifier(id)];
+      if (target) resolveMystReferenceContent(node, target, report);
+      return;
+    }
+    if (node.type === 'cite' && node.citationShorthand && references[identifier(String(node.identifier))] && !bibliography[identifier(String(node.identifier))]) node.type = 'crossReference';
     if (node.type !== 'crossReference' && node.type !== 'cite') return;
     const id = identifier(string(node.identifier) ?? string(node.label) ?? '');
     const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id];
     node.identifier = id;
     node.resolved = resolved;
-    if (resolved) node.target = id;
+    if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report); }
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
   return { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };

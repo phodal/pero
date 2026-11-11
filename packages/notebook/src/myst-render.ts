@@ -65,7 +65,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
     const identifier = text(node, 'identifier');
     return identifier ? ` id="${escapeMystHtml(anchor(identifier))}"` : '';
   };
-  const label = (node: MystNode) => document.references[text(node, 'identifier')]?.label ?? '';
+  const label = (node: MystNode) => text(node, 'numberingLabel');
   const link = (url: string, content: string) => {
     const href = safeHref(url);
     if (!href) { notices.add(`Link not activated: ${url}`); return content; }
@@ -80,7 +80,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
       case 'paragraph': return `<p${id(node)}>${children()}</p>`;
       case 'heading': {
         const depth = typeof node.depth === 'number' && Number.isInteger(node.depth) && node.depth >= 1 && node.depth <= 6 ? node.depth : 2;
-        return `<h${depth}${id(node)}>${children()}</h${depth}>`;
+        return `<h${depth}${id(node)}>${text(node, 'enumerator') ? `${escapeMystHtml(text(node, 'enumerator'))} ` : ''}${children()}</h${depth}>`;
       }
       case 'emphasis': return `<em${id(node)}>${children()}</em>`;
       case 'strong': return `<strong${id(node)}>${children()}</strong>`;

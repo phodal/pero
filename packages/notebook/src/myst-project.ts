@@ -1,4 +1,5 @@
 import { expandMystEmbeds, isMystEmbedImage } from './myst-embeds.ts';
+import { createMystNumberingState, type MystNumberingState } from './myst-numbering.ts';
 import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
@@ -62,7 +63,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   };
   const projectBibliography = bibliographyResources(rawProject.bibliography, 'myst.yml');
   const pages: MystProjectPage[] = [];
-  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata): MystProjectPage => {
+  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata, numberingState?: MystNumberingState): MystProjectPage => {
     used.add(resource.path);
     const expansion = expandMystIncludes(snapshot, resource.path, supplied ?? parseMystSource(resource.text));
     const tables = expandMystCsvTables(snapshot, resource.path, expansion.parsed);
@@ -88,7 +89,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       node.children?.forEach(visit);
     };
     visit(parsed.ast);
-    const document = resolveMystDocument(parsed, { scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
+    const document = resolveMystDocument(parsed, { numberingState, scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
     return { path: resource.path, document, bibliography: bibliography.records };
   };
@@ -106,9 +107,10 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       const inherited = inheritMystMetadata(merged.normalized, validated.normalized);
       diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
       const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}), ...(merged.normalized.bibliography ? { bibliography: merged.normalized.bibliography } : {}) };
+      const numberingState = createMystNumberingState(inherited.normalized.numbering);
       const markdownCells = document.cells.filter(cell => cell.kind === 'markdown').map(cell => {
         const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
-        const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized);
+        const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized, ipynbCellVisibility(cell).input ? numberingState : undefined);
         return { index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography };
       });
       notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells });
