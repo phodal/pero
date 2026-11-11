@@ -15,6 +15,7 @@ import time
 
 from . import engines
 from .experiments import Invalid, canonical
+from .native_executable import NativeExecutable
 
 
 @dataclass(frozen=True)
@@ -67,12 +68,12 @@ class ComputeProfile:
         except (OSError, subprocess.TimeoutExpired, ValueError) as error:
             raise Invalid(f'Compute profile unavailable: {error}') from error
 
-    def execute(self, engine, model, parameters, scenario, directory, cancelled):
-        if engine != 'python-control':
-            raise engines.EngineUnavailable('This compute profile supports only python-control')
+    def execute(self, engine, model, parameters, scenario, directory, cancelled, native=None):
         directory = Path(directory).resolve()
         directory.mkdir(parents=True, exist_ok=True)
         (directory / 'compute-profile.json').write_bytes(self.payload)
+        if native:
+            (directory / 'native-executable.json').write_bytes(canonical(native.to_dict()))
         (directory / 'compute-input.json').write_bytes(canonical(dict(
             engine=engine, model=model, parameters=parameters, scenario=scenario)))
         if cancelled.is_set():
@@ -116,9 +117,23 @@ def selected(root):
         raise Invalid(f'Cannot read compute binding: {error}') from error
 
 
+@dataclass(frozen=True)
+class ComputeBinding:
+    profile: ComputeProfile | None
+    native: NativeExecutable | None
+
+    def execute(self, engine, model, parameters, scenario, directory, cancelled):
+        execute = self.profile.execute if self.profile else engines.execute
+        return execute(engine, model, parameters, scenario, directory, cancelled, native=self.native)
+
+
 def admit(root, record, engine):
-    if engine != 'python-control':
-        return None
+    native = NativeExecutable.observe() if engine == 'ngspice' else None
+    if native:
+        if 'nativeExecutable' in record:
+            NativeExecutable.parse(record['nativeExecutable']).require(native)
+        elif record['trials']:
+            raise Invalid('Historical circuit has no frozen executable identity; create a new experiment. Old evidence remains readable.')
     profile = selected(root)
     identity = profile.identity if profile else None
     if ('computeProfile' in record and record['computeProfile'] != identity
@@ -127,7 +142,9 @@ def admit(root, record, engine):
     if profile:
         profile.inspect()
     record['computeProfile'] = identity
-    return profile
+    if native:
+        record['nativeExecutable'] = native.to_dict()
+    return ComputeBinding(profile, native) if profile or native else None
 
 
 if __name__ == '__main__':
@@ -136,5 +153,7 @@ if __name__ == '__main__':
     profile = ComputeProfile.parse(json.loads((directory / 'compute-profile.json').read_bytes()))
     profile.require(observe())
     inputs = json.loads((directory / 'compute-input.json').read_bytes())
-    output = engines.execute(**inputs, directory=directory, cancelled=threading.Event())
+    native_path = directory / 'native-executable.json'
+    native = NativeExecutable.parse(json.loads(native_path.read_bytes())) if native_path.exists() else None
+    output = engines.execute(**inputs, directory=directory, cancelled=threading.Event(), native=native)
     (directory / 'compute-result.json').write_bytes(canonical(output))

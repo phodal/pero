@@ -273,10 +273,16 @@ def _read_table(path, columns, max_rows=MAX_EVIDENCE_SAMPLES):
     return list(zip(*rows))
 
 
-def _ngspice(model, parameters, scenario, directory, cancelled):
-    executable = shutil.which("ngspice")
-    if not executable:
-        raise EngineUnavailable("ngspice executable is missing from PATH; no fallback was run")
+def _ngspice(model, parameters, scenario, directory, cancelled, native=None):
+    from .native_executable import NativeExecutable
+    from .experiments import Invalid
+    try:
+        native = native or NativeExecutable.observe()
+    except Invalid as error:
+        raise EngineUnavailable(str(error)) from error
+    native.require(NativeExecutable.observe(native.path))
+    executable = native.path
+    (directory / 'native-executable.json').write_text(json.dumps(native.to_dict(), sort_keys=True))
     if cancelled.is_set():
         raise EngineCancelled("Cancelled before computation")
     grid = Grid.from_parameters(parameters, .005)
@@ -326,8 +332,8 @@ quit
         raise EngineError("ngspice returned a truncated analysis window")
     import numpy as np
     poles = np.roots(denominator)
-    version_probe = subprocess.run([executable, "-v"], capture_output=True, text=True, timeout=3, check=False)
-    version = next((line.strip(" *") for line in version_probe.stdout.splitlines() if "ngspice-" in line.lower()), "unknown")
+    native.require(NativeExecutable.observe(executable))
+    version = native.version
     return dict(series=[_series("reference", t, y, "V"),
                         _series("frequencyGain", f, gain, "dB", "Hz"),
                         _series("frequencyPhase", f, [v*180/math.pi for v in phase], "deg", "Hz")],
@@ -338,15 +344,15 @@ quit
 
 
 def execute(engine: str, model: str, parameters: dict[str, float], scenario: dict[str, float],
-            directory: Path, cancelled: threading.Event) -> dict:
+            directory: Path, cancelled: threading.Event, native=None) -> dict:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     if engine in ("python-control", "ngspice"):
         # Evidence only: existing engine admission, budgets and cancellation own execution.
-        observation = inspect_environment(engine)
+        observation = inspect_environment(engine, native.path if native else None)
         (directory / "environment-observation.json").write_text(json.dumps(observation, sort_keys=True), encoding="utf-8")
     if engine == "python-control":
         return _python_control(model, parameters, scenario, directory, cancelled)
     if engine == "ngspice":
-        return _ngspice(model, parameters, scenario, directory, cancelled)
+        return _ngspice(model, parameters, scenario, directory, cancelled, native)
     raise EngineUnavailable(f"Unknown solver engine: {engine}")

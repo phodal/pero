@@ -27,3 +27,14 @@ class ComputeProfileTests(unittest.TestCase):
         original = profile.payload
         value['observation']['packages'].clear()
         self.assertEqual(profile.payload, original)
+
+
+class NativeExecutableTests(unittest.TestCase):
+    def test_frozen_solver_rejects_each_identity_change(self):
+        from control_lab.native_executable import NativeExecutable
+        from dataclasses import replace
+        original = NativeExecutable('/opt/solver/ngspice', 'a'*64, 'ngspice-46')
+        original.require(NativeExecutable.parse(original.to_dict()))
+        for field, value in [('path','/other/ngspice'),('sha256','b'*64),('version','ngspice-47')]:
+            with self.subTest(field=field), self.assertRaisesRegex(Invalid, 'executable changed'):
+                original.require(replace(original, **{field:value}))

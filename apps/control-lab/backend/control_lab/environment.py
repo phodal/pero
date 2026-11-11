@@ -26,7 +26,7 @@ def file_digest(path):
         return None
 
 
-def inspect_environment(engine):
+def inspect_environment(engine, executable=None):
     if engine not in ('python-control', 'ngspice'):
         raise ValueError('Unknown Control Lab method')
     manifest = json.loads((Path(__file__).resolve().parents[2] / 'app.json').read_text())
@@ -40,7 +40,7 @@ def inspect_environment(engine):
     native = {}
     required = [dict(kind='package', name=name, version=version) for name, version in pins]
     if engine == 'ngspice':
-        executable = shutil.which('ngspice')
+        executable = executable or shutil.which('ngspice')
         program = dict(version=None, sha256=None, status='missing')
         if executable:
             program.update(sha256=file_digest(executable), status='probe_failed')
