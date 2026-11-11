@@ -15,7 +15,7 @@ export const persistedBlockTypes = [
   "bulletList", "orderedList", "taskList", "spreadsheet", "evidence",
   "experiment", "finding", "section", "attachment", "savedSearch", "inputTable",
   "registrationTable", "lookupTable", "mixturePrep", "appCanvas", "sampleIntake",
-  "reactionScheme", "chemical", "sourceExcerpt", "namedReference", "retainedBlock",
+  "reactionScheme", "chemical", "sourceExcerpt", "namedReference", "noteCard", "retainedBlock",
 ] as const;
 
 const knownTypes = new Set<string>([

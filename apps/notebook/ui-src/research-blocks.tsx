@@ -98,6 +98,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       const body = referenceReview({ proposalId: pendingProposal.proposalId, expectedRevision: notebook.revision, decision });
       const result = await api.post<{ entry: { id: string; revision: number; document: { schemaVersion: number } }; proposal: { decision: string; revision: number } }>(
         `/api/entries/${notebook.entryId}/block-proposals`, body);
+      setPendingProposal(null);
       setProposalNote(t(result.proposal.decision === 'accept' ? 'proposalAccepted' : 'proposalRejected', { revision: result.proposal.revision }));
       if (result.proposal.decision === 'accept') window.dispatchEvent(new CustomEvent('pero-notebook-entry-committed', { detail: result.entry }));
     } catch (cause) {
@@ -122,12 +123,12 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
       {t('objectVersion')}: {stored.reference?.version || t('interchangeUnpinned')}
     </p>
     {snapshotStays && <p className="notebook-note">{t('snapshotStaysInNotebook')}</p>}
+    {proposalNote && <p className="notebook-note">{proposalNote}</p>}
     {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>
       <legend>{t('reviewReference')}</legend>
       <p>{t('proposalWording')}: {pendingProposal.label}</p>
       <Button variant="primary" onClick={() => void reviewProposal('accept')}>{t('acceptProposal')}</Button>
       <Button variant="ghost" onClick={() => void reviewProposal('reject')}>{t('rejectProposal')}</Button>
-      {proposalNote && <p className="notebook-note">{proposalNote}</p>}
       {proposalError && <Feedback kind="error">{proposalError}</Feedback>}
     </fieldset>}
     {openError && openError.locator === source?.locator && <Feedback kind="error">{openError.message}</Feedback>}

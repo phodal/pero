@@ -26,6 +26,8 @@ import { emptyMixturePreparation } from '@pero/notebook/mixture';
 import { NotebookTemplateOrigin } from './template-origin';
 import { SavedSearchView } from './saved-search';
 import { RetainedBlockView } from './retained-block';
+import { NoteCardView } from './note-card';
+import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 export const widgets = [
   { name: 'namedReference', icon: 'document', defaults: { kind: 'entry', name: '', notes: '' }, view: NamedReferenceView },
@@ -36,6 +38,7 @@ export const widgets = [
   { name: 'appCanvas', icon: 'document', defaults: { label: '', binding: null }, view: AppCanvasView },
   { name: 'mixturePrep', icon: 'flask', defaults: { label: '', mixture: emptyMixturePreparation() }, view: MixturePrepView },
   { name: 'savedSearch', icon: 'search', defaults: { label: '', queryId: '', queryRevision: 1, mode: 'live', snapshot: null }, view: SavedSearchView },
+  { name: editorAdapter(noteCardDefinition).name, icon: 'document', defaults: editorAdapter(noteCardDefinition).defaults, view: NoteCardView },
   { name: 'inputTable', icon: 'table', defaults: structuredTableDefaults, view: InputTableView },
   { name: 'registrationTable', icon: 'table', defaults: structuredTableDefaults, view: RegistrationTableView },
   { name: 'lookupTable', icon: 'search', defaults: lookupTableDefaults, view: LookupTableView },

@@ -1,34 +1,76 @@
-"""Block and operation registrations. The document parser and agent dispatcher look up names here."""
+"""One block definition owns persistence and any reference capability.
 
-_blocks = {}
+Historical Notebook types keep their existing parser. A new type must bring a
+validator. A reference capability is optional and is not a general payload
+command.
+"""
+
+import re
+
+_definitions = {}
 _operations = {}
-_proposals = {}
+_TYPE = re.compile(r'[A-Za-z][A-Za-z0-9_-]{0,64}')
 
 
-def unregister_block(type_name):
-    _blocks.pop(type_name, None)
+class BlockDefinition:
+    def __init__(self, type_name, schema_version, *, validate=None, reference=None, historical=False):
+        if not isinstance(type_name, str) or not _TYPE.fullmatch(type_name):
+            raise ValueError('Invalid block type name')
+        if type(schema_version) is not int or schema_version < 1:
+            raise ValueError('Invalid block schema version')
+        if historical and validate is not None:
+            raise ValueError('A historical block keeps its existing parser')
+        if not historical and not callable(validate):
+            raise ValueError('A new block needs a persistence validator')
+        if reference is not None and not callable(reference):
+            raise ValueError('A reference capability needs an accept function')
+        self.type_name = type_name
+        self.schema_version = schema_version
+        self.historical = historical
+        self._validate = validate
+        self.reference = reference
+
+    def validate(self, value):
+        if self.historical:
+            raise ValueError(f'{self.type_name} is validated by the notebook document parser')
+        self._validate(value)
 
 
-def unregister_operation(name):
-    _operations.pop(name, None)
-
-
-def register_block(adapter):
-    name = adapter.type_name
-    if name in _blocks:
-        raise ValueError(f'Duplicate block registration: {name}')
-    _blocks[name] = adapter
-    return adapter
+def register_definition(definition):
+    if not isinstance(definition, BlockDefinition):
+        raise ValueError('Block registration requires a BlockDefinition')
+    if definition.type_name in _definitions:
+        raise ValueError(f'Duplicate block registration: {definition.type_name}')
+    _definitions[definition.type_name] = definition
+    return definition
 
 
 def block(type_name):
-    return _blocks.get(type_name)
+    return _definitions.get(type_name)
+
+
+def extension_type_names():
+    """New persisted types. Historical types stay in the document parser set."""
+    return sorted(name for name, definition in _definitions.items() if not definition.historical)
+
+
+def reference_capability(type_name):
+    definition = _definitions.get(type_name)
+    return None if definition is None else definition.reference
+
+
+def unregister_definition(type_name):
+    _definitions.pop(type_name, None)
 
 
 def register_operation(name, parse, apply):
     if name in _operations:
         raise ValueError(f'Duplicate operation registration: {name}')
     _operations[name] = (parse, apply)
+
+
+def unregister_operation(name):
+    _operations.pop(name, None)
 
 
 def parse_registered_operation(value, new_id):
@@ -38,16 +80,6 @@ def parse_registered_operation(value, new_id):
     if pair is None:
         return None
     return pair[0](value, new_id)
-
-
-def register_proposal(type_name, accept):
-    if type_name in _proposals:
-        raise ValueError(f'Duplicate proposal registration: {type_name}')
-    _proposals[type_name] = accept
-
-
-def proposal_adapter(type_name):
-    return _proposals.get(type_name)
 
 
 def apply_registered_operation(document, operation):

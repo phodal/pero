@@ -242,6 +242,7 @@ export const messages = {
   proposalAccepted: { en: 'Accepted as revision {revision}. The previous revision is unchanged.', zh: '已接受为版本 {revision}。上一版本保持不变。' },
   proposalRejected: { en: 'Rejected. This revision was not changed.', zh: '已拒绝。当前版本没有改动。' },
   proposalDirty: { en: 'Save or discard the open draft before reviewing a proposal.', zh: '审查提案前请先保存或放弃当前草稿。' },
+  noteCard: { en: 'Note card', zh: '笔记卡片' },
   retainedBlock: { en: 'Unsupported block', zh: '暂不支持的块' },
   retainedBlockNote: { en: 'This block is kept exactly and was not converted.', zh: '此块被原样保留，没有被转换。' },
   documentBlocked: { en: 'This notebook was not opened, so nothing was removed.', zh: '笔记没有打开，因此没有删除任何内容。' },

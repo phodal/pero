@@ -14,6 +14,7 @@ import { isAttachmentAttributes } from '@pero/notebook/attachment';
 import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
 import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { persistedBlockTypes } from '@pero/notebook/interchange';
+import { editorAdapter, noteCardDefinition } from '@pero/notebook/scientific-block';
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -96,6 +97,13 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
       return isControlEvidenceSnapshot(snapshot) && source.app === 'control-lab' && source.kind === 'verification-report' &&
         source.version === snapshot.reportId && location?.trialId === snapshot.trialId && location.experimentId === source.id;
     }
+    case 'noteCard':
+      try {
+        editorAdapter(noteCardDefinition).validate({
+          ...attrs, blockId: typeof attrs.blockId === 'string' ? attrs.blockId : 'clipboard',
+        });
+        return true;
+      } catch { return false; }
     case 'finding':
       return text(attrs.claim, 32_768) && text(attrs.limitations, 32_768) && ids(attrs.evidenceIds);
     default:

@@ -11,10 +11,10 @@ import threading
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
-from block_registry import register_block, register_operation, unregister_block, unregister_operation
+from block_registry import BlockDefinition, register_definition, register_operation, unregister_definition, unregister_operation
 from document import NotebookDocument, block_id
 from server import handler
-from store import EntryStore
+from store import EntryStore, RevisionConflict
 
 FIXTURE = json.loads((Path(__file__).resolve().parents[3] / 'packages/notebook/test/fixtures/snapshot-contract.json').read_text())
 REPORT = FIXTURE['bases']['paper']['reportId']
@@ -31,18 +31,15 @@ def entry_document():
     ]}}
 
 
-class Gauge:
-    type_name = 'gaugeReading'
-
-    def validate(self, value):
-        version = value.get('schemaVersion', 1)
-        if type(version) is not int or version < 1:
-            raise ValueError('Invalid block schema version')
-        block_id(value['blockId'])
-        if version != 1:
-            return
-        if not isinstance(value.get('reading'), str) or not value['reading']:
-            raise ValueError('Invalid gauge reading')
+def validate_gauge(value):
+    version = value.get('schemaVersion', 1)
+    if type(version) is not int or version < 1:
+        raise ValueError('Invalid block schema version')
+    block_id(value['blockId'])
+    if version != 1:
+        return
+    if not isinstance(value.get('reading'), str) or not value['reading']:
+        raise ValueError('Invalid gauge reading')
 
 
 @dataclass
@@ -65,11 +62,11 @@ def apply_mark(document, operation):
 
 class ScientificBlockTests(unittest.TestCase):
     def setUp(self):
-        register_block(Gauge())
+        register_definition(BlockDefinition('gaugeReading', 1, validate=validate_gauge))
         register_operation('mark_block', parse_mark, apply_mark)
 
     def tearDown(self):
-        unregister_block('gaugeReading')
+        unregister_definition('gaugeReading')
         unregister_operation('mark_block')
 
     def test_registered_block_keeps_a_future_schema_and_a_new_operation_needs_no_dispatcher_edit(self):
@@ -87,8 +84,35 @@ class ScientificBlockTests(unittest.TestCase):
         self.assertEqual(apply_operations(document, operations).block('paper-block')['attrs']['label'], 'marked')
         self.assertEqual(document.block('paper-block')['attrs']['label'], 'Imported report')
 
+    def test_a_definition_is_the_only_registration_and_note_card_has_no_reference_command(self):
+        with self.assertRaisesRegex(ValueError, 'persistence validator'):
+            BlockDefinition('orphan', 1, reference=lambda attrs, _label, _source: attrs)
+        from scientific_block import validate_note_card
+        with self.assertRaisesRegex(ValueError, 'Duplicate block registration'):
+            register_definition(BlockDefinition('noteCard', 1, validate=validate_note_card))
+        document = {'schemaVersion': 1, 'title': 'Note', 'content': {'type': 'doc', 'content': [
+            {'type': 'noteCard', 'attrs': {'blockId': 'note-1', 'schemaVersion': 1, 'text': 'Keep this note'}},
+        ]}}
+        self.assertEqual(NotebookDocument.parse(document).block('note-1')['attrs']['text'], 'Keep this note')
+        future = {'schemaVersion': 1, 'title': 'Note', 'content': {'type': 'doc', 'content': [
+            {'type': 'noteCard', 'attrs': {'blockId': 'note-2', 'schemaVersion': 2, 'text': 'kept', 'extra': True}},
+        ]}}
+        self.assertEqual(NotebookDocument.parse(future).wire(), future)
+        from scientific_block import BlockProposalStore, ProposeReference, parse_propose_reference
+        with self.assertRaises(ValueError):
+            parse_propose_reference({'op': 'propose_reference', 'proposalId': 'p', 'blockId': 'paper-block',
+                                     'label': 'x', 'source': {**SOURCE, 'version': ''}}, lambda: 'id')
+        recorded = parse_propose_reference({'op': 'propose_reference', 'proposalId': 'p', 'blockId': 'paper-block',
+                                            'label': 'x', 'source': {**SOURCE, 'app': 'no-such-owner'}}, lambda: 'id')
+        self.assertEqual(recorded.source['app'], 'no-such-owner')
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            proposals = BlockProposalStore(store)
+            created = store.create(NotebookDocument.parse(document))
+            with self.assertRaisesRegex(ValueError, 'does not accept reference proposals'):
+                proposals.propose(created.identity, 1, ProposeReference('note-proposal', 'note-1', 'unused', SOURCE))
+
     def test_accept_rejects_an_adapter_that_drops_template_lineage(self):
-        from block_registry import register_proposal, proposal_adapter
         origin = {'templateId': 'template-1', 'revision': 1, 'instanceId': 'instance-1', 'parameterValues': {}, 'idMap': {}}
         document = {'schemaVersion': 1, 'title': 'Gauge', 'content': {'type': 'doc', 'content': [
             {'type': 'gaugeReading', 'attrs': {'blockId': 'gauge', 'schemaVersion': 1, 'reading': 'kept', 'templateOrigin': origin}},
@@ -101,13 +125,9 @@ class ScientificBlockTests(unittest.TestCase):
             updated['source'] = source
             return updated
 
-        from block_registry import _proposals
         from scientific_block import BlockProposalStore, BlockReview, ProposeReference
-        previous = proposal_adapter('gaugeReading')
-        if previous is None:
-            register_proposal('gaugeReading', drop_origin)
-        else:
-            _proposals['gaugeReading'] = drop_origin
+        unregister_definition('gaugeReading')
+        register_definition(BlockDefinition('gaugeReading', 1, validate=validate_gauge, reference=drop_origin))
         try:
             with tempfile.TemporaryDirectory() as directory:
                 store = EntryStore(directory)
@@ -119,10 +139,37 @@ class ScientificBlockTests(unittest.TestCase):
                 self.assertEqual(store.read(created.identity).revision, 1)
                 self.assertEqual(store.read(created.identity).document.block('gauge')['attrs']['templateOrigin'], origin)
         finally:
-            if previous is None:
-                _proposals.pop('gaugeReading', None)
-            else:
-                _proposals['gaugeReading'] = previous
+            unregister_definition('gaugeReading')
+            register_definition(BlockDefinition('gaugeReading', 1, validate=validate_gauge))
+
+    def test_a_changed_source_cannot_keep_a_snapshot_of_another_version(self):
+        from scientific_block import BlockProposalStore, BlockReview, ProposeReference
+        snapshot = FIXTURE['bases']['paper']
+        document = entry_document()
+        document['content']['content'][1]['attrs']['snapshot'] = snapshot
+        other = {**SOURCE, 'id': 'ab' * 32, 'version': 'ab' * 32}
+        with tempfile.TemporaryDirectory() as directory:
+            store = EntryStore(directory)
+            proposals = BlockProposalStore(store)
+            created = store.create(NotebookDocument.parse(document))
+            proposals.propose(created.identity, 1, ProposeReference('mismatch-1', 'paper-block', 'Other report', other))
+            with self.assertRaisesRegex(ValueError, 'snapshot does not match'):
+                proposals.review(created.identity, BlockReview('mismatch-1', 1, 'accept'))
+            saved = store.read(created.identity)
+            self.assertEqual(saved.revision, 1)
+            attrs = saved.document.block('paper-block')['attrs']
+            self.assertEqual(attrs['label'], 'Imported report')
+            self.assertEqual(attrs['source'], SOURCE)
+            self.assertEqual(attrs['snapshot'], snapshot)
+            store.commit(created.identity, 1, lambda current: NotebookDocument.parse({**current.wire(), 'title': 'Saved later'}))
+            with self.assertRaises(RevisionConflict):
+                proposals.review(created.identity, BlockReview('mismatch-1', 1, 'accept'))
+            rejected = proposals.review(created.identity, BlockReview('mismatch-1', 1, 'reject'))
+            self.assertEqual(rejected['proposal']['decision'], 'reject')
+            self.assertEqual(store.read(created.identity).revision, 2)
+            other_entry = store.create(NotebookDocument.parse(entry_document()))
+            with self.assertRaisesRegex(ValueError, 'not found'):
+                proposals.review(other_entry.identity, BlockReview('mismatch-1', 1, 'reject'))
 
     def test_host_proposal_reviews_the_real_paper_reference(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -169,7 +216,7 @@ class ScientificBlockTests(unittest.TestCase):
                         propose['operations'][0], {'op': 'replace_text', 'blockId': 'intro', 'match': 'Opened', 'replacement': 'Changed'}]}
                     self.assertEqual(request('POST', '/api/agent-apply', mixed)[0], 400)
                     self.assertEqual(request('POST', f'/api/entries/{entry_id}/block-proposals', {
-                        'proposalId': 'proposal-1', 'expectedRevision': 4, 'decision': 'reject'})[0], 409)
+                        'proposalId': 'missing-proposal', 'expectedRevision': 1, 'decision': 'reject'})[0], 400)
                     status, rejected = request('POST', f'/api/entries/{entry_id}/block-proposals', {
                         'proposalId': 'proposal-1', 'expectedRevision': 1, 'decision': 'reject'})
                     self.assertEqual((status, rejected['proposal']['revision'], rejected['entry']['revision']), (200, 1, 1))

@@ -9,7 +9,7 @@ const experiment = 'a'.repeat(32);
 const report = 'b'.repeat(64);
 
 test('the document parser and interchange block list name the same blocks', () => {
-  const result = spawnSync('python3', ['-c', 'from document import BLOCKS; print("\\n".join(sorted(BLOCKS)))'], {
+  const result = spawnSync('python3', ['-c', 'import scientific_block; from document import BLOCKS; from block_registry import extension_type_names; print("\\n".join(sorted(set(BLOCKS) | set(extension_type_names()))))'], {
     cwd: fileURLToPath(new URL('../backend', import.meta.url)), encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
@@ -62,6 +62,42 @@ test('evidence shows the editor block id separately from the object version, and
   assert.notEqual(saved.content[1].attrs?.blockId, report);
 });
 
+test('a note card renders through its editor adapter and survives the document parser', async t => {
+  let editor: { getJSON(): { content: { type: string; attrs: { text?: string } }[] }; destroy(): void } | undefined;
+  t.after(() => editor?.destroy());
+  const runtime = await createUiRuntime(t, { resolveDir: fileURLToPath(new URL('../ui-src', import.meta.url)), contents: `
+    import { useEditor, EditorContent } from '@tiptap/react';
+    import { notebookExtensions } from './editor-extensions';
+    import { isClipboardWidget } from './clipboard-block';
+    export { AppSdkProvider, createAppHost } from '@pero/app-sdk';
+    export { isClipboardWidget };
+    export function Fixture({ content, capture }) {
+      const editor = useEditor({ extensions: notebookExtensions, content });
+      capture(editor);
+      return <EditorContent editor={editor} />;
+    }
+  ` });
+  const { React, ui, render } = runtime;
+  const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
+  await render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.Fixture, {
+    content: { type: 'doc', content: [
+      { type: 'noteCard', attrs: { blockId: 'note-1', schemaVersion: 1, text: 'Keep this note' } },
+    ] },
+    capture: (value: { getJSON(): { content: { type: string; attrs: { text?: string } }[] }; destroy(): void }) => { editor = value; },
+  })));
+  assert.match(document.body.textContent ?? '', /Keep this note/);
+  assert.equal(editor?.getJSON().content[0].type, 'noteCard');
+  assert.equal(editor?.getJSON().content[0].attrs.text, 'Keep this note');
+  assert.equal(ui.isClipboardWidget('noteCard', { schemaVersion: 1, text: 'Keep this note' }), true);
+  assert.equal(ui.isClipboardWidget('noteCard', { schemaVersion: 1, text: 'x'.repeat(4001) }), false);
+  const saved = { schemaVersion: 1, title: 'Note', content: editor?.getJSON() };
+  const result = spawnSync('python3', ['-c', 'import json,sys; import scientific_block; from document import NotebookDocument; print(NotebookDocument.parse(json.load(sys.stdin)).serialized())'], {
+    cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(saved), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).content.content[0].attrs.text, 'Keep this note');
+});
+
 test('cutting and pasting a retained block keeps its payload through the editor and the document parser', async t => {
   let editor: any;
   t.after(() => editor?.destroy());
@@ -93,7 +129,7 @@ test('cutting and pasting a retained block keeps its payload through the editor 
   assert.equal(pasted.attrs.payload.type, 'instrumentReading');
   assert.equal(pasted.attrs.payload.attrs.blockId, pasted.attrs.blockId);
   const saved = { schemaVersion: 1, title: 'Retained', content: editor.getJSON() };
-  const result = spawnSync('python3', ['-c', 'import json,sys; from document import NotebookDocument; print(NotebookDocument.parse(json.load(sys.stdin)).serialized())'], {
+  const result = spawnSync('python3', ['-c', 'import json,sys; import scientific_block; from document import NotebookDocument; print(NotebookDocument.parse(json.load(sys.stdin)).serialized())'], {
     cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(saved), encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);

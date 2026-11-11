@@ -26,3 +26,49 @@ export type StoredReferenceProposal = {
   source: ScientificReference;
   revision: number;
 };
+
+/**
+ * A new document block. Version 1 is the editor contract. A later integer
+ * version is retained by validate and is not interpreted by this editor.
+ */
+export interface DocumentBlockDefinition {
+  type: "noteCard";
+  schemaVersion: 1;
+  role: "document";
+  defaults: { schemaVersion: 1; text: string };
+  validate(attrs: Record<string, unknown>): void;
+}
+
+/** Historical evidence and experiment. The only command is propose_reference. */
+export interface ReferenceBlockDefinition {
+  type: "evidence" | "experiment";
+  schemaVersion: 1;
+  role: "reference";
+  command: "propose_reference";
+}
+
+const noteFields = ["blockId", "schemaVersion", "text", "templateOrigin"];
+
+export const noteCardDefinition: DocumentBlockDefinition = {
+  type: "noteCard",
+  schemaVersion: 1,
+  role: "document",
+  defaults: { schemaVersion: 1, text: "" },
+  validate(attrs) {
+    const version = attrs.schemaVersion;
+    if (typeof version !== "number" || !Number.isInteger(version) || version < 1) throw new Error("Invalid note card schema version.");
+    if (typeof attrs.blockId !== "string" || !id.test(attrs.blockId)) throw new Error("Note card id must be stable.");
+    if (version !== 1) return;
+    if (typeof attrs.text !== "string" || attrs.text.length > 4000) throw new Error("Invalid note card text.");
+    if (Object.keys(attrs).some(key => !noteFields.includes(key))) throw new Error("Invalid note card fields.");
+  },
+};
+
+export const referenceBlocks: readonly ReferenceBlockDefinition[] = [
+  { type: "evidence", schemaVersion: 1, role: "reference", command: "propose_reference" },
+  { type: "experiment", schemaVersion: 1, role: "reference", command: "propose_reference" },
+];
+
+export function editorAdapter(definition: DocumentBlockDefinition) {
+  return { name: definition.type, defaults: definition.defaults, validate: definition.validate };
+}

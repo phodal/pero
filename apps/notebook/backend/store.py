@@ -136,7 +136,19 @@ class EntryStore:
                 ).fetchone():
                     connection.execute(f'DELETE FROM {table} WHERE entry_id = ?', (identity,))
 
-    def commit(self, identity, expected_revision, edit):
+    def migrate(self, statements):
+        with closing(self._connect()) as connection, connection:
+            for statement in statements:
+                connection.execute(statement)
+
+    def in_entry(self, identity, write):
+        """Lock one entry. write(connection, entry) may record satellite rows and must not append a revision."""
+        with closing(self._connect()) as connection, connection:
+            connection.execute('BEGIN IMMEDIATE')
+            current = self._read(connection, identity)
+            return write(connection, current)
+
+    def commit(self, identity, expected_revision, edit, record=None):
         with closing(self._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
             current = self._read(connection, identity)
@@ -150,4 +162,5 @@ class EntryStore:
             if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='drafts'").fetchone():
                 connection.execute('DELETE FROM drafts WHERE entry_id = ? AND document = ?',
                                    (identity, document.serialized()))
-            return entry
+            recorded = record(connection, entry) if record else None
+            return (entry, recorded) if record else entry

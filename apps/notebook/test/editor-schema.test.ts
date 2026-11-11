@@ -24,7 +24,7 @@ test('every mounted Notebook widget and inline mention survives editor serializa
   const editor = new ui.Editor({ extensions: ui.notebookExtensions, content: { type: 'doc', content: contents } });
   const document = { schemaVersion: 1, title: 'All components', content: editor.getJSON() };
   const check = (value: unknown) => {
-    const result = spawnSync('python3', ['-c', `import json,sys; from document import NotebookDocument; value=json.load(sys.stdin); print(NotebookDocument.parse(value).serialized())`], {
+    const result = spawnSync('python3', ['-c', `import json,sys; import scientific_block; from document import NotebookDocument; value=json.load(sys.stdin); print(NotebookDocument.parse(value).serialized())`], {
       cwd: resolve(import.meta.dirname, '../backend'), input: JSON.stringify(value), encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
     });
     assert.equal(result.status, 0, result.stderr); return JSON.parse(result.stdout);

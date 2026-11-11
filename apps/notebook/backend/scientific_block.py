@@ -4,16 +4,14 @@ The Host token gate stays in the notebook server. This module does not grant
 permission from proposal fields. Accept appends one revision; reject does not.
 """
 
-from contextlib import closing
 from copy import deepcopy
 from dataclasses import dataclass
 import json
 import re
 
-from block_registry import proposal_adapter, register_operation, register_proposal
-from document import NotebookDocument, block_id, fields, integer, string
+from block_registry import BlockDefinition, block, reference_capability, register_definition, register_operation
+from document import NotebookDocument, _snapshot, block_id, fields, integer, string
 from store import RevisionConflict
-from templates import preserve_template_origins
 
 
 def _source(value):
@@ -25,12 +23,16 @@ def _source(value):
     return {key: source[key] for key in ('app', 'kind', 'id', 'version', 'locator')}
 
 
-def accept_reference(attrs, label, source):
-    """Replace the label and pinned reference. Snapshot and template lineage stay."""
-    updated = dict(attrs)
-    updated['label'] = string(label, 'reference label', 200)
-    updated['source'] = _source(source)
-    return updated
+def accept_reference(kind):
+    """Reference capability. The command is label plus source. A retained snapshot must still name that source."""
+    def accept(attrs, label, source):
+        updated = dict(attrs)
+        updated['label'] = string(label, 'reference label', 200)
+        updated['source'] = _source(source)
+        if updated.get('snapshot') is not None:
+            _snapshot(kind, updated['snapshot'], updated['source'])
+        return updated
+    return accept
 
 
 @dataclass(frozen=True)
@@ -79,25 +81,29 @@ class BlockReview:
         return cls(block_id(data['proposalId']), integer(data['expectedRevision'], 'expected revision'), data['decision'])
 
 
+def _save_receipt(connection, identity, proposal_id, receipt):
+    connection.execute('UPDATE scientific_block_proposals SET receipt = ? WHERE entry_id = ? AND proposal_id = ?',
+                       (json.dumps(receipt, ensure_ascii=False), identity, proposal_id))
+
+
 class BlockProposalStore:
     def __init__(self, entries):
         self.entries = entries
-        with closing(entries._connect()) as connection, connection:
-            connection.execute('''CREATE TABLE IF NOT EXISTS scientific_block_proposals (
-                entry_id TEXT NOT NULL, proposal_id TEXT NOT NULL, request TEXT NOT NULL,
-                receipt TEXT NOT NULL, PRIMARY KEY (entry_id, proposal_id))''')
+        entries.migrate(['''CREATE TABLE IF NOT EXISTS scientific_block_proposals (
+            entry_id TEXT NOT NULL, proposal_id TEXT NOT NULL, request TEXT NOT NULL,
+            receipt TEXT NOT NULL, PRIMARY KEY (entry_id, proposal_id))'''])
 
     def list(self, identity):
-        with closing(self.entries._connect()) as connection:
-            self.entries._read(connection, identity)
+        def read(connection, _current):
             return [json.loads(row['receipt']) for row in connection.execute(
                 'SELECT receipt FROM scientific_block_proposals WHERE entry_id = ? ORDER BY rowid', (identity,))]
+        return self.entries.in_entry(identity, read)
 
     def propose(self, identity, expected_revision, proposal: ProposeReference):
         request = json.dumps({'blockId': proposal.block_id, 'label': proposal.label, 'source': proposal.source},
                               sort_keys=True, ensure_ascii=False)
-        with closing(self.entries._connect()) as connection, connection:
-            connection.execute('BEGIN IMMEDIATE')
+
+        def write(connection, current):
             prior = connection.execute(
                 'SELECT request, receipt FROM scientific_block_proposals WHERE entry_id = ? AND proposal_id = ?',
                 (identity, proposal.proposal_id)).fetchone()
@@ -105,13 +111,12 @@ class BlockProposalStore:
                 if prior['request'] != request:
                     raise ValueError('This proposal id was already used with different input')
                 receipt = json.loads(prior['receipt'])
-                entry = self.entries._read(connection, identity, receipt['revision'])
+                entry = self.entries.read(identity, receipt['revision'])
                 return {'entry': entry.wire(), 'proposal': receipt, 'replayed': True}
-            current = self.entries._read(connection, identity)
             if current.revision != expected_revision:
                 raise RevisionConflict(current.revision)
             target = current.document.block(proposal.block_id)
-            if target is None or proposal_adapter(target['type']) is None:
+            if target is None or reference_capability(target['type']) is None:
                 raise ValueError('This block does not accept reference proposals')
             receipt = {'proposalId': proposal.proposal_id, 'decision': 'pending', 'blockId': proposal.block_id,
                        'baseRevision': current.revision, 'revision': current.revision, 'label': proposal.label,
@@ -119,10 +124,12 @@ class BlockProposalStore:
             connection.execute('INSERT INTO scientific_block_proposals VALUES (?, ?, ?, ?)',
                                (identity, proposal.proposal_id, request, json.dumps(receipt, ensure_ascii=False)))
             return {'entry': current.wire(), 'proposal': receipt, 'replayed': False}
+        return self.entries.in_entry(identity, write)
 
     def review(self, identity, review: BlockReview):
-        with closing(self.entries._connect()) as connection, connection:
-            connection.execute('BEGIN IMMEDIATE')
+        pending = {}
+
+        def decide(connection, current):
             prior = connection.execute(
                 'SELECT request, receipt FROM scientific_block_proposals WHERE entry_id = ? AND proposal_id = ?',
                 (identity, review.proposal_id)).fetchone()
@@ -132,35 +139,46 @@ class BlockProposalStore:
             if receipt['decision'] != 'pending':
                 if receipt['decision'] != review.decision:
                     raise ValueError('This proposal was already reviewed with a different decision')
-                entry = self.entries._read(connection, identity, receipt['revision'])
+                entry = self.entries.read(identity, receipt['revision'])
                 return {'entry': entry.wire(), 'proposal': receipt, 'replayed': True}
-            current = self.entries._read(connection, identity)
-            if current.revision != review.expected_revision or current.revision != receipt['baseRevision']:
-                raise RevisionConflict(current.revision)
             if review.decision == 'reject':
                 receipt = {**receipt, 'decision': 'reject'}
-                connection.execute('UPDATE scientific_block_proposals SET receipt = ? WHERE entry_id = ? AND proposal_id = ?',
-                                   (json.dumps(receipt, ensure_ascii=False), identity, review.proposal_id))
+                _save_receipt(connection, identity, review.proposal_id, receipt)
                 return {'entry': current.wire(), 'proposal': receipt, 'replayed': False}
-            document = current.document
-            target = document.block(receipt['blockId'])
+            if current.revision != review.expected_revision or current.revision != receipt['baseRevision']:
+                raise RevisionConflict(current.revision)
+            pending['receipt'] = receipt
+            return None
+
+        finished = self.entries.in_entry(identity, decide)
+        if finished is not None:
+            return finished
+        receipt = pending['receipt']
+
+        def edit(document):
+            copy = NotebookDocument.parse(deepcopy(document.wire()))
+            target = copy.block(receipt['blockId'])
             if target is None:
                 raise ValueError('Block was not found in this revision')
-            adapter = proposal_adapter(target['type'])
+            adapter = reference_capability(target['type'])
             if adapter is None:
                 raise ValueError('This block does not accept reference proposals')
-            before = deepcopy(document.wire())
-            target['attrs'] = adapter(target['attrs'], receipt['label'], receipt['source'])
-            after = document.wire()
-            preserve_template_origins(before, after)
-            updated = NotebookDocument.parse(after)
-            entry = self.entries._insert(connection, identity, current.revision + 1, updated)
-            if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='drafts'").fetchone():
-                connection.execute('DELETE FROM drafts WHERE entry_id = ? AND document = ?', (identity, updated.serialized()))
-            receipt = {**receipt, 'decision': 'accept', 'revision': entry.revision}
-            connection.execute('UPDATE scientific_block_proposals SET receipt = ? WHERE entry_id = ? AND proposal_id = ?',
-                               (json.dumps(receipt, ensure_ascii=False), identity, review.proposal_id))
-            return {'entry': entry.wire(), 'proposal': receipt, 'replayed': False}
+            target['attrs'] = adapter(deepcopy(target['attrs']), receipt['label'], receipt['source'])
+            return NotebookDocument.parse(copy.wire())
+
+        def record(connection, entry):
+            row = connection.execute(
+                'SELECT receipt FROM scientific_block_proposals WHERE entry_id = ? AND proposal_id = ?',
+                (identity, review.proposal_id)).fetchone()
+            current_receipt = json.loads(row['receipt'])
+            if current_receipt['decision'] != 'pending':
+                raise ValueError('This proposal was already reviewed with a different decision')
+            accepted = {**current_receipt, 'decision': 'accept', 'revision': entry.revision}
+            _save_receipt(connection, identity, review.proposal_id, accepted)
+            return accepted
+
+        entry, accepted = self.entries.commit(identity, review.expected_revision, edit, record)
+        return {'entry': entry.wire(), 'proposal': accepted, 'replayed': False}
 
 
 def block_proposal_route(owner, method, path, body):
@@ -174,7 +192,22 @@ def block_proposal_route(owner, method, path, body):
     return None
 
 
-# Imported by the server so evidence and experiment proposals resolve without editing the route.
+def validate_note_card(value):
+    """Pure document block. Version 1 is text. A later integer version is retained, not interpreted."""
+    if not isinstance(value, dict):
+        raise ValueError('Invalid note card')
+    version = value.get('schemaVersion')
+    if type(version) is not int or version < 1:
+        raise ValueError('Invalid note card schema version')
+    block_id(value.get('blockId'))
+    if version != 1:
+        return
+    string(value.get('text', ''), 'note card text', 4000)
+    if set(value) - {'blockId', 'schemaVersion', 'text', 'templateOrigin'}:
+        raise ValueError('Invalid note card fields')
+
+
+register_definition(BlockDefinition('noteCard', 1, validate=validate_note_card))
 for _name in ('evidence', 'experiment'):
-    if proposal_adapter(_name) is None:
-        register_proposal(_name, accept_reference)
+    if block(_name) is None:
+        register_definition(BlockDefinition(_name, 1, historical=True, reference=accept_reference(_name)))
