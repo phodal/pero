@@ -23,8 +23,12 @@ if ((!localSmoke && process.env.GITHUB_ACTIONS !== 'true') || !platform || ((sta
 }
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const revision = git('rev-parse', 'HEAD');
-if (standalone && process.env.GITHUB_EVENT_NAME === 'push' && !tag) {
-  if (process.env.GITHUB_SHA !== revision) throw new Error('The push commit must match the checked out source.');
+const canary = !tag && standalone && ['pull_request', 'schedule', 'push'].includes(process.env.GITHUB_EVENT_NAME);
+if (process.env.RELEASE_SHA && process.env.RELEASE_SHA !== revision) {
+  throw new Error('The pinned release SHA must match the checked out source.');
+}
+if (canary) {
+  if (process.env.GITHUB_SHA !== revision) throw new Error('The workflow commit must match the checked out source.');
 } else if (!localSmoke) {
   if (!tag || !/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(tag)) {
     throw new Error('RELEASE_TAG must identify an existing version tag.');

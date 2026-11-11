@@ -4,6 +4,17 @@ on:
   workflow_dispatch:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
+    paths:
+      - deployment/agent-sandbox/**
+      - crates/pero-worker/**
+      - crates/pero-contracts/**
+      - crates/pero-runtime/**
+      - Cargo.toml
+      - Cargo.lock
+      - scripts/cargo.mjs
+      - harness/go/**
+      - server/**
+      - .github/workflows/agent-sandbox-isolated.yml
 
 permissions:
   contents: read

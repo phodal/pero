@@ -109,6 +109,10 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.match(native.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
   assert.equal(native.on.schedule[0].cron, '0 20 * * *');
   assert.equal(native.on.pull_request.paths, undefined);
+  assert.ok(native.on.push.paths.includes('use/**'));
+  assert.deepEqual(native.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
+  assert.equal(native.jobs.native.if, "needs.scope.outputs.run == 'true'");
+  assert.equal(native.jobs.native.name, 'Native Computer Use (${{ matrix.os }})');
 });
 
 test('independent Paper aggregates cover every offline journey once and restore scoped PDF mode', () => {

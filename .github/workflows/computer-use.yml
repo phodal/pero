@@ -15,13 +15,64 @@ on:
         required: false
         default: false
   push:
-    paths: ['use/**', 'protocol/computer-*.tsp', 'crates/pero-contracts/**', 'scripts/build/computer.mjs', 'tests/**/computer-*', '.github/workflows/computer-use.yml']
+    paths:
+      - use/**
+      - protocol/computer-*.tsp
+      - crates/pero-contracts/**
+      - scripts/build/computer.mjs
+      - tests/**/computer-*
+      - tests/build/paper-native-diagnostic-wiring.test.mjs
+      - tests/build/paper-host-approval-wiring.test.mjs
+      - tests/fixtures/paper-atspi-diagnostic.py
+      - tests/fixtures/paper-atspi-diagnostic-test.py
+      - tests/fixtures/paper-host-approval.mjs
+      - tests/fixtures/paper-host-approval.test.mjs
+      - tests/fixtures/paper-host-approval-diagnostics.mjs
+      - tests/e2e/paper-native-diagnostic.mjs
+      - tests/e2e/paper-host-approval-native.mjs
+      - desktop/src/main/reproduction-approval-linux.test.ts
+      - desktop/src/main/apps-reproduction.test.ts
+      - scripts/ci/workflow-scope.mjs
+      - .github/workflows/computer-use.yml
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 permissions:
   contents: read
 jobs:
+  scope:
+    name: Decide Computer Use scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - id: decide
+        name: Run for relevant changes, manual, schedule, or an explicit label
+        env:
+          SCOPE_KIND: computer-use
+          SCOPE_EVENT: ${{ github.event_name }}
+          SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
+          SCOPE_PR: ${{ github.event.pull_request.number }}
+        run: |
+          files=""
+          if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
+            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "refs/pull/${SCOPE_PR}/head:refs/remotes/origin/pr-head"; then
+              files=$(git diff --name-only refs/remotes/origin/pr-base refs/remotes/origin/pr-head)
+            else
+              echo "Cannot read the pull request diff; running the check." >&2
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
   native:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     name: Native Computer Use (${{ matrix.os }})
     strategy:
       fail-fast: false

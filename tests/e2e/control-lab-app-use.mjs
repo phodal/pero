@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { chooseSelect } from './select-control.mjs';
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/control-lab-app-use');
 await mkdir(out, { recursive: true });
 // Preserve an earlier failure before starting a new run. A later pass does not
@@ -104,7 +105,7 @@ try {
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'app', value: { name: 'control-lab', panel: 'main' } });
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });
-  await frame.getByLabel('Template', { exact: true }).selectOption('robust-pid');
+  await chooseSelect(frame, 'Template', 'robust-pid');
   await frame.getByLabel('Observation window', { exact: true }).fill('6');
   await frame.getByLabel('Samples', { exact: true }).fill('601');
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('3');

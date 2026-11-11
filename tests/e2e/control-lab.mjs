@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { chooseSelect, expectSelectOptionCount } from './select-control.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/control-lab');
 await mkdir(out, { recursive: true });
@@ -189,7 +190,7 @@ try {
   const finished = [];
   for (const template of catalog.templates) {
     if (finished.length) await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
-    await frame.getByLabel('Template', { exact: true }).selectOption(template.id);
+    await chooseSelect(frame, 'Template', template.id);
     const budget = frame.getByLabel('Total candidate budget', { exact: true });
     await budget.fill('31');
     expect(await budget.evaluate(input => input.validity.valid)).toBe(false);
@@ -283,15 +284,13 @@ try {
       expect(createHash('sha256').update(artifact.text).digest('hex')).toBe(reference.sha256);
     }
     checks.push(`${template.engine}: real bounded search, numerical series/artifact hashes, immutable policy, locked separate verification, full denominator and saved-evidence reevaluation/export`);
-    const scenarioPicker = frame.getByLabel('Response scenario', { exact: true });
     const searchScenarios = saved.scenarios.filter(item => item.role === 'search');
-    await expect(scenarioPicker.locator('option')).toHaveCount(searchScenarios.length);
+    await expectSelectOptionCount(frame, 'Response scenario', searchScenarios.length);
     for (const scenario of searchScenarios) {
-      await scenarioPicker.selectOption(scenario.id);
-      await expect(scenarioPicker).toHaveValue(scenario.id);
+      await chooseSelect(frame, 'Response scenario', scenario.id);
       await expect(frame.getByRole('img').first()).toBeVisible();
     }
-    await scenarioPicker.selectOption(searchScenarios[0].id);
+    await chooseSelect(frame, 'Response scenario', searchScenarios[0].id);
     const signals = frame.getByRole('group', { name: 'Response signal' }).getByRole('button');
     for (let index = 0; index < await signals.count(); index++) {
       await signals.nth(index).click();
@@ -327,7 +326,7 @@ try {
   expect(rerun.trials).toEqual([]);
   expect(await read(experimentPath(first.id))).toEqual(first);
   await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
-  await frame.getByLabel('Template', { exact: true }).selectOption(first.templateId);
+  await chooseSelect(frame, 'Template', first.templateId);
   // 15 candidates × 5 search cases + 2 final cases = 77 attempts / 38,577 sample-points,
   // within the real 40,000-point frozen plan limit at 0.01 s resolution.
   await frame.getByLabel('Observation window', { exact: true }).fill('5');
@@ -363,7 +362,7 @@ try {
   const unavailable = await read('/api/templates');
   expect(unavailable.capabilities.find(item => item.engine === 'ngspice').available).toBe(false);
   const filter = unavailable.templates.find(item => item.engine === 'ngspice');
-  await frame.getByLabel('Template', { exact: true }).selectOption(filter.id);
+  await chooseSelect(frame, 'Template', filter.id);
   await expect(frame.getByText(/ngspice is unavailable/)).toBeVisible();
   await frame.getByLabel('Total candidate budget', { exact: true }).fill('1');
   const missing = await action('Freeze specification', '/api/experiments');

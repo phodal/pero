@@ -52,6 +52,23 @@ test('select keeps listbox semantics, controlled intent, and dialog portal', asy
     await render(null);
   });
 
+  await t.test('a listbox option is chosen by its value, not by a native select', async () => {
+    const picks = [];
+    await render(tree('alpha', { onChange: next => picks.push(next), label: 'Template' }));
+    const trigger = stubAnchor();
+    assert.equal(trigger.getAttribute('aria-haspopup'), 'listbox');
+    assert.equal(trigger.getAttribute('aria-label'), 'Template');
+    await click(trigger);
+    const list = document.querySelector('[role="listbox"]');
+    assert.equal(list.getAttribute('aria-label'), 'Template');
+    const options = [...list.querySelectorAll('[role="option"]')];
+    assert.equal(options.length, 4);
+    await click(options.find(option => option.getAttribute('data-value') === 'gamma'));
+    assert.deepEqual(picks, ['gamma']);
+    assert.equal(document.querySelector('.pero-select-trigger').getAttribute('aria-expanded'), 'false');
+    await render(null);
+  });
+
   await t.test('keyboard skips disabled options', async () => {
     await render(tree('alpha'));
     const button = stubAnchor();

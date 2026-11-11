@@ -3,20 +3,39 @@
 # GPUI shell in the browser. Agent, remote, and Apps actions still require Desktop.
 #
 # Pages must use GitHub Actions as its source (Settings → Pages → Build and
-# deployment). The custom domain stays openpero.com. This workflow copies docs/
-# on every master push, because that folder is no longer published on its own.
+# deployment). The custom domain stays openpero.com. Publication follows a
+# master push whose Linux CI gate succeeded. Schedule and manual full CI are a
+# different class and do not block or replace that decision. workflow_run
+# completed fires for every CI completion, including a run that was pending
+# and a re-run; this job still admits only a master push.
+# github.sha on workflow_run is the default-branch commit that supplied this
+# workflow file, frozen for the run. It is not a live branch tip and not the
+# CI head. The site checkout remains the admitted head SHA.
 name: Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: Full master commit SHA whose trusted Linux push CI already succeeded
+        required: true
+        type: string
+      rollback:
+        description: Explicit manual rollback to an older master commit that already passed Linux CI. Automatic runs cannot set this.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-# One publication at a time. A newer push waits; an in-progress deploy finishes
-# so Pages is not left mid-upload.
+# One publication at a time. Ordering is still not SHA order: before deploy,
+# refuse a target that is an ancestor of a newer trusted Linux push success
+# or a successful Pages deployment. A query failure does not publish.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -26,8 +45,59 @@ defaults:
     shell: bash
 
 jobs:
+  gate:
+    name: Require trusted CI for the target SHA
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.status == 'completed' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.decision.outputs.sha }}
+      publish: ${{ steps.current.outputs.publish }}
+    steps:
+      - name: Checkout the workflow definition that is running
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Admit the CI SHA, not the current default-branch tip
+        id: decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+          GATE_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          GATE_TRIGGER_ID: ${{ github.event.workflow_run.id }}
+          GATE_TRIGGER_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          GATE_TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+          GATE_TRIGGER_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          GATE_TRIGGER_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          GATE_TRIGGER_STATUS: ${{ github.event.workflow_run.status }}
+          GATE_TRIGGER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: node scripts/ci/deployment-gate.mjs ci
+      - name: Refuse an older target after a newer trusted master publish
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ steps.decision.outputs.sha }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_MANUAL_ROLLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback && 'true' || 'false' }}
+        run: node scripts/ci/deployment-gate.mjs pages-current
+
   build:
     name: Build site and workbench
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -48,8 +118,16 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
+      - name: Checkout the admitted commit
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Refuse a tree that is not the admitted SHA
+        env:
+          ADMITTED_SHA: ${{ needs.gate.outputs.sha }}
+        run: test "$(git rev-parse HEAD)" = "$ADMITTED_SHA"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -134,16 +212,34 @@ jobs:
 
   deploy:
     name: Deploy GitHub Pages
-    needs: build
+    needs: [gate, build]
+    if: needs.gate.outputs.publish == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
+      contents: read
+      actions: read
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout the workflow definition that is running
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recheck ancestry immediately before publish
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_TARGET_SHA: ${{ needs.gate.outputs.sha }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_MANUAL_ROLLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback && 'true' || 'false' }}
+        run: node scripts/ci/deployment-gate.mjs pages-current
       - name: Deploy
         id: deployment
+        if: steps.current.outputs.publish == 'true'
         uses: actions/deploy-pages@v5
