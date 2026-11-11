@@ -1,11 +1,112 @@
 ---
 kind: verification_report
 github_issue: 77
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/77
 ---
 
 # Real-source Fisher Table III reanalysis
+
+## Issue #77 closure review — 2026-11-11
+
+**The original six-item software acceptance is complete; #77 is resolved.**
+This review read the [issue body and all four comments](https://github.com/phodal/pero/issues/77)
+on 2026-11-11 and checked current `master@7ff7c637732606286940b50bafee4d0d3b47a2f5`.
+The coordinator publishes this record with GitHub closure. The current
+[canonical tracker](../issues/2026-11-11-paper-fisher-acceptance.md) is resolved.
+
+The original requirement is one paper and one reported result, with its software
+reproduction loop. It does not require a second paper, every platform, signed
+installation, a generic execution platform or independent human scientific peer
+review. Earlier wording below that made those additional scopes closure gates
+is superseded by this acceptance mapping. Historical failed runs remain failed.
+
+### Six original requirements and observed evidence
+
+All Desktop evidence below is the real macOS Electron/Host/Paper run recorded in
+the [2026-11-11 acceptance section](#macos-browser-and-electron-acceptance--2026-11-11),
+not the component transport fixtures. Its original PDF, protocol and receipts
+are retained under `/Users/phodal/workspaces/pero-issue-77/test-results/paper-fisher/`.
+
+| Original acceptance | Actual observation | Result |
+| --- | --- | --- |
+| Create a verification item from a PDF table number and locate the original | Import the pinned original Fisher PDF; **Select Fisher Table III result** creates a normal page-4 region annotation at 19.1434. The original-cell action returns to that same visible region; source and result anchor/rects are equal. `desktop/reproduced-light.png` shows the selected original and adjacent result. This is a supported curated cell, not arbitrary-PDF/OCR recognition. | Met |
+| Save data version, environment and command; one-click rerun | Frozen Spec `61478f27748b1f668302c4d0031be0f05103979baf0b24b31ea3a0af7b7a35a6` retains PDF/data hashes, Python version/interpreter digest, method/checker identity, selection and explicit CLI command. **Confirm and run a new attempt** creates distinct attempts under that unchanged Spec. App close/reopen and Host restart retain the same items/attempts. | Met |
+| Show reported, actual and difference beside the annotation | Real arithmetic and the independent checker produce reported **19.1434**, actual **19.1434**, difference **0 cm²** in the adjacent verification panel; the linked result note contains the same values and exact original anchor. | Met |
+| Configure tolerance and judge pass/fail | The predeclared absolute tolerance **0.00005 cm²** yields `REPRODUCED`. A separately frozen **bounds 0..1** protocol yields `MISMATCH` after successful execution; the earlier absolute protocol is unchanged. Absolute/relative/bounds are supported, while this Desktop run exercised absolute and bounds. The artificial bounds case is a control, not a claim that the Fisher result is wrong. | Met |
+| Distinguish environment failure and result mismatch, with logs | Altering the method bytes in the disposable installed App after freeze produces `environment_failed`, no actual/checker result and a readable failure log. Restoring the bytes permits a new successful attempt. The bounds control instead has `completed`, `MISMATCH` and independent numerical `PASS`, with its own log. Both were opened through **Read attempt logs**. | Met |
+| Complete the loop for at least one real paper/result | Fisher's original Table I supplies all 100 measurements for Table III's sepal-length within-species sum of squares. Selection → frozen inputs/environment/command/policy → explicit real computation → independent check → same-region note → rerun → ZIP download/recheck completed in actual Electron/Host. | Met |
+
+The calculation is not fabricated test output: primary centered float arithmetic
+gives `19.143400000000003`; a separate `python -I -S verify.py` recomputes from the
+100 primitive CSV values using Fraction/raw moments and gives **95717/5000**.
+The selected-result verdict is `REPRODUCED`; `paper_verdict=NOT_ASSESSED` remains
+unchanged. Software reproduction of this published statistic is complete without
+asserting independent laboratory replication or acceptance of biological claims.
+
+### Four comments, including the reopening reasons
+
+| Comment | Reconciliation with later evidence |
+| --- | --- |
+| [2026-11-01, after #82](https://github.com/phodal/pero/issues/77#issuecomment-6558337864): checker/adapter alone was insufficient; UI, trusted rerun, identity, comparison, tolerance and logs missing | Agree with the historical reopening. The later Fisher App plus actual 2026-11-11 Electron run now establish all six rows above. Its bounded built-in arithmetic is explicitly confirmed inside the Host-managed App; it accepts no executable/path/code, performs no installation/network/model call and does not bypass PC-Gym's separate private Host route. |
+| [2026-11-01, after #93](https://github.com/phodal/pero/issues/77#issuecomment-6565261520): real Run-once/configured execution, forced-destroy and real-paper loop unverified | The [2026-11-05 PC-Gym Desktop record](paper-direct-reproduction.md#2026-11-05-macos-electron-acceptance) records actual native Run once and configured Host→worker execution, while honestly retaining its `INCONCLUSIVE` paper verdict. The [later #106 Linux record](paper-linux-host-approval.md#consolidated-pr-106-themed-owned-native-acceptance) records actual abort/owner-close/forced-destroy denial and semantic Cancel/Run once. That Linux run is a **no-computation fixture**, not the scientific execution. Fisher independently supplies the completed one-result numerical loop required here. |
+| [2026-11-02, #97](https://github.com/phodal/pero/issues/77#issuecomment-6566128976): original GTK positive probes blocked; no approval executed | Those #97 runs remain blocked and the original GTK bridge is not declared repaired. The later owned Linux approval surface in #106 is a separately verified implementation. Do not turn its native permission evidence into a worker/science claim or imply that Fisher uses that dialog. |
+| [2026-11-02, tolerance/data feedback](https://github.com/phodal/pero/issues/77#issuecomment-6569765669): choose one real result, freeze tolerance and distinguish environment/data/result causes | Fisher uses the printed-fourth-decimal half-unit tolerance before running. Changed-data tests return `input_mismatch` without observations; changed environment returns `environment_failed`; completed out-of-policy execution returns `MISMATCH`. Thus tolerance cannot conceal a different dataset or an unavailable environment. |
+
+Native run [41434159265](https://github.com/phodal/pero/actions/runs/41434159265)
+was queried again: GitHub still reports `success` at
+`a95d6bbd8f434d66b526e8bebbb1ec3a96099bab`. Its previously inspected artifact
+`13135926825` now returns HTTP 404; this review does **not** claim a fresh download
+or fresh native execution. The dated #106 report retains its inspected receipt,
+exact-target semantic outcomes and archive digest. Current approval contracts
+were rerun separately as described below.
+
+### Current-base recheck and exact retained evidence
+
+No Fisher backend/UI source or `paper-fisher-desktop.mjs` differs from the tested
+`7362b4c59699014afbed6fe1c661d5f524335aa5` commit. The original Electron evidence is
+therefore retained rather than presented as a new desktop run. This review also
+reopened the successful, environment-failed and mismatch screenshots.
+
+- **18/18 original-PDF tests**, no skips, pass on the new base: authenticated
+  loopback API and real computation/checker, wrong-token HTTP 401, PC-Gym public
+  start HTTP 403, explicit frozen-spec confirmation, wrong-source/data/command
+  refusal, no replay of unfinished attempts, failure logs and ZIP recheck.
+- **22/22 approval contracts**, no skips, pass with existing Node 24: current
+  sender/frame/nonce/refusal/close/destroy handling and Host orchestration. These
+  are contract tests and do not replace the historical actual native run.
+- The actual Electron `desktop/handoff.zip` was extracted into a fresh directory
+  and rechecked with site packages disabled: exit 0, count 100, exact total
+  95717/5000, `REPRODUCED`, `NOT_ASSESSED`. Its frozen method digest and interpreter
+  identity match this checkout/environment; the exported checker bytes match the
+  current standalone checker source.
+
+Successful exported attempt: `6ac4e71e6e114714a5786aee27d0e254`.
+Archive SHA-256: `5246051c807931fbff64c18c0bac9db0813cc3166fb8d6a4d1a5c6c5bf2a0df8`.
+Retained environment-failed attempt: `561833c2f3894a73b829f376ee9651de`.
+Successful restoration attempt: `562257e8cfa24b11bf889537d969ac17`.
+Mismatch control attempt: `561fc5a1dec144298013f04fe2c4df90`, under separate Spec
+`d574106c2eb25a6ba2c4f3e08666874aa0badc2b6426330e98c14c47682c6c52`.
+
+Current review artifacts are local and gitignored:
+`/Users/phodal/workspaces/pero-issue-77-close/test-results/paper-77-closure/`:
+`fisher-staged.log`, `approval-node24.log`, `evidence-audit.json`,
+`checker.stdout.log`, `checker.stderr.log`, `handoff-rechecked/` and
+`linux-ci-status.json`. The initial unstaged run failed to import the shared PDF
+parser; the existing packaging command fixed the checkout prerequisite.
+Node 26 rejected the historical transform flag, and its strip-only retry could
+not load a TS parameter property; the existing Node 24 runtime ran the unchanged
+contracts successfully. Both failed invocations remain in the same evidence
+directory, not counted as passes. No production change was needed.
+
+```sh
+node scripts/build/source-parsers.mjs
+PERO_FISHER_PDF=/Users/phodal/workspaces/pero-issue-77/test-results/paper-fisher/fisher1936.pdf PYTHONPATH=apps/paper-agent/backend /Users/phodal/.pero/environment/pero-python312/bin/python3 -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v
+/opt/homebrew/opt/node@24/bin/node --experimental-transform-types --test desktop/src/main/reproduction-approval-linux.test.ts desktop/src/main/apps-reproduction.test.ts tests/fixtures/paper-host-approval.test.mjs
+/Users/phodal/.pero/environment/pero-python312/bin/python3 -I -S test-results/paper-77-closure/handoff-rechecked/verify.py
+```
+
+## Historical implementation and acceptance
 
 Date: 2026-11-07. Implementation base: `master@bc20ef9f4e0a31802f0eafc4ec6e3b0066a149be`.
 Numerical validation used no model calls, package installation or user-computer access.
@@ -358,5 +459,6 @@ Reader outputs were reused; they were not rebuilt or packaged here. SHA-256:
 Still not established: independent scientific review, a second non-curated paper,
 general Environment/Compute execution, Native GPUI, signed installation/update,
 other platforms or whole-paper reproduction. Fisher remains `NOT_ASSESSED` at
-whole-paper level; PC-Gym remains outside this increment. **Do not close #77 on
-this record alone.** No model call or external account was used.
+whole-paper level; PC-Gym remains outside this increment. These are separate
+acceptance scopes, not additional gates on #77's original six items; see the
+closure review above. No model call or external account was used.

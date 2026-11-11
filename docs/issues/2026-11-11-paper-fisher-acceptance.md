@@ -1,12 +1,29 @@
 ---
 kind: issue
-status: active
+status: resolved
 github_issue: 77
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/77
 ---
 
 # Fisher reproduction: complete the running App acceptance
+
+## Resolution — original #77 acceptance
+
+The six original acceptance items are satisfied by Fisher (1936), Table III,
+one published result. Rechecked on `master@7ff7c637732606286940b50bafee4d0d3b47a2f5`.
+The [acceptance matrix and comment reconciliation](../fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11)
+map each requirement to actual PDF/Electron/Host execution, immutable identities,
+comparison, logs and independent recomputation. **#77 is resolved.**
+The coordinator publishes this acceptance record and closes the GitHub issue;
+remaining scientific and platform scope is explicitly separate below.
+
+The software loop reproduces the selected statistic. It does not accept the
+whole paper or its biological conclusions: `paper_verdict=NOT_ASSESSED` remains
+correct. A second paper, independent human scientific review, Native GPUI,
+signed packages and general Environment/Compute execution were incorrectly
+listed below as additional #77 closure gates. They are separate scope, not
+requirements of this issue's original six-item acceptance.
 
 ## What and why
 
@@ -28,12 +45,15 @@ Exercise original-source selection, frozen input/tolerance, actual calculation,
 rerun, original-cell navigation, evidence export and failure recovery in Chromium
 and real Electron/Host. Preserve the numerical checker and fixed tolerances.
 The #143 research program and shared execution owners are outside this change.
-Independent scientific review, a second paper, Native and signed packages remain
-separate acceptance requirements; this work does not close #77.
+Independent scientific review, a second paper, Native and signed packages are
+outside this bounded acceptance. Their absence does not keep #77 open.
 
 ## Verification
 
-In progress in `codex/paper-fisher-acceptance`, based on `b1b95293`.
+Implementation acceptance completed in `codex/paper-fisher-acceptance`, based on
+`b1b95293`; closure review is in `codex/paper-77-acceptance-closure`, based on
+`7ff7c637`. The Fisher implementation and Desktop acceptance runner are unchanged
+from tested commit `7362b4c59699014afbed6fe1c661d5f524335aa5`.
 Original university-hosted PDF downloaded and checked against pinned SHA-256
 `d3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740`.
 
@@ -76,6 +96,13 @@ and #166 were already merged. This change extends their existing implementation.
 
 Commands, artifact identities and screenshot observations are recorded in
 [the Fisher fitness record](../fitness/paper-fisher-reproduction.md#macos-browser-and-electron-acceptance--2026-11-11).
-Issue remains active for the broader acceptance boundary: Native, signed release,
-independent scientific review, a second non-curated paper and general
-Environment/Compute integration are not established by this bounded local case.
+The closure review reran all 18 original-PDF Fisher tests and 22 Host approval
+contracts, and independently rechecked the actual Electron handoff in a fresh
+directory. Method, interpreter and checker identities still match current source;
+exact result `95717/5000 = 19.1434 cm²`, difference 0. Earlier environment failure,
+mismatch and successful recovery retain distinct attempt receipts and logs.
+No product code, default tolerance or numerical checker needed changing.
+
+Historical native approval/forced-destroy evidence is explicitly reconciled in
+the fitness record, without treating a no-computation fixture as a scientific
+run. No extra model, Electron session, remote closure or new CI was started.
