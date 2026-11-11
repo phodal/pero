@@ -490,9 +490,13 @@ test('MCP writes use Agent approval and still reject invalid or foreign document
     return (await r.json()).result;
   };
   try {
-    const described = await tool('app_describe', {});
-    assert.equal(JSON.parse(described.content[0].text).apps[0].tool, 'import');
     for (const value of [1, 2]) {
+      // An advertised alias is usable directly. Only the generic workflow first
+      // discovers its document schema; neither path grants extra authority.
+      if (value === 2) {
+        const described = await tool('app_describe', {});
+        assert.equal(JSON.parse(described.content[0].text).apps[0].tool, 'import');
+      }
       const result = value===1 ? await tool('app__demo__import', {value}) : await tool('app_write', { app: 'demo', tool: 'import', document: { value } });
       assert.equal(result.isError, false);
       assert.deepEqual(JSON.parse(result.content[0].text).result, { value });
