@@ -69,7 +69,12 @@ export function expandMystEmbeds(pages: readonly MystEmbedPage[], snapshot?: Mys
       let unsupported = false;
       target.nodes.forEach(node => walk(node, item => { if (['cite', 'citeGroup', 'footnoteDefinition', 'footnoteReference'].includes(item.type)) unsupported = true; }));
       if (unsupported && target.page !== origin) return report('context-unsupported', 'Cross-page citation and footnote context is not copied by embeds; source is retained.');
-      const children = structuredClone(target.nodes).map(child => expand(child, target.page, [...stack, target]));
+      const enabled = (key: string) => key in options && options[key] !== false && options[key] !== 'false';
+      const select = (item: MystNode): MystNode[] => {
+        if (item.recordedPart === 'input' && enabled('remove-input') || item.recordedPart === 'output' && enabled('remove-output')) return [];
+        return [{ ...item, ...(item.children ? { children: item.children.flatMap(select) } : {}) }];
+      };
+      const children = structuredClone(target.nodes).flatMap(select).map(child => expand(child, target.page, [...stack, target]));
       children.forEach(child => walk(child, item => {
         if (!references.has(item.type)) { delete item.identifier; delete item.label; delete item.html_id; }
         item.provenance ??= { path: target.page.path, lines: item.position ? Array.from({ length: item.position.end.line - item.position.start.line + 1 }, (_, i) => item.position!.start.line + i) : [], stack: [page.path, ...stack.map(item => item.page.path), target.page.path] };

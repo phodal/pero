@@ -9,7 +9,7 @@ export function renderMystProjectHtml(project: MystProjectProjection): string {
   const navigation = `<nav aria-label="Project pages">${renderNavigation(project.toc)}</nav>`;
   const publications = new Map(project.pages.map(page => [page.path, renderMystHtml(page.document, { namespace: page.path, fragment: true })]));
   for (const page of project.notebookPages) {
-    const body=page.kind==='ipynb'?renderIpynbHtml(page.document,{namespace:page.path,fragment:true,scholarly:page.scholarly,citationRendering:page.citationRendering,markdown:new Map(page.markdownCells.map(cell=>[cell.index,cell.document]))}):`<p>Notebook source cannot be compiled: ${page.diagnostics.map(item=>escapeMystHtml(item.message)).join('; ')}</p><pre>${escapeMystHtml(page.source)}</pre>`;
+    const body=page.kind==='ipynb'?renderIpynbHtml(page.document,{namespace:page.path,fragment:true,scholarly:page.scholarly,citationRendering:page.citationRendering,markdown:new Map(page.markdownCells.map(cell=>[cell.index,cell.document])),code:new Map(page.codeCells.map(cell=>[cell.index,cell.document]))}):`<p>Notebook source cannot be compiled: ${page.diagnostics.map(item=>escapeMystHtml(item.message)).join('; ')}</p><pre>${escapeMystHtml(page.source)}</pre>`;
     publications.set(page.path, `<section id="${mystAnchor('',page.path)}">${body}</section>`);
   }
   const title=project.entry.kind==='myst'?project.entry.document.scholarly.title:project.entry.kind==='ipynb'?project.entry.scholarly.title:undefined;

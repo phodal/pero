@@ -1,3 +1,4 @@
+import { projectRecordedCell } from './ipynb-recorded.ts';
 import { expandMystEmbeds, isMystEmbedImage } from './myst-embeds.ts';
 import { createMystNumberingState, type MystNumberingState } from './myst-numbering.ts';
 import { buildMystProjectToc, expandMystTocs, mystNodeText, type MystProjectToc } from './myst-toc.ts';
@@ -14,7 +15,7 @@ import { resolveMystResource, type MystProjectSnapshot, type MystTextResource } 
 export interface MystProjectPage { path: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
 export interface MystProjectNotebookCell { index: number; namespace: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
 export type MystProjectNotebookPage =
-  | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[] }
+  | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[]; codeCells: MystProjectNotebookCell[] }
   | { kind: 'invalid'; path: string; source: string; diagnostics: MystDiagnostic[] };
 export type MystProjectEntry = { kind: 'myst'; path: string; document: MystDocument } | MystProjectNotebookPage;
 export interface MystProjectProjection extends MystProjectToc {
@@ -109,19 +110,37 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
       const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}), ...(merged.normalized.bibliography ? { bibliography: merged.normalized.bibliography } : {}) };
       const numberingState = createMystNumberingState(inherited.normalized.numbering);
-      const markdownCells = document.cells.filter(cell => cell.kind === 'markdown').map(cell => {
-        const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
-        const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized, ipynbCellVisibility(cell).input ? numberingState : undefined);
-        return { index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography };
-      });
-      notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells });
+      const markdownCells: MystProjectNotebookCell[] = [], codeCells: MystProjectNotebookCell[] = [];
+      for (const cell of document.cells) {
+        if (cell.kind === 'markdown') {
+          const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
+          const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized, ipynbCellVisibility(cell).input ? numberingState : undefined);
+          markdownCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography });
+        } else if (cell.kind === 'code' && ipynbCellVisibility(cell).cell) {
+          const recorded = projectRecordedCell(cell);
+          const cellMetadata = cell.raw.metadata as Record<string, unknown>;
+          const labels = [cellMetadata.label, cellMetadata.name].filter(value => value !== undefined);
+          const valid = labels.every(value => typeof value === 'string' && value.trim().length > 0 && value.length <= 256);
+          const ambiguous = new Set(labels).size > 1;
+          if (!valid || ambiguous) report('notebook-label-invalid', `Cell ${cell.index + 1}: invalid or conflicting label/name metadata; no reference target is exposed.`, resource.path);
+          const label = valid && !ambiguous ? labels[0] as string | undefined : undefined;
+          const container: MystNode = { type: 'container', kind: 'code', ...(label ? { identifier: label, label } : {}),
+            recordedCell: { path: resource.path, index: cell.index, executionCount: cell.raw.execution_count, stale: cell.stale },
+            provenance: { path: resource.path, lines: Array.from({ length: cell.source.split('\n').length }, (_, i) => i + 1), stack: [resource.path] }, children: recorded.children };
+          const parsed = { ...parseMystSource(''), source: cell.source, metadata, ast: { type: 'root', children: [container] } };
+          const projected = resolveMystDocument(parsed, { numberingState, scholarly: inherited.normalized, bibliography: {}, diagnostics: [] });
+          projected.diagnostics.push(...recorded.notices.map(message => ({ severity: 'warning' as const, code: 'notebook-publication', message, path: resource.path })));
+          codeCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: projected, bibliography: [] });
+        }
+      }
+      notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells, codeCells });
       if (raw.myst !== undefined) report('notebook-metadata-inert', 'Nonstandard metadata.myst is retained; direct notebook metadata and first-cell frontmatter provide publication metadata.', resource.path);
     } catch (error) {
       const item: MystDiagnostic = { severity: 'error', code: 'notebook-invalid', path: resource.path, message: error instanceof Error ? error.message : 'Invalid notebook source' };
       notebookPages.push({ kind: 'invalid', path: resource.path, source: resource.text, diagnostics: [item] }); diagnostics.push(item);
     }
   }
-  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input).map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? [...page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input), ...page.codeCells].map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
   const navigation = buildMystProjectToc(snapshot, validated.normalized.toc, [...pages.map(page => ({ path: page.path, title: page.document.scholarly.short_title ?? page.document.scholarly.title ?? mystNodeText(page.document.ast.children?.find(node => node.type === 'heading') ?? { type: 'text', value: page.path }) })), ...notebookPages.map(page => ({ path: page.path, title: page.kind === 'ipynb' ? page.scholarly.short_title ?? page.scholarly.title ?? page.path : page.path }))], diagnostics);
   for (const page of referencePages) expandMystTocs(page.document, { toc: navigation.toc, path: page.path, namespace: 'namespace' in page ? page.namespace : undefined });
   expandMystEmbeds(referencePages, snapshot);

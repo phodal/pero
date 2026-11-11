@@ -1,7 +1,8 @@
+import { projectRecordedCell } from './ipynb-recorded.ts';
 import type { MystNode, MystDiagnostic, MystDocument } from './myst.ts';
 import type { MystProjectEntry } from './myst-project.ts';
 import type { MystPublicationAsset, MystPublicationInput } from './myst-publication.ts';
-import { ipynbText, type IpynbCell } from './ipynb.ts';
+import { type IpynbCell } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
 /** Derived publication only. Exact notebook recovery is mandatory, never fabricated MyST source. */
 export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAssets: readonly MystPublicationAsset[] = []): MystPublicationInput {
@@ -50,31 +51,31 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
       for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
       Object.assign(bibliography, compiled.document.bibliography); diagnostics.push(...compiled.document.diagnostics);
       if (cell.raw.attachments) report(`Cell ${cell.index + 1}: complete attachment bundles remain in notebook.ipynb; only referenced supported raster images are embedded.`);
-    } else if (visible.input) children.push(paragraph(cell.kind === 'code' ? 'Inert code input. Never executed here.' : 'Raw cell, shown as literal text.'), literal(cell.source));
-    if (cell.kind !== 'code' || !visible.output) continue;
-    children.push(paragraph(cell.stale ? 'Stale recorded outputs: code was edited, outputs were not re-executed.' : 'Recorded outputs only; execution and freshness are unverified.'));
-    if (cell.outputs.length > 128) report(`Cell ${cell.index + 1}: only the first 128 outputs are published; all retained in notebook.ipynb.`);
-    cell.outputs.slice(0, 128).forEach((output, index) => {
-      const label = `Cell ${cell.index + 1}, recorded output ${index + 1}`;
-      if (output.output_type === 'stream') {
-        if (output.name === 'stdout' && !visible.stdout || output.name === 'stderr' && !visible.stderr) return;
-        children.push(paragraph(label), literal(ipynbText(output.text) ?? '[Unsupported stream text retained]')); return;
-      }
-      if (output.output_type === 'error') { children.push(paragraph(label), literal(`${String(output.ename ?? '')}: ${String(output.evalue ?? '')}\n${ipynbText(output.traceback) ?? ''}`)); return; }
-      const data = output.data && typeof output.data === 'object' && !Array.isArray(output.data) ? output.data : {};
-      let selected: string | undefined; let node: MystNode | undefined;
-      for (const mime of ['image/png', 'image/jpeg']) { node = addImage(cell, `Output ${index + 1}`, mime); if (node) { selected = mime; break; } }
-      if (!node) for (const mime of ['text/latex', 'text/plain']) {
-        const text = ipynbText(data[mime]); if (text === undefined) continue;
-        selected = mime;
-        if (mime === 'text/latex' && text.length <= 16384) node = { type: 'math', value: text.replace(/^\$\$|\$\$$/g, '') };
-        else { node = literal(text); if (mime === 'text/latex') report(`${label}: oversized LaTeX shown as literal text.`); }
-        break;
-      }
-      children.push(paragraph(label), node ?? paragraph('Unsupported recorded output retained in notebook.ipynb.'));
-      for (const mime of Object.keys(data)) if (mime !== selected) report(`${label}: ${mime} is retained in notebook.ipynb, not rendered in this publication.`);
-      if (!node) report(`${label}: unsupported output retained without execution.`);
-    });
+    } else if (cell.kind === 'code') {
+      const compiled = entry.codeCells?.find(item => item.index === cell.index);
+      const recorded = projectRecordedCell(cell);
+      if (compiled) {
+        const scope = `${entry.path}:cell-${cell.index}:`;
+        const visit = (node: MystNode): MystNode => ({ ...node, ...(typeof node.identifier === 'string' ? { identifier: scope + node.identifier } : {}), ...(node.children ? { children: node.children.map(visit) } : {}) });
+        children.push(...(visit(structuredClone(compiled.document.ast)).children ?? []));
+        for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
+        diagnostics.push(...compiled.document.diagnostics);
+      } else { children.push(...recorded.children); recorded.notices.forEach(report); }
+    } else if (visible.input) children.push(paragraph('Raw cell, shown as literal text.'), literal(cell.source));
   }
+  const materialize = (node: MystNode) => {
+    if (node.type === 'image' && node.imageData?.renderable) {
+      const image = node.imageData;
+      let path = assignedImages.get(image);
+      if (!path) {
+        let index = assets.length + 1;
+        do { path = `notebook-assets/image-${index++}.${image.mediaType === 'image/png' ? 'png' : 'jpg'}`; } while (paths.has(path));
+        paths.add(path); assignedImages.set(image, path); assets.push({ path, mediaType: image.mediaType, base64: image.base64 });
+      }
+      node.url = path;
+    }
+    node.children?.forEach(materialize);
+  };
+  children.forEach(materialize);
   return { document: { ast: { type: 'root', children }, scholarly: entry.scholarly, references, bibliography, diagnostics, ...(entry.citationRendering ? { citationRendering: entry.citationRendering } : {}) }, recovery: { kind: 'ipynb', filename: 'notebook.ipynb', source: entry.document.source }, assets };
 }

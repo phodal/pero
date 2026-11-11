@@ -8,12 +8,14 @@ import { ipynbCellVisibility } from './ipynb-visibility.ts';
 import type { MystScholarlyMetadata } from './myst-metadata.ts';
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const literal = (text: string) => `<pre>${escape(text.slice(0, 65536))}</pre>${text.length > 65536 ? '<p>Preview truncated at 65536 characters; complete value retained in original notebook.</p>' : ''}`;
-export interface IpynbRenderOptions { namespace?: string; fragment?: boolean; markdown?: ReadonlyMap<number, MystDocument>; scholarly?: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering'] }
+export interface IpynbRenderOptions { namespace?: string; fragment?: boolean; markdown?: ReadonlyMap<number, MystDocument>; code?: ReadonlyMap<number, MystDocument>; scholarly?: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering'] }
 /** Static, bounded recorded output. No kernel, scripts, plugins or remote assets. */
 export function renderIpynbHtml(document: IpynbDocument, options: IpynbRenderOptions = {}): string {
   const content = document.cells.map(cell => {
     const visible = ipynbCellVisibility(cell); if (!visible.cell) return '';
     const namespace = `${options.namespace ?? ''}:cell-${cell.index}`;
+    const compiledCode = options.code?.get(cell.index);
+    if (cell.kind === 'code' && compiledCode) return `<section aria-label="Cell ${cell.index + 1}"><h2>Cell ${cell.index + 1}: code</h2>${renderMystHtml(compiledCode, { namespace, fragment: true, metadata: false, bibliography: false })}</section>`;
     let input = '';
     if (visible.input) {
       if (cell.kind === 'markdown') {
