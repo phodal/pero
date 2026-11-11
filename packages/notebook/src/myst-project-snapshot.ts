@@ -82,6 +82,6 @@ export function resolveMystResource(snapshot: MystProjectSnapshot, containingFil
   return resource ? { status: 'resolved', path, resource } : { status: 'missing', path };
 }
 export const mystProjectDefinition = registerDocumentBlock(defineDocumentBlock({
-  type: 'mystProject', defaults: { snapshot: '' }, futureVersions: 'reject',
+  type: 'mystProject', defaults: { snapshot: exportMystProjectSnapshot({ entry: 'article.md', files: [{ path: 'article.md', text: '' }] }) }, futureVersions: 'reject',
   versionOne(attrs) { importMystProjectSnapshot(attrs.snapshot); },
 }));
