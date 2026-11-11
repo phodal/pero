@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-11-11",
+  "pero_base": "561e2850157f3a0b406289dba9488206188451ab",
+  "scope": "Root license and declared dependencies reviewed; not a transitive dependency license audit or distribution approval.",
+  "candidates": [
+    {
+      "repository": "langchain-ai/langmem",
+      "revision": "8620b986af5b0c7593e6b7fbece2998690d22d15",
+      "version": "0.0.30",
+      "root_license": "MIT",
+      "observed_commit_date": "2026-11-03T15:25:33Z",
+      "evaluation": "source_review_only",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "98af1351ea856e008c835bc89a312905960a318072f950732bf346c741027c7d",
+          "url": "https://github.com/langchain-ai/langmem/blob/8620b986af5b0c7593e6b7fbece2998690d22d15/LICENSE"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "8fcfd63d312ea0f1bd679d70c6b9a7c10e3d1f6a4cb557500a59758fd02e9901",
+          "url": "https://github.com/langchain-ai/langmem/blob/8620b986af5b0c7593e6b7fbece2998690d22d15/pyproject.toml"
+        },
+        {
+          "path": "src/langmem/knowledge/extraction.py",
+          "sha256": "165d4c019f55a365dba5a551e1af0c0313a2f4bab292e47493acc6f1cd62c13e",
+          "url": "https://github.com/langchain-ai/langmem/blob/8620b986af5b0c7593e6b7fbece2998690d22d15/src/langmem/knowledge/extraction.py"
+        },
+        {
+          "path": "src/langmem/knowledge/tools.py",
+          "sha256": "0118d3623a19c9b6c8c3d477aead51f08eeb44771c3ae3f51cd32d8a800b78d7",
+          "url": "https://github.com/langchain-ai/langmem/blob/8620b986af5b0c7593e6b7fbece2998690d22d15/src/langmem/knowledge/tools.py"
+        },
+        {
+          "path": "src/langmem/reflection.py",
+          "sha256": "a30f32253da2bad1349a20927e90620827867536c0ed09d26f9783e2dbfa5d1d",
+          "url": "https://github.com/langchain-ai/langmem/blob/8620b986af5b0c7593e6b7fbece2998690d22d15/src/langmem/reflection.py"
+        }
+      ]
+    },
+    {
+      "repository": "getzep/graphiti",
+      "revision": "ebef986a0b2360211b65751c111cacb4a7d790eb",
+      "version": "0.31.2",
+      "root_license": "Apache-2.0",
+      "observed_commit_date": "2026-11-11T01:25:27Z",
+      "evaluation": "source_review_only",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "2825300b20d7b951209835a4a331f29e24725a39d65168e4b831df53aa372650",
+          "url": "https://github.com/getzep/graphiti/blob/ebef986a0b2360211b65751c111cacb4a7d790eb/LICENSE"
+        },
+        {
+          "path": "graphiti_core/edges.py",
+          "sha256": "637732ae4291ca0e5b53e43dd92be6f46a91e352719cb7ea1570ebab7d5d0e33",
+          "url": "https://github.com/getzep/graphiti/blob/ebef986a0b2360211b65751c111cacb4a7d790eb/graphiti_core/edges.py"
+        },
+        {
+          "path": "graphiti_core/graphiti.py",
+          "sha256": "4e456b2255196d13466e31d13d0f5790e85d611731cbdfa733abfb3091f24040",
+          "url": "https://github.com/getzep/graphiti/blob/ebef986a0b2360211b65751c111cacb4a7d790eb/graphiti_core/graphiti.py"
+        },
+        {
+          "path": "graphiti_core/search/search_filters.py",
+          "sha256": "5112d9c57ae294a65d064723d3dcd718db01b8d71666db3946b231d02d490c0b",
+          "url": "https://github.com/getzep/graphiti/blob/ebef986a0b2360211b65751c111cacb4a7d790eb/graphiti_core/search/search_filters.py"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "f409096fde64090b47e7a6c8cc1edeceb521edb737a6bf2b7468e8f8edaee1e0",
+          "url": "https://github.com/getzep/graphiti/blob/ebef986a0b2360211b65751c111cacb4a7d790eb/pyproject.toml"
+        }
+      ]
+    },
+    {
+      "repository": "vectorize-io/hindsight",
+      "revision": "586f0faed1e39e8334d999d2545d1ebafb1c5b64",
+      "version": "1.2.1",
+      "root_license": "MIT",
+      "observed_commit_date": "2026-11-11T09:26:06Z",
+      "evaluation": "source_review_only",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "01fde0bedf83bdc185065d7af524a61690efe576a67f922eaff3a1280c17b63a",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/LICENSE"
+        },
+        {
+          "path": "README.md",
+          "sha256": "0ec1aec042c5159b3022f5d6258562088386a8735be874bca16d932bed32f6af",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/README.md"
+        },
+        {
+          "path": "hindsight-api-slim/hindsight_api/engine/memories/pg/banks.py",
+          "sha256": "aff74cc415a433a8e6b454e0318028fd61409261d8972609393225abefa652c0",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/hindsight-api-slim/hindsight_api/engine/memories/pg/banks.py"
+        },
+        {
+          "path": "hindsight-api-slim/hindsight_api/engine/reflect/agent.py",
+          "sha256": "7d66bcf0263fd6ca1f16d44312240f94dcfdaac9ec9c215fc016b3ca5cc0cfd9",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/hindsight-api-slim/hindsight_api/engine/reflect/agent.py"
+        },
+        {
+          "path": "hindsight-api-slim/hindsight_api/engine/retain/orchestrator.py",
+          "sha256": "d4740e3240afccc9ebe1b3552d935bca1d254e62edecbca50e16aecf88d21f96",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/hindsight-api-slim/hindsight_api/engine/retain/orchestrator.py"
+        },
+        {
+          "path": "hindsight-api-slim/pyproject.toml",
+          "sha256": "e1c9a0d63ca303e99d487b9d2d92aee21d580d2e0ea5db5ccef101f38619309b",
+          "url": "https://github.com/vectorize-io/hindsight/blob/586f0faed1e39e8334d999d2545d1ebafb1c5b64/hindsight-api-slim/pyproject.toml"
+        }
+      ]
+    },
+    {
+      "repository": "Gentleman-Programming/engram",
+      "revision": "ba9e46ced152c37a7cb9e576153c41995873e2fc",
+      "version": "1.20.0",
+      "root_license": "MIT",
+      "observed_commit_date": "2026-07-20T13:45:37Z",
+      "evaluation": "executed_mcp",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "09608597ddda4e5f9033ac407a0d401986d96376c47f6d46789ca38db672dc15",
+          "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/LICENSE"
+        },
+        {
+          "path": "go.mod",
+          "sha256": "5d12be0d4994fb1c2bd44f3c42a8c2fdb74f8713486d52148bd7d78a64243074",
+          "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/go.mod"
+        },
+        {
+          "path": "cmd/engram/main.go",
+          "sha256": "f43ca710f7c0bab563de7c8d5d78ea5039819d5d942c5a4a59f112cbec03c59c",
+          "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/cmd/engram/main.go"
+        },
+        {
+          "path": "internal/mcp/mcp.go",
+          "sha256": "45235608a51cb4e17c852c62445833e991105629fed8e9c346829e7ef593d21c",
+          "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/internal/mcp/mcp.go"
+        },
+        {
+          "path": "internal/store/store.go",
+          "sha256": "ca56e4615d5efc1be003eb5bb7c1a918c247dc09684a53c4a5fde73d5ca009a5",
+          "url": "https://github.com/Gentleman-Programming/engram/blob/ba9e46ced152c37a7cb9e576153c41995873e2fc/internal/store/store.go"
+        }
+      ]
+    }
+  ]
+}
