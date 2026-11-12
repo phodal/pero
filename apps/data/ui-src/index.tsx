@@ -32,6 +32,8 @@ export default function Data() {
   const [fieldSnapshot, setFieldSnapshot] = useState<InspectionSnapshot | null>(null);
   const [inspectionEpoch, setInspectionEpoch] = useState(0);
   const [importTarget, setImportTarget] = useState<Dataset | null | undefined>(undefined);
+  const [hiddenDownloadId, setHiddenDownloadId] = useState<string | null>(null);
+  const seenDownload = useRef('');
   const [showChat, setShowChat] = useState(false), [tab, setTab] = useState('table');
   const pending = useRef(false), requests = useRef(0), home = useRef(false);
   const visible = state ? visibleDatasets(state, query, project, archived) : [];
@@ -80,6 +82,14 @@ export default function Data() {
 
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useAppDataChanged(() => refresh());
+  const downloadStatus = state?.download ? `${state.download.id}:${state.download.status}` : '';
+  useEffect(() => {
+    const previous = seenDownload.current;
+    seenDownload.current = downloadStatus;
+    if (downloadStatus.endsWith(':completed') && previous.endsWith(':running') && previous.slice(0, previous.lastIndexOf(':')) === downloadStatus.slice(0, downloadStatus.lastIndexOf(':')))
+      setNotice(t('saved'));
+  }, [downloadStatus, t]);
+
   useEffect(() => {
     if (!active || state?.download?.status !== 'running') return;
     let stopped = false, timer: ReturnType<typeof setTimeout>;
@@ -201,7 +211,9 @@ export default function Data() {
   } });
 
   const projectRefs = [...new Set(state?.datasets.map(item => item.projectRef).filter(Boolean) ?? [])].sort();
-  const download = state?.download;
+  const job = state?.download;
+  const download = job && job.status !== 'completed' && !(job.status !== 'running' && job.id === hiddenDownloadId) ? job : null;
+  const retrySource = download?.sourceId && state?.sources.some(source => source.id === download.sourceId) ? download.sourceId : '';
   const versionFor = (item: Dataset) => {
     const id = item.id === dataset?.id && asset ? asset.id : item.versions[item.versions.length - 1];
     return state?.assets.find(entry => entry.id === id);
@@ -223,7 +235,9 @@ export default function Data() {
     {download ? <div className="data-download" role="status">
       <span>{t('download')}: {messages[download.status] ? t(download.status) : download.status} / {formatBytes(download.received)} / {formatBytes(download.total)}</span>
       {download.status === 'running' ? <><Progress label={t('downloadProgress')} value={download.total > 0 ? download.received : undefined} max={download.total || 1} />
-        <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/cancel', {})); setNotice(t('cancelRequested')); })}>{t('cancelDownload')}</Button></> : null}
+        <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/cancel', {})); setNotice(t('cancelRequested')); })}>{t('cancelDownload')}</Button></>
+        : <>{retrySource ? <Button disabled={busy} onClick={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/download', { sourceId: retrySource })); setHiddenDownloadId(null); setNotice(t('downloadStarted')); })}>{t('retry')}</Button> : null}
+          <Button disabled={busy} onClick={() => setHiddenDownloadId(download.id)}>{t('close')}</Button></>}
       {download.error ? <span>{download.error}</span> : null}
     </div> : null}
     {loading ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
@@ -242,9 +256,11 @@ export default function Data() {
         <div className="data-table-scroll">
           {visible.length ? <ul className="data-catalog" aria-label={t('library')}>{visible.map(item => {
             const current = versionFor(item);
+            const health = current ? availabilityLabel(current, item.id === dataset?.id ? result : null) : 'Missing';
+            const attention = Boolean(current) && (health === 'Missing' || health === 'Changed');
             return <li key={item.id}><ListRow title={item.name} current={item.id === dataset?.id} onOpen={() => choose(item)}
               meta={<>{item.kind === 'model' ? 'Model' : 'Dataset'} · {current ? formatBytes(current.size) : 'Missing'} · {item.versions.length} {item.versions.length === 1 ? 'version' : 'versions'}
-                {current ? <> · {availabilityLabel(current, item.id === dataset?.id ? result : null)}</> : null}</>} /></li>;
+                {' · '}{attention ? health : (item.projectRef || t('unassigned'))}</>} /></li>;
           })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project ? 'search' : 'data'} size="compact" />} heading={t(query || project ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
         </div>
       </SplitPane>

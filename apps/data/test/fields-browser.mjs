@@ -129,7 +129,7 @@ test('switching version isolates fields and ignores a late response from the pre
   await page.getByRole('textbox', { name: 'Unit for voltage', exact: true }).press('Tab');
   const old = await next();
   await page.getByRole('button', { name: 'Version', exact: true }).click();
-  await page.getByRole('option', { name: 'v2 — b.csv', exact: true }).click();
+  await page.getByRole('option', { name: 'v2 · 40 B · 2026-11-03 · b', exact: true }).click();
   const current = await next(); assert.equal(current.input.assetId, 'b');
   await expect(page.getByRole('textbox', { name: 'Unit for voltage', exact: true })).toHaveCount(0);
   await current.reply();

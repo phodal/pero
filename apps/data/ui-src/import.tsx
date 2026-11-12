@@ -19,7 +19,7 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
     footer={<><Button disabled={busy} onClick={onClose}>{t('cancel')}</Button>
       <SubmitButton form={formId} variant="primary" disabled={busy || !file || Boolean(fileError)}>{t(busy ? 'saving' : 'import')}</SubmitButton></>}
     onKeyDown={event => { if (busy && event.key === 'Escape') event.preventDefault(); }} onCancel={event => { if (busy) event.preventDefault(); }}>
-    {target ? <p>{t('versionHelp', { name: target.name })}</p> : null}
+    {target ? <p>{t('versionHelp', { name: target.name })}</p> : <p>{t('separateDataset')}</p>}
     <DataForm id={formId} onSubmit={event => {
       event.preventDefault(); if (!file || fileError) return;
       const values = new FormData(event.currentTarget);

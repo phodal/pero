@@ -30,10 +30,21 @@ test('byte encoding preserves opaque content, including non-UTF8 and a chunk bou
   assert.deepEqual(Uint8Array.from(atob(encodeBytes(bytes.buffer)), c => c.charCodeAt(0)), bytes);
 });
 
-test('stored is not a scientific or current-byte verification claim', () => {
-  assert.equal(availabilityLabel(asset('a')), 'Stored');
-  assert.equal(availabilityLabel({ ...asset('a'), availability: 'changed' }), 'Changed');
-  assert.equal(availabilityLabel({ ...asset('a'), availability: 'missing' }), 'Missing');
+test('stored is not a scientific or current-byte verification claim', async () => {
+  const { catalogAvailability, custodyDetail, versionLabel } = await import('../ui-src/model.ts');
+  const present = asset('a');
+  assert.equal(availabilityLabel(present), 'Stored');
+  assert.equal(availabilityLabel({ ...present, availability: 'changed' }), 'Changed');
+  assert.equal(availabilityLabel({ ...present, availability: 'missing' }), 'Missing');
+  assert.equal(catalogAvailability(present, { status: 'changed', datasetId: 'first', assetId: 'a', message: 'hash' }), 'changed');
+  assert.equal(catalogAvailability(present, { status: 'changed', datasetId: 'first', assetId: 'other', message: 'hash' }), 'present');
+  assert.equal(custodyDetail(present, null, false), 'File present. Size matches 4 B. Digest recorded at admission, not rechecked.');
+  assert.equal(custodyDetail(present, null, true), 'Inspected bytes match the admitted SHA-256.');
+  assert.equal(custodyDetail({ ...present, availability: 'missing' }, null, false), 'Original file is missing.');
+  assert.equal(custodyDetail({ ...present, availability: 'changed' }, null, false), 'File size no longer matches the admitted size.');
+  assert.equal(custodyDetail(present, { status: 'changed', datasetId: 'first', assetId: 'a', message: 'hash' }, false), 'Admitted SHA-256 does not match the current file.');
+  assert.equal(versionLabel({ ...present, createdAt: '2026-11-03T14:54:09+00:00', revision: 'scPerturb-v1.0', size: 698680199 }, 0), 'v1 · 666.3 MiB · 2026-11-03 · scPerturb-v1.0');
+  assert.equal(versionLabel({ ...present, createdAt: '', revision: '' }, 1), 'v2 · 4 B');
 });
 
 test('interpretation preview reads full input without applying to the current analysis', async () => {

@@ -5,7 +5,7 @@ import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
 import { DataForm, SubmitButton } from './submit-button';
-import { applyInterpretation, availabilityLabel, canInspect, emptyView, formatBytes, formatInt, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
+import { applyInterpretation, availabilityLabel, canInspect, custodyDetail, emptyView, formatBytes, formatInt, versionLabel, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
 
 const operators = [
   { value: 'contains', label: 'Contains' }, { value: 'eq', label: 'Equals' },
@@ -66,21 +66,39 @@ export function Workspace(props: Props) {
   } : null;
   const format = asset.format.toUpperCase();
   const visibleFields = (fields?.report.fields ?? []).filter(field => field.name.toLowerCase().includes(fieldSearch.toLowerCase()));
+  const bytesMatched = Boolean(currentInspection);
+  const availability = bytesMatched ? 'Bytes matched' : availabilityLabel(asset, result);
+  const recordedSha = asset.checksums.find(item => item.algorithm === 'sha256' && item.value === asset.sha256);
+  const otherChecksums = asset.checksums.filter(item => item !== recordedSha);
   return <>
     <header className="data-preview-head">
       <div className="data-document-heading"><h2 title={asset.name}>{asset.name}</h2><span className="data-format">{format}</span></div>
       <div className="data-actions">
         <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
-          options={versions.map((version, index) => ({ value: version.id, label: `v${index + 1} — ${version.name}` }))} />
+          options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} />
         <Button onClick={props.onAddVersion} disabled={busy || dataset.archived}>Add version</Button>
       </div>
-      <p className="data-note">{formatBytes(asset.size)} / {currentInspection ? 'Bytes matched' : availabilityLabel(asset, result)} · {asset.source || 'Unknown source'} · {asset.license || 'Unknown license'}</p>
+      <p className="data-note">Add version appends an immutable file. Importing the same filename with Add data creates a separate dataset.</p>
+      <p className="data-note" role="status">{custodyDetail(asset, result, bytesMatched)}</p>
+      <table className="data-facts" aria-label="Availability">
+        <tbody><tr><th scope="row">Availability</th><td>{availability}</td></tr></tbody>
+      </table>
       {failure ? <div className="data-actions">
         <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
         {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
         {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
       </div> : null}
-      <div className="data-actions"><Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button></div>
+      <div className="data-actions">
+        <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button>
+        {dataset.archived ? <Button disabled={busy} onClick={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</Button>
+          : confirmArchive ? <>
+            <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
+            <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
+          </> : <Button disabled={busy} onClick={() => setConfirmArchive(true)}>Archive dataset</Button>}
+      </div>
+      {confirmArchive ? <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
+        : dataset.archived ? <p className="data-note">Hidden from the active list. Original files and saved views remain stored.</p>
+          : <p className="data-note">Archive hides this dataset from the active list. Original files and saved views remain; no disk space is freed.</p>}
     </header>
     {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => setEditing(false)} /> : null}
     {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
@@ -94,22 +112,23 @@ export function Workspace(props: Props) {
       <TabsContent value="queries" forceMount><SemanticPanel key={asset.id} datasetId={dataset.id} assetId={asset.id} fields={fields?.columns ?? []} /></TabsContent>
       <TabsContent value="overview">
         <div className="data-overview">
-          {!analysis ? <p>{dataset.kind === 'model' ? 'This model file is stored without table inspection or chart analysis.' : `This ${format} file is stored as an original file. Table inspection and chart analysis are not available for this format.`} You can review its source identity, edit its details or add a version.</p> : <p className="data-note">The table pages through a full inspection of this file.</p>}
-          <dl className="data-facts">
-            <dt>Kind</dt><dd>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</dd>
-            <dt>Format</dt><dd>{format}</dd>
-            <dt>Size</dt><dd>{formatBytes(asset.size)}</dd>
-            <dt>Availability</dt><dd>{currentInspection ? 'Bytes matched' : availabilityLabel(asset, result)}</dd>
-            <dt>Source</dt><dd>{asset.source || 'Unknown source'}</dd>
-            <dt>License</dt><dd>{asset.license || 'Unknown license'}</dd>
-            <dt>Revision</dt><dd>{asset.revision || 'Local import'}</dd>
-            <dt>SHA-256</dt><dd><code>{asset.sha256}</code></dd>
-            <dt>Added</dt><dd>{asset.createdAt}</dd>
-            <dt>Project reference</dt><dd>{dataset.projectRef || 'None'}</dd>
-            {asset.bundleId ? <><dt>Paper bundle</dt><dd>{asset.bundleId}</dd></> : null}
-            {fields ? <><dt>Records</dt><dd>{formatInt(fields.report.rowCount)} inspected</dd><dt>Fields</dt><dd>{formatInt(fields.report.fields.length)}</dd></> : null}
-          </dl>
-          <p className="data-note">A project reference groups datasets. It is not a join key or a permission boundary. Original bytes remain immutable.</p>
+          <table className="data-facts" aria-label="Admission receipt">
+            <tbody>
+              <tr><th scope="row">Kind</th><td>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</td></tr>
+              <tr><th scope="row">Format</th><td>{format}</td></tr>
+              <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
+              <tr><th scope="row">Source</th><td>{/^https:\/\//.test(asset.source) ? <a href={asset.source}>{asset.source}</a> : (asset.source || 'Unknown source')}</td></tr>
+              <tr><th scope="row">License</th><td>{asset.license || 'Unknown license'}</td></tr>
+              <tr><th scope="row">Revision</th><td>{asset.revision || 'Local import'}</td></tr>
+              <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} />{recordedSha?.provenance ? <p className="data-note">{recordedSha.provenance}</p> : <p className="data-note">Recorded when this version was admitted.</p>}</td></tr>
+              {otherChecksums.map(item => <tr key={`${item.algorithm}:${item.value}`}><th scope="row">{item.algorithm.toUpperCase()}</th><td><DigestValue label={item.algorithm.toUpperCase()} value={item.value} />{item.provenance ? <p className="data-note">{item.provenance}</p> : null}</td></tr>)}
+              <tr><th scope="row">Added</th><td>{asset.createdAt}</td></tr>
+              <tr><th scope="row">Project reference</th><td>{dataset.projectRef || 'Unassigned'}{dataset.projectRef ? null : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign project reference</Button>}</td></tr>
+              {asset.bundleId ? <tr><th scope="row">Paper bundle</th><td>{asset.bundleId}</td></tr> : null}
+              {fields ? <><tr><th scope="row">Records</th><td>{formatInt(fields.report.rowCount)} inspected</td></tr><tr><th scope="row">Fields</th><td>{formatInt(fields.report.fields.length)}</td></tr></> : null}
+            </tbody>
+          </table>
+          <p className="data-note">A project reference groups datasets. It is not a permission boundary. Original bytes remain immutable.</p>
           {fields ? <>
             <h3>Columns</h3>
             <p className="data-note">Observed on the full input. Open Fields to choose displayed columns, units, or a number interpretation.</p>
@@ -132,18 +151,12 @@ export function Workspace(props: Props) {
             </dl>
             <Button disabled={busy} onClick={() => props.onTab('checks')}>Open checks</Button>
           </> : null}
-          <h3>Saved views</h3>
-          {props.views.length ? props.views.map(saved => <section className="data-saved-view" key={saved.id}>
+          {props.views.length ? <><h3>Saved views</h3>
+          {props.views.map(saved => <section className="data-saved-view" key={saved.id}>
             <div className="data-actions"><Button disabled={busy} onClick={() => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }}>{saved.name}</Button><Button onClick={() => props.onExport(saved)}>Export reference</Button></div>
             <p className="data-note">v{dataset.versions.indexOf(saved.assetId) + 1} / {saved.report.parserVersion} / {saved.report.rowCount} records / {saved.report.duplicateRows} duplicate rows</p>
             <p className="data-note">Saved report, not a claim about current file availability.</p>
-          </section>) : <p className="data-note">No saved views.</p>}
-          <div className="data-archive">
-            {dataset.archived ? <Button disabled={busy} onClick={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</Button>
-              : confirmArchive ? <><p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
-                <div className="data-actions"><Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button><Button onClick={() => setConfirmArchive(false)}>Cancel</Button></div></>
-                : <Button disabled={busy} onClick={() => setConfirmArchive(true)}>Archive dataset</Button>}
-          </div>
+          </section>)}</> : null}
         </div>
       </TabsContent>
       {analysis ? <><TabsContent value="table">
@@ -258,8 +271,9 @@ export function Workspace(props: Props) {
       </> : null}
       <TabsContent value="history">
         <div className="data-history">{versions.map((version, index) => <section key={version.id}>
-          <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>v{index + 1} / {version.name}</Button>
-          <p className="data-note">{version.createdAt} / {availabilityLabel(version, result)}</p><code>{version.sha256}</code>
+          <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>{versionLabel(version, index)}</Button>
+          <p className="data-note">{availabilityLabel(version, result)} · {version.sha256.slice(0, 12)}</p>
+          <code title={version.sha256}>{version.sha256}</code>
         </section>)}</div>
         <p className="data-note">Each version is an immutable file. Saved views stay on Overview and remain pinned to the version they were saved from.</p>
       </TabsContent>
@@ -281,6 +295,13 @@ export function Workspace(props: Props) {
 
     </footer>
   </>;
+}
+
+function DigestValue({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return <span className="data-actions"><code>{value}</code><Button variant="ghost" onClick={() => {
+    void navigator.clipboard?.writeText(value).then(() => setCopied(true)).catch(() => setCopied(false));
+  }}>{copied ? 'Copied' : `Copy ${label}`}</Button></span>;
 }
 
 function FieldUnit({ field, unit, disabled, onCommit }: { field: string; unit: string; disabled: boolean; onCommit(unit: string): void }) {

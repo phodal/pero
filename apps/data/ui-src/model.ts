@@ -43,7 +43,7 @@ export type Source = {
 };
 export type CatalogState = {
   assets: Asset[]; datasets: Dataset[]; views: SavedView[]; sources: Source[];
-  download: { id: string; status: string; received: number; total: number; error: string } | null;
+  download: { id: string; sourceId?: string; status: string; received: number; total: number; error: string } | null;
   parserVersion: string; limits: { importBytes: number; previewBytes: number; records: number; fields: number; columns: number };
   selectedDatasetId?: string; selectedAssetId?: string; savedViewId?: string;
 };
@@ -82,10 +82,30 @@ export function retainSelection(state: CatalogState, current: Selection | null):
 
 export const formatInt = (value: number) => new Intl.NumberFormat('en-US').format(value);
 export const formatBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KiB` : `${(value / 1024 ** 2).toFixed(1)} MiB`;
+
+/** Display order in `dataset.versions`. The label distinguishes immutable receipts, not filenames. */
+export function versionLabel(asset: Pick<Asset, 'size' | 'createdAt' | 'revision'>, index: number): string {
+  const date = /^\d{4}-\d{2}-\d{2}/.test(asset.createdAt) ? asset.createdAt.slice(0, 10) : '';
+  return [`v${index + 1}`, formatBytes(asset.size), date, asset.revision].filter(Boolean).join(' · ');
+}
+
+/** Size presence, overridden when this asset's inspection reports missing or changed bytes. */
+export function catalogAvailability(asset: Asset, inspection?: InspectionOutcome | null): 'present' | 'missing' | 'changed' {
+  if ((inspection?.status === 'missing' || inspection?.status === 'changed') && inspection.assetId === asset.id) return inspection.status;
+  return asset.availability;
+}
+
 export function availabilityLabel(asset: Asset, inspection?: InspectionOutcome | null) {
-  const availability = (inspection?.status === 'missing' || inspection?.status === 'changed') && inspection.assetId === asset.id
-    ? inspection.status : asset.availability;
-  return { present: 'Stored', missing: 'Missing', changed: 'Changed' }[availability];
+  return { present: 'Stored', missing: 'Missing', changed: 'Changed' }[catalogAvailability(asset, inspection)];
+}
+
+/** Custody wording for the selected version. `Stored` remains a size check, not a fresh digest. */
+export function custodyDetail(asset: Asset, inspection: InspectionOutcome | null | undefined, bytesMatched: boolean): string {
+  if (bytesMatched) return 'Inspected bytes match the admitted SHA-256.';
+  if (catalogAvailability(asset, inspection) === 'missing') return 'Original file is missing.';
+  if (asset.availability === 'changed') return 'File size no longer matches the admitted size.';
+  if (inspection?.status === 'changed' && inspection.assetId === asset.id) return 'Admitted SHA-256 does not match the current file.';
+  return `File present. Size matches ${formatBytes(asset.size)}. Digest recorded at admission, not rechecked.`;
 }
 
 export function summary(value: OkInspection) {

@@ -14,10 +14,14 @@ there are no automatically populated demo assets or downloads.
 
 The list supports search, explicit project-reference filters and archived items.
 Each row shows the name, kind (Dataset or Model), size of the selected or latest
-version, version count, and availability (Stored, Missing, or Changed).
+version, and version count. A present file shows its project reference, or
+Unassigned when it has none. Missing and Changed stay on the row because those
+files need attention. Stored is not repeated for a healthy file.
 The resizable detail pane contains **Overview**, **Table**, **Fields**, **Chart**, **Checks**
-and **History**. Choosing another dataset opens **Overview**: identity, source, license,
-SHA-256, a column summary, quality counts, and saved views. **Table** is one page of
+and **History**. Choosing another dataset opens **Overview**: the admission receipt
+(source, revision, license, checksums with provenance, and project reference),
+a column summary and quality counts when the version can be inspected, and saved
+views when any exist. A completed download is not kept as a status strip. **Table** is one page of
 the full inspection of the admitted file. Switching versions keeps the current tab.
 **Add version** appends a file to the selected logical dataset;
 existing bytes and IDs do not change. A normal import creates a separate dataset,

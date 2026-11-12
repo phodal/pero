@@ -19,9 +19,13 @@ html, body, #app { height: 100%; }
 .data-preview-head { display: flex; flex-direction: column; gap: var(--pero-spacing-1); padding: var(--pero-spacing-2) var(--pero-spacing-3); border-bottom: var(--pero-hairline); }
 .data-preview-head h2 { margin: 0; font: 600 var(--pero-font-heading)/1.3 system-ui, sans-serif; overflow-wrap: anywhere; }
 .data-note { margin: var(--pero-spacing-1) 0; color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
-.data-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pero-spacing-1) var(--pero-spacing-2); margin: var(--pero-spacing-1) 0; font-size: var(--pero-font-caption); }
-.data-facts dt { color: var(--pero-text-muted); }
-.data-facts dd { margin: 0; overflow-wrap: anywhere; }
+dl.data-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pero-spacing-1) var(--pero-spacing-2); margin: var(--pero-spacing-1) 0; font-size: var(--pero-font-caption); }
+dl.data-facts dt { color: var(--pero-text-muted); }
+dl.data-facts dd { margin: 0; overflow-wrap: anywhere; }
+table.data-facts { width: 100%; border-collapse: collapse; margin: var(--pero-spacing-1) 0; font-size: var(--pero-font-caption); }
+table.data-facts th, table.data-facts td { text-align: left; vertical-align: baseline; padding: var(--pero-spacing-1) var(--pero-spacing-3) var(--pero-spacing-1) 0; }
+table.data-facts th { width: 1%; color: var(--pero-text-muted); font-weight: 400; white-space: nowrap; }
+table.data-facts td { overflow-wrap: anywhere; }
 .data-facts code { overflow-wrap: anywhere; }
 .data-overview h3 { margin: var(--pero-spacing-3) 0 var(--pero-spacing-1); font-size: var(--pero-font-body); }
 .data-preview .pero-ui-tabs-list { padding: var(--pero-spacing-1) var(--pero-spacing-2) 0; flex-wrap: wrap; }
