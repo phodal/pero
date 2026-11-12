@@ -48,9 +48,10 @@ function readInitial(storageKey: string | undefined, specs: readonly SplitPaneSp
 export function Split({ children, storageKey, collapseBelow = 0, className = '', ...props }: SplitProps) {
   const splitRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; side: 'start' | 'end'; x: number; width: number } | null>(null);
-  const panes = specsFrom(children);
+  const declared = specsFrom(children);
+  const panes = declared.filter(pane => !pane.node.props.hidden);
   const specs = panes.map(pane => pane.spec);
-  const [sizes, setSizes] = useState(() => readInitial(storageKey, specs));
+  const [sizes, setSizes] = useState(() => readInitial(storageKey, declared.map(pane => pane.spec)));
   const [container, setContainer] = useState(0);
   const [stacked, setStacked] = useState(false);
   const [resizing, setResizing] = useState(false);

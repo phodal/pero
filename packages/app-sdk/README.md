@@ -40,6 +40,7 @@ App 界面、Agent 对象与宿主交互的公共契约。App 使用自己的 Re
 
 两个或更多并排面板使用 `Split` / `SplitPane`；一个 pane 不指定 size，其余 pane
 给出 size 和 min。storageKey 保存在 App 自己的存储中；窄窗口通过 collapseBelow 堆叠。
+可折叠面板保留稳定 id，使用 hidden 切换可见性，以保留关闭时的宽度偏好。
 
 ## 组件分层
 
