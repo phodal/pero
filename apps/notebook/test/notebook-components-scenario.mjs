@@ -105,6 +105,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await button('Insert editable table', tableStep).click();
   await tableStep.locator('[data-cell=A1]').fill('7');
   const timerStep = procedureSteps.nth(5);
+  await page.getByRole('radio', { name: 'Track progress', exact: true }).click();
   await button('Start timer', timerStep).click();
   await expect(button('Start timer', timerStep)).toBeDisabled();
   await expect(timerStep.locator('output')).not.toHaveText('Actual elapsed: 0.0 seconds');
@@ -112,6 +113,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   await expect(button('Pause timer', timerStep)).toBeDisabled();
   await button('Reset timer', timerStep).click();
   await expect(timerStep.locator('output')).toHaveText('Actual elapsed: 0.0 seconds');
+  await page.getByRole('radio', { name: 'Write steps', exact: true }).click();
   await button('Remove procedure').click();
   await button('Cancel', page.getByRole('dialog')).click();
   await expect(procedureSteps).toHaveCount(6);

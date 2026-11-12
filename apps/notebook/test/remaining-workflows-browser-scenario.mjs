@@ -16,18 +16,19 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   };
   await save();
   await openNotebookMenu(page, 'file');
-  await button('Properties').click();
-  let dialog = page.getByRole('dialog', { name: 'Notebook properties', exact: true });
-  await expect(dialog).toContainText(created.id); await expect(dialog).toContainText('does not change project membership');
+  await page.locator('[data-notebook-menu-panel=file]').getByRole('button', { name: 'Properties', exact: true }).click();
+  let dialog = page.getByRole('complementary', { name: 'Properties', exact: true });
+  await dialog.getByText('Record identifiers', { exact: true }).click();
+  await expect(dialog).toContainText(created.id);
   await dialog.getByLabel('Project label', { exact: true }).fill('Workflow acceptance');
   await dialog.getByLabel('Author label', { exact: true }).fill('Unverified local label');
-  await button('Apply labels to draft', dialog).click(); await save();
+  await save();
   await openNotebookMenu(page, 'file');
-  await button('Properties').click();
+  await page.locator('[data-notebook-menu-panel=file]').getByRole('button', { name: 'Properties', exact: true }).click();
   await expect(dialog.getByLabel('Project label', { exact: true })).toHaveValue('Workflow acceptance');
   await expect(dialog.getByLabel('Author label', { exact: true })).toHaveValue('Unverified local label');
   await page.screenshot({ path: resolve(output, 'notebook-home-provenance.png'), fullPage: true });
-  await button('Close', page.getByRole('dialog', { name: 'Notebook properties', exact: true })).click();
+  await button('Close', page.getByRole('complementary', { name: 'Properties', exact: true })).click();
 
   await ensureMoreTools(page);
   await button('Preview file import').click();
@@ -76,7 +77,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   await page.setViewportSize({ width: 760, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
   await openNotebookMenu(page, 'file');
-  await button('Properties').click();
+  await page.locator('[data-notebook-menu-panel=file]').getByRole('button', { name: 'Properties', exact: true }).click();
   await page.screenshot({ path: resolve(output, 'notebook-home-narrow-dark.png'), fullPage: true });
-  await button('Close', page.getByRole('dialog', { name: 'Notebook properties', exact: true })).click();
+  await button('Close', page.getByRole('complementary', { name: 'Properties', exact: true })).click();
 }

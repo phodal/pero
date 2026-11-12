@@ -96,7 +96,8 @@ try {
     await page.screenshot({ path: resolve(output, 'control-source.png') });
     await clickAppShortcut(page, 'notebook');
   }
-  await frame.getByRole('button', { name: 'Ask Agent' }).click();
+  await frame.getByRole('button', { name: 'File', exact: true }).click();
+  await frame.getByRole('button', { name: 'Ask Agent', exact: true }).click();
   await expect.poll(async () => {
     const current = await state();
     return current.appChatOpen && current.composer?.includes('revision 2') && current.contextPreviewBounds?.length > 0;
