@@ -98,7 +98,6 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await newBody.press('ControlOrMeta+a');
   await page.setViewportSize({ width: 620, height: 900 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, location.origin));
-  await page.getByRole('button', { name: '更多格式', exact: true }).click();
   const color = page.getByRole('button', { name: '文字颜色', exact: true });
   await color.click();
   const palette = page.getByRole('listbox', { name: '文字颜色', exact: true });
@@ -114,13 +113,11 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await palette.press('End');
   await palette.press('Enter');
   await expect(page.locator('.notebook-prose [data-notebook-text-color=violet]')).toHaveText('Calibration and controls');
-  await page.getByRole('button', { name: '更多格式', exact: true }).click();
   await page.getByRole('button', { name: '文字高亮', exact: true }).click();
   await page.getByRole('option', { name: '橙色', exact: true }).click();
   await expect(page.locator('.notebook-prose [data-notebook-text-background=orange]')).toHaveText('Calibration and controls');
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
-  await page.getByRole('button', { name: 'More formatting', exact: true }).click();
   const highlight = page.getByRole('button', { name: 'Highlight', exact: true });
   await highlight.click();
   const highlights = page.getByRole('listbox', { name: 'Highlight', exact: true });

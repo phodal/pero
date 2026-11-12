@@ -178,7 +178,7 @@ type TextDialog = { kind: 'symbols'; selection: Range } | {
 };
 
 /** Format controls are composed into the editor's existing Toolbar. */
-export function NotebookTextTools({ editor, entryTools = false, compact = false, extraTools }: { editor: Editor; entryTools?: boolean; compact?: boolean; extraTools?: ReactNode }) {
+export function NotebookTextTools({ editor, entryTools = false, extraTools }: { editor: Editor; entryTools?: boolean; extraTools?: ReactNode }) {
   const { t, locale } = useAppI18n(messages);
   const [dialog, setDialog] = useState<TextDialog | null>(null);
   const returnToEditor = useRef(false);
@@ -317,21 +317,23 @@ export function NotebookTextTools({ editor, entryTools = false, compact = false,
       ]} onChange={chooseFormat} />
     {markButton('bold')}
     {markButton('italic')}
-    {!compact && markButton('underline')}
+    {markButton('underline')}
+    {markButton('strike')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    {!compact && <><span className="notebook-toolbar-divider" />
+    <span className="notebook-toolbar-divider" />
     {blockButton('bulletList', 'bullet')}
     {blockButton('orderedList', 'ordered')}
-    {blockButton('taskList', 'task')}</>}
+    {blockButton('taskList', 'task')}
+    <span className="notebook-toolbar-divider" />
+    {markButton('subscript')}
+    {markButton('superscript')}
+    {colorSelect('textColor', status.tone)}
+    {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
     <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
-      {compact && <div className="notebook-workspace-actions">{markButton('underline')}{blockButton('bulletList', 'bullet')}{blockButton('orderedList', 'ordered')}{blockButton('taskList', 'task')}</div>}
       {extraTools}
-      <div className="notebook-workspace-actions">{markButton('strike')}{markButton('subscript')}{markButton('superscript')}</div>
-      {colorSelect('textColor', status.tone)}
-      {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
       <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
       {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!status.inline || !editor.can().setHorizontalRule()}

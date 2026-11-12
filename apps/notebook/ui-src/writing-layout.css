@@ -19,7 +19,9 @@
 .notebook-revision-date { display: flex; align-items: center; gap: var(--pero-spacing-2); margin-top: var(--pero-spacing-1); }
 .notebook-writing-toolbar { padding-block: var(--pero-spacing-3) var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); border-bottom: var(--pero-hairline); }
 .notebook-writing-toolbar:empty { display: none; }
-.notebook-writing-toolbar .notebook-commandbar { justify-content: flex-start; gap: var(--pero-spacing-2); }
+.notebook-writing-toolbar .notebook-commandbar { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-2); }
+.notebook-writing-toolbar .notebook-format { flex-wrap: wrap; overflow: visible; }
+.notebook-writing-toolbar .notebook-toolbar.pero-ui-toolbar:not([data-unstyled]) { flex-wrap: wrap; width: auto; max-width: 100%; overflow: visible; }
 .notebook-workspace[data-notebook-view="notes"] .notebook-paper { margin: 0; padding: 0; }
 .notebook-workspace[data-notebook-view="notes"] .notebook-prose { font-size: calc(var(--pero-font-body) * 1.15); line-height: 1.85; }
 .notebook-prose > h2 { padding-inline-start: var(--pero-spacing-4); border-inline-start: 4px solid var(--pero-action); margin-block: var(--pero-spacing-6) var(--pero-spacing-3); }

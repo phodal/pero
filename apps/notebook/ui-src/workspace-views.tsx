@@ -349,7 +349,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }}>
     <div className="notebook-jupyter">
       <div className="notebook-documentbar">
-        <div className="notebook-breadcrumb"><span>{metadata.project || notebook('notebook')}</span>
+        <div className="notebook-breadcrumb">{metadata.project && <span>{metadata.project}</span>}
           <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
             {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
           </TabsList>

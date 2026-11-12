@@ -82,10 +82,15 @@ export async function createNotebook(page, origin, title) {
   return entry;
 }
 
-/** History is available from the compact formatting menu. */
+/** Undo and redo stay on the writing toolbar. */
 export async function notebookHistory(page, action) {
   if (await page.locator('.notebook-workspace').getAttribute('data-notebook-view') === 'procedures') {
     await page.locator('[role="tabpanel"][data-state="active"]').getByRole('button', { name: action, exact: true }).click();
+    return;
+  }
+  const visible = page.locator('.notebook-commandbar').getByRole('button', { name: action, exact: true });
+  if (await visible.count()) {
+    await visible.click();
     return;
   }
   await openNotebookMenu(page, 'format');

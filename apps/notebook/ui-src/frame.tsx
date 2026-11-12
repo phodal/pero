@@ -406,13 +406,8 @@ function Notebook() {
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <div className="notebook-nav-tools">
             {createAction}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><IconButton label={t('libraryTools')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={!!busy} onSelect={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" />{t('importNotebook')}</DropdownMenuItem>
-                <DropdownMenuItem disabled={!!busy} onSelect={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" />{t('refresh')}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <IconButton label={t('importNotebook')} disabled={!!busy} onClick={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" /></IconButton>
+            <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
             <div hidden ref={libraryImport}>{importAction}</div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(false)}><Icon name="chevron-left" /></IconButton>

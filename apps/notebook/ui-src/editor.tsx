@@ -57,13 +57,11 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
     }),
   });
   return <div className="notebook-commandbar">
-    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools"><NotebookTextTools editor={editor} compact extraTools={<>
-      <div className="notebook-workspace-actions">
-        <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
-        <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
-      </div>
-      <EntryAiTools editor={editor} />
-    </>} /></div>
+    <div className="notebook-history">
+      <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
+      <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
+    </div>
+    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools"><NotebookTextTools editor={editor} entryTools /></div>
     {insertTools}
   </div>;
 }
