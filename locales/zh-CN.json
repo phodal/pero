@@ -719,6 +719,7 @@
   "project.binding_hint": "填写共享项目 ID，将此目录的会话和任务放在一起；清空可解除关联。",
   "project.save": "保存项目",
   "project.choose_first": "请先选择项目，再编辑其设置。",
+  "project.pick": "选择一个项目，在这里查看。",
   "project.execution_target": "执行位置",
   "project.no_binding": "此目录尚未关联共享任务项目，可在设置中关联后查看或创建任务。",
   "project.more_tasks": "加载更多任务",

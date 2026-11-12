@@ -719,6 +719,7 @@
   "project.binding_hint": "Link this folder to a shared project ID to show its sessions and tasks together. Clear the ID to unlink.",
   "project.save": "Save project",
   "project.choose_first": "Choose a project to edit its settings.",
+  "project.pick": "Select a project to view it here.",
   "project.execution_target": "Execution target",
   "project.no_binding": "This folder has no shared task project. Link a project in Settings to view or create its tasks.",
   "project.more_tasks": "Load more tasks",

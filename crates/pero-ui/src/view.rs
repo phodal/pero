@@ -809,20 +809,17 @@ impl Render for Workbench {
                                             |el| el.child(self.document_content(cx)),
                                         )
                                         .when(
-                                            self.navigation.page() == WorkbenchPage::Tasks,
-                                            |el| {
-                                                el.child(self.project_workspace(layout.narrow, cx))
-                                            },
-                                        )
-                                        .when(
                                             !pane_tree
                                                 && self.navigation.page()
                                                     == WorkbenchPage::Conversation,
                                             |el| el.child(self.detail(window, cx)),
                                         )
                                         .when(
-                                            self.navigation.page() == WorkbenchPage::Projects,
-                                            |el| el.child(self.projects_view(cx)),
+                                            self.navigation.page() == WorkbenchPage::Projects
+                                                || self.navigation.page() == WorkbenchPage::Tasks,
+                                            |el| {
+                                                el.child(self.projects_surface(!layout.narrow, cx))
+                                            },
                                         )
                                         .when(
                                             !pane_tree

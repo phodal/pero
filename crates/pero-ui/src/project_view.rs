@@ -184,12 +184,74 @@ impl Workbench {
         [("research.projects", research), ("project.workspaces", workspaces)]
     }
 
-    pub(crate) fn projects_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// Wide windows keep the catalog beside the open project. Narrow windows
+    /// keep one column: the catalog, or the project once it is open.
+    pub(crate) fn projects_surface(&self, split: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let tasks = self.navigation.page() == WorkbenchPage::Tasks;
+        let open = self.current_project(cx).is_some();
+        let editing = self.research.editor.is_some();
+        div()
+            .id("projects-surface")
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .flex()
+            .when(!split && tasks, |el| el.child(self.project_workspace(true, cx)))
+            .when(!split && !tasks, |el| el.child(self.project_list(false, cx)))
+            .when(split, |el| {
+                el.child(self.project_list(true, cx))
+                    .child(self.project_pane(open, tasks, editing, cx))
+            })
+    }
+
+    fn project_pane(
+        &self,
+        open: bool,
+        tasks: bool,
+        editing: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let form = editing && !open && !tasks;
+        let workspace = !form && (open || tasks);
+        div()
+            .id("project-pane")
+            .flex_1()
+            .min_w_0()
+            .min_h_0()
+            .h_full()
+            .flex()
+            .flex_col()
+            .bg(p.bg)
+            .when(form, |el| {
+                el.overflow_y_scroll()
+                    .p(px(pero_theme::WorkbenchStyle::PAGE))
+                    .child(self.research_editor(cx))
+            })
+            .when(workspace, |el| el.child(self.project_workspace(false, cx)))
+            .when(!form && !workspace, |el| {
+                el.items_center().justify_center().px(px(24.)).child(
+                    div()
+                        .max_w(px(360.))
+                        .text_color(p.text_muted)
+                        .whitespace_normal()
+                        .child(self.t("project.pick")),
+                )
+            })
+    }
+
+    fn project_list(&self, pane: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         div()
             .id("projects")
-            .flex_1()
-            .min_w_0()
+            .when(pane, |el| {
+                el.w(px(320.))
+                    .flex_shrink_0()
+                    .border_r_1()
+                    .border_color(p.border)
+                    .bg(p.surface_muted)
+            })
+            .when(!pane, |el| el.flex_1().min_w_0())
             .h_full()
             .overflow_y_scroll()
             .p(px(pero_theme::WorkbenchStyle::PAGE))
@@ -199,9 +261,10 @@ impl Workbench {
                     .flex_wrap()
                     .items_center()
                     .gap(px(12.))
+                    .when(pane, |el| el.flex_col().items_start())
                     .child(
                         div()
-                            .flex_1()
+                            .when(!pane, |el| el.flex_1())
                             .text_size(
                                 pero_theme::UiAppearance::global(cx)
                                     .text(pero_theme::TextRole::Heading),
@@ -233,9 +296,12 @@ impl Workbench {
                     )
                     .child(Button::new("project-new").primary().label(self.t("research.new"))
                         .relative().child(self.view_bounds.projects.probe("new".into()))
-                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx)))),
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.project_tab = ProjectTab::Overview;
+                            this.edit_research_project(true, window, cx);
+                        }))),
             )
-            .when(self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
+            .when(!pane && self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
             .children(self.project_groups(cx).into_iter().filter(|(_, projects)| !projects.is_empty()).map(|(label, projects)| {
                 div()
                     .mt(px(pero_theme::WorkbenchStyle::SECTION))
@@ -244,6 +310,10 @@ impl Workbench {
                             .font_weight(FontWeight::MEDIUM).child(self.t(label)),
                     )
                     .children(projects.into_iter().map(|project| {
+                        let active = self
+                            .selected_project
+                            .as_deref()
+                            .is_some_and(|current| project.matches_key(current));
                         let caption = project.research_id()
                             .and_then(|id| self.preferences.research_projects.iter().find(|saved| saved.id == id))
                             .map(|saved| saved.goal.clone())
@@ -253,6 +323,7 @@ impl Workbench {
                         let key = project.key;
                         let open_label = format!("{} {}", self.t("project.open"), project.name);
                         let row_id = SharedString::from(format!("project-row:{key}"));
+                        let select = key.clone();
                         let action = Button::new("open-project")
                             .ghost()
                             .small()
@@ -267,10 +338,21 @@ impl Workbench {
                             project.name,
                             caption.map(Into::into),
                             None,
-                            false,
+                            active,
                             Some(action.into_any_element()),
                             pero_theme::Chrome::from_app(cx),
                         )
+                        .cursor_pointer()
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            if this.navigation.page() == WorkbenchPage::Tasks
+                                && this
+                                    .current_project(cx)
+                                    .is_some_and(|project| project.key == select)
+                            {
+                                return;
+                            }
+                            this.open_project(select.clone(), window, cx);
+                        }))
                     }))
             }))
     }
