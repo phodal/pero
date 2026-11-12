@@ -77,6 +77,25 @@ def main():
     request('before_revoke', '/api/connections', 200, bearer=revoked['token'])
     request('revoke_token', '/api/api-tokens/' + revoked['id'], 200, session=True, method='DELETE')
     request('revoked_token', '/api/connections', 401, bearer=revoked['token'])
+    readonly = []
+    statements = {
+        'read_before': 'SELECT COUNT(*),SUM(value) FROM source152.sample',
+        'dml': 'DELETE FROM source152.sample',
+        'ddl': 'CREATE TABLE source152.forbidden(id int)',
+        'catalog': 'SELECT * FROM public.catalog_database',
+        'server_file': "SELECT pg_read_file('/etc/passwd')",
+        'multiple_statements': 'SELECT COUNT(*) FROM source152.sample; DELETE FROM source152.sample',
+        'read_after': 'SELECT COUNT(*),SUM(value) FROM source152.sample',
+    }
+    for name, statement in statements.items():
+        result = subprocess.run(docker + ['exec', '-T', '-e', 'PGPASSWORD=synthetic-source-only',
+            'postgres', 'psql', '-h', 'postgres', '-U', 'source152_reader', '-d', 'pero152',
+            '-v', 'ON_ERROR_STOP=1', '-Atc', statement], capture_output=True, text=True, timeout=15)
+        expected_read = name in ('read_before', 'read_after')
+        passed = (result.returncode == 0 and result.stdout.strip() == '2|6') if expected_read else result.returncode != 0
+        readonly.append(dict(name=name, exit_code=result.returncode, stdout=result.stdout.strip(),
+                             stderr=result.stderr.strip(), passed=passed))
+    (args.output / 'readonly-postgres.json').write_text(json.dumps(readonly, indent=2) + '\n')
     if args.partial_vault:
         database = 'vault-' + sha256(str(args.output).encode()).hexdigest()[:12]
         connection = dict(type='postgresql', host='postgres', port='5432', user='source152_reader',
@@ -95,8 +114,8 @@ def main():
                            passed=status >= 400 and stored != 't'))
         (args.output / 'checks.json').write_text(json.dumps(checks, indent=2) + '\n')
     # Only status outcomes are saved. Cookie, password and token values stay in memory.
-    passed = all(row['passed'] for row in checks)
-    print(json.dumps(dict(checks=len(checks), passed=passed)))
+    passed = all(row['passed'] for row in checks + readonly)
+    print(json.dumps(dict(checks=len(checks), readonlyChecks=len(readonly), passed=passed)))
     return 0 if passed else 1
 
 
