@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
@@ -67,6 +67,7 @@ function Notebook() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
+  const [removing, setRemoving] = useState<NotebookEntrySummary | null>(null);
   const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | 'delete' | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [openError, setOpenError] = useState('');
@@ -278,7 +279,6 @@ function Notebook() {
     choose(entry.id);
   });
   const removeNotebook = (id: string) => {
-    if (!window.confirm(t('deleteNotebookConfirm'))) return;
     void perform('delete', async () => {
       await api.del(endpoint(id));
       catalogRequest.current++;
@@ -286,14 +286,12 @@ function Notebook() {
         const { [id]: _removed, ...rest } = previous;
         return rest;
       });
-      let remaining: NotebookEntrySummary[] = [];
-      setEntries(previous => {
-        remaining = previous?.filter(entry => entry.id !== id) ?? [];
-        return remaining;
-      });
+      const remaining = entries?.filter(entry => entry.id !== id) ?? [];
+      setEntries(previous => previous?.filter(entry => entry.id !== id) ?? []);
       setSelected(currentId => currentId === id ? (remaining[0]?.id || '') : currentId);
       setSnapshot(previous => previous?.id === id ? null : previous);
       setHistory(null);
+      setRemoving(null);
     });
   };
   useEffect(() => {
@@ -397,7 +395,7 @@ function Notebook() {
   const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
   return <AppFrame label={t('notebook')} className="notebook-app">
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
-    {error && <Feedback kind="error" variant="block">{error}</Feedback>}
+    {error && !removing && <Feedback kind="error" variant="block">{error}</Feedback>}
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
@@ -438,7 +436,7 @@ function Notebook() {
                     <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem danger disabled={!!busy} onSelect={() => removeNotebook(entry.id)}>{t('deleteNotebook')}</DropdownMenuItem>
+                    <DropdownMenuItem danger disabled={!!busy} onSelect={() => { setError(''); setRemoving(entry); }}>{t('deleteNotebook')}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>} /></li>;
             })}
@@ -524,6 +522,14 @@ function Notebook() {
             </div>}
         </SplitPane>
       </Split>}
+    {removing && <Dialog title={t('deleteNotebookTitle')} size="sm" closeLabel={t('closeAction')}
+      initialFocus=".notebook-delete-cancel" onClose={() => { if (!busy) { setRemoving(null); setError(''); } }}
+      footer={<><Button className="notebook-delete-cancel" disabled={!!busy} onClick={() => { setRemoving(null); setError(''); }}>{t('cancelAction')}</Button>
+        <Button variant="danger" disabled={!!busy} busy={busy === 'delete'} onClick={() => removeNotebook(removing.id)}>{t('deleteNotebook')}</Button></>}>
+      <p><strong>{drafts[removing.id]?.document.title || removing.title}</strong><br />{entryIdentity(removing.id, drafts[removing.id]?.document.identity)?.code}</p>
+      <p>{t('deleteNotebookConfirm')}</p>
+      {error && <Feedback kind="error" variant="block">{error}</Feedback>}
+    </Dialog>}
   </AppFrame>;
 }
 

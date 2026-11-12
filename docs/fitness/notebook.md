@@ -408,7 +408,6 @@ hardcoded bilingual pairs.
 | Procedures, materials and parameters | `procedure-step-editor.tsx`, `procedure-materials.tsx`, `procedure-parameters.tsx`, package workspace/procedure-parameters | `procedure-workspace-browser-scenario.mjs`, `procedure-workspace.test.ts`, `test_procedure_workspace.py` |
 | Scientific designs and sample propagation | `scientific-content.tsx`, `molecular-graph.tsx`, `plate-design-library.tsx`, `sample-intake.tsx`, `sample-propagation.tsx` | `scientific-content-scenario.mjs`, `diagnostics-intake-browser-scenario.mjs`, `test_scientific_designs.py`, `test_sample_intake.py` |
 | Local review lifecycle | `review-panel.tsx`, backend reviews and review workflow domain | `review-panel.test.ts`, `test_reviews.py`; fixed revisions, configuration/reassignment/bulk outcomes remain local-label attribution |
-| Host AI proposals and check suggestions | `ai-tools.tsx`, `ai-cell-review.tsx`, `ai-check-review.tsx`, `backend/ai_proposals.py`, package ai-checks/proposals/recovery | `ai-check-tools.test.ts`, `ai-tools.test.ts`, `test_ai_proposals.py`, `remaining-workflows-browser-scenario.mjs` |
 | Derived source extraction | `source-extraction.tsx`, `source-excerpt.tsx`, `backend/source_extraction.py`, `backend/source_parsers.py`, shared `packages/source-extraction` | `test_source_extraction.py`, `source-extraction-ui.test.ts`, `source-extraction-browser-scenario.mjs`, `scripts/build/source-parsers.test.mjs` |
 | Research and configured print | `research-tools.tsx`, `notebook-print.tsx`, `notebook-print-content.tsx`, package research-tools/notebook-print/worksheet | `research-print-tools.test.ts`, `research-print-browser-scenario.mjs`, package research/print tests |
 | Saved worksheet amendments | `worksheet-amendments.tsx`, `backend/worksheet_amendments.py` | `worksheet-amendments.test.ts`, `test_worksheet_amendments.py`, `research-print-browser-scenario.mjs` |
@@ -644,3 +643,14 @@ Notebook/SDK typechecks, build and root checks passed. Browser inspection covere
 1280px and 440px widths, English/light and Chinese/dark, save/reload and exact
 snapshot retention. Pero Electron, Native and live Host integration remain
 unverified for these changes.
+
+## Notebook deletion confirmation — 2026-11-12
+
+The [deletion repair record](../issues/2026-11-12-notebook-delete-confirmation.md)
+replaces suppressed `window.confirm` with the shared SDK Dialog. Confirmation
+shows the target title/code, initially focuses Cancel, and retains failures for
+retry. The built frontend with a real temporary backend passes the regression
+under a sandbox without `allow-modals`, including cancel/Escape, failure/retry,
+selected/other/last-entry deletion and reload. Notebook typecheck/build and four
+focused backend tests pass. Light confirmation/failure screenshots were inspected;
+Native, Electron and packaged acceptance of this fix remain unverified.

@@ -8,7 +8,7 @@
     "build": "node ../../scripts/build/apps.mjs --app notebook",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "npm run test:editor && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test -v",
-    "test:browser": "node --test test/notebook-browser.mjs test/content-editing-browser.mjs test/source-diagnostics-browser.mjs test/scientific-block-browser.mjs test/myst-document-browser.mjs test/myst-project-browser.mjs test/ipynb-browser.mjs",
+    "test:browser": "node --test test/notebook-browser.mjs test/notebook-delete-browser.mjs test/content-editing-browser.mjs test/source-diagnostics-browser.mjs test/scientific-block-browser.mjs test/myst-document-browser.mjs test/myst-project-browser.mjs test/ipynb-browser.mjs",
     "test:editor": "node --test --test-concurrency=4 test/*.test.ts"
   },
   "dependencies": {

@@ -201,6 +201,7 @@ export const messages = {
   importNotebookLimit: { en: 'Notebook imports must be at most 2 MiB.', zh: '导入的笔记文件不得超过 2 MiB。' },
   notebookActions: { en: 'Notebook actions', zh: '笔记操作' },
   deleteNotebook: { en: 'Delete', zh: '删除' },
+  deleteNotebookTitle: { en: 'Delete notebook', zh: '删除笔记' },
   deleteNotebookConfirm: { en: 'Delete this notebook and all of its revisions? This cannot be undone.', zh: '删除此笔记及其全部修订？此操作无法撤销。' },
   sourceExcerpt: { en: 'Source excerpt', zh: '来源摘录' },
   reactionScheme: { en: 'Reaction scheme', zh: '反应方案' },
