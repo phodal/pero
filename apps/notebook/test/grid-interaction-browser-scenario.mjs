@@ -1,3 +1,4 @@
+import { notebookHistory } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { writeWorkbook } from '@pero/notebook/workbook';
@@ -44,11 +45,11 @@ export async function verifyDirectGridInteractions(page, origin) {
   await expect(dependent.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Data!A3*3');
   await expect(data.locator('output')).toHaveText('A3');
   await expect(data.getByLabel('Unit', { exact: true })).toHaveValue('mL');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(cell('A1')).toHaveValue('2');
   await expect(edge('Resize column A')).toHaveAttribute('aria-valuenow', '165');
   await expect(edge('Resize row 1')).toHaveAttribute('aria-valuenow', String(resizedRowHeight));
-  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await notebookHistory(page, 'Redo');
   await cell('A3').click();
   await drag(move('Move column A'), move('Move column C'));
   await expect(cell('C3')).toHaveValue('2');

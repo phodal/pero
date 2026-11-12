@@ -1,3 +1,4 @@
+import { notebookHistory } from './notebook-browser-actions.mjs';
 import { closeInsertMenu, createNotebook, ensureMoreTools, toggleSpreadsheetPanel } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -49,16 +50,16 @@ export async function verifyGridTools(page, origin) {
   await expect(cell('A3')).toHaveValue('2');
   await expect(dependent.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Data!$A$3*3');
   await expect(dependent.locator('[data-cell=A1]')).toHaveValue('6');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(cell('A2')).toHaveValue('2');
   await expect(dependent.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Data!$A$2*3');
-  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await notebookHistory(page, 'Redo');
   await cell('A3').click();
   await expect(data.getByLabel('Unit', { exact: true })).toHaveValue('mL');
   await action('Move row down');
   await expect(cell('A4')).toHaveValue('2');
   await expect(dependent.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Data!$A$4*3');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await cell('A3').click();
   await action('Delete row');
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -66,7 +67,7 @@ export async function verifyGridTools(page, origin) {
   await action('Delete row');
   await page.getByRole('dialog').getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(dependent.locator('[data-cell=A1]')).toHaveValue('#REF!');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(dependent.locator('[data-cell=A1]')).toHaveValue('6');
 
   await cell('A1').click();
@@ -91,7 +92,7 @@ export async function verifyGridTools(page, origin) {
   })));
   await expect(cell('A1')).toHaveValue('');
   await expect(cell('B1')).toHaveValue('');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(cell('A1')).toHaveValue('0.33');
   await expect(cell('B1')).toHaveValue('7');
   await cell('A1').click();
@@ -130,9 +131,9 @@ export async function verifyGridTools(page, origin) {
   await toggleSpreadsheetPanel(page, data, 'Worksheet tools');
   await data.getByRole('button', { name: 'Unmerge cells', exact: true }).click();
   await expect(cell('B1')).toHaveValue('7');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(cell('B1')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await notebookHistory(page, 'Redo');
   await expect(cell('B1')).toHaveValue('7');
   await cell('A1').click();
   await data.getByRole('button', { name: 'Clear formatting', exact: true }).click();

@@ -3,6 +3,7 @@ import { expect } from '@playwright/test';
 
 /** Shared popup panels retain dialog-owning tools while closed. */
 export async function openNotebookMenu(page, menu) {
+  menu = ['view', 'help'].includes(menu) ? 'file' : menu;
   const trigger = page.locator(`[data-notebook-menu="${menu}"] .pero-ui-popover-trigger`);
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
@@ -12,15 +13,15 @@ export async function openNotebookMenu(page, menu) {
 /** Main views and contextual inspectors have separate navigation. */
 export async function openNotebookView(page, name) {
   if (['Metadata', 'Relevant items', 'Review and activity'].includes(name)) {
-    const button = page.locator('.notebook-panel-actions').getByRole('button', { name: name === 'Metadata' ? 'Properties' : name, exact: true });
-    if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
+    const panel = await openNotebookMenu(page, 'file');
+    await panel.getByRole('button', { name: name === 'Metadata' ? 'Properties' : name, exact: true }).click();
     return;
   }
   await page.getByRole('tab', { name, exact: true }).click();
 }
 
 export function notebookTab(page, name) {
-  if (name === 'Metadata') return page.locator('.notebook-panel-actions').getByRole('button', { name: 'Properties', exact: true });
+  if (name === 'Metadata') return page.getByRole('complementary', { name: 'Properties', exact: true });
   return page.getByRole('tab', { name, exact: true });
 }
 
@@ -69,4 +70,16 @@ export async function createNotebook(page, origin, title) {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   });
   return entry;
+}
+
+/** History is available from the compact formatting menu. */
+export async function notebookHistory(page, action) {
+  if (await page.locator('.notebook-workspace').getAttribute('data-notebook-view') === 'procedures') {
+    await page.locator('[role="tabpanel"][data-state="active"]').getByRole('button', { name: action, exact: true }).click();
+    return;
+  }
+  await openNotebookMenu(page, 'format');
+  await page.getByRole('button', { name: action, exact: true }).click();
+  const trigger = page.locator('[data-notebook-menu="format"] .pero-ui-popover-trigger');
+  if (await trigger.getAttribute('aria-expanded') === 'true') await trigger.click();
 }

@@ -1,3 +1,4 @@
+import { notebookHistory } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { expect } from '@playwright/test';
@@ -32,8 +33,8 @@ export async function verifyReferenceControls(page, origin, output) {
   await dialog.getByLabel('Section name', { exact: true }).fill('Calibration day');
   await button('Insert dated section', dialog).click();
   await expect(page.locator('footer[aria-label="Notebook status"]')).toContainText('Sections: 1');
-  await button('Undo', page).click(); await expect(page.locator('[data-kind=section]')).toHaveCount(0);
-  await button('Redo', page).click(); await expect(page.locator('[data-kind=section]')).toHaveCount(1);
+  await notebookHistory(page, 'Undo'); await expect(page.locator('[data-kind=section]')).toHaveCount(0);
+  await notebookHistory(page, 'Redo'); await expect(page.locator('[data-kind=section]')).toHaveCount(1);
   await openNotebookView(page, 'Metadata');
   await page.getByLabel('Project label', { exact: true }).fill('Current project');
   const documentActions = page.getByRole('dialog', { name: 'Replace or restore document', exact: true });
@@ -54,7 +55,7 @@ export async function verifyReferenceControls(page, origin, output) {
   await expect(dialog).toHaveCount(0);
   await expect(documentActions).toBeVisible();
   await closeDocumentActions();
-  await expect(notebookTab(page, 'Metadata')).toHaveAttribute('aria-pressed', 'true');
+  await expect(notebookTab(page, 'Metadata')).toBeVisible();
   await expect(page.getByLabel('Project label', { exact: true })).toHaveValue('Current project');
   await openNotebookView(page, 'Notes');
   await expect(title()).toHaveValue('Original working draft');
@@ -64,11 +65,11 @@ export async function verifyReferenceControls(page, origin, output) {
   await button('Replace with example').click();
   await expect(title()).toHaveValue('Pero research notebook example');
   await expect(notebookTab(page, 'Notes')).toHaveAttribute('aria-selected', 'true');
-  await button('Undo').click(); await expect(title()).toHaveValue('Original working draft');
+  await notebookHistory(page, 'Undo'); await expect(title()).toHaveValue('Original working draft');
   await expect(page.locator('[data-kind=namedReference]')).toContainText('Calibration checklist');
   await openNotebookView(page, 'Metadata'); await expect(page.getByLabel('Project label', { exact: true })).toHaveValue('Current project');
   await openNotebookView(page, 'Notes');
-  await button('Redo').click(); await expect(title()).toHaveValue('Pero research notebook example');
+  await notebookHistory(page, 'Redo'); await expect(title()).toHaveValue('Pero research notebook example');
   // Select via the labelled native file input, avoiding the separate-entry import.
   const choose = async (value) => {
     await openDocumentActions();
@@ -89,8 +90,8 @@ export async function verifyReferenceControls(page, origin, output) {
   await choose(replacement); await expect(title()).toHaveValue(replacement.title);
   await expect(page.getByText(/Current document replaced/)).toBeVisible();
   assert.equal((await (await page.request.get(origin + '/api/entries')).json()).entries.filter(item => item.id === entry.id).length, 1);
-  await button('Undo').click(); await expect(title()).toHaveValue('Pero research notebook example');
-  await button('Redo').click(); await expect(title()).toHaveValue(replacement.title);
+  await notebookHistory(page, 'Undo'); await expect(title()).toHaveValue('Pero research notebook example');
+  await notebookHistory(page, 'Redo'); await expect(title()).toHaveValue(replacement.title);
   await page.locator('[data-kind=spreadsheet] [data-cell=A1]').click();
   const toggleInspector = async () => {
     await button('Insert function').click();

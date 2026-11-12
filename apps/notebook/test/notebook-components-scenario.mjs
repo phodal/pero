@@ -1,3 +1,4 @@
+import { notebookHistory } from './notebook-browser-actions.mjs';
 import { createNotebook, ensureMoreTools, openNotebookMenu, openNotebookView } from './notebook-browser-actions.mjs';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -67,11 +68,11 @@ export async function verifyNotebookComponents(page, origin, output) {
   await expect(page.getByText('That tag already exists.')).toBeVisible();
   // Global history is accessible from Notes, but restores metadata as well.
   await tab('Notes');
-  await button('Undo').click();
+  await notebookHistory(page, 'Undo');
   await tab('Metadata');
   await expect(button('Remove tag acceptance')).toHaveCount(0);
   await tab('Notes');
-  await button('Redo').click();
+  await notebookHistory(page, 'Redo');
   await tab('Metadata');
   await expect(button('Remove tag acceptance')).toBeVisible();
   await shot('metadata-desktop-light');

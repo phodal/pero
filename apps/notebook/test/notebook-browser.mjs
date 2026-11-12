@@ -1,3 +1,4 @@
+import { notebookHistory } from './notebook-browser-actions.mjs';
 import { verifyReferenceControls } from './reference-controls-browser-scenario.mjs';
 import { verifyRemainingNotebookWorkflows } from './remaining-workflows-browser-scenario.mjs';
 import { verifySourceExtraction } from './source-extraction-browser-scenario.mjs';
@@ -148,18 +149,20 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const formula = "='Calibration data'!A1*3";
   await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue(formula);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(sheetName).toHaveValue('Controls');
   await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue('=Controls!A1*3');
   await expect(control.locator('[data-cell=A1]')).toHaveValue('4');
-  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await notebookHistory(page, 'Redo');
   await expect(sheetName).toHaveValue('Calibration data');
   await expect(result.getByRole('textbox', { name: 'Cell formula or value' })).toHaveValue(formula);
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
 
   await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Evidence' }).click();
-  const evidence = page.locator('[data-kind=evidence]');
+  const evidenceTrigger = page.locator('[data-kind=evidence] .notebook-reference-trigger');
+  await evidenceTrigger.click();
+  const evidence = page.locator('.notebook-reference-panel');
   const paperExport = await readFile(resolve(app, '../../packages/notebook/test/fixtures/paper-report.json'));
   const owner = JSON.parse(paperExport);
   await evidence.locator('input[type=file]').setInputFiles({
@@ -176,7 +179,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const trial = JSON.parse(controlExport).experiment.trials.at(-1);
   await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Experiment reference', exact: true }).click();
-  const experiment = page.locator('[data-kind=experiment]');
+  const experimentTrigger = page.locator('[data-kind=experiment] .notebook-reference-trigger');
+  await experimentTrigger.click();
+  const experiment = page.locator('.notebook-reference-panel');
   await experiment.locator('input[type=file]').setInputFiles({
     name: 'control-export.json', mimeType: 'application/json', buffer: controlExport,
   });
@@ -186,6 +191,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const recordedVerdict = experiment.locator('.notebook-snapshot > .notebook-reference-actions');
   await expect(recordedVerdict).toContainText(trial.report.verdict);
   await experiment.getByLabel('Label').fill('Locked control trial');
+  await page.getByRole('complementary', { name: 'Reference source' }).getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: 'Insert', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Finding', exact: true }).click();
   const finding = page.locator('[data-kind=finding]');
@@ -220,8 +226,11 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   assert.equal(sheets[1].attrs.sheet.cells.A1, formula);
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Assay review');
+  await evidenceTrigger.click();
   await expect(evidence.locator('blockquote')).toHaveText(owner.sections[0].evidence[1].quote);
+  await experimentTrigger.click();
   await expect(recordedVerdict).toContainText(trial.report.verdict);
+  await evidenceTrigger.click();
   await expect(result.locator('[data-cell=A1]')).toHaveValue('12');
   const editReference = evidence.locator('summary').filter({ hasText: 'Edit reference' });
   await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeHidden();
@@ -351,9 +360,9 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
     element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
   }, clipboard);
   await expect(page.locator('[data-kind=evidence]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await notebookHistory(page, 'Undo');
   await expect(page.locator('[data-kind=evidence]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await notebookHistory(page, 'Redo');
   await expect(page.locator('[data-kind=evidence]')).toHaveCount(1);
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Locked control trial/ })).toBeChecked();
@@ -377,19 +386,21 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
   await expect(page.locator('[data-kind=finding]').getByRole('checkbox', { name: /Paper passage/ })).toBeChecked();
   await expect(page.getByRole('textbox', { name: 'Notebook title' })).toHaveValue('Copied review');
-  const views = page.locator('.notebook-workspace-navigation');
+  const views = page.locator('.notebook-documentbar');
   await expect(views.getByRole('tablist')).toHaveCount(1);
   await expect(views.getByRole('tab', { name: 'Notes', exact: true })).toHaveAttribute('aria-selected', 'true');
   for (const name of ['Notes', 'Procedures']) {
     await expect(views.getByRole('tab', { name, exact: true })).toBeVisible();
   }
+  await openNotebookMenu(page, 'file');
   for (const name of ['Relevant items', 'Properties', 'Review and activity']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
-  await expect(views.locator('[data-notebook-menu=view]')).toHaveCount(1);
+  await expect(views.locator('[data-notebook-menu=file]')).toHaveCount(1);
+  await page.locator('[data-notebook-menu=file] .pero-ui-popover-trigger').click();
   await expect(page.locator('.notebook-statusbar [data-notebook-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
-  await expect(page.locator('.notebook-toolbar')).toBeVisible();
+  await expect(page.locator('.notebook-toolbar')).toHaveCount(1);
   await page.screenshot({ path: resolve(output, 'copied-references.png'), fullPage: true });
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   // The Host context, not the OS media query, owns an App's actual theme.
