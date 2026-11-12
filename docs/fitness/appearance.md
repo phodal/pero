@@ -146,3 +146,12 @@ settings and the relocated usage popover were inspected separately; the final
 chat capture is `test-results/compact/native-chat-light.png`. Provider messages
 in that capture come from the ACP fixture; no real model or tool execution is
 claimed by this presentation check.
+
+## Settings native titlebar — 2026-11-12
+
+The Settings window now sets its AppKit appearance from the resolved application
+mode when opened and after appearance changes. This corrects a dark native
+titlebar above explicitly light Settings content. The MCP editor is removed
+from Settings navigation/search; existing programmatic MCP entry remains.
+Per the user's instruction, these changes were committed without build, tests
+or runtime verification.

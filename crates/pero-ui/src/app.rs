@@ -738,6 +738,11 @@ impl Workbench {
     }
     pub(crate) fn install_appearance(&mut self, cx: &mut Context<Self>) {
         pero_theme::ResolvedAppearance::resolve(&self.preferences, self.system_dark, &self.palettes).install(cx);
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(settings) = self.settings_window {
+            let dark = pero_theme::UiAppearance::global(cx).dark;
+            let _ = settings.update(cx, |_, window, _| crate::settings_window::sync_settings_titlebar(window, dark));
+        }
     }
     pub fn t(&self, key: &str) -> &'static str {
         pero_contracts::i18n::text(&self.locale, key)

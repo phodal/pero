@@ -11,6 +11,26 @@ use gpui_kit::{prelude::*, *};
 // Shared by the native utility window and the embedded settings dialog.
 const SETTINGS_WIDTH: f32 = 760.;
 
+// GPUI colors do not override AppKit's native titlebar appearance.
+#[cfg(target_os = "macos")]
+pub(crate) fn sync_settings_titlebar(window: &mut Window, dark: bool) {
+    use objc2::{class, msg_send, runtime::AnyObject};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = window.window_handle() else { return; };
+    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else { return; };
+    unsafe {
+        let view = &*appkit.ns_view.as_ptr().cast::<AnyObject>();
+        let native: *mut AnyObject = msg_send![view, window];
+        if native.is_null() { return; }
+        let name = if dark { c"NSAppearanceNameDarkAqua" } else { c"NSAppearanceNameAqua" };
+        let name: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: name.as_ptr()];
+        let appearance: *mut AnyObject = msg_send![class!(NSAppearance), appearanceNamed: name];
+        let _: () = msg_send![native, setAppearance: appearance];
+    }
+}
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn sync_settings_titlebar(_window: &mut Window, _dark: bool) {}
+
 impl Workbench {
     pub(crate) fn sync_settings_panel(&self, cx: &mut Context<Self>) {
         if let Some(panel) = &self.settings_panel {
@@ -200,6 +220,7 @@ impl Workbench {
                 ..Default::default()
             };
             match gpui_kit::open_window(options, cx, |window, cx| {
+                sync_settings_titlebar(window, pero_theme::UiAppearance::global(cx).dark);
                 window.set_window_title(pero_contracts::i18n::text(&locale, "settings.title"));
                 cx.new(|cx| SettingsPanel::new(preferences, locale, window, cx))
             }) {
