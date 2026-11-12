@@ -36,7 +36,10 @@ Repairs and verification:
   ColorPicker test, Notebook build and typecheck passed. Notebook package tests:
   314/314 passed. Python backend: 144 tests, 2 explicit OCR skips.
 - The parallel editor run hit local esbuild service termination; the affected
-  reference tests passed isolated. Serial editor verification is in progress.
+  reference tests passed isolated. Serial editor verification passed 109/109.
+- The first PR run exposed an outdated fake for the migrated Paper download
+  helper. It now follows the overflow menu while retaining exact-title checks.
+  The full generated/CI-runner contract command passed 144/144, with no skips.
 - Chromium cannot create its ProcessSingleton socket in this local executor,
   including the approved escalated attempt, before any browser assertion runs.
   Real browser/Host validation remains pending on the exact Draft PR head.
