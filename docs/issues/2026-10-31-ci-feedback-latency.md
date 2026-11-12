@@ -6,6 +6,42 @@ date: 2026-10-31
 
 # CI delays integration failures behind serial acceptance
 
+## 2026-11-12 generated lock and UI contract drift
+
+Master `e7f362a24e4de043b4802c7ee825e2d7bdd73b21`,
+[CI run 43245455975](https://github.com/phodal/pero/actions/runs/43245455975),
+failed before generated checks because watched npm inputs no longer match the
+committed Bazel translation cache. Notebook component tests and color acceptance
+also still assume pre-migration controls/lifecycle, and the Paper availability
+test expects a download action in closed-menu server-rendered markup.
+
+The earlier inspector migration is already covered by merged #208; duplicate
+Draft #206 was closed without merging. These later failures require independent
+repairs. Preserve actual availability, retained content, navigation and scientific
+assertions; do not disable CI gates or weaken their failure propagation.
+
+Repairs and verification:
+
+- Regenerated the watched `packages/notebook/package.json` hash through Bazel
+  9.2.0. The derived pnpm lock is unchanged. All seven generated checks passed;
+  frozen `--config=ci` verification passed using those cached test results.
+- App Canvas tests now use jsdom's cancellable browser frames for the recurring
+  live Host surface; they no longer recursively flush that loop as microtasks.
+  Color assertions follow the shared ColorPicker dialog and buttons, retaining
+  keyboard traversal, selected values, swatches, Escape/focus and saved marks.
+- Paper availability tests open the actual overflow menu and check both disabled
+  state and callback admission. Candidate URL and in-progress cases remain
+  distinct. Related desktop helper flows follow the same menu contract.
+- Paper availability/inspector/layout: 6/6 passed. Canvas: 7/7 passed. Shared
+  ColorPicker test, Notebook build and typecheck passed. Notebook package tests:
+  314/314 passed. Python backend: 144 tests, 2 explicit OCR skips.
+- The parallel editor run hit local esbuild service termination; the affected
+  reference tests passed isolated. Serial editor verification is in progress.
+- Chromium cannot create its ProcessSingleton socket in this local executor,
+  including the approved escalated attempt, before any browser assertion runs.
+  Real browser/Host validation remains pending on the exact Draft PR head.
+  No production behavior, CI gate or skip configuration was changed.
+
 ## 2026-11-05 contract and startup repairs
 
 Master run [41942237130](https://github.com/phodal/pero/actions/runs/41942237130)
