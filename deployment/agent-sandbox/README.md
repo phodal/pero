@@ -191,7 +191,7 @@ loopback provider turn and retain events/result; a second launch does not repeat
 the turn. Worker tests additionally cover lost claim responses, original Pod UID
 recovery, permissions, cancellation, lease loss and descendant cleanup.
 
-`.github/workflows/agent-sandbox.yml` is opt-in: manual dispatch with profile `standard` (or `isolated` for the strong profile), or the maintainer
+`.github/workflows/acceptance.yml` is opt-in: manual dispatch with suite `sandbox-standard` (or `sandbox-isolated` for the strong profile), or the maintainer
 `agent-sandbox-e2e` label on a same-repository PR that changes the sandbox,
 Worker, its contract or runtime crates, the harness, the cargo wrapper, or the
 server module. The job runs that whole server test suite, so the path list is

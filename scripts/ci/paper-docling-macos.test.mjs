@@ -2,17 +2,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import YAML from 'yaml';
+import { acceptancePaths } from './acceptance-scope.mjs';
 
 test('real Mac Docling verification is scoped, opt-in, read-only and exact-head', () => {
-  const workflow = YAML.parse(readFileSync('.github/workflows/paper-docling-macos.yml', 'utf8'));
+  const workflow = YAML.parse(readFileSync('.github/workflows/acceptance.yml', 'utf8'));
   assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.equal(workflow.on.workflow_dispatch.inputs.allow_official_downloads.default, false);
-  assert.deepEqual(workflow.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled']);
-  const paths = workflow.on.pull_request.paths;
+  assert.deepEqual(workflow.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
+  const paths = acceptancePaths.docling;
   assert.ok(paths.length > 0 && paths.every(path =>
-    path === '.github/workflows/paper-docling-macos.yml' ||
-    path === 'packages/source-extraction/**' || path === 'scripts/build/source-parsers.mjs' ||
+    path === '.github/workflows/acceptance.yml' ||
+    path === 'scripts/ci/acceptance-scope.mjs' || path === 'scripts/ci/workflow-scope.mjs' || path === 'packages/source-extraction/**' || path === 'scripts/build/source-parsers.mjs' ||
     path.startsWith('apps/paper-agent/') || path.startsWith('crates/pero-runtime/src/apps/docling')));
   const job = workflow.jobs.docling;
   assert.equal(job['runs-on'], 'macos-26');

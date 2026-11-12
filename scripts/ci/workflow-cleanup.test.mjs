@@ -6,12 +6,12 @@ import YAML from 'yaml';
 const read = name => YAML.parse(readFileSync(`.github/workflows/${name}.yml`, 'utf8'));
 
 test('manual diagnostics select exactly one suite without automatic execution', () => {
-  const workflow = read('diagnostics');
-  assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
+  const workflow = read('acceptance');
+  assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   const suite = workflow.on.workflow_dispatch.inputs.suite;
   assert.equal(suite.type, 'choice');
-  assert.deepEqual(suite.options, ['graphics', 'locked-scientific-linux']);
+  assert.deepEqual(suite.options, ['graphics', 'locked-scientific-linux', 'sandbox-standard', 'sandbox-isolated', 'paper-docling-macos', 'paper-fisher']);
   assert.equal(suite.default, 'graphics');
   assert.equal(workflow.jobs.graphics.if, "github.event_name == 'workflow_dispatch' && inputs.suite == 'graphics'");
   assert.equal(workflow.jobs['prepare-and-use'].if, "github.event_name == 'workflow_dispatch' && inputs.suite == 'locked-scientific-linux'");
@@ -21,18 +21,18 @@ test('manual diagnostics select exactly one suite without automatic execution', 
 });
 
 test('sandbox profiles retain separate same-repository label opt-ins', () => {
-  const workflow = read('agent-sandbox');
+  const workflow = read('acceptance');
   assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'workflow_dispatch']);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
-  const profile = workflow.on.workflow_dispatch.inputs.profile;
-  assert.deepEqual(profile.options, ['standard', 'isolated']);
-  assert.equal(profile.default, 'standard');
+  const profile = workflow.on.workflow_dispatch.inputs.suite;
+  assert.ok(profile.options.includes('sandbox-standard'));
+  assert.ok(profile.options.includes('sandbox-isolated'));
   for (const [id, choice, label] of [
     ['kind', 'standard', 'agent-sandbox-e2e'],
     ['isolated-kind', 'isolated', 'agent-sandbox-isolated-e2e'],
   ]) {
     const job = workflow.jobs[id];
-    assert.ok(job.if.includes(`github.event_name == 'workflow_dispatch' && inputs.profile == '${choice}'`));
+    assert.ok(job.if.includes(`github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-${choice}'`));
     assert.ok(job.if.includes('github.event.pull_request.head.repo.full_name == github.repository'));
     assert.ok(job.if.includes(`contains(github.event.pull_request.labels.*.name, '${label}')`));
     assert.equal(job.steps.at(-1).if, 'always()');
