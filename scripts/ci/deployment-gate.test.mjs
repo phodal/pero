@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
@@ -227,11 +227,12 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs ci/);
   const published = release.jobs.publish.steps.map(step => step.run || '').join('\n');
-  assert.match(published, /git log --format='- %h %s'/);
-  assert.match(published, /git fetch --unshallow origin/);
-  assert.ok(published.indexOf('git fetch --unshallow origin') < published.indexOf("git describe --tags --match 'v0.1.0-dev.*'"));
-  assert.match(published, /git describe --tags --match 'v0\.1\.0-dev\.\*'/);
-  assert.doesNotMatch(published, /AI4S migration is complete/);
+  assert.match(published, /bash scripts\/ci\/release-notes\.sh/);
+  const notesScript = readFileSync('scripts/ci/release-notes.sh', 'utf8');
+  assert.ok(notesScript.indexOf('git fetch --unshallow origin') < notesScript.indexOf("git describe --tags --match 'v0.1.0-dev.*'"));
+  assert.match(notesScript, /git log --format='- %h %s'/);
+  assert.doesNotMatch(notesScript, /--max-count/);
+  assert.doesNotMatch(notesScript, /AI4S migration is complete/);
   const manifestStep = release.jobs.publish.steps.find(step => (step.run || '').includes('deployment-gate.mjs manifests'));
   assert.equal(manifestStep.env.GATE_REQUIRED_ARCHIVES, dispatchReleaseArchives.join(','));
   assert.ok(published.lastIndexOf('deployment-gate.mjs pin-tag') < published.indexOf('--draft=false'));
@@ -241,7 +242,7 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   for (const job of Object.values(release.jobs)) for (const step of job.steps ?? []) assert.equal(step['continue-on-error'], undefined);
 });
 
-test('a depth-1 checkout cannot see the release parent until it is unshallowed', () => {
+test('release notes use the published ancestor after a shallow checkout, and stop when no base exists', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'pero-release-notes-'));
   const git = (cwd, args) => execFileSync('git', ['-c', 'user.name=Pero', '-c', 'user.email=pero@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
   const gitFailure = (cwd, args) => {
@@ -251,6 +252,17 @@ test('a depth-1 checkout cannot see the release parent until it is unshallowed',
     } catch (error) {
       return error;
     }
+  };
+  const notes = resolve('scripts/ci/release-notes.sh');
+  const runNotes = (cwd, sha, published) => {
+    const bin = resolve(cwd, 'fake-bin');
+    mkdirSync(bin);
+    writeFileSync(resolve(bin, 'gh'), '#!/bin/sh\nprintf %s "$PERO_FAKE_GH_PUBLISHED"\n');
+    chmodSync(resolve(bin, 'gh'), 0o755);
+    return execFileSync('bash', [notes], {
+      cwd, encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GATE_TARGET_SHA: sha, PERO_FAKE_GH_PUBLISHED: published },
+    });
   };
   try {
     const origin = resolve(root, 'origin');
@@ -268,20 +280,43 @@ test('a depth-1 checkout cannot see the release parent until it is unshallowed',
     const target = commit('release target');
     const shallow = resolve(root, 'shallow');
     git(root, ['clone', '-q', '--depth', '1', `file://${origin}`, shallow]);
-    assert.equal(git(shallow, ['rev-parse', '--is-shallow-repository']), 'true');
     git(shallow, ['fetch', '--no-tags', 'origin', target]);
     const described = gitFailure(shallow, ['describe', '--tags', '--match', 'v0.1.0-dev.*', '--abbrev=0', `${target}^`]);
     assert.equal(described.status, 128);
     assert.match(String(described.stderr), /Not a valid object name|unknown revision|cannot describe anything/);
     git(shallow, ['fetch', 'origin', 'refs/tags/v0.1.0-dev.*:refs/tags/v0.1.0-dev.*']);
-    const ancestor = gitFailure(shallow, ['merge-base', '--is-ancestor', 'v0.1.0-dev.20261104', target]);
-    assert.notEqual(ancestor, null);
-    git(shallow, ['fetch', '--unshallow', 'origin']);
-    assert.equal(git(shallow, ['merge-base', '--is-ancestor', 'v0.1.0-dev.20261104', target]), '');
-    assert.equal(git(shallow, ['describe', '--tags', '--match', 'v0.1.0-dev.*', '--abbrev=0', `${target}^`]), 'v0.1.0-dev.20261107');
-    const log = git(shallow, ['log', '--format=%s', `v0.1.0-dev.20261104..${target}`]);
-    assert.match(log, /between releases/);
-    assert.match(log, /release target/);
+    assert.notEqual(gitFailure(shallow, ['merge-base', '--is-ancestor', 'v0.1.0-dev.20261104', target]), null);
+    runNotes(shallow, target, 'v0.1.0-dev.20261104');
+    const written = readFileSync(resolve(shallow, 'release-notes.md'), 'utf8');
+    assert.match(written, /Changes since v0\.1\.0-dev\.20261104:/);
+    assert.match(written, /between releases/);
+    assert.match(written, /release target/);
+    assert.doesNotMatch(written, /--max-count/);
+
+    const other = resolve(root, 'other');
+    git(root, ['init', '-q', other]);
+    writeFileSync(resolve(other, 'note'), 'stable\n');
+    git(other, ['add', 'note']);
+    git(other, ['commit', '-qm', 'stable published']);
+    git(other, ['tag', 'v1.0.0']);
+    writeFileSync(resolve(other, 'note'), 'after stable\n');
+    git(other, ['add', 'note']);
+    git(other, ['commit', '-qm', 'after the stable tag']);
+    const stableTarget = git(other, ['rev-parse', 'HEAD']);
+    git(other, ['remote', 'add', 'origin', other]);
+    runNotes(other, stableTarget, 'v1.0.0');
+    const stableNotes = readFileSync(resolve(other, 'release-notes.md'), 'utf8');
+    assert.match(stableNotes, /Changes since v1\.0\.0:/);
+    assert.match(stableNotes, /after the stable tag/);
+
+    const empty = resolve(root, 'empty');
+    git(root, ['init', '-q', empty]);
+    writeFileSync(resolve(empty, 'note'), 'only\n');
+    git(empty, ['add', 'note']);
+    git(empty, ['commit', '-qm', 'only commit']);
+    const only = git(empty, ['rev-parse', 'HEAD']);
+    git(empty, ['remote', 'add', 'origin', empty]);
+    assert.throws(() => runNotes(empty, only, 'null'), /No previous published release/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
