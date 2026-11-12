@@ -704,13 +704,20 @@ impl Render for Workbench {
                                                         div()
                                                             .flex_1()
                                                             .min_h_0()
-                                                            .overflow_hidden()
                                                             .relative()
+                                                            .flex()
+                                                            .flex_col()
+                                                            .child(pero_theme::edge_shadow_plate(p.border))
+                                                            .child(
+                                                        div()
+                                                            .flex_1()
+                                                            .min_h_0()
+                                                            .relative()
+                                                            .overflow_hidden()
                                                             .flex()
                                                             .flex_col()
                                                             .rounded_tl(px(pero_theme::RADIUS_PANEL))
                                                             .bg(p.bg)
-                                                            .shadow(pero_theme::edge_shadow(p.border))
                                                             .child(
                                                                 canvas(
                                                                     |bounds, _, _| note_content_corner(bounds.origin),
@@ -831,6 +838,7 @@ impl Render for Workbench {
                                 el.child(self.floating_app_chat(width, window, cx))
                             }),
                     )
+                                                        )
                                                     ),
                                             )
                                             .when(resources_width > 0., |row| {
