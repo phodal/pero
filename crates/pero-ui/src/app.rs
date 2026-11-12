@@ -55,6 +55,8 @@ pub(crate) struct Workbench {
     pub pending_save_as:Option<crate::document_save_as::PendingSaveAs>,
     pub save_as_feedback:Option<crate::document_save_as::SaveAsFeedback>,
     #[cfg(not(target_family="wasm"))]
+    pub(crate) native_panel_slots:std::collections::BTreeMap<String,crate::native_app_panels::NativePanelSlot>,
+    #[cfg(not(target_family="wasm"))]
     pub native_app_pages:std::collections::BTreeMap<(String,String),crate::native_app_surface::RetainedApp>,
     #[cfg(all(feature = "native", not(target_family = "wasm")))]
     pub(crate) mcp_app_wait: Option<crate::mcp_app::McpAppWait>,
@@ -328,6 +330,8 @@ impl Workbench {
             native_web_pages:Default::default(),
             #[cfg(not(target_family="wasm"))]
             native_app_pages:Default::default(),
+            #[cfg(not(target_family="wasm"))]
+            native_panel_slots:Default::default(),
             #[cfg(all(feature = "native", not(target_family = "wasm")))]
             mcp_app_wait: None,
             #[cfg(not(target_family="wasm"))]

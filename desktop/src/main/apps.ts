@@ -191,7 +191,7 @@ export class DesktopApps {
         const panel = record?.panels.find(panel => panel.id === (command.panel || record.panels[0]?.id));
         if (!record?.enabled || !panel) throw new Error('Enable the App before opening it');
         const access = await this.request<AppAccess>('resolve', { name: record.name });
-        this.send({ version: 1, kind: 'apps_opened', request_id: null, text: '', data: {
+        this.send({ version: 1, kind: 'apps_opened', request_id: command.request_id ?? null, text: '', data: {
           name: record.name, panel: panel.id, url: `pero-app://${record.name}/${panel.entry}`,
         } });
         return;
@@ -215,7 +215,7 @@ export class DesktopApps {
       }));
       this.send({ version: 1, kind: 'apps_catalog', request_id: null, text: '', data: catalog });
     } catch (error) {
-      this.send({ version: 1, kind: 'apps_error', request_id: null, text: (error as Error).message });
+      this.send({ version: 1, kind: 'apps_error', request_id: command.request_id ?? null, text: (error as Error).message });
     }
   }
 

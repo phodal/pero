@@ -232,7 +232,7 @@ impl NativeApps {
                     } else {
                         "apps_catalog"
                     },
-                    None,
+                    value["request_id"].as_str().map(str::to_owned),
                     String::new(),
                 );
                 if action == "open" {
@@ -255,7 +255,7 @@ impl NativeApps {
                 Ok(event)
             })();
             let event = result.unwrap_or_else(|error| {
-                let mut event = HostEvent::new("apps_error", None, error.to_string());
+                let mut event = HostEvent::new("apps_error", value["request_id"].as_str().map(str::to_owned), error.to_string());
                 event.data = value;
                 event
             });

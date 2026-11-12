@@ -1,7 +1,7 @@
 //! Retained native App panels and their SDK context.
 use crate::{
     app::Workbench,
-    workspace::{WorkspaceItem, WorkspaceRoute},
+    workspace::WorkspaceItem,
 };
 use gpui_kit::{base::ElementExt, component::{notification::Notification, WindowExt}, prelude::*, *};
 use gpui_webview::WebView;
@@ -32,7 +32,7 @@ fn ease_in_out(t: f32) -> f32 {
 
 pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
-    error: Option<String>,
+    pub(crate) error: Option<String>,
     ready: bool,
     opening: Opening,
     shortcuts: pero_contracts::shortcuts::ShortcutMenu,
@@ -40,6 +40,7 @@ pub(crate) struct NativeAppPage {
     context: Value,
     pending: std::collections::HashSet<String>,
     canvas_owner: bool,
+    pub(crate) panel_size: Size<Pixels>,
     docling_live: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 pub(crate) struct NativeAppMessage(pub Value);
@@ -49,17 +50,18 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:artifact:inline-action'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:panel-slot'||message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:artifact:inline-action'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
 "#;
 impl NativeAppPage {
-    pub(crate) fn clip_corner(&self, origin: Point<Pixels>, cx: &App) {
+    pub(crate) fn sync_panel_bounds(&mut self, bounds: Bounds<Pixels>, cx: &App) {
+        self.panel_size = bounds.size;
         if let Some(view) = &self.view {
             crate::native_web::clip_leading_corner(
                 view.read(cx).raw(),
-                crate::view::at_content_corner(origin),
+                crate::view::at_content_corner(bounds.origin),
             );
         }
     }
@@ -207,6 +209,7 @@ impl NativeAppPage {
             context: Value::Null,
             pending: Default::default(),
             canvas_owner: name == "notebook",
+            panel_size: Size::default(),
             docling_live,
         }
     }
@@ -449,9 +452,8 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if event.kind != "apps_opened" {
-            return;
-        }
+        if event.kind == "apps_error" { self.receive_native_panel_failure(event,cx); }
+        if event.kind != "apps_opened" { return; }
         #[derive(serde::Deserialize)]
         struct Open {
             name: String,
@@ -467,7 +469,7 @@ impl Workbench {
             name: open.name.clone(),
             panel: open.panel.clone(),
         };
-        if !self.navigation.items().contains(&item)
+        if (!self.navigation.items().contains(&item) && !self.native_panel_retained(&open.name, &open.panel))
             || !self.apps.contains_panel(&open.name, &open.panel)
         {
             return;
@@ -492,16 +494,17 @@ impl Workbench {
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
-            if message["type"] == "pero:shortcut" && this.navigation.current()==Some(&item) {
+            if message["type"] == "pero:shortcut" && this.native_app_presented(&item) {
                 if let Ok(command)=serde_json::from_value::<pero_contracts::shortcuts::CommandId>(message["command"].clone()) {
                     if command.application_entry() {this.execute_shortcut(command,window,cx);}
                 }
                 return;
             }
+            if message["type"] == "pero:app:panel-slot" { this.receive_native_panel_slot(&scope,message,cx); return; }
             if message["type"] == "pero:app:sdk" {
                 let mut deferred = false;
                 let result = (|| -> anyhow::Result<()> {
-                    anyhow::ensure!(this.navigation.current()==Some(&item), "Open the App before using Host presentation");
+                    anyhow::ensure!(this.native_app_presented(&item), "Open the App before using Host presentation");
                     let input = &message["input"];
                     match message["operation"].as_str() {
                         Some("mcp-settings") => {
@@ -564,7 +567,10 @@ impl Workbench {
                 cx.notify();
             }
             if message["type"] == "pero:app:examples" {this.receive_app_examples(scope.clone(),message["state"].clone(),cx);}
-            if message["type"] == "focus" { this.focus_surface_item(&item, window, cx); }
+            if message["type"] == "focus" {
+                let focused = this.native_panel_owner(&item).unwrap_or_else(|| item.clone());
+                this.focus_surface_item(&focused, window, cx);
+            }
             if message["type"] == "link" {this.web_command(json!({"action":"web_open","url":message["url"]}),window,cx);}
             if message["type"] == "pero:app-use:result" {
                 if let Some(id) = message["id"].as_str() {
@@ -575,12 +581,12 @@ impl Workbench {
                     }
                 }
             }
-            if message["type"] == "pero:app:open-session" && scope.app=="automations" && this.navigation.current()==Some(&item) {
+            if message["type"] == "pero:app:open-session" && scope.app=="automations" && this.native_app_presented(&item) {
                 if let Some(id)=message["sessionId"].as_str() {this.open_automation_session(id,cx);}
             }
             if message["type"] == "pero:app:chat" {
                 let result = (|| -> anyhow::Result<String> {
-                    anyhow::ensure!(this.navigation.current()==Some(&item), "Show the App before opening its conversation");
+                    anyhow::ensure!(this.native_app_presented(&item), "Show the App before opening its conversation");
                     this.chat.update(cx, |chat,cx| {
                         chat.open_app_draft(scope.clone(),cx);
                         Ok(chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone())
@@ -625,12 +631,14 @@ impl Workbench {
         cx.notify();
     }
     pub(crate) fn sync_native_apps(&mut self, cx: &mut Context<Self>) {
+        self.native_panel_slots.retain(|_, slot| self.navigation.items().contains(&WorkspaceItem::App { name: slot.owner.app.clone(), panel: slot.owner.panel.clone() }));
         let paper_pages = self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count();
+        let embedded = self.native_app_pages.keys().filter(|(name,panel)| self.native_panel_retained(name,panel)).cloned().collect::<std::collections::BTreeSet<_>>();
         self.native_app_pages.retain(|(name, panel), page| {
-            let keep = self.navigation.items().contains(&WorkspaceItem::App {
+            let keep = (self.navigation.items().contains(&WorkspaceItem::App {
                 name: name.clone(),
                 panel: panel.clone(),
-            }) && self.apps.retains_panel(name, panel);
+            }) || embedded.contains(&(name.clone(),panel.clone()))) && self.apps.retains_panel(name, panel);
             if !keep {
                 page.view.read(cx).docling_live.store(false, std::sync::atomic::Ordering::Release);
                 if name == "notebook" { crate::native::apps().cancel_canvas_confirmation(); }
@@ -645,17 +653,7 @@ impl Workbench {
                 name: name.clone(),
                 panel: panel.clone(),
             };
-            let active = self.layout.embedded_surface_visible
-                && if self.navigation.pane_layout_visible() {
-                    self.navigation.pane_layout().is_some_and(|layout| {
-                        layout
-                            .active_items()
-                            .iter()
-                            .any(|leaf| leaf.route == WorkspaceRoute::Content(item.clone()))
-                    })
-                } else {
-                    self.navigation.current() == Some(&item)
-                };
+            let active = self.native_app_presented(&item);
             page.view.update(cx, |view,cx| view.sync(json!({"active":active,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),cx));
         }
     }
@@ -676,10 +674,12 @@ impl Workbench {
         let name = name.to_owned();
         let panel = panel.to_owned();
         let chrome = pero_theme::Chrome::from_app(cx);
+        let embedded_panels = self.native_panel_elements(&key.0, &key.1, cx);
         let clip_key = key.clone();
         let clip = error.is_none();
         let owner = cx.entity().clone();
         div()
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
@@ -736,13 +736,14 @@ impl Workbench {
                     }
                 },
             )
+            .children(embedded_panels)
             .on_prepaint(move |bounds, _, cx| {
                 if !clip {
                     return;
                 }
                 let _ = owner.update(cx, |this, cx| {
                     if let Some(page) = this.native_app_pages.get(&clip_key) {
-                        page.view.read(cx).clip_corner(bounds.origin, cx);
+                        page.view.update(cx, |view,cx| view.sync_panel_bounds(bounds,cx));
                     }
                 });
             })

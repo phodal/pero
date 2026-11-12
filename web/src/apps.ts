@@ -1,3 +1,4 @@
+import { appPanelSlot, type AppPanelSlot } from '../../packages/app-sdk/src/app-panel-slot';
 import { appPresentation } from './app-sdk-presentation';
 import { admitPaperNavigation } from './app-navigation';
 import { mountAppExamples } from './app-examples';
@@ -16,7 +17,7 @@ declare global { interface Window { peroColumnHeader?(json: string): void } }
 export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
-type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;presenceExpiry?:ReturnType<typeof setTimeout>};
+type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;embedded?:boolean;presenceExpiry?:ReturnType<typeof setTimeout>};
 type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; contextKey?: string; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 export type AppChatSlot = { scope: { app: string; panel: string }; rect: { x: number; y: number; width: number; height: number } };
@@ -34,6 +35,11 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   const appUse = mountAppUseFrames();
   const presence = new Map<string, AppUsePresence & { thread: string }>();
   const mounts=new Map<string,Mount>();
+  const panelRequests = new Map<string, { owner: Frame; value: AppPanelSlot; error?: string }>();
+  const panelLoads = new Set<string>();
+  const panelReply = (owner: Frame, id: string, active: boolean, error?: string) => {
+    owner.element.contentWindow?.postMessage({ type: 'pero:app:panel-slot-result', id, active, ...(error ? { error } : {}) }, '*');
+  };
   let iconTheme:IconThemePackage|null=null;
   const region = document.createElement('section');
   region.id = 'pero-app-surface';
@@ -108,7 +114,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     const chinese = normalizeLocale(surface.locale) === 'zh-CN';
     const reading = new Set(['observe', 'capture', 'verify', 'geometry', 'annotation', 'semantic']);
     useStatus.replaceChildren();
-    if(onChat && active(slot)?.ready){
+    if(onChat && active(slot)?.ready && !slot.embedded){
       const capture=document.createElement('button');capture.type='button';capture.textContent=chinese?'截图到对话':'Capture to chat';
       capture.style.cssText='font:inherit;border:1px solid var(--pero-border);border-radius:3px;padding:2px 7px;color:var(--pero-text);background:var(--pero-surface);cursor:pointer';
       capture.onclick=()=>{capture.disabled=true;const frame=active(slot);if(!frame)return;void Promise.resolve(onChat({name:frame.name,panel:frame.panel,options:{capture:true}})).then(()=>{capture.disabled=false;},error=>{capture.disabled=false;const message=document.createElement('span');message.setAttribute('role','alert');message.textContent=error instanceof Error?error.message:String(error);useStatus.append(message);});};
@@ -217,6 +223,23 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     if (logFocused) card.querySelector('summary')?.focus({ preventScroll: true });
   };
   const update=()=>{
+    for (const slot of mounts.values()) if (slot.embedded) slot.surface.visible = false;
+    const paintedPanels = new Set<string>();
+    for (const [id, request] of panelRequests) {
+      const { owner, value } = request, parent = mounts.get(key(owner.name, owner.panel));
+      if (!owner.element.isConnected || !frames.has(key(owner.name, owner.panel))) { panelRequests.delete(id); continue; }
+      const target = mount(value.app, value.panel), rect = value.rect;
+      const valid = !!rect && !!parent?.surface.visible && rect.x + rect.width <= (parent.surface.width || 0) + 1 && rect.y + rect.height <= (parent.surface.height || 0) + 1;
+      if (target.surface.visible && !target.embedded) { panelReply(owner, id, false, 'This App panel is already visible in the workspace.'); continue; }
+      if (valid && paintedPanels.has(key(value.app,value.panel))) { panelReply(owner,id,false,'This App panel is already embedded in another region.'); continue; }
+      if (valid) {
+        paintedPanels.add(key(value.app,value.panel));
+        target.embedded = true;
+        target.surface = { ...parent!.surface, name: value.app, panel: value.panel,
+          left: (parent!.surface.left || 0) + rect!.x, top: (parent!.surface.top || 0) + rect!.y, width: rect!.width, height: rect!.height };
+      }
+      panelReply(owner, id, valid && !!active(target)?.ready, request.error);
+    }
     const visible=[...mounts.values()].filter(slot=>slot.surface.visible);
     region.hidden=!visible.length;
     const left=visible.length?Math.min(...visible.map(slot=>slot.surface.left||0)):0,top=visible.length?Math.min(...visible.map(slot=>slot.surface.top||0)):0;
@@ -262,6 +285,31 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if (event.data?.type === 'pero:app:panel-slot') {
+      const url = new URL(frame.element.src);
+      if (frame.name !== 'notebook' || event.origin !== `${url.protocol}//${url.host}`) return;
+      try {
+        const value = appPanelSlot(event.data), existing = panelRequests.get(value.id);
+        if (existing && existing.owner !== frame) return;
+        if (value.release) {
+          panelRequests.delete(value.id);
+          const identity = key(value.app, value.panel), slot = mounts.get(identity);
+          if (slot?.embedded && ![...panelRequests.values()].some(request => key(request.value.app, request.value.panel) === identity)) {
+            const embeddedFrame = frames.get(identity);
+            if (embeddedFrame) { clearTimeout(embeddedFrame.timer); embeddedFrame.dispose(); embeddedFrame.element.remove(); frames.delete(identity); slotRequests.delete(embeddedFrame); }
+            slot.region.remove(); mounts.delete(identity);
+          }
+        }
+        else panelRequests.set(value.id, { owner: frame, value });
+        const target = key(value.app, value.panel);
+        if (!value.release && value.rect && !frames.has(target) && !panelLoads.has(target)) {
+          panelLoads.add(target);
+          void command({ action: 'apps_open', name: value.app, panel: value.panel, request_id: `app-panel:${value.id}` });
+        }
+        update();
+      } catch (error) { if (typeof event.data.id === 'string') panelReply(frame, event.data.id, false, String(error)); }
+      return;
+    }
     if (event.data?.type === 'pero:app:sdk') {
       const url = new URL(frame.element.src), origin = `${url.protocol}//${url.host}`;
       const {id,operation,input} = event.data;
@@ -385,11 +433,11 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       const values='surfaces' in value?value.surfaces:[value];
       for(const item of values)if(item.name&&item.panel) {
         const slot=mount(item.name,item.panel);const before=previous.get(key(item.name,item.panel));
-        slot.surface={...surface,...item};
+        slot.embedded = false; slot.surface={...surface,...item};
         if(item.pane!==undefined&&item.focused&&(!before?.focused||!before?.visible)&&item.visible)active(slot)?.element.contentWindow?.focus();
       }
       if(value.open)for(const [identity,slot] of mounts) {
-        if(value.open.some(item=>key(item.name,item.panel)===identity))continue;
+        if(value.open.some(item=>key(item.name,item.panel)===identity) || [...panelRequests.values()].some(request => value.open!.some(item => item.name === request.owner.name && item.panel === request.owner.panel) && key(request.value.app, request.value.panel) === identity))continue;
         const frame=frames.get(identity);if(frame){clearTimeout(frame.timer);frame.dispose();frame.element.remove();frames.delete(identity);slotRequests.delete(frame);}
         clearTimeout(slot.presenceExpiry);slot.region.remove();mounts.delete(identity);
       }
@@ -413,6 +461,8 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       if (event.kind === 'apps_opened') {
         const value = event.data as { name: string; panel: string; url: string };
         const identity = key(value.name, value.panel);
+        panelLoads.delete(identity);
+        if (event.request_id?.startsWith('app-panel:') && !panelRequests.has(event.request_id.slice(10))) return;
         const slot=mount(value.name,value.panel);
         if (!frames.has(identity)) {
           const element = document.createElement('iframe');
@@ -429,6 +479,9 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           slot.region.prepend(element);
         }
         slot.error = ''; update();
+      } else if (event.kind === 'apps_error' && event.request_id?.startsWith('app-panel:')) {
+        const id = event.request_id.slice(10), request = panelRequests.get(id);
+        if (request) { request.error = event.text; panelLoads.delete(key(request.value.app, request.value.panel)); panelReply(request.owner, id, false, event.text); }
       } else if (event.kind === 'apps_error') {
         const slot=[...mounts.values()].find(slot=>slot.surface.visible&&slot.surface.focused)||[...mounts.values()].find(slot=>slot.surface.visible);if(slot){slot.error=event.text;renderStatus(slot);}
       } else if (event.kind === 'apps_catalog') {
