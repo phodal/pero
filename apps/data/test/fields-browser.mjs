@@ -196,9 +196,8 @@ test('first loading and an empty catalog share one workspace state', async t => 
   await releaseCatalog();
   await expect(page.getByText('No data yet', { exact: true })).toHaveCount(1);
   await expect(page.getByText('No dataset selected', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Add data', exact: true })).toHaveCount(1);
-  await expect(page.locator('.data-first-use').getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
-  await expect(page.locator('.pero-app-bar')).toHaveCount(0);
+  await expect(page.locator('.pero-app-bar').getByRole('button', { name: 'Add data', exact: true })).toHaveCount(1);
+  await expect(page.locator('.data-first-use').getByRole('button', { name: 'Add data', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Add data', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Add data', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Choose file', exact: true })).toBeFocused();
@@ -256,7 +255,7 @@ test('Chinese first import keeps optional drafts and a selected file through fai
   assert.deepEqual(imports[1], imports[0]);
   assert.deepEqual({ ...imports[1], content: undefined }, { name: 'model.bin', kind: 'model', source: 'Local experiment', license: 'Unknown', projectRef: 'project-draft', content: undefined });
   assert.equal(Buffer.from(imports[1].content, 'base64').toString(), 'original model bytes');
-  await expect(page.getByRole('region', { name: 'Datasets', exact: true }).getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
+  await expect(page.locator('.pero-app-bar').getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
 });
 
 for (const kind of ['model', 'opaque']) test(`${kind} files expose file and history capabilities`, async t => {

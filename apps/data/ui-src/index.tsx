@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppApiError, AppConversation, downloadFile, openDocument, requestAppShell, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Checkbox, ContentPane, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane, contentLayout } from '@pero/app-sdk/ui';
 import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, formatDay, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
@@ -37,6 +37,7 @@ export default function Data() {
   const [showChat, setShowChat] = useState(false), [tab, setTab] = useState('table');
   const [command, setCommand] = useState<'edit' | 'archive' | null>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const libraryTitle = useRef<HTMLButtonElement>(null);
   const pending = useRef(false), requests = useRef(0), home = useRef(false);
   const visible = state ? visibleDatasets(state, query, project, archived, kind) : [];
   const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
@@ -227,32 +228,35 @@ export default function Data() {
     void navigator.clipboard?.writeText(body).then(() => setNotice(t('shareCopied'))).catch(() => setNotice(''));
   };
   const openNotebook = () => { if (window.parent !== window) void requestAppShell('navigate', { path: '/apps/notebook/main' }); };
+  const clearSelection = () => {
+    home.current = true;
+    setFocus(previous => ({ ...previous, selection: null }));
+    setShowChat(false);
+    libraryTitle.current?.focus();
+  };
+  const objectActions = dataset && asset ? <>
+    <DropdownMenu>
+      <DropdownMenuTrigger ref={moreRef} aria-label={t('more')} className="pero-ui-icon-button"><Icon name="dots" /></DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem disabled={busy} onSelect={shareReference}>{t('share')}</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy} onSelect={() => setCommand('edit')}>Edit details</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => { setError(''); setImportTarget(dataset); }}>Add version</DropdownMenuItem>
+        {canInspect(asset) ? <DropdownMenuItem disabled={busy} onSelect={() => setTab('table')}>Explore data</DropdownMenuItem> : null}
+        <DropdownMenuSeparator />
+        {dataset.archived
+          ? <DropdownMenuItem disabled={busy} onSelect={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, name: dataset.name, projectRef: dataset.projectRef, archived: false })); setNotice('Saved.'); })}>Restore dataset</DropdownMenuItem>
+          : <DropdownMenuItem disabled={busy} onSelect={() => setCommand('archive')}>Archive dataset</DropdownMenuItem>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+    {state?.datasets.length && (ready || retained) ? <>
+      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
+      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
+      {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
+    </> : null}
+  </> : null;
   return <AppFrame className="data-page" label="Data" aria-busy={busy}
     utilities={state ? <IconButton label={t('refresh')} disabled={busy} onClick={() => void refresh(true)}><Icon name="refresh" /></IconButton> : undefined}
-    commands={dataset && asset ? <>
-      <DropdownMenu>
-        <DropdownMenuTrigger ref={moreRef} aria-label={t('more')} className="pero-ui-icon-button"><Icon name="dots" /></DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem disabled={busy} onSelect={shareReference}>{t('share')}</DropdownMenuItem>
-          <DropdownMenuItem disabled={busy} onSelect={() => setCommand('edit')}>Edit details</DropdownMenuItem>
-          <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => { setError(''); setImportTarget(dataset); }}>Add version</DropdownMenuItem>
-          {canInspect(asset) ? <DropdownMenuItem disabled={busy} onSelect={() => setTab('table')}>Explore data</DropdownMenuItem> : null}
-          <DropdownMenuSeparator />
-          {dataset.archived
-            ? <DropdownMenuItem disabled={busy} onSelect={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, name: dataset.name, projectRef: dataset.projectRef, archived: false })); setNotice('Saved.'); })}>Restore dataset</DropdownMenuItem>
-            : <DropdownMenuItem disabled={busy} onSelect={() => setCommand('archive')}>Archive dataset</DropdownMenuItem>}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button variant="ghost" disabled={busy} onClick={openImport}><Icon name="plus" size={14} />{t('addData')}</Button>
-      {state?.datasets.length && (ready || retained) ? <>
-        <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
-        <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
-        {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
-      </> : null}
-    </> : undefined}
-    primary={state ? (dataset && asset
-      ? <Button variant="primary" disabled={busy || window.parent === window} onClick={openNotebook}>{t('openNotebook')}</Button>
-      : <Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>) : undefined}>
+    primary={state ? <Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button> : undefined}>
     {error && state && state.datasets.length > 0 && importTarget === undefined ? <Feedback kind="error">{error} <Button disabled={busy} onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback> : null}
     {notice ? <p className="data-notice" role="status">{notice}</p> : null}
     {download ? <div className="data-download" role="status">
@@ -265,11 +269,12 @@ export default function Data() {
     </div> : null}
     {loading ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
       : !state.datasets.length ? <EmptyState className="data-first-use" icon={<EmptyIllustration kind="data" />} heading={<h2>{t('emptyHeading')}</h2>} description={t('emptyDescription')} />
-      : <Split storageKey="pero.data.catalog-width" collapseBelow={860}>
-      <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={360} min={280} resizeLabel={t('resizeDatasets')}>
-        <LibraryHeader density="compact" title={<button type="button" className="data-library-title" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={() => { home.current = true; setFocus(previous => ({ ...previous, selection: null })); setShowChat(false); }}>{t('datasets')}</button>}
-          subtitle={t(visible.length === 1 ? 'datasetCount' : 'datasetCountPlural', { count: String(visible.length) })} />
-        <div className="data-tools">
+      : <Split storageKey="pero.data.catalog-width" collapseBelow={contentLayout.collapseBelow}>
+      <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={contentLayout.listSize} min={contentLayout.listMin} resizeLabel={t('resizeDatasets')}>
+        <ContentPane id="data-catalog" label={t('datasets')} as="div" surface="list" inset="none" scroll="pane"
+          header={<LibraryHeader density="compact" title={<button ref={libraryTitle} type="button" className="data-library-title" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={clearSelection}>{t('datasets')}</button>}
+          subtitle={t(visible.length === 1 ? 'datasetCount' : 'datasetCountPlural', { count: String(visible.length) })} />}
+          toolbar={<div className="data-tools">
           <SearchField aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} />
           <div className="data-actions">
             <Select label={t('projectFilter')} value={project} onChange={setProject}
@@ -278,8 +283,8 @@ export default function Data() {
               options={[{ value: '', label: t('allKinds') }, { value: 'dataset', label: t('dataset') }, { value: 'model', label: t('model') }]} />
             <label className="data-checkbox"><Checkbox checked={archived} onCheckedChange={value => setArchived(value === true)} /> {t('archived')}</label>
           </div>
-        </div>
-        <div className="data-table-scroll">
+        </div>}
+        >
           {visible.length ? <ul className="data-catalog" aria-label={t('library')}>{visible.map(item => {
             const current = versionFor(item);
             const health = current ? availabilityLabel(current, item.id === dataset?.id ? result : null) : 'Missing';
@@ -291,11 +296,11 @@ export default function Data() {
                 {attention ? <> · {health}</> : null}</>}
               time={current ? formatDay(current.createdAt) : undefined} /></li>;
           })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project || kind ? 'search' : 'data'} size="compact" />} heading={t(query || project || kind ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project || kind ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
-        </div>
+        </ContentPane>
       </SplitPane>
-      <SplitPane as="aside" id="data-preview" aria-label={t('preview')} className="data-preview">
+      <SplitPane as="section" id="data-preview" aria-label={t('preview')} className="data-preview" min={contentLayout.mainMin}>
         <Split className="data-content" data-chat={showChat || undefined} storageKey="pero.data.chat-width" collapseBelow={820}>
-          <SplitPane id="data-workspace" min={360} className="data-workspace">
+          <SplitPane id="data-workspace" min={contentLayout.mainMin} className="data-workspace">
             {dataset && asset && state ? <Workspace key={`${dataset.id}:${asset.id}:${asset.sha256}:${asset.availability}:${focus.parserVersion}`} dataset={dataset} asset={asset} assets={state.assets}
               views={state.views.filter(view => view.datasetId === dataset.id)} result={result} retained={retained} error={error} fields={fields} loading={inspecting} busy={busy}
               view={focus.view} parserVersion={focus.parserVersion} tab={tab} maxColumns={state.limits.columns} onTab={setTab}
@@ -323,7 +328,8 @@ export default function Data() {
               onSave={name => { void perform(async () => { adopt(await api.post<CatalogState>('/api/views', { name, preview: { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion } })); setNotice('View and checks saved against this exact version.'); }); }}
               onOpen={(saved: SavedView) => { home.current = false; setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}
               onExport={saved => { const source = state.assets.find(item => item.id === saved.assetId)!; downloadFile(`${saved.name.replace(/[^a-z0-9_-]+/gi, '-') || 'dataset'}-reference.json`, JSON.stringify({ schemaVersion: 1, type: 'pero-dataset-view', ...saved, source: { name: source.name, kind: source.kind, size: source.size, source: source.source, revision: source.revision, license: source.license, sha256: source.sha256, bundleId: source.bundleId, sourceId: source.sourceId } }, null, 2), 'application/json'); }}
-              onRecord={row => void perform(() => loadSource(row))} />
+              onRecord={row => void perform(() => loadSource(row))}
+              objectActions={objectActions} onOpenNotebook={openNotebook} onDismiss={clearSelection} />
               : visible.length ? <EmptyState heading={t('noSelection')} description={t('selectionHelp')} /> : null}
           </SplitPane>
           <SplitPane id="data-conversation" min={280} size={360} resizeLabel="Resize chat" className="data-chat" hidden={!showChat}>
