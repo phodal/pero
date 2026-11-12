@@ -327,6 +327,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Reject a moved tag or a CI result that is no longer green
         run: |
@@ -351,6 +352,9 @@ jobs:
 
       - name: Write release notes
         run: |
+          if [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
+            git fetch --unshallow origin
+          fi
           git fetch --no-tags origin "$GATE_TARGET_SHA"
           git fetch origin 'refs/tags/v0.1.0-dev.*:refs/tags/v0.1.0-dev.*'
           nearest=$(git describe --tags --match 'v0.1.0-dev.*' --abbrev=0 "${GATE_TARGET_SHA}^")

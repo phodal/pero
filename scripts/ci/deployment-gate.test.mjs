@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
@@ -206,6 +209,7 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.resolve.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(release.jobs.gate.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(release.jobs.publish.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(release.jobs.publish.steps[0].with['fetch-depth'], 0);
   assert.equal(release.jobs.dispatch.steps.some(step => step.uses?.startsWith('actions/checkout')), false);
   assert.match(release.jobs.resolve.steps.at(-1).run, /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.gate.steps.at(-1).run, /deployment-gate\.mjs ci/);
@@ -224,6 +228,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs ci/);
   const published = release.jobs.publish.steps.map(step => step.run || '').join('\n');
   assert.match(published, /git log --format='- %h %s'/);
+  assert.match(published, /git fetch --unshallow origin/);
+  assert.ok(published.indexOf('git fetch --unshallow origin') < published.indexOf("git describe --tags --match 'v0.1.0-dev.*'"));
   assert.match(published, /git describe --tags --match 'v0\.1\.0-dev\.\*'/);
   assert.doesNotMatch(published, /AI4S migration is complete/);
   const manifestStep = release.jobs.publish.steps.find(step => (step.run || '').includes('deployment-gate.mjs manifests'));
@@ -233,4 +239,50 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.publish.permissions.contents, 'write');
   assert.doesNotMatch(JSON.stringify(release.jobs.build.strategy.matrix.include), /continue-on-error/);
   for (const job of Object.values(release.jobs)) for (const step of job.steps ?? []) assert.equal(step['continue-on-error'], undefined);
+});
+
+test('a depth-1 checkout cannot see the release parent until it is unshallowed', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'pero-release-notes-'));
+  const git = (cwd, args) => execFileSync('git', ['-c', 'user.name=Pero', '-c', 'user.email=pero@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
+  const gitFailure = (cwd, args) => {
+    try {
+      git(cwd, args);
+      return null;
+    } catch (error) {
+      return error;
+    }
+  };
+  try {
+    const origin = resolve(root, 'origin');
+    git(root, ['init', '-q', origin]);
+    const commit = (message) => {
+      writeFileSync(resolve(origin, 'note'), `${message}\n`);
+      git(origin, ['add', 'note']);
+      git(origin, ['commit', '-qm', message]);
+      return git(origin, ['rev-parse', 'HEAD']);
+    };
+    commit('published');
+    git(origin, ['tag', 'v0.1.0-dev.20261104']);
+    commit('between releases');
+    git(origin, ['tag', 'v0.1.0-dev.20261107']);
+    const target = commit('release target');
+    const shallow = resolve(root, 'shallow');
+    git(root, ['clone', '-q', '--depth', '1', `file://${origin}`, shallow]);
+    assert.equal(git(shallow, ['rev-parse', '--is-shallow-repository']), 'true');
+    git(shallow, ['fetch', '--no-tags', 'origin', target]);
+    const described = gitFailure(shallow, ['describe', '--tags', '--match', 'v0.1.0-dev.*', '--abbrev=0', `${target}^`]);
+    assert.equal(described.status, 128);
+    assert.match(String(described.stderr), /Not a valid object name|unknown revision|cannot describe anything/);
+    git(shallow, ['fetch', 'origin', 'refs/tags/v0.1.0-dev.*:refs/tags/v0.1.0-dev.*']);
+    const ancestor = gitFailure(shallow, ['merge-base', '--is-ancestor', 'v0.1.0-dev.20261104', target]);
+    assert.notEqual(ancestor, null);
+    git(shallow, ['fetch', '--unshallow', 'origin']);
+    assert.equal(git(shallow, ['merge-base', '--is-ancestor', 'v0.1.0-dev.20261104', target]), '');
+    assert.equal(git(shallow, ['describe', '--tags', '--match', 'v0.1.0-dev.*', '--abbrev=0', `${target}^`]), 'v0.1.0-dev.20261107');
+    const log = git(shallow, ['log', '--format=%s', `v0.1.0-dev.20261104..${target}`]);
+    assert.match(log, /between releases/);
+    assert.match(log, /release target/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
