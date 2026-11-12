@@ -43,7 +43,7 @@ export class AppChatContext {
           'APP_REVISION_STALE',
           'The App object changed. Select its current reference and try again.',
         );
-      const text = JSON.stringify({
+      const frozenObject = {
         schema: 'pero.app-object.v1',
         scope,
         instance: status.instance,
@@ -53,13 +53,15 @@ export class AppChatContext {
         label: object.label,
         state: object.state,
         selection: ref.selection ?? null,
-        capturedAt,
-      });
+      };
+      // Capture time records observation, not a new object revision or selection.
+      const id = createHash('sha256').update(JSON.stringify(frozenObject)).digest('hex');
+      const text = JSON.stringify({ ...frozenObject, capturedAt });
       // Chip label is the object name only. Revision and App id stay in source
       // and frozen content so stale selections are still refused; the chip can
       // open the App like a side-chat file reference.
       contexts.push({
-        id: `app-object-${randomUUID()}`,
+        id: `app-object-${id}`,
         kind: 'app_object',
         label: object.label.trim() || object.id,
         source: `pero-app://${scope.app}/#${encodeURIComponent(object.id)}@${object.revision}`,

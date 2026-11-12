@@ -32,16 +32,18 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
   ] as const) {
     let selected = 'draft',
       revision = 3,
+      instance = 'frame-1',
+      now = 1000,
       captures = 0,
       annotations = 0;
     const receipts: unknown[] = [];
     const ports: AppUsePorts = {
-      now: () => 1000,
+      now: () => now,
       selectedThread: async () => selected,
       page: async (_scope, request) => {
         if (request.action === 'status') {
           if (scenario === 'switched before capture') selected = 'other';
-          return { ...surface, operable: scenario !== 'hidden' };
+          return { ...surface, instance, operable: scenario !== 'hidden' };
         }
         if (request.action === 'semantic')
           return {
@@ -98,13 +100,27 @@ test('App contexts freeze object revisions, selections and screenshot receipts i
       assert.equal(receipt.instance, 'frame-1');
       assert.equal(receipt.capturedAt, '1970-01-01T00:00:01.000Z');
     } else {
-      revision = 4;
       const value = JSON.parse((refs[0].content as { text: string }).text);
       assert.equal(value.revision, 3);
       assert.deepEqual(value.selection, { cell: 'A' });
       assert.equal(refs[0].kind, 'app_object');
       assert.equal(refs[0].label, 'Results');
       assert.match(refs[0].source, /^pero-app:\/\/demo\/#/);
+      for (const [nextRevision, nextInstance, panel, cell, same] of [
+        [3, 'frame-1', 'main', 'A', true],
+        [4, 'frame-1', 'main', 'A', false],
+        [3, 'frame-1', 'main', 'B', false],
+        [3, 'frame-2', 'main', 'A', false],
+        [3, 'frame-1', 'other', 'A', false],
+      ] as const) {
+        revision = nextRevision; instance = nextInstance; now += 1000;
+        const [next] = await context.freeze({ app: 'demo', panel }, 'draft', {
+          attachments: [{ type: 'app-object', objectId: 'object', revision, selection: { cell } }],
+        });
+        assert.equal(next.id === refs[0].id, same, JSON.stringify({ revision, instance, panel, cell }));
+        assert.equal(JSON.parse((next.content as { text: string }).text).capturedAt, new Date(now).toISOString());
+      }
+      assert.equal(JSON.parse((refs[0].content as { text: string }).text).revision, 3);
     }
   }
   for (const bad of [

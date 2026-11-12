@@ -497,9 +497,13 @@ impl ChatPanel {
                 if active {
                     // Admission is complete. Keep the existing edit APIs and their undo history.
                     let end = self.composer.read(cx).value().len();
-                    self.replace_composer_range(if insertion.replace {0..end} else {end..end}, &insertion.text, window, cx);
+                    let start = if insertion.replace { 0 } else { end };
+                    let added_tokens = next.content.tokens().iter().filter(|span| span.range().start >= start).collect::<Vec<_>>();
+                    let text_end = added_tokens.first().map_or(next.content.text().len(), |span| span.range().start);
+                    self.replace_composer_range(start..end, &next.content.text()[start..text_end], window, cx);
                     self.update_composer_completion(cx);
-                    for reference in &insertion.contexts {
+                    for span in added_tokens {
+                        let reference = &next.references[span.token().id().as_ref()];
                         let end = self.composer.read(cx).value().len();
                         self.insert_admitted_composer_reference(reference.clone(), end..end, window, cx)?;
                     }
