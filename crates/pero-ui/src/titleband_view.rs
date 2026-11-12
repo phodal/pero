@@ -2,7 +2,7 @@
 //! It does not choose which actions belong to a column.
 use crate::app::Workbench;
 use crate::components::sidebar::{self, keep_click, window_drag};
-use crate::layout::ChatPlacement;
+use crate::layout::{ChatPlacement, SidebarToggleSlot, sidebar_toggle_slot};
 use crate::titleband::{self, Action, ColumnKind, MainFocus, Primary, Segment, SegmentWidth};
 use crate::workspace::{WorkbenchPage, WorkspaceItem, WorkspaceRoute};
 use gpui_kit::{component::Icon, prelude::*, *};
@@ -222,6 +222,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let band = self.project_titleband(cx);
+        let sidebar_toggle_inset = self.sidebar_toggle_main_inset(&band, window);
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
         // Tabs stay on the chrome. The rounded app surface begins underneath.
         let bg = self.ui(cx).palette.surface_muted;
@@ -233,7 +234,7 @@ impl Workbench {
             .flex()
             .bg(bg)
             .children(band.segment(ColumnKind::Main).map(|segment| {
-                self.main_segment(segment, dragging, window, cx)
+                self.main_segment(segment, sidebar_toggle_inset, dragging, window, cx)
             }))
     }
 
@@ -296,15 +297,14 @@ impl Workbench {
         };
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
         let bg = self.ui(cx).palette.surface_muted;
-        let (icon, label) = if self.sidebar_collapsed {
-            ("icons/panel-left-open.svg", self.t("sidebar.show"))
-        } else {
-            ("icons/panel-left-close.svg", self.t("sidebar.hide"))
-        };
-        let toggle = segment
+        let toggle_here = segment
             .actions
             .iter()
-            .any(|action| matches!(action, Action::SidebarToggle));
+            .any(|action| matches!(action, Action::SidebarToggle))
+            && matches!(
+                sidebar_toggle_slot(width, sidebar::traffic_inset(window)),
+                SidebarToggleSlot::Sidebar
+            );
         window_drag(
             div()
                 .id("titleband-sidebar")
@@ -314,17 +314,11 @@ impl Workbench {
                 .flex()
                 .items_center()
                 .justify_end()
-                .pl(px(sidebar::traffic_inset(window).min((width - 36.).max(0.))))
+                .when(toggle_here, |el| el.pl(px(sidebar::traffic_inset(window))))
                 .pr(px(pero_theme::SPACE_8))
                 .bg(bg)
-                .when(toggle, |el| {
-                    el.child(keep_click(div()).child(
-                        pero_theme::ghost_icon_button("sidebar-toggle", pero_theme::Chrome::from_app(cx), cx)
-                            .icon(Icon::default().path(icon))
-                            .tooltip(label)
-                            .accessibility_label(label)
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
-                    ))
+                .when(toggle_here, |el| {
+                    el.child(keep_click(div()).child(self.sidebar_toggle_button(cx)))
                 }),
             dragging,
             window,
@@ -332,9 +326,40 @@ impl Workbench {
         .into_any_element()
     }
 
+    /// Leading inset for the toggle once the sidebar column can no longer clear the traffic lights.
+    fn sidebar_toggle_main_inset(&self, band: &titleband::Titleband, window: &Window) -> Option<f32> {
+        let requested = band.segment(ColumnKind::Sidebar).is_some_and(|segment| {
+            segment
+                .actions
+                .iter()
+                .any(|action| matches!(action, Action::SidebarToggle))
+        });
+        if !requested {
+            return None;
+        }
+        match sidebar_toggle_slot(self.layout.sidebar_width, sidebar::traffic_inset(window)) {
+            SidebarToggleSlot::Main { inset } => Some(inset),
+            SidebarToggleSlot::Sidebar => None,
+        }
+    }
+
+    fn sidebar_toggle_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let label = self.t(if self.sidebar_collapsed {
+            "sidebar.show"
+        } else {
+            "sidebar.hide"
+        });
+        pero_theme::ghost_icon_button("sidebar-toggle", pero_theme::Chrome::from_app(cx), cx)
+            .icon(Icon::default().path("icons/sidebar-left.svg"))
+            .tooltip(label)
+            .accessibility_label(label)
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)))
+    }
+
     fn main_segment(
         &self,
         segment: &Segment,
+        sidebar_toggle_inset: Option<f32>,
         dragging: &Entity<bool>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -355,6 +380,19 @@ impl Workbench {
                 .flex()
                 .items_center()
                 .bg(bg)
+                .when_some(sidebar_toggle_inset, |el, inset| {
+                    // Margin, not padding: the gap that clears the traffic lights
+                    // stays outside this control's hit target.
+                    el.child(
+                        keep_click(div())
+                            .flex()
+                            .items_center()
+                            .flex_shrink_0()
+                            .ml(px(inset))
+                            .mr(px(pero_theme::SPACE_8))
+                            .child(self.sidebar_toggle_button(cx)),
+                    )
+                })
                 .child(
                     div()
                         .flex_1()

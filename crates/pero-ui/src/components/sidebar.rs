@@ -193,9 +193,9 @@ pub(crate) const WINDOW_CHROME: f32 = pero_theme::WINDOW_TITLEBAR;
 
 pub(crate) fn traffic_inset(window: &Window) -> f32 {
     if cfg!(target_os = "macos") && !window.is_fullscreen() {
-        78.
+        crate::layout::TRAFFIC_LIGHT_INSET
     } else {
-        8.
+        crate::layout::WINDOW_LEADING_INSET
     }
 }
 

@@ -60,6 +60,7 @@ pub fn canonical(name: &str) -> Option<&'static str> {
         "panel-right-close" => Some("panel-right-close"),
         "panel-left-open" => Some("panel-left-open"),
         "panel-left-close" => Some("panel-left-close"),
+        "sidebar-left" => Some("sidebar-left"),
         "minus" => Some("minus"),
         "maximize" => Some("maximize"),
         "fit" => Some("maximize"),

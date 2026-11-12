@@ -175,6 +175,8 @@ const artwork = {
   "panel-left-open": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /> <path d="m14 9 3 3-3 3" /></> },
   // gpui-kit/assets/icons/panel-left-close.svg (Lucide, LICENSE-LUCIDE)
   "panel-left-close": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /> <path d="m16 15-3-3 3-3" /></> },
+  // web/public/icons/sidebar-left.svg (Lucide, LICENSE-LUCIDE)
+  "sidebar-left": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /></> },
   // gpui-kit/assets/icons/minus.svg (Lucide, LICENSE-LUCIDE)
   "minus": { props: {"viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","strokeWidth":"2","strokeLinecap":"round","strokeLinejoin":"round"}, children: <><path d="M5 12h14" /></> },
   // gpui-kit/assets/icons/maximize.svg (Lucide, LICENSE-LUCIDE)

@@ -105,7 +105,11 @@ for (const [name, icon] of entries) {
     .filter(([, key]) => !['xmlns', 'width', 'height'].includes(key))
     .map(([, key, value]) => [jsxAttribute(key), value]));
   const children = match[2].trim().replace(/([\w:-]+)=/g, (_, key) => `${jsxAttribute(key)}=`).replace(/\s+/g, ' ');
-  const origin = icon.kit ? `gpui-kit/assets/icons/${name}.svg (Lucide, LICENSE-LUCIDE)` : `web/public/icons/${icon.source || name}.svg (LICENSE.txt)`;
+  const origin = icon.kit
+    ? `gpui-kit/assets/icons/${name}.svg (Lucide, LICENSE-LUCIDE)`
+    : icon.license === 'lucide'
+      ? `web/public/icons/${name}.svg (Lucide, LICENSE-LUCIDE)`
+      : `web/public/icons/${icon.source || name}.svg (LICENSE.txt)`;
   shapes.push(`  // ${origin}\n  ${JSON.stringify(name)}: { props: ${JSON.stringify(attrs)}, children: <>${children}</> },`);
 }
 const aliases = entries.flatMap(([name, icon]) => (icon.aliases || []).map(alias => `  ${JSON.stringify(alias)}: ${JSON.stringify(name)},`));

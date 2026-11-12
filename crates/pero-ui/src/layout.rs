@@ -21,6 +21,35 @@ pub(crate) enum SurfaceStacking {
 /// Collapsed sidebar. Wide enough for one icon, narrower than the macOS traffic lights.
 pub(crate) const SIDEBAR_RAIL: f32 = 48.;
 
+/// Clearance from the window edge to the first control after the macOS traffic lights.
+pub(crate) const TRAFFIC_LIGHT_INSET: f32 = 78.;
+
+/// Leading padding when the window has no traffic lights.
+pub(crate) const WINDOW_LEADING_INSET: f32 = 8.;
+
+/// Where the sidebar toggle is painted.
+///
+/// The sidebar header keeps it when that column clears the leading window
+/// controls. A collapsed rail is narrower than the traffic lights, so the
+/// toggle moves to the main header instead of covering the close button.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SidebarToggleSlot {
+    Sidebar,
+    /// `inset` is the main header's leading offset that finishes clearing the lights.
+    Main { inset: f32 },
+}
+
+pub(crate) fn sidebar_toggle_slot(sidebar_width: f32, leading_inset: f32) -> SidebarToggleSlot {
+    let button = pero_theme::GHOST_ICON_BUTTON + pero_theme::SPACE_8;
+    if sidebar_width >= leading_inset + button {
+        SidebarToggleSlot::Sidebar
+    } else {
+        SidebarToggleSlot::Main {
+            inset: (leading_inset - sidebar_width).max(0.),
+        }
+    }
+}
+
 /// Effective layout for one viewport. Saved preferences remain unchanged when
 /// the available space requires a smaller dock or a chat-only view.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -498,6 +527,54 @@ mod tests {
             assert!(layout.content_visible);assert_eq!(layout.chat,chat);
         }
         assert!(preferences.chat_open);
+    }
+
+    #[test]
+    fn sidebar_toggle_moves_off_a_rail_that_covers_the_traffic_lights() {
+        let button = pero_theme::GHOST_ICON_BUTTON + pero_theme::SPACE_8;
+        let cases = [
+            (
+                "open sidebar",
+                260.,
+                TRAFFIC_LIGHT_INSET,
+                SidebarToggleSlot::Sidebar,
+            ),
+            (
+                "minimum sidebar",
+                200.,
+                TRAFFIC_LIGHT_INSET,
+                SidebarToggleSlot::Sidebar,
+            ),
+            (
+                "collapsed rail",
+                SIDEBAR_RAIL,
+                TRAFFIC_LIGHT_INSET,
+                SidebarToggleSlot::Main {
+                    inset: TRAFFIC_LIGHT_INSET - SIDEBAR_RAIL,
+                },
+            ),
+            (
+                "rail without traffic lights",
+                SIDEBAR_RAIL,
+                WINDOW_LEADING_INSET,
+                SidebarToggleSlot::Sidebar,
+            ),
+            (
+                "fits exactly",
+                TRAFFIC_LIGHT_INSET + button,
+                TRAFFIC_LIGHT_INSET,
+                SidebarToggleSlot::Sidebar,
+            ),
+            (
+                "one pixel short of the sidebar header",
+                TRAFFIC_LIGHT_INSET + button - 1.,
+                TRAFFIC_LIGHT_INSET,
+                SidebarToggleSlot::Main { inset: 0. },
+            ),
+        ];
+        for (name, width, inset, expected) in cases {
+            assert_eq!(sidebar_toggle_slot(width, inset), expected, "{name}");
+        }
     }
 
 }
