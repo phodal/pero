@@ -19,3 +19,13 @@ export interface NotebookContextValue {
 const NotebookContext = createContext<NotebookContextValue | null>(null);
 export const NotebookContextProvider = NotebookContext.Provider;
 export function useNotebookContext(): NotebookContextValue | null { return useContext(NotebookContext); }
+
+/** A reference stays in the document; only its details move to the workspace. */
+export interface ReferenceInspector {
+  blockId: string | null;
+  host: HTMLElement | null;
+  open(blockId: string, trigger: HTMLButtonElement): void;
+}
+const ReferenceInspectorContext = createContext<ReferenceInspector | null>(null);
+export const ReferenceInspectorProvider = ReferenceInspectorContext.Provider;
+export function useReferenceInspector() { return useContext(ReferenceInspectorContext); }

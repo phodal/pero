@@ -3,7 +3,7 @@ import { useEditorState } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { requestAppShell, useAppApi, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { referenceReview, type StoredReferenceProposal } from '@pero/notebook/scientific-block';
-import { useNotebookContext } from './notebook-context';
+import { useNotebookContext, useReferenceInspector } from './notebook-context';
 import { Badge, Button, Checkbox, Disclosure, DropdownMenuItem, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
 import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
@@ -36,6 +36,7 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const { name: appName } = useAppContext();
   const api = useAppApi();
   const notebook = useNotebookContext();
+  const inspector = useReferenceInspector();
   const [citation, setCitation] = useState('');
   const [choosingSaved, setChoosingSaved] = useState(false);
   const [editingReference, setEditingReference] = useState(!view.node.attrs.snapshot);
@@ -140,10 +141,12 @@ function ReferenceView({ view, kind }: { view: NodeViewProps; kind: 'evidence' |
   const status = snapshot ? 'referenceImported' : pinned ? 'referencePinned' : complete ? 'referenceUnpinned' : 'referenceMissing';
 
   return <BlockFrame view={view} kind={kind}
+    reference={inspector && typeof blockId === 'string' ? { label: label || t(kind), active: inspector.blockId === blockId,
+      host: inspector.host, onOpen: trigger => inspector.open(blockId, trigger) } : undefined}
     title={editable ? <Input ref={labelInput} unstyled className="notebook-block-name" aria-label={t('referenceLabel')}
       placeholder={t(kind)} maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} />
       : <strong>{label || t(kind)}</strong>}
-    caption={<Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>}
+    caption={<><Badge tone={pinned ? 'info' : 'neutral'}>{t(status)}</Badge>{pendingProposal && <Badge>{t('reviewReference')}</Badge>}</>}
     menuActions={editable && snapshot && <DropdownMenuItem onSelect={() => setEditingReference(true)}>{t('editReference')}</DropdownMenuItem>}
     actions={openAction && <Button variant="ghost" busy={opening} onClick={() => void openSource()}><Icon name="open" />{t(openAction)}</Button>}>
     {notebook && pendingProposal && <fieldset className="notebook-reference-fields" disabled={proposalBusy || !editable}>

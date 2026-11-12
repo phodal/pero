@@ -5,7 +5,7 @@ import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Dialog, Field, Icon, IconButton, Input, Select, Toolbar } from '@pero/app-sdk/ui';
 const textTones = ['blue', 'green', 'rose', 'amber', 'orange', 'violet'] as const;
@@ -178,7 +178,7 @@ type TextDialog = { kind: 'symbols'; selection: Range } | {
 };
 
 /** Format controls are composed into the editor's existing Toolbar. */
-export function NotebookTextTools({ editor, entryTools = false }: { editor: Editor; entryTools?: boolean }) {
+export function NotebookTextTools({ editor, entryTools = false, compact = false, extraTools }: { editor: Editor; entryTools?: boolean; compact?: boolean; extraTools?: ReactNode }) {
   const { t, locale } = useAppI18n(messages);
   const [dialog, setDialog] = useState<TextDialog | null>(null);
   const returnToEditor = useRef(false);
@@ -317,16 +317,18 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
       ]} onChange={chooseFormat} />
     {markButton('bold')}
     {markButton('italic')}
-    {markButton('underline')}
+    {!compact && markButton('underline')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    <span className="notebook-toolbar-divider" />
+    {!compact && <><span className="notebook-toolbar-divider" />
     {blockButton('bulletList', 'bullet')}
     {blockButton('orderedList', 'ordered')}
-    {blockButton('taskList', 'task')}
+    {blockButton('taskList', 'task')}</>}
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
     <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
+      {compact && <div className="notebook-workspace-actions">{markButton('underline')}{blockButton('bulletList', 'bullet')}{blockButton('orderedList', 'ordered')}{blockButton('taskList', 'task')}</div>}
+      {extraTools}
       <div className="notebook-workspace-actions">{markButton('strike')}{markButton('subscript')}{markButton('superscript')}</div>
       {colorSelect('textColor', status.tone)}
       {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}

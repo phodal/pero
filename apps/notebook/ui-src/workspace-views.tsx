@@ -9,7 +9,7 @@ import { NamedReferenceTools, NotebookReplacementTools, NotebookStatusBar } from
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
 import { ProcedureParameters } from './procedure-parameters';
-import { NOTEBOOK_OPEN_TARGET_EVENT } from './notebook-context';
+import { ReferenceInspectorProvider, NOTEBOOK_OPEN_TARGET_EVENT } from './notebook-context';
 import { ProcedureMaterials } from './procedure-materials';
 import { ReviewerPanel } from './review-panel';
 import type { Editor } from '@tiptap/core';
@@ -34,6 +34,7 @@ const messages = {
   stepKind: { en: 'Step kind', zh: '步骤类型' }, plannedTotal: { en: 'Total planned: {minutes} minutes', zh: '计划总时长：{minutes} 分钟' },
   review: { en: 'Review and activity', zh: '审阅与活动' },
   properties: { en: 'Properties', zh: '属性' },
+  reference: { en: 'Reference source', zh: '引用来源' },
   sourceDetails: { en: 'Source details', zh: '来源详情' },
   localRecord: { en: 'Recorded locally · not verified', zh: '本地记录 · 未核验' },
   views: { en: 'Notebook views', zh: '笔记视图' },
@@ -225,6 +226,7 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
 
 export type NotebookChrome = {
   status: string;
+  updatedAt?: string;
   onSave?: () => void;
   saveDisabled?: boolean;
   saveBusy?: boolean;
@@ -246,9 +248,11 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   historyControls?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void };
   onReplaceDocument?(document: NotebookDocument): void;
 }) {
-  const { t } = useAppI18n(messages);
+  const { t, locale } = useAppI18n(messages);
   const { t: notebook } = useAppI18n(notebookMessages);
-  const [panel, setPanel] = useState<'relevant' | 'metadata' | 'review' | null>(null);
+  const [panel, setPanel] = useState<'reference' | 'relevant' | 'metadata' | 'review' | null>(null);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [referenceHost, setReferenceHost] = useState<HTMLDivElement | null>(null);
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | 'replace' | null>(null);
   const [query, setQuery] = useState(''), [pendingBlock, setPendingBlock] = useState<string | null>(null), [error, setError] = useState('');
@@ -263,6 +267,15 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const results = useMemo(() => searchNotebook(items, query), [items, query]);
   const metadata = document.metadata ?? { project: '', author: '', tags: [] };
   const sheetCount = useEditorState({ editor, selector: ({ editor: instance }) => worksheetBlocks(instance.state.doc).length });
+  const closePanel = () => { setPanel(null); panelTrigger.current?.focus(); };
+  useEffect(() => {
+    if (panel === 'reference' && !relevant.some(item => item.id === referenceId)) {
+      setPanel(null); setReferenceId(null);
+    }
+  }, [panel, referenceId, relevant]);
+  useEffect(() => {
+    if (panel === 'reference' && referenceHost) referenceHost.closest('aside')?.querySelector<HTMLButtonElement>('.notebook-inspector-head button')?.focus();
+  }, [panel, referenceId, referenceHost]);
   const views = ['notes', 'procedures'] as const;
   const view = views.find(item => item === tab) ?? 'notes';
   const openBlock = (id: string) => {
@@ -330,25 +343,30 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const exportContent = () => chrome?.retainedContent ?? editor.getJSON() as NotebookDocument['content'];
   const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: exportContent() }, null, 2), 'application/json');
   const protocolPane = <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />;
-  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={setTab} onKeyDown={event => {
+  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={value => { setTab(value); if (panel === 'reference') setPanel(null); }} onKeyDown={event => {
+    if (event.key === 'Escape' && !event.defaultPrevented && (event.target as Element).closest('#notebook-inspector')) { event.preventDefault(); closePanel(); }
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
     <div className="notebook-jupyter">
       <div className="notebook-documentbar">
-      <div className="notebook-entry-head">
-        <div className="notebook-entry-title">
-          <Icon name="notebook" />
-          {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Textarea unstyled rows={1} data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
-            value={document.title} maxLength={200} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.commands.focus(); } }} onChange={event => onChange({ title: event.target.value.replace(/[\r\n]/g, ' ') })} />}
+        <div className="notebook-breadcrumb"><span>{metadata.project || notebook('notebook')}</span>
+          <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
+            {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
+          </TabsList>
         </div>
-      </div>
-
         {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
+        {chrome?.snapshot && <div className="notebook-toolbar-end">
+          <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
+          <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
+        </div>}
         {chrome?.onSave && <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button>}
-        <div className="notebook-panel-actions">{(['relevant', 'metadata', 'review'] as const).map(value => <IconButton key={value} label={value === 'metadata' ? t('properties') : t(value)} variant="ghost" aria-pressed={panel === value} aria-controls={'notebook-inspector'} onClick={event => { panelTrigger.current = event.currentTarget; setPanel(current => current === value ? null : value); }}><Icon name={value === 'metadata' ? 'settings' : value === 'review' ? 'message-circle' : 'link'} /></IconButton>)}</div>
-        <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
-        <NotebookMenu name={t('file')} menu="file" caret>
+        <NotebookMenu name={t('file')} menu="file" icon="more">
           {close => <>
+          <Button variant="ghost" onClick={() => { openSearch(); close(); }}><Icon name="search" />{t('search')}</Button>
+          {(['relevant', 'review'] as const).map(value => <Button key={value} variant="ghost" onClick={() => {
+            panelTrigger.current = window.document.querySelector<HTMLButtonElement>('[data-notebook-menu=file] button');
+            setPanel(value); close();
+          }}>{t(value)}</Button>)}
 <Button variant="ghost" onClick={() => { panelTrigger.current = window.document.querySelector<HTMLButtonElement>('[data-notebook-menu=file] button'); setPanel('metadata'); close(); }}>{t('properties')}</Button>
           {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={() => { chrome.onHistory?.(); close(); }}>{notebook('history')}</Button>}
           {chrome?.fileTools}
@@ -357,30 +375,15 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           <Button variant="ghost" onClick={downloadJson}>{t('export')}</Button>
           <Button variant="ghost" onClick={() => downloadFile('Notebook.md', notebookMarkdown({ ...document, content: exportContent() }), 'text/markdown;charset=utf-8')}>{t('markdown')}</Button>
           {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
-          </>}
-        </NotebookMenu>
-        <NotebookMenu name={t('helpMenu')} menu="help" icon="info">
-          <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
-          {helpTools}
-          {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content') && <small>Build {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content')}</small>}
-        </NotebookMenu>
-      </div>
-      <div className="notebook-workspace-navigation">
-        <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
-          {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
-        </TabsList>
-      <div className="notebook-command-row">
-      {chrome?.snapshot ? <div className="notebook-toolbar-end">
-        <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
-        <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
-      </div> : tab === 'notes' ? tools : !readonly && historyControls && <span className="notebook-history"><IconButton label={notebook('undo')} disabled={!historyControls.canUndo} onClick={historyControls.undo}><Icon name="undo" /></IconButton><IconButton label={notebook('redo')} disabled={!historyControls.canRedo} onClick={historyControls.redo}><Icon name="redo" /></IconButton></span>}
-      </div>
-
-        <NotebookMenu name={t('viewMenu')} menu="view" caret closeOnSelect>
+          <div className="notebook-menu-rule" role="separator" />
           <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}
             onToggleSplit={() => setSplit(value => !value)}
             onAdded={(procedures, id) => { onChange({ procedures }); setSelectedProcedure(id); setSplit(true); setTab('notes'); setError(''); }}
             onError={setError} onMention={() => setMention({ name: '', note: '' })} />
+          <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
+          {helpTools}
+          {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content') && <small>Build {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content')}</small>}
+          </>}
         </NotebookMenu>
       </div>
       <div className="notebook-diagnostics-host" />
@@ -391,18 +394,30 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     <SplitPane id="notebook-primary" min={340} className="notebook-primary">
     <TabsContent className="notebook-notes-panel" value="notes" forceMount data-split={split || undefined}>
       <div className="notebook-notes-main">
-
-
-      {children}
+      <div className="notebook-entry-head">
+        <div className="notebook-entry-title">
+          {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Textarea unstyled rows={1} data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
+            value={document.title} maxLength={200} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.commands.focus(); } }} onChange={event => onChange({ title: event.target.value.replace(/[\r\n]/g, ' ') })} />}
+        </div>
+        {chrome?.updatedAt && <p className="notebook-revision-date"><Icon name="calendar" />{new Date(chrome.updatedAt).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en')}</p>}
+      </div>
+      <div className="notebook-writing-toolbar">{!chrome?.snapshot && tools}</div>
+      <ReferenceInspectorProvider value={{ blockId: panel === 'reference' ? referenceId : null, host: referenceHost,
+    open: (id, trigger) => { panelTrigger.current = trigger; setReferenceId(id); setPanel('reference'); } }}>{children}</ReferenceInspectorProvider>
       </div>
       {split && tab === 'notes' && <aside className="notebook-split-pane" aria-label={t('procedures')}>{protocolPane}</aside>}
     </TabsContent>
     <TabsContent className="notebook-workspace-panel" value="procedures" forceMount>
+      {!readonly && historyControls && <div className="notebook-history">
+        <IconButton label={notebook('undo')} disabled={!historyControls.canUndo} onClick={historyControls.undo}><Icon name="undo" /></IconButton>
+        <IconButton label={notebook('redo')} disabled={!historyControls.canRedo} onClick={historyControls.redo}><Icon name="redo" /></IconButton>
+      </div>}
       {split && tab === 'notes' ? null : protocolPane}
     </TabsContent>
     </SplitPane>
-    <SplitPane hidden={!panel} as="aside" id="notebook-inspector" size={400} min={320} className="notebook-inspector" aria-label={panel === 'metadata' ? t('properties') : panel ? t(panel) : undefined}>
-      {panel && <><div className="notebook-inspector-head"><h2>{panel === 'metadata' ? t('properties') : t(panel)}</h2><IconButton label={t('close')} onClick={() => { setPanel(null); panelTrigger.current?.focus(); }}><Icon name="close" /></IconButton></div>
+    <SplitPane hidden={!panel} as="aside" id="notebook-inspector" size={320} min={280} className="notebook-inspector" aria-label={panel === 'metadata' ? t('properties') : panel ? t(panel) : undefined}>
+      {panel && <><div className="notebook-inspector-head"><h2>{panel === 'metadata' ? t('properties') : t(panel)}</h2><IconButton label={t('close')} onClick={closePanel}><Icon name="close" /></IconButton></div>
+      {panel === 'reference' && <div className="notebook-reference-host" ref={setReferenceHost} />}
       {panel === 'relevant' && <>
         {!relevant.length ? <EmptyState heading={t('noRelevant')} actions={!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />} />
           : !readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />}

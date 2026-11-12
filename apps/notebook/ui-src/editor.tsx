@@ -57,15 +57,14 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
     }),
   });
   return <div className="notebook-commandbar">
-    <div className="notebook-command-fixed">
-      <span className="notebook-history">
+    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools"><NotebookTextTools editor={editor} compact extraTools={<>
+      <div className="notebook-workspace-actions">
         <IconButton label={t('undo')} disabled={!(historyControls?.canUndo ?? status.canUndo)} onClick={() => historyControls ? historyControls.undo() : editor.chain().focus().undo().run()}><Icon name="undo" /></IconButton>
         <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
-      </span>
-      {insertTools}
+      </div>
       <EntryAiTools editor={editor} />
-    </div>
-    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools"><NotebookTextTools editor={editor} /></div>
+    </>} /></div>
+    {insertTools}
   </div>;
 }
 
@@ -144,6 +143,7 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
       <p className="notebook-menu-label">{t('insertScience')}</p>
       <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
       <NotebookScienceTools editor={editor} getTarget={() => ({ entryId, revision })} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+      <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
       <p className="notebook-menu-label">{t('insertLibrary')}</p>
       <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
       <NotebookSavedSearchTools editor={editor} />
@@ -218,7 +218,7 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
         tools={!editorReadonly && <EditorToolbar historyControls={historyControls} editor={editor} entryId={entryId}
         insertTools={<><NotebookMenu name={t('insertWord')} menu="insert" caret triggerClassName="notebook-insert-trigger">
           {close => <NotebookInsertTools closeMenu={close} editor={editor} document={entryDocument} entryId={entryId} revision={revision} onCreateEntry={onCreateEntry} />}
-        </NotebookMenu><NotebookTemplateTools editor={editor} document={entryDocument} onCreateEntry={onCreateEntry} /></>} />}
+        </NotebookMenu></>} />}
       helpTools={<>
         <NotebookCommandTools entryId={entryId} readonly={editorReadonly} handlers={{ save: editorReadonly ? undefined : onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),

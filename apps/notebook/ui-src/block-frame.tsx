@@ -1,16 +1,18 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { createPortal } from 'react-dom';
 import { useAppI18n } from '@pero/app-sdk';
-import { Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Icon, IconButton } from '@pero/app-sdk/ui';
+import { Button, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Feedback, Icon, IconButton } from '@pero/app-sdk/ui';
 import { moveBlock, rememberWidgetFocus, notebookBlockAt } from './block-order';
 import { messages } from './messages';
 
 type Kind = 'ipynbDocument' | 'mystProject' | 'mystDocument' | 'namedReference' | 'spreadsheet' | 'evidence' | 'experiment' | 'finding' | 'attachment' | 'inputTable' | 'registrationTable' | 'lookupTable' | 'savedSearch' | 'mixturePrep' | 'appCanvas' | 'sampleIntake' | 'reactionScheme' | 'chemical' | 'sourceExcerpt' | 'noteCard' | 'retainedBlock';
 const icons = { ipynbDocument: 'document', mystProject: 'document', mystDocument: 'document', namedReference: 'document', spreadsheet: 'table', evidence: 'document', experiment: 'flask', finding: 'search', attachment: 'file', inputTable: 'table', registrationTable: 'table', lookupTable: 'search', savedSearch: 'search', mixturePrep: 'flask', appCanvas: 'document', sampleIntake: 'flask', reactionScheme: 'flask', chemical: 'flask', sourceExcerpt: 'document', noteCard: 'document', retainedBlock: 'document' } as const;
 
-export function BlockFrame({ view, kind, title, caption, actions, menuActions, help, style, children }: {
+export function BlockFrame({ view, kind, title, caption, actions, menuActions, help, style, children, reference }: {
   view: NodeViewProps; kind: Kind; title?: ReactNode; caption?: ReactNode; actions?: ReactNode; menuActions?: ReactNode;
   help?: { title: string; content: ReactNode }; style?: CSSProperties; children: ReactNode;
+  reference?: { label: string; active: boolean; host: HTMLElement | null; onOpen(trigger: HTMLButtonElement): void };
 }) {
   const { t } = useAppI18n(messages);
   const element = useRef<HTMLDivElement>(null);
@@ -35,8 +37,7 @@ export function BlockFrame({ view, kind, title, caption, actions, menuActions, h
   const block = topLevel();
   // A native input retains its own focus and selection inside a widget.
   const anchorBlock = () => rememberWidgetFocus(view.editor, view.node.attrs.blockId);
-  return <NodeViewWrapper ref={element} role="group" aria-label={t(kind)} contentEditable={false} className="notebook-block" data-kind={kind} style={style} onFocusCapture={anchorBlock}
-    data-selected={view.selected || undefined} data-collapsed={collapsed || undefined} data-notebook-block-id={view.node.attrs.blockId ?? undefined}>
+  const details = <>
     <div className="notebook-block-header">
       <div className="notebook-block-title">{kind !== 'spreadsheet' && <Icon name={icons[kind]} />}{title ?? <strong>{t(kind)}</strong>}{caption}</div>
       <div className="notebook-block-actions">
@@ -48,8 +49,8 @@ export function BlockFrame({ view, kind, title, caption, actions, menuActions, h
         {<DropdownMenu>
           <DropdownMenuTrigger asChild><IconButton ref={menuTrigger} label={t('blockActions')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setCollapsed(value => !value)}>{t(collapsed ? 'expandBlock' : 'collapseBlock')}</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void fullscreen()}>{t('fullscreenBlock')}</DropdownMenuItem>
+            {!reference && <><DropdownMenuItem onSelect={() => setCollapsed(value => !value)}>{t(collapsed ? 'expandBlock' : 'collapseBlock')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void fullscreen()}>{t('fullscreenBlock')}</DropdownMenuItem></>}
             {menuActions}
             {help && <DropdownMenuItem onSelect={() => setShowHelp(true)}>{help.title}</DropdownMenuItem>}
             {view.editor.isEditable && <>
@@ -66,6 +67,16 @@ export function BlockFrame({ view, kind, title, caption, actions, menuActions, h
       requestAnimationFrame(() => menuTrigger.current?.focus());
     }}>{help.content}</Dialog>}
     {displayError && <Feedback kind="error">{displayError}</Feedback>}
-    <div className="notebook-block-content" hidden={collapsed}>{children}</div>
+    <div className="notebook-block-content" hidden={!reference && collapsed}>{children}</div>
+  </>;
+  return <NodeViewWrapper ref={element} role="group" aria-label={t(kind)} contentEditable={false} className={reference ? 'notebook-reference' : 'notebook-block'} data-kind={kind} style={style} onFocusCapture={anchorBlock}
+    data-selected={view.selected || undefined} data-collapsed={collapsed || undefined} data-notebook-block-id={view.node.attrs.blockId ?? undefined}>
+    {reference ? <>
+      <Button variant="ghost" className="notebook-reference-trigger" aria-expanded={reference.active} aria-controls="notebook-inspector" onClick={event => reference.onOpen(event.currentTarget)}>
+        <Icon name={icons[kind]} /><span>{reference.label}</span>
+      </Button>
+      <span className="notebook-reference-state">{caption}</span>
+      {reference.active && reference.host && createPortal(<div className="notebook-reference-panel" data-notebook-document-edit>{details}</div>, reference.host)}
+    </> : details}
   </NodeViewWrapper>;
 }

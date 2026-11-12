@@ -15,6 +15,7 @@ import { documentHistoryShortcut } from './workspace-views';
 import { NOTEBOOK_SEARCH_OPEN_EVENT } from './saved-search';
 import { messages } from './messages';
 import './styles.css';
+import './writing-layout.css';
 
 type Draft = {
   entry: NotebookEntry;
@@ -392,7 +393,7 @@ function Notebook() {
 
   const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
-  const createAction = <Button aria-label={t('newNotebook')} variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {entries?.length ? t('newEntry') : t('newNotebook')}</Button>;
+  const createAction = <Button aria-label={t('newNotebook')} variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {!entries?.length && t('newNotebook')}</Button>;
   const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
   const libraryActions = <>
     {importAction}
@@ -408,7 +409,9 @@ function Notebook() {
         actions={<>{createAction}{importAction}</>} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
+          <div className="notebook-nav-brand"><Icon name="notebook" /><strong>Pero Notebook</strong></div>
           <div className="notebook-nav-tools">
+            <strong>{t('notebooks')}</strong>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(false)}><Icon name="chevron-left" /></IconButton>
             {createAction}
@@ -418,12 +421,13 @@ function Notebook() {
             <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
           </div>
           {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
+          <p className="notebook-library-heading">{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}</p>
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
               const local = drafts[entry.id];
               const duplicateTitle = visibleEntries.some(other => other.id !== entry.id && (drafts[other.id]?.document.title || other.title) === (local?.document.title || entry.title));
               const identity = duplicateTitle ? entryIdentity(entry.id, local?.document.identity)?.code : null;
-              return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
+              return <li key={entry.id}><ListRow icon={<Icon name="document" />} title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
                 meta={`${identity ? `${identity} · ` : ''}${new Date(entry.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${local?.dirty ? t(local.storageError ? 'draftNotStored' : local.durable ? 'draftStored' : 'draftStoring') : t('revision', { number: entry.revision })}`}
                 trailing={<DropdownMenu>
@@ -476,6 +480,7 @@ function Notebook() {
                   return active && !snapshot;
                 }}
                 chrome={{
+                  updatedAt: shown.updatedAt,
                   status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
                   onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },
                   saveBusy: busy === 'save',

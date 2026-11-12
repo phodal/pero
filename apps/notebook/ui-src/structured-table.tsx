@@ -167,7 +167,7 @@ function TypedCellEditor({ column, raw, label, disabled, onChange }: {
       : column.type === 'quantity' ? <QuantityCellEditor column={column} raw={raw} label={label} disabled={disabled} invalid={!!error} onChange={onChange} />
       : column.type === 'object' ? <Textarea aria-label={label} rows={2} maxLength={4096} readOnly={disabled} value={raw} placeholder="{}" aria-invalid={!!error} onChange={event => onChange(event.target.value)} />
       : choices.length ? <Select label={label} value={raw} disabled={disabled} aria-invalid={!!error} options={[{ value: '', label: t('missing') }, ...choices]} onChange={onChange} />
-      : <Input aria-label={label} readOnly={disabled} value={raw} maxLength={4096} aria-invalid={!!error} placeholder={column.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={event => onChange(event.target.value)} />}
+      : <Input unstyled className="notebook-cell-input" aria-label={label} readOnly={disabled} value={raw} maxLength={4096} aria-invalid={!!error} placeholder={column.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={event => onChange(event.target.value)} />}
     {error && <span className="notebook-cell-error">{t(issueKey(error))}</span>}
   </div>;
 }
@@ -261,7 +261,6 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
     help={registration ? { title: t('registrationScope'), content: <p>{t('catalogScope')}</p> } : undefined}
     title={<Input className="notebook-block-name" unstyled aria-label={t('tableName')} placeholder={t('requiredTableName')} aria-required="true" maxLength={200} readOnly={!editable} value={table.name} onChange={event => edit({ type: 'name', value: event.target.value })} />}
     caption={<Badge tone={submitted ? 'info' : 'neutral'}>{t(submitted ? 'submitted' : receipts.length ? 'changed' : 'inputDraft')}</Badge>}>
-    <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
     {activeView && !viewError && <p role="status">{t('projected', { name: activeView.name, visible: projected.rows.length, total: table.rows.length })}</p>}
     {viewError && <Feedback kind="warning">{viewError}</Feedback>}
     {issues.length > errors.length && <p className="notebook-note">{t(registration ? 'incompleteRegistration' : 'incomplete')}</p>}
@@ -285,6 +284,8 @@ function StructuredTableView({ view, registration }: { view: NodeViewProps; regi
       <Button variant="ghost" disabled={table.rows.length >= structuredTableLimits.rows} onClick={() => edit({ type: 'addRow', id: identity() })}>{t('addRow')}</Button>
     </div>}
     <Disclosure variant="inline" summary={t('settings')}>
+    <TableWorkflowTools table={table} receipts={receipts} editable={editable} activeView={activeView} onViewChange={setActiveView} onApplyTable={next => { if (mounted.current && view.editor.isEditable) view.updateAttributes({ table: next }); }} />
+
     <Disclosure variant="inline" summary={t('schema')}>
       <p><code>{table.schema.id}</code> · {t('revision', { number: table.schema.revision })}</p>
     </Disclosure>
