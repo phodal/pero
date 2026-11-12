@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
-import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
+import { AppFrame, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Icon, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane } from '@pero/app-sdk/ui';
+import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, formatDay, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
 import { Workspace } from './workspace';
@@ -25,7 +25,7 @@ export default function Data() {
   const { t } = useAppI18n(messages);
   const [state, setState] = useState<CatalogState | null>(null);
   const [focus, setFocus] = useState<Focus>(focused(null, ''));
-  const [query, setQuery] = useState(''), [project, setProject] = useState(''), [archived, setArchived] = useState(false);
+  const [query, setQuery] = useState(''), [project, setProject] = useState(''), [kind, setKind] = useState(''), [archived, setArchived] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<InspectionSnapshot | null>(null), [inspecting, setInspecting] = useState(false);
@@ -36,7 +36,7 @@ export default function Data() {
   const seenDownload = useRef('');
   const [showChat, setShowChat] = useState(false), [tab, setTab] = useState('table');
   const pending = useRef(false), requests = useRef(0), home = useRef(false);
-  const visible = state ? visibleDatasets(state, query, project, archived) : [];
+  const visible = state ? visibleDatasets(state, query, project, archived, kind) : [];
   const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
   const asset = dataset ? state?.assets.find(item => item.id === focus.selection?.assetId) ?? null : null;
   const selectedId = dataset?.id, assetId = asset?.id;
@@ -146,7 +146,7 @@ export default function Data() {
     void perform(async () => {
       const next = await api.post<CatalogState>('/api/import', { name: file.name, ...details,
         content: encodeBytes(await file.arrayBuffer()), ...(importTarget ? { datasetId: importTarget.id } : {}) });
-      adopt(next); setQuery(''); setProject(''); setArchived(false); setImportTarget(undefined); setNotice(t('saved'));
+      adopt(next); setQuery(''); setProject(''); setKind(''); setArchived(false); setImportTarget(undefined); setNotice(t('saved'));
     });
   }
 
@@ -219,16 +219,10 @@ export default function Data() {
     return state?.assets.find(entry => entry.id === id);
   };
   const openImport = () => { setError(''); setImportTarget(null); };
-  return <AppFrame className="data-page" label="Data" aria-busy={busy} actions={state?.datasets.length ? <>
-    <Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>
-    {ready || retained ? <>
-      <Button disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
-      <Button disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
-      <Button variant="primary" disabled={busy || !ready || window.parent === window} onClick={() => void perform(() => chat.compose(
-        'Analyze this dataset view. Check missingness and provenance, and support conclusions with record references.',
-        { attachments: [chat.objectReference('dataset-view', { datasetId: dataset!.id, assetId: asset!.id, sha256: asset!.sha256, viewId: ready?.viewId ?? '', selectedCount: focus.view.selection.length })] }))}>Ask Agent</Button>
-      {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
-    </> : null}
+  return <AppFrame className="data-page" label="Data" aria-busy={busy} actions={state?.datasets.length && (ready || retained) ? <>
+    <Button disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
+    <Button disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
+    {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
   </> : undefined}>
     {error && state && state.datasets.length > 0 && importTarget === undefined ? <Feedback kind="error">{error} <Button disabled={busy} onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback> : null}
     {notice ? <p className="data-notice" role="status">{notice}</p> : null}
@@ -245,24 +239,35 @@ export default function Data() {
         actions={<Button variant="primary" disabled={busy} onClick={openImport}>{t('addData')}</Button>} />
       : <Split storageKey="pero.data.catalog-width" collapseBelow={860}>
       <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={360} min={280} resizeLabel={t('resizeDatasets')}>
-        <Button variant="ghost" className="data-all" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={() => { home.current = true; setFocus(previous => ({ ...previous, selection: null })); setShowChat(false); }}>{t('allData')}</Button>
+        <div className="data-library-head">
+          <Button variant="ghost" className="data-all" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={() => { home.current = true; setFocus(previous => ({ ...previous, selection: null })); setShowChat(false); }}>{t('datasets')}</Button>
+          <Button variant="primary" disabled={busy} onClick={openImport}><Icon name="plus" size={14} /> {t('addData')}</Button>
+        </div>
         <div className="data-tools">
           <SearchField aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} />
-          <div className="data-actions"><Select label={t('projectFilter')} value={project} onChange={setProject}
-            options={[{ value: '', label: t('allProjects') }, ...projectRefs.map(ref => ({ value: ref, label: ref }))]} />
+          <div className="data-actions">
+            <Select label={t('projectFilter')} value={project} onChange={setProject}
+              options={[{ value: '', label: t('allProjects') }, ...projectRefs.map(ref => ({ value: ref, label: ref }))]} />
+            <Select label={t('kindFilter')} value={kind} onChange={setKind}
+              options={[{ value: '', label: t('allKinds') }, { value: 'dataset', label: t('dataset') }, { value: 'model', label: t('model') }]} />
             <label className="data-checkbox"><Checkbox checked={archived} onCheckedChange={value => setArchived(value === true)} /> {t('archived')}</label>
-            <Button disabled={busy} onClick={() => void refresh(true)}>{t('refresh')}</Button></div>
+            <Button disabled={busy} onClick={() => void refresh(true)}>{t('refresh')}</Button>
+          </div>
         </div>
         <div className="data-table-scroll">
           {visible.length ? <ul className="data-catalog" aria-label={t('library')}>{visible.map(item => {
             const current = versionFor(item);
             const health = current ? availabilityLabel(current, item.id === dataset?.id ? result : null) : 'Missing';
             const attention = Boolean(current) && (health === 'Missing' || health === 'Changed');
+            const versionNo = current ? item.versions.indexOf(current.id) + 1 : item.versions.length;
             return <li key={item.id}><ListRow title={item.name} current={item.id === dataset?.id} onOpen={() => choose(item)}
-              meta={<>{item.kind === 'model' ? 'Model' : 'Dataset'} · {current ? formatBytes(current.size) : 'Missing'} · {item.versions.length} {item.versions.length === 1 ? 'version' : 'versions'}
-                {' · '}{attention ? health : (item.projectRef || t('unassigned'))}</>} /></li>;
-          })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project ? 'search' : 'data'} size="compact" />} heading={t(query || project ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
+              icon={<span className="data-row-icon" aria-hidden="true"><Icon name="database" size={16} /></span>}
+              meta={<>{(current?.format || item.kind).toUpperCase()} · {current ? formatBytes(current.size) : 'Missing'} · v{Math.max(1, versionNo)}
+                {attention ? <> · {health}</> : null}</>}
+              time={current ? formatDay(current.createdAt) : undefined} /></li>;
+          })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project || kind ? 'search' : 'data'} size="compact" />} heading={t(query || project || kind ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project || kind ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
         </div>
+        <p className="data-library-foot">{t(visible.length === 1 ? 'datasetCount' : 'datasetCountPlural', { count: String(visible.length) })}</p>
       </SplitPane>
       <SplitPane as="aside" id="data-preview" aria-label={t('preview')} className="data-preview">
         <Split className="data-content" data-chat={showChat || undefined} storageKey="pero.data.chat-width" collapseBelow={820}>
@@ -279,6 +284,16 @@ export default function Data() {
               }}
               onPage={offset => setFocus(previous => ({ ...previous, offset }))}
               onAddVersion={() => { setError(''); setImportTarget(dataset); }}
+              onAsk={() => {
+                if (!dataset || !asset || window.parent === window) return;
+                const prompt = ready
+                  ? 'Analyze this dataset view. Check missingness and provenance, and support conclusions with record references.'
+                  : 'This dataset is an original file without a table. Use the catalog identity, source, and checksum. Do not invent records or a scientific summary.';
+                void perform(() => chat.compose(prompt, { attachments: [chat.objectReference('dataset-view', {
+                  datasetId: dataset.id, assetId: asset.id, sha256: asset.sha256, viewId: ready?.viewId ?? '', selectedCount: focus.view.selection.length,
+                })] }));
+              }}
+              canAsk={window.parent !== window}
               onEdit={value => perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); })}
               onSave={name => { void perform(async () => { adopt(await api.post<CatalogState>('/api/views', { name, preview: { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion } })); setNotice('View and checks saved against this exact version.'); }); }}
               onOpen={(saved: SavedView) => { home.current = false; setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}

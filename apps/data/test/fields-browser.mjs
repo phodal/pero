@@ -256,7 +256,7 @@ test('Chinese first import keeps optional drafts and a selected file through fai
   assert.deepEqual(imports[1], imports[0]);
   assert.deepEqual({ ...imports[1], content: undefined }, { name: 'model.bin', kind: 'model', source: 'Local experiment', license: 'Unknown', projectRef: 'project-draft', content: undefined });
   assert.equal(Buffer.from(imports[1].content, 'base64').toString(), 'original model bytes');
-  await expect(page.locator('.pero-app-bar').getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Datasets', exact: true }).getByRole('button', { name: 'Add data', exact: true })).toBeVisible();
 });
 
 for (const kind of ['model', 'opaque']) test(`${kind} files expose file and history capabilities`, async t => {
@@ -264,7 +264,7 @@ for (const kind of ['model', 'opaque']) test(`${kind} files expose file and hist
     datasets: [{ ...catalog.datasets[0], name: 'A long original research file with a name that must remain readable.bin', kind: kind === 'model' ? 'model' : 'dataset', versions: ['a'] }] };
   const { page } = await fixture(t, { catalog: value, inspect: false });
   await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'History', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Versions (1)', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Chart', exact: true })).toHaveCount(0);
   await expect(page.getByText('Fields are available', { exact: false })).toHaveCount(0);
   const palette = JSON.parse(await readFile(resolve(root, 'web/src/theme.generated.json'), 'utf8')).dark;
@@ -326,7 +326,8 @@ test('metadata editing keeps a failed draft and uses sandbox-safe Enter submissi
     await route.fulfill({ status: updates.length === 1 ? 503 : 200,
       json: updates.length === 1 ? { detail: 'Temporary save failure' } : { ...catalog, datasets: [{ ...catalog.datasets[0], name: updates[1].name }] } });
   });
-  await page.getByRole('button', { name: 'Edit details', exact: true }).click();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit details', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Dataset details', exact: true });
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Unlost metadata');
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).press('Enter');
@@ -337,5 +338,5 @@ test('metadata editing keeps a failed draft and uses sandbox-safe Enter submissi
   assert.equal(updates.length, 2);
   assert.equal(updates[1].name, 'Unlost metadata');
   await dialog.press('Escape');
-  await expect(page.getByRole('button', { name: 'Edit details', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'More', exact: true })).toBeFocused();
 });

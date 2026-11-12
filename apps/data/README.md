@@ -17,11 +17,12 @@ Each row shows the name, kind (Dataset or Model), size of the selected or latest
 version, and version count. A present file shows its project reference, or
 Unassigned when it has none. Missing and Changed stay on the row because those
 files need attention. Stored is not repeated for a healthy file.
-The resizable detail pane contains **Overview**, **Table**, **Fields**, **Chart**, **Checks**
-and **History**. Choosing another dataset opens **Overview**: the admission receipt
-(source, revision, license, checksums with provenance, and project reference),
-a column summary and quality counts when the version can be inspected, and saved
-views when any exist. A completed download is not kept as a status strip. **Table** is one page of
+The detail header shows the dataset name, format, and the next action: Explore data
+for a tabular file, and Ask Agent. Edit, Add version, and Archive are in More.
+A summary row shows size, type, version count, the selected version's admission
+date, source, and availability. Record and field counts appear after a successful
+inspection. Checksums, revision, license, and the exact custody wording stay under
+Provenance. A completed download is not kept as a status strip. **Table** is one page of
 the full inspection of the admitted file. Switching versions keeps the current tab.
 **Add version** appends a file to the selected logical dataset;
 existing bytes and IDs do not change. A normal import creates a separate dataset,

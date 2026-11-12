@@ -66,10 +66,11 @@ export function canInspect(asset: Pick<Asset, 'kind' | 'format'>): boolean {
   return asset.kind === 'dataset' && ['csv', 'tsv', 'json', 'jsonl', 'json_lines', 'ndjson'].includes(asset.format.toLowerCase());
 }
 
-export function visibleDatasets(state: CatalogState, query: string, project: string, archived: boolean): Dataset[] {
+export function visibleDatasets(state: CatalogState, query: string, project: string, archived: boolean, kind = ''): Dataset[] {
   const term = query.trim().toLocaleLowerCase();
-  return state.datasets.filter(dataset => dataset.archived === archived && (!project || dataset.projectRef === project) &&
-    (!term || `${dataset.name} ${dataset.kind} ${dataset.projectRef} ${state.assets.filter(a => dataset.versions.includes(a.id))
+  return state.datasets.filter(dataset => dataset.archived === archived && (!project || dataset.projectRef === project)
+    && (!kind || dataset.kind === kind)
+    && (!term || `${dataset.name} ${dataset.kind} ${dataset.projectRef} ${state.assets.filter(a => dataset.versions.includes(a.id))
       .map(a => `${a.name} ${a.format} ${a.source}`).join(' ')}`.toLocaleLowerCase().includes(term)));
 }
 
@@ -82,11 +83,25 @@ export function retainSelection(state: CatalogState, current: Selection | null):
 
 export const formatInt = (value: number) => new Intl.NumberFormat('en-US').format(value);
 export const formatBytes = (value: number) => value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KiB` : `${(value / 1024 ** 2).toFixed(1)} MiB`;
+export const formatDay = (value: string) => /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : value;
+export const sourceHost = (value: string) => {
+  try { return /^https:\/\//.test(value) ? new URL(value).hostname.replace(/^www\./, '') : value; }
+  catch { return value; }
+};
+
+/** Format-derived labels only. No scientific claim beyond the admitted file type and revision text. */
+export function datasetBadges(asset: Pick<Asset, 'format' | 'revision' | 'kind'>): string[] {
+  const format = asset.format.toUpperCase();
+  const badges = [format];
+  if (asset.kind === 'model') return badges;
+  if (format === 'H5AD') badges.push('Single cell');
+  if (/scperturb|perturb/i.test(asset.revision)) badges.push('Perturbation');
+  return badges;
+}
 
 /** Display order in `dataset.versions`. The label distinguishes immutable receipts, not filenames. */
 export function versionLabel(asset: Pick<Asset, 'size' | 'createdAt' | 'revision'>, index: number): string {
-  const date = /^\d{4}-\d{2}-\d{2}/.test(asset.createdAt) ? asset.createdAt.slice(0, 10) : '';
-  return [`v${index + 1}`, formatBytes(asset.size), date, asset.revision].filter(Boolean).join(' · ');
+  return [`v${index + 1}`, formatBytes(asset.size), formatDay(asset.createdAt), asset.revision].filter(Boolean).join(' · ');
 }
 
 /** Size presence, overridden when this asset's inspection reports missing or changed bytes. */

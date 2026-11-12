@@ -38,6 +38,10 @@ async function choose(scope, label, option, optionLabel = option) {
   await frame.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: optionLabel, exact: true }).click();
   await expect(trigger).toHaveAttribute('data-value', option);
 }
+async function more(name) {
+  await preview().getByRole('button', { name: 'More', exact: true }).click();
+  await preview().getByRole('menuitem', { name, exact: true }).click();
+}
 async function openData() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
   await expect.poll(async () => (await desktop()).apps?.some(item => item.name === 'data')).toBe(true);
@@ -120,7 +124,7 @@ try {
   await expect.poll(async () => (await catalog()).views.length).toBe(1);
   const saved = (await catalog()).views[0];
   expect(saved).toMatchObject({ datasetId, assetId: v1.id, sha256: v1.sha256, view: { filter: { field: 'id', operator: 'contains', value: '001' }, units: { value: 'V' } }, report: { rowCount: 3, duplicateRows: 1 } });
-  await preview().getByRole('button', { name: 'Edit details', exact: true }).click();
+  await more('Edit details');
   await detailsDialog().getByLabel('Name', { exact: true }).fill('');
   await detailsDialog().getByLabel('Name', { exact: true }).press('Enter');
   expect((await catalog()).datasets[0].name).toBe('measurements.csv');
@@ -135,7 +139,7 @@ try {
   checks.push('single-line Enter submits Import, Apply, Save view and Save details; required fields reject empty input');
   checks.push('explicit import persists exact bytes; literal IDs, field units, full-input checks and filtered saved view');
 
-  await preview().getByRole('button', { name: 'Add version', exact: true }).click();
+  await more('Add version');
   await dialog.locator('input[type="file"]').setInputFiles({ name: 'measurements-v2.csv', mimeType: 'text/csv', buffer: changed });
   await dialog.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -164,13 +168,13 @@ try {
   await frame.getByRole('searchbox', { name: 'Search data' }).fill('');
   await expect(preview().getByRole('button', { name: 'Version', exact: true })).toHaveAttribute('data-value', v1.id);
   await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
-  await preview().getByRole('button', { name: 'Archive dataset', exact: true }).click();
+  await more('Archive dataset');
   await preview().getByRole('button', { name: 'Confirm archive', exact: true }).click();
   await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(true);
   await frame.getByRole('checkbox', { name: 'Archived', exact: true }).check();
   await datasetEntry('measurements.csv').click();
   await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
-  await preview().getByRole('button', { name: 'Restore dataset', exact: true }).click();
+  await more('Restore dataset');
   await expect.poll(async () => (await catalog()).datasets[0].archived).toBe(false);
   await frame.getByRole('checkbox', { name: 'Archived', exact: true }).uncheck();
   checks.push('explicit v2 preserves v1; paginated records, pinned saved view, project filter and reversible archive');
@@ -184,7 +188,7 @@ try {
   await preview().getByRole('tab', { name: 'Overview', exact: true }).click();
   await preview().getByRole('button', { name: 'baseline', exact: true }).click();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(2);
-  await preview().getByRole('button', { name: 'Edit details', exact: true }).click();
+  await more('Edit details');
   await detailsDialog().getByLabel('Project reference', { exact: true }).fill('');
   await detailsDialog().getByRole('button', { name: 'Save details', exact: true }).click();
   await expect.poll(async () => (await catalog()).datasets[0].projectRef).toBe('');
@@ -193,7 +197,7 @@ try {
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   const corruption = preview().getByText('Original bytes no longer match the stored SHA-256', { exact: true });
   await expect(corruption).toBeVisible();
-  await expect(frame.getByRole('table', { name: '' }).getByRole('cell', { name: 'Changed', exact: true })).toBeVisible();
+  await expect(preview().locator('.data-summary').getByText('Changed', { exact: true })).toBeVisible();
   await expect(preview().locator('.data-rows tbody tr')).toHaveCount(0);
   expect((await catalog()).views[0]).toEqual(saved);
   await preview().getByRole('tab', { name: 'Overview', exact: true }).click();

@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Table, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { useEffect, useRef, useState } from 'react';
+import { requestAppShell, useAppI18n } from '@pero/app-sdk';
+import { Table, Badge, Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
 import { DatasetDetails } from './dataset-details';
 import { DataForm, SubmitButton } from './submit-button';
-import { applyInterpretation, availabilityLabel, canInspect, custodyDetail, emptyView, formatBytes, formatInt, versionLabel, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
+import { messages } from './i18n';
+import { applyInterpretation, availabilityLabel, canInspect, catalogAvailability, custodyDetail, datasetBadges, emptyView, formatBytes, formatDay, formatInt, sourceHost, versionLabel, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
 
 const operators = [
   { value: 'contains', label: 'Contains' }, { value: 'eq', label: 'Equals' },
@@ -21,15 +23,20 @@ type Props = {
   onTab(value: string): void; onVersion(id: string): void; onView(value: ViewSpec): void; onPage(offset: number): void;
   onRetryInspection(): void; onRecoverView(): void;
   onAddVersion(): void; onEdit(value: { name: string; projectRef: string; archived: boolean }): Promise<boolean>;
+  onAsk(): void; canAsk: boolean;
   onSave(name: string): void; onOpen(view: SavedView): void; onExport(view: SavedView): void;
   onRecord(row: number): void;
 };
 
 export function Workspace(props: Props) {
   const { dataset, asset, result, fields, view, loading, busy } = props;
+  const { t } = useAppI18n(messages);
   const [typeDraft, setTypeDraft] = useState<{ field: string; numeric: boolean } | null>(null);
   const [priorAnalysis, setPriorAnalysis] = useState<ViewSpec | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false), [editing, setEditing] = useState(false);
+  const [shareNotice, setShareNotice] = useState('');
+  const more = useRef<HTMLButtonElement>(null), returnMore = useRef(false);
+  useEffect(() => { if (!editing && returnMore.current) { returnMore.current = false; more.current?.focus(); } }, [editing]);
   const [filterField, setFilterField] = useState(view.filter?.field ?? '');
   const [operator, setOperator] = useState(view.filter?.operator ?? 'contains');
   const [filterValue, setFilterValue] = useState(view.filter?.value ?? '');
@@ -44,11 +51,14 @@ export function Workspace(props: Props) {
   const stale = Boolean(inspected && !currentInspection);
   const displayedView = currentInspection ? view : props.retained?.view ?? view;
   const analysis = canInspect(asset);
-  const available = analysis ? ['overview', 'table', 'fields', 'chart', 'queries', 'checks', 'history'] : ['overview', 'history'];
-  const tab = available.includes(props.tab) ? props.tab : 'overview';
+  const available = analysis
+    ? ['overview', 'table', 'fields', 'chart', 'queries', 'checks', 'versions', 'files', 'citations']
+    : ['overview', 'versions', 'files', 'citations'];
+  const tab = available.includes(props.tab) ? props.tab : props.tab === 'history' ? 'versions' : 'overview';
   const failure = !loading && result && result.status !== 'ok' ? result : null;
   const columns = view.columns.length ? view.columns : fields?.columns ?? [];
   const versions = dataset.versions.map(id => props.assets.find(item => item.id === id)!).filter(Boolean);
+  const versionIndex = Math.max(0, versions.findIndex(item => item.id === asset.id));
   const metadata = { name: dataset.name, projectRef: dataset.projectRef, archived: dataset.archived };
   const fieldOptions = (fields?.report.fields ?? []).map(field => ({ value: field.name, label: field.name }));
   const showIssue = (issue: ViewIssue) => {
@@ -67,69 +77,123 @@ export function Workspace(props: Props) {
   const format = asset.format.toUpperCase();
   const visibleFields = (fields?.report.fields ?? []).filter(field => field.name.toLowerCase().includes(fieldSearch.toLowerCase()));
   const bytesMatched = Boolean(currentInspection);
-  const availability = bytesMatched ? 'Bytes matched' : availabilityLabel(asset, result);
+  const present = catalogAvailability(asset, result) === 'present' || bytesMatched;
+  const needsAttention = !bytesMatched && catalogAvailability(asset, result) !== 'present';
   const recordedSha = asset.checksums.find(item => item.algorithm === 'sha256' && item.value === asset.sha256);
   const otherChecksums = asset.checksums.filter(item => item !== recordedSha);
+  const updated = formatDay(asset.createdAt);
+  const badges = datasetBadges(asset);
+  const description = fields
+    ? `${formatInt(fields.report.rowCount)} records · ${formatInt(fields.report.fields.length)} fields`
+    : dataset.kind === 'model' ? 'Model file kept with its version history.'
+      : asset.revision.length > 12 ? `${asset.revision}. Original file; contents are not indexed.`
+        : 'Original file. Source and checksums are kept; contents are not indexed.';
+  const openApp = (path: string) => { if (window.parent !== window) void requestAppShell('navigate', { path }); };
+  const shareReference = () => {
+    const body = JSON.stringify({ type: 'pero-dataset', datasetId: dataset.id, assetId: asset.id, name: dataset.name, sha256: asset.sha256, source: asset.source, revision: asset.revision }, null, 2);
+    void navigator.clipboard?.writeText(body).then(() => setShareNotice(t('shareCopied'))).catch(() => setShareNotice(''));
+  };
   return <>
-    <header className="data-preview-head">
-      <div className="data-document-heading"><h2 title={asset.name}>{asset.name}</h2><span className="data-format">{format}</span></div>
-      <div className="data-actions">
-        <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
-          options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} />
-        <Button onClick={props.onAddVersion} disabled={busy || dataset.archived}>Add version</Button>
+    <header className="data-workspace-header">
+      <div className="data-workspace-title">
+        <div className="data-workspace-identity">
+          <h2 title={dataset.name}>{dataset.name}</h2>
+          <div className="data-badges">{badges.map((badge, index) => <Badge key={badge} tone={index === 0 ? 'blue' : 'neutral'}>{badge}</Badge>)}</div>
+          <p className="data-lede">{description}</p>
+        </div>
+        <div className="data-actions data-workspace-actions">
+          <Button variant="primary" disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('openNotebook')}</Button>
+          <Button disabled={busy || !props.canAsk} onClick={props.onAsk}>{t('askAgent')}</Button>
+          <Button disabled={busy} onClick={shareReference}>{t('share')}</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger ref={more}>{t('more')}</DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled={busy} onSelect={() => setEditing(true)}>Edit details</DropdownMenuItem>
+              <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => props.onAddVersion()}>Add version</DropdownMenuItem>
+              {analysis ? <DropdownMenuItem disabled={busy} onSelect={() => props.onTab('table')}>Explore data</DropdownMenuItem> : null}
+              <DropdownMenuSeparator />
+              {dataset.archived
+                ? <DropdownMenuItem disabled={busy} onSelect={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</DropdownMenuItem>
+                : <DropdownMenuItem disabled={busy} onSelect={() => setConfirmArchive(true)}>Archive dataset</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-      <p className="data-note">Add version appends an immutable file. Importing the same filename with Add data creates a separate dataset.</p>
-      <p className="data-note" role="status">{custodyDetail(asset, result, bytesMatched)}</p>
-      <table className="data-facts" aria-label="Availability">
-        <tbody><tr><th scope="row">Availability</th><td>{availability}</td></tr></tbody>
-      </table>
+      <dl className="data-summary">
+        <div><dt><Icon name="database" size={14} /> Size</dt><dd>{formatBytes(asset.size)}</dd></div>
+        <div><dt><Icon name="git-branch" size={14} /> Version</dt><dd>v{versionIndex + 1}</dd></div>
+        <div><dt><Icon name="clock" size={14} /> Updated</dt><dd>{updated || 'Unknown'}</dd></div>
+        <div><dt><Icon name="file" size={14} /> License</dt><dd>{asset.license || 'Unknown'}</dd></div>
+        <div><dt><Icon name="external-link" size={14} /> Source</dt><dd>{/^https:\/\//.test(asset.source)
+          ? <a href={asset.source}>{sourceHost(asset.source)}</a> : (asset.source || 'Unknown')}</dd></div>
+        {fields ? <><div><dt>Records</dt><dd>{formatInt(fields.report.rowCount)}</dd></div><div><dt>Fields</dt><dd>{formatInt(fields.report.fields.length)}</dd></div></> : null}
+      </dl>
+      {versions.length > 1 ? <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
+        options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} /> : null}
+      {shareNotice ? <p className="data-note" role="status">{shareNotice}</p> : null}
+      {needsAttention ? <p className="data-note" role="status">{custodyDetail(asset, result, false)}</p> : null}
       {failure ? <div className="data-actions">
         <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
         {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
         {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
       </div> : null}
-      <div className="data-actions">
-        <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Edit details</Button>
-        {dataset.archived ? <Button disabled={busy} onClick={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</Button>
-          : confirmArchive ? <>
-            <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
-            <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
-          </> : <Button disabled={busy} onClick={() => setConfirmArchive(true)}>Archive dataset</Button>}
-      </div>
-      {confirmArchive ? <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
-        : dataset.archived ? <p className="data-note">Hidden from the active list. Original files and saved views remain stored.</p>
-          : <p className="data-note">Archive hides this dataset from the active list. Original files and saved views remain; no disk space is freed.</p>}
+      {confirmArchive ? <div className="data-actions">
+        <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
+        <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
+        <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
+      </div> : null}
     </header>
-    {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => setEditing(false)} /> : null}
+    {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => { returnMore.current = true; setEditing(false); }} /> : null}
     {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
     <Tabs value={tab} onValueChange={props.onTab}>
       <TabsList aria-label="Dataset views">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
+        <TabsTrigger value="versions">{t('versions')} ({versions.length})</TabsTrigger>
+        <TabsTrigger value="files">{t('files')}</TabsTrigger>
+        <TabsTrigger value="citations">{t('citations')} (0)</TabsTrigger>
         {analysis ? <><TabsTrigger value="table">Table</TabsTrigger><TabsTrigger value="fields">Fields</TabsTrigger>
         <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="queries">Queries</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
-        <TabsTrigger value="history">History</TabsTrigger>
       </TabsList>
       <TabsContent value="queries" forceMount><SemanticPanel key={asset.id} datasetId={dataset.id} assetId={asset.id} fields={fields?.columns ?? []} /></TabsContent>
       <TabsContent value="overview">
-        <div className="data-overview">
-          <table className="data-facts" aria-label="Admission receipt">
-            <tbody>
-              <tr><th scope="row">Kind</th><td>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</td></tr>
-              <tr><th scope="row">Format</th><td>{format}</td></tr>
-              <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
-              <tr><th scope="row">Source</th><td>{/^https:\/\//.test(asset.source) ? <a href={asset.source}>{asset.source}</a> : (asset.source || 'Unknown source')}</td></tr>
-              <tr><th scope="row">License</th><td>{asset.license || 'Unknown license'}</td></tr>
-              <tr><th scope="row">Revision</th><td>{asset.revision || 'Local import'}</td></tr>
-              <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} />{recordedSha?.provenance ? <p className="data-note">{recordedSha.provenance}</p> : <p className="data-note">Recorded when this version was admitted.</p>}</td></tr>
-              {otherChecksums.map(item => <tr key={`${item.algorithm}:${item.value}`}><th scope="row">{item.algorithm.toUpperCase()}</th><td><DigestValue label={item.algorithm.toUpperCase()} value={item.value} />{item.provenance ? <p className="data-note">{item.provenance}</p> : null}</td></tr>)}
-              <tr><th scope="row">Added</th><td>{asset.createdAt}</td></tr>
-              <tr><th scope="row">Project reference</th><td>{dataset.projectRef || 'Unassigned'}{dataset.projectRef ? null : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign project reference</Button>}</td></tr>
-              {asset.bundleId ? <tr><th scope="row">Paper bundle</th><td>{asset.bundleId}</td></tr> : null}
-              {fields ? <><tr><th scope="row">Records</th><td>{formatInt(fields.report.rowCount)} inspected</td></tr><tr><th scope="row">Fields</th><td>{formatInt(fields.report.fields.length)}</td></tr></> : null}
-            </tbody>
-          </table>
-          <p className="data-note">A project reference groups datasets. It is not a permission boundary. Original bytes remain immutable.</p>
-          {fields ? <>
+        <div className="data-overview data-overview-grid">
+          <section className="data-panel">
+            <h3>{t('basicInfo')}</h3>
+            <table className="data-facts" aria-label={t('basicInfo')}>
+              <tbody>
+                <tr><th scope="row">Type</th><td>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</td></tr>
+                <tr><th scope="row">Format</th><td>{format}</td></tr>
+                <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
+                <tr><th scope="row">Version</th><td>{asset.revision || `v${versionIndex + 1}`}</td></tr>
+                <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} /></td></tr>
+                {otherChecksums.map(item => <tr key={`${item.algorithm}:${item.value}`}><th scope="row">{item.algorithm.toUpperCase()}</th><td><DigestValue label={item.algorithm.toUpperCase()} value={item.value} /></td></tr>)}
+                <tr><th scope="row">Added</th><td>{asset.createdAt}</td></tr>
+                <tr><th scope="row">Project</th><td>{dataset.projectRef || t('unassigned')}{dataset.projectRef ? null : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign</Button>}</td></tr>
+                {asset.bundleId ? <tr><th scope="row">Paper bundle</th><td>{asset.bundleId}</td></tr> : null}
+              </tbody>
+            </table>
+          </section>
+          <div className="data-overview-side">
+            <section className="data-panel">
+              <h3>{t('statusTitle')}</h3>
+              <ul className="data-status-list">
+                <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{availabilityLabel(asset, result)}</li>
+                <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{present ? 'File integrity · size matches' : custodyDetail(asset, result, false)}</li>
+                <li data-ok={analysis || undefined}><Icon name={analysis ? 'check' : 'info'} size={14} />{analysis ? 'Table inspection available' : 'Original file · contents not indexed'}</li>
+                {recordedSha?.provenance ? <li><Icon name="info" size={14} />{recordedSha.provenance}</li>
+                  : <li><Icon name="info" size={14} />Digest recorded at admission</li>}
+              </ul>
+            </section>
+            <section className="data-panel">
+              <h3>{t('quickActions')}</h3>
+              <div className="data-quick-actions">
+                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('analyzeNotebook')}</Button>
+                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/control-lab/main')}>{t('useControlLab')}</Button>
+                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/compute/main')}>{t('openCompute')}</Button>
+              </div>
+            </section>
+          </div>
+          {fields ? <section className="data-panel data-overview-span">
             <h3>Columns</h3>
             <p className="data-note">Observed on the full input. Open Fields to choose displayed columns, units, or a number interpretation.</p>
             <div className="data-actions"><Button disabled={busy} onClick={() => props.onTab('fields')}>Open fields</Button></div>
@@ -150,13 +214,14 @@ export function Workspace(props: Props) {
               <dt>Conversion failures</dt><dd>{formatInt(fields.report.conversionFailures ?? 0)} {!!fields.report.conversionFailures && <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'conversion' })}>Show conversion failures</Button>}</dd>
             </dl>
             <Button disabled={busy} onClick={() => props.onTab('checks')}>Open checks</Button>
-          </> : null}
-          {props.views.length ? <><h3>Saved views</h3>
+          </section> : null}
+          {props.views.length ? <section className="data-panel data-overview-span"><h3>Saved views</h3>
           {props.views.map(saved => <section className="data-saved-view" key={saved.id}>
             <div className="data-actions"><Button disabled={busy} onClick={() => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }}>{saved.name}</Button><Button onClick={() => props.onExport(saved)}>Export reference</Button></div>
             <p className="data-note">v{dataset.versions.indexOf(saved.assetId) + 1} / {saved.report.parserVersion} / {saved.report.rowCount} records / {saved.report.duplicateRows} duplicate rows</p>
             <p className="data-note">Saved report, not a claim about current file availability.</p>
-          </section>)}</> : null}
+          </section>)}</section> : null}
+          <p className="data-note data-overview-span">A project reference groups datasets. It is not a permission boundary. Original bytes remain immutable. Add version appends an immutable file; importing the same filename creates a separate dataset.</p>
         </div>
       </TabsContent>
       {analysis ? <><TabsContent value="table">
@@ -269,13 +334,29 @@ export function Workspace(props: Props) {
         </> : <p className="data-note">No current checks.</p>}
       </TabsContent>
       </> : null}
-      <TabsContent value="history">
+      <TabsContent value="versions">
         <div className="data-history">{versions.map((version, index) => <section key={version.id}>
           <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>{versionLabel(version, index)}</Button>
           <p className="data-note">{availabilityLabel(version, result)} · {version.sha256.slice(0, 12)}</p>
           <code title={version.sha256}>{version.sha256}</code>
         </section>)}</div>
         <p className="data-note">Each version is an immutable file. Saved views stay on Overview and remain pinned to the version they were saved from.</p>
+      </TabsContent>
+      <TabsContent value="files">
+        <section className="data-panel">
+          <h3>{asset.name}</h3>
+          <table className="data-facts" aria-label={t('files')}>
+            <tbody>
+              <tr><th scope="row">Format</th><td>{format}</td></tr>
+              <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
+              <tr><th scope="row">Availability</th><td>{availabilityLabel(asset, result)}</td></tr>
+              <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} /></td></tr>
+            </tbody>
+          </table>
+        </section>
+      </TabsContent>
+      <TabsContent value="citations">
+        <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading={t('citations')} description={t('noCitations')} />
       </TabsContent>
     </Tabs>
     <footer className="data-workspace-footer">

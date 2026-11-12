@@ -9,11 +9,17 @@ const state: CatalogState = { assets: [asset('a', 'Control Lab'), asset('b'), as
   datasets: [dataset('first', ['a', 'b'], 'control'), dataset('second', ['c'], 'bio', true)], views: [], sources: [], download: null,
   parserVersion: 'pero-data/1', limits: { importBytes: 10, previewBytes: 10, records: 100, fields: 256, columns: 32 } };
 
-test('catalog search covers historical source metadata and explicit project/archive filters', () => {
+test('catalog search covers historical source metadata and explicit project/archive filters', async () => {
+  const { datasetBadges, formatDay, sourceHost } = await import('../ui-src/model.ts');
   assert.deepEqual(visibleDatasets(state, 'Control Lab', '', false).map(d => d.id), ['first']);
   assert.deepEqual(visibleDatasets(state, '', 'bio', false), []);
   assert.deepEqual(visibleDatasets(state, '', 'bio', true).map(d => d.id), ['second']);
   assert.deepEqual(visibleDatasets(state, 'absent', '', false), []);
+  assert.deepEqual(visibleDatasets(state, '', '', false, 'dataset').map(d => d.id), ['first']);
+  assert.deepEqual(datasetBadges({ format: 'h5ad', revision: 'scPerturb-v1.0-zenodo-7041849', kind: 'dataset' }), ['H5AD', 'Single cell', 'Perturbation']);
+  assert.deepEqual(datasetBadges({ format: 'csv', revision: '', kind: 'dataset' }), ['CSV']);
+  assert.equal(formatDay('2026-11-03T14:54:09+00:00'), '2026-11-03');
+  assert.equal(sourceHost('https://zenodo.org/records/7041849'), 'zenodo.org');
 });
 
 test('refresh preserves a pinned older version, not a moving latest alias', () => {

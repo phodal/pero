@@ -244,7 +244,8 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await expect(rows()).toHaveCount(7);
     checks.push('export and chart use explicit interpretation; original source unchanged; real backend restart reopens both numerical and issue views');
 
-    await page.getByRole('button', { name: 'Add version', exact: true }).click();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Add version', exact: true }).click();
     await dialog.locator('input[type="file"]').setInputFiles({ name: 'new-version.csv', mimeType: 'text/csv', buffer: Buffer.from('id,measure\n009,9\n') });
     await dialog.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(dialog).toBeHidden();
