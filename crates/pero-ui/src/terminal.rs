@@ -1,6 +1,10 @@
 //! Interactive PTY presentation shared by native and WASM Workbench.
 use crate::app::{Workbench, session_command};
-use gpui_kit::{component::Icon, prelude::*, *};
+use gpui_kit::{
+    component::{Icon, tooltip::Tooltip},
+    prelude::*,
+    *,
+};
 use pero_contracts::{
     HostEvent,
     terminal::{TerminalEvent, TerminalRequest, TerminalSize},
@@ -202,51 +206,65 @@ impl Workbench {
                     .file_name()
                     .and_then(|v| v.to_str())
                     .unwrap_or("shell");
-                div()
-                    .id(("terminal-tab", id as usize))
-                    .flex()
-                    .items_center()
-                    .gap(px(4.))
-                    .px(px(8.))
-                    .h(px(30.))
-                    .when(index == self.terminal.active, |el| el.bg(p.surface_muted))
-                    .cursor_pointer()
-                    .child(ui.icon("terminal"))
-                    .child(format!("{title} {id}"))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.terminal.active = index;
-                        this.terminal.tabs[index]
-                            .read(cx)
-                            .focus
-                            .clone()
-                            .focus(window, cx);
-                        cx.notify();
-                    }))
-                    .child(
-                        pero_theme::ghost_icon_button(("terminal-close", id as usize), chrome, cx)
-                            .icon(Icon::default().path("icons/x.svg"))
-                            .tooltip(ui.t("terminal.close"))
-                            .accessibility_label(format!("{} {id}", ui.t("terminal.close")))
-                            .relative()
-                            .child(self.view_bounds.terminal.probe(format!("close-{id}")))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                cx.stop_propagation();
-                                if this
-                                    .terminal
-                                    .tabs
-                                    .iter()
-                                    .find(|view| view.read(cx).id == id)
-                                    .is_some_and(|view| !view.read(cx).closed)
-                                {
-                                    this.terminal.closing = Some(id);
-                                } else {
-                                    this.close_terminal(id, window, cx);
-                                }
-                                cx.notify();
-                            })),
+                let label = format!("{title} {id}");
+                let icon_size = chrome.text(pero_theme::CONTENT_TAB_ICON);
+                pero_theme::content_tab(
+                    ("terminal-tab", id as usize),
+                    pero_theme::ContentTabState {
+                        active: index == self.terminal.active,
+                        focused: true,
+                        pinned: false,
+                    },
+                    chrome,
+                )
+                .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                    cx.stop_propagation();
+                })
+                .tooltip({
+                    let label = label.clone();
+                    move |window, cx| Tooltip::new(label.clone()).build(window, cx)
+                })
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.terminal.active = index;
+                    this.terminal.tabs[index]
+                        .read(cx)
+                        .focus
+                        .clone()
+                        .focus(window, cx);
+                    cx.notify();
+                }))
+                .child(Icon::default().size(icon_size).path("icons/terminal.svg"))
+                .child(pero_theme::content_tab_label(label.into(), false, chrome))
+                .child(
+                    pero_theme::content_tab_close_button(
+                        ("terminal-close", id as usize),
+                        chrome,
+                        cx,
                     )
+                    .icon(Icon::default().size(icon_size).path("icons/x.svg"))
+                    .tooltip(ui.t("terminal.close"))
+                    .accessibility_label(format!("{} {id}", ui.t("terminal.close")))
+                    .relative()
+                    .child(self.view_bounds.terminal.probe(format!("close-{id}")))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        cx.stop_propagation();
+                        if this
+                            .terminal
+                            .tabs
+                            .iter()
+                            .find(|view| view.read(cx).id == id)
+                            .is_some_and(|view| !view.read(cx).closed)
+                        {
+                            this.terminal.closing = Some(id);
+                        } else {
+                            this.close_terminal(id, window, cx);
+                        }
+                        cx.notify();
+                    })),
+                )
             })
             .collect::<Vec<_>>();
+        let tab_row = f32::from(chrome.control(pero_theme::CONTENT_TAB)) + pero_theme::SPACE_8;
         div()
             .id("terminal-dock")
             .h(px(height))
@@ -261,15 +279,19 @@ impl Workbench {
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(4.))
-                    .px(px(8.))
-                    .text_size(px(12.))
+                    .h(px(tab_row))
+                    .pr(px(pero_theme::SPACE_8))
+                    .gap(px(pero_theme::SPACE_4))
                     .child(
                         div()
                             .id("terminal-tabs")
                             .flex_1()
                             .min_w_0()
+                            .h_full()
                             .flex()
+                            .items_center()
+                            .gap(px(pero_theme::SPACE_4))
+                            .px(px(pero_theme::SPACE_4))
                             .overflow_x_scroll()
                             .children(tabs),
                     )
