@@ -329,3 +329,29 @@ Native 复查发现的命中与焦点转发遗漏也已修复。第二轮均未�
 验收边界：没有运行完整 VoiceOver 朗读/导航矩阵，也没有验证签名发行安装包或真实 AI
 模型执行；这些不由 AX 枚举、构建通过或本地 UI 场景替代。不声称穷尽所有专业块组合。
 本次未修改用户已有笔记正文或提交任何复核结论；自动化端到端的数据变更使用隔离测试数据。
+
+## Selected writing layout — 2026-11-12
+
+User selected the merged image: writing-first notebook list and continuous document,
+with evidence details shown only after clicking a reference. Implement against the
+existing Notebook owners and SDK components. Move title and compact format tools
+into the document, keep revision persistence visible, and reuse the existing source
+import, proposal review, provenance and source-opening controls in the inspector.
+Do not change saved evidence identities or scientific acceptance semantics.
+
+Implemented the selected layout with a compact formatting row, continuous document,
+and contextual citation inspector. Existing reference editing/import/proposal controls
+remain in the inspector; its close action and Escape return focus to the citation.
+Procedure undo/redo and snapshot navigation remain available after the toolbar move.
+
+Current verification: editor tests 111/111, Notebook typecheck/build and repository
+checks passed. Browser inspection covered opening/closing references, keyboard return,
+switching entries, saving/reloading an actual revision, 1549 × 1013 and 440 × 900
+layouts, and dark theme. No console errors were observed. Data was isolated sample
+data; no user notebook was edited. The local, git-ignored `design-qa.md` records the
+comparison. Captures are under
+`/Users/phodal/.codex/visualizations/2026/11/12/notebook-writing-layout/`.
+
+The selected layout was not retested in Native/Electron or a signed installer. The
+full automated browser suite was not rerun; earlier platform and suite results above
+remain historical and do not establish acceptance of this new composition.
