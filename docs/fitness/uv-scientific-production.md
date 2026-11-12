@@ -84,3 +84,9 @@ The #59 Linux ARM PyBaMM source/ABI conflict is a concrete possible Pixi follow-
 recorded separately in `scripts/science/pybamm-sweep/linux-arm64.md` by that task.
 It does not establish that Pixi resolves the exact conflict. No unused provider
 interface or speculative Pixi installation was introduced in this pass.
+
+The later [2026-11-12 Pixi fit experiment](pixi-pybamm-fit.md) tested that exact
+candidate. Its frozen Linux ARM64 gap remains unresolved by Pixi; macOS same-lock
+installation/rebuild and 12 numerical comparisons passed as positive controls.
+The candidate-specific no-go introduces no new provider. The user approved
+finishing #163 with that decision; future Pixi adoption needs a separate task.

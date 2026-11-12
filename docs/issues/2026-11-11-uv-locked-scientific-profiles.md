@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 github_issue: 163
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/163
 ---
 # Locked scientific Python profiles
@@ -99,3 +99,53 @@ not execution acceptance.
 The P2 Pixi candidate from #59's real Linux ARM native ABI conflict needs a separate
 demonstrated resolver fit; no new provider was added. The user requested stopping
 new scope after completing this pass.
+
+## P2 resolver-fit investigation — 2026-11-12
+
+The user authorized the PyBaMM/Linux ARM64 Pixi follow-up. Preserve #59's
+Python 3.12.11, PyBaMM 25.10.2, CasADi 3.6.7 and pybammsolvers 0.3.3 before
+considering a second software preparer. First compare the Conda route and a
+Conda/PyPI mix using pinned Pixi 0.84.2. A dependency upgrade or the existing
+custom ABI-patched wheel is not evidence that Pixi resolves the frozen conflict.
+Keep experiments and download receipts under `test-results/issue-163-pixi/`.
+Only introduce a production seam after a demonstrated fit.
+
+Investigation completed: **no-go for this frozen candidate**. All three target
+platforms lack Conda pybammsolvers 0.3.3; a Conda native-stack route also lacks
+the pinned SciPy candidate. Conda Python plus the original PyPI pins locks on
+macOS ARM64/Linux x86_64 but still refuses Linux ARM64 for the missing solver
+wheel. The macOS positive control installed twice from identical lock bytes,
+passed all six existing numerical comparisons in each prefix, and refused a
+changed manifest under `--locked`. Real installation baselines were 8.63 s /
+1.95 s; Linux results are resolution only. No dedicated Lima instance is currently
+available, and no Linux runtime result is inferred.
+
+[Full evidence, replay and decision](../fitness/pixi-pybamm-fit.md). A patched
+custom wheel or dependency upgrade would require a separately identified recipe;
+neither demonstrates that Pixi repairs this frozen conflict. At initial delivery,
+P2 was deferred and #163 remained open; no unused preparer interface or production
+execution path was added.
+
+## Final disposition — 2026-11-12
+
+The user approved merging PR #204 and closing #163 after review. P0/P1 are
+delivered; the P2 investigation concludes no-go for this frozen candidate.
+Pixi provider adoption is not planned within this issue. A future demonstrated
+native-dependency fit needs a separately scoped task, not an open-ended remainder
+here. Closing the tracker does not claim a Pixi implementation, Linux ARM64
+artifact repair, or acceptance of the previously unverified platforms.
+
+Merge review found no change-specific defect or open review thread. Python
+syntax/help, document links, diff checks and both retained six-case numerical
+reports passed. The PR's Notebook browser job failed at the Table settings
+locator and paper-block locator, identically to
+[master CI at 0b0394d7](https://github.com/phodal/pero/actions/runs/43146648156/job/130946071990).
+The [PR job](https://github.com/phodal/pero/actions/runs/43148985819/job/130953607350)
+has the same two failures. Both refs have the identical `apps/notebook` tree
+`b9dbf8ecf9e13f9fe7d05ed74f03e4279f56853a`; this PR changes neither Notebook
+nor CI wiring. These are retained baseline failures, not a passing-CI claim.
+The Canvas job also has the same pre-existing missing `Verification` locator:
+[master](https://github.com/phodal/pero/actions/runs/43146648156/job/130946071847),
+[PR](https://github.com/phodal/pero/actions/runs/43148985819/job/130953607871).
+The subsequent commits only finalize documentation and record this comparison;
+the reviewed probe code is unchanged.
