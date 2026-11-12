@@ -439,6 +439,8 @@ test('review receipts survive committed revision adoption and editor reload with
     })));
     const editor = (document.querySelector('.tiptap') as HTMLElement & { editor: { destroy(): void } }).editor;
     editors.add(editor);
+    const reference = document.querySelector<HTMLButtonElement>('.notebook-reference-trigger')!;
+    if (reference.getAttribute('aria-expanded') !== 'true') await click(reference);
   };
   const reviewButtons = () => [...document.querySelectorAll<HTMLButtonElement>('button')].filter(node => /^(Accept|Reject) proposal$/.test(node.textContent?.trim() ?? ''));
   await mount(original, 0);

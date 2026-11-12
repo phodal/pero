@@ -32,7 +32,7 @@ test('Notebook tool popups dismiss by keyboard and retain mounted scientific too
   const key = (value: string) => React.act(async () => {
     document.activeElement!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
   });
-  for (const menu of ['insert', 'format', 'view', 'file', 'help']) {
+  for (const menu of ['insert', 'format', 'file']) {
     await click(trigger(menu));
     assert.equal(trigger(menu).getAttribute('aria-expanded'), 'true', menu);
     assert.equal(trigger(menu).getAttribute('aria-controls'), panel(menu).id, menu);

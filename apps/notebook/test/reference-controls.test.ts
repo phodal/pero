@@ -90,15 +90,15 @@ test('workspace empty states render their labels and guidance in the active view
     React.createElement(ui.NotebookWorkspace, { editor, entryId: 'empty', revision: 1, document: { schemaVersion: 1, title: 'Empty', content }, readonly: false, onChange() {} })));
   assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, 'Empty');
   assert.equal(document.querySelector('.notebook-menubar'), null);
-  const viewTrigger = document.querySelector<HTMLButtonElement>('[data-notebook-menu=view] button')!;
+  const viewTrigger = document.querySelector<HTMLButtonElement>('[data-notebook-menu=file] button')!;
   viewTrigger.getBoundingClientRect = () => ({ x: 10, y: 10, width: 30, height: 24, top: 10, left: 10, right: 40, bottom: 34, toJSON() {} });
   await click(viewTrigger);
-  const viewMenu = document.querySelector<HTMLElement>('[data-notebook-menu-panel=view]');
+  const viewMenu = document.querySelector<HTMLElement>('[data-notebook-menu-panel=file]');
   assert.ok(viewMenu);
-  assert.equal(document.querySelector('.notebook-statusbar [data-notebook-menu=view]'), null);
+  assert.equal(document.querySelector('.notebook-statusbar [data-notebook-menu=file]'), null);
   assert.deepEqual([...document.querySelectorAll('.notebook-view-tabs [role=tab]')].map(node => node.textContent), ['Notes', 'Procedures']);
   for (const [label, heading] of [['Procedures', 'No procedures yet'], ['Relevant items', 'No relevant items yet']]) {
-    const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-view-tabs [role=tab], .notebook-panel-actions button')].find(node => (node.getAttribute('aria-label') || node.textContent) === label)!;
+    const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-view-tabs [role=tab], .notebook-menu-file-panel button')].find(node => (node.getAttribute('aria-label') || node.textContent) === label)!;
     if (trigger.getAttribute('role') === 'tab') await React.act(async () => trigger.focus());
     else await click(trigger);
     const panel = document.querySelector(label === 'Procedures' ? '[role=tabpanel][data-state=active]' : '.notebook-inspector')!;
@@ -106,7 +106,8 @@ test('workspace empty states render their labels and guidance in the active view
     assert.equal(panel.querySelector('.pero-ui-empty-description'), null, 'the action explains an empty workspace');
     assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, 'Empty');
   }
-  await click(document.querySelector('button[aria-label="Search and outline"]')!);
+  await click(viewTrigger);
+  await click([...document.querySelectorAll('.notebook-menu-file-panel button')].find(node => node.textContent === 'Search and outline')!);
   assert.equal(document.querySelector('dialog .pero-ui-empty-heading')?.textContent, 'No outline entries yet');
   const search = document.querySelector('dialog input')!;
   await React.act(async () => {

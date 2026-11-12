@@ -10,14 +10,16 @@ test('whole-document undo controls replace Notes content without recording anoth
       export { AppSdkProvider, createAppHost } from '@pero/app-sdk';`,
   });
   const { React, ui, render, click } = runtime;
-  let edits = 0, undos = 0;
+  let edits = 0, undos = 0, backs = 0;
   const document = { schemaVersion: 1, title: 'History', content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: 'paragraph-one' }, content: [{ type: 'text', text: 'First revision' }] }] } };
   const host = ui.createAppHost({ name: 'Notebook', locale: 'en' });
-  const show = (value: typeof document, canUndo: boolean) => render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
+  const show = (value: typeof document, canUndo: boolean, snapshot = false) => render(React.createElement(ui.AppSdkProvider, { host }, React.createElement(ui.NotebookEditor, {
     document: value, content: value.content, entryId: 'a'.repeat(32), revision: 1,
     onChange: () => { edits++; }, historyControls: { canUndo, canRedo: !canUndo, undo: () => { undos++; }, redo: () => {} },
+    readonly: snapshot, chrome: { status: 'Revision 1', snapshot, onBack: () => { backs++; } },
   })));
   await show(document, false);
+  const editor = (globalThis.document.querySelector('.tiptap') as HTMLElement & { editor: any }).editor;
   const undo = () => documentNode('Undo');
   function documentNode(label: string): HTMLButtonElement {
     const button = globalThis.document.querySelector(`button[aria-label="${label}"]`);
@@ -31,6 +33,16 @@ test('whole-document undo controls replace Notes content without recording anoth
   await click(undo());
   assert.equal(undos, 1);
   assert.equal(edits, 0);
+  await React.act(async () => ([...globalThis.document.querySelectorAll('[role="tab"]')].find(node => node.textContent === 'Procedures') as HTMLElement).focus());
+  const procedures = globalThis.document.querySelector('[role="tabpanel"][data-state="active"]')!;
+  await click(procedures.querySelector('button[aria-label="Undo"]')!);
+  assert.equal(undos, 2, 'Procedure changes retain document history controls');
+  await show(document, false, true);
+  assert.equal(procedures.querySelector('button[aria-label="Undo"]'), null);
+  await click([...globalThis.document.querySelectorAll('.notebook-documentbar button')].find(node => node.textContent === 'Return to current notebook')!);
+  assert.equal(backs, 1, 'Snapshot navigation remains available from Procedures');
+  await render(null);
+  await React.act(async () => editor.destroy());
 });
 
 test('document shortcuts leave review and transient dialog inputs to local undo', async t => {
