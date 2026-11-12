@@ -79,7 +79,6 @@ html, body, #app { height: 100%; }
 .notebook-procedure-tools > .notebook-format { flex: 1 1 18rem; }
 .notebook-commandbar .notebook-insert-trigger.pero-ui-button:not([data-variant=unstyled]) { padding-inline: 10px; }
 .notebook-commandbar .notebook-print-trigger.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 37px; min-height: var(--pero-control-height); height: auto; padding-inline: 6px; gap: 2px; }
-.notebook-format .notebook-overflow-trigger.pero-ui-button:not([data-variant=unstyled]) { padding-inline: 11px; }
 .notebook-format .notebook-ai-tools.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 105px; min-height: var(--pero-control-height); height: auto; padding-inline: 8px; gap: 4px; }
 .notebook-insert-trigger { gap: 4px; min-height: var(--pero-control-height); height: auto; padding: 0 10px; border-radius: var(--pero-radius-sm); background: transparent; font-weight: var(--pero-font-weight-medium); }
 .notebook-menu-panel { position: fixed; box-sizing: border-box; display: grid; justify-items: stretch; align-content: start; width: 20rem; min-width: 0; max-width: min(24rem, calc(100vw - 16px)); max-height: min(40rem, 70vh); overflow: auto; padding: var(--pero-spacing-1); background: var(--pero-surface); border: var(--pero-hairline); border-radius: var(--pero-radius-panel); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }

@@ -392,7 +392,7 @@ function Notebook() {
 
   const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
-  const createAction = <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>;
+  const createAction = <Button aria-label={t('newNotebook')} variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {entries?.length ? t('newEntry') : t('newNotebook')}</Button>;
   const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
   const libraryActions = <>
     {importAction}

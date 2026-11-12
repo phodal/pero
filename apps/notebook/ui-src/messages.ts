@@ -1,4 +1,5 @@
 export const messages = {
+  newEntry: { en: 'New', zh: '新建' },
   formattingTools: { en: 'Format', zh: '格式' },
   libraryTools: { en: 'Library actions', zh: '笔记库操作' },
   searchNotebooks: { en: 'Search notebooks', zh: '搜索笔记' },
