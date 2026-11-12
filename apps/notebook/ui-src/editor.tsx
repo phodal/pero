@@ -99,17 +99,21 @@ function NotebookInsertTools({ editor, document, onCreateEntry, closeMenu }: {
     }}><Icon name={widget.icon} />{t(widget.name)}</Button>;
   };
   return <>
-    <Button variant="ghost" role="menuitem" onClick={event => {
+    <p className="notebook-menu-label">{t('insertStructure')}</p>
+    <Button title={t('sectionPurpose')} variant="ghost" role="menuitem" onClick={() => {
       insertBlocks(editor, [{ type: 'section', attrs: { label: '', date: '' }, content: [{ type: 'paragraph' }] }]);
       closeMenu();
-    }}>{t('section')}</Button>
+    }}><Icon name="rows" />{t('section')}</Button>
     <p className="notebook-menu-label">{t('insertData')}</p>
     {widgetButton('spreadsheet')}
     {widgetButton('inputTable')}
     <FilePicker compact label={t('attachment')} title={contentT('attachmentFileLimit')} emptyLabel="" variant="ghost" busy={importing} onFile={file => {
       setImporting(true); setError('');
-      void createAttachment(file, contentT).then(attrs => { if (!editor.isDestroyed) insertBlocks(editor, [{ type: 'attachment', attrs }]); })
-        .catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
+      void createAttachment(file, contentT).then(attrs => {
+        if (editor.isDestroyed) return;
+        insertBlocks(editor, [{ type: 'attachment', attrs }]);
+        closeMenu();
+      }).catch(cause => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setImporting(false));
     }} />
     <p className="notebook-menu-label">{t('insertEvidence')}</p>
     {widgetButton('appCanvas')}
@@ -117,34 +121,40 @@ function NotebookInsertTools({ editor, document, onCreateEntry, closeMenu }: {
     {widgetButton('experiment')}
     {widgetButton('finding')}
     <details className="notebook-submenu">
-      <summary tabIndex={0}>{t('moreBlocks')}</summary>
-      {['sampleIntake', 'mixturePrep', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
-    <details className="notebook-submenu">
-      <summary tabIndex={0}>{t('wellPlate')}</summary>
-      {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <Button variant="ghost" role="menuitem" key={rows} onClick={event => {
-        insertBlocks(editor, [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }]);
-        event.currentTarget.closest('details.notebook-submenu')?.removeAttribute('open');
-        closeMenu();
-      }}>{t('plateGeometry', { wells: rows * columns, rows, columns })}</Button>)}
-    </details>
-      {widgetButton('chemical')}
-      {widgetButton('reactionScheme')}
-      <p className="notebook-menu-label">{t('insertDocument')}</p>
-      {widgetButton('mystDocument')}
-      {widgetButton('ipynbDocument')}
-      <NotebookMystTools editor={editor} onInsert={nodes => insertBlocks(editor, nodes)} />
-      <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      {editor.schema.nodes.referenceMention && <NotebookReferenceMentionPicker editor={editor} />}
-      <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      <p className="notebook-menu-label">{t('insertScience')}</p>
-      <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
-      <NotebookScienceTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
-      <p className="notebook-menu-label">{t('insertLibrary')}</p>
-      <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
-      <NotebookSavedSearchTools editor={editor} />
-      <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
+      <summary tabIndex={0}>{t('moreBlocks')}<Icon name="chevron-down" size={14} className="notebook-submenu-caret" /></summary>
+      <div className="notebook-submenu-body">
+        <p className="notebook-menu-label">{t('insertLab')}</p>
+        {['sampleIntake', 'mixturePrep', 'registrationTable', 'lookupTable'].map(name => widgetButton(name))}
+        <p className="notebook-menu-label">{t('insertChemistry')}</p>
+        {widgetButton('chemical')}
+        {widgetButton('reactionScheme')}
+        <details className="notebook-submenu">
+          <summary tabIndex={0}>{t('wellPlate')}<Icon name="chevron-down" size={14} className="notebook-submenu-caret" /></summary>
+          <div className="notebook-submenu-body">
+            {[[2, 3], [4, 6], [6, 8], [8, 12], [16, 24], [32, 48]].map(([rows, columns]) => <Button variant="ghost" role="menuitem" key={rows} onClick={event => {
+              insertBlocks(editor, [{ type: 'spreadsheet', attrs: { label: nextWorksheetName(editor.state.doc), sheet: { rows, columns, cells: {} } } }]);
+              event.currentTarget.closest('details.notebook-submenu')?.removeAttribute('open');
+              closeMenu();
+            }}>{t('plateGeometry', { wells: rows * columns, rows, columns })}</Button>)}
+          </div>
+        </details>
+        <p className="notebook-menu-label">{t('insertDocument')}</p>
+        {widgetButton('mystDocument')}
+        {widgetButton('ipynbDocument')}
+        <NotebookMystTools editor={editor} onInsert={nodes => insertBlocks(editor, nodes)} />
+        <DatedSectionTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
+        <NamedReferenceTools onInsert={nodes => { insertBlocks(editor, nodes); }} />
+        {editor.schema.nodes.referenceMention && <NotebookReferenceMentionPicker editor={editor} />}
+        <NotebookSourceExcerptTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+        <p className="notebook-menu-label">{t('insertScience')}</p>
+        <NotebookScientificContentTools onInsert={nodes => insertBlocks(editor, nodes)} />
+        <NotebookScienceTools editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+        <NotebookTemplateTools editor={editor} document={document} onCreateEntry={onCreateEntry} />
+        <p className="notebook-menu-label">{t('insertLibrary')}</p>
+        <NotebookFileIntake editor={editor} onInsert={nodes => { insertBlocks(editor, nodes); }} />
+        <NotebookSavedSearchTools editor={editor} />
+        <FilePicker compact label={t('importExcel')} emptyLabel="" accept=".xlsx" variant="ghost" busy={importing} onFile={file => void importExcel(file)} />
+      </div>
     </details>
     {error && <Feedback kind="error">{error}</Feedback>}
   </>;

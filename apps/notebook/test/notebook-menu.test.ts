@@ -49,12 +49,17 @@ test('Notebook tool popups dismiss by keyboard and retain mounted scientific too
     assert.equal(document.activeElement, trigger(menu), menu);
   }
   await click(trigger('insert'));
+  assert.match(panel('insert').textContent ?? '', /Structure/);
+  assert.ok(panel('insert').querySelector('.notebook-menu-items > .notebook-menu-label')?.textContent === 'Structure');
   const submenu = [...panel('insert').querySelectorAll<HTMLDetailsElement>('details.notebook-submenu')]
-    .find(node => node.querySelector('summary')?.textContent === 'More blocks')!;
+    .find(node => node.querySelector('summary')?.textContent?.includes('More blocks'))!;
   assert.ok(submenu);
   const summary = submenu.querySelector<HTMLElement>('summary')!;
   await click(summary);
   assert.equal(submenu.open, true);
+  assert.ok(submenu.querySelector(':scope > .notebook-submenu-body'), 'Nested items sit in an indented body');
+  assert.match(submenu.textContent ?? '', /Lab records/);
+  assert.match(submenu.textContent ?? '', /Chemistry/);
   const scientificAction = [...submenu.querySelectorAll('button')].find(node => node.textContent === 'Insert source excerpt');
   assert.ok(scientificAction, 'Scientific tool is mounted inside the retained popup');
   await click(trigger('insert'));

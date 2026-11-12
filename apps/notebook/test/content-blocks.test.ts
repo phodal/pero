@@ -99,14 +99,14 @@ test('Notebook sections preserve child editing and attachment bytes stay bounded
     Object.defineProperty(globalThis, 'ClipboardItem', { configurable: true, value: class { data: any; constructor(data: any) { this.data = data; } } });
     const clipboard = { write: async (items: any[]) => { copied = items; }, writeText: async () => { throw new Error('denied'); } };
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard });
-    await menuAction('Copy section link');
+    await click(button('Copy section link'));
     assert.match(document.querySelector('[role="alert"]')!.textContent!, /Could not copy/);
     assert.doesNotMatch(document.body.textContent!, /Link copied/);
     let copiedLink = '';
     Object.defineProperty(clipboard, 'writeText', { value: async (value: string) => { copiedLink = value; } });
     const scope = document.querySelector('.notebook-section')!.parentElement!;
     scope.setAttribute('data-notebook-entry-id', 'a'.repeat(32));
-    await menuAction('Copy section link');
+    await click(button('Copy section link'));
     const params = new URLSearchParams(new URL(copiedLink).hash.slice(1));
     assert.equal(params.get('notebook-entry'), 'a'.repeat(32));
     assert.equal(params.get('notebook-target'), editor.getJSON().content[0].attrs.blockId);

@@ -20,8 +20,12 @@ export const messages = {
   evidencePurpose: { en: 'Attach a saved source', zh: '附加已保存的来源' },
   experimentPurpose: { en: 'Reference an experiment result', zh: '引用实验结果' },
   findingPurpose: { en: 'Link a conclusion to its evidence', zh: '关联结论及支持证据' },
+  sectionPurpose: { en: 'Group related notes under a titled heading', zh: '用标题把相关笔记归为一组' },
+  insertStructure: { en: 'Structure', zh: '结构' },
   insertData: { en: 'Data', zh: '数据' },
   insertEvidence: { en: 'Evidence and experiments', zh: '证据与实验' },
+  insertLab: { en: 'Lab records', zh: '实验记录' },
+  insertChemistry: { en: 'Chemistry', zh: '化学' },
   bodyPlaceholder: { en: 'Write a note…', zh: '写下笔记…' },
 
   ipynbDocument: { en: 'Jupyter notebook', zh: 'Jupyter 笔记本' },

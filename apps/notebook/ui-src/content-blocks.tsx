@@ -142,7 +142,7 @@ function SectionView(view: NodeViewProps) {
     <div className="notebook-daybar" contentEditable={false} onFocusCapture={() => rememberWidgetFocus(view.editor, blockId ?? undefined)}>
       <IconButton label={t(expanded ? 'collapseSection' : 'expandSection')} aria-expanded={expanded} aria-controls={contentId}
         onClick={() => setExpanded(value => !value)}><Icon name={expanded ? 'chevron-down' : 'chevron-right'} /></IconButton>
-      <span className="notebook-daychip">
+      <span className="notebook-daychip" data-empty={!date || undefined}>
         <Icon name="calendar" size={14} />
         <span className="notebook-daytext" aria-hidden="true">{shownDate || t('sectionDate')}</span>
         {editable ? <Input className="notebook-section-date" type="date" aria-label={t('sectionDate')} value={date} min="0001-01-01" max="9999-12-31"
@@ -154,7 +154,7 @@ function SectionView(view: NodeViewProps) {
             if (valid) view.updateAttributes({ date: value });
           }} /> : date && <time className="notebook-visually-hidden" dateTime={date}>{shownDate}</time>}
       </span>
-      {editable ? <Input unstyled className="notebook-block-name" aria-label={t('sectionTitle')} placeholder={t('section')}
+      {editable ? <Input unstyled className="notebook-block-name" aria-label={t('sectionTitle')} placeholder={t('sectionTitle')}
         maxLength={200} value={label} onChange={event => view.updateAttributes({ label: event.target.value })} /> : <strong>{label || t('section')}</strong>}
       <span className="notebook-dayactions">
         <IconButton label={t('copySectionLink')} disabled={copying || !anchor} title={t('sectionLinkScope')} onClick={() => void copy(true)}><Icon name="link" /></IconButton>
@@ -162,7 +162,6 @@ function SectionView(view: NodeViewProps) {
         <DropdownMenuTrigger asChild><IconButton label={common('blockActions')}><Icon name="gear" /></IconButton></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem disabled={copying} onSelect={() => void copy(false)}>{t('copySection')}</DropdownMenuItem>
-          <DropdownMenuItem disabled={copying || !anchor} title={t('sectionLinkScope')} onSelect={() => void copy(true)}>{t('copySectionLink')}</DropdownMenuItem>
           {editable && <>
             <DropdownMenuItem disabled={!topLevel || topLevel.index === 0} onSelect={() => typeof position === 'number' && moveBlock(view.editor, -1, position)}>{common('up')}</DropdownMenuItem>
             <DropdownMenuItem disabled={!topLevel || topLevel.index === view.editor.state.doc.childCount - 1} onSelect={() => typeof position === 'number' && moveBlock(view.editor, 1, position)}>{common('down')}</DropdownMenuItem>

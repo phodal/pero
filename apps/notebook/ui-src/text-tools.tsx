@@ -372,8 +372,14 @@ export function NotebookTextTools({ editor, extraTools }: { editor: Editor; extr
     disabled={!status.enabledMarks.includes(mark)} onMouseDown={event => event.preventDefault()} onClick={() => toggleMark(mark)}>{glyphs[mark]}</IconButton>;
   const blockButton = (block: typeof notebookBlockStyles[number], icon: 'bullet' | 'ordered' | 'task' | 'quote' | 'code') => <IconButton key={block} label={t(block)} aria-pressed={status.format === block}
     disabled={!status.text} onMouseDown={event => event.preventDefault()} onClick={() => chooseFormat(block)}><Icon name={icon} /></IconButton>;
+  const indentList = () => status.listItem && editor.chain().focus().sinkListItem(status.listItem).run();
+  const outdentList = () => status.listItem && editor.chain().focus().liftListItem(status.listItem).run();
+  const clearFormatting = () => editor.chain().focus().unsetAllMarks().clearNodes().run();
+  const insertRule = () => editor.chain().focus().setHorizontalRule().run();
+  const openSymbols = () => { const { from, to } = editor.state.selection; setDialog({ kind: 'symbols', selection: { from, to } }); };
+  const canInsertRule = status.inline && !!editor.schema.nodes.horizontalRule && editor.can().setHorizontalRule();
 
-  return <div className="notebook-format">
+  return <div className="notebook-format" data-keep-overflow={extraTools ? '' : undefined}>
     <Toolbar className="notebook-toolbar" role="group" aria-label={t('format')}>
     <Select className="notebook-heading-select" label={t('format')} value={status.format} disabled={!status.text} searchable={false} title={t('style')}
       leading={<span aria-hidden="true" className="notebook-heading-mark">{headingValue.startsWith('heading-') ? `H${headingValue.slice(8)}` : 'H'}</span>}
@@ -397,22 +403,39 @@ export function NotebookTextTools({ editor, extraTools }: { editor: Editor; extr
     {markButton('superscript')}
     {colorSelect('textColor', status.tone)}
     {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
+    <div className="notebook-format-extra" role="group" aria-label={t('more')}>
+      <span className="notebook-toolbar-divider" />
+      <IconButton label={t('code')} aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
+        onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{glyphs.code}</IconButton>
+      {editor.schema.nodes.horizontalRule && <IconButton label={t('horizontalRule')} disabled={!canInsertRule}
+        onMouseDown={event => event.preventDefault()} onClick={insertRule}><Icon name="minus" /></IconButton>}
+      <IconButton label={t('indent')} disabled={!status.canIndent} onMouseDown={event => event.preventDefault()}
+        onClick={indentList}><span aria-hidden="true">⇥</span></IconButton>
+      <IconButton label={t('outdent')} disabled={!status.canOutdent} onMouseDown={event => event.preventDefault()}
+        onClick={outdentList}><span aria-hidden="true">⇤</span></IconButton>
+      <IconButton className="notebook-clear-format" label={t('clear')} disabled={!status.text}
+        onMouseDown={event => event.preventDefault()} onClick={clearFormatting}><span aria-hidden="true">×</span></IconButton>
+      <IconButton label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
+        onClick={openSymbols}><span aria-hidden="true">Ω</span></IconButton>
+    </div>
     </Toolbar>
+    <div className="notebook-format-overflow">
     <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
       {extraTools}
       <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
-      {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!status.inline || !editor.can().setHorizontalRule()}
-        onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}>{t('horizontalRule')}</Button>}
+      {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!canInsertRule}
+        onMouseDown={event => event.preventDefault()} onClick={insertRule}>{t('horizontalRule')}</Button>}
       <Button variant="ghost" aria-label={t('indent')} disabled={!status.canIndent} onMouseDown={event => event.preventDefault()}
-        onClick={() => status.listItem && editor.chain().focus().sinkListItem(status.listItem).run()}>{t('indent')}</Button>
+        onClick={indentList}>{t('indent')}</Button>
       <Button variant="ghost" aria-label={t('outdent')} disabled={!status.canOutdent} onMouseDown={event => event.preventDefault()}
-        onClick={() => status.listItem && editor.chain().focus().liftListItem(status.listItem).run()}>{t('outdent')}</Button>
+        onClick={outdentList}>{t('outdent')}</Button>
       <Button variant="ghost" aria-label={t('clear')} disabled={!status.text} onMouseDown={event => event.preventDefault()}
-        onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>{t('clear')}</Button>
+        onClick={clearFormatting}>{t('clear')}</Button>
       <Button variant="ghost" aria-label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
-        onClick={() => { const { from, to } = editor.state.selection; setDialog({ kind: 'symbols', selection: { from, to } }); }}>{t('symbols')}</Button>
+        onClick={openSymbols}>{t('symbols')}</Button>
     </NotebookMenu>
+    </div>
     {dialog?.kind === 'link' && <Dialog title={t(dialog.existing ? 'editLink' : 'insertLink')} closeLabel={t('close')}
       size="sm" restoreFocus={false} onClose={closeDialog} onSubmit={event => { event.preventDefault(); applyLink(); }}
       footerStart={dialog.existing && <Button variant="ghost" onClick={() => {
