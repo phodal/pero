@@ -68,8 +68,8 @@ export async function verifyTableWorkflows(page, origin, output) {
   const input = page.locator('[data-kind=inputTable]');
   const registration = page.locator('[data-kind=registrationTable]');
   const open = async (scope = input) => {
-    const settings = scope.getByRole('button', { name: 'Table settings', exact: true });
-    if (await settings.getAttribute('aria-expanded') !== 'true') await settings.click();
+    const settings = scope.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^Table settings$/ }) });
+    if (!await settings.evaluate(element => element.open)) await settings.locator(':scope > summary').click();
     await button('Views, sources and archive', scope).click();
     return page.getByRole('dialog', { name: 'Views, sources and archive', exact: true });
   };

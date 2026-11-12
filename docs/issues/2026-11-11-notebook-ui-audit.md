@@ -7,6 +7,22 @@ updated: 2026-11-12
 
 # Notebook UI hides everyday actions and overexposes setup details
 
+## CI regression follow-up — 2026-11-12
+
+Master `c751fc83082565f3934d05584a2386615dccf7b4` failed the Notebook
+browser and real Host Canvas suites in
+[run 43156015634](https://github.com/phodal/pero/actions/runs/43156015634).
+The UI migration left three browser paths using the previous interaction model:
+Table settings is now a native disclosure, evidence/experiment details are in
+the Reference source inspector, and Properties is an inspector rather than a
+dialog. Update those paths without changing product behavior or weakening
+the real backend, proposal, PASS/FAIL, history and persistence assertions.
+
+Notebook build and typecheck passed locally. Local Chromium cannot launch in
+this execution environment (`ProcessSingleton` socket permission failure),
+including the expanded execution attempt; no local browser pass is claimed.
+The repair PR's exact-head CI must verify the full browser and real Host suites.
+
 Reopened on 2026-11-12 after user feedback and an actual Native walkthrough.
 The historical verification below remains valid only for its stated behavior
 and platform scope; it does not establish current Notebook UX acceptance.

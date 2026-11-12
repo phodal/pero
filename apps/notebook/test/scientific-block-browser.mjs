@@ -87,6 +87,12 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   await page.goto(`${origin}/#notebook-entry=${entry.id}`);
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   const card = page.locator('[data-editor-block-id="paper-block"]');
+  const openReference = async () => {
+    await page.locator('[data-notebook-block-id="paper-block"] .notebook-reference-trigger').click();
+    await expect(page.locator('#notebook-inspector')).toBeVisible();
+    await page.locator('#notebook-inspector summary').filter({ hasText: /^Record identifiers$/ }).click();
+  };
+  await openReference();
   await expect(card).toContainText(report);
   await expect(card).toContainText('paper-block');
   await expect(page.getByText('Proposal wording: Pinned report')).toBeVisible();
@@ -104,12 +110,14 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   assert.equal(second.status, 200, await second.text());
   await page.reload();
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await openReference();
   await page.getByRole('button', { name: 'Accept proposal', exact: true }).click();
   await expect(page.locator('.notebook-status')).toContainText('Revision 2');
   await expect(page.getByText('Accepted as revision 2. The previous revision is unchanged.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept proposal', exact: true })).toHaveCount(0);
   await page.reload();
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await openReference();
   await expect(page.getByRole('textbox', { name: 'Label', exact: true })).toHaveValue('Pinned report');
   await expect(page.locator('[data-object-version]')).toContainText(report);
   // A saved edit makes the first proposal stale. A new proposal must not be
@@ -134,6 +142,7 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   }
   await page.reload();
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await openReference();
   await expect(page.getByText('Proposal wording: fresh-browser')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept proposal', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Reject proposal', exact: true }).click();
@@ -146,6 +155,7 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   await expect(page.getByRole('textbox', { name: 'Label', exact: true })).toHaveValue('Pinned report');
   await page.reload();
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await openReference();
   await expect(page.locator('.notebook-status')).toContainText('Revision 3');
   await expect(page.getByRole('button', { name: 'Reject proposal', exact: true })).toHaveCount(0);
   assert.deepEqual(errors, []);
