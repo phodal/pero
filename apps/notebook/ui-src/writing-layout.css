@@ -1,26 +1,23 @@
 /* Writing-first composition; controls retain the shared SDK skins and tokens. */
 .notebook-nav { background: var(--pero-bg); }
-.notebook-nav-brand { display: flex; align-items: center; gap: var(--pero-spacing-3); padding: var(--pero-spacing-5) var(--pero-spacing-4); font-size: var(--pero-font-heading); }
-.notebook-nav-brand > svg { color: var(--pero-action); }
-.notebook-nav-tools { padding: var(--pero-spacing-4); border: 0; }
-.notebook-nav-tools > strong { flex: 1; font-size: var(--pero-font-body); }
-.notebook-nav-tools > .notebook-menu-anchor { margin: 0; }
-.notebook-library-tools { padding-inline: var(--pero-spacing-4); }
-.notebook-library-heading { margin: var(--pero-spacing-3) var(--pero-spacing-4) var(--pero-spacing-2); }
+.notebook-nav-tools { padding: var(--pero-spacing-2) var(--pero-spacing-3); border: 0; }
+.notebook-nav-tools > .pero-ui-icon-button:last-of-type { margin-inline-start: auto; }
+.notebook-library-tools { padding-inline: var(--pero-spacing-3); }
+.notebook-library-heading { margin: var(--pero-spacing-2) var(--pero-spacing-3) var(--pero-spacing-1); }
 .notebook-library-heading > button { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-list { padding: var(--pero-spacing-2); }
 .notebook-list .pero-list-row { margin-bottom: var(--pero-spacing-2); }
 .notebook-list .pero-list-title { font-weight: var(--pero-font-weight-semibold); }
-.notebook-documentbar { min-height: 64px; box-sizing: border-box; padding: var(--pero-spacing-2) var(--pero-spacing-5); border: 0; }
-.notebook-breadcrumb { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-3); min-width: 0; }
+.notebook-documentbar { min-height: 0; box-sizing: border-box; padding: var(--pero-spacing-1) var(--pero-spacing-4); border: 0; }
+.notebook-breadcrumb { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); min-width: 0; }
 .notebook-breadcrumb > span { color: var(--pero-text-muted); overflow-wrap: anywhere; }
 .notebook-breadcrumb .notebook-view-tabs.pero-ui-tabs-list { margin: 0; }
 .notebook-documentbar .notebook-status { max-width: 26rem; }
-.notebook-notes-main { box-sizing: border-box; width: 100%; max-width: 64rem; margin-inline: auto; padding: 40px clamp(24px, 4vw, 64px) 64px; }
+.notebook-notes-main { box-sizing: border-box; width: 100%; max-width: 64rem; margin-inline: auto; padding: var(--pero-spacing-4) clamp(var(--pero-spacing-4), 4vw, var(--pero-spacing-6)) var(--pero-spacing-6); }
 .notebook-notes-main .notebook-entry-head { padding: 0; }
-.notebook-notes-main .notebook-title { flex: 1 1 100%; width: 100%; font-size: calc(var(--pero-font-title) * 1.34); line-height: 1.4; }
-.notebook-revision-date { display: flex; align-items: center; gap: var(--pero-spacing-2); margin-top: var(--pero-spacing-3); }
-.notebook-writing-toolbar { padding-block: var(--pero-spacing-5) var(--pero-spacing-3); margin-bottom: var(--pero-spacing-4); border-bottom: var(--pero-hairline); }
+.notebook-notes-main .notebook-title { flex: 1 1 100%; width: 100%; font-size: calc(var(--pero-font-title) * 1.34); line-height: 1.25; }
+.notebook-revision-date { display: flex; align-items: center; gap: var(--pero-spacing-2); margin-top: var(--pero-spacing-1); }
+.notebook-writing-toolbar { padding-block: var(--pero-spacing-3) var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); border-bottom: var(--pero-hairline); }
 .notebook-writing-toolbar:empty { display: none; }
 .notebook-writing-toolbar .notebook-commandbar { justify-content: flex-start; gap: var(--pero-spacing-2); }
 .notebook-workspace[data-notebook-view="notes"] .notebook-paper { margin: 0; padding: 0; }
@@ -47,7 +44,7 @@
   .notebook-documentbar { padding-inline: var(--pero-spacing-3); gap: var(--pero-spacing-2); }
   .notebook-breadcrumb { flex-basis: 100%; }
   .notebook-documentbar .notebook-status { flex: 1; }
-  .notebook-notes-main { padding: var(--pero-spacing-6) var(--pero-spacing-4) 48px; }
+  .notebook-notes-main { padding: var(--pero-spacing-4) var(--pero-spacing-4) var(--pero-spacing-6); }
   .notebook-writing-toolbar .notebook-format { gap: var(--pero-spacing-1); }
 }
 @media print {
@@ -67,5 +64,4 @@
 .notebook-writing-toolbar .notebook-heading-select .pero-select-trigger { min-width: 6rem; }
 .notebook-structured-grid td { min-width: 120px; }
 .notebook-inspector { box-sizing: border-box; }
-.notebook-split[data-stacked] > .notebook-nav .notebook-nav-brand { display: none; }
 .notebook-split[data-stacked] > .notebook-nav .notebook-nav-tools { padding-block: var(--pero-spacing-2); }

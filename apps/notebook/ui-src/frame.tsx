@@ -404,9 +404,7 @@ function Notebook() {
         actions={<>{createAction}{importAction}</>} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
-          <div className="notebook-nav-brand"><Icon name="notebook" /><strong>Pero Notebook</strong></div>
           <div className="notebook-nav-tools">
-            <strong>{t('notebooks')}</strong>
             {createAction}
             <DropdownMenu>
               <DropdownMenuTrigger asChild><IconButton label={t('libraryTools')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
@@ -435,9 +433,11 @@ function Notebook() {
               const local = drafts[entry.id];
               const duplicateTitle = visibleEntries.some(other => other.id !== entry.id && (drafts[other.id]?.document.title || other.title) === (local?.document.title || entry.title));
               const identity = duplicateTitle ? entryIdentity(entry.id, local?.document.identity)?.code : null;
+              const updated = new Date(entry.updatedAt).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric' });
+              const draft = local?.dirty ? t(local.storageError ? 'listDraftError' : local.durable ? 'listDraft' : 'listDraftSaving') : '';
               return <li key={entry.id}><ListRow icon={<Icon name="document" />} title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
-                meta={`${identity ? `${identity} · ` : ''}${new Date(entry.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${local?.dirty ? t(local.storageError ? 'draftNotStored' : local.durable ? 'draftStored' : 'draftStoring') : t('revision', { number: entry.revision })}`}
+                meta={[identity, updated, draft].filter(Boolean).join(' · ')}
                 trailing={<DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>

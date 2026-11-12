@@ -21,7 +21,7 @@ export async function verifyProcedureWorkspace(page, origin, output) {
   ] } });
   const link = `${origin}/#notebook-entry=${entry.id}&notebook-target=procedure-intro`;
   await page.goto(link);
-  await expect(page.getByRole('button', { name: new RegExp(`${entry.document.title}.*Revision 1`) })).toBeVisible();
+  await expect(page.getByRole('button', { name: new RegExp(entry.document.title) })).toBeVisible();
   await expect(notebookTab(page, 'Procedures')).toHaveAttribute('data-state', 'active');
   await expect(page.getByRole('textbox', { name: 'Procedure title', exact: true })).toHaveValue('Rich method');
   const introduction = page.getByRole('textbox', { name: 'Introduction', exact: true });
