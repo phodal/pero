@@ -645,7 +645,6 @@ form.notebook-workspace-actions { align-items: end; }
 
 .notebook-nav-tools { flex-wrap: nowrap; }
 .notebook-nav-tools > .notebook-menu-anchor { margin-inline-start: auto; }
-.notebook-menu-library-panel { width: 18rem; }
 
 /* Research content and its inspector use the SDK split, including keyboard resizing. */
 .notebook-documentbar .notebook-entry-head { flex: 1 1 8rem; min-width: 0; background: transparent; }

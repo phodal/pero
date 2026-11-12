@@ -1,4 +1,3 @@
-import { NotebookMenu } from './notebook-menu';
 import { NotebookHome } from './notebook-home';
 import { NotebookPrintTools } from './notebook-print';
 import { WorksheetAmendments } from './worksheet-amendments';
@@ -6,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, Select, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
@@ -64,6 +63,7 @@ function Notebook() {
   const [selected, setSelected] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [entryQuery, setEntryQuery] = useState(''), [entryOrder, setEntryOrder] = useState('recent');
+  const libraryImport = useRef<HTMLDivElement>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
@@ -395,11 +395,6 @@ function Notebook() {
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
   const createAction = <Button aria-label={t('newNotebook')} variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {!entries?.length && t('newNotebook')}</Button>;
   const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
-  const libraryActions = <>
-    {importAction}
-    <Button variant="ghost" disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" />{t('refresh')}</Button>
-    <Select label={t('sortNotebooks')} value={entryOrder} options={[{ value: 'recent', label: t('recentNotebooks') }, { value: 'title', label: t('titleOrder') }]} onChange={setEntryOrder} />
-  </>;
   return <AppFrame label={t('notebook')} className="notebook-app">
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && <Feedback kind="error" variant="block">{error}</Feedback>}
@@ -412,16 +407,29 @@ function Notebook() {
           <div className="notebook-nav-brand"><Icon name="notebook" /><strong>Pero Notebook</strong></div>
           <div className="notebook-nav-tools">
             <strong>{t('notebooks')}</strong>
+            {createAction}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><IconButton label={t('libraryTools')}><Icon name="more" /></IconButton></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={!!busy} onSelect={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" />{t('importNotebook')}</DropdownMenuItem>
+                <DropdownMenuItem disabled={!!busy} onSelect={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" />{t('refresh')}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div hidden ref={libraryImport}>{importAction}</div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(false)}><Icon name="chevron-left" /></IconButton>
-            {createAction}
-            <NotebookMenu name={t('libraryTools')} menu="library" icon="more">{libraryActions}</NotebookMenu>
           </div>
           <div className="notebook-library-tools">
             <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
           </div>
           {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
-          <p className="notebook-library-heading">{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}</p>
+          <div className="notebook-library-heading"><DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" aria-label={t('sortNotebooks')}>{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}<Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start"><DropdownMenuRadioGroup value={entryOrder} onValueChange={setEntryOrder}>
+              <DropdownMenuRadioItem value="recent">{t('recentNotebooks')}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="title">{t('titleOrder')}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup></DropdownMenuContent>
+          </DropdownMenu></div>
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
               const local = drafts[entry.id];

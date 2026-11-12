@@ -355,3 +355,18 @@ comparison. Captures are under
 The selected layout was not retested in Native/Electron or a signed installer. The
 full automated browser suite was not rerun; earlier platform and suite results above
 remain historical and do not establish acceptance of this new composition.
+
+## Library menu follow-up — 2026-11-12
+
+The screenshot feedback identifies a mixed action/form popup: import, refresh and
+sorting share an oversized generic NotebookMenu. Replace it with the SDK
+DropdownMenu for actions; expose the active order above the list with SDK radio
+menu items. Preserve FilePicker import handling, refresh, entry selection and the
+existing recent/title ordering. Keep sorting accessible in narrow layouts.
+
+Verification: Notebook typecheck/build passed. In the browser with isolated sample
+data, observed the compact two-action menu, sorting menu radio selection and actual
+title/recent list reordering. Refresh retained the current notebook and revision;
+Escape closed the menu and returned focus to its trigger. Screenshots are in
+`/Users/phodal/.codex/visualizations/2026/11/12/notebook-library-menu/`.
+This scoped pass did not re-import a file or run Native/installer acceptance.

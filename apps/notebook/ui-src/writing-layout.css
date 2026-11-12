@@ -4,10 +4,10 @@
 .notebook-nav-brand > svg { color: var(--pero-action); }
 .notebook-nav-tools { padding: var(--pero-spacing-4); border: 0; }
 .notebook-nav-tools > strong { flex: 1; font-size: var(--pero-font-body); }
-.notebook-nav-tools > .pero-ui-icon-button { order: 1; }
 .notebook-nav-tools > .notebook-menu-anchor { margin: 0; }
 .notebook-library-tools { padding-inline: var(--pero-spacing-4); }
-.notebook-library-heading { margin: var(--pero-spacing-5) var(--pero-spacing-4) var(--pero-spacing-2); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.notebook-library-heading { margin: var(--pero-spacing-3) var(--pero-spacing-4) var(--pero-spacing-2); }
+.notebook-library-heading > button { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-list { padding: var(--pero-spacing-2); }
 .notebook-list .pero-list-row { margin-bottom: var(--pero-spacing-2); }
 .notebook-list .pero-list-title { font-weight: var(--pero-font-weight-semibold); }
@@ -67,6 +67,5 @@
 .notebook-writing-toolbar .notebook-heading-select .pero-select-trigger { min-width: 6rem; }
 .notebook-structured-grid td { min-width: 120px; }
 .notebook-inspector { box-sizing: border-box; }
-.notebook-split[data-stacked] > .notebook-nav .notebook-nav-brand,
-.notebook-split[data-stacked] > .notebook-nav .notebook-library-heading { display: none; }
+.notebook-split[data-stacked] > .notebook-nav .notebook-nav-brand { display: none; }
 .notebook-split[data-stacked] > .notebook-nav .notebook-nav-tools { padding-block: var(--pero-spacing-2); }
