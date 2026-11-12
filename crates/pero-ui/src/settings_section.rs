@@ -19,7 +19,7 @@ pub(crate) enum SettingsSection {
     Memory,
 }
 impl SettingsSection {
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::General,
         Self::Shortcuts,
         Self::Theme,
@@ -30,7 +30,6 @@ impl SettingsSection {
         Self::Harness,
         Self::Workers,
         Self::Connections,
-        Self::Mcp,
         Self::Memory,
         Self::Computer,
     ];
