@@ -134,3 +134,18 @@ Pixi provider adoption is not planned within this issue. A future demonstrated
 native-dependency fit needs a separately scoped task, not an open-ended remainder
 here. Closing the tracker does not claim a Pixi implementation, Linux ARM64
 artifact repair, or acceptance of the previously unverified platforms.
+
+Merge review found no change-specific defect or open review thread. Python
+syntax/help, document links, diff checks and both retained six-case numerical
+reports passed. The PR's Notebook browser job failed at the Table settings
+locator and paper-block locator, identically to
+[master CI at 0b0394d7](https://github.com/phodal/pero/actions/runs/43146648156/job/130946071990).
+The [PR job](https://github.com/phodal/pero/actions/runs/43148985819/job/130953607350)
+has the same two failures. Both refs have the identical `apps/notebook` tree
+`b9dbf8ecf9e13f9fe7d05ed74f03e4279f56853a`; this PR changes neither Notebook
+nor CI wiring. These are retained baseline failures, not a passing-CI claim.
+The Canvas job also has the same pre-existing missing `Verification` locator:
+[master](https://github.com/phodal/pero/actions/runs/43146648156/job/130946071847),
+[PR](https://github.com/phodal/pero/actions/runs/43148985819/job/130953607871).
+The subsequent commits only finalize documentation and record this comparison;
+the reviewed probe code is unchanged.
