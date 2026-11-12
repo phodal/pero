@@ -1,0 +1,582 @@
+name: Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Acceptance suite (science and Paper suites use real downloads/computation)
+        type: choice
+        options:
+          - graphics
+          - locked-scientific-linux
+          - sandbox-standard
+          - sandbox-isolated
+          - paper-docling-macos
+          - paper-fisher
+        default: graphics
+      allow_official_downloads:
+        description: Download pinned Docling wheels, Heron model and three public NASA scans on a temporary Mac runner
+        type: boolean
+        default: false
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+    paths:
+      - deployment/agent-sandbox/**
+      - crates/pero-worker/**
+      - crates/pero-contracts/**
+      - crates/pero-runtime/**
+      - Cargo.toml
+      - Cargo.lock
+      - scripts/cargo.mjs
+      - harness/go/**
+      - server/**
+      - .github/workflows/acceptance.yml
+      - scripts/ci/acceptance-scope.mjs
+      - scripts/ci/workflow-scope.mjs
+      - apps/paper-agent/app.json
+      - packages/source-extraction/**
+      - scripts/build/source-parsers.mjs
+      - apps/paper-agent/requirements-docling*.txt
+      - apps/paper-agent/backend/paper_agent/docling*.py
+      - apps/paper-agent/backend/paper_agent/numeric*.py
+      - apps/paper-agent/backend/paper_agent/pdf*.py
+      - apps/paper-agent/test/manual/docling*.py
+      - apps/paper-agent/test/test_docling*.py
+      - apps/paper-agent/test/test_numeric*.py
+      - apps/paper-agent/test/fixtures/*corpus*.json
+      - crates/pero-runtime/src/apps/docling*
+      - apps/paper-agent/**
+      - packages/app-sdk/**
+      - tests/e2e/paper-fisher-*.mjs
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    name: Decide acceptance scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      sandbox: ${{ steps.decide.outputs.sandbox }}
+      docling: ${{ steps.decide.outputs.docling }}
+      fisher: ${{ steps.decide.outputs.fisher }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: decide
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
+          SCOPE_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Match GitHub PR path filtering: changes since the merge base.
+          # Missing history or diff failures fail open; job-level opt-ins still apply.
+          if git fetch --no-tags origin "$SCOPE_BASE" "$SCOPE_HEAD" &&
+             git diff --name-only -z "$SCOPE_BASE...$SCOPE_HEAD" > "$RUNNER_TEMP/acceptance-paths"; then
+            node scripts/ci/acceptance-scope.mjs < "$RUNNER_TEMP/acceptance-paths"
+          else
+            echo "Cannot read the pull request diff; retaining acceptance eligibility." >&2
+            printf 'sandbox=true\ndocling=true\nfisher=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  kind:
+    concurrency:
+      group: agent-sandbox-${{ github.ref }}
+      cancel-in-progress: false
+    needs: scope
+    if: >-
+      always() && !cancelled() && (
+      (github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-standard') ||
+      (github.event_name == 'pull_request' && needs.scope.outputs.sandbox != 'false' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'agent-sandbox-e2e')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          POSTGRES_PASSWORD: sandbox-fixture-only
+          POSTGRES_USER: sandbox_fixture
+          POSTGRES_DB: sandbox_fixture
+        ports: [5432/tcp]
+        options: >-
+          --health-cmd "pg_isready -U sandbox_fixture -d sandbox_fixture"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      GOTOOLCHAIN: local
+      PERO_REQUIRE_TEST_DATABASE: '1'
+    steps:
+      # The service's allocated host port exists only in the running job context,
+      # which is unavailable in jobs.<job_id>.env during workflow validation.
+      - name: Bind the disposable PostgreSQL service port
+        shell: bash
+        env:
+          TEST_DATABASE_URL: postgresql://sandbox_fixture:sandbox-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/sandbox_fixture?sslmode=disable
+        run: printf 'PERO_TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: |
+            server/go.sum
+            harness/go/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.23.4'
+      - name: Prepare pinned Rust and workspace-only GPUI resolution
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          kit="$RUNNER_TEMP/gpui-kit"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Build the real Worker and ACP agent
+        shell: bash
+        run: |
+          node scripts/cargo.mjs test --locked -p pero-worker
+          node scripts/cargo.mjs build --locked --release -p pero-worker
+          CGO_ENABLED=0 go -C harness/go build -trimpath -o "$RUNNER_TEMP/pero-agent-acp" ./cmd/pero-agent-acp
+          echo "PERO_SANDBOX_WORKER_BINARY=$PWD/target/release/pero-worker" >> "$GITHUB_ENV"
+          echo "PERO_SANDBOX_AGENT_BINARY=$RUNNER_TEMP/pero-agent-acp" >> "$GITHUB_ENV"
+          echo "PERO_SANDBOX_EVIDENCE=$RUNNER_TEMP/agent-sandbox-evidence" >> "$GITHUB_ENV"
+      - name: Local process and PostgreSQL fault contracts
+        shell: bash
+        run: |
+          mkdir -p "$PERO_SANDBOX_EVIDENCE"
+          PERO_TEST_WORKER_BIN="$PERO_SANDBOX_WORKER_BINARY" PERO_TEST_AGENT_BIN="$PERO_SANDBOX_AGENT_BINARY" node --test deployment/agent-sandbox/test/*.test.mjs
+          go -C server test -race -count=1 ./... 2>&1 | tee "$PERO_SANDBOX_EVIDENCE/server-test.log"
+      - name: Create, test, and destroy the owned kind cluster
+        shell: bash
+        run: deployment/agent-sandbox/kind-smoke.sh
+      - name: Retain non-secret validation receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-sandbox-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-sandbox-evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
+  isolated-kind:
+    concurrency:
+      group: agent-sandbox-isolated-${{ github.ref }}
+      cancel-in-progress: false
+    # The separate label is applied only after review of the strong profile.
+    # Never execute an untrusted fork's code with the privileged CNI fixture.
+    needs: scope
+    if: >-
+      always() && !cancelled() && (
+      (github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-isolated') ||
+      (github.event_name == 'pull_request' && needs.scope.outputs.sandbox != 'false' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'agent-sandbox-isolated-e2e')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          POSTGRES_PASSWORD: isolated-fixture-only
+          POSTGRES_USER: isolated_fixture
+          POSTGRES_DB: isolated_fixture
+        ports: [5432/tcp]
+        options: >-
+          --health-cmd "pg_isready -U isolated_fixture -d isolated_fixture"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      GOTOOLCHAIN: local
+      PERO_REQUIRE_TEST_DATABASE: '1'
+    steps:
+      - name: Bind the owned PostgreSQL service port
+        shell: bash
+        env:
+          TEST_DATABASE_URL: postgresql://isolated_fixture:isolated-fixture-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/isolated_fixture?sslmode=disable
+        run: printf 'PERO_TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: |
+            server/go.sum
+            harness/go/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.23.4'
+      - name: Prepare pinned Rust and workspace-only GPUI resolution
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          kit="$RUNNER_TEMP/gpui-kit"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Build external Worker and isolated ACP transports
+        shell: bash
+        run: |
+          node scripts/cargo.mjs test --locked -p pero-worker
+          node scripts/cargo.mjs build --locked --release -p pero-worker
+          CGO_ENABLED=0 go -C harness/go build -trimpath -o "$RUNNER_TEMP/pero-agent-acp" ./cmd/pero-agent-acp
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-agent-connect" ./cmd/pero-agent-connect
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-acp-bridge" ./cmd/pero-acp-bridge
+          CGO_ENABLED=0 go -C server build -trimpath -o "$RUNNER_TEMP/pero-artifact-collector" ./cmd/pero-artifact-collector
+          echo "PERO_TEST_WORKER_BIN=$PWD/target/release/pero-worker" >> "$GITHUB_ENV"
+          echo "PERO_TEST_AGENT_BIN=$RUNNER_TEMP/pero-agent-acp" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_CONNECT_BINARY=$RUNNER_TEMP/pero-agent-connect" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_BRIDGE_BINARY=$RUNNER_TEMP/pero-acp-bridge" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_COLLECTOR_BINARY=$RUNNER_TEMP/pero-artifact-collector" >> "$GITHUB_ENV"
+          echo "PERO_ISOLATED_TEST_EVIDENCE=$RUNNER_TEMP/pero-isolated-evidence" >> "$GITHUB_ENV"
+      - name: Offline fixture and server contracts
+        shell: bash
+        run: |
+          mkdir -p "$PERO_ISOLATED_TEST_EVIDENCE"
+          bash -n deployment/agent-sandbox/isolated-kind.sh
+          node --test deployment/agent-sandbox/test/isolated-fixtures.test.mjs
+          go test -race deployment/agent-sandbox/isolated/probe{,_test}.go
+          go test -race deployment/agent-sandbox/isolated/artifact-writer{,_test}.go
+          go -C server test -race -count=1 ./... 2>&1 | tee "$PERO_ISOLATED_TEST_EVIDENCE/server-test.log"
+      - name: Create, probe, test, and destroy owned isolated infrastructure
+        env:
+          PERO_ISOLATED_ACCEPTANCE: '1'
+        shell: bash
+        run: deployment/agent-sandbox/isolated-kind.sh
+      - name: Retain non-secret acceptance and teardown receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-sandbox-isolated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pero-isolated-evidence/
+            !${{ runner.temp }}/pero-isolated-evidence/cilium-manifest.yaml
+          if-no-files-found: warn
+          retention-days: 7
+
+  graphics:
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'graphics'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Electron and test dependencies
+        shell: bash
+        run: |
+          npm ci
+          node node_modules/electron/install.js
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            sudo apt-get update
+            sudo apt-get install --yes libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
+          fi
+      - name: Probe software WebGL2 and pixel readback
+        shell: bash
+        env:
+          PERO_TEST_HEADED: '1'
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node tests/e2e/graphics.mjs
+          else
+            node tests/e2e/graphics.mjs
+          fi
+
+  prepare-and-use:
+    defaults:
+      run:
+        shell: bash
+    concurrency:
+      group: locked-scientific-linux-${{ github.ref }}
+      cancel-in-progress: false
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'locked-scientific-linux'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.23.4'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12.14'
+          architecture: x64
+      - name: Record runner and configure isolated evidence
+        run: |
+          test "$(uname -m)" = x86_64
+          evidence="$RUNNER_TEMP/locked-scientific-evidence"
+          mkdir -p "$evidence"
+          echo "PERO_SCIENCE_EVIDENCE=$evidence" >> "$GITHUB_ENV"
+          echo "PERO_SCIENTIFIC_APP_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          echo "PERO_APP_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$evidence/source.txt"
+          uname -a > "$evidence/platform.txt"
+          python --version >> "$evidence/platform.txt"
+          df -h >> "$evidence/platform.txt"
+      - name: Prepare pinned Rust and workspace GPUI resolution
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          kit="$RUNNER_TEMP/gpui-kit"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Install native circuit solver for the actual process-owner gate
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y ngspice
+          ngspice --version > "$PERO_SCIENCE_EVIDENCE/ngspice-version.txt"
+      - name: Package shared Python modules and require the real test entry points
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
+          node scripts/cargo.mjs test --locked -p pero-runtime --lib -- --list 2>&1 | tee "$PERO_SCIENCE_EVIDENCE/test-list.log"
+          cp Cargo.lock "$PERO_SCIENCE_EVIDENCE/resolved-Cargo.lock"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          names = Path(os.environ['PERO_SCIENCE_EVIDENCE'], 'test-list.log').read_text().splitlines()
+          for name in ('apps::locked_python::tests::locked_control_rebuild_and_recovery',
+                       'apps::scientific_uses::tests::managed_control_attempt_and_cancel',
+                       'apps::scientific_uses::tests::managed_pcgym_attempt_and_cancel'):
+              assert names.count(name + ': test') == 1, f'Missing live test: {name}'
+          PY
+      - name: Control real locked preparation, rebuild and recovery
+        timeout-minutes: 10
+        run: |
+          PERO_UV_LIVE_METHOD=control PERO_UV_LIVE_HOME="$PERO_SCIENCE_EVIDENCE/control" \
+            node scripts/cargo.mjs test --locked -p pero-runtime --lib \
+            apps::locked_python::tests::locked_control_rebuild_and_recovery -- --exact --ignored --nocapture \
+            2>&1 | tee "$PERO_SCIENCE_EVIDENCE/control-prepare.log"
+      - name: Control actual attempt, drift refusal, cancellation and Use release
+        timeout-minutes: 10
+        run: |
+          PERO_UV_LIVE_HOME="$PERO_SCIENCE_EVIDENCE/control" \
+            node scripts/cargo.mjs test --locked -p pero-runtime --lib \
+            apps::scientific_uses::tests::managed_control_attempt_and_cancel -- --exact --ignored --nocapture \
+            2>&1 | tee "$PERO_SCIENCE_EVIDENCE/control-use.log"
+      - name: Fetch the fixed PC-Gym source
+        run: |
+          checkout="$RUNNER_TEMP/pc-gym"
+          git init --quiet "$checkout"
+          git -C "$checkout" remote add origin https://github.com/MaximilianB2/pc-gym.git
+          git -C "$checkout" fetch --depth 1 origin fbfb36bf84b494cd157cff88292e1fd1b864cee5
+          git -C "$checkout" checkout --detach FETCH_HEAD
+          git -C "$checkout" rev-parse HEAD > "$PERO_SCIENCE_EVIDENCE/pcgym-source.txt"
+          echo "PERO_SCIENTIFIC_LIVE_CHECKOUT=$checkout" >> "$GITHUB_ENV"
+      - name: PC-Gym real CPU-only locked preparation, rebuild and recovery
+        timeout-minutes: 15
+        run: |
+          PERO_UV_LIVE_METHOD=pcgym PERO_UV_LIVE_HOME="$PERO_SCIENCE_EVIDENCE/pcgym" \
+            node scripts/cargo.mjs test --locked -p pero-runtime --lib \
+            apps::locked_python::tests::locked_control_rebuild_and_recovery -- --exact --ignored --nocapture \
+            2>&1 | tee "$PERO_SCIENCE_EVIDENCE/pcgym-prepare.log"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['PERO_SCIENCE_EVIDENCE'])
+          profiles = json.loads((root / 'pcgym/profiles.json').read_text())
+          profile = next(value['prepared'] for value in profiles if value['label'] == 'first')
+          (root / 'pcgym-profile.json').write_text(json.dumps(profile))
+          PY
+      - name: PC-Gym actual attempt, independent export check, cancellation and Use release
+        timeout-minutes: 15
+        run: |
+          PERO_SCIENTIFIC_LIVE_HOME="$PERO_SCIENCE_EVIDENCE/pcgym-use" \
+          PERO_SCIENTIFIC_LIVE_PROFILE="$PERO_SCIENCE_EVIDENCE/pcgym-profile.json" \
+            node scripts/cargo.mjs test --locked -p pero-runtime --lib \
+            apps::scientific_uses::tests::managed_pcgym_attempt_and_cancel -- --exact --ignored --nocapture \
+            2>&1 | tee "$PERO_SCIENCE_EVIDENCE/pcgym-use.log"
+      - name: Retain logs, locks, preparation observations and execution receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: locked-scientific-linux-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/locked-scientific-evidence/*.log
+            ${{ runner.temp }}/locked-scientific-evidence/*.txt
+            ${{ runner.temp }}/locked-scientific-evidence/*.lock
+            ${{ runner.temp }}/locked-scientific-evidence/*.json
+            ${{ runner.temp }}/locked-scientific-evidence/*/profiles.json
+            ${{ runner.temp }}/locked-scientific-evidence/*/environment/profiles/*.recipe/**
+            ${{ runner.temp }}/locked-scientific-evidence/control/*.log
+            ${{ runner.temp }}/locked-scientific-evidence/control/*.json
+            ${{ runner.temp }}/locked-scientific-evidence/control/app-data/**
+            ${{ runner.temp }}/locked-scientific-evidence/pcgym-use/**
+
+  docling:
+    defaults:
+      run:
+        shell: bash
+    concurrency:
+      group: paper-docling-macos-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
+    needs: scope
+    name: Official install, Vision, original scans and HTTP persistence
+    if: >-
+      always() && !cancelled() && (
+      (github.event_name == 'workflow_dispatch' && inputs.suite == 'paper-docling-macos' && inputs.allow_official_downloads) ||
+      (github.event_name == 'pull_request' && needs.scope.outputs.docling != 'false' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'ci:full')))
+    # GitHub's standard arm64 label; macOS-26-arm64 is an image name, not a label.
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      OMP_NUM_THREADS: '2'
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: arm64
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: paper-docling-macos
+
+      - name: Prepare ordinary Paper dependencies, separately from Docling
+        timeout-minutes: 5
+        run: |
+          node scripts/build/source-parsers.mjs
+          python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+
+      # Cargo's existing wrapper needs these pinned workspace manifest inputs;
+      # this job compiles only pero-runtime, not the Desktop or release bundle.
+      - name: Checkout pinned GPUI manifest inputs
+        timeout-minutes: 5
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+
+      - name: Compile existing ignored Host installation smoke
+        timeout-minutes: 15
+        run: node scripts/cargo.mjs test --locked -p pero-runtime --lib apps::docling_runtime::tests::official_optional_runtime_end_to_end --no-run
+
+      - name: Verify approved installation and real Mac execution
+        timeout-minutes: 40
+        run: |
+          python apps/paper-agent/test/manual/docling_ci.py --allow-official-downloads \
+            --root "$RUNNER_TEMP/paper-docling-ci" --output test-results/paper-docling-macos
+
+      - name: Preserve exact-head evidence, including failed stages
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper-docling-macos-${{ env.EXPECTED_HEAD_SHA }}-${{ github.run_attempt }}
+          path: test-results/paper-docling-macos/
+          if-no-files-found: warn
+          retention-days: 7
+
+  fisher:
+    needs: scope
+    if: >-
+      always() && !cancelled() && (
+      (github.event_name == 'workflow_dispatch' && inputs.suite == 'paper-fisher') ||
+      (github.event_name == 'pull_request' && github.event.action != 'labeled' &&
+       needs.scope.outputs.fisher != 'false'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONPATH: apps/paper-agent/backend
+      PERO_FISHER_PDF: /tmp/pero-fisher1936.pdf
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies and Chromium
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/paper-agent --ignore-scripts
+          node scripts/build/source-parsers.mjs
+          python -c 'import json,subprocess,sys; deps=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*deps],check=True)'
+          npx playwright install --with-deps chromium
+      - name: Opt in to the public original scan and verify its pinned digest
+        run: |
+          python - <<'PY'
+          import hashlib, os, urllib.request
+          from pathlib import Path
+          from paper_agent.fisher_result import PDF_URL, PDF_SHA256
+          with urllib.request.urlopen(PDF_URL, timeout=30) as response:
+              data = response.read(20_000_001)
+          assert len(data) <= 20_000_000 and hashlib.sha256(data).hexdigest() == PDF_SHA256
+          Path(os.environ['PERO_FISHER_PDF']).write_bytes(data)
+          PY
+      - name: Check types and source-backed numerical contracts
+        id: contracts
+        run: |
+          npm --prefix apps/paper-agent run typecheck
+          python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v
+      - name: Verify component recovery
+        run: |
+          node tests/e2e/paper-fisher-state.mjs
+          node tests/e2e/paper-fisher-component.mjs
+      - name: Verify real PDF and arithmetic independently of component assertions
+        if: ${{ !cancelled() && steps.contracts.outcome == 'success' }}
+        run: node tests/e2e/paper-fisher-browser.mjs
+      - name: Preserve browser evidence (not Native acceptance)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper-fisher-${{ github.sha }}
+          path: test-results/paper-fisher/
+          if-no-files-found: warn
