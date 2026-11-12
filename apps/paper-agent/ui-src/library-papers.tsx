@@ -41,18 +41,19 @@ export function LibraryPapers({ api, papers, shelf, filter, loading, unavailable
     </SplitPane>
     {showDetails && paper && !loading && !query && <SplitPane id="paper-library-inspector" size={320} min={270} resizeLabel={t('resizePaperDetails')} className="pa-library-inspector-pane" stackedBasis="auto">
       <section ref={inspector} tabIndex={-1} className="pa-paper-inspector" aria-label={t('paperDetails')}>
-        <h2>{paper.title}</h2>
-        {!!paper.authors.length && <p className="pa-inspector-authors">{paper.authors.join(', ')}</p>}
-        <div className="pa-inspector-state"><Select label={t('readingStatus')} value={statusOf(shelf, paper.id)} onChange={value => { if (isShelfStatus(value)) onStatus(paper.id, value); }} options={[
-          { value: 'to-read', label: t('statusToRead') }, { value: 'reading', label: t('statusReading') }, { value: 'reviewed', label: t('statusReviewed') },
-        ]}/><span>{contentKind(paper, t)}</span></div>
-        <Button variant="primary" className="pa-inspector-read" onClick={() => onRead(paper)}><Icon name="skill" size={15}/>{t(statusOf(shelf, paper.id) === 'to-read' ? 'read' : 'continueReading')}<Icon name="arrow" size={14}/></Button>
-        <dl>
-          <dt>{t('source')}</dt><dd>{paperSource(paper, t)}</dd>
-          <dt>{t('added')}</dt><dd>{addedText(paper.fetchedAt, t)}</dd>
-          {paper.source !== 'local-pdf' && <><dt>{t('originalDocument')}</dt><dd><a href={paper.url} target="_blank" rel="noreferrer">{t('openOriginal')}<Icon name="open" size={12}/></a></dd></>}
-        </dl>
+        <header className="pa-inspector-identity">
+          <h2>{paper.title}</h2>
+          {!!paper.authors.length && <p className="pa-inspector-authors">{paper.authors.join(', ')}</p>}
+        </header>
+        <div className="pa-inspector-decision">
+          <Select label={t('readingStatus')} value={statusOf(shelf, paper.id)} onChange={value => { if (isShelfStatus(value)) onStatus(paper.id, value); }} options={[
+            { value: 'to-read', label: t('statusToRead') }, { value: 'reading', label: t('statusReading') }, { value: 'reviewed', label: t('statusReviewed') },
+          ]}/>
+          <Button variant="primary" className="pa-inspector-read" onClick={() => onRead(paper)}><Icon name="skill" size={15}/>{t(statusOf(shelf, paper.id) === 'to-read' ? 'read' : 'continueReading')}<Icon name="arrow" size={14}/></Button>
+        </div>
+        <p className="pa-inspector-facts">{[paperSource(paper, t), contentKind(paper, t), addedText(paper.fetchedAt, t)].filter(Boolean).join(' · ')}</p>
         <div className="pa-inspector-actions">
+          {paper.source !== 'local-pdf' && <a className="pa-inspector-original" href={paper.url} target="_blank" rel="noreferrer">{t('openOriginal')}<Icon name="open" size={12}/></a>}
           <Button variant="ghost" onClick={() => onRecords(paper)}><Icon family="shell" name="clock" size={14}/>{t('researchProgress')}</Button>
           <Button variant="ghost" onClick={() => onDiscover(paper)}><Icon name="drafting-compass" size={14}/>{t('discover')}</Button>
           <Button variant="ghost" disabled={!!savingId || !(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf)} onClick={() => onDownload(paper, 'pdf')}><Icon name="file-text" size={14}/>{t('downloadPdf')}</Button>
