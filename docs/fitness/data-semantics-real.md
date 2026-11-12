@@ -6,8 +6,10 @@ date: 2026-11-12
 
 The real model comparison and a dedicated upstream deployment now have execution
 evidence. **Full-service adoption remains blocked:** partial Vault configuration
-accepted a connection and persisted its synthetic password as plaintext. Keep
-#152 open; retain ADR 0035's `reuse-contract-only` decision.
+accepted a connection and persisted its synthetic password as plaintext.
+ADR 0035's `reuse-contract-only` decision is retained. After reviewing this
+evidence, the user requested merging PR #205 and closing #152 as a completed
+research decision. The failed gate and unverified scopes remain recorded.
 
 The [committed result summary](../../experiments/data-semantics/results/2026-11-12-real.json)
 contains actual denominators, usage, observed model fingerprint, image identities
@@ -164,4 +166,5 @@ human review/maintenance benefits, general isolation/egress and external SSO rem
 unverified. Correcting or gating the upstream credential fallback would need a
 separately reviewed implementation and another live acceptance run before
 full-service adoption. No source patch, new Pero adapter, production credentials,
-scientific acceptance or issue closure is implied by this experiment.
+scientific acceptance is implied by this experiment. Issue closure records the
+user's final research disposition, not acceptance of full-service adoption.

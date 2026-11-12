@@ -87,6 +87,7 @@ has not been measured. It is not evidence for adopting the complete upstream Age
 
 The partial-Vault fallback is now an observed failure: authenticated creation
 returned 201 and persisted the synthetic password as plaintext. Full adoption
-cannot pass the issue's credential gate. Keep #152 open with this concrete
-failure and the remaining acceptance limits; do not convert negative evidence
-into a claim that the production service has been accepted.
+cannot pass the issue's credential gate. The user subsequently approved merging
+PR #205 and closing #152 with the reuse-contract-only research decision. Retain
+this concrete failure and the remaining limits; closure does not mean the
+production service has been accepted.

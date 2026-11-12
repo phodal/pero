@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-11
 github_issue: 152
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/152
 ---
 
@@ -112,3 +112,18 @@ B=32/90、C=87/90；部分 A/B 失败只有列别名或浮点精度差异，不�
 额外诊断确认 A 的 30 项、B 的 24 项仅列别名/六位精度不同，不能把原分差
 当成通用科学正确率收益。C 仍有三次 T08 真实绑定错误；B 有一次参数绑定错误。
 人类维护时间、独立人工审查和完整生产隔离/出网仍未建立证据。
+
+## 最终处理 — 2026-11-12
+
+用户在审阅真实模型和部署验证结果后明确要求合并 PR #205、关闭 #152。
+本研究以 **reuse-contract-only** 结案；当前不采纳完整 NVIDIA 服务。
+Vault 部分配置导致明文存储的实测失败仍成立，独立人工维护成本、外部 SSO
+与生产隔离/出网等未验证范围不因结案而转为通过。今后若要采用完整服务，
+须另行限定任务，修复或阻断该回退并重新验收。
+
+合并复核：5 项概念/loopback 测试通过，无未处理 review。PR CI 15 个 job
+通过，Notebook browser 和 Canvas 两组失败与当前 master `ee0c1a90` 完全
+相同（Table settings、paper-block、Verification 定位器）：
+[主干 CI](https://github.com/phodal/pero/actions/runs/43149931560)、
+[PR CI](https://github.com/phodal/pero/actions/runs/43153971435)。
+Notebook tree 与 Canvas 测试文件在两端字节相同；未把这些已有失败报告为全绿。

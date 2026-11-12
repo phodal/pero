@@ -177,7 +177,7 @@
       "multiple"
     ]
   },
-  "decision": "reuse-contract-only; full-service adoption blocked by live Vault failure; issue remains open",
+  "decision": "reuse-contract-only; full-service adoption blocked by live Vault failure; user approved research closure with PR #205",
   "B_generation": [
     {
       "repetition": 1,

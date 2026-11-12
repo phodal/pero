@@ -3,7 +3,8 @@
 Latest evidence: [2026-11-12 real model and upstream deployment](../../docs/fitness/data-semantics-real.md).
 273 formal provider requests, actual OAuth/MCP probes and a failed live Vault
 gate now supplement the initial offline iteration described below. Full-service
-adoption remains blocked and #152 stays open.
+adoption remains blocked. The user approved closing #152 with the
+`reuse-contract-only` research decision; failed and unverified gates remain explicit.
 
 This is the P0 freeze plus a deterministic, lightweight part of P1. It exercises
 reviewed definitions over an immutable **Data export** in a disposable SQLite
