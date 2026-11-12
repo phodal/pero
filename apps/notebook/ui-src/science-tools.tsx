@@ -1,6 +1,4 @@
 import { FormulaSandboxPanel } from './formula-sandbox';
-import { NotebookAITools } from './ai-tools';
-import type { GenerationTarget, AIApplication } from '@pero/notebook/ai-generation';
 import { useRef, useState } from 'react';
 import type { Editor, JSONContent } from '@tiptap/core';
 import { useAppI18n } from '@pero/app-sdk';
@@ -12,10 +10,10 @@ import { scienceMessages, scienceSnapshotNodes } from './science-tools-shared';
 import { worksheetBlocks } from './worksheet-model';
 import type { masterMixExample } from '@pero/notebook/research-tools';
 
-const toolNames = ['formula', 'ai', 'review', 'sequence', 'chemistry', 'plate', 'checks', 'capabilities'] as const;
+const toolNames = ['formula', 'review', 'sequence', 'chemistry', 'plate', 'checks', 'capabilities'] as const;
 type Tool = typeof toolNames[number];
 
-export function NotebookScienceTools({ editor, onInsert, getTarget = () => null, initial = 'review', label, className, caret = false }: { editor: Editor; onInsert(nodes: JSONContent[]): void; getTarget?(): GenerationTarget | null; initial?: Tool; label?: string; className?: string; caret?: boolean }) {
+export function NotebookScienceTools({ editor, onInsert, initial = 'review', label, className, caret = false }: { editor: Editor; onInsert(nodes: JSONContent[]): void; initial?: Tool; label?: string; className?: string; caret?: boolean }) {
   const { t } = useAppI18n(scienceMessages);
   const [open, setOpen] = useState(false), [tool, setTool] = useState<Tool>('review'), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const [showLimits, setShowLimits] = useState(false);
@@ -46,16 +44,6 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null,
       { type: 'mixturePrep', attrs: { label: t('masterMixTitle'), mixture } },
     ]);
   };
-  const onApply = (application: AIApplication) => {
-    if (editor.isDestroyed || !editor.isEditable || JSON.stringify(editor.getJSON()) !== application.baseContent) {
-      setError(t('stale')); return false;
-    }
-    const content = JSON.parse(application.content) as JSONContent;
-    content.content = [...(content.content ?? []), ...scienceSnapshotNodes('AI cell review', application.evidence)];
-    const changed = editor.commands.setContent(content, { errorOnInvalidContent: true });
-    if (!changed) { setError(t('failure')); return false; }
-    base.current = JSON.stringify(editor.getJSON()); setNotice(t('inserted')); setError(''); return true;
-  };
   const props = { onSnapshot, getContent: () => JSON.stringify(editor.getJSON()) };
   return <>
     <Button variant="ghost" className={className} disabled={!editor.isEditable} onClick={() => { base.current = JSON.stringify(editor.getJSON()); lastInserted.current = ''; setNotice(''); setError(''); setShowLimits(false); setTool(initial); setOpen(true); }}>{label ?? t('tools')}{caret && <Icon name="chevron-down" size={12} />}</Button>
@@ -70,7 +58,7 @@ export function NotebookScienceTools({ editor, onInsert, getTarget = () => null,
       }}><p>{t('scope')}</p></Dialog>}
       {notice && <Feedback kind="success">{notice}</Feedback>}{error && <Feedback kind="error">{error}</Feedback>}
       <div key={tool} className="notebook-science-content">
-        {tool === 'formula' ? <FormulaSandboxPanel worksheets={worksheetBlocks(editor.state.doc)} onSnapshot={onSnapshot} onInsertExample={onInsertExample} /> : tool === 'ai' ? <NotebookAITools key={getTarget()?.entryId ?? "unavailable"} {...props} getTarget={getTarget} onApply={onApply} /> : tool === 'sequence' ? <SequencePanel {...props} /> : tool === 'chemistry' ? <ChemistryPanel {...props} /> : tool === 'plate' ? <PlatePanel {...props} /> : tool === 'checks' ? <RecordedChecksPanel {...props} /> : tool === 'review' ? <CandidateReviewPanel {...props} /> : <div className="notebook-science-panel">
+        {tool === 'formula' ? <FormulaSandboxPanel worksheets={worksheetBlocks(editor.state.doc)} onSnapshot={onSnapshot} onInsertExample={onInsertExample} /> : tool === 'sequence' ? <SequencePanel {...props} /> : tool === 'chemistry' ? <ChemistryPanel {...props} /> : tool === 'plate' ? <PlatePanel {...props} /> : tool === 'checks' ? <RecordedChecksPanel {...props} /> : tool === 'review' ? <CandidateReviewPanel {...props} /> : <div className="notebook-science-panel">
           <h3>{t('capabilities')}</h3>
           <dl>
             <dt>{t('sequence')}</dt><dd>{t('sequenceLimits')}</dd>

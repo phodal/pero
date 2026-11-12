@@ -7,7 +7,6 @@ html, body, #app { height: 100%; }
 .notebook-nav-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-1); padding: var(--pero-spacing-2); border-bottom: var(--pero-hairline); }
 .notebook-nav-tools .pero-ui-file-picker { position: relative; }
 .notebook-nav-tools .pero-ui-file-name { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.notebook-nav-reopen { flex: 0 0 auto; padding: var(--pero-spacing-1) var(--pero-spacing-2); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); }
 .notebook-list { list-style: none; margin: 0; padding: var(--pero-spacing-1); }
 .notebook-list .pero-list-title { white-space: normal; overflow-wrap: anywhere; }
 .notebook-list .pero-list-row .pero-ui-icon-button:not([data-variant=unstyled]) { width: var(--pero-control-height); height: var(--pero-control-height); min-height: var(--pero-control-height); padding: 0; color: var(--pero-text-muted); }
@@ -79,7 +78,6 @@ html, body, #app { height: 100%; }
 .notebook-procedure-tools > .notebook-format { flex: 1 1 18rem; }
 .notebook-commandbar .notebook-insert-trigger.pero-ui-button:not([data-variant=unstyled]) { padding-inline: 10px; }
 .notebook-commandbar .notebook-print-trigger.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 37px; min-height: var(--pero-control-height); height: auto; padding-inline: 6px; gap: 2px; }
-.notebook-format .notebook-ai-tools.pero-ui-button:not([data-variant=unstyled]) { width: auto; min-width: 105px; min-height: var(--pero-control-height); height: auto; padding-inline: 8px; gap: 4px; }
 .notebook-insert-trigger { gap: 4px; min-height: var(--pero-control-height); height: auto; padding: 0 10px; border-radius: var(--pero-radius-sm); background: transparent; font-weight: var(--pero-font-weight-medium); }
 .notebook-menu-panel { position: fixed; box-sizing: border-box; display: grid; justify-items: stretch; align-content: start; width: 20rem; min-width: 0; max-width: min(24rem, calc(100vw - 16px)); max-height: min(40rem, 70vh); overflow: auto; padding: var(--pero-spacing-1); background: var(--pero-surface); border: var(--pero-hairline); border-radius: var(--pero-radius-panel); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }
 .notebook-menu-items { display: grid; justify-items: stretch; align-content: start; }
@@ -125,7 +123,11 @@ html, body, #app { height: 100%; }
 .notebook-editor-tools .notebook-toolbar-secondary.pero-ui-toolbar:not([data-unstyled]) { position: absolute; z-index: 30; top: calc(100% + 4px); right: 0; left: auto; flex-wrap: wrap; width: min(36rem, 100%); max-width: min(36rem, 100%); max-height: min(28rem, 60vh); overflow: auto; }
 .notebook-toolbar-divider { align-self: stretch; width: 6px; margin: 0; background: transparent; }
 .notebook-toolbar .notebook-heading-select { margin-inline-end: 6px; }
-.notebook-toolbar .notebook-color-select { margin-inline: 3px; }
+.notebook-toolbar .notebook-color-select,
+.notebook-toolbar .notebook-color-picker { margin-inline: 3px; }
+.notebook-toolbar .notebook-color-picker-trigger.pero-ui-popover-trigger { position: relative; width: auto; min-width: 39px; min-height: var(--pero-control-height); height: auto; padding-inline: 6px; border: var(--pero-border-width-thin, 1px) solid transparent; border-radius: var(--pero-radius-sm); background: transparent; color: inherit; }
+.notebook-toolbar .notebook-color-picker-trigger.pero-ui-popover-trigger:hover:not(:disabled) { background: var(--pero-surface-hover); }
+.notebook-toolbar .notebook-color-picker-trigger.pero-ui-popover-trigger[aria-expanded=true] { background: var(--pero-accent-soft); border-color: var(--pero-action); color: var(--pero-accent-text); }
 .notebook-text-tools { display: flex; min-width: 0; width: 100%; }
 .notebook-workspace:not([data-notebook-view="notes"]) .notebook-text-tools { display: none; }
 .notebook-editor-surface { min-height: 100%; }

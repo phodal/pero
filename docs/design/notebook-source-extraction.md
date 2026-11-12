@@ -54,8 +54,7 @@ It is not a second AI runtime or a scientific-verification service.
 - The original attachment bound remains 512 KiB. Expanded OOXML is limited to
   32 MiB/4096 parts, workbooks to 100,000 visited rows and cells (including
   empty row gaps when optional dimensions are absent), source text to 128 KiB
-  and 4096 source segments. AI sources retain their existing 64 KiB per-source,
-  96 KiB aggregate and Host prompt budgets. Limits fail, never truncate.
+  and 4096 source segments. Limits fail, never truncate.
 - File/text/raster bounds do not by themselves cap PDF decompression. The
   Linux worker separately enforces a 512 MiB virtual-address limit per process
   (`RLIMIT_AS`), and POSIX output files have a 2 MiB `RLIMIT_FSIZE` limit. These
@@ -83,10 +82,7 @@ use `.extracted.txt`, never the original binary file extension.
 The whole-notebook attachment picker covers Notes and procedure editors.
 Choosing a binary attachment shows parser controls; only the extraction button
 calls the authenticated local route. Closed requests cannot insert content.
-AI file/attachment selection uses the same parser controls and preserves the
-receipt in the existing frozen request/recovery owner. Only explicit Generate
-sends the listed derived text and metadata to the chosen configured Host Agent;
-local extraction itself does not invoke an Agent.
+Local extraction itself does not invoke an Agent.
 
 ## Verification
 

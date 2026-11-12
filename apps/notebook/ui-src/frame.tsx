@@ -408,7 +408,7 @@ function Notebook() {
             <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
             <div hidden ref={libraryImport}>{importAction}</div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
-              onClick={() => setNavigationOpen(false)}><Icon name="chevron-left" /></IconButton>
+              title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
           </div>
           <div className="notebook-library-tools">
             <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
@@ -443,9 +443,9 @@ function Notebook() {
           </ul>
         </SplitPane>}
         <SplitPane as="section" id="notebook-document" aria-label={t('body')} min={350} className="notebook-page">
-          {!navigationOpen && <div className="notebook-nav-reopen">
-            <Button variant="ghost" aria-expanded={false} aria-controls="notebook-list"
-              onClick={() => setNavigationOpen(true)}>{t('notebooks')}</Button>
+          {!navigationOpen && (!shown || !draft || !current) && <div>
+            <IconButton label={t('notebooks')} title={t('expandNotebooks')} aria-expanded={false} aria-controls="notebook-list"
+              onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>
           </div>}
           {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
           {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
@@ -481,6 +481,8 @@ function Notebook() {
                   return active && !snapshot;
                 }}
                 chrome={{
+                  navigation: !navigationOpen && <IconButton className="notebook-library-toggle" label={t('notebooks')} title={t('expandNotebooks')}
+                    aria-expanded={false} aria-controls="notebook-list" onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>,
                   updatedAt: shown.updatedAt,
                   status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
                   onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },

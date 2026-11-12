@@ -1,5 +1,4 @@
 import { NotebookMenu } from './notebook-menu';
-import { EntryAiTools } from './entry-ai-tools';
 import { NOTEBOOK_SYMBOLS_EVENT } from './notebook-commands';
 import { Extension, getMarkRange, Mark, type Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
@@ -7,31 +6,93 @@ import { AllSelection, Plugin } from '@tiptap/pm/state';
 import { useEditorState } from '@tiptap/react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Dialog, Field, Icon, IconButton, Input, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Button, ColorPicker, Dialog, Field, Icon, IconButton, Input, normalizeHexColor, Select, Toolbar } from '@pero/app-sdk/ui';
 const textTones = ['blue', 'green', 'rose', 'amber', 'orange', 'violet'] as const;
 export const notebookColorOptions = ['default', ...textTones] as const;
 type TextTone = typeof textTones[number];
+const textTonePaint: Record<TextTone, string> = {
+  blue: 'var(--pero-info)', green: 'var(--pero-success)', rose: 'var(--pero-error)',
+  amber: 'light-dark(var(--pero-amber-ink), var(--pero-amber-dark-text))',
+  orange: 'light-dark(var(--pero-orange-ink), var(--pero-orange-dark-text))',
+  violet: 'light-dark(var(--pero-violet-ink), var(--pero-violet-dark-text))',
+};
+const backgroundTonePaint: Record<TextTone, string> = {
+  blue: 'var(--pero-info-bg)', green: 'var(--pero-success-bg)', rose: 'var(--pero-error-bg)',
+  amber: 'light-dark(var(--pero-amber-tint), var(--pero-amber-dark-surface))',
+  orange: 'light-dark(var(--pero-orange-tint), var(--pero-orange-dark-surface))',
+  violet: 'light-dark(var(--pero-violet-tint), var(--pero-violet-dark-surface))',
+};
 
-/** Persist semantic colors, never arbitrary CSS from a pasted document. */
-function semanticColor(name: string, attribute: string, classPrefix: string) {
+const RGB = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*[,/]\s*[\d.%]+)?\s*\)$/i;
+
+function rgbChannelsToHex(channels: number[]): string | null {
+  if (channels.some(channel => !Number.isFinite(channel) || channel < 0 || channel > 255)) return null;
+  return `#${channels.map(channel => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Theme tones or concrete paints. Rejects urls / expressions so markup stays inert. */
+export function notebookColorValue(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw || /url\s*\(|expression\s*\(|attr\s*\(|javascript:/i.test(raw)) return null;
+  if (textTones.includes(raw as TextTone)) return raw;
+  const hex = normalizeHexColor(raw);
+  if (hex) return hex;
+  const rgb = raw.match(RGB);
+  if (rgb) return rgbChannelsToHex([rgb[1], rgb[2], rgb[3]].map(part => Number(part)));
+  // Named CSS colors resolve through the document when available.
+  if (!/^[a-z]+$/i.test(raw) || typeof document === 'undefined') return null;
+  const probe = document.createElement('span');
+  probe.style.color = raw;
+  if (!probe.style.color) return null;
+  document.documentElement.append(probe);
+  try {
+    const computed = getComputedStyle(probe).color;
+    const match = computed.match(RGB);
+    return match ? rgbChannelsToHex([match[1], match[2], match[3]].map(part => Number(part))) : null;
+  } finally {
+    probe.remove();
+  }
+}
+
+function styleColor(element: HTMLElement, property: 'color' | 'backgroundColor'): string | null {
+  const direct = element.style[property];
+  if (direct) return notebookColorValue(direct);
+  if (property === 'backgroundColor') return notebookColorValue(element.style.background);
+  return null;
+}
+
+/** Preset tones keep theme classes; other paints persist as hex on the same attribute. */
+function notebookColor(name: string, attribute: string, classPrefix: string, cssProperty: 'color' | 'backgroundColor') {
   return Mark.create({
     name,
     addAttributes() { return { tone: { default: null, rendered: false, parseHTML: () => null } }; },
     parseHTML() {
-      return [{ tag: `span[${attribute}]`, getAttrs: element => {
-        const tone = element.getAttribute(attribute);
-        return textTones.includes(tone as TextTone) ? { tone } : false;
-      } }];
+      return [
+        { tag: `span[${attribute}]`, getAttrs: element => {
+          const tone = notebookColorValue(element.getAttribute(attribute));
+          return tone ? { tone } : false;
+        } },
+        { tag: 'span[style]', getAttrs: element => {
+          if (!(element instanceof HTMLElement)) return false;
+          const tone = styleColor(element, cssProperty);
+          return tone ? { tone } : false;
+        } },
+      ];
     },
     renderHTML({ mark }) {
-      return textTones.includes(mark.attrs.tone) ? ['span', {
-        [attribute]: mark.attrs.tone, class: `${classPrefix}-${mark.attrs.tone}`,
-      }, 0] : ['span', 0];
+      const tone = notebookColorValue(mark.attrs.tone);
+      if (!tone) return ['span', 0];
+      if (textTones.includes(tone as TextTone)) {
+        return ['span', { [attribute]: tone, class: `${classPrefix}-${tone}` }, 0];
+      }
+      const style = cssProperty === 'color' ? `color: ${tone}` : `background-color: ${tone}`;
+      return ['span', { [attribute]: tone, style }, 0];
     },
   });
 }
-export const NotebookTextColor = semanticColor('textColor', 'data-notebook-text-color', 'notebook-text');
-export const NotebookTextBackground = semanticColor('textBackground', 'data-notebook-text-background', 'notebook-background');
+export const NotebookTextColor = notebookColor('textColor', 'data-notebook-text-color', 'notebook-text', 'color');
+export const NotebookTextBackground = notebookColor('textBackground', 'data-notebook-text-background', 'notebook-background', 'backgroundColor');
 
 export const NotebookSubscript = Mark.create({
   name: 'subscript',
@@ -124,6 +185,8 @@ export const messages = {
   amber: { en: 'Amber', zh: '琥珀色' },
   orange: { en: 'Orange', zh: '橙色' },
   violet: { en: 'Violet', zh: '紫色' },
+  customColor: { en: 'Custom', zh: '自定义' },
+  hexColor: { en: 'Hex', zh: '十六进制' },
   clear: { en: 'Clear formatting', zh: '清除格式' },
   indent: { en: 'Indent list item', zh: '增加列表缩进' },
   outdent: { en: 'Outdent list item', zh: '减少列表缩进' },
@@ -178,7 +241,7 @@ type TextDialog = { kind: 'symbols'; selection: Range } | {
 };
 
 /** Format controls are composed into the editor's existing Toolbar. */
-export function NotebookTextTools({ editor, entryTools = false, extraTools }: { editor: Editor; entryTools?: boolean; extraTools?: ReactNode }) {
+export function NotebookTextTools({ editor, extraTools }: { editor: Editor; extraTools?: ReactNode }) {
   const { t, locale } = useAppI18n(messages);
   const [dialog, setDialog] = useState<TextDialog | null>(null);
   const returnToEditor = useRef(false);
@@ -281,17 +344,21 @@ export function NotebookTextTools({ editor, entryTools = false, extraTools }: { 
   const headingValue = status.format.startsWith('heading-') ? status.format : '';
   const colorSelect = (mark: 'textColor' | 'textBackground', value: string) => {
     const foreground = mark === 'textColor';
-    return <Select className="notebook-color-select" label={t(mark)} title={t(mark)} value={value}
-      disabled={!status.text || !editor.can().setMark(mark, { tone: 'blue' })} searchable={false}
-      leading={foreground
-        ? <span aria-hidden="true" className={`notebook-color-glyph notebook-text-${value}`}>A</span>
-        : <span aria-hidden="true" className={`notebook-highlight-glyph notebook-background-${value}`}>A</span>}
-      options={notebookColorOptions.map(tone => ({ value: tone, label: t(tone),
-        leading: <span className={`notebook-swatch notebook-swatch-${foreground ? 'ink' : 'fill'} notebook-${foreground ? 'text' : 'background'}-${tone}`} />,
+    const current = value === 'default' ? null : value;
+    const hex = normalizeHexColor(value);
+    const trigger = foreground
+      ? <span aria-hidden="true" className={`notebook-color-glyph${hex ? '' : ` notebook-text-${value}`}`} style={hex ? { color: hex } : undefined}>A</span>
+      : <span aria-hidden="true" className={`notebook-highlight-glyph${hex ? '' : ` notebook-background-${value}`}`} style={hex ? { backgroundColor: hex } : undefined}>A</span>;
+    return <ColorPicker className="notebook-color-picker" label={t(mark)} title={t(mark)} value={current}
+      disabled={!status.text || !editor.can().setMark(mark, { tone: 'blue' })} allowClear clearLabel={t('default')}
+      customLabel={t('customColor')} hexLabel={t('hexColor')} trigger={trigger}
+      presets={textTones.map(tone => ({ value: tone, label: t(tone),
+        color: foreground ? textTonePaint[tone] : backgroundTonePaint[tone],
       }))}
+      triggerClassName="notebook-color-picker-trigger"
       onChange={tone => {
         const command = editor.chain().focus();
-        if (tone === 'default') command.unsetMark(mark).run();
+        if (!tone) command.unsetMark(mark).run();
         else command.setMark(mark, { tone }).run();
       }} />;
   };
@@ -331,7 +398,6 @@ export function NotebookTextTools({ editor, entryTools = false, extraTools }: { 
     {colorSelect('textColor', status.tone)}
     {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
     </Toolbar>
-    {entryTools && <EntryAiTools editor={editor} />}
     <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
       {extraTools}
       <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}

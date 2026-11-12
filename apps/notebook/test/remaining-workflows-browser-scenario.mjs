@@ -66,15 +66,6 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   const unchanged = await page.request.get(`${origin}/api/entries/${created.id}`).then(result => result.json());
   assert.deepEqual(unchanged, saved, 'Read-only comparison must never update the saved entry');
 
-  await ensureMoreTools(page);
-  await button('Scientific tools').click(); dialog = page.getByRole('dialog', { name: 'Scientific tools', exact: true });
-  await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('ai');
-  await dialog.getByLabel('Proposal mode').selectOption('checks');
-  await dialog.getByLabel('Proposal goal').fill('Review missing units');
-  await expect(dialog).toContainText('No configured Host agent is available');
-  await expect(button('Generate candidates', dialog)).toBeDisabled();
-  await button('Close', dialog).click();
-  await closeInsertMenu(page);
   await page.setViewportSize({ width: 760, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: true, active: true } }, location.origin));
   await openNotebookMenu(page, 'file');

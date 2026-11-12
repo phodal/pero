@@ -56,7 +56,12 @@ test('Notebook text controls edit real marks, block structures and selected text
   const select = async (label: string, value: string) => {
     button(label).getBoundingClientRect = () => ({ x: 10, y: 10, width: 120, height: 30, top: 10, left: 10, right: 130, bottom: 40, toJSON() { return this; } });
     await click(button(label));
-    const option = document.querySelector(`[role=option][data-value="${value}"]`);
+    const option = document.querySelector(`[role=option][data-value="${value}"]`)
+      ?? [...document.querySelectorAll('.pero-ui-color-picker-option')].find(item => {
+        const text = item.textContent ?? '';
+        if (value === 'default') return text.includes('Default');
+        return text.toLowerCase().includes(value);
+      });
     assert.ok(option, `Missing option: ${value}`);
     await click(option);
   };
@@ -75,7 +80,7 @@ test('Notebook text controls edit real marks, block structures and selected text
   });
   const marks = () => JSON.parse(JSON.stringify(editor.getJSON().content[0].content[0].marks ?? []));
 
-  await t.test('underline, scripts, semantic colors and clear formatting retain text', async () => {
+  await t.test('underline, scripts, colors and clear formatting retain text', async () => {
     await reset();
     await click(button('Underline'));
     assert.deepEqual(marks(), [{ type: 'underline' }]);
@@ -93,14 +98,26 @@ test('Notebook text controls edit real marks, block structures and selected text
     assert.ok(!marks().some((mark: { type: string }) => mark.type === 'textColor'));
     await select('Highlight', 'violet');
     assert.ok(marks().some((mark: { type: string; attrs?: { tone: string } }) => mark.type === 'textBackground' && mark.attrs?.tone === 'violet'));
+    button('Text color').getBoundingClientRect = () => ({ x: 10, y: 10, width: 120, height: 30, top: 10, left: 10, right: 130, bottom: 40, toJSON() { return this; } });
+    await click(button('Text color'));
+    const hex = document.querySelector('.pero-ui-color-picker-hex input') as HTMLInputElement;
+    assert.ok(hex);
+    await act(() => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(hex, '#ab3412');
+      hex.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      hex.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+    assert.ok(marks().some((mark: { type: string; attrs?: { tone: string } }) => mark.type === 'textColor' && mark.attrs?.tone === '#ab3412'));
+    assert.match(editor.getHTML(), /data-notebook-text-color="#ab3412"/);
     await click(textButton('Clear formatting'));
     assert.deepEqual(marks(), []);
     assert.equal(editor.getText(), 'Assay result');
-    await reset('<p><span style="color:red">ordinary</span> <span data-notebook-text-color="blue">blue</span> <span data-notebook-text-color="url(javascript:bad)">ignored</span></p>');
+    await reset('<p><span style="color:#ff0000">ordinary</span> <span data-notebook-text-color="blue">blue</span> <span data-notebook-text-color="url(javascript:bad)">ignored</span></p>');
     const content = editor.getJSON().content[0].content;
-    assert.equal(content[0].marks, undefined);
-    assert.deepEqual(JSON.parse(JSON.stringify(content[1].marks)), [{ type: 'textColor', attrs: { tone: 'blue' } }]);
-    assert.equal(content[2].marks, undefined);
+    const byText = (text: string) => content.find((node: { text?: string }) => node.text?.trim() === text);
+    assert.deepEqual(JSON.parse(JSON.stringify(byText('ordinary').marks)), [{ type: 'textColor', attrs: { tone: '#ff0000' } }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(byText('blue').marks)), [{ type: 'textColor', attrs: { tone: 'blue' } }]);
+    assert.equal(byText('ignored').marks, undefined);
   });
 
   await t.test('all heading levels and block styles, including nested checklist indentation', async () => {

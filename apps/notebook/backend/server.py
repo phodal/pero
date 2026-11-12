@@ -27,8 +27,6 @@ from catalog_archive import CatalogArchiveStore
 from table_workflow_routes import table_workflow_route
 from scientific_designs import ScientificDesignStore
 from scientific_routes import scientific_route
-from ai_proposals import AIProposalStore
-from ai_routes import ai_route
 from app_canvas import verify_source
 from worksheet_amendments import WorksheetAmendmentStore, worksheet_amendment_route
 from scientific_block import BlockProposalStore, block_proposal_route
@@ -61,7 +59,6 @@ def handler(store, secret):
     workflows = TableWorkflowStore(store, catalog)
     archives = CatalogArchiveStore(catalog)
     scientific = ScientificDesignStore(store)
-    proposals = AIProposalStore(store)
     amendments = WorksheetAmendmentStore(store)
     block_proposals = BlockProposalStore(store)
 
@@ -130,7 +127,7 @@ def handler(store, secret):
         def get(self):
             if self.path == '/api/notebook-home':
                 return self.reply(200, notebook_home(store))
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
+            for route, owner in ((scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
                 response = route(owner, 'GET', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)
@@ -182,7 +179,7 @@ def handler(store, secret):
                 return self.reply(*response)
             if self.path == '/internal/canvas/source':
                 return self.reply(200, verify_source(store, self.body()))
-            for route, owner in ((ai_route, proposals), (scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
+            for route, owner in ((scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
                 response = route(owner, 'POST', self.path, self.body)
                 if response is not None:
                     return self.reply(*response)

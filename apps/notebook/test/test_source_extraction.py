@@ -166,8 +166,7 @@ class SourceExtractionTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, '100,000 visited rows'):
                         extract(value)
 
-    def test_original_and_derived_receipts_survive_revision_and_ai_recovery(self):
-        from ai_proposals import AIProposalStore
+    def test_original_and_derived_receipts_survive_revision_after_attachment_removal(self):
         from document import NotebookDocument
         from store import EntryStore
         value = request(pdf_bytes(), 'application/pdf', 'source.pdf')
@@ -184,16 +183,6 @@ class SourceExtractionTests(unittest.TestCase):
             entries.commit(entry.identity, 1, lambda _: NotebookDocument.parse(without_original))
             self.assertEqual(EntryStore(directory).read(entry.identity).wire()['document']['content']['content'][0]['attrs']['excerpt'], retained)
             self.assertEqual(EntryStore(directory).read(entry.identity, 1).wire()['document']['content']['content'][0]['attrs']['sha256'], value['file']['sha256'])
-            source = dict(id='source', name='source.pdf', kind='file', sha256=result['extraction']['textSha256'], bytes=len(result['text'].encode()), **result)
-            table = dict(id='table', name='Values', schema=dict(id='schema', revision=1, columns=[dict(id='mass', name='Mass', type='text', required=False, options=[], units=[])]), rows=[dict(id='sample', cells={})])
-            record = dict(frozen=dict(requestId='extract', agentId='configured-agent', target=dict(entryId=entry.identity, revision=2), content=json.dumps(without_original['content']), prompt='No live model invocation in this test', mode='cells', goal='Extract mass', emptyOnly=True, table=dict(blockId='table', kind='inputTable', table=table), sources=[source]), sessionId='', status='starting', transcript='', decisions={}, application='reviewing')
-            proposals = AIProposalStore(entries)
-            proposals.save(entry.identity, dict(expectedVersion=0, record=record))
-            self.assertEqual(AIProposalStore(EntryStore(directory)).read(entry.identity)['record']['frozen']['sources'][0], source)
-            changed = deepcopy(record); changed['frozen']['sources'][0]['extraction']['textSha256'] = '0' * 64
-            with self.assertRaisesRegex(ValueError, 'digest'):
-                proposals.save(entry.identity, dict(expectedVersion=1, record=changed))
-            self.assertEqual(proposals.read(entry.identity)['record'], record)
 
     def test_receipts_reject_nonfinite_regions_invalid_ranges_and_originals(self):
         result = extract(request(pdf_bytes(), 'application/pdf', 'source.pdf'))

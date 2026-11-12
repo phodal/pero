@@ -226,6 +226,7 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
 
 export type NotebookChrome = {
   status: string;
+  navigation?: ReactNode;
   updatedAt?: string;
   onSave?: () => void;
   saveDisabled?: boolean;
@@ -349,6 +350,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }}>
     <div className="notebook-jupyter">
       <div className="notebook-documentbar">
+        {chrome?.navigation}
         <div className="notebook-breadcrumb">{metadata.project && <span>{metadata.project}</span>}
           <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
             {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}

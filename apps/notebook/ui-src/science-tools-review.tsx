@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
 import { Button, Checkbox, Disclosure, Feedback, Field, FilePicker, Input, NativeSelect, Table, Textarea } from '@pero/app-sdk/ui';
 import { acceptDataReview, compareReviewRows, editReviewCell, parseCandidateResponse, parseRecordedChecks, recordedChecksSnapshot, selectReviewRun, startDataReview, type ColumnPolicy, type DataReview, type RecordedChecks } from '@pero/notebook/science-review';
-import { generationIsCurrent, type GeneratedCandidates, type GenerationTarget } from '@pero/notebook/ai-generation';
 import { scienceMessages, type SciencePanelProps } from './science-tools-shared';
 
 const candidateFormat = JSON.stringify({ runResults: [{ displayName: 'Source name', modelFamily: 'Declared family', runConfigKey: 'source-1', hadError: false, newRows: { Results: [[{ text: 'Candidate value' }]] } }] }, null, 2);
@@ -33,15 +32,14 @@ function JsonReviewInput({ format, load, invalidate }: { format: string; load(ra
   </div>;
 }
 
-export function CandidateReviewPanel({ onSnapshot, getContent, generated, getTarget }: SciencePanelProps & { generated?: GeneratedCandidates; getTarget?: () => GenerationTarget | null }) {
+export function CandidateReviewPanel({ onSnapshot, getContent }: SciencePanelProps) {
   const { t } = useAppI18n(scienceMessages);
   const [review, setReview] = useState<DataReview | null>(null), [onlyDifferences, setOnlyDifferences] = useState(false), [acknowledged, setAcknowledged] = useState(false), [error, setError] = useState(''), [page, setPage] = useState(0);
-  useEffect(() => { if (generated) { setReview(startDataReview(generated.response, generated.baseContent)); setAcknowledged(false); setError(''); setPage(0); } }, [generated]);
   const update = (next: DataReview) => { setReview(next); setAcknowledged(false); setError(''); };
   const rows = review ? compareReviewRows(review) : [], visible = rows.filter(row => !onlyDifferences || row.different), shown = visible.slice(page * 25, (page + 1) * 25);
   const primary = review?.response.runs[review.run];
   return <div className="notebook-science-panel">
-    {!generated && <JsonReviewInput format={candidateFormat} invalidate={() => { setReview(null); setAcknowledged(false); setError(''); }} load={raw => { update(startDataReview(parseCandidateResponse(raw), getContent())); setPage(0); }} />}
+    <JsonReviewInput format={candidateFormat} invalidate={() => { setReview(null); setAcknowledged(false); setError(''); }} load={raw => { update(startDataReview(parseCandidateResponse(raw), getContent())); setPage(0); }} />
     <p className="notebook-note">{t('reviewLimits')}</p>
     {review && primary && <>
       <div className="notebook-science-fields">
@@ -73,11 +71,8 @@ export function CandidateReviewPanel({ onSnapshot, getContent, generated, getTar
       {error && <Feedback kind="error">{error}</Feedback>}
       <Button variant="primary" disabled={!acknowledged || !review.selected.length || primary.failed} onClick={() => {
         try {
-          if (generated && !generationIsCurrent({ target: generated.target, content: generated.baseContent }, getTarget?.() ?? null, getContent())) throw new Error('The saved revision or current draft changed. Generate and review a new proposal.');
           const accepted = acceptDataReview(review, getContent(), acknowledged);
-          const snapshot = generated ? { ...accepted, method: 'pero-host-agent-candidate-review/1', provenance: { sessionId: generated.sessionId, requestId: generated.requestId, agentId: generated.agentId, target: generated.target, transcript: generated.transcript }, limits: 'Human-reviewed Host Agent candidates inserted as new literal text. No existing cells are overwritten. Input saved revision and current draft must still match. Model agreement is not scientific verification.' } : accepted;
-          if (generated && JSON.stringify(snapshot, null, 2).length > 32_768) throw new Error('The proposal provenance exceeds the Notebook evidence block limit. Generate a smaller result before accepting.');
-          if (onSnapshot(t('review'), snapshot, snapshot.rows)) { setAcknowledged(false); setReview(null); } }
+          if (onSnapshot(t('review'), accepted, accepted.rows)) { setAcknowledged(false); setReview(null); } }
         catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
       }}>{t('insert')}</Button>
     </>}

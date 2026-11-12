@@ -24,8 +24,9 @@ test('Background, code and reference mentions preserve semantic document content
   assert.match(editor.getHTML(), /data-notebook-text-background="amber"/);
   editor.commands.setContent(editor.getHTML());
   assert.equal(editor.getJSON().content[0].content[0].marks[0].attrs.tone, 'amber');
-  editor.commands.setContent('<p><span data-notebook-text-background="url(bad)">unsafe</span><span style="background:red">plain</span></p>');
-  assert.ok(editor.getJSON().content[0].content.every((item: any) => !item.marks));
+  editor.commands.setContent('<p><span data-notebook-text-background="url(bad)">unsafe</span><span style="background:#ff0000">painted</span></p>');
+  assert.equal(editor.getJSON().content[0].content[0].marks, undefined);
+  assert.equal(editor.getJSON().content[0].content[1].marks[0].attrs.tone, '#ff0000');
   editor.commands.setContent('<pre><code class="language-python">print(1)\n</code></pre>');
   assert.equal(editor.getJSON().content[0].attrs.language, 'python');
   assert.equal(editor.getText(), 'print(1)\n');

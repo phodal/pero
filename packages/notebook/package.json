@@ -32,7 +32,6 @@
     "./structured-table": "./src/structured-table.ts",
     "./mixture": "./src/mixture.ts",
     "./app-canvas": "./src/app-canvas.ts",
-    "./ai-generation": "./src/ai-generation.ts",
     "./document-history": "./src/document-history.ts",
     "./sample-intake": "./src/sample-intake.ts",
     "./formula-syntax": "./src/formula-syntax.ts",

@@ -10,7 +10,8 @@ not code or asset reuse. The pinned reference has no confirmed reuse license.
   project ownership transfer. Pero's local labels remain distinct from Host association.
 - Published templates/fragments: [feature analysis](https://github.com/phodal/benchling-notebook-lab/blob/8fd07848a61967ff9046b131b31f034eee5b88cb/docs/design/notebook-feature-analysis.md#L41),
   [revision semantics](https://github.com/phodal/benchling-notebook-lab/blob/8fd07848a61967ff9046b131b31f034eee5b88cb/docs/design/notebook-architecture.md#L118-L122).
-- Host-generated review suggestions: [AI review intent](https://github.com/phodal/benchling-notebook-lab/blob/8fd07848a61967ff9046b131b31f034eee5b88cb/docs/design/notebook-architecture.md#L149-L164).
+- Host assistance: use shared App Chat / Ask Agent rather than an in-app AI tools
+  panel. Historical reference: [AI review intent](https://github.com/phodal/benchling-notebook-lab/blob/8fd07848a61967ff9046b131b31f034eee5b88cb/docs/design/notebook-architecture.md#L149-L164).
 - External file/account family: [TFI source index](https://github.com/phodal/benchling-notebook-lab/blob/8fd07848a61967ff9046b131b31f034eee5b88cb/source-index.json#L7658-L7718).
   Missing-source/unmounted reference names establish a requirement, not a functioning
   remote service. Local preview/import is independently defined below.
@@ -27,15 +28,9 @@ not code or asset reuse. The pinned reference has no confirmed reuse license.
   latest 500 saved entries through the existing SQLite/document owner in one read
   transaction. Project/author label selection retains tags and applies through the
   whole-document draft/history owner. Labels do not attest identity or membership.
-- `ai-checks.ts` defines a bounded check-suggestion response with existing block IDs,
-  note/warning severity and no verification verdict. `NotebookAITools` adds check mode
-  to the existing Host request/session/poll/cancel/recovery lifecycle, rather than a
-  second executor. Exact frozen input, revision, session, transcript and usefulness
-  feedback persist in `AIProposalStore`. A reviewed inert snapshot rejects stale
-  entry/draft input and has a recognizable application receipt for reload recovery.
-  Empty output means no suggestions, never a passed check. Review time is local,
-  not an inferred model execution timestamp. Real configured model execution remains
-  separate runtime acceptance.
+- In-app Host AI proposal/check generation (`NotebookAITools`, `AIProposalStore`,
+  `/api/entries/{id}/ai-workspace`) was removed. Manual recorded-check import remains
+  under Scientific tools; agent assistance belongs to Host side chat.
 - `file-intake.tsx` stages one selected/dropped local file, hashes its original bytes,
   previews safe images or inert bounded UTF-8 text, allows a local filename/caption,
   and requires explicit insertion. Cancelled/late reads cannot insert. Changed drafts
@@ -54,13 +49,11 @@ not code or asset reuse. The pinned reference has no confirmed reuse license.
 Focused checks passed on the uncommitted integrated tree:
 
 - Template core and template comparison/UI regression: 4 tests.
-- Check-generation core: 3 tests. Real HTTP/SQLite UI check generation with only the
-  Host transport faked: 1 test. Existing typed-AI lifecycle regression: 1 test.
-- Home/file preview UI: 2 tests. SQLite Home/check-mode persistence: 2 tests.
+- Home/file preview UI and SQLite Home projection tests remain.
 - `npm run typecheck --prefix apps/notebook`.
 
 `remaining-workflows-browser-scenario.mjs` exercises real saved labels/provenance,
-file preview/confirm/reload, immutable template diff and absent-model blocking; it also
-captures wide and narrow/dark views. It is authored but **not run** here: Chromium's
-socket operation is denied in this environment. No browser, Desktop, Native, external
-account or real model acceptance is inferred from jsdom or type checking.
+file preview/confirm/reload and immutable template diff; it also captures wide and
+narrow/dark views. It is authored but **not run** here: Chromium's socket operation
+is denied in this environment. No browser, Desktop, Native or external account
+acceptance is inferred from jsdom or type checking.

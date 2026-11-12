@@ -13,6 +13,7 @@
 .notebook-breadcrumb > span { color: var(--pero-text-muted); overflow-wrap: anywhere; }
 .notebook-breadcrumb .notebook-view-tabs.pero-ui-tabs-list { margin: 0; }
 .notebook-documentbar .notebook-status { max-width: 26rem; }
+.notebook-documentbar > .notebook-library-toggle { flex: 0 0 auto; margin-inline-end: auto; }
 .notebook-notes-main { box-sizing: border-box; width: 100%; max-width: 64rem; margin-inline: auto; padding: var(--pero-spacing-4) clamp(var(--pero-spacing-4), 4vw, var(--pero-spacing-6)) var(--pero-spacing-6); }
 .notebook-notes-main .notebook-entry-head { padding: 0; }
 .notebook-notes-main .notebook-title { flex: 1 1 100%; width: 100%; font-size: calc(var(--pero-font-title) * 1.34); line-height: 1.25; }
@@ -52,6 +53,7 @@
 @media print {
   .notebook-writing-toolbar, .notebook-inspector { display: none !important; }
 }
+.notebook-documentbar > .notebook-library-toggle + .notebook-breadcrumb { flex: 0 1 auto; }
 
 .notebook-structured-cell .notebook-cell-input { box-sizing: border-box; width: 100%; min-width: 0; border: 0; border-radius: var(--pero-radius-sm); padding: var(--pero-spacing-2); background: transparent; color: var(--pero-text); font: inherit; }
 .notebook-cell-input:focus { outline: 2px solid var(--pero-focus); outline-offset: -2px; background: var(--pero-surface); }

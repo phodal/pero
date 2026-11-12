@@ -25,7 +25,6 @@ export function scienceSnapshotNodes(title: string, snapshot: unknown, rows?: st
 
 export const scienceMessages = {
   formula: { en: 'Formula workbench', zh: '公式工作台' },
-  ai: { en: 'Generate with Host Agent', zh: '使用 Host Agent 生成' },
   tools: { en: 'Scientific tools', zh: '科研工具' }, close: { en: 'Close', zh: '关闭' },
   limits: { en: 'Limits', zh: '边界说明' },
   scope: { en: 'Local calculations and human review. Results are not measured evidence or owner verification.', zh: '本地计算与人工复核。结果不等于实测证据或来源方验证。' },

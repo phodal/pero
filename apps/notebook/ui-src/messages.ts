@@ -196,6 +196,8 @@ export const messages = {
   savedSearch: { en: 'Saved search', zh: '保存的搜索' },
   notebook: { en: 'Notebook', zh: '笔记' },
   notebooks: { en: 'Notebooks', zh: '笔记' },
+  expandNotebooks: { en: 'Expand notebooks', zh: '展开笔记列表' },
+  collapseNotebooks: { en: 'Collapse notebooks', zh: '收起笔记列表' },
   newNotebook: { en: 'New notebook', zh: '新建笔记' },
   importNotebook: { en: 'Import', zh: '导入' },
   importNotebookLimit: { en: 'Notebook imports must be at most 2 MiB.', zh: '导入的笔记文件不得超过 2 MiB。' },

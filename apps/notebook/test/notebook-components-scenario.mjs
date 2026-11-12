@@ -224,10 +224,6 @@ export async function verifyNotebookComponents(page, origin, output) {
   await button('Insert snapshot', dialog).click();
   await expect(dialog).toContainText('This snapshot has already been inserted.');
   await shot('scientific-snapshot');
-  await dialog.getByRole('combobox', { name: 'Scientific tools', exact: true }).selectOption('ai');
-  await expect(dialog).toContainText('No configured Host agent is available.');
-  await expect(button('Generate candidates', dialog)).toBeDisabled();
-  await shot('ai-host-unavailable');
   await button('Close', dialog).click();
   await save(4);
   const allNodes = [];

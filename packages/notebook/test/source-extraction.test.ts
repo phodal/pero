@@ -3,7 +3,6 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { isSourceExtraction, verifyExtractedSource, selectedSourceSegments, type SourceExtraction } from '../src/source-extraction.ts';
 import { createSourceExcerpt, verifySourceExcerpt, copySourceExcerpt, isSourceExcerpt } from '../src/source-excerpt.ts';
-import { readAISourceBytes, validateAISources, listAISources } from '../src/ai-sources.ts';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const text = 'Sample 🧪\n42 mg';
@@ -24,11 +23,4 @@ test('derived excerpts pin original file hash separately from exact extracted UT
   assert.equal(isSourceExcerpt({ ...retained, extraction: { ...receipt, original: { ...receipt.original, sha256: digest('wrong source') } } }), false);
   await assert.rejects(verifySourceExcerpt({ ...retained, text: text.replace('Sample', 'SAMPLE') }), /digest/);
   for (const region of [{ x: 0, y: 0, width: NaN, height: 1 }, { x: .9, y: 0, width: .2, height: 1 }]) assert.equal(isSourceExtraction({ ...receipt, segments: [{ ...receipt.segments[0], region }] }, text), false);
-});
-test('AI retains parser and original provenance while verifying only selected text as its source hash', async () => {
-  const source = { ...await readAISourceBytes('sample', 'sample.pdf', 'text/plain', new TextEncoder().encode(text)), extraction: extraction() };
-  await validateAISources([source]);
-  await assert.rejects(validateAISources([{ ...source, extraction: { ...source.extraction, textSha256: digest('different') } }]), /provenance/);
-  const option = listAISources(JSON.stringify({ type: 'doc', content: [{ type: 'attachment', attrs: { blockId: 'file', filename: 'sample.pdf', mime: 'application/pdf', data: btoa('original binary'), caption: '', sha256: digest('original binary') } }] }));
-  assert.equal(option[0].supported, true);
 });
