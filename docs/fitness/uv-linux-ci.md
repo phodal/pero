@@ -21,7 +21,7 @@ the numerical engine tests. General Rust test jobs leave explicitly ignored
 network tests unexecuted. Neither is evidence of the new managed uv lock,
 immutable rebuild or scientific Use bridge on Linux.
 
-`locked-scientific-linux.yml` adds a manual-only Ubuntu 24.04 **x86_64** gate.
+`acceptance.yml` (suite `locked-scientific-linux`) adds a manual-only Ubuntu 24.04 **x86_64** gate.
 It uses the existing real AppStore preparation and scientific execution tests,
 with no new runtime owner, fake solver or browser. All operations run serially
 inside one disposable runner and fresh directories. No model API is used.
@@ -66,8 +66,8 @@ credential is configured. Run/job and individual live-step timeouts bound execut
 After the complete implementation and workflow are on the selected remote ref:
 
 ```sh
-gh workflow run locked-scientific-linux.yml --ref YOUR_INTEGRATED_BRANCH
-gh run list --workflow locked-scientific-linux.yml --limit 5
+gh workflow run acceptance.yml --ref YOUR_INTEGRATED_BRANCH -f suite=locked-scientific-linux
+gh run list --workflow acceptance.yml --limit 5
 ```
 
 Inspect the actual run and `locked-scientific-linux-<commit>` artifact before

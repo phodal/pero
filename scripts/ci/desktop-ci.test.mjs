@@ -65,7 +65,7 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   assert.equal(receipt.with.path, '${{ runner.temp }}/official-skill-catalog.json');
   for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
-  const platform = YAML.parse(readFileSync('.github/workflows/desktop-check.yml', 'utf8')).jobs.desktop;
+  const platform = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs.desktop;
   const nativeShell = platform.steps.find(step => step.name === 'Compile and test the Native GPUI and Wry shell');
   assert.equal(nativeShell.if, "runner.os == 'macOS'");
   assert.equal(nativeShell['continue-on-error'], undefined);
@@ -319,9 +319,9 @@ test('Paper backend CI consumers package their shared parser before direct Pytho
     ['.github/workflows/ci.yml', 'generated', 'node --test scripts/ci/*.test.mjs'],
     ['.github/workflows/ci.yml', 'core', "python -m unittest discover -s apps/paper-agent/test -p 'test_*.py' -v"],
     ['.github/workflows/ci.yml', 'windows-acl-sandbox', 'python -m unittest discover -s apps/paper-agent/test -p test_research_import.py -v'],
-    ['.github/workflows/paper-fisher.yml', 'fisher', "python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v"],
-    ['.github/workflows/paper-docling-macos.yml', 'docling', 'python apps/paper-agent/test/manual/docling_ci.py'],
-    ['.github/workflows/notebook.yml', 'notebook', 'npm run test:notebook'],
+    ['.github/workflows/acceptance.yml', 'fisher', "python -m unittest discover -s apps/paper-agent/test -p 'test_fisher*.py' -v"],
+    ['.github/workflows/acceptance.yml', 'docling', 'python apps/paper-agent/test/manual/docling_ci.py'],
+    ['.github/workflows/ci-jobs.yml', 'notebook', 'npm run test:notebook'],
   ];
   for (const [file, job, command] of consumers) {
     const steps = YAML.parse(readFileSync(file, 'utf8')).jobs[job].steps;

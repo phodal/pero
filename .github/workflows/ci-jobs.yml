@@ -1,20 +1,27 @@
-name: Desktop build and contracts
+name: CI job implementations
+
+# Reusable jobs only: all automatic triggers and required gates stay in CI.
 on:
   workflow_call:
     inputs:
-      os:
+      suite:
+        description: CI-owned job family
         type: string
         required: true
+      os:
+        type: string
+        default: ubuntu-latest
       upload-runtime:
         type: boolean
         default: false
 permissions:
   contents: read
-defaults:
-  run:
-    shell: bash
 jobs:
   desktop:
+    if: inputs.suite == 'desktop'
+    defaults:
+      run:
+        shell: bash
     name: Build, check, and Rust tests (${{ inputs.os }})
     runs-on: ${{ inputs.os }}
     timeout-minutes: 90
@@ -207,3 +214,160 @@ jobs:
           path: test-results/
           if-no-files-found: warn
           retention-days: 7
+
+  notebook:
+    if: inputs.suite == 'notebook'
+    defaults:
+      run:
+        shell: bash
+    name: Notebook revisions, workbook and browser contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/notebook/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Prepare Notebook dependencies and browser
+        id: prepare
+        run: |
+          npm ci --ignore-scripts
+          node scripts/build/source-parsers.mjs
+          python -c 'import json,subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","--only-binary=:all:",*json.load(open("apps/notebook/app.json"))["backend"]["dependencies"]])'
+          sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          npm ci --prefix apps/notebook --ignore-scripts
+          npx playwright install --with-deps chromium
+          npm --prefix apps/notebook run build
+      - name: Verify documents, formulas, XLSX exchange and Agent revisions
+        env:
+          NOTEBOOK_REAL_OCR: "1"
+        run: npm run test:notebook
+      - name: Verify packaged source parser imports
+        run: node --test scripts/build/source-parsers.test.mjs scripts/build/notebook-citations.test.mjs
+      - name: Verify installed App catalog owner contracts
+        run: node --test packages/app-sdk/test/installed-app-views.test.mjs packages/app-sdk/test/app-canvas.test.mjs desktop/src/main/apps-frames.test.ts desktop/src/main/app-canvas.test.ts desktop/src/main/notebook-projects.test.ts
+      - name: Verify Notebook types
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run typecheck
+      - name: Verify real editor persistence, imports and clipboard references
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: npm --prefix apps/notebook run test:browser
+      - name: Retain Notebook browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebook-browser-${{ github.sha }}
+          path: test-results/notebook/
+          if-no-files-found: warn
+
+
+  browser:
+    if: inputs.suite == 'notebook-canvas'
+    name: Notebook Canvas real Host and Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/notebook/package-lock.json
+            apps/control-lab/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Prepare pinned reader Wasm target for Control Lab
+        run: rustup toolchain install nightly-2026-10-28 --profile minimal --target wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout pinned GPUI manifest inputs
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Build Notebook and prepare Chromium
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/notebook --ignore-scripts
+          npm ci --prefix apps/control-lab --ignore-scripts
+          npm --prefix apps/notebook run build
+          npm --prefix apps/control-lab run build
+          npx playwright install --with-deps chromium
+      - name: Build real Host without Desktop or Wasm
+        run: node scripts/cargo.mjs build --locked -p pero-host
+      - name: Prepare declared Notebook, Paper and Control Lab Python environment
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
+          python -m venv "$RUNNER_TEMP/notebook-canvas-python"
+          "$RUNNER_TEMP/notebook-canvas-python/bin/python" -c 'import json,subprocess,sys; dependencies=[dep for app in ("notebook", "paper-agent", "control-lab") for dep in json.load(open(f"apps/{app}/app.json"))["backend"]["dependencies"]]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
+          echo "PERO_APP_PYTHON=$RUNNER_TEMP/notebook-canvas-python/bin/python" >> "$GITHUB_ENV"
+      - name: Verify Canvas against actual Data and Control Lab owners
+        timeout-minutes: 10
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: node --test tests/e2e/notebook-canvas-browser.mjs tests/e2e/notebook-control-canvas.mjs
+      - name: Retain Canvas browser evidence and verification scope
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notebook-canvas-browser-${{ github.sha }}
+          path: test-results/notebook-canvas/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-ui:
+    if: inputs.suite == 'native-ui'
+    name: Native shell compilation and unit contracts
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout pinned GPUI outside the Cargo workspace
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" config core.autocrlf false
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Prepare the fonts embedded by the Native shell
+        run: node scripts/build/fonts.mjs
+      - name: Compile Native entry point and shell wiring
+        run: node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native
+      - name: Test Native Canvas transport and private consent contracts
+        run: node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib

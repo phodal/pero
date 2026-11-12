@@ -106,8 +106,8 @@ test('Viewer inspection survives bridge failure and retains screenshot evidence'
 });
 
 test('Notebook browser and type checks survive unit failures and gate completion', () => {
-  assert.equal(workflow.jobs.notebook.uses, "./.github/workflows/notebook.yml");
-  const job = YAML.parse(readFileSync('.github/workflows/notebook.yml', 'utf8')).jobs.notebook;
+  assert.equal(workflow.jobs.notebook.uses, "./.github/workflows/ci-jobs.yml");
+  const job = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs.notebook;
   const prepare = job.steps.find(step => step.id === 'prepare');
   assert.match(prepare.run, /npm --prefix apps\/notebook run build/);
   assert(job.steps.some(step => step.run === 'npm run test:notebook'));

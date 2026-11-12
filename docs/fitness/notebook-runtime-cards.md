@@ -134,7 +134,7 @@ Root: `/Users/phodal/workspaces/pero-notebook-interop-180/test-results/notebook-
 | `notebook-sbom.cdx.json`, `notebook-audit.json`, `tiptap-license.sha256` | Existing Lab Notebook npm/license observations |
 | Earlier numbered runs / old inventories | Harness discovery failures and vulnerable baseline retained |
 
-Normal CI already calls `notebook-canvas.yml`; its test step has a 10-minute cap,
+Normal CI already calls the `notebook-canvas` suite in `ci-jobs.yml`; its test step has a 10-minute cap,
 versus under a minute locally. Dependency/Rust preparation is outside this test
 budget; the enclosing job remains capped at 20 minutes. Upstream downloads,
 advisory scans, other OSes and model evaluations are opt-in. Remote CI belongs to
