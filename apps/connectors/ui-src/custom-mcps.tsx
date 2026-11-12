@@ -145,7 +145,6 @@ export function CustomMcps({ locale, query }: { locale: 'zh' | 'en'; query: stri
   const policyServer = confirm?.enable ? servers[confirm.index] : undefined;
 
   return <div className="point-custom-mcps">
-    <p className="point-connectors-hint">{copy('这些是按本地 Agent 保存的 MCP 连接器，与设置中的同一份配置。更改只对新建的本地会话生效。请勿在名称、命令、参数或地址中填写密钥。', 'These are the MCP connectors saved for a local Agent — the same configuration as Settings. Changes apply to new local sessions only. Do not enter secrets in names, commands, arguments, or URLs.')}</p>
     <div className="point-connectors-actions">
       {agents.length > 0 && <Select label={copy('本地 Agent', 'Local Agent')} value={agentId} disabled={busy || loading} onChange={id => { setAgentId(id); void reload(id); }}
         options={agents.map(agent => ({ value: agent.id, label: agent.name }))} />}
