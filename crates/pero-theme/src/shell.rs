@@ -1,7 +1,7 @@
 //! Workbench chrome. These components own presentation; navigation and window
 //! dragging remain in the host. The React shell uses the same design contract.
 use crate::{
-    Chrome, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, TYPE_CAPTION,
+    Chrome, RADIUS_PANEL, SIDEBAR_GROUP_GAP, SIDEBAR_PADDING, SPACE_4, SPACE_8, TYPE_CAPTION,
     WINDOW_TITLEBAR,
 };
 use gpui_kit::{prelude::*, *};
@@ -53,13 +53,43 @@ pub fn sidebar_surface(id: impl Into<ElementId>, width: f32, chrome: Chrome) -> 
         .gap(chrome.geo(SPACE_4))
 }
 
+/// Room for the shadow halo on the leading and top sides. GPUI rasters a
+/// drop shadow out to three blur radii; 4px covers that and the corner.
+const EDGE_SHADOW_MARGIN: f32 = 4.;
+
 /// A short lift on the leading and top edges, about 2px. The ink is the border
 /// tone, so the seam stays in the same family as the chrome instead of reading
 /// as a black cut.
+///
+/// The shadow box sits 0.5px outside the leading and top edges and is flush
+/// with the trailing and bottom edges. [`edge_shadow_plate`] clips the blur
+/// past those flush edges, so the leading edge still meets the bottom corner.
 pub fn edge_shadow(color: Hsla) -> Vec<BoxShadow> {
-    vec![BoxShadow::new(px(-5.5), px(-5.5), color.opacity(0.7))
+    vec![BoxShadow::new(px(-0.25), px(-0.25), color.opacity(0.7))
         .blur_radius(px(0.7))
-        .spread_radius(px(-5.))]
+        .spread_radius(px(0.25))]
+}
+
+/// Paints [`edge_shadow`] for a page that fills its relative parent.
+pub fn edge_shadow_plate(color: Hsla) -> Div {
+    let margin = px(EDGE_SHADOW_MARGIN);
+    div()
+        .absolute()
+        .top(px(-EDGE_SHADOW_MARGIN))
+        .left(px(-EDGE_SHADOW_MARGIN))
+        .right_0()
+        .bottom_0()
+        .overflow_hidden()
+        .child(
+            div()
+                .absolute()
+                .top(margin)
+                .left(margin)
+                .right_0()
+                .bottom_0()
+                .rounded_tl(px(RADIUS_PANEL))
+                .shadow(edge_shadow(color)),
+        )
 }
 
 /// Group related navigation; a separator marks a change of navigation scope,
