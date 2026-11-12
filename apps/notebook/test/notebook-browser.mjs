@@ -97,7 +97,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await newBody.press('ControlOrMeta+a');
   await page.setViewportSize({ width: 620, height: 900 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, location.origin));
-  await page.getByRole('button', { name: '格式', exact: true }).click();
+  await page.getByRole('button', { name: '更多格式', exact: true }).click();
   const color = page.getByRole('button', { name: '文字颜色', exact: true });
   await color.click();
   const palette = page.getByRole('listbox', { name: '文字颜色', exact: true });
@@ -113,11 +113,13 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await palette.press('End');
   await palette.press('Enter');
   await expect(page.locator('.notebook-prose [data-notebook-text-color=violet]')).toHaveText('Calibration and controls');
+  await page.getByRole('button', { name: '更多格式', exact: true }).click();
   await page.getByRole('button', { name: '文字高亮', exact: true }).click();
   await page.getByRole('option', { name: '橙色', exact: true }).click();
   await expect(page.locator('.notebook-prose [data-notebook-text-background=orange]')).toHaveText('Calibration and controls');
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
+  await page.getByRole('button', { name: 'More formatting', exact: true }).click();
   const highlight = page.getByRole('button', { name: 'Highlight', exact: true });
   await highlight.click();
   const highlights = page.getByRole('listbox', { name: 'Highlight', exact: true });
@@ -378,18 +380,16 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const views = page.locator('.notebook-workspace-navigation');
   await expect(views.getByRole('tablist')).toHaveCount(1);
   await expect(views.getByRole('tab', { name: 'Notes', exact: true })).toHaveAttribute('aria-selected', 'true');
-  for (const name of ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']) {
+  for (const name of ['Notes', 'Procedures']) {
     await expect(views.getByRole('tab', { name, exact: true })).toBeVisible();
   }
+  for (const name of ['Relevant items', 'Properties', 'Review and activity']) await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   await expect(views.locator('[data-notebook-menu=view]')).toHaveCount(1);
   await expect(page.locator('.notebook-statusbar [data-notebook-menu=view]')).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
-  await expect(page.locator('.notebook-toolbar')).toBeHidden();
-  await page.getByRole('button', { name: 'Format', exact: true }).click();
   await expect(page.locator('.notebook-toolbar')).toBeVisible();
-  await page.getByRole('button', { name: 'Format', exact: true }).click();
   await page.screenshot({ path: resolve(output, 'copied-references.png'), fullPage: true });
   await page.getByRole('textbox', { name: 'Notebook title' }).scrollIntoViewIfNeeded();
   // The Host context, not the OS media query, owns an App's actual theme.

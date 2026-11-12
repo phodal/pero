@@ -54,7 +54,7 @@ export async function verifyReferenceControls(page, origin, output) {
   await expect(dialog).toHaveCount(0);
   await expect(documentActions).toBeVisible();
   await closeDocumentActions();
-  await expect(notebookTab(page, 'Metadata')).toHaveAttribute('aria-selected', 'true');
+  await expect(notebookTab(page, 'Metadata')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Project label', { exact: true })).toHaveValue('Current project');
   await openNotebookView(page, 'Notes');
   await expect(title()).toHaveValue('Original working draft');

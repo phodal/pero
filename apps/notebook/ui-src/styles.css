@@ -50,7 +50,7 @@ html, body, #app { height: 100%; }
 .notebook-statusbar .notebook-view-actions .notebook-menu-anchor[data-icon] .pero-ui-popover-trigger { width: var(--pero-control-height); min-width: var(--pero-control-height); min-height: var(--pero-control-height); padding: 0; color: var(--pero-text-muted); }
 .notebook-view-actions .pero-ui-icon-button svg,
 .notebook-view-actions .notebook-menu-anchor[data-icon] .pero-ui-popover-trigger svg { width: 12px; height: 12px; }
-.notebook-entry-head { box-sizing: border-box; margin: 0; padding-block: 35px 0; padding-inline: clamp(32px, 9vw, 96px); border: 0; background: var(--pero-material-reading); }
+.notebook-entry-head { box-sizing: border-box; margin: 0; padding: 0; border: 0; background: var(--pero-material-reading); }
 .notebook-entry-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-1); padding-bottom: 0; padding-inline-start: 0; border-bottom: 0; }
 .notebook-entry-code { flex: 0 0 auto; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-entry-status { flex: 0 0 auto; min-height: var(--pero-control-height); height: auto; padding-inline: 8px; border-radius: 999px; background: var(--pero-tint-blue-soft); color: var(--pero-tint-blue-text); font-size: var(--pero-font-caption); }
@@ -70,24 +70,6 @@ html, body, #app { height: 100%; }
 .notebook-menu-view-panel .pero-ui-tabs-trigger { justify-content: flex-start; min-height: max(32px, var(--pero-control-height)); padding: 0 10px; letter-spacing: 0; text-transform: none; }
 .notebook-commandbar { display: flex; align-items: center; gap: var(--pero-spacing-2); box-sizing: border-box; width: 100%; min-width: 0; overflow: visible; border-top: var(--pero-hairline); padding: 6px var(--pero-spacing-2); font-size: var(--pero-font-tab); }
 .notebook-command-row > .notebook-commandbar { border-top: 0; }
-.notebook-commandbar .pero-ui-button:not([data-variant=unstyled]),
-.notebook-format .pero-ui-button:not([data-variant=unstyled]) { appearance: none; height: auto; min-height: var(--pero-control-height); border: 0; border-radius: var(--pero-radius-sm); background-color: transparent; box-shadow: none; font-size: var(--pero-font-tab); }
-.notebook-commandbar .pero-ui-button:not([data-variant=unstyled]):hover:not(:disabled),
-.notebook-format .pero-ui-button:not([data-variant=unstyled]):hover:not(:disabled) { background-color: var(--pero-surface-hover); }
-.notebook-commandbar .pero-ui-button:not([data-variant=unstyled]):disabled,
-.notebook-format .pero-ui-button:not([data-variant=unstyled]):disabled,
-.notebook-commandbar .pero-ui-button:not([data-variant=unstyled])[aria-disabled="true"],
-.notebook-format .pero-ui-button:not([data-variant=unstyled])[aria-disabled="true"] { opacity: .5; color: var(--pero-text-muted); }
-.notebook-format .pero-ui-button:not([data-variant=unstyled])[aria-pressed=true] { background-color: var(--pero-accent-soft); color: var(--pero-accent-text); }
-.notebook-sheet-format .pero-ui-button:not([data-variant=unstyled]),
-.notebook-block[data-kind="spreadsheet"] .notebook-block-actions .pero-ui-button:not([data-variant=unstyled]),
-.notebook-daybar .pero-ui-button:not([data-variant=unstyled]) { appearance: none; border: 0; background-color: transparent; box-shadow: none; }
-.notebook-commandbar .pero-ui-icon-button:not([data-variant=unstyled]),
-.notebook-format .pero-ui-icon-button:not([data-variant=unstyled]) { width: var(--pero-control-height); height: var(--pero-control-height); min-height: var(--pero-control-height); padding: 0; border-radius: var(--pero-radius-sm); }
-.notebook-commandbar .pero-ui-icon-button svg,
-.notebook-format .pero-ui-icon-button svg { width: 12px; height: 12px; }
-.notebook-format .pero-select .pero-select-trigger { appearance: none; width: auto; min-height: var(--pero-control-height); padding: 0 6px; border: 0; border-radius: var(--pero-radius-sm); background: transparent; box-shadow: none; color: inherit; font: inherit; gap: 2px; }
-.notebook-sheet-format .pero-select .pero-select-trigger { appearance: none; width: auto; min-height: var(--pero-control-height); height: auto; padding: 0 2px; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: inherit; font: inherit; gap: 2px; }
 .notebook-command-fixed { display: flex; flex: 0 0 auto; align-items: center; gap: var(--pero-spacing-2); overflow: visible; }
 .notebook-history { display: inline-flex; align-items: center; gap: 1px; }
 .notebook-format { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; gap: var(--pero-spacing-2); overflow: visible; font-size: var(--pero-font-tab); }
@@ -145,7 +127,7 @@ html, body, #app { height: 100%; }
 .notebook-toolbar-divider { align-self: stretch; width: 6px; margin: 0; background: transparent; }
 .notebook-toolbar .notebook-heading-select { margin-inline-end: 6px; }
 .notebook-toolbar .notebook-color-select { margin-inline: 3px; }
-.notebook-text-tools { display: contents; }
+.notebook-text-tools { display: flex; min-width: 0; width: 100%; }
 .notebook-workspace:not([data-notebook-view="notes"]) .notebook-text-tools { display: none; }
 .notebook-editor-surface { min-height: 100%; }
 .notebook-toolbar .pero-select { width: auto; }
@@ -489,7 +471,7 @@ html, body, #app { height: 100%; }
 .notebook-workspace-navigation > .pero-ui-toolbar:not([data-unstyled]) { flex: 0 0 auto; flex-wrap: nowrap; }
 .notebook-workspace-navigation > .notebook-document-actions { flex: 0 0 auto; margin: 0; }
 .notebook-notes-panel:not([hidden]) { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: auto; background: var(--pero-material-reading); }
-.notebook-workspace-panel:not([hidden]) { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--pero-spacing-4); border: var(--pero-hairline); margin-top: var(--pero-spacing-2); background: var(--pero-surface); }
+.notebook-workspace-panel:not([hidden]) { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--pero-spacing-4); border: 0; margin: 0; background: var(--pero-surface); }
 .notebook-workspace-hint { color: var(--pero-text-muted); font-size: var(--pero-font-caption); line-height: 1.5; overflow-wrap: anywhere; }
 .notebook-workspace-form { display: grid; gap: var(--pero-spacing-4); margin-top: var(--pero-spacing-3); min-width: 0; }
 .notebook-workspace-form h3 { font-size: var(--pero-font-body); margin: var(--pero-spacing-2) 0; }
@@ -658,11 +640,61 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-library-tools > * { min-width: 0; width: 100%; }
 .notebook-split[data-stacked] > .notebook-nav[data-sized] { max-height: min(16rem, 35dvh); }
 
-/* Everyday writing exposes a compact command row; formatting is opt-in. */
+/* Writing tools belong to the visible Notes editor. */
 .notebook-commandbar { flex-wrap: wrap; }
-.notebook-commandbar > .notebook-text-tools { flex: 1 0 100%; width: 100%; }
-.notebook-commandbar > .notebook-text-tools[hidden] { display: none; }
-.notebook-documentbar .notebook-status { flex-basis: 6rem; }
+.notebook-commandbar > .notebook-text-tools { flex: 0 1 auto; width: auto; }
+
 .notebook-nav-tools { flex-wrap: nowrap; }
 .notebook-nav-tools > .notebook-menu-anchor { margin-inline-start: auto; }
 .notebook-menu-library-panel { width: 18rem; }
+
+/* Research content and its inspector use the SDK split, including keyboard resizing. */
+.notebook-documentbar .notebook-entry-head { flex: 1 1 8rem; min-width: 0; background: transparent; }
+.notebook-documentbar .notebook-title { font-size: var(--pero-font-heading); }
+.notebook-documentbar .notebook-status { flex: 0 1 auto; font-size: var(--pero-font-caption); }
+.notebook-entry-title { gap: var(--pero-spacing-2); }
+.notebook-work-area { flex: 1 1 0; min-height: 0; min-width: 0; }
+.notebook-primary { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.notebook-notes-main { min-width: 0; }
+.notebook-inspector { padding: var(--pero-spacing-4); overflow: auto; background: var(--pero-surface); min-height: 0; }
+.notebook-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); }
+.notebook-inspector-head h2 { font-size: var(--pero-font-heading); margin: 0; }
+.notebook-panel-actions { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-1); margin-inline-start: auto; }
+.notebook-commandbar { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-1); background: transparent; padding: 0; border: 0; }
+.notebook-command-fixed { flex-wrap: wrap; }
+.notebook-text-tools { padding-top: var(--pero-spacing-1); }
+.notebook-review-context { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); padding-bottom: var(--pero-spacing-3); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.notebook-review-panel > .pero-ui-tabs { margin-top: var(--pero-spacing-2); }
+.notebook-review-panel .pero-ui-tabs-list { flex-wrap: wrap; }
+.notebook-review-panel .pero-ui-table { max-width: 100%; }
+.notebook-review-text { overflow-wrap: anywhere; white-space: pre-wrap; }
+.notebook-inspector .notebook-workspace-form { max-width: 100%; }
+.notebook-procedure-preparation { padding: var(--pero-spacing-3); background: var(--pero-surface-muted); }
+.notebook-workspace-panel { max-width: 60rem; width: 100%; box-sizing: border-box; margin-inline: auto; }
+.notebook-work-area[data-stacked] > .notebook-inspector { max-height: 55dvh; }
+@media (max-width: 650px) {
+  .notebook-panel-actions { margin-inline-start: 0; }
+  .notebook-workspace-navigation { flex-wrap: wrap; }
+  .notebook-inspector { padding: var(--pero-spacing-2); }
+}
+
+/* One document row and one contextual toolbar; groups wrap only when needed. */
+.notebook-documentbar .notebook-entry-title { flex-wrap: nowrap; }
+.notebook-documentbar .notebook-entry-head .notebook-title { flex: 1 1 auto; width: 100%; }
+.notebook-documentbar .notebook-panel-actions { margin-inline-start: 0; flex-wrap: nowrap; }
+.notebook-workspace-navigation { flex-wrap: wrap; overflow: visible; padding-inline: var(--pero-spacing-2); border-top: 0; border-bottom: var(--pero-hairline); }
+.notebook-workspace-navigation .notebook-view-tabs.pero-ui-tabs-list { flex: 0 0 auto; }
+.notebook-workspace-navigation .notebook-command-row { flex: 1 1 auto; width: auto; padding: 0; border: 0; }
+.notebook-workspace-navigation .notebook-commandbar { width: auto; }
+.notebook-workspace-navigation > .notebook-menu-anchor { margin-inline-start: auto; }
+.notebook-text-tools { padding-top: 0; }
+@container notebook (max-width: 700px) {
+  .notebook-documentbar .notebook-entry-head { padding: 0; }
+  .notebook-documentbar .notebook-status { flex-basis: auto; }
+}
+
+@container notebook (max-width: 900px) {
+  .notebook-workspace-navigation .notebook-command-row { order: 2; flex-basis: 100%; }
+  .notebook-command-fixed { gap: var(--pero-spacing-1); }
+  .notebook-text-tools .notebook-format { flex: 0 1 auto; }
+}

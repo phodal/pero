@@ -96,16 +96,15 @@ test('workspace empty states render their labels and guidance in the active view
   const viewMenu = document.querySelector<HTMLElement>('[data-notebook-menu-panel=view]');
   assert.ok(viewMenu);
   assert.equal(document.querySelector('.notebook-statusbar [data-notebook-menu=view]'), null);
-  assert.deepEqual([...document.querySelectorAll('.notebook-view-tabs [role=tab]')].map(node => node.textContent), ['Notes', 'Procedures', 'Relevant items', 'Metadata', 'Review and activity']);
-  for (const [tab, heading, guidance] of [
-    ['Procedures', 'No procedures yet', 'Add a procedure to record materials and step-by-step instructions.'],
-    ['Relevant items', 'No relevant items yet', 'Add a named entry reference here'],
-  ]) {
-    const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-view-tabs [role=tab]')].find(node => node.textContent === tab)!;
-    await React.act(async () => trigger.focus());
-    const panel = document.querySelector('[role=tabpanel][data-state=active]')!;
+  assert.deepEqual([...document.querySelectorAll('.notebook-view-tabs [role=tab]')].map(node => node.textContent), ['Notes', 'Procedures']);
+  for (const [label, heading] of [['Procedures', 'No procedures yet'], ['Relevant items', 'No relevant items yet']]) {
+    const trigger = [...document.querySelectorAll<HTMLElement>('.notebook-view-tabs [role=tab], .notebook-panel-actions button')].find(node => (node.getAttribute('aria-label') || node.textContent) === label)!;
+    if (trigger.getAttribute('role') === 'tab') await React.act(async () => trigger.focus());
+    else await click(trigger);
+    const panel = document.querySelector(label === 'Procedures' ? '[role=tabpanel][data-state=active]' : '.notebook-inspector')!;
     assert.equal(panel.querySelector('.pero-ui-empty-heading')?.textContent, heading);
-    assert.ok(panel.querySelector('.pero-ui-empty-description')?.textContent?.includes(guidance));
+    assert.equal(panel.querySelector('.pero-ui-empty-description'), null, 'the action explains an empty workspace');
+    assert.equal(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Notebook title"]')?.value, 'Empty');
   }
   await click(document.querySelector('button[aria-label="Search and outline"]')!);
   assert.equal(document.querySelector('dialog .pero-ui-empty-heading')?.textContent, 'No outline entries yet');

@@ -1,3 +1,4 @@
+import { MetadataView } from './notebook-metadata';
 import { NotebookMenu } from './notebook-menu';
 import { EntryIdentity } from './entry-identity';
 import { EntryMentionDialog } from './entry-mention-dialog';
@@ -17,7 +18,7 @@ import { useEditorState } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { worksheetBlocks } from './worksheet-model';
-import { Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Split, SplitPane, ToggleGroup, ToggleGroupItem, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, notebookTarget, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
@@ -25,11 +26,16 @@ import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, 
 const messages = {
   namedReference: { en: 'Named reference', zh: '命名引用' }, authored: { en: 'Human-authored entry', zh: '手写条目' },
   parameter: { en: 'Parameter', zh: '参数' },
+  editSteps: { en: 'Write steps', zh: '编写步骤' }, runSteps: { en: 'Track progress', zh: '执行进度' },
+  procedureMode: { en: 'Procedure activity', zh: '流程工作模式' },
   procedure: { en: 'Procedure', zh: '流程' }, material: { en: 'Material', zh: '材料' },
   copyLink: { en: 'Copy link', zh: '复制链接' }, copied: { en: 'Link copied', zh: '链接已复制' }, copyFailed: { en: 'Could not copy the link. Check clipboard access and try again.', zh: '无法复制链接，请检查剪贴板访问后重试。' },
   header: { en: 'Header', zh: '标题' }, description: { en: 'Description', zh: '说明' }, image: { en: 'Image', zh: '图片' }, table: { en: 'Table', zh: '表格' }, timer: { en: 'Timer', zh: '计时器' },
   stepKind: { en: 'Step kind', zh: '步骤类型' }, plannedTotal: { en: 'Total planned: {minutes} minutes', zh: '计划总时长：{minutes} 分钟' },
   review: { en: 'Review and activity', zh: '审阅与活动' },
+  properties: { en: 'Properties', zh: '属性' },
+  sourceDetails: { en: 'Source details', zh: '来源详情' },
+  localRecord: { en: 'Recorded locally · not verified', zh: '本地记录 · 未核验' },
   views: { en: 'Notebook views', zh: '笔记视图' },
   notes: { en: 'Notes', zh: '笔记' }, procedures: { en: 'Procedures', zh: '实验步骤' },
   relevant: { en: 'Relevant items', zh: '相关条目' }, metadata: { en: 'Metadata', zh: '元数据' },
@@ -106,38 +112,6 @@ export function documentHistoryShortcut(event: {
   return key === 'z' || key === 'y' ? event.shiftKey || key === 'y' ? 'redo' : 'undo' : null;
 }
 
-function MetadataView({ metadata, readonly, onChange }: {
-  metadata: NotebookMetadata; readonly: boolean; onChange: (metadata: NotebookMetadata) => void;
-}) {
-  const { t } = useAppI18n(messages);
-  const [tag, setTag] = useState(''), [error, setError] = useState('');
-  const apply = (change: MetadataChange) => {
-    if (readonly) return;
-    const result = changeMetadata(metadata, change);
-    if (result.status !== 'ok') { setError(t(result.status)); return; }
-    setError(''); onChange(result.metadata);
-    if (change.type === 'addTag') setTag('');
-  };
-  return <div className="notebook-workspace-form">
-    <p className="notebook-workspace-hint">{t('metadataHint')}</p>
-    {(['project', 'author'] as const).map(key => <Field key={key} label={t(key)}>{control =>
-      <Input {...control} data-notebook-document-edit value={metadata[key]} readOnly={readonly} maxLength={workspaceLimits.label}
-        onChange={event => apply({ type: key, value: event.target.value })} />}</Field>)}
-    <section aria-label={t('tags')}>
-      <h3>{t('tags')}</h3>
-      <ul className="notebook-tag-list">{metadata.tags.map((value, index) => <li key={`${index}:${value}`}>
-        <Badge>{value}</Badge>{!readonly && <IconButton label={t('removeTag', { name: value })}
-          onClick={() => apply({ type: 'removeTag', index })}><Icon name="close" /></IconButton>}
-      </li>)}</ul>
-      {!metadata.tags.length && <p className="notebook-workspace-hint">{t('noTags')}</p>}
-      {!readonly && <form className="notebook-workspace-actions" onSubmit={event => { event.preventDefault(); apply({ type: 'addTag', value: tag }); }}>
-        <Field label={t('tag')}>{control => <Input {...control} maxLength={workspaceLimits.tagLength} value={tag} onChange={event => setTag(event.target.value)} />}</Field>
-        <Button type="submit" disabled={!tag.trim() || metadata.tags.length >= workspaceLimits.tags}>{t('addTag')}</Button>
-      </form>}
-    </section>
-    {error && <Feedback kind="error">{error}</Feedback>}
-  </div>;
-}
 
 function DurationField({ minutes, number, readonly, onChange }: { minutes: number | null; number: number; readonly: boolean; onChange: (minutes: number | null) => void }) {
   const { t } = useAppI18n(messages);
@@ -154,34 +128,35 @@ function DurationField({ minutes, number, readonly, onChange }: { minutes: numbe
       }} />}</Field>;
 }
 
-function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure: NotebookProcedure; readonly: boolean; apply: (change: ProcedureChange) => void; onCopyLink: (id: string) => void }) {
+function ProcedureFields({ procedure, readonly, recording, apply, onCopyLink }: { procedure: NotebookProcedure; readonly: boolean; recording: boolean; apply: (change: ProcedureChange) => void; onCopyLink: (id: string) => void }) {
   const { t } = useAppI18n(messages);
   const id = procedure.id;
   const editStep = (stepId: string, patch: Partial<Omit<NotebookProcedureStep, 'id'>>) => apply({ type: 'editStep', id, stepId, patch });
   return <div className="notebook-workspace-form" data-notebook-document-edit id={`notebook-target-${procedure.id}`} tabIndex={-1}>
-    <Field label={t('procedureTitle')}>{control => <Input {...control} value={procedure.title} maxLength={workspaceLimits.label} readOnly={readonly}
+    <Field label={t('procedureTitle')}>{control => <Input {...control} value={procedure.title} maxLength={workspaceLimits.label} readOnly={readonly || recording}
       onChange={event => apply({ type: 'edit', id, patch: { title: event.target.value } })} />}</Field>
+    {recording && <div className="notebook-procedure-preparation"><ProcedureParameters procedure={procedure} readonly apply={apply} /><ProcedureMaterials procedure={procedure} readonly apply={apply} onCopyLink={onCopyLink} /></div>}
     <section aria-label={t('steps')}>
       <div className="notebook-workspace-actions"><h3>{t('steps')}</h3>
         {!!procedure.steps.length && <><Badge>{t('plannedTotal', { minutes: procedurePlannedMinutes(procedure) })}</Badge>
         <Badge>{t('completedCount', { done: procedure.steps.filter(step => step.completed).length, total: procedure.steps.length })}</Badge></>}
-        {!readonly && <Button variant="ghost" disabled={procedure.steps.length >= workspaceLimits.steps} onClick={() => apply({ type: 'addStep', id, stepId: crypto.randomUUID() })}><Icon name="plus" />{t('addStep')}</Button>}
+        {!readonly && !recording && <Button variant="ghost" disabled={procedure.steps.length >= workspaceLimits.steps} onClick={() => apply({ type: 'addStep', id, stepId: crypto.randomUUID() })}><Icon name="plus" />{t('addStep')}</Button>}
       </div>
       {!procedure.steps.length && <p className="notebook-workspace-hint">{t('noSteps')}</p>}
       <ol className="notebook-procedure-steps">{procedure.steps.map((step, index) => <li key={step.id} id={`notebook-target-${step.id}`} tabIndex={-1} data-level={step.level} data-critical={step.critical || undefined}>
         <div className="notebook-workspace-actions">
           <strong>{index + 1}.</strong>
-          <label className="notebook-checkbox"><Checkbox checked={step.completed} disabled={readonly}
-            onCheckedChange={checked => editStep(step.id, { completed: checked === true })} />{t('completed')}</label>
+          {recording && <label className="notebook-checkbox"><Checkbox checked={step.completed} disabled={readonly}
+            onCheckedChange={checked => editStep(step.id, { completed: checked === true })} />{t('completed')}</label>}
           {step.critical && <Badge tone="warning">{t('critical')}</Badge>}
           {step.pause && <Badge>{t('pause')}</Badge>}
           {step.minutes !== null && <Badge>{t('planned', { minutes: step.minutes })}</Badge>}
           {step.kind && step.kind !== 'step' && <Badge>{t(step.kind)}</Badge>}
         </div>
-        <ProcedureStepEditor step={step} readonly={readonly} onChange={patch => editStep(step.id, patch)} />
-        {step.kind === 'timer' && <ProcedureTimerView step={step} readonly={readonly}
+        <ProcedureStepEditor step={step} readonly={readonly || recording} onChange={patch => editStep(step.id, patch)} />
+        {recording && step.kind === 'timer' && <ProcedureTimerView step={step} readonly={readonly}
           onAction={(action, now) => apply({ type: 'timer', id, stepId: step.id, action, now })} />}
-        <Disclosure variant="inline" summary={t('stepOptions')}>
+        {!recording && <Disclosure variant="inline" summary={t('stepOptions')}>
         <div className="notebook-workspace-actions"><Button variant="ghost" onClick={() => onCopyLink(step.id)}>{t('copyLink')}</Button>
           <Select label={t('stepLevel', { number: index + 1 })} value={step.level} disabled={readonly}
             options={(['step', 'section', 'substep'] as const).map(level => ({ value: level, label: t(level) }))}
@@ -201,15 +176,15 @@ function ProcedureFields({ procedure, readonly, apply, onCopyLink }: { procedure
           </label>)}
           <DurationField minutes={step.minutes} number={index + 1} readonly={readonly} onChange={minutes => editStep(step.id, { minutes })} />
         </div>
-        </Disclosure>
+        </Disclosure>}
       </li>)}</ol>
     </section>
     <Disclosure variant="inline" summary={t('introduction')} defaultOpen={!!procedure.description || !!procedure.introduction?.content?.some(node => node.type !== 'paragraph' || !!node.content?.length)}>
-      <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly}
+      <ProcedureRichEditor content={procedure.introduction} text={procedure.description} label={t('introduction')} readonly={readonly || recording}
         onChange={introduction => apply({ type: 'edit', id, patch: { introduction } })} />
     </Disclosure>
-    <ProcedureParameters procedure={procedure} readonly={readonly} apply={apply} />
-    <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />
+    {!recording && <><ProcedureParameters procedure={procedure} readonly={readonly} apply={apply} />
+    <ProcedureMaterials procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} /></>}
 
   </div>;
 }
@@ -219,6 +194,7 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
   selected: string; setSelected: (id: string) => void; onCopyLink: (id: string) => void;
 }) {
   const { t } = useAppI18n(messages);
+  const [mode, setMode] = useState('write');
   const [removing, setRemoving] = useState<string | null>(null), [error, setError] = useState('');
   const procedure = procedures.find(item => item.id === selected) ?? procedures[0];
   const removingProcedure = procedures.find(item => item.id === removing);
@@ -230,16 +206,16 @@ function ProceduresView({ procedures, readonly, onChange, selected, setSelected,
     if (change.type === 'add') setSelected(change.id);
   };
   return <>
-    <p className="notebook-workspace-hint">{t('procedureShortHint')}</p>
+    {procedure && <ToggleGroup type="single" value={mode} onValueChange={value => { if (value) setMode(value); }} aria-label={t('procedureMode')}><ToggleGroupItem value="write">{t('editSteps')}</ToggleGroupItem><ToggleGroupItem value="record">{t('runSteps')}</ToggleGroupItem></ToggleGroup>}
     <div className="notebook-workspace-actions">
       {procedure && <Select label={t('chooseProcedure')} value={procedure.id}
         options={procedures.map(item => ({ value: item.id, label: item.title || t('newProcedure') }))} onChange={setSelected} />}
-      {!readonly && <Button disabled={procedures.length >= workspaceLimits.procedures} onClick={() => apply({ type: 'add', id: crypto.randomUUID(), title: t('newProcedure') })}><Icon name="plus" />{t('addProcedure')}</Button>}
+      {!!procedures.length && !readonly && mode === 'write' && <Button disabled={procedures.length >= workspaceLimits.procedures} onClick={() => apply({ type: 'add', id: crypto.randomUUID(), title: t('newProcedure') })}><Icon name="plus" />{t('addProcedure')}</Button>}
       {procedure && <Button variant="ghost" onClick={() => onCopyLink(procedure.id)}>{t('copyLink')}</Button>}
-      {!readonly && procedure && <Button variant="ghost" onClick={() => setRemoving(procedure.id)}>{t('removeProcedure')}</Button>}
+      {!readonly && mode === 'write' && procedure && <Button variant="ghost" onClick={() => setRemoving(procedure.id)}>{t('removeProcedure')}</Button>}
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
-    {!procedure ? <EmptyState heading={t('noProcedures')} description={t('noProceduresHint')} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} apply={apply} onCopyLink={onCopyLink} />}
+    {!procedure ? <EmptyState heading={t('noProcedures')} actions={!readonly && <Button variant="primary" onClick={() => apply({ type: 'add', id: crypto.randomUUID(), title: t('newProcedure') })}><Icon name="plus" />{t('addProcedure')}</Button>} /> : <ProcedureFields key={procedure.id} procedure={procedure} readonly={readonly} recording={mode === 'record'} apply={apply} onCopyLink={onCopyLink} />}
     {!readonly && removingProcedure && <Dialog title={t('removeProcedure')} closeLabel={t('close')} onClose={() => setRemoving(null)}
       footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{t('cancel')}</Button><Button onClick={() => { apply({ type: 'remove', id: removingProcedure.id }); setRemoving(null); }}>{t('removeProcedure')}</Button></>}>
       <p>{t('removeProcedureHint')}</p><strong>{removingProcedure.title || t('newProcedure')}</strong>
@@ -263,7 +239,7 @@ export type NotebookChrome = {
   retainedContent?: NotebookDocument['content'];
 };
 
-export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, tools, helpTools, children }: {
+export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, tools, helpTools, children, historyControls }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
   onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
   chrome?: NotebookChrome; tools?: ReactNode; helpTools?: ReactNode;
@@ -272,6 +248,8 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
 }) {
   const { t } = useAppI18n(messages);
   const { t: notebook } = useAppI18n(notebookMessages);
+  const [panel, setPanel] = useState<'relevant' | 'metadata' | 'review' | null>(null);
+  const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const [tab, setTab] = useState('notes'), [dialog, setDialog] = useState<'search' | 'help' | 'replace' | null>(null);
   const [query, setQuery] = useState(''), [pendingBlock, setPendingBlock] = useState<string | null>(null), [error, setError] = useState('');
   const navigated = useRef(false);
@@ -285,7 +263,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const results = useMemo(() => searchNotebook(items, query), [items, query]);
   const metadata = document.metadata ?? { project: '', author: '', tags: [] };
   const sheetCount = useEditorState({ editor, selector: ({ editor: instance }) => worksheetBlocks(instance.state.doc).length });
-  const views = ['notes', 'procedures', 'relevant', 'metadata', 'review'] as const;
+  const views = ['notes', 'procedures'] as const;
   const view = views.find(item => item === tab) ?? 'notes';
   const openBlock = (id: string) => {
     const target = notebookTarget(document, id);
@@ -357,12 +335,21 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   }}>
     <div className="notebook-jupyter">
       <div className="notebook-documentbar">
+      <div className="notebook-entry-head">
+        <div className="notebook-entry-title">
+          <Icon name="notebook" />
+          {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Textarea unstyled rows={1} data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
+            value={document.title} maxLength={200} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.commands.focus(); } }} onChange={event => onChange({ title: event.target.value.replace(/[\r\n]/g, ' ') })} />}
+        </div>
+      </div>
+
         {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
         {chrome?.onSave && <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button>}
+        <div className="notebook-panel-actions">{(['relevant', 'metadata', 'review'] as const).map(value => <IconButton key={value} label={value === 'metadata' ? t('properties') : t(value)} variant="ghost" aria-pressed={panel === value} aria-controls={'notebook-inspector'} onClick={event => { panelTrigger.current = event.currentTarget; setPanel(current => current === value ? null : value); }}><Icon name={value === 'metadata' ? 'settings' : value === 'review' ? 'message-circle' : 'link'} /></IconButton>)}</div>
         <IconButton label={t('search')} onClick={openSearch}><Icon name="search" /></IconButton>
         <NotebookMenu name={t('file')} menu="file" caret>
           {close => <>
-          {chrome?.propertyTools}
+<Button variant="ghost" onClick={() => { panelTrigger.current = window.document.querySelector<HTMLButtonElement>('[data-notebook-menu=file] button'); setPanel('metadata'); close(); }}>{t('properties')}</Button>
           {!chrome?.snapshot && chrome?.onHistory && <Button variant="ghost" onClick={() => { chrome.onHistory?.(); close(); }}>{notebook('history')}</Button>}
           {chrome?.fileTools}
           {!readonly && onReplaceDocument && <Button variant="ghost" onClick={() => setDialog('replace')}>{t('documentActions')}</Button>}
@@ -372,21 +359,23 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           {sheetCount > 0 && <Button variant="ghost" onClick={() => void writeWorkbook(worksheetBlocks(editor.state.doc)).then(body => downloadFile('Notebook.xlsx', body, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).catch(cause => setError(cause instanceof Error ? cause.message : String(cause)))}>{notebook('exportWorkbook')}</Button>}
           </>}
         </NotebookMenu>
-        <NotebookMenu name={t('helpMenu')} menu="help" caret>
+        <NotebookMenu name={t('helpMenu')} menu="help" icon="info">
           <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
           {helpTools}
+          {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content') && <small>Build {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content')}</small>}
         </NotebookMenu>
-      </div>
-      <div className="notebook-command-row">
-      {chrome?.snapshot ? <div className="notebook-toolbar-end">
-        <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
-        <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
-      </div> : tools}
       </div>
       <div className="notebook-workspace-navigation">
         <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
           {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
         </TabsList>
+      <div className="notebook-command-row">
+      {chrome?.snapshot ? <div className="notebook-toolbar-end">
+        <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
+        <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
+      </div> : tab === 'notes' ? tools : !readonly && historyControls && <span className="notebook-history"><IconButton label={notebook('undo')} disabled={!historyControls.canUndo} onClick={historyControls.undo}><Icon name="undo" /></IconButton><IconButton label={notebook('redo')} disabled={!historyControls.canRedo} onClick={historyControls.redo}><Icon name="redo" /></IconButton></span>}
+      </div>
+
         <NotebookMenu name={t('viewMenu')} menu="view" caret closeOnSelect>
           <EntryWorkspaceActions readonly={readonly} split={split} procedures={document.procedures ?? []}
             onToggleSplit={() => setSplit(value => !value)}
@@ -398,19 +387,12 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
+    <Split className="notebook-work-area" storageKey="pero.notebook.inspector-width" collapseBelow={820} data-panel={panel || undefined}>
+    <SplitPane id="notebook-primary" min={340} className="notebook-primary">
     <TabsContent className="notebook-notes-panel" value="notes" forceMount data-split={split || undefined}>
       <div className="notebook-notes-main">
-      <div className="notebook-entry-head">
-        <div className="notebook-entry-title">
-          <Icon size={26} glyph={{ viewBox: '0 0 24 24', children: <>
-            <path fill="currentColor" stroke="none" d="M5 0.6h9.2v6.2H20.4V21.4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V2.6A2 2 0 0 1 5 .6z" />
-            <path fill="currentColor" stroke="none" d="M15 0.8 20.2 6.2H15z" />
-          </> }} />
-          {readonly ? <h1 className="notebook-title">{document.title}</h1> : <Textarea unstyled rows={1} data-notebook-document-edit className="notebook-title" aria-label={notebook('title')} placeholder={notebook('untitled')}
-            value={document.title} maxLength={200} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); editor.commands.focus(); } }} onChange={event => onChange({ title: event.target.value.replace(/[\r\n]/g, ' ') })} />}
-          <EntryIdentity entryId={entryId} stored={document.identity} readonly={readonly} onChange={onChange} />
-        </div>
-      </div>
+
+
       {children}
       </div>
       {split && tab === 'notes' && <aside className="notebook-split-pane" aria-label={t('procedures')}>{protocolPane}</aside>}
@@ -418,24 +400,25 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     <TabsContent className="notebook-workspace-panel" value="procedures" forceMount>
       {split && tab === 'notes' ? null : protocolPane}
     </TabsContent>
-    <TabsContent className="notebook-workspace-panel" value="relevant" forceMount>
-      <p className="notebook-workspace-hint">{t('relevantHint')}</p>
-      {!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />}
-      {!relevant.length && <EmptyState heading={t('noRelevant')} description={t('noRelevantHint')} />}
-      <ul className="notebook-relevant-list">{relevant.map(item => <li key={item.id}>
-        <div className="notebook-workspace-actions"><strong>{item.label || t(item.kind)}</strong><Badge>{t(item.kind)}</Badge><Badge>{t(item.state)}</Badge>{item.imported && <Badge>{t('imported')}</Badge>}</div>
-        {item.notes && <p>{item.notes}</p>}
-        {item.source && <p className="notebook-workspace-hint">{[item.source.app, item.source.kind, item.source.id, item.source.version].filter(Boolean).join(' · ')}</p>}
-        <Button variant="ghost" onClick={() => openBlock(item.id)}>{t('goToBlock')}</Button>
-      </li>)}</ul>
-    </TabsContent>
-    <TabsContent className="notebook-workspace-panel" value="metadata" forceMount>
-      <MetadataView metadata={metadata} readonly={readonly} onChange={value => onChange({ metadata: value })} />
-    </TabsContent>
-    <TabsContent className="notebook-workspace-panel" value="review">
-      <EntryNotices notices={document.notices ?? []} />
-      <ReviewerPanel entryId={entryId} revision={revision} document={document} readonly={readonly} onRevealBlock={openBlock} />
-    </TabsContent>
+    </SplitPane>
+    <SplitPane hidden={!panel} as="aside" id="notebook-inspector" size={400} min={320} className="notebook-inspector" aria-label={panel === 'metadata' ? t('properties') : panel ? t(panel) : undefined}>
+      {panel && <><div className="notebook-inspector-head"><h2>{panel === 'metadata' ? t('properties') : t(panel)}</h2><IconButton label={t('close')} onClick={() => { setPanel(null); panelTrigger.current?.focus(); }}><Icon name="close" /></IconButton></div>
+      {panel === 'relevant' && <>
+        {!relevant.length ? <EmptyState heading={t('noRelevant')} actions={!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />} />
+          : !readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />}
+        <ul className="notebook-relevant-list">{relevant.map(item => <li key={item.id}>
+          <div className="notebook-workspace-actions"><strong>{item.label || t(item.kind)}</strong><Badge>{t(item.kind)}</Badge></div>
+          <div className="notebook-workspace-actions"><Badge>{t(item.state)}</Badge>{item.imported && <Badge>{t('imported')}</Badge>}{item.source && <span className="notebook-workspace-hint">{t('localRecord')}</span>}</div>
+          {item.notes && <p>{item.notes}</p>}
+          <Button variant="link" onClick={() => openBlock(item.id)}>{t('goToBlock')}</Button>
+          {item.source && <Disclosure variant="inline" summary={t('sourceDetails')}><p className="notebook-workspace-hint">{[item.source.app, item.source.kind, item.source.id, item.source.version].filter(Boolean).join(' · ')}</p><p>{t('relevantHint')}</p></Disclosure>}
+        </li>)}</ul>
+      </>}
+      {panel === 'metadata' && <><div className="notebook-workspace-actions"><EntryIdentity entryId={entryId} stored={document.identity} readonly={readonly} onChange={onChange} /></div>{chrome?.propertyTools ?? <MetadataView metadata={metadata} readonly={readonly} onChange={value => onChange({ metadata: value })} />}</>}
+      {panel === 'review' && <><EntryNotices notices={document.notices ?? []} /><ReviewerPanel entryId={entryId} revision={revision} document={document} readonly={readonly} onRevealBlock={openBlock} onSave={chrome?.onSave} saveBusy={chrome?.saveBusy} saveDisabled={chrome?.saveDisabled} /></>}
+    </>}
+    </SplitPane>
+    </Split>
     {mention && <EntryMentionDialog draft={mention} notices={document.notices ?? []} editor={editor}
       onDraft={setMention} onClose={() => setMention(null)}
       onSaved={notices => { onChange({ notices }); setError(''); }} onInvalid={setError} />}

@@ -9,17 +9,19 @@ export async function openNotebookMenu(page, menu) {
   return page.locator(`[data-notebook-menu-panel="${menu}"]`);
 }
 
-/** Workspace views live in the View menu. */
+/** Main views and contextual inspectors have separate navigation. */
 export async function openNotebookView(page, name) {
-  const tab = page.getByRole('tab', { name, exact: true });
-  if (!(await tab.isVisible())) await openNotebookMenu(page, 'view');
-  await tab.click();
+  if (['Metadata', 'Relevant items', 'Review and activity'].includes(name)) {
+    const button = page.locator('.notebook-panel-actions').getByRole('button', { name: name === 'Metadata' ? 'Properties' : name, exact: true });
+    if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
+    return;
+  }
+  await page.getByRole('tab', { name, exact: true }).click();
 }
 
-/** Hidden view tabs stay in the document while the View menu is closed. */
 export function notebookTab(page, name) {
-  const pattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  return page.locator('[role="tab"]').filter({ hasText: pattern }).or(page.locator(`[role="tab"][aria-label="${name.replace(/"/g, '')}"]`));
+  if (name === 'Metadata') return page.locator('.notebook-panel-actions').getByRole('button', { name: 'Properties', exact: true });
+  return page.getByRole('tab', { name, exact: true });
 }
 
 /** Worksheet tools and cell details live in the spreadsheet Block actions menu. */

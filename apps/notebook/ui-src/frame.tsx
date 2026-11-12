@@ -1,5 +1,5 @@
 import { NotebookMenu } from './notebook-menu';
-import { NotebookHomeTools } from './notebook-home';
+import { NotebookHome } from './notebook-home';
 import { NotebookPrintTools } from './notebook-print';
 import { WorksheetAmendments } from './worksheet-amendments';
 import { parseNotebookLink } from '@pero/notebook/workspace';
@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
 import { AppFrame, Button, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, Select, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
+import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
 import { NotebookEditor } from './editor';
 import { documentHistoryShortcut } from './workspace-views';
@@ -392,8 +393,9 @@ function Notebook() {
   const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
   const createAction = <Button variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {t('newNotebook')}</Button>;
+  const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
   const libraryActions = <>
-    <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />
+    {importAction}
     <Button variant="ghost" disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" />{t('refresh')}</Button>
     <Select label={t('sortNotebooks')} value={entryOrder} options={[{ value: 'recent', label: t('recentNotebooks') }, { value: 'title', label: t('titleOrder') }]} onChange={setEntryOrder} />
   </>;
@@ -403,7 +405,7 @@ function Notebook() {
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
-        heading={t('noNotebooks')} description={t('start')} actions={<>{createAction}{libraryActions}</>} />
+        actions={<>{createAction}{importAction}</>} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <div className="notebook-nav-tools">
@@ -419,9 +421,11 @@ function Notebook() {
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
               const local = drafts[entry.id];
+              const duplicateTitle = visibleEntries.some(other => other.id !== entry.id && (drafts[other.id]?.document.title || other.title) === (local?.document.title || entry.title));
+              const identity = duplicateTitle ? entryIdentity(entry.id, local?.document.identity)?.code : null;
               return <li key={entry.id}><ListRow title={local?.document.title || entry.title} current={entry.id === selected}
                 onOpen={() => { if (!busy) choose(entry.id); }}
-                meta={local?.dirty ? t(local.storageError ? 'draftNotStored' : local.durable ? 'draftStored' : 'draftStoring') : t('revision', { number: entry.revision })}
+                meta={`${identity ? `${identity} · ` : ''}${new Date(entry.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${local?.dirty ? t(local.storageError ? 'draftNotStored' : local.durable ? 'draftStored' : 'draftStoring') : t('revision', { number: entry.revision })}`}
                 trailing={<DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <IconButton label={t('notebookActions')} disabled={!!busy}><Icon name="more" /></IconButton>
@@ -489,7 +493,7 @@ function Notebook() {
                     } catch (cause) { setError(messageOf(cause)); }
                   },
                   restoreDisabled: !!busy || current.newer,
-                  propertyTools: <NotebookHomeTools key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
+                  propertyTools: <NotebookHome embedded onClose={() => {}} key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
                       onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />,
                   fileTools: <>
                     {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
