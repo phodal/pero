@@ -156,6 +156,8 @@ mod native_docling_dialog;
 mod native_python;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_app_surface;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_accessibility;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod mcp_app;
 #[cfg(all(feature="native",not(target_family="wasm")))]

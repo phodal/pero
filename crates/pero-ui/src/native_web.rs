@@ -343,25 +343,25 @@ fn round_top_left(view: &objc2::runtime::AnyObject, radius: f64) {
 #[cfg(target_os = "macos")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct ObjcPoint {
-    x: f64,
-    y: f64,
+pub(crate) struct ObjcPoint {
+    pub(crate) x: f64,
+    pub(crate) y: f64,
 }
 
 #[cfg(target_os = "macos")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct ObjcSize {
-    width: f64,
-    height: f64,
+pub(crate) struct ObjcSize {
+    pub(crate) width: f64,
+    pub(crate) height: f64,
 }
 
 #[cfg(target_os = "macos")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct ObjcRect {
-    origin: ObjcPoint,
-    size: ObjcSize,
+pub(crate) struct ObjcRect {
+    pub(crate) origin: ObjcPoint,
+    pub(crate) size: ObjcSize,
 }
 
 #[cfg(target_os = "macos")]

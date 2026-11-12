@@ -143,6 +143,8 @@ impl NativeAppPage {
             });
         let (view, error) = match WebView::build(builder, window, cx) {
             Ok(mut view) => {
+                #[cfg(target_os = "macos")]
+                crate::native_accessibility::attach(window);
                 view.hide();
                 (Some(cx.new(|_| view)), None)
             }
