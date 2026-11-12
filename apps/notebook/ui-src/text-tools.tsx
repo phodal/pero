@@ -318,20 +318,18 @@ export function NotebookTextTools({ editor, entryTools = false }: { editor: Edit
     {markButton('bold')}
     {markButton('italic')}
     {markButton('underline')}
-    {markButton('strike')}
     <IconButton label={t(status.link ? 'editLink' : 'insertLink')} aria-pressed={status.link} disabled={!status.canLink}
       onMouseDown={event => event.preventDefault()} onClick={openLink}><Icon name="link" /></IconButton>
-    {colorSelect('textColor', status.tone)}
-    {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
-    {markButton('subscript')}
-    {markButton('superscript')}
     <span className="notebook-toolbar-divider" />
     {blockButton('bulletList', 'bullet')}
     {blockButton('orderedList', 'ordered')}
     {blockButton('taskList', 'task')}
     </Toolbar>
     {entryTools && <EntryAiTools editor={editor} />}
-    <NotebookMenu name={t('more')} menu="format" caret triggerClassName="notebook-overflow-trigger">
+    <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
+      <div className="notebook-workspace-actions">{markButton('strike')}{markButton('subscript')}{markButton('superscript')}</div>
+      {colorSelect('textColor', status.tone)}
+      {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
       <Button variant="ghost" aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{t('code')}</Button>
       {editor.schema.nodes.horizontalRule && <Button variant="ghost" disabled={!status.inline || !editor.can().setHorizontalRule()}

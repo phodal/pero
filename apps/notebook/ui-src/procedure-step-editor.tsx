@@ -95,7 +95,7 @@ export function ProcedureRichEditor({ content, text = '', kind, label, readonly,
   };
   return <div className="notebook-procedure-content" ref={container}>
     {!readonly && <div className="notebook-procedure-tools">
-      <Disclosure variant="inline" summary={t('format')}><NotebookTextTools editor={editor} /></Disclosure>
+      <NotebookTextTools editor={editor} />
       {(!kind || kind === 'image' || kind === 'table') && <Disclosure variant="inline" summary={t('insertContent')}>
       {(!kind || kind === 'image') && <FilePicker label={t('image')} accept="image/png,image/jpeg,image/webp" emptyLabel="" onFile={file => void insertImage(file)} />}
       {(!kind || kind === 'table') && <><Field label={t('plateSize')}>{control => <NativeSelect {...control} value={plateSize} onChange={event => setPlateSize(event.target.value)}>

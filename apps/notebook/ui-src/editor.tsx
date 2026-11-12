@@ -49,7 +49,6 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
   historyControls?: DocumentHistoryControls; editor: Editor; insertTools?: ReactNode; entryId: string;
 }) {
   const { t } = useAppI18n(messages);
-  const [formatting, setFormatting] = useState(false);
   const status = useEditorState({
     editor,
     selector: ({ editor: instance }) => ({
@@ -64,10 +63,9 @@ function EditorToolbar({ editor, historyControls, insertTools, entryId }: {
         <IconButton label={t('redo')} disabled={!(historyControls?.canRedo ?? status.canRedo)} onClick={() => historyControls ? historyControls.redo() : editor.chain().focus().redo().run()}><Icon name="redo" /></IconButton>
       </span>
       {insertTools}
-      <Button variant="ghost" aria-expanded={formatting} aria-controls={`notebook-formatting-${entryId}`} onClick={() => setFormatting(value => !value)}>{t('formattingTools')}<Icon name="chevron-down" size={12} /></Button>
       <EntryAiTools editor={editor} />
     </div>
-    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools" hidden={!formatting}><NotebookTextTools editor={editor} /></div>
+    <div id={`notebook-formatting-${entryId}`} className="notebook-text-tools"><NotebookTextTools editor={editor} /></div>
   </div>;
 }
 
@@ -92,7 +90,8 @@ function NotebookInsertTools({ editor, document, onCreateEntry, entryId, revisio
   const widgetButton = (name: string) => {
     const widget = widgets.find(item => item.name === name);
     if (!widget) return null;
-    return <Button variant="ghost" role="menuitem" key={widget.name} onClick={event => {
+    const purpose = ({ spreadsheet: 'spreadsheetPurpose', inputTable: 'inputTablePurpose', appCanvas: 'appCanvasPurpose', evidence: 'evidencePurpose', experiment: 'experimentPurpose', finding: 'findingPurpose' } as Record<string, keyof typeof messages>)[name];
+    return <Button title={purpose ? t(purpose) : undefined} variant="ghost" role="menuitem" key={widget.name} onClick={event => {
       insertBlocks(editor, [{
         type: widget.name, attrs: widget.name === 'spreadsheet' ? {
           label: nextWorksheetName(editor.state.doc),
