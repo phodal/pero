@@ -1,10 +1,12 @@
 /* Writing-first composition; controls retain the shared SDK skins and tokens. */
 .notebook-nav { background: var(--pero-bg); }
 .notebook-nav-tools { padding: var(--pero-spacing-2) var(--pero-spacing-3); border: 0; }
-.notebook-nav-tools > .pero-ui-icon-button:last-of-type { margin-inline-start: auto; }
+.notebook-nav-tools > .notebook-library-sort { margin-inline-start: auto; }
+.notebook-library-sort > .pero-ui-button:not([data-variant=unstyled]) {
+  min-height: var(--pero-control-height); height: auto; padding-inline: 8px; gap: 4px;
+  color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-weight: var(--pero-font-weight-medium);
+}
 .notebook-library-tools { padding: 0 var(--pero-spacing-3) var(--pero-spacing-2); }
-.notebook-library-heading { margin: 0 var(--pero-spacing-3) var(--pero-spacing-1); }
-.notebook-library-heading > button { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .notebook-list { padding: var(--pero-spacing-2); }
 .notebook-list .pero-list-row { margin-bottom: var(--pero-spacing-2); }
 .notebook-list .pero-list-title { font-weight: var(--pero-font-weight-semibold); }

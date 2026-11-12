@@ -419,6 +419,13 @@ function Notebook() {
                 else if (librarySearchVisible) librarySearch.current?.focus();
                 else setLibrarySearchOpen(true);
               }}><Icon name="search" /></IconButton>
+            <div className="notebook-library-sort"><DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" aria-label={t('sortNotebooks')}>{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}<Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end"><DropdownMenuRadioGroup value={entryOrder} onValueChange={setEntryOrder}>
+                <DropdownMenuRadioItem value="recent">{t('recentNotebooks')}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="title">{t('titleOrder')}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup></DropdownMenuContent>
+            </DropdownMenu></div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
           </div>
@@ -431,13 +438,6 @@ function Notebook() {
                 else { setLibrarySearchOpen(false); event.currentTarget.blur(); }
               }} />
           </div>}
-          <div className="notebook-library-heading"><DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" aria-label={t('sortNotebooks')}>{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}<Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="start"><DropdownMenuRadioGroup value={entryOrder} onValueChange={setEntryOrder}>
-              <DropdownMenuRadioItem value="recent">{t('recentNotebooks')}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="title">{t('titleOrder')}</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup></DropdownMenuContent>
-          </DropdownMenu></div>
           {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
