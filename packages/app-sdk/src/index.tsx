@@ -15,6 +15,7 @@ import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';
 export { openAppSession, requestAppShell, useInstalledSkill } from './iframe-host';
 export { DeclaredAppCanvas } from './app-canvas';
+export { EmbeddedAppPanel } from './app-panel';
 export type { CanvasSource } from './app-canvas';
 export { listInstalledAppViews } from './installed-app-views';
 export type { InstalledAppViews } from './installed-app-views';
