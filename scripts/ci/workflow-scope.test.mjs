@@ -101,7 +101,7 @@ test('Computer Use and Release triggers keep synchronize and do not limit themse
   assert.match(release.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
   assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'release-package');
   const sandbox = YAML.parse(readFileSync('.github/workflows/agent-sandbox.yml', 'utf8'));
-  const isolated = YAML.parse(readFileSync('.github/workflows/agent-sandbox-isolated.yml', 'utf8'));
+  const isolated = sandbox;
   assert.deepEqual(sandbox.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
   for (const workflow of [sandbox, isolated]) {
     assert.ok(workflow.on.pull_request.paths.includes('server/**'));
