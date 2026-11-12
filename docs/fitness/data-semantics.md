@@ -1,5 +1,9 @@
 # Data semantic light-path verification
 
+Current follow-up: [2026-11-12 real comparison and deployment](data-semantics-real.md)
+records real A/B/C usage, OAuth/MCP execution and the actual failed Vault gate.
+Earlier pending/not-run statements below describe their dated 2026-11-11 evidence.
+
 Issue [#152](https://github.com/phodal/pero/issues/152) remains open. This delivers
 P0 and the offline D reference portion of lightweight P1; A/B/C and P2 are pending.
 Commands, ownership, data licenses and the pinned NVIDIA source audit are in the
@@ -139,7 +143,7 @@ SQL-column rejection, whose focused negatives were then rerun there.
   `test-results/data-semantic-product/upstream-source-review.json`. No images
   were built/pulled and no upstream service was started.
 
-### #152 DoD mapping
+### #152 DoD mapping at 2026-11-11
 
 | Item | Evidence / remaining boundary |
 | --- | --- |

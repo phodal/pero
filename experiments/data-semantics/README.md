@@ -1,5 +1,11 @@
 # Data semantic definitions: offline reference study (#152)
 
+Latest evidence: [2026-11-12 real model and upstream deployment](../../docs/fitness/data-semantics-real.md).
+273 formal provider requests, actual OAuth/MCP probes and a failed live Vault
+gate now supplement the initial offline iteration described below. Full-service
+adoption remains blocked. The user approved closing #152 with the
+`reuse-contract-only` research decision; failed and unverified gates remain explicit.
+
 This is the P0 freeze plus a deterministic, lightweight part of P1. It exercises
 reviewed definitions over an immutable **Data export** in a disposable SQLite
 copy. It is not a shipped Data query feature, an NL2SQL evaluation, a new Catalog,
@@ -52,7 +58,8 @@ upstream commit and the hashes/URLs of inspected official files.
   automatically understood or routed. Thus clarification/refusal fixture passes
   are **not** model ambiguity, refusal or prompt-injection accuracy.
 - `policy.json` keeps proposed adoption thresholds separate from local results.
-  A/B/C model configurations and measured usage are absent because none ran.
+  A/B/C model configurations and measured usage were absent in the initial freeze;
+  the later real run preserves this file and records its own immutable protocol.
 
 `semantics.py` owns selected-definition admission and the local read grant.
 `study.py` is the I/O shell: existing `Catalog.import_file` and `Analysis.export`
@@ -146,7 +153,8 @@ ceiling; B spends three on generation and 90 on questions, while A/C need 90.
 B generation overhead is recorded separately. Unknown cost and human maintenance
 time are null, never zero. Full model revision/payload disclosure still depends
 on the actual local provider and must be audited before treating a model run as
-fixed-version evidence. Real A/B/C remains **not run**.
+fixed-version evidence. Real A/B/C was **not run** at initial driver delivery;
+the 2026-11-12 report above records the subsequent actual provider run.
 
 Actual product verification (uses existing dependencies and a built Host):
 

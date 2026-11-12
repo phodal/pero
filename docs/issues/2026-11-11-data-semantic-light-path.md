@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-11
 github_issue: 152
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/152
 ---
 
@@ -76,3 +76,54 @@ Host 使用原 research-assets 授权能力取服务端回执。UI 使用共享�
 `7e5a54db` / `244e9234` 使不支持独立复算的定义显示禁用动作及原因。
 最新正式 `run-SF1e7p` 六组真实Host/browser场景通过，新增暗色状态截图已检查。
 Paper ManualRecords 已稳定，后续精确引用入口工作归 #143；本轮不再改动该文件。
+
+## 真实对照续作 — 2026-11-12
+
+用户要求补齐未完成验收，不能仅调整范围关闭 issue。本轮保留原冻结题集、
+答案、D 参考和阈值，执行真实 A/B/C 对照并记录真实用量、延迟和失败。
+本机无已运行本地模型，已有仓库 DeepSeek 配置；显式使用官方 HTTPS API 的
+deepseek-flash，三个 repetition、每组 90 次问题请求，B 另含三次生成请求，
+不自动重试。凭据仅从进程环境读取，不写入配置、日志或证据。
+
+目前 Docker daemon 不可用，未发现现成 OrbStack/Ollama App 或模型文件。
+上游部署验收保持未完成，不能以静态审查或轻路径通过代替真实 OAuth/Vault
+及隔离验收。先完成独立可执行的模型比较，再记录剩余具体阻塞。
+
+真实执行进展：270 次回答 + 3 次语义生成完成，原精确匹配 A=33/90、
+B=32/90、C=87/90；部分 A/B 失败只有列别名或浮点精度差异，不能直接
+用该分差声称科学语义收益。完整原始请求/响应、错误及 usage 已保留。
+
+固定 NVIDIA 源码的后端、Frontend、MCP 镜像已实际构建，并在本任务
+专用 Colima/内部网络启动。Frontend 认证/伪造身份/API token 撤销、
+过期及当前角色降权的 14 项 HTTP 检查通过；真实只读 PostgreSQL 角色
+拒绝 DDL、DML、catalog 越界、读服务器文件及带写入的多语句。
+
+**实际失败：Vault fail-closed。** 仅配置 `VAULT_ADDR`、其余三项缺失，
+经已认证 Frontend 创建连接返回 HTTP 201；实际 Postgres catalog 中
+发现明文测试密码。只使用本任务合成密码，无真实来源凭据。
+这与原验收门槛不符，不能报告完整上游接入通过。OAuth/MCP 随后由独立
+23 项真实探针验证：PKCE、工具发现/实际 readiness 调用、撤销、过期、
+角色降权和认证服务断开/恢复均通过；不是用 API token 结果代替它。
+原始证据位于 `test-results/issue-152-real/upstream/`。本 issue 保持 open。
+
+逐项结果、局限、费用估算和复跑命令见
+[真实验收报告](../fitness/data-semantics-real.md)，提交的小型 JSON 摘要保留
+用量、模型 fingerprint、镜像 identities 和失败门槛。原精确匹配分数不改；
+额外诊断确认 A 的 30 项、B 的 24 项仅列别名/六位精度不同，不能把原分差
+当成通用科学正确率收益。C 仍有三次 T08 真实绑定错误；B 有一次参数绑定错误。
+人类维护时间、独立人工审查和完整生产隔离/出网仍未建立证据。
+
+## 最终处理 — 2026-11-12
+
+用户在审阅真实模型和部署验证结果后明确要求合并 PR #205、关闭 #152。
+本研究以 **reuse-contract-only** 结案；当前不采纳完整 NVIDIA 服务。
+Vault 部分配置导致明文存储的实测失败仍成立，独立人工维护成本、外部 SSO
+与生产隔离/出网等未验证范围不因结案而转为通过。今后若要采用完整服务，
+须另行限定任务，修复或阻断该回退并重新验收。
+
+合并复核：5 项概念/loopback 测试通过，无未处理 review。PR CI 15 个 job
+通过，Notebook browser 和 Canvas 两组失败与当前 master `ee0c1a90` 完全
+相同（Table settings、paper-block、Verification 定位器）：
+[主干 CI](https://github.com/phodal/pero/actions/runs/43149931560)、
+[PR CI](https://github.com/phodal/pero/actions/runs/43153971435)。
+Notebook tree 与 Canvas 测试文件在两端字节相同；未把这些已有失败报告为全绿。

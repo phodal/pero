@@ -75,3 +75,19 @@ have real evidence. Choose `stop` if the predefined benefit threshold is missed,
 maintenance costs outweigh benefit, or required isolation cannot be made real.
 Keep #152's unverified comparison and upstream acceptance visible rather than
 reclassifying fixture scores or local Host authorization as those results.
+
+## 2026-11-12 live follow-up
+
+The [real comparison and deployment report](../fitness/data-semantics-real.md)
+adds 273 actual DeepSeek responses and live upstream OAuth/MCP, PostgreSQL and
+Vault probes. The decision remains **reuse-contract-only**. Reviewed SQL context
+helps exact reproduction in this frozen task, but aliases/rounding bias the
+original exact scorer, C contains reference SQL, and independent human effort
+has not been measured. It is not evidence for adopting the complete upstream Agent.
+
+The partial-Vault fallback is now an observed failure: authenticated creation
+returned 201 and persisted the synthetic password as plaintext. Full adoption
+cannot pass the issue's credential gate. The user subsequently approved merging
+PR #205 and closing #152 with the reuse-contract-only research decision. Retain
+this concrete failure and the remaining limits; closure does not mean the
+production service has been accepted.
