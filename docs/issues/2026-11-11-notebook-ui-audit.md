@@ -401,3 +401,17 @@ under `test-results/notebook/` and `test-results/notebook-canvas/` include the
 reference inspector and reopened old revision; the reference-review capture was
 visually inspected. Electron/Native, installers and scientific acceptance were
 not assessed. Actions on the repair commit remain pending.
+
+## Collapsed library header — 2026-11-12
+
+Replaced the separate text-only reopen row with the shared panel-left-open
+IconButton in the same document bar as tabs, revision status, Save and File.
+The library's collapse button uses panel-left-close. Accessible name/expanded
+state and tooltip preserve discoverability; loading/error fallback still exposes
+the reopen action. Removed the obsolete `.notebook-nav-reopen` rule.
+
+Notebook typecheck/build pass. Browser checks at 1280 × 900 and 440 × 900 verify
+matching toggle/tab vertical centers, collapse/reopen and retained title. Inspected
+English/light and Chinese/dark screenshots in the current chat's visualization
+directory (`notebook-collapsed-light.png`, `notebook-collapsed-narrow-dark.png`).
+Native and Electron have not been reloaded for this layout change.
