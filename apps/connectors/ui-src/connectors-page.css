@@ -1,16 +1,20 @@
-.point-connectors-page{container-type:inline-size}
+.point-connectors-page{container:connectors / inline-size}
 /* Built-in actions share SDK button states; layout only lives here. */
 .point-connectors-toolbar{justify-content:space-between}
 .point-custom-mcps{display:flex;flex-direction:column;gap:var(--pero-space-8,16px)}
 .point-custom-mcps-form{display:flex;flex-direction:column;gap:var(--pero-space-6,12px)}
 .point-connectors-toolbar .point-page-actions{display:flex;align-items:center;gap:var(--pero-space-4)}
-.point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-space-6);flex-wrap:wrap;margin-bottom:var(--pero-space-12,24px)}
-.point-connectors-search-tools .pero-search-field{flex:1;min-width:min(100%,16rem);max-width:34rem}
-.point-connectors-capabilities{margin-bottom:var(--pero-space-12,24px)}
-.point-connectors-guides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pero-space-6)}
-.point-connectors-guide.pero-ui-button{display:flex;justify-content:flex-start;gap:var(--pero-space-6);height:auto;min-height:0;padding:var(--pero-space-6);text-align:left;white-space:normal}
+.point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-space-6);flex-wrap:wrap;margin-bottom:var(--pero-space-6,12px)}
+.point-connectors-search-tools .pero-search-field{flex:1;min-width:min(100%,16rem);max-width:none}
+.point-connectors-filter-count{margin-inline-start:6px;font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
+.pero-ui-toggle-item[data-state=on] .point-connectors-filter-count{color:var(--pero-accent-text)}
+.point-connectors-capabilities{margin-bottom:var(--pero-space-8,16px)}
+.point-connectors-guides{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.point-connectors-page .point-connectors-guide.pero-ui-button{display:flex;align-items:center;justify-content:flex-start;gap:10px;height:auto;min-height:0;padding:10px 12px;text-align:left;white-space:normal;border:var(--pero-border-width-thin,1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl,12px);background:var(--pero-surface)}
+.point-connectors-page .point-connectors-guide.pero-ui-button:hover{background:var(--pero-surface-hover)}
 .point-connectors-guide>svg{flex:none;color:var(--pero-text-muted)}
-.point-connectors-guide-copy{display:flex;flex-direction:column;gap:var(--pero-space-2);min-width:0;flex:1}
+.point-connectors-guide-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.point-connectors-guide-title,.point-connectors-guide-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .point-connectors-guide-title{font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
 .point-connectors-guide-summary{font-size:var(--pero-font-caption);font-weight:var(--pero-font-weight-regular);line-height:var(--pero-line-height-normal);color:var(--pero-text-muted)}
 .point-connectors-guide-kicker{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-semibold, 600);margin-bottom:var(--pero-space-2, 4px)}
@@ -23,29 +27,34 @@
 .point-connectors-example input{margin-top:3px;flex:none}
 .point-connectors-example span{display:flex;flex-direction:column;gap:var(--pero-space-1, 2px);min-width:0}
 .point-connectors-guide-prompt{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);line-height:1.45;white-space:normal}
-@container (max-width:560px){.point-connectors-guides{grid-template-columns:1fr}}
 .point-connectors-categories{margin-bottom:var(--pero-space-8, 16px)}
 .point-connectors-hint{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);margin:0 0 var(--pero-space-4, 8px)}
 .point-connectors-section{margin-bottom:16px}
 .point-connectors-page .point-connectors-section-title{display:flex;align-items:baseline;gap:var(--pero-space-3, 6px);font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0 0 var(--pero-space-5, 10px)}
 .point-connectors-section-title span{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
-.point-connectors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr));gap:var(--pero-space-6)}
-.point-connectors-tile{display:flex;flex-direction:column;gap:var(--pero-spacing-3);min-width:0}
-.point-connectors-tile-heading{flex:1;min-width:0}
-.point-connectors-tile-heading{overflow-wrap:anywhere}
+.point-connectors-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@container connectors (max-width:860px){.point-connectors-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container connectors (max-width:520px){.point-connectors-guides,.point-connectors-grid{grid-template-columns:1fr}}
+.point-connectors-page .point-connectors-tile{--pero-card-padding:10px 12px;display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0}
+.point-connectors-page .point-connectors-tile.pero-ui-card:hover{background:var(--pero-surface-hover)}
+.point-connectors-tile-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .point-connectors-tile-action{flex:none}
-.point-connectors-tile .point-connectors-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.4}
+.point-connectors-tile .point-connectors-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
 .point-connectors-logo{display:block;width:22px;height:22px;object-fit:contain}
 .point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
-.point-connectors-card-head{display:flex;align-items:center;gap:8px}
-.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
+.point-connectors-card-head{display:flex;align-items:center;gap:6px;min-width:0}
+.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--pero-radius-md, 8px);background:var(--pero-hover);flex:none}
 /* Preserve official brand colors on a neutral plate, including dark marks. */
 .point-connectors-symbol:has(>.point-connectors-logo){background:#fff;box-shadow:inset 0 0 0 1px var(--pero-border-subtle)}
-.point-connectors-card-title{margin:0;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
+.point-connectors-card-title{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
+.point-connectors-card-meta,.point-connectors-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .point-connectors-card-meta{font-size:var(--pero-font-caption);color:var(--pero-text-secondary)}
-.point-connectors-summary{font-size:var(--pero-font-ui);color:var(--pero-text-secondary);margin:0}
-.point-connectors-card-actions{margin-top:auto;display:flex;gap:var(--pero-space-4, 8px);align-items:center;justify-content:flex-end;padding-top:var(--pero-space-2)}
-.point-connectors-card-actions>.pero-ui-help-tip{margin-right:auto}
+.point-connectors-summary{font-size:var(--pero-font-caption);color:var(--pero-text-secondary);margin:0}
+.point-connectors-card-actions{display:flex;flex:none;gap:var(--pero-space-4, 8px);align-items:center}
+@container (max-width:240px){
+  .point-connectors-page .point-connectors-tile{flex-direction:column;align-items:stretch}
+  .point-connectors-card-actions{justify-content:flex-end}
+}
 .point-connectors-row-card{display:flex;align-items:center;gap:var(--pero-space-6, 12px)}
 .point-connectors-row-copy{flex:1;min-width:0}
 .point-connectors-row-title{display:flex;align-items:center;gap:var(--pero-space-4, 8px);flex-wrap:wrap}
@@ -63,7 +72,6 @@
 .point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl, 12px);padding:var(--pero-space-8, 16px);margin-bottom:var(--pero-space-7, 14px)}
 .point-connector-tool code,code.point-connector-tool{font:var(--pero-font-caption) var(--dsw-font-mono);background:var(--pero-hover);border-radius:var(--pero-radius-sm, 6px);padding:var(--pero-space-1, 2px) var(--pero-space-3, 6px)}
 .point-connectors-reason{color:var(--pero-warning);font-size:var(--pero-font-size-xs, 11px)}
-@media(max-width:760px){.point-connectors-grid{grid-template-columns:1fr}}
 .point-connectors-import-preview{border-top:var(--pero-border-width-thin, 1px) solid var(--pero-border-subtle);padding-top:var(--pero-space-5, 10px);font-size:var(--pero-font-size-sm-plus, 12.5px);display:flex;flex-direction:column;gap:var(--pero-space-2, 4px)}
 .point-connectors-import-preview>div:first-child{display:flex;align-items:center;gap:var(--pero-space-4, 8px)}
 .point-connectors-import-preview .point-connectors-row-meta{font-family:var(--dsw-font-mono);word-break:break-all}
@@ -144,7 +152,7 @@ label.point-connector-tool code{background:none;padding:0;overflow-wrap:anywhere
   .point-connector-tool-group{grid-template-columns:1fr}
 }
 .point-page-toolbar input.pero-ui-input{width:auto;flex:1;min-width:140px}
-.point-connectors-page .pero-ui-toggle-group.point-connectors-categories{display:flex;flex-wrap:wrap;max-width:100%;gap:8px}
+.point-connectors-page .pero-ui-toggle-group.point-connectors-categories{display:flex;flex-wrap:wrap;flex-wrap:balance;max-width:100%;gap:8px}
 .point-connectors-json textarea.pero-ui-textarea{flex:1;min-width:0;margin:0;border:0;border-radius:0;outline:0;resize:none;min-height:0;padding:var(--pero-space-5, 10px) var(--pero-space-6, 12px);background:transparent;box-shadow:none}
 .point-connector-detail.pero-ui-dialog:not([data-unstyled]){overflow:visible}
 .point-connector-detail.pero-ui-dialog:not([data-unstyled]) .pero-ui-dialog-body{overflow:auto}

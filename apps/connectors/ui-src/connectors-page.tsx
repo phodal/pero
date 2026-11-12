@@ -20,7 +20,7 @@ import { connectorSections, connectorShelf, connectorShelfLabels } from './conne
 import { CustomMcps } from './custom-mcps';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
-import { Button, Card, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, Select, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
+import { Button, Card, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
 
 
 const ATTENTION = new Set(['needs-attention', 'needs-authorization', 'needs-configuration', 'not-verified']);
@@ -264,9 +264,10 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   }, [view?.connectionId, view?.revision]);
 
   const catalogDirectory = directory.filter(entry => connectorShelf(entry));
-  const matchesCatalog = catalogDirectory.filter(entry => (category === 'all' || connectorShelf(entry) === category) &&
-    matchesProvider(entry, search, [PROVIDER_NAMES_EN[entry.providerId] ?? '']));
+  const matchesSearch = catalogDirectory.filter(entry => matchesProvider(entry, search, [PROVIDER_NAMES_EN[entry.providerId] ?? '']));
+  const matchesCatalog = matchesSearch.filter(entry => category === 'all' || connectorShelf(entry) === category);
   const categoriesAvailable = ['all', ...connectorSections(directory, locale).map(section => section.id)];
+  const shelfCounts = Object.fromEntries(connectorSections(matchesSearch, locale).map(section => [section.id, section.entries.length]));
   const catalogSections = connectorSections(matchesCatalog, locale);
   const matchesManage = connections.filter(view => (view.connectionId.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || view.displayName.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || view.origin.toLocaleLowerCase().includes(search.toLocaleLowerCase())) &&
     (stateFilter === 'all' || (stateFilter === 'attention' ? ATTENTION.has(view.state) : stateFilter === 'ready' ? READY.has(view.state) : !view.enabled)));
@@ -312,10 +313,11 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       {mode !== 'custom' && <div className="point-page-actions"><IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton><Button onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button></div>}
     </Toolbar>
 
-    <div className="point-connectors-search-tools"><SearchField placeholder={mode === 'custom' ? copy('搜索自定义 MCP', 'Search custom MCPs') : mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
-      {mode === 'catalog' && <Select label={copy('服务分类', 'Service category')} value={category} onChange={setCategory}
-        options={categoriesAvailable.map(key => ({ value: key, label: key === 'all' ? copy('全部服务', 'All services') : categoryLabels[key] ?? key }))} />}
-    </div>
+    <div className="point-connectors-search-tools"><SearchField placeholder={mode === 'custom' ? copy('搜索自定义 MCP', 'Search custom MCPs') : mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} /></div>
+    {mode === 'catalog' && <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('服务分类', 'Service category')} onValueChange={next => { if (next) setCategory(next); }}>
+      <ToggleGroupItem value="all">{copy('全部服务', 'All services')}<span className="point-connectors-filter-count">{matchesSearch.length}</span></ToggleGroupItem>
+      {categoriesAvailable.filter(key => key !== 'all').map(key => <ToggleGroupItem key={key} value={key}>{categoryLabels[key] ?? key}<span className="point-connectors-filter-count">{shelfCounts[key] ?? 0}</span></ToggleGroupItem>)}
+    </ToggleGroup>}
 
     {refreshing && !loading && mode !== 'custom' && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
     {notice && mode !== 'custom' && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
@@ -335,7 +337,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       {loading && !directory.length && <LoadingSkeleton label={copy('正在加载服务目录…', 'Loading the service catalog…')}><SkeletonCards count={3} /></LoadingSkeleton>}
       {/* One section per tab, in tab order, so the catalog reads as sections instead of one long mixed grid. */}
       {catalogSections.map(section => <section key={section.id} className="point-connectors-section" aria-label={section.label}>
-        <h2 className="point-connectors-section-title">{section.label}<span>{section.entries.length}</span></h2>
+        {category === 'all' && <h2 className="point-connectors-section-title">{section.label}<span>{section.entries.length}</span></h2>}
         <div className="point-connectors-grid">
           {section.entries.map((entry: DirectoryEntry) => {
             const installed = connections.filter(c => c.providerId === entry.providerId);
@@ -344,17 +346,19 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
             const prerequisite = (locale === 'en' ? entry.prerequisiteEn : entry.prerequisiteCopy) ?? entry.prerequisiteCopy;
             const stage = ({ tenant: copy('需账号或机构权限', 'Account or organization access'), review: copy('待适配验证', 'Compatibility review'), vendor: copy('需供应商开通', 'Vendor access required'), upcoming: copy('尚未发布', 'Announced'), planned: copy('待封装适配器', 'Adapter planned') } as Record<string, string>)[entry.catalogStage ?? ''];
             const auth = entry.providerId === 'feishu-workspace' ? copy('CLI 用户授权', 'CLI user authorization') : (locale === 'zh' ? AUTH_MODE_TEXT : AUTH_MODE_TEXT_EN)[entry.auth?.mode ?? 'none'];
+            const title = locale === 'en' ? PROVIDER_NAMES_EN[entry.providerId] ?? entry.displayName : entry.displayName;
+            const meta = installed.length ? copy(`已安装 · ${installed.length} 个连接`, `Installed · ${installed.length} connections`) : record === 'running' ? copy('正在后台安装…', 'Installing in the background…') : record ? copy('服务已安装 · 未添加', 'Server installed · Not added') : stage ?? (entry.transport === 'stdio' ? copy('需本机软件', 'Local software required') : auth);
             return <Card key={entry.providerId} asChild><article className="point-connectors-tile" data-installed={installed.length > 0}>
-              <div className="point-connectors-card-head">
-                <span className="point-connectors-symbol"><ProviderIcon entry={entry} /></span>
-                <div className="point-connectors-tile-heading">
-                  <h3 className="point-connectors-card-title">{locale === 'en' ? PROVIDER_NAMES_EN[entry.providerId] ?? entry.displayName : entry.displayName}</h3>
-                  <div className="point-connectors-card-meta">{installed.length ? copy(`已安装 · ${installed.length} 个连接`, `Installed · ${installed.length} connections`) : record === 'running' ? copy('正在后台安装…', 'Installing in the background…') : record ? copy('服务已安装 · 未添加', 'Server installed · Not added') : stage ?? (entry.transport === 'stdio' ? copy('需本机软件', 'Local software required') : auth)}</div>
+              <span className="point-connectors-symbol"><ProviderIcon entry={entry} /></span>
+              <div className="point-connectors-tile-copy">
+                <div className="point-connectors-card-head">
+                  <h3 className="point-connectors-card-title">{title}</h3>
+                  {prerequisite && <InfoTip label={copy('使用要求', 'Requirements')} text={prerequisite} />}
                 </div>
+                <div className="point-connectors-card-meta">{meta}</div>
+                <p className="point-connectors-summary">{summary}</p>
               </div>
-              <p className="point-connectors-summary">{summary}</p>
               <div className="point-connectors-card-actions">
-                {prerequisite && <InfoTip label={copy('使用要求', 'Requirements')} text={prerequisite} />}
                 {installed.length
                   ? <Button className="point-connectors-tile-action" onClick={() => { if (installed.length === 1) openDetail(installed[0].connectionId); else { setMode('manage'); setSearch(entry.displayName); } }}>{copy('管理', 'Manage')}</Button>
                   : entry.listed ? <Button className="point-connectors-tile-action" title={prerequisite} onClick={() => openDocs(entry.providerId)}>{copy('查看文档', 'View docs')}</Button>
