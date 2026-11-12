@@ -232,6 +232,25 @@ impl WorkspaceStore {
         }
         Ok(())
     }
+    fn preserve_unsupported_checkpoint(&self) -> io::Result<()> {
+        let path = self.directory.join("session.json");
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        if serde_json::from_slice::<Checkpoint>(&bytes).is_ok_and(|saved| saved.session.valid()) {
+            return Ok(());
+        }
+        let backup = path.with_extension("json.unsupported");
+        if !backup.exists() {
+            std::fs::write(&backup, &bytes)?;
+        }
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Saved workspace uses an unsupported revision; the original file was left in place",
+        ))
+    }
     pub fn needs_source(&self, key: &SourceKey) -> bool {
         !self.sources.iter().any(|source| &source.key == key)
     }
@@ -241,6 +260,7 @@ impl WorkspaceStore {
         mut session: WorkspaceSession,
         sources: Vec<WorkspaceSource>,
     ) -> io::Result<()> {
+        self.preserve_unsupported_checkpoint()?;
         for document in &mut session.documents {
             if document.legacy_draft && document.draft.is_none() {
                 document.draft = Some(
@@ -471,6 +491,37 @@ mod tests {
             Err(crate::file_documents::FileError::Conflict)
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "changed on disk");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_newer_workspace_revision_is_kept_and_not_replaced() {
+        let directory = std::env::temp_dir().join(format!("pero-workspace-{}", uuid::Uuid::new_v4()));
+        let settings = directory.join("settings.json");
+        let session = WorkspaceSession {
+            version: 1,
+            workspace: directory.to_string_lossy().into(),
+            navigation: WorkspaceSnapshot::default(),
+            documents: vec![],
+            web: vec![],
+            pull_requests: vec![],
+        };
+        let mut store = WorkspaceStore::new(&settings);
+        store.save(session.clone(), vec![]).unwrap();
+        let checkpoint = settings.with_extension("workspace").join("session.json");
+        let mut value: serde_json::Value = serde_json::from_slice(&std::fs::read(&checkpoint).unwrap()).unwrap();
+        value["session"]["version"] = serde_json::json!(2);
+        let original = serde_json::to_vec(&value).unwrap();
+        std::fs::write(&checkpoint, &original).unwrap();
+        let error = WorkspaceStore::new(&settings).load().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        let error = store.save(session, vec![]).unwrap_err();
+        assert!(error.to_string().contains("unsupported revision"));
+        assert_eq!(std::fs::read(&checkpoint).unwrap(), original);
+        assert_eq!(
+            std::fs::read(checkpoint.with_extension("json.unsupported")).unwrap(),
+            original
+        );
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
