@@ -1,7 +1,9 @@
+import { mystNodeText } from './myst-numbering.ts';
+import { projectRecordedCell } from './ipynb-recorded.ts';
 import type { MystNode, MystDiagnostic, MystDocument } from './myst.ts';
 import type { MystProjectEntry } from './myst-project.ts';
 import type { MystPublicationAsset, MystPublicationInput } from './myst-publication.ts';
-import { ipynbText, type IpynbCell } from './ipynb.ts';
+import { type IpynbCell } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
 /** Derived publication only. Exact notebook recovery is mandatory, never fabricated MyST source. */
 export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAssets: readonly MystPublicationAsset[] = []): MystPublicationInput {
@@ -28,6 +30,22 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
     }
     return { type: 'image', url: path, alt: `Cell ${cell.index + 1}: ${location}` };
   };
+  let titleConsidered = false;
+  // Only the leading heading of the first published compiled cell can own the
+  // notebook title. Move it before generated cell headings, without dropping a
+  // legitimate later heading that happens to have the same text.
+  const appendCompiled = (nodes: MystNode[]) => {
+    if (!titleConsidered) {
+      titleConsidered = true;
+      const first = nodes.find(node => !['comment', 'mystTarget'].includes(node.type) && !(node.type === 'text' && !node.value));
+      if (first?.type === 'heading' && first.depth === 1 && mystNodeText(first) === entry.scholarly.title) {
+        children.unshift(first);
+        children.push(...nodes.filter(node => node !== first));
+        return;
+      }
+    }
+    children.push(...nodes);
+  };
   for (const cell of entry.document.cells) {
     const visible = ipynbCellVisibility(cell); visible.notices.forEach(report); if (!visible.cell) continue;
     children.push({ type: 'heading', depth: 2, children: [{ type: 'text', value: `Cell ${cell.index + 1}: ${cell.kind}` }] });
@@ -46,35 +64,21 @@ export function compiledMystEntryPublication(entry: MystProjectEntry, suppliedAs
         if (node.children) node.children = node.children.map(visit);
         return node;
       };
-      children.push(...(visit(ast).children ?? []));
+      appendCompiled(visit(ast).children ?? []);
       for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
       Object.assign(bibliography, compiled.document.bibliography); diagnostics.push(...compiled.document.diagnostics);
       if (cell.raw.attachments) report(`Cell ${cell.index + 1}: complete attachment bundles remain in notebook.ipynb; only referenced supported raster images are embedded.`);
-    } else if (visible.input) children.push(paragraph(cell.kind === 'code' ? 'Inert code input. Never executed here.' : 'Raw cell, shown as literal text.'), literal(cell.source));
-    if (cell.kind !== 'code' || !visible.output) continue;
-    children.push(paragraph(cell.stale ? 'Stale recorded outputs: code was edited, outputs were not re-executed.' : 'Recorded outputs only; execution and freshness are unverified.'));
-    if (cell.outputs.length > 128) report(`Cell ${cell.index + 1}: only the first 128 outputs are published; all retained in notebook.ipynb.`);
-    cell.outputs.slice(0, 128).forEach((output, index) => {
-      const label = `Cell ${cell.index + 1}, recorded output ${index + 1}`;
-      if (output.output_type === 'stream') {
-        if (output.name === 'stdout' && !visible.stdout || output.name === 'stderr' && !visible.stderr) return;
-        children.push(paragraph(label), literal(ipynbText(output.text) ?? '[Unsupported stream text retained]')); return;
-      }
-      if (output.output_type === 'error') { children.push(paragraph(label), literal(`${String(output.ename ?? '')}: ${String(output.evalue ?? '')}\n${ipynbText(output.traceback) ?? ''}`)); return; }
-      const data = output.data && typeof output.data === 'object' && !Array.isArray(output.data) ? output.data : {};
-      let selected: string | undefined; let node: MystNode | undefined;
-      for (const mime of ['image/png', 'image/jpeg']) { node = addImage(cell, `Output ${index + 1}`, mime); if (node) { selected = mime; break; } }
-      if (!node) for (const mime of ['text/latex', 'text/plain']) {
-        const text = ipynbText(data[mime]); if (text === undefined) continue;
-        selected = mime;
-        if (mime === 'text/latex' && text.length <= 16384) node = { type: 'math', value: text.replace(/^\$\$|\$\$$/g, '') };
-        else { node = literal(text); if (mime === 'text/latex') report(`${label}: oversized LaTeX shown as literal text.`); }
-        break;
-      }
-      children.push(paragraph(label), node ?? paragraph('Unsupported recorded output retained in notebook.ipynb.'));
-      for (const mime of Object.keys(data)) if (mime !== selected) report(`${label}: ${mime} is retained in notebook.ipynb, not rendered in this publication.`);
-      if (!node) report(`${label}: unsupported output retained without execution.`);
-    });
+    } else if (cell.kind === 'code') {
+      const compiled = entry.codeCells?.find(item => item.index === cell.index);
+      const recorded = projectRecordedCell(cell);
+      if (compiled) {
+        const scope = `${entry.path}:cell-${cell.index}:`;
+        const visit = (node: MystNode): MystNode => ({ ...node, ...(typeof node.identifier === 'string' ? { identifier: scope + node.identifier } : {}), ...(node.children ? { children: node.children.map(visit) } : {}) });
+        appendCompiled(visit(structuredClone(compiled.document.ast)).children ?? []);
+        for (const [id, target] of Object.entries(compiled.document.references)) references[scope + id] = { ...target, identifier: scope + target.identifier };
+        diagnostics.push(...compiled.document.diagnostics);
+      } else { children.push(...recorded.children); recorded.notices.forEach(report); }
+    } else if (visible.input) children.push(paragraph('Raw cell, shown as literal text.'), literal(cell.source));
   }
   return { document: { ast: { type: 'root', children }, scholarly: entry.scholarly, references, bibliography, diagnostics, ...(entry.citationRendering ? { citationRendering: entry.citationRendering } : {}) }, recovery: { kind: 'ipynb', filename: 'notebook.ipynb', source: entry.document.source }, assets };
 }

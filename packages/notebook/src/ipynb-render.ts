@@ -1,4 +1,5 @@
 import katex from 'katex';
+import { mystNodeText } from './myst-numbering.ts';
 import { parseMystDocument, type MystDocument } from './myst.ts';
 import { renderMystHtml, renderMystHtmlShell, renderMystMetadata } from './myst-render.ts';
 import { renderMystCitationBibliography } from './myst-citation-render.ts';
@@ -8,16 +9,30 @@ import { ipynbCellVisibility } from './ipynb-visibility.ts';
 import type { MystScholarlyMetadata } from './myst-metadata.ts';
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const literal = (text: string) => `<pre>${escape(text.slice(0, 65536))}</pre>${text.length > 65536 ? '<p>Preview truncated at 65536 characters; complete value retained in original notebook.</p>' : ''}`;
-export interface IpynbRenderOptions { namespace?: string; fragment?: boolean; markdown?: ReadonlyMap<number, MystDocument>; scholarly?: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering'] }
+export interface IpynbRenderOptions { namespace?: string; fragment?: boolean; markdown?: ReadonlyMap<number, MystDocument>; code?: ReadonlyMap<number, MystDocument>; scholarly?: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering'] }
 /** Static, bounded recorded output. No kernel, scripts, plugins or remote assets. */
 export function renderIpynbHtml(document: IpynbDocument, options: IpynbRenderOptions = {}): string {
+  let titleInContent = false;
+  const hasPublicationTitle = (compiled: MystDocument): boolean => {
+    const first = compiled.ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type));
+    return first?.type === 'heading' && first.depth === 1 && mystNodeText(first).trim() === options.scholarly?.title?.trim();
+  };
   const content = document.cells.map(cell => {
     const visible = ipynbCellVisibility(cell); if (!visible.cell) return '';
     const namespace = `${options.namespace ?? ''}:cell-${cell.index}`;
+    const compiledCode = options.code?.get(cell.index);
+    if (cell.kind === 'code' && compiledCode) {
+      titleInContent ||= hasPublicationTitle(compiledCode);
+      return `<section aria-label="Cell ${cell.index + 1}"><h2>Cell ${cell.index + 1}: code</h2>${renderMystHtml(compiledCode, { namespace, fragment: true, metadata: false, bibliography: false, source: false })}</section>`;
+    }
     let input = '';
     if (visible.input) {
       if (cell.kind === 'markdown') {
-        try { input = renderMystHtml(options.markdown?.get(cell.index) ?? parseMystDocument(cell.source), { namespace, fragment: true, metadata: !options.scholarly, bibliography: !options.citationRendering }); }
+        try {
+          const markdown = options.markdown?.get(cell.index) ?? parseMystDocument(cell.source);
+          input = renderMystHtml(markdown, { namespace, fragment: true, metadata: !options.scholarly, bibliography: !options.citationRendering });
+          titleInContent ||= hasPublicationTitle(markdown);
+        }
         catch { input = `<p>Markdown preview unavailable; exact source retained.</p>${literal(cell.source)}`; }
       } else input = `<p>${cell.kind === 'code' ? 'Inert code input. Never executed here.' : 'Raw cell, shown as literal text.'}</p>${literal(cell.source)}`;
     }
@@ -42,7 +57,7 @@ export function renderIpynbHtml(document: IpynbDocument, options: IpynbRenderOpt
     const mathml = visible.output ? cell.mathml.slice(0, 128).map(item => item.html).join('') : '';
     return `<section aria-label="Cell ${cell.index + 1}"><h2>Cell ${cell.index + 1}: ${cell.kind}</h2>${input}${cell.kind === 'code' && visible.output ? `<p>${cell.stale ? 'Stale recorded outputs: code was edited, outputs were not re-executed.' : 'Recorded outputs only; execution and freshness are unverified.'}</p>` : ''}${outputs}${gallery}${mathml}${cell.outputs.length > 128 && visible.output || images.length > 128 || cell.mathml.length > 128 && visible.output ? '<p>Preview truncated to 128 outputs or rich values; all remaining data retained in original notebook.</p>' : ''}${cell.raw.attachments ? '<p>Attachment bundles retained in original notebook; supported raster previews only.</p>' : ''}<ul>${[...visible.notices, ...cell.diagnostics].map(message => `<li>${escape(message)}</li>`).join('')}</ul></section>`;
   }).join('');
-  const header = options.scholarly ? renderMystMetadata(options.scholarly, options.namespace ?? '').html : '';
+  const header = options.scholarly ? renderMystMetadata(options.scholarly, options.namespace ?? '', titleInContent ? '' : undefined).html : '';
   const bibliography = options.citationRendering ? renderMystCitationBibliography(options.citationRendering, options.namespace ?? '') : '';
   const body = `${header}<p>Offline notebook publication. No code or plugins execute. Unsupported content remains in the original notebook.</p>${content}${bibliography}`;
   return options.fragment ? body : renderMystHtmlShell(options.scholarly?.title ?? 'Notebook', body);

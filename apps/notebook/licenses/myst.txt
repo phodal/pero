@@ -3,6 +3,7 @@ MyST packages bundled with Notebook (MIT)
 markdown-it-myst 1.0.19
 myst-common 1.10.2
 myst-directives 1.7.5
+myst-ext-proof 1.0.14
 myst-frontmatter 1.10.2
 myst-parser 1.7.5
 myst-roles 1.7.5

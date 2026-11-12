@@ -1,9 +1,15 @@
+import { MystProjectionBudget } from './myst-projection-budget.ts';
+import { projectMystTerms } from './myst-terms.ts';
+import { expandMystEmbeds } from './myst-embeds.ts';
+import { attachMystTargets, createMystNumberingState, enumerateMystTargets, resolveMystReferenceContent, type MystNumberingState } from './myst-numbering.ts';
+import { prepareMystTocHeadings, expandMystTocs } from './myst-toc.ts';
 import type { MystProjectReferenceTarget } from './myst-project-references.ts';
 import type { MystImageData } from './myst-assets.ts';
 import type { MystIncludeProvenance } from './myst-includes.ts';
 import { defineDocumentBlock, registerDocumentBlock } from "./scientific-block.ts";
 import { validateMystMetadata, type MystScholarlyMetadata } from './myst-metadata.ts';
 import { createTokenizer, mystParse } from 'myst-parser';
+import { mystProofDirective } from './myst-proof.ts';
 import { VFile } from 'vfile';
 import { parseDocument } from 'yaml';
 
@@ -14,15 +20,19 @@ export interface MystNode {
   projectTarget?: MystProjectReferenceTarget;
   imageData?: MystImageData;
   children?: MystNode[];
+  referenceContent?: MystNode[];
   value?: string;
   position?: { start: { line: number; column: number }; end: { line: number; column: number } };
   [key: string]: unknown;
 }
 export interface MystDiagnostic { severity: 'warning' | 'error'; code: string; message: string; line?: number; path?: string }
 export interface MystReferenceTarget {
+  ambiguous?: boolean;
   identifier: string;
-  kind: 'figure' | 'table' | 'equation' | 'section' | 'target';
-  number: number;
+  kind: string;
+  number?: string;
+  name?: MystNode[];
+  template: string;
   label: string;
 }
 export interface MystBibliographyEntry { id: string; title?: string; author?: string; year?: string; url?: string }
@@ -34,6 +44,8 @@ export interface MystCitationRendering {
   bibliography: Array<{ id: string; text: string; html: string }>;
 }
 export interface MystDocument {
+  /** Cumulative disposable projection allowance, retained through project resolution. */
+  projectionBudget?: MystProjectionBudget;
   version: 1;
   citationRendering?: MystCitationRendering;
   source: string;
@@ -45,8 +57,8 @@ export interface MystDocument {
   bibliography: Record<string, MystBibliographyEntry>;
 }
 export const MYST_SOURCE_MAX_BYTES = 256 * 1024;
-const disabledDirectives = new Set(['include', 'literalinclude', 'embed', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
-const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment']);
+const disabledDirectives = new Set(['include', 'literalinclude', 'iframe', 'code-cell', 'anywidget', 'raw', 'raw-latex', 'raw-typst', 'mdast', 'myst', 'mermaid', 'csv-table']);
+const supportedNodes = new Set(['root', 'block', 'paragraph', 'heading', 'text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'code', 'math', 'inlineMath', 'break', 'thematicBreak', 'blockquote', 'list', 'listItem', 'table', 'tableRow', 'tableCell', 'link', 'image', 'container', 'caption', 'admonition', 'admonitionTitle', 'crossReference', 'cite', 'citeGroup', 'mystTarget', 'footnoteDefinition', 'footnoteReference', 'definitionList', 'definitionTerm', 'definitionDescription', 'html', 'comment', 'toc', 'proof', 'glossary', 'abbreviation']);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
 export const normalizeMystIdentifier = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -56,7 +68,9 @@ const identifier = normalizeMystIdentifier;
 export type MystParsedDocument = Omit<MystDocument, 'references' | 'bibliography'>;
 
 export function parseMystDocument(source: string): MystDocument {
-  return resolveMystDocument(parseMystSource(source));
+  const document = resolveMystDocument(parseMystSource(source));
+  expandMystEmbeds([{ path: '', document }]);
+  return document;
 }
 
 /** Parse and normalize before resource resolution; project callers supply typed inputs. */
@@ -72,7 +86,7 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
   try {
     const tokens = createTokenizer({ extensions: { smartquotes: false, frontmatter: options.frontmatter !== false } }).parse(source, { vfile: file });
     frontmatter = tokens[0]?.type === 'fence' && tokens[0].info === 'yaml' && source.replace(/^\uFEFF/, '').startsWith('---');
-    ast = mystParse(source, { vfile: file, extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
+    ast = mystParse(source, { vfile: file, directives: [mystProofDirective], extensions: { smartquotes: false, frontmatter: options.frontmatter !== false }, mdast: { listItemParagraphs: true } }) as MystNode;
   } catch (error) {
     report('parse-error', error instanceof Error ? error.message : 'Unable to parse MyST', undefined, 'error');
     ast = { type: 'root', children: [{ type: 'mystUnsupported', value: source }] };
@@ -106,14 +120,21 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
     if (node.type === 'cite' && node.position) node.citationShorthand = sourceLines[node.position.start.line - 1]?.[node.position.start.column - 1] === '@';
     if (node.type === 'mystDirective' || node.type === 'mystRole' || (node.type === 'mystDirectiveError' && node.name === 'csv-table')) {
       const name = string(node.name) ?? '';
-      if (disabledDirectives.has(name)) {
+      if (disabledDirectives.has(name) || name === 'embed') {
         node.directiveBody = node.value;
-        report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
+        if (name !== 'embed') report('directive-disabled', `Directive ${node.name} is retained but not executed or loaded`, node);
+        else if (record(node.options)) { const label = string(node.options.label) ?? string(node.options.name); if (label) { node.identifier = identifier(label); node.label = label; } }
         node.children = undefined;
         node.value = source.split('\n').slice((node.position?.start.line ?? 1) - 1, node.position?.end.line).join('\n');
         return [node];
       }
-      if (node.children?.length) return node.children.flatMap(child => normalize({ ...child, position: child.position ?? node.position }));
+      if (name === 'figure' && node.args && node.children?.[0]?.type === 'container') {
+        const figure = node.children[0], children = figure.children ?? [];
+        const body = children.filter(child => child.type !== 'image');
+        figure.children = [...children.filter(child => child.type === 'image'), ...(body.length ? [{ type: 'caption', children: body }] : [])];
+        if (children.some(child => child.placeholder)) report('figure-placeholder-unsupported', 'Figure placeholders are retained but conditional fallback is not supported.', node);
+      }
+      if (node.children?.length) return node.children.flatMap(child => normalize({ ...child, ...(node.type === 'mystRole' && name === 'term' ? { kind: 'term' } : {}), position: child.position ?? node.position }));
       report('syntax-unsupported', `Unsupported ${node.type === 'mystRole' ? 'role' : 'directive'}: ${name}`, node);
       if (node.type === 'mystDirective' && node.position) node.value = source.split('\n').slice(node.position.start.line - 1, node.position.end.line).join('\n');
       return [node];
@@ -128,15 +149,18 @@ export function parseMystSource(source: string, options: { frontmatter?: boolean
 }
 
 export interface MystResolutionContext {
+  numberingState?: MystNumberingState;
   bibliography: Record<string, MystBibliographyEntry>;
   scholarly: MystScholarlyMetadata;
   diagnostics: MystDiagnostic[];
+  deferProjectToc?: boolean;
 }
 
 /** Resolve exactly once, after bibliography/metadata inputs have been collected. */
 export function resolveMystDocument(parsed: MystParsedDocument, context?: MystResolutionContext): MystDocument {
   const { source, metadata } = parsed;
   const ast = structuredClone(parsed.ast);
+  const projectionBudget = new MystProjectionBudget();
   const diagnostics = [...parsed.diagnostics, ...(context?.diagnostics ?? [])];
   const report = (code: string, message: string, node?: MystNode) => {
     diagnostics.push({ code, message, severity: 'warning', ...(node?.position ? { line: node.position.start.line } : {}) });
@@ -146,36 +170,34 @@ export function resolveMystDocument(parsed: MystParsedDocument, context?: MystRe
   if (!context && metadata.bibliography) report('bibliography-external', 'Bibliography files are not loaded. Use authored pero.bibliography metadata for local citation previews.');
   if (metadata.references) report('references-external', 'Cross-project references are retained but not loaded');
   if (metadata.plugins) report('plugins-disabled', 'Document plugins are not loaded');
-  const counts = { figure: 0, table: 0, equation: 0, section: 0, target: 0 };
   const walk = (node: MystNode, visit: (node: MystNode) => void) => { visit(node); node.children?.forEach(child => walk(child, visit)); };
-  const index = (node: MystNode) => {
-    const children = node.children ?? [];
-    children.forEach((child, offset) => {
-      if (child.type === 'mystTarget' && typeof child.label === 'string') {
-        const next = children[offset + 1];
-        if (next && !next.identifier) { next.identifier = identifier(child.label); next.label = child.label; child.type = 'comment'; }
-      }
-    });
-    const rawId = string(node.identifier) ?? (node.type === 'mystTarget' ? string(node.label) : undefined);
-    if (rawId && node.type !== 'crossReference' && node.type !== 'cite' && node.type !== 'footnoteReference') {
-      const id = identifier(rawId);
-      const kind = node.type === 'math' ? 'equation' : node.type === 'heading' ? 'section' : node.kind === 'figure' ? 'figure' : node.kind === 'table' || node.type === 'table' ? 'table' : 'target';
-      if (references[id]) report('reference-duplicate', `Duplicate label: ${rawId}`, node);
-      else { node.identifier = id; references[id] = { identifier: id, kind, number: ++counts[kind], label: kind === 'target' ? rawId : `${kind[0].toUpperCase()}${kind.slice(1)} ${counts[kind]}` }; }
-    }
-    children.forEach(index);
-  };
-  index(ast);
+  projectMystTerms(ast, context?.scholarly ?? parsed.scholarly, report);
+  attachMystTargets(ast);
+  prepareMystTocHeadings(ast);
+  Object.assign(references, enumerateMystTargets(ast, context?.numberingState ?? createMystNumberingState((context?.scholarly ?? parsed.scholarly).numbering), report, projectionBudget, (context?.scholarly ?? parsed.scholarly).title));
   walk(ast, node => {
+    if (node.type === 'link' && typeof node.url === 'string' && node.url.startsWith('#')) {
+      let id = node.url.slice(1);
+      try { id = decodeURIComponent(id); } catch { /* Preserve invalid fragment escapes. */ }
+      const target = references[identifier(id)];
+      if (target?.ambiguous) { node.resolved = false; report('reference-ambiguous', `Ambiguous local reference: ${id}`, node); }
+      else if (target) resolveMystReferenceContent(node, target, report, projectionBudget);
+      return;
+    }
+    if (node.type === 'cite' && node.citationShorthand && references[identifier(String(node.identifier))] && !bibliography[identifier(String(node.identifier))]) node.type = 'crossReference';
     if (node.type !== 'crossReference' && node.type !== 'cite') return;
     const id = identifier(string(node.identifier) ?? string(node.label) ?? '');
-    const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id];
+    const ambiguous = node.type === 'crossReference' && references[id]?.ambiguous;
+    const resolved = node.type === 'cite' ? !!bibliography[id] : !!references[id] && !ambiguous;
     node.identifier = id;
     node.resolved = resolved;
-    if (resolved) node.target = id;
+    if (resolved) { node.target = id; if (node.type === 'crossReference') resolveMystReferenceContent(node, references[id], report, projectionBudget); }
+    else if (ambiguous) { node.error = 'ambiguous'; report('reference-ambiguous', `Ambiguous local reference: ${id}`, node); }
     else { node.error = 'not found'; report(node.type === 'cite' ? 'citation-unresolved' : 'reference-unresolved', `Unresolved ${node.type === 'cite' ? 'citation' : 'reference'}: ${id}`, node); }
   });
-  return { version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+  const document: MystDocument = { projectionBudget, version: 1, source, ast, metadata, scholarly: context?.scholarly ?? parsed.scholarly, diagnostics, references, bibliography };
+  if (!context?.deferProjectToc) expandMystTocs(document);
+  return document;
 }
 
 /** Existing authored Pero bibliography projection, shared with project ambiguity checks. */

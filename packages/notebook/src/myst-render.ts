@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { renderMystCitationBibliography } from './myst-citation-render.ts';
 import type { MystScholarlyMetadata } from './myst-metadata.ts';
 import { mystAnchor } from './myst-project-references.ts';
@@ -56,7 +57,7 @@ function math(value: string, displayMode: boolean): string {
 
 /** A publication is inert, self-contained HTML. Use an empty iframe sandbox
  * for previews. Authored HTML, includes, plugins and code never execute. */
-export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean; bibliography?: boolean }
+export interface MystHtmlOptions { namespace?: string; fragment?: boolean; metadata?: boolean; bibliography?: boolean; source?: boolean }
 export function renderMystHtml(document: MystDocument, options: MystHtmlOptions = {}): string {
   const notices = new Set<string>();
   const text = (node: MystNode, key: string) => typeof node[key] === 'string' ? node[key] as string : '';
@@ -65,7 +66,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
     const identifier = text(node, 'identifier');
     return identifier ? ` id="${escapeMystHtml(anchor(identifier))}"` : '';
   };
-  const label = (node: MystNode) => document.references[text(node, 'identifier')]?.label ?? '';
+  const label = (node: MystNode) => text(node, 'numberingLabel');
   const link = (url: string, content: string) => {
     const href = safeHref(url);
     if (!href) { notices.add(`Link not activated: ${url}`); return content; }
@@ -80,7 +81,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
       case 'paragraph': return `<p${id(node)}>${children()}</p>`;
       case 'heading': {
         const depth = typeof node.depth === 'number' && Number.isInteger(node.depth) && node.depth >= 1 && node.depth <= 6 ? node.depth : 2;
-        return `<h${depth}${id(node)}>${children()}</h${depth}>`;
+        return `<h${depth}${id(node)}>${text(node, 'enumerator') ? `${escapeMystHtml(text(node, 'enumerator'))} ` : ''}${children()}</h${depth}>`;
       }
       case 'emphasis': return `<em${id(node)}>${children()}</em>`;
       case 'strong': return `<strong${id(node)}>${children()}</strong>`;
@@ -98,6 +99,8 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
         return `<${tag}${id(node)}${start}>${children()}</${tag}>`;
       }
       case 'listItem': return `<li${id(node)}>${typeof node.checked === 'boolean' ? `<span class="notice">[${node.checked ? 'Completed' : 'Not completed'}] </span>` : ''}${children()}</li>`;
+      case 'glossary': return `<section${id(node)}>${children()}</section>`;
+      case 'abbreviation': return text(node, 'title') ? `<abbr${id(node)} title="${escapeMystHtml(text(node, 'title'))}">${children()}</abbr>` : children();
       case 'definitionList': return `<dl${id(node)}>${children()}</dl>`;
       case 'definitionTerm': return `<dt${id(node)}>${children()}</dt>`;
       case 'definitionDescription': return `<dd${id(node)}>${children()}</dd>`;
@@ -128,6 +131,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
       case 'math': return `<div class="equation"${id(node)}>${math(value, true)}${label(node) ? `<span>${escapeMystHtml(label(node))}</span>` : ''}</div>`;
       case 'figure': case 'container': return `<figure${id(node)}>${label(node) ? `<div>${escapeMystHtml(label(node))}</div>` : ''}${children()}</figure>`;
       case 'caption': return `<figcaption${id(node)}>${children()}</figcaption>`;
+      case 'proof': return `<aside${id(node)}><p>${render(mystProofHeading(node))}</p>${(node.children ?? []).filter(child => child.type !== 'admonitionTitle').map(render).join('')}</aside>`;
       case 'admonition': return `<aside${id(node)}>${children()}</aside>`;
       case 'admonitionTitle': return `<strong${id(node)}>${children()}</strong>`;
       case 'table': return `<table${id(node)}>${label(node) ? `<caption>${escapeMystHtml(label(node))}</caption>` : ''}<tbody>${children()}</tbody></table>`;
@@ -177,7 +181,7 @@ export function renderMystHtml(document: MystDocument, options: MystHtmlOptions 
   }).join('');
   const styledBibliography = options.bibliography !== false && document.citationRendering ? renderMystCitationBibliography(document.citationRendering, options.namespace) : '';
   const diagnostics = [...document.diagnostics.map(diagnostic => `${diagnostic.severity}: ${diagnostic.message}${diagnostic.line ? ` (line ${diagnostic.line})` : ''}`), ...notices];
-  const content = `${header}${body}${styledBibliography}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`;
+  const content = `${header}${body}${styledBibliography}${bibliography ? `<section aria-label="References"><h2>References</h2><p class="notice">Authored citation metadata; not externally verified.</p><ul>${bibliography}</ul></section>` : ''}${diagnostics.length ? `<section class="diagnostics" aria-label="Publication diagnostics"><h2>Publication diagnostics</h2><ul>${diagnostics.map(message => `<li>${escapeMystHtml(message)}</li>`).join('')}</ul></section>` : ''}${options.source === false ? '' : `<details class="source"><summary>Original MyST source</summary><pre>${escapeMystHtml(document.source)}</pre></details>`}`;
   if (options.fragment) return `<section id="${anchor('')}">${content}</section>`;
   return renderMystHtmlShell(title, content);
 }

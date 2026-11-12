@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { boundMystPublicationImages, inertPublicationMath, mystPublicationRecovery, type MystPublicationInput } from './myst-publication.ts';
 import type { MystDocument, MystNode } from './myst.ts';
 /** JATS Archiving 1.3. No external DTD, resource lookup or executable node handlers. */
@@ -14,7 +15,7 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
   const blocks = (nodes: MystNode[]): string => {
     let out = ''; const levels: number[] = [];
     for (const node of nodes) {
-      if (node.type === 'heading') { const depth = Number(node.depth) || 1; while (levels.length && levels.at(-1)! >= depth) { out += '</sec>'; levels.pop(); } out += `<sec${id(node)}><title>${children(node, true)}</title>`; levels.push(depth); }
+      if (node.type === 'heading') { const depth = Number(node.depth) || 1; while (levels.length && levels.at(-1)! >= depth) { out += '</sec>'; levels.pop(); } out += `<sec${id(node)}><title>${str(node, 'enumerator') ? `${xml(str(node, 'enumerator'))} ` : ''}${children(node, true)}</title>`; levels.push(depth); }
       else out += render(node);
     }
     return out + '</sec>'.repeat(levels.length);
@@ -24,7 +25,10 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
     const formatted = typeof n.citationId === 'string' ? document.citationRendering?.citations[n.citationId] : undefined;
     if (formatted && ['cite', 'citeGroup'].includes(n.type)) { losses.add('CSL text retained without rich styling or citation fields.'); return xml(formatted.text); }
     switch (n.type) {
-      case 'root': case 'block': return blocks(n.children ?? []);
+      case 'root': case 'block': case 'glossary': return blocks(n.children ?? []);
+      case 'abbreviation':
+        if (str(n, 'title')) losses.add('Abbreviation text preserved; tooltip expansions are retained in source, not interactive publication fields.');
+        return children(n, true);
       case 'text': return xml(n.value ?? '');
       case 'paragraph': return `<p${id(n)}>${children(n, true)}</p>`;
       case 'strong': return `<bold>${children(n, true)}</bold>`;
@@ -43,9 +47,10 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
       }
       case 'list': return `<list list-type="${n.ordered ? 'order' : 'bullet'}">${children(n)}</list>`;
       case 'listItem': return `<list-item>${children(n)}</list-item>`;
+      case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text.'); return `<disp-quote${id(n)}><p>${render(mystProofHeading(n), true)}</p>${(n.children ?? []).filter(child => child.type !== 'admonitionTitle').map(child => render(child)).join('')}</disp-quote>`;
       case 'blockquote': case 'admonition': if (n.type === 'admonition') losses.add('Admonition presentation converted to quotation.'); return `<disp-quote>${children(n)}</disp-quote>`;
       case 'admonitionTitle': case 'caption': return `<p>${children(n, true)}</p>`;
-      case 'figure': case 'container': return `<fig${id(n)}>${(n.children ?? []).some(c => c.type === 'caption') ? `<caption>${(n.children ?? []).filter(c => c.type === 'caption').map(c => render(c)).join('')}</caption>` : ''}${(n.children ?? []).filter(c => c.type !== 'caption').map(c => render(c)).join('')}</fig>`;
+      case 'figure': case 'container': return `<fig${id(n)}>${str(n, 'numberingLabel') ? `<label>${xml(str(n, 'numberingLabel'))}</label>` : ''}${(n.children ?? []).some(c => c.type === 'caption') ? `<caption>${(n.children ?? []).filter(c => c.type === 'caption').map(c => render(c)).join('')}</caption>` : ''}${(n.children ?? []).filter(c => c.type !== 'caption').map(c => render(c)).join('')}</fig>`;
       case 'table': return `<table-wrap${id(n)}><table><tbody>${children(n)}</tbody></table></table-wrap>`;
       case 'tableRow': return `<tr>${children(n)}</tr>`;
       case 'tableCell': return `<${n.header ? 'th' : 'td'}>${children(n, true)}</${n.header ? 'th' : 'td'}>`;
@@ -54,22 +59,48 @@ export function exportMystJatsResult(input: MystPublicationInput, packagedImages
         losses.add(`Image not embedded in JATS: ${str(n, 'url')}`);
         return inline ? `<named-content content-type="missing-image">${xml(str(n, 'alt') || str(n, 'url'))}</named-content>` : `<p>Image not embedded: ${xml(str(n, 'alt') || str(n, 'url'))}</p>`;
       case 'link': losses.add('Links exported as visible text and URL.'); return `${children(n, true)} (${xml(str(n, 'url'))})`;
-      case 'crossReference': { const t = n.projectTarget; if (t) losses.add('Cross-document reference is display text; other pages absent from entry-only publication.'); const label = t && typeof t === 'object' && 'label' in t && typeof t.label === 'string' ? t.label : document.references[str(n, 'identifier')]?.label; return xml(label ?? `[Unresolved reference: ${str(n, 'identifier')}]`); }
+      case 'crossReference': { const t = n.projectTarget; if (t) losses.add('Cross-document reference is display text; other pages absent from entry-only publication.'); if (n.resolved === false) return xml(`[Unresolved reference: ${str(n, 'identifier')}]`); if (n.children?.length) return children(n, true); const label = t && typeof t === 'object' && 'label' in t && typeof t.label === 'string' ? t.label : document.references[str(n, 'identifier')]?.label; return xml(label ?? `[Unresolved reference: ${str(n, 'identifier')}]`); }
       case 'cite': { const r = document.bibliography[str(n, 'identifier')]; return r ? `<xref ref-type="bibr" rid="${key(r.id)}">${xml([r.author, r.year].filter(Boolean).join(', ') || r.id)}</xref>` : xml(`[Unresolved citation: ${str(n, 'identifier')}]`); }
       case 'citeGroup': return children(n, true);
       case 'comment': case 'mystTarget': return '';
       case 'footnoteReference': return `<xref ref-type="fn" rid="${key(str(n, 'identifier'))}">${xml(str(n, 'identifier'))}</xref>`;
       case 'footnoteDefinition': footnotes.push(`<fn${id(n)}>${children(n)}</fn>`); return '';
-      case 'definitionList': { let out = ''; const list = n.children ?? []; for (let i = 0; i < list.length; i += 2) out += `<def-item><term>${xml(text(list[i]))}</term><def><p>${list[i + 1] ? xml(text(list[i + 1])) : ''}</p></def></def-item>`; return `<def-list>${out}</def-list>`; }
+      case 'definitionList': {
+        let out = '', terms = '', definitions = '';
+        const flush = () => {
+          if (terms || definitions) out += `<def-item>${terms}<def>${definitions || '<p/>'}</def></def-item>`;
+          terms = ''; definitions = '';
+        };
+        for (const item of n.children ?? []) {
+          if (item.type === 'definitionTerm') {
+            if (definitions) flush();
+            terms += `<term${id(item)}>${children(item, true)}</term>`;
+          } else if (item.type === 'definitionDescription') {
+            // Tight lists contain inline children; loose definitions contain
+            // paragraphs and other blocks. Wrap only contiguous inline runs.
+            let run = '';
+            const flushInline = () => { if (run) definitions += `<p>${run}</p>`; run = ''; };
+            for (const child of item.children ?? []) {
+              if (['text', 'strong', 'emphasis', 'subscript', 'superscript', 'delete', 'inlineCode', 'inlineMath', 'break', 'image', 'link', 'crossReference', 'cite', 'citeGroup', 'footnoteReference', 'abbreviation'].includes(child.type)) run += render(child, true);
+              else { flushInline(); definitions += render(child); }
+            }
+            flushInline();
+          }
+        }
+        flush();
+        return `<def-list>${out}</def-list>`;
+      }
       default: losses.add(`Unsupported JATS node: ${n.type}; original source retained.`); return inline ? xml(`[${n.type}: ${text(n)}]`) : `<p>${xml(`[${n.type}: ${text(n)}]`)}</p>`;
     }
   };
   let nodes = document.ast.children ?? [];
-  if (document.scholarly.title && nodes[0]?.type === 'heading' && text(nodes[0]) === document.scholarly.title) nodes = nodes.slice(1);
+  const firstContent = nodes.find(node => !['comment', 'mystTarget'].includes(node.type) && !(node.type === 'text' && !node.value));
+  const repeatedTitle = document.scholarly.title && firstContent?.type === 'heading' && text(firstContent) === document.scholarly.title ? firstContent : undefined;
+  if (repeatedTitle) nodes = nodes.filter(node => node !== repeatedTitle);
   const body = blocks(nodes);
   const refs = document.citationRendering?.bibliography ?? Object.values(document.bibliography).map(r => ({ id: r.id, text: [r.author, r.year, r.title, r.url].filter(Boolean).join('. ') }));
   const back = (footnotes.length ? `<fn-group>${footnotes.join('')}</fn-group>` : '') + (refs.length ? `<ref-list><title>References</title>${refs.map(r => `<ref id="${key(r.id)}"><mixed-citation>${xml(r.text)}</mixed-citation></ref>`).join('')}</ref-list>` : '');
-  const meta = `${document.scholarly.doi ? `<article-id pub-id-type="doi">${xml(document.scholarly.doi)}</article-id>` : ''}<title-group><article-title>${xml(document.scholarly.title ?? 'Publication')}</article-title></title-group>${document.scholarly.authors?.length ? `<contrib-group>${document.scholarly.authors.map(a => `<contrib contrib-type="author"><string-name>${xml(a.name ?? '')}</string-name></contrib>`).join('')}</contrib-group>` : ''}<custom-meta-group><custom-meta><meta-name>pero-source</meta-name><meta-value>${xml(mystPublicationRecovery(input).record)}</meta-value></custom-meta><custom-meta><meta-name>pero-publication-losses</meta-name><meta-value>${xml(JSON.stringify([...losses]))}</meta-value></custom-meta></custom-meta-group>`;
+  const meta = `${document.scholarly.doi ? `<article-id pub-id-type="doi">${xml(document.scholarly.doi)}</article-id>` : ''}<title-group><article-title>${repeatedTitle && str(repeatedTitle, 'enumerator') ? `${xml(str(repeatedTitle, 'enumerator'))} ` : ''}${xml(document.scholarly.title ?? 'Publication')}</article-title></title-group>${document.scholarly.authors?.length ? `<contrib-group>${document.scholarly.authors.map(a => `<contrib contrib-type="author"><string-name>${xml(a.name ?? '')}</string-name></contrib>`).join('')}</contrib-group>` : ''}<custom-meta-group><custom-meta><meta-name>pero-source</meta-name><meta-value>${xml(mystPublicationRecovery(input).record)}</meta-value></custom-meta><custom-meta><meta-name>pero-publication-losses</meta-name><meta-value>${xml(JSON.stringify([...losses]))}</meta-value></custom-meta></custom-meta-group>`;
   return { xml: `<?xml version="1.0" encoding="UTF-8"?>\n<article xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.3" article-type="research-article"><front><journal-meta/><article-meta>${meta}</article-meta></front><body>${body}</body>${back ? `<back>${back}</back>` : ''}</article>\n`, losses: [...losses] };
 }
 export function exportMystJats(document: MystDocument): string { return exportMystJatsResult({ document }).xml; }

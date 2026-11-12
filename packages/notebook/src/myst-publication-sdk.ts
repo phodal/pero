@@ -30,6 +30,7 @@ export function exportMystTypst(input: MystPublicationInput): string {
   return `${macros.join('\n')}\n${result.value}\n// PERO PUBLICATION LOSSES ${JSON.stringify(projection.losses)}\n// PERO ORIGINAL SOURCE JSON ${JSON.stringify(JSON.parse(mystPublicationRecovery(input).record))}\n`;
 }
 export async function exportMystDocx(input: MystPublicationInput): Promise<Uint8Array> {
+  input = boundMystPublicationImages(input);
   const projection = projectMystPublication(input, 'docx'), file = new VFile();
   const math: Handler = (state, node) => {
     const result = nativeDocxMath(node.value ?? '');
@@ -71,7 +72,7 @@ export async function exportMystDocx(input: MystPublicationInput): Promise<Uint8
   return archive.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 }
 export async function exportMystPublicationArchive(input: MystPublicationInput, kind: 'latex' | 'typst' | 'jats'): Promise<Uint8Array> {
-  const resolved = boundMystPublicationImages(input), provided = new Map((input.assets ?? []).map(a => [a.path, a]));
+  const resolved = boundMystPublicationImages(input), provided = new Map((resolved.assets ?? []).map(a => [a.path, a]));
   const used = new Map<string, { path: string; mediaType: string; base64: string }>();
   const rewrite = (node: import('./myst.ts').MystNode) => {
     const asset = node.type === 'image' && typeof node.url === 'string' ? provided.get(node.url) : undefined;

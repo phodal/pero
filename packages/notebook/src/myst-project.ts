@@ -1,3 +1,7 @@
+import { projectRecordedCell } from './ipynb-recorded.ts';
+import { expandMystEmbeds, isMystEmbedImage } from './myst-embeds.ts';
+import { createMystNumberingState, type MystNumberingState } from './myst-numbering.ts';
+import { buildMystProjectToc, expandMystTocs, mystNodeText, type MystProjectToc } from './myst-toc.ts';
 import { expandMystCsvTables } from './myst-csv-table.ts';
 import { parseIpynb, type IpynbDocument } from './ipynb.ts';
 import { ipynbCellVisibility } from './ipynb-visibility.ts';
@@ -11,10 +15,10 @@ import { resolveMystResource, type MystProjectSnapshot, type MystTextResource } 
 export interface MystProjectPage { path: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
 export interface MystProjectNotebookCell { index: number; namespace: string; document: MystDocument; bibliography: MystBibliographyRecord[] }
 export type MystProjectNotebookPage =
-  | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[] }
+  | { kind: 'ipynb'; path: string; document: IpynbDocument; scholarly: MystScholarlyMetadata; citationRendering?: MystDocument['citationRendering']; markdownCells: MystProjectNotebookCell[]; codeCells: MystProjectNotebookCell[] }
   | { kind: 'invalid'; path: string; source: string; diagnostics: MystDiagnostic[] };
 export type MystProjectEntry = { kind: 'myst'; path: string; document: MystDocument } | MystProjectNotebookPage;
-export interface MystProjectProjection {
+export interface MystProjectProjection extends MystProjectToc {
   entry: MystProjectEntry;
   notebookPages: MystProjectNotebookPage[];
   pages: MystProjectPage[];
@@ -43,7 +47,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   if (rawConfig.version !== undefined && rawConfig.version !== 1) report('project-config-version', 'Only myst.yml version 1 is supported; configuration is retained but not applied.', 'myst.yml');
   const validated = validateMystProjectMetadata(rawProject);
   diagnostics.push(...validated.diagnostics.map(item => ({ ...item, path: 'myst.yml' })));
-  for (const key of ['plugins', 'references', 'exports', 'downloads', 'resources', 'toc', 'requirements']) {
+  for (const key of ['plugins', 'references', 'exports', 'downloads', 'resources', 'requirements']) {
     if (rawProject[key] !== undefined) report('project-feature-inert', `Project ${key} is retained but not loaded or executed by this text snapshot compiler.`, 'myst.yml');
   }
   const bibliographyResources = (declaration: unknown, base: string): MystTextResource[] => {
@@ -61,7 +65,13 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   };
   const projectBibliography = bibliographyResources(rawProject.bibliography, 'myst.yml');
   const pages: MystProjectPage[] = [];
-  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata): MystProjectPage => {
+  const notebookPages: MystProjectNotebookPage[] = [];
+  const suppliedPages = snapshot.files.filter(file => /\.(md|myst|ipynb)$/i.test(file.path));
+  // Resolve the explicit TOC before compiling any targets. Titles are filled from
+  // the compiled metadata below; ordering never depends on snapshot file order.
+  const order = buildMystProjectToc(snapshot, validated.normalized.toc, suppliedPages.map(file => ({ path: file.path, title: file.path })), []);
+  let previousNumbering: MystNumberingState | undefined;
+  const compilePage = (resource: MystTextResource, supplied?: MystParsedDocument, notebookScholarly?: MystScholarlyMetadata, numberingState?: MystNumberingState, continueProject = false): MystProjectPage => {
     used.add(resource.path);
     const expansion = expandMystIncludes(snapshot, resource.path, supplied ?? parseMystSource(resource.text));
     const tables = expandMystCsvTables(snapshot, resource.path, expansion.parsed);
@@ -74,7 +84,7 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
     // of every key. Distinct resources with equal keys remain ambiguous.
     const bibliography = resolveMystBibliography([...new Map(resources.map(file => [file.path, file])).values()], parsed.metadata, resource.path);
     const visit = (node: MystNode) => {
-      if (node.type === 'image') {
+      if (node.type === 'image' && !isMystEmbedImage(node)) {
         const url = typeof node.url === 'string' ? node.url : '';
         if (notebookScholarly && url.startsWith('attachment:')) return;
         const resolution = resolveMystResource(snapshot, node.provenance?.path ?? resource.path, url);
@@ -87,13 +97,19 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       node.children?.forEach(visit);
     };
     visit(parsed.ast);
-    const document = resolveMystDocument(parsed, { scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
+    if (!numberingState) numberingState = createMystNumberingState(inherited.normalized.numbering, continueProject ? previousNumbering : undefined);
+    if (continueProject) previousNumbering = numberingState;
+    const document = resolveMystDocument(parsed, { numberingState, deferProjectToc: true, scholarly: inherited.normalized, bibliography: bibliography.entries, diagnostics: [...inherited.diagnostics, ...bibliography.diagnostics] });
     document.diagnostics = document.diagnostics.map(item => ({ ...item, path: item.path ?? resource.path }));
     return { path: resource.path, document, bibliography: bibliography.records };
   };
-  for (const resource of snapshot.files.filter(file => /\.(md|myst)$/i.test(file.path))) pages.push(compilePage(resource));
-  const notebookPages: MystProjectNotebookPage[] = [];
-  for (const resource of snapshot.files.filter(file => /\.ipynb$/i.test(file.path))) {
+  for (const path of order.pageOrder) {
+    const resource = suppliedPages.find(file => file.path === path)!;
+    const continueProject = order.numberingOrder.includes(path);
+    if (!/\.ipynb$/i.test(path)) {
+      pages.push(compilePage(resource, undefined, undefined, undefined, continueProject));
+      continue;
+    }
     used.add(resource.path);
     try {
       const document = parseIpynb(resource.text);
@@ -105,19 +121,42 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
       const inherited = inheritMystMetadata(merged.normalized, validated.normalized);
       diagnostics.push(...[...normalized.diagnostics, ...merged.diagnostics, ...inherited.diagnostics].map(item => ({ ...item, path: resource.path })));
       const metadata = { ...notebookMetadata, ...(raw.pero ? { pero: raw.pero } : {}), ...(first?.metadata ?? {}), ...(merged.normalized.bibliography ? { bibliography: merged.normalized.bibliography } : {}) };
-      const markdownCells = document.cells.filter(cell => cell.kind === 'markdown').map(cell => {
-        const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
-        const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized);
-        return { index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography };
-      });
-      notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells });
+      const numberingState = createMystNumberingState(inherited.normalized.numbering, continueProject ? previousNumbering : undefined);
+      const markdownCells: MystProjectNotebookCell[] = [], codeCells: MystProjectNotebookCell[] = [];
+      for (const cell of document.cells) {
+        if (cell.kind === 'markdown') {
+          const source = cell.index === 0 ? first! : parseMystSource(cell.source, { frontmatter: false });
+          const compiled = compilePage({ path: resource.path, text: cell.source }, { ...source, metadata }, inherited.normalized, ipynbCellVisibility(cell).input ? numberingState : undefined);
+          markdownCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: compiled.document, bibliography: compiled.bibliography });
+        } else if (cell.kind === 'code' && (ipynbCellVisibility(cell).input || ipynbCellVisibility(cell).output)) {
+          const recorded = projectRecordedCell(cell);
+          const cellMetadata = cell.raw.metadata as Record<string, unknown>;
+          const labels = [cellMetadata.label, cellMetadata.name].filter(value => value !== undefined);
+          const valid = labels.every(value => typeof value === 'string' && value.trim().length > 0 && value.length <= 256);
+          const ambiguous = new Set(labels).size > 1;
+          if (!valid || ambiguous) report('notebook-label-invalid', `Cell ${cell.index + 1}: invalid or conflicting label/name metadata; no reference target is exposed.`, resource.path);
+          const label = valid && !ambiguous ? labels[0] as string | undefined : undefined;
+          const container: MystNode = { type: 'container', kind: 'code', ...(label ? { identifier: label, label } : {}),
+            recordedCell: { path: resource.path, index: cell.index, executionCount: cell.raw.execution_count, stale: cell.stale },
+            provenance: { path: resource.path, lines: Array.from({ length: cell.source.split('\n').length }, (_, i) => i + 1), stack: [resource.path] }, children: recorded.children };
+          const parsed = { ...parseMystSource(''), source: cell.source, metadata, ast: { type: 'root', children: [container] } };
+          const projected = resolveMystDocument(parsed, { numberingState, scholarly: inherited.normalized, bibliography: {}, diagnostics: [] });
+          projected.diagnostics.push(...recorded.notices.map(message => ({ severity: 'warning' as const, code: 'notebook-publication', message, path: resource.path })));
+          codeCells.push({ index: cell.index, namespace: `${resource.path}:cell-${cell.index}`, document: projected, bibliography: [] });
+        }
+      }
+      if (continueProject) previousNumbering = numberingState;
+      notebookPages.push({ kind: 'ipynb', path: resource.path, document, scholarly: inherited.normalized, markdownCells, codeCells });
       if (raw.myst !== undefined) report('notebook-metadata-inert', 'Nonstandard metadata.myst is retained; direct notebook metadata and first-cell frontmatter provide publication metadata.', resource.path);
     } catch (error) {
       const item: MystDiagnostic = { severity: 'error', code: 'notebook-invalid', path: resource.path, message: error instanceof Error ? error.message : 'Invalid notebook source' };
       notebookPages.push({ kind: 'invalid', path: resource.path, source: resource.text, diagnostics: [item] }); diagnostics.push(item);
     }
   }
-  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input).map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  const referencePages = [...pages, ...notebookPages.flatMap(page => page.kind === 'ipynb' ? [...page.markdownCells.filter(cell => ipynbCellVisibility(page.document.cells[cell.index]).input), ...page.codeCells].map(cell => ({ path: page.path, namespace: cell.namespace, document: cell.document })) : [])];
+  const navigation = buildMystProjectToc(snapshot, validated.normalized.toc, [...pages.map(page => ({ path: page.path, title: page.document.scholarly.short_title ?? page.document.scholarly.title ?? mystNodeText(page.document.ast.children?.find(node => node.type === 'heading') ?? { type: 'text', value: page.path }) })), ...notebookPages.map(page => ({ path: page.path, title: page.kind === 'ipynb' ? page.scholarly.short_title ?? page.scholarly.title ?? page.path : page.path }))], diagnostics);
+  for (const page of referencePages) expandMystTocs(page.document, { toc: navigation.toc, path: page.path, namespace: 'namespace' in page ? page.namespace : undefined });
+  expandMystEmbeds(referencePages, snapshot);
   resolveMystProjectReferences(snapshot, referencePages, notebookPages.filter(page => page.kind === 'ipynb').map(page => ({ path: page.path, identifier: '', label: page.path })));
   diagnostics.push(...referencePages.flatMap(page => page.document.diagnostics));
   for (const asset of snapshot.assets ?? []) if (!used.has(asset.path)) report('asset-unused', 'Provided binary resource is retained but not used by compiled pages.', asset.path);
@@ -125,5 +164,5 @@ export function compileMystProject(snapshot: MystProjectSnapshot): MystProjectPr
   // Snapshot admission guarantees a provided Markdown or notebook entry.
   const markdownEntry = pages.find(page => page.path === snapshot.entry);
   const entry: MystProjectEntry = markdownEntry ? { kind: 'myst', path: markdownEntry.path, document: markdownEntry.document } : notebookPages.find(page => page.path === snapshot.entry)!;
-  return { entry, pages, notebookPages, rawConfig, diagnostics };
+  return { entry, pages, notebookPages, rawConfig, diagnostics, ...navigation };
 }

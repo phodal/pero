@@ -1,8 +1,10 @@
 # MyST capability boundary
 
-Status: the published text-project baseline is `20367200`. The scientific
-workflow continuation below is implemented through the existing document SDK;
-its final integration and browser acceptance are tracked in the
+Status: #196 is merged. The SDK continuation is published in draft
+[#201](https://github.com/phodal/pero/pull/201), preserving master `6756d134`.
+Proof families, local recorded-output reuse, terms/abbreviations, continuous
+explicit-TOC numbering and bounded display expansion are implemented. Current
+verification and browser limitations are recorded in the
 [verification report](../issues/2026-11-11-myst-document-verification.md).
 This is not a claim of complete MyST CLI or Jupyter Book parity, and does not
 close the broader [#195](https://github.com/phodal/pero/issues/195) roadmap.
@@ -37,10 +39,14 @@ Upstream source links below use the same pinned source tree.
 | --- | --- | --- |
 | Source and prose | Source editing/import/export; headings, lists, tables, roles, admonitions, footnotes and explicit diagnostics; unknown source retained. | Not every MyST role/directive has native presentation. [Syntax](https://github.com/jupyter-book/mystmd/tree/50e82202324dc36f10bd04877d00016879da6f6e/docs) |
 | Math and local references | Safe MathML preview, labeled equations/figures/tables, local target numbering and links. | Duplicate/missing targets diagnose rather than guess; no arbitrary TeX execution. [Math](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/math.md) |
+| Glossary and abbreviations | Official glossary/term/abbr syntax; shared local/project/cell reference index; inherited project/page/include abbreviations, longest-first case-sensitive matching and null suppression; inert escaped HTML titles. | Scientific formats retain visible abbreviation text and glossary definitions; tooltip expansions remain in source with an explicit presentation-loss notice. No automatic glossary discovery or index generation. [Terms](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/packages/myst-transforms/src/glossary.ts) |
 | Scholarly metadata | Official frontmatter validation/inheritance; authors, affiliations, ORCID, DOI, dates, licenses, funding. Raw metadata retained. | No network identity/DOI validation; unsupported metadata does not disappear from recovery. [Frontmatter](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/frontmatter.md) |
 | Project snapshots | Explicit versioned local text/binary resource snapshot; resource selection, editing, save/reopen and exact download. | No directory traversal, filesystem discovery or automatic downloading. [Configuration](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/configuration.md) |
 | Includes | Recursive local include/literalinclude from provided text, provenance, line/marker selection, cycle and expansion limits. | Missing, unsupported or over-budget inputs retain source and diagnostics. Parsed IPYNB includes are not silently flattened. [Includes](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/embed.md) |
-| Cross-document links | Explicit path/label and unambiguous project labels, notebook cell targets, per-page numbering and self-contained internal HTML links. | Remote inventories, external projects and global book numbering are not implemented. Hidden notebook cells cannot supply visible targets. [Cross-references](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/cross-references.md) |
+| Cross-document links | Explicit path/label and unambiguous project labels, notebook cell targets, per-page numbering and self-contained internal HTML links. | Continuous per-kind and hierarchical title numbering follows explicit TOC order; hidden/unlisted resources are isolated. Remote inventories and external projects are not implemented. Hidden notebook cells cannot supply visible targets. [Cross-references](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/cross-references.md) |
+| Proof families | Official pinned `myst-ext-proof@1.0.14` families and aliases; numbered/title references and visible proof content in HTML/DOCX/TeX/Typst/JATS, including bounded local embeds. | Static presentation only; no proof checking or executable content. |
+| Recorded output reuse | Explicit notebook `metadata.label`/`name` code targets, source program numbering/provenance, bounded recorded MIME and shared raster assets; hide/remove/stale rules remain authoritative. | No kernel, implicit notebook-id labels or remote discovery. [Contract](myst-recorded-embeds.md) |
+| Table of contents | Explicit supplied-file ordering, nested title groups, navigation title overrides, hidden-but-linkable pages, and project/children/page/section TOC lists with depth limits. | No filesystem discovery, glob expansion, external URL TOC entries, website search or navigation service. Hidden/unlisted pages do not contribute to the exposed numbering order. [TOC](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/table-of-contents.md) |
 | Figures/assets | Explicit original binary preservation, bounded PNG/JPEG previews, real image bytes in exports. | SVG/HTML and unsupported types remain inert/recoverable. Structural admission is not complete image decoding. [Figures](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/figures.md) |
 | CSV tables | Bounded inline and supplied-file CSV through the official directive converter, with captions/headers/quoted cells. | Local `:file:` is an explicit Pero extension: the pinned upstream file option is not active. No spreadsheet execution. [Tables](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/tables.md) |
 | Bibliography | Explicit local BibTeX/CSL-JSON parsing, provenance, complete CSL records, duplicate/missing-key diagnostics. | Parser format autodetection and URL retrieval disabled. [Citations](https://github.com/jupyter-book/mystmd/blob/50e82202324dc36f10bd04877d00016879da6f6e/docs/citations.md) |
@@ -73,6 +79,12 @@ Upstream source links below use the same pinned source tree.
 - IPYNB: 1 MiB JSON, 1536 KiB escaped contribution, 256 cells, depth 64. Duplicate
   keys, unsafe integer values, invalid scalar text and non-string cell types
   reject at the boundary. TS/Python agree on integral JSON numbers.
+- Glossary/abbreviation expansion: per resolved document (including expanded includes),
+  1 MiB cumulative escaped title/text budget and 10000 generated-node allowance.
+  Admission happens before copying repeated title attributes; overflow leaves
+  remaining text literal with a visible diagnostic and exact source recovery.
+  Includes override page abbreviation values, which override project defaults;
+  null values suppress shorter matches, following pinned SDK semantics.
 - CSL inputs and engine calls are bounded, but synchronous formatting has no
   hard deadline. Unsupported formatting remains a diagnosed fallback.
 

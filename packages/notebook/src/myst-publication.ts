@@ -1,3 +1,4 @@
+import { mystProofHeading } from './myst-proof.ts';
 import { exportMystBundle, type MystDocument, type MystNode } from './myst.ts';
 export type MystPublicationKind = 'docx' | 'latex' | 'typst';
 export interface MystPublicationAsset { path: string; mediaType: string; base64: string }
@@ -21,9 +22,21 @@ export const MYST_PUBLICATION_IMAGE_MAX_BYTES = 16 * 1024 * 1024;
 /** Counts decoded payload bytes per placement, since DOCX repeats media per ImageRun. */
 export function boundMystPublicationImages(input: MystPublicationInput): MystPublicationInput {
   const assets = new Map((input.assets ?? []).map(a => [a.path, a]));
+  const recorded = new Map<string, MystPublicationAsset>();
   let placements = 0, bytes = 0, omitted = 0;
   const visit = (node: MystNode): MystNode => {
-    const asset = node.type === 'image' && typeof node.url === 'string' ? assets.get(node.url) : undefined;
+    let asset = node.type === 'image' && typeof node.url === 'string' ? assets.get(node.url) : undefined;
+    if (!asset && node.type === 'image' && node.imageData?.renderable) {
+      const image = node.imageData, key = `${image.mediaType}:${image.base64}`;
+      asset = recorded.get(key);
+      if (!asset) {
+        let index = assets.size + 1, path: string;
+        do { path = `recorded-assets/image-${index++}.${image.mediaType === 'image/png' ? 'png' : 'jpg'}`; } while (assets.has(path));
+        asset = { path, mediaType: image.mediaType, base64: image.base64 };
+        assets.set(path, asset); recorded.set(key, asset);
+      }
+      node = { ...node, url: asset.path };
+    }
     if (asset && ['image/png', 'image/jpeg'].includes(asset.mediaType)) {
       const size = Math.floor(asset.base64.length * 3 / 4) - (asset.base64.endsWith('==') ? 2 : asset.base64.endsWith('=') ? 1 : 0);
       if (placements >= MYST_PUBLICATION_IMAGE_MAX_PLACEMENTS || size > MYST_PUBLICATION_IMAGE_MAX_BYTES - bytes) {
@@ -36,8 +49,8 @@ export function boundMystPublicationImages(input: MystPublicationInput): MystPub
   };
   const ast = visit(input.document.ast), diagnostics = [...input.document.diagnostics];
   if (omitted) diagnostics.push({ severity: 'warning', code: 'publication-image-budget', message: `${omitted} image placement(s) omitted: publication allows at most 128 placements and 16777216 decoded image bytes counted per placement. Exact original source is retained.` });
-  if (input.recovery) return { ...input, document: { ...input.document, ast, diagnostics } };
-  return { ...input, document: { ...input.document, ast, diagnostics } };
+  if (input.recovery) return { ...input, assets: [...assets.values()], document: { ...input.document, ast, diagnostics } };
+  return { ...input, assets: [...assets.values()], document: { ...input.document, ast, diagnostics } };
 }
 /** Only inert, allowlisted node fields reach conversion SDKs. */
 export function projectMystPublication(input: MystPublicationInput, kind: MystPublicationKind): { ast: MystNode; losses: string[] } {
@@ -53,9 +66,12 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
     if (node.projectTarget) losses.add('Cross-document reference exported as display text; other project pages are not included in this entry-only publication.');
     switch (node.type) {
       case 'root': case 'paragraph': case 'strong': case 'emphasis': case 'subscript': case 'superscript': case 'delete': case 'blockquote': case 'listItem': case 'definitionList': case 'definitionTerm': case 'definitionDescription': return { type: node.type, children: children() };
-      case 'block': return { type: 'root', children: children() };
+      case 'block': case 'glossary': return { type: 'root', children: children() };
+      case 'abbreviation':
+        if (read(node, 'title')) losses.add('Abbreviation text preserved; tooltip expansions are retained in source, not interactive publication fields.');
+        return { type: 'root', children: children() };
       case 'text': return plain(node.value ?? '');
-      case 'heading': return { type: 'heading', depth: Math.max(1, Math.min(6, Number(node.depth) || 1)), children: children() };
+      case 'heading': return { type: 'heading', depth: Math.max(1, Math.min(6, Number(node.depth) || 1)), children: [...(read(node, 'enumerator') ? [plain(`${read(node, 'enumerator')} `)] : []), ...children()] };
       case 'break': case 'thematicBreak': return { type: node.type };
       case 'inlineCode': return { type: node.type, value: node.value ?? '' };
       case 'code': return kind === 'latex' ? fallback('Code exported as escaped prose in LaTeX (no verbatim command boundary).', node.value ?? '') : { type: 'code', value: node.value ?? '', lang: /^[A-Za-z0-9_-]+$/.test(read(node, 'lang')) ? read(node, 'lang') : '' };
@@ -65,8 +81,9 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'list': return { type: 'list', ordered: !!node.ordered, start: Number.isSafeInteger(node.start) && Number(node.start) > 0 ? node.start : 1, children: children() };
       case 'table': case 'tableRow': return { type: node.type, children: children() };
       case 'tableCell': return { type: node.type, header: !!node.header, children: children() };
-      case 'figure': case 'container': losses.add('Figure/table numbering rendered as text, not an editable field.'); return { type: 'root', children: [...(document.references[read(node, 'identifier')] ? [paragraph(document.references[read(node, 'identifier')].label)] : []), ...children()] };
+      case 'figure': case 'container': losses.add('Figure/table numbering rendered as text, not an editable field.'); return { type: 'root', children: [...((document.references[read(node, 'identifier')]?.label || read(node, 'numberingLabel')) ? [paragraph(document.references[read(node, 'identifier')]?.label || read(node, 'numberingLabel'))] : []), ...children()] };
       case 'caption': case 'admonitionTitle': return { type: 'paragraph', children: children() };
+      case 'proof': losses.add('Proof presentation converted to quotation; numbering is visible text, not an editable field.'); return { type: 'blockquote', children: [{ type: 'paragraph', children: [visit(mystProofHeading(node))] }, ...(node.children ?? []).filter(child => child.type !== 'admonitionTitle').map(visit)] };
       case 'admonition': losses.add('Admonition presentation converted to a quotation.'); return { type: 'blockquote', children: children() };
       case 'image': {
         const url = read(node, 'url'), asset = assets.get(url);
@@ -76,6 +93,8 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'link': losses.add('Hyperlinks exported as visible text and URL, not active links.'); return { type: 'strong', children: [...children(), plain(` (${read(node, 'url')})`)] };
       case 'crossReference': {
         losses.add('Cross references exported as resolved text, not editable fields.');
+        if (node.resolved === false) return plain(`[Unresolved reference: ${read(node, 'identifier')}]`);
+        if (node.children?.length) return { type: 'root', children: children() };
         const target = node.projectTarget;
         return plain(target && typeof target === 'object' && 'label' in target && typeof target.label === 'string' ? target.label : document.references[read(node, 'identifier')]?.label ?? `[Unresolved reference: ${read(node, 'identifier')}]`);
       }
@@ -91,7 +110,8 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
   const flatten = (n: MystNode) => { n.children?.forEach(flatten); if (n.children) n.children = n.children.flatMap(c => c.type === 'root' ? c.children ?? [] : [c]); };
   flatten(ast); ast.children ??= [];
   const text = (n: MystNode): string => n.type === 'text' ? n.value ?? '' : (n.children ?? []).map(text).join('');
-  if (document.scholarly.title && !(ast.children[0]?.type === 'heading' && text(ast.children[0]) === document.scholarly.title)) ast.children.unshift({ type: 'heading', depth: 1, children: [plain(document.scholarly.title)] });
+  const firstContent = document.ast.children?.find(node => !['comment', 'mystTarget'].includes(node.type) && !(node.type === 'text' && !node.value));
+  if (document.scholarly.title && !(firstContent?.type === 'heading' && text(firstContent) === document.scholarly.title)) ast.children.unshift({ type: 'heading', depth: 1, children: [plain(document.scholarly.title)] });
   const metadata = [document.scholarly.authors?.map(a => a.name).join(', '), document.scholarly.doi ? `DOI: ${document.scholarly.doi}` : ''].filter(Boolean).join('\n');
   if (metadata) ast.children.splice(document.scholarly.title ? 1 : 0, 0, paragraph(metadata));
   const refs = document.citationRendering?.bibliography.map(r => r.text) ?? Object.values(document.bibliography).map(r => [r.id, r.author, r.year, r.title, r.url].filter(Boolean).join('. '));

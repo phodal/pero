@@ -1,6 +1,8 @@
-import { normalizeMystIdentifier, type MystDocument, type MystNode } from './myst.ts';
+import { MystProjectionBudget } from './myst-projection-budget.ts';
+import { resolveMystReferenceContent } from './myst-numbering.ts';
+import { normalizeMystIdentifier, type MystDocument, type MystNode, type MystReferenceTarget } from './myst.ts';
 import { resolveMystResource, type MystProjectSnapshot } from './myst-project-snapshot.ts';
-export interface MystProjectReferenceTarget { path: string; identifier: string; label: string }
+export interface MystProjectReferenceTarget { path: string; identifier: string; label: string; reference?: MystReferenceTarget }
 export interface MystReferencePage { path: string; namespace?: string; document: MystDocument }
 export const mystAnchor = (identifier: string, namespace = '') => `myst-${(namespace ? [namespace, identifier] : [identifier]).map(value => value.replace(/[^a-zA-Z0-9_-]/gu, char => `~${char.codePointAt(0)!.toString(16)}~`)).join(':')}`;
 /** Unqualified targets must be unique project-wide; path#label disambiguates. */
@@ -16,11 +18,11 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
       if (typeof node.identifier === 'string' && (counts.get(node.identifier) ?? 0) > 1 && !['crossReference','cite','footnoteReference'].includes(node.type)) delete node.identifier;
     });
     for (const [identifier, reference] of Object.entries(page.document.references)) {
-      for (let i = 0; i < (counts.get(identifier) ?? 1); i++) targets.set(identifier, [...(targets.get(identifier) ?? []), { sourcePath: page.path, target: { path: page.namespace ?? page.path, identifier, label: reference.label } }]);
+      for (let i = 0; i < (reference.ambiguous ? 2 : counts.get(identifier) ?? 1); i++) targets.set(identifier, [...(targets.get(identifier) ?? []), { sourcePath: page.path, target: { path: page.namespace ?? page.path, identifier, label: reference.label, reference } }]);
     }
   }
   for (const page of pages) {
-    page.document.diagnostics = page.document.diagnostics.filter(item => item.code !== 'reference-unresolved');
+    page.document.diagnostics = page.document.diagnostics.filter(item => item.code !== 'reference-unresolved' && item.code !== 'reference-number-unavailable' && item.code !== 'reference-ambiguous');
     walk(page.document.ast, node => {
       const key = normalizeMystIdentifier(String(node.identifier ?? node.label ?? ''));
       if (node.type === 'cite' && node.citationShorthand && !page.document.bibliography[key] && targets.has(key)) {
@@ -30,7 +32,8 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
       }
       const isRef = node.type === 'crossReference';
       if (!isRef && node.type !== 'link') return;
-      const authored = isRef ? String(node.label ?? node.identifier ?? '') : String(node.url ?? '');
+      if (node.projectTarget) return;
+      const authored = isRef ? String(node.kind === 'term' ? node.identifier : node.label ?? node.identifier ?? '') : String(node.url ?? '');
       if (!isRef && /^(?:https?:|mailto:)/i.test(authored)) return;
       const report = (code: string, message: string) => page.document.diagnostics.push({ severity: 'warning', code, message, path: page.path, line: node.position?.start.line });
       let candidates: MystProjectReferenceTarget[] = [];
@@ -48,7 +51,7 @@ export function resolveMystProjectReferences(snapshot: MystProjectSnapshot, page
         if (!label && !candidates.length && destination) candidates = [{ path: destination.path, identifier: '', label: destination.document.scholarly.title ?? destination.path }];
       } else if (isRef) candidates = (targets.get(normalizeMystIdentifier(authored)) ?? []).map(item => item.target);
       else return;
-      if (candidates.length === 1) { node.projectTarget = candidates[0]; node.resolved = true; delete node.error; }
+      if (candidates.length === 1) { node.projectTarget = candidates[0]; node.resolved = true; delete node.error; if (candidates[0].reference) resolveMystReferenceContent(node, candidates[0].reference, report, (page.document.projectionBudget ??= new MystProjectionBudget())); }
       else { node.resolved = false; delete node.target; report(candidates.length ? 'reference-ambiguous' : 'reference-unresolved', `${candidates.length ? 'Ambiguous' : 'Unresolved'} project reference: ${authored}`); }
     });
   }
