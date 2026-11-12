@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppI18n, cancelNotebookProjectLink, listNotebookProjects, setNotebookProjectLink, type NotebookProjectCatalog } from '@pero/app-sdk';
-import { Badge, Button, Feedback, Field, NativeSelect } from '@pero/app-sdk/ui';
+import { Badge, Button, Disclosure, Feedback, Icon, IconButton, Field, NativeSelect } from '@pero/app-sdk/ui';
 
 const messages = {
-  region: { en: 'Host project associations', zh: 'Host 项目关联' },
+  region: { en: 'Research project', zh: '研究项目' },
   scope: { en: 'Link this saved Notebook revision to a real Host project. This does not change project members, permissions, or Notebook display labels.', zh: '将已保存笔记版本关联到真实 Host 项目，不改变项目成员、权限或笔记显示标签。' },
   reload: { en: 'Reload Host projects', zh: '重新载入 Host 项目' },
   loading: { en: 'Loading Host projects…', zh: '正在载入 Host 项目…' },
@@ -71,18 +71,17 @@ export function NotebookProjectAssociations({ entryId, revision, readonly, dirty
   const disabled = !!busy || !verified || readonly || dirty || !currentSaved;
   const linkedNames = catalog?.projects.filter(item => item.entries.some(entry => entry.id === entryId)).map(item => item.title).join(', ') || t('none');
   return <section aria-label={t('region')}><h4>{t('region')}</h4>
-    <p>{t('scope')}</p>
-    <Button disabled={!!busy} busy={busy === 'read'} onClick={() => void load()}>{t('reload')}</Button>
+    <IconButton label={t('reload')} disabled={!!busy} onClick={() => void load()}><Icon name="sync" /></IconButton>
     {!catalog && busy === 'read' && <p role="status">{t('loading')}</p>}
     {catalog && !verified && <Feedback kind="warning">{t('staleList')}</Feedback>}
     {catalog && !catalog.projects.length && <p>{t('empty')}</p>}
-    {catalog && <><Field label={t('project')}>{control => <NativeSelect {...control} value={selected} disabled={!!busy || !verified} onChange={event => { setSelected(event.target.value); setNotice(''); }}>
+    {!!catalog?.projects.length && <><Field label={t('project')}>{control => <NativeSelect {...control} value={selected} disabled={!!busy || !verified} onChange={event => { setSelected(event.target.value); setNotice(''); }}>
       <option value="">{t('choose')}</option>{catalog.projects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
-    </NativeSelect>}</Field><p>{t('linkedProjects', { names: linkedNames })}</p></>}
+    </NativeSelect>}</Field>{linkedNames !== t('none') && <p>{t('linkedProjects', { names: linkedNames })}</p>}</>}
     {readonly && <p>{t('readonly')}</p>}
     {dirty && <p>{t('dirty')}</p>}
     {verified && !currentSaved && <Feedback kind="warning">{t('loadRevision')}</Feedback>}
-    {project && <><p>{project.title} · {project.id}{association && <> · {t('linkedRevision', { revision: association.revision })}</>}</p>
+    {project && <>{association && <p>{t('linkedRevision', { revision: association.revision })}</p>}
       {!readonly && <><Button disabled={disabled || association?.revision === String(revision)} onClick={() => void change(true)}>{association ? t('update') : t('link')}</Button>
         {association && <Button disabled={disabled} onClick={() => void change(false)}>{t('unlink')}</Button>}</>}
       <ul>{project.entries.map(reference => {

@@ -23,7 +23,7 @@ test('project chooser uses real Host records, retains stale state, and separates
   });
   const mount = (props: any = {}) => render(React.createElement(ui.AppSdkProvider, { host: ui.createAppHost({ name: 'Notebook', locale: 'en' }) },
     React.createElement(ui.NotebookProjectAssociations, { entryId, revision: 2, readonly: false, dirty: false, onOpenEntry: (id: string) => opened.push(id), ...props })));
-  const button = (text: string) => [...document.querySelectorAll('button')].find(item => item.textContent === text)!;
+  const button = (text: string) => [...document.querySelectorAll('button')].find(item => item.textContent === text || item.getAttribute('aria-label') === text)!;
   await mount();
   await React.act(async () => { const select = document.querySelector('select')!; select.value = 'host-project'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
   assert.match(document.body.textContent!, /Other saved notebook/); assert.match(document.body.textContent!, /Current v3/);
