@@ -1,0 +1,241 @@
+/* Paper inspector: understand and act, not a full reader. */
+.pa-library-inspector-pane { overflow: auto; background: var(--pero-surface); }
+.pa-paper-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  padding: 16px 14px 18px;
+  outline-offset: -3px;
+}
+.pa-inspector-header { display: grid; gap: 8px; min-inline-size: 0; }
+.pa-inspector-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.pa-inspector-kicker > p {
+  margin: 0;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-label);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.pa-inspector-title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: var(--pero-font-heading);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.pa-inspector-authors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.pa-inspector-authors-toggle.pero-ui-button {
+  min-height: 0;
+  padding: 0;
+  font-size: var(--pero-font-caption);
+  color: var(--pero-link);
+}
+.pa-inspector-byline {
+  margin: 0;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+  line-height: 1.4;
+}
+.pa-inspector-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pa-inspector-read { width: 100%; min-height: var(--pero-control-height); }
+.pa-inspector-tabs { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
+.pa-inspector-tabs .pero-ui-tabs-list[data-variant=navigation] {
+  gap: 0;
+  border-block-end: .5px solid var(--pero-border);
+}
+.pa-inspector-tabs .pero-ui-tabs-trigger {
+  margin-block-end: -1px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+}
+.pa-inspector-tabs .pero-ui-tabs-trigger[data-state=active] {
+  border-bottom-color: var(--pero-action);
+  background: transparent;
+  color: var(--pero-text);
+  font-weight: 600;
+}
+.pa-inspector-overview,
+.pa-inspector-notes,
+.pa-inspector-related { display: grid; gap: 12px; min-inline-size: 0; }
+.pa-inspector-abstract h3,
+.pa-inspector-brief-head h3,
+.pa-inspector-context-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--pero-font-body);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.pa-inspector-abstract-body {
+  margin: 8px 0 0;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pa-inspector-abstract-actions,
+.pa-inspector-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.pa-inspector-abstract-actions .pero-ui-button,
+.pa-inspector-note-actions .pero-ui-button {
+  min-height: var(--pero-control-height);
+  padding-inline: 6px;
+  font-size: var(--pero-font-caption);
+}
+.pa-inspector-muted {
+  margin: 0;
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+  line-height: 1.5;
+}
+.pa-inspector-brief {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0 0;
+  border-top: .5px solid var(--pero-border);
+}
+.pa-inspector-brief-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pa-inspector-note-list,
+.pa-inspector-related-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-inspector-note,
+.pa-inspector-related-list button {
+  box-sizing: border-box;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.pa-inspector-note:hover,
+.pa-inspector-related-list button:hover { background: var(--pero-fill-hover, var(--pero-surface-hover)); }
+.pa-inspector-note-preview {
+  font-size: var(--pero-font-caption);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.pa-inspector-note-meta,
+.pa-inspector-related-list small {
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-label);
+  line-height: 1.4;
+}
+.pa-inspector-related-list span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--pero-font-caption);
+  line-height: 1.45;
+}
+.pa-inspector-context {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: .5px solid var(--pero-border);
+}
+.pa-inspector-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pa-inspector-context-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.pa-inspector-context-rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.pa-inspector-context-rows dt {
+  color: var(--pero-text-muted);
+  font-size: var(--pero-font-caption);
+}
+.pa-inspector-context-rows dd { margin: 0; font-size: var(--pero-font-caption); }
+.pa-inspector-context-rows .pero-select { width: auto; max-inline-size: 100%; }
+.pa-inspector-context-rows .pero-select-trigger {
+  width: auto;
+  min-height: var(--pero-control-height);
+  padding: 2px 6px;
+  border: 1px solid var(--pero-input-border);
+  border-radius: 4px;
+  background: var(--pero-surface);
+  font: inherit;
+}
+.pa-inspector-ask {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: .5px solid var(--pero-border);
+}
+.pa-inspector-ask-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pero-text);
+  font-size: var(--pero-font-caption);
+  font-weight: 600;
+}
+.pa-inspector-ask-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.pa-inspector-ask-form .pero-ui-input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--pero-font-caption);
+}

@@ -30,6 +30,7 @@ a transparent pressed title control. `apps/paper-agent/test/library-papers-layou
 pins the CSS structure. Rebuild `paper-agent` and reopen Native Papers to
 accept the live library pane.
 
-The inspector pane was tightened in the same pass: identity, status + read CTA,
-one muted facts line, then secondary actions with shared row chrome. The old
-label grid and status/content-kind pairing are gone.
+The inspector was redesigned into a research assistant panel: header with
+Open Reader and overflow actions, Overview/Notes/Related tabs, honest AI
+Brief unavailable state, research context, and Ask Paper scoped to the
+selected paper. Deep reading stays in the reader workspace.

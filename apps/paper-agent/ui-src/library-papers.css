@@ -120,40 +120,6 @@
 .pa-library-papers .pa-library-footer .pero-ui-button { padding-inline: 0; font-size: var(--pero-font-caption); }
 .pa-library-selection { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .pa-library-selection .pero-ui-button { font-size: var(--pero-font-caption); }
-.pa-library-inspector-pane { overflow: auto; background: var(--pero-surface); }
-/* Identity → decision → facts → secondary actions. Keep one primary CTA. */
-.pa-paper-inspector { display: flex; flex-direction: column; gap: 14px; padding: 20px 16px; outline-offset: -3px; }
-.pa-inspector-identity { display: grid; gap: 4px; min-inline-size: 0; }
-.pa-paper-inspector h2 { margin: 0; font-size: var(--pero-font-heading); font-weight: 550; line-height: 1.4; overflow-wrap: anywhere; }
-.pa-inspector-authors { margin: 0; color: var(--pero-text-muted); font-size: var(--pero-font-caption); line-height: 1.5; overflow-wrap: anywhere; }
-.pa-inspector-decision { display: grid; gap: 8px; min-inline-size: 0; }
-.pa-inspector-decision .pero-select { width: auto; max-inline-size: 100%; }
-.pa-inspector-decision .pero-select-trigger { width: auto; font: inherit; color: var(--pero-text); background: var(--pero-surface); border: 1px solid var(--pero-input-border); border-radius: 4px; min-height: var(--pero-control-height); padding: 2px 6px; }
-.pa-inspector-read { width: 100%; min-height: var(--pero-control-height); }
-.pa-inspector-facts {
-  margin: 0;
-  color: var(--pero-text-muted);
-  font-size: var(--pero-font-caption);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.pa-inspector-actions { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding-top: 2px; border-top: .5px solid var(--pero-border); }
-.pa-inspector-original,
-.pa-inspector-actions .pero-ui-button {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  min-height: var(--pero-control-height);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: var(--pero-font-caption);
-}
-.pa-inspector-original { color: var(--pero-link); text-decoration: none; }
-.pa-inspector-original:hover { background: var(--pero-surface-hover); }
-.pa-inspector-actions .pero-ui-button { width: 100%; padding-inline: 6px; }
-.pa-inspector-actions .pero-ui-button:hover:not(:disabled) { background: var(--pero-surface-hover); }
 .pa-library-saved { flex: none; padding: 8px 20px; }
 .pa-library-papers[data-stacked] > .pero-ui-split-pane[data-sized] { width: auto; flex: none; min-height: 0; }
 .pa-library-papers[data-stacked] > .pa-library-list-pane { flex: none; overflow: visible; }

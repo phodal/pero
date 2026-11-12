@@ -81,7 +81,8 @@ try {
   expect(first.dataVersions[0]).toMatchObject({ versionId: initial.id, sha256: initial.sha256 });
 
   data = await open('data');
-  await data.getByRole('button', { name: 'Add version', exact: true }).click();
+  await data.getByRole('button', { name: 'More', exact: true }).click();
+  await data.getByRole('menuitem', { name: 'Add version', exact: true }).click();
   await importData(data, 'measurements-v2.csv', 'sample,value\n1,2.50\n');
   const newer = (await api(data, '/api/state')).assets[0];
   expect(newer.id).not.toBe(initial.id);
