@@ -56,6 +56,7 @@ export async function verifyRemainingNotebookWorkflows(page, origin, output) {
   const published = await page.request.post(origin + '/api/templates', { data: definition }); assert.equal(published.ok(), true, await published.text());
   const first = await published.json(); document.content.content[0].content[0].text = 'Later protocol step';
   const revised = await page.request.post(`${origin}/api/templates/${first.id}/revisions`, { data: { expectedRevision: 1, definition } }); assert.equal(revised.ok(), true, await revised.text());
+  await ensureMoreTools(page);
   await button('Templates').click(); dialog = page.getByRole('dialog', { name: 'Templates', exact: true });
   await button('Browser revision comparison · v2', dialog).click(); await button('Compare published revisions', dialog).click();
   await expect(dialog).toContainText('Earlier protocol step'); await expect(dialog).toContainText('Later protocol step');

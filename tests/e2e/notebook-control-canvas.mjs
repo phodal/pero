@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { createNotebookCanvasHost } from '../fixtures/notebook-canvas-host.mjs';
-import { openNotebookMenu, openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
+import { openNotebookMenu, openNotebookReference, openNotebookView } from '../../apps/notebook/test/notebook-browser-actions.mjs';
 import { readControlEvidence } from '../../packages/notebook/src/control-evidence.ts';
 import { readPaperEvidence } from '../../packages/notebook/src/paper-evidence.ts';
 import { appPresentation } from '../../web/src/app-sdk-presentation.ts';
@@ -139,8 +139,10 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
     await button('Attach selected result', block).click();
     await expect(references).toHaveCount(existing.length + 1);
     const reference = page.locator('[data-kind=experiment]' + existing.map(id => `:not([data-notebook-block-id="${id}"])`).join(''));
-    await expect(reference.getByText('Verification', { exact: true })).toBeVisible();
-    await reference.getByLabel('Label').fill(label);
+    const panel = await openNotebookReference(page, reference);
+    await expect(panel.getByText('Verification', { exact: true })).toBeVisible();
+    await expect(panel.locator('.notebook-snapshot > .notebook-reference-actions').getByText(run.trial.report.verdict, { exact: true })).toBeVisible();
+    await panel.getByLabel('Label').fill(label);
     const id = await reference.getAttribute('data-notebook-block-id');
     return references.and(page.locator(`[data-notebook-block-id="${id}"]`));
   };
@@ -225,7 +227,7 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   assert.deepEqual(evidence('finding')[0].attrs.evidenceIds, [original.attrs.blockId]);
   assert.deepEqual(new Set(evidence('experiment').map(node => node.attrs.snapshot.trialId)), new Set([first.trial.id, second.trial.id]));
   assert.equal(originalRevision.document.content.content.find(node => node.type === 'experiment').attrs.snapshot.reportId, first.trial.report.id);
-  await button('Open in Control Lab', oldReference).click();
+  await button('Open in Control Lab', await openNotebookReference(page, oldReference)).click();
   await expect.poll(() => opened.at(-1)).toBe(`pero-app-location://control-lab/main/experiment/${firstRecord.id}/trial/${first.trial.id}`);
   await button('Raw evidence / hash', owner).click();
   const raw = owner.getByRole('dialog', { name: 'Raw execution evidence' });
@@ -244,8 +246,8 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   assert.deepEqual(historic, originalDescription);
   await openNotebookMenu(page, 'file');
   await button('Properties').click();
-  await page.getByText('Linked projects', { exact: true }).click();
-  const projects = page.getByRole('region', { name: 'Host project associations' });
+  const properties = page.getByRole('complementary', { name: 'Properties', exact: true });
+  const projects = properties.getByRole('region', { name: 'Research project', exact: true });
   await projects.getByLabel('Host project', { exact: true }).selectOption('pi-study');
   await button('Link saved entry', projects).click();
   await expect(projects.getByText('Host project reference saved.')).toBeVisible();
@@ -254,12 +256,13 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   const catalog = await fixture.request('notebook-projects', { name: 'notebook', request: { operation: 'list' } });
   assert.deepEqual(catalog.projects[0].entries, [{ id: entry.id, revision: String(latest.revision) }]);
   await page.screenshot({ path: resolve(output, 'interop-project.png'), fullPage: true });
-  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await button('Close', properties).click();
   await page.evaluate(location => window.postMessage({ type: 'pero:app:location', location }, window.location.origin),
     new URL(historic.descriptor.location).pathname.replace(/^\/main\//, ''));
   await openNotebookView(page, 'Notes');
   await expect(page.locator('[data-kind=experiment]')).toHaveCount(1);
-  await expect(page.getByText(citation.evidence.quote, { exact: false }).first()).toBeVisible();
+  const paperPanel = await openNotebookReference(page, page.locator('[data-kind=evidence]'));
+  await expect(paperPanel.getByText(citation.evidence.quote, { exact: false }).first()).toBeVisible();
   await expect(block.getByText('Loading declared App view…', { exact: true })).toHaveCount(0, { timeout: 15_000 });
   await expect(block.getByRole('alert')).toHaveCount(0);
   await expect(block).toContainText('8 s');
@@ -267,7 +270,7 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   const reopenedOwner = await backend('control-lab', '/api/experiments/' + firstRecord.id);
   assert.equal(reopenedOwner.trials.find(trial => trial.id === first.trial.id).report.id, first.trial.report.id);
   const previousOpens = opened.length;
-  await button('Open in Control Lab', page.locator('[data-kind=experiment]')).click();
+  await button('Open in Control Lab', await openNotebookReference(page, page.locator('[data-kind=experiment]'))).click();
   await expect.poll(() => opened.length).toBe(previousOpens + 1);
   assert.equal(opened.at(-1), `pero-app-location://control-lab/main/experiment/${firstRecord.id}/trial/${first.trial.id}`);
   await button('Raw evidence / hash', owner).click();

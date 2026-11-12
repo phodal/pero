@@ -25,6 +25,16 @@ export function notebookTab(page, name) {
   return page.getByRole('tab', { name, exact: true });
 }
 
+/** Scientific references disclose their controls in the contextual inspector. */
+export async function openNotebookReference(page, reference) {
+  const trigger = reference.locator('.notebook-reference-trigger');
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  const panel = page.locator('#notebook-inspector .notebook-reference-panel');
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
 /** Worksheet tools and cell details live in the spreadsheet Block actions menu. */
 export async function toggleSpreadsheetPanel(page, grid, name) {
   await grid.getByRole('button', { name: 'Block actions', exact: true }).click();

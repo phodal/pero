@@ -370,3 +370,34 @@ title/recent list reordering. Refresh retained the current notebook and revision
 Escape closed the menu and returned focus to its trigger. Screenshots are in
 `/Users/phodal/.codex/visualizations/2026/11/12/notebook-library-menu/`.
 This scoped pass did not re-import a file or run Native/installer acceptance.
+
+## Actions browser regression follow-up — 2026-11-12
+
+CI runs [1201](https://github.com/phodal/pero/actions/runs/43222664891),
+[1200](https://github.com/phodal/pero/actions/runs/43169856653) and
+[1199](https://github.com/phodal/pero/actions/runs/43167218255) fail the same
+Notebook browser and Canvas jobs. The selected writing layout moved reference
+controls into the contextual inspector, and shared Disclosure renders native
+details/summary. Browser acceptance still expects inline reference contents and
+a `Table settings` button with `aria-expanded`. Pages is correctly skipped
+because its upstream push CI did not succeed.
+
+Update the existing browser interactions to open the actual reference inspector
+and native disclosures. Preserve proposal accept/reject and revision checks,
+table resync/archive behavior, exact evidence identities, PASS/FAIL, and Host
+restart recovery. No production UI or CI gate relaxation is intended. Local
+baseline reproduces the table and reference failures. Continuing past those
+failures also found an unopened Templates menu after reload, outdated project
+navigation, and historical references that now need their inspector opened.
+The same existing scenarios now use the current public interactions.
+
+Verification on `be349d26f` plus these test corrections: all seven Notebook
+browser tests and both real Host/Canvas browser tests pass on macOS Chromium,
+using the declared Notebook/Paper/Control Lab pins in Python 3.12. Notebook,
+Control Lab and Host builds pass. The initial local attempt used an incompatible
+Python 3.14 environment; it was replaced with the pinned environment before the
+passing runs. Control's numerical runtime warnings remain visible. Screenshots
+under `test-results/notebook/` and `test-results/notebook-canvas/` include the
+reference inspector and reopened old revision; the reference-review capture was
+visually inspected. Electron/Native, installers and scientific acceptance were
+not assessed. Actions on the repair commit remain pending.
