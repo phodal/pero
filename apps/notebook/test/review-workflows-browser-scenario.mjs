@@ -17,7 +17,9 @@ export async function verifyReviewWorkflows(page, origin, output) {
   await page.getByRole('textbox', { name: 'Notebook content', exact: true }).fill('Pinned review source');
   await button('Save revision').click(); await expect(page.locator('.notebook-status')).toHaveText('Revision 2');
   await tab('Review and activity'); await tab('Human review');
+  await page.getByRole('button', { name: 'Review settings', exact: true }).click();
   await page.getByLabel('Your local display label', { exact: true }).fill('Local operator');
+  await page.getByRole('button', { name: 'Review settings', exact: true }).click();
   await button('Configure workflow').click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Workflow name', { exact: true }).fill('Assay review stages');

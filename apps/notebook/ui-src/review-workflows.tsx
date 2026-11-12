@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, Dialog, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Dialog, Disclosure, Feedback, Field, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import { latestReviewWorkflows, type LocalReviewRun, type LocalReviewStage, type LocalReviewWorkflow, type LocalWorkflowWorkspace } from '@pero/notebook/review';
 
 const messages = {
@@ -69,7 +69,7 @@ export function ReviewWorkflows({ data, revision, actor, disabled, readonly, mut
     : form.kind === 'request' ? form.choice && ready : form.note.trim() && (form.kind !== 'decision' || form.confirmed && ready)
       && (form.kind !== 'reassign' || form.participant.trim()));
   return <section className="notebook-workspace-form" aria-label={t('heading')}>
-    <h3>{t('heading')}</h3><p className="notebook-workspace-hint">{t('hint')}</p>
+    {!!data.workflowRuns.length && <h3>{t('heading')}</h3>}
     {!readonly && <div className="notebook-workspace-actions"><Button disabled={disabled} onClick={() => open('config')}>{t('configure')}</Button>
       {!!latest.length && <Button disabled={disabled} onClick={() => open('request')}>{t('request')} · r{revision}</Button>}</div>}
     {latest.map(config => <div className="notebook-workspace-actions" key={config.id}><strong>{config.name} · v{config.version}</strong>
@@ -109,7 +109,7 @@ export function ReviewWorkflows({ data, revision, actor, disabled, readonly, mut
             config: latestReviewWorkflows(current.workflowConfigs).find(item => item.id === previous.config?.id) ?? previous.config,
           } : previous); } finally { setBusy(false); }
         }}>{t('refresh')}</Button></Feedback>}
-        {form.kind === 'config' ? <><p>{t('history')}</p>
+        {form.kind === 'config' ? <><p>{t('history')}</p><Disclosure variant="inline" summary={t('identity')}><p>{t('hint')}</p></Disclosure>
           <Field label={t('name')}>{control => <Input {...control} maxLength={120} disabled={busy} value={form.name} onChange={event => change({ name: event.target.value })} />}</Field>
           {form.stages.map((stage, index) => <section className="notebook-workspace-form" key={stage.id}>
             <Field label={`${t('stage')} ${index + 1}`}>{control => <Input {...control} maxLength={120} disabled={busy} value={stage.name} onChange={event => stageChange(index, { name: event.target.value })} />}</Field>

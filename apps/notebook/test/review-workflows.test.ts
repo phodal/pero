@@ -104,7 +104,7 @@ test('workflow UI configures stages, pins plans, retains rejected input, reassig
   const first = (await post({ action: 'create-task', revision: 2, title: 'First task', ownerDisplay: 'Local notebook user' })).tasks[0];
   const second = (await post({ action: 'create-task', revision: 2, title: 'Second task', ownerDisplay: 'Local notebook user' })).tasks[0];
   await click(button('Refresh records')); await click(tab('Local tasks')); await settled(() => document.body.textContent?.includes('Second task') === true);
-  const taskPanel = [...document.querySelectorAll<HTMLElement>('[role=tabpanel]')].find(node => node.textContent?.includes('Notebook to-dos are manual local records')); assert.ok(taskPanel);
+  const taskPanel = [...document.querySelectorAll<HTMLElement>('[role=tabpanel]')].find(node => node.textContent?.includes('Second task')); assert.ok(taskPanel);
   await click(button('Bulk actions', taskPanel));
   for (const checkbox of dialog().querySelectorAll<HTMLElement>('[role=checkbox],input[type=checkbox]')) await click(checkbox);
   await post({ action: 'set-task-status', id: second.id, expectedVersion: 1, status: 'in_progress' });

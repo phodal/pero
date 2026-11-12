@@ -1,6 +1,7 @@
+import { NotebookMenu } from './notebook-menu';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppApiError, downloadFile, useAppApi, useAppDataChanged, useAppI18n } from '@pero/app-sdk';
-import { Badge, Button, Checkbox, CodeCompare, Dialog, EmptyState, Feedback, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, Disclosure, Icon, IconButton, Table, Dialog, EmptyState, Feedback, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument, NotebookEntry, NotebookEntrySummary } from '@pero/notebook';
 import { type LocalWorkflowWorkspace, type LocalBulkResult, compareNotebookRevisions, reviewAnchorBlocks } from '@pero/notebook/review';
 import { notebookMarkdown } from '@pero/notebook/workspace';
@@ -8,6 +9,16 @@ import { ReviewWorkflows } from './review-workflows';
 import { ReviewBulk } from './review-bulk';
 
 const messages = {
+  settings: { en: 'Review settings', zh: '审阅设置' },
+  localOnly: { en: 'Local records · unverified identity', zh: '本地记录 · 身份未验证' },
+  revisionContext: { en: 'Reviewing revision {revision}', zh: '正在审阅修订 {revision}' },
+  saveRevision: { en: 'Save new revision', zh: '保存新修订' },
+  oneRevision: { en: 'No earlier revisions', zh: '暂无更早的修订' },
+  diffTitle: { en: 'Title', zh: '标题' }, diffContent: { en: 'Note', zh: '笔记' },
+  diffMetadata: { en: 'Properties', zh: '属性' }, diffProcedures: { en: 'Procedure', zh: '实验步骤' },
+  diffIdentity: { en: 'Entry status', zh: '条目状态' }, diffOther: { en: 'Document', zh: '文档' },
+  changeObject: { en: 'Changed content', zh: '变更内容' },
+  details: { en: 'Saved event details', zh: '已保存事件详情' },
   comments: { en: 'Comments', zh: '评论' }, tasks: { en: 'Local tasks', zh: '本地任务' },
   reviews: { en: 'Human review', zh: '人工复核' }, history: { en: 'History and compare', zh: '历史与比较' },
   label: { en: 'Review workspace', zh: '复核工作区' }, refresh: { en: 'Refresh records', zh: '刷新记录' },
@@ -28,7 +39,7 @@ const messages = {
   missing: { en: 'Original block was removed', zh: '原内容块已被删除' }, unchanged: { en: 'Block unchanged in a newer revision', zh: '新修订中此块内容未变化' },
   revision_changed: { en: 'Pinned to an older revision', zh: '固定于较早修订' }, current: { en: 'Current saved revision', zh: '当前已保存修订' },
   stale: { en: 'Older revision; does not review the latest content', zh: '较早修订，不代表最新内容已经复核' },
-  unsaved: { en: 'There are unsaved edits. Comments and reviews here refer to saved revision {revision}, not the draft. Save first to review those edits.', zh: '存在未保存更改。此处的评论与复核指向已保存修订 {revision}，不是草稿。请先保存后再复核这些更改。' },
+  unsaved: { en: 'Draft changes are not in revision {revision}. Save a new revision to review them.', zh: '草稿更改尚未加入修订 {revision}。保存新修订后即可审阅这些更改。' },
   taskHint: { en: 'Notebook to-dos are manual local records. Assigning a label does not notify a person, start Host execution, or mark a scientific procedure complete.', zh: '笔记待办是手动维护的本地记录，填写负责者不会通知他人、启动 Host 执行或标记实验步骤已完成。' },
   addTask: { en: 'Add local task', zh: '添加本地任务' }, title: { en: 'Task title', zh: '任务标题' },
   description: { en: 'Description', zh: '说明' }, owner: { en: 'Owner display label', zh: '负责者显示名称' },
@@ -63,7 +74,7 @@ const messages = {
   'save-workflow': { en: 'Saved workflow version', zh: '保存流程版本' }, 'request-workflow': { en: 'Requested workflow review', zh: '请求流程复核' },
   'decide-workflow': { en: 'Recorded workflow decision', zh: '记录流程决定' }, 'reassign-workflow': { en: 'Reassigned pending review', zh: '重新分配待办复核' },
   'withdraw-workflow': { en: 'Withdrew workflow review', zh: '撤回流程复核' }, 'set-task-status': { en: 'Changed task status', zh: '更改任务状态' },
-  'reassign-task': { en: 'Reassigned local task', zh: '重新分配本地任务' }, details: { en: 'Saved event details', zh: '已保存事件详情' },
+  'reassign-task': { en: 'Reassigned local task', zh: '重新分配本地任务' },
   'request-review': { en: 'Requested local review', zh: '请求本地复核' }, 'transition-review': { en: 'Recorded local review action', zh: '记录本地复核操作' },
 } as const;
 type MessageKey = keyof typeof messages;
@@ -83,6 +94,9 @@ export interface ReviewerPanelProps {
   revision: number;
   document?: NotebookDocument;
   readonly?: boolean;
+  onSave?: () => void;
+  saveBusy?: boolean;
+  saveDisabled?: boolean;
   onRevealBlock?: (blockId: string) => void;
 }
 const endpoint = (id: string) => `/api/entries/${encodeURIComponent(id)}`;
@@ -135,7 +149,7 @@ function SavedRevision({ entryId, revision, onLoaded }: { entryId: string; revis
 }
 
 function HistoryComparison({ entryId, revisions }: { entryId: string; revisions: NotebookEntrySummary[] }) {
-  const api = useAppApi(), { t } = useAppI18n(messages);
+  const api = useAppApi(), { t, locale } = useAppI18n(messages);
   const [left, setLeft] = useState(''), [right, setRight] = useState(''), [request, setRequest] = useState(0);
   const [pair, setPair] = useState<[NotebookEntry, NotebookEntry] | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
   const before = left || String(revisions[1]?.revision ?? revisions[0]?.revision ?? '');
@@ -149,22 +163,29 @@ function HistoryComparison({ entryId, revisions }: { entryId: string; revisions:
     return () => { active = false; };
   }, [api, entryId, before, after, request]);
   const comparison = useMemo(() => pair && compareNotebookRevisions(pair[0].document, pair[1].document), [pair]);
-  const options = revisions.map(item => ({ value: String(item.revision), label: `r${item.revision} · ${item.updatedAt} · ${item.title}` }));
+  const options = revisions.map(item => ({ value: String(item.revision), label: `r${item.revision} · ${new Date(item.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')} · ${item.title}` }));
   return <section className="notebook-workspace-form">
     <div className="notebook-workspace-actions">
       <Select label={t('before')} value={before} options={options} onChange={setLeft} />
       <Select label={t('after')} value={after} options={options} onChange={setRight} />
       <Button variant="ghost" disabled={loading} onClick={() => setRequest(value => value + 1)}>{t('compare')}</Button>
     </div>
-    <p className="notebook-workspace-hint">{t('compareHint')}</p>
+
     {loading && <p role="status">{t('comparing')}</p>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {pair && comparison && <>
       <p role="status">{comparison.total ? t('differences', { count: comparison.total }) : t('identical')}</p>
       {comparison.limited && <Feedback kind="warning">{t('limited')}</Feedback>}
-      {comparison.total > 0 && <CodeCompare label={t('compare')} className="notebook-review-compare"
-        left={{ documentId: `${entryId}:${pair[0].revision}`, label: `r${pair[0].revision}`, text: comparison.changes.map(item => `${item.path} [${t(item.kind)}]\n${item.before}`).join('\n\n') }}
-        right={{ documentId: `${entryId}:${pair[1].revision}`, label: `r${pair[1].revision}`, text: comparison.changes.map(item => `${item.path} [${t(item.kind)}]\n${item.after}`).join('\n\n') }} />}
+      {comparison.total > 0 && <Table label={t('compare')} density="compact"><thead><tr><th>{t('changeObject')}</th><th>r{pair[0].revision}</th><th>r{pair[1].revision}</th></tr></thead><tbody>
+        {comparison.changes.map((item, index) => {
+          const root = item.path.split(/[.\[]/)[1];
+          const category = ({ title: 'diffTitle', content: 'diffContent', metadata: 'diffMetadata', procedures: 'diffProcedures', identity: 'diffIdentity' } as const)[root as 'title'] ?? 'diffOther';
+          const block = [...reviewAnchorBlocks(pair[1].document), ...reviewAnchorBlocks(pair[0].document)].find(block => item.path.includes(`[${block.value}]`));
+          const procedure = [...(pair[1].document.procedures ?? []), ...(pair[0].document.procedures ?? [])].find(procedure => item.path.includes(`[${procedure.id}]`));
+          const label = procedure?.title || block?.label.split(': ').slice(1).join(': ');
+          return <tr key={index}><th scope="row"><Badge>{t(item.kind)}</Badge><span>{t(category)}{label ? ` · ${label}` : ''}</span><Disclosure variant="inline" summary={t('details')}>{item.path}</Disclosure></th><td><p className="notebook-review-text">{item.before}</p></td><td><p className="notebook-review-text">{item.after}</p></td></tr>; })}
+      </tbody></Table>}
+      <Disclosure variant="inline" summary={t('details')}><p>{t('compareHint')}</p></Disclosure>
     </>}
   </section>;
 }
@@ -174,8 +195,8 @@ export function ReviewerPanel(props: ReviewerPanelProps) {
   return <ReviewWorkspace key={props.entryId} {...props} />;
 }
 
-function ReviewWorkspace({ entryId, revision, document, readonly = false, onRevealBlock }: ReviewerPanelProps) {
-  const api = useAppApi(), { t } = useAppI18n(messages);
+function ReviewWorkspace({ entryId, revision, document, readonly = false, onRevealBlock, onSave, saveBusy, saveDisabled }: ReviewerPanelProps) {
+  const api = useAppApi(), { t, locale } = useAppI18n(messages);
   const [tab, setTab] = useState('comments'), [filter, setFilter] = useState('all');
   const [actor, setActor] = useState(document?.metadata?.author || t('localUser'));
   const [data, setData] = useState<Workspace | null>(null), [saved, setSaved] = useState<NotebookEntry | null>(null);
@@ -260,7 +281,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       {onRevealBlock && item.anchor.blockId && item.anchor.revision === revision && !draftChanged && currentBlocks.has(item.anchor.blockId) &&
         <Button variant="ghost" onClick={() => onRevealBlock(item.anchor.blockId!)}>{t('reveal')}</Button>}
     </div>
-    {item.anchor.blockId && <small>{item.anchor.blockId}</small>}{item.anchor.quote && <p className="notebook-review-text">“{item.anchor.quote}”</p>}
+    {item.anchor.blockId && <Disclosure variant="inline" summary={t('details')}><small>{item.anchor.blockId}</small></Disclosure>}{item.anchor.quote && <p className="notebook-review-text">“{item.anchor.quote}”</p>}
   </div>;
   const disabled = readonly || pending || !actor.trim();
   const taskOptions = (['todo', 'in_progress', 'done', 'cancelled'] as const).map(value => ({ value, label: t(value) }));
@@ -270,13 +291,14 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
   const validForm = !!form && (form.kind === 'task' ? !!form.title.trim() && !!form.owner.trim() : form.kind === 'review' ? snapshotReady : !!form.text.trim())
     && (form.kind !== 'decision' || form.confirmed && snapshotReady && actor.trim() === form.reviewer);
   return <div className="notebook-review-panel">
-    <p className="notebook-workspace-hint">{t('scope')}</p>
-    <div className="notebook-workspace-actions">
-      <Field label={t('actor')} description={t('actorHint')}>{control => <Input {...control} value={actor} maxLength={120} disabled={pending || readonly} onChange={event => setActor(event.target.value)} />}</Field>
-      <Button variant="ghost" disabled={loading || pending} onClick={() => setRefresh(value => value + 1)}>{t('refresh')}</Button>
-      {data && <Button variant="ghost" onClick={() => downloadFile(`Notebook-${entryId}-local-records.json`, JSON.stringify(data, null, 2), 'application/json')}>{t('exportRecords')}</Button>}
+    <div className="notebook-review-context"><span>{t('revisionContext', { revision })}</span><Badge>{t('localOnly')}</Badge>
+      <IconButton label={t('refresh')} disabled={loading || pending} onClick={() => setRefresh(value => value + 1)}><Icon name="refresh" /></IconButton>
+      <NotebookMenu name={t('settings')} menu="review-settings" caret><Field label={t('actor')} description={t('actorHint')}>{control => <Input {...control} value={actor} maxLength={120} disabled={pending || readonly} onChange={event => setActor(event.target.value)} />}</Field>
+        <p className="notebook-workspace-hint">{t('scope')}</p>
+        {data && <Button variant="ghost" onClick={() => downloadFile(`Notebook-${entryId}-local-records.json`, JSON.stringify(data, null, 2), 'application/json')}>{t('exportRecords')}</Button>}
+      </NotebookMenu>
     </div>
-    {draftChanged && <Feedback kind="warning">{t('unsaved', { revision })}</Feedback>}
+    {draftChanged && <Feedback kind="warning">{t('unsaved', { revision })}{onSave && <Button busy={saveBusy} disabled={saveDisabled} onClick={onSave}>{t('saveRevision')}</Button>}</Feedback>}
     {loading && <p role="status">{t('loading')}</p>}
     {loadError && <Feedback kind="error">{loadError}</Feedback>}
     {savedError && <Feedback kind="error">{savedError}</Feedback>}
@@ -286,14 +308,14 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       <TabsContent value="comments" forceMount>
         <div className="notebook-workspace-actions">
           {!readonly && <Button disabled={disabled || !saved} onClick={() => open('comment')}>{t('addComment')}</Button>}
-          {!readonly && data && <ReviewBulk kind="threads" items={filtered.map(item => ({ ...item, label: `${item.comments[0]?.text ?? item.id} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
-          <Select label={t('filter')} value={filter} onChange={setFilter} options={[{ value: 'all', label: t('all') }, { value: 'unresolved', label: t('unresolved') }]} />
+          {!readonly && data && filtered.length > 1 && <ReviewBulk kind="threads" items={filtered.map(item => ({ ...item, label: `${item.comments[0]?.text ?? item.id} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
+          {!!data?.threads.length && <Select label={t('filter')} value={filter} onChange={setFilter} options={[{ value: 'all', label: t('all') }, { value: 'unresolved', label: t('unresolved') }]} />}
         </div>
         {data && !filtered.length && <EmptyState heading={t(data.threads.length ? 'noMatches' : 'noComments')} />}
         <ul className="notebook-review-list">{filtered.map(thread => <li key={thread.id}>
           <Badge>{t(thread.status)}</Badge>{anchorView(thread)}
           <ol className="notebook-review-comments">{thread.comments.map(comment => <li key={comment.id}>
-            <div className="notebook-workspace-actions"><strong>{comment.authorDisplay}</strong><time>{comment.createdAt}</time>{comment.editedAt && <span>{t('edited')} · {comment.editedAt}</span>}</div>
+            <div className="notebook-workspace-actions"><strong>{comment.authorDisplay}</strong><time>{new Date(comment.createdAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</time>{comment.editedAt && <span>{t('edited')} · {new Date(comment.editedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</span>}</div>
             <p className="notebook-review-text">{comment.text}</p>
             {!readonly && <Button variant="ghost" disabled={disabled} onClick={() => open('edit-comment', { id: thread.id, version: thread.version, revision: thread.anchor.revision, commentId: comment.id, text: comment.text })}>{t('edit')}</Button>}
           </li>)}</ol>
@@ -305,9 +327,9 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         </li>)}</ul>
       </TabsContent>
       <TabsContent value="tasks" forceMount>
-        <p className="notebook-workspace-hint">{t('taskHint')}</p>
+
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('task')}>{t('addTask')}</Button>}
-        {!readonly && data && <ReviewBulk kind="tasks" items={data.tasks.map(item => ({ ...item, label: `${item.title} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
+        {!readonly && data && data.tasks.length > 1 && <ReviewBulk kind="tasks" items={data.tasks.map(item => ({ ...item, label: `${item.title} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
         {data && !data.tasks.length && <EmptyState heading={t('noTasks')} />}
         <ul className="notebook-review-list">{data?.tasks.map(task => <li key={task.id}>
           <div className="notebook-workspace-actions"><strong>{task.title}</strong><Badge>{t(task.status)}</Badge>
@@ -319,17 +341,16 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         </li>)}</ul>
       </TabsContent>
       <TabsContent value="reviews" forceMount>
-        <p className="notebook-workspace-hint">{t('reviewHint')}</p>
         {!readonly && <Button disabled={disabled || !saved} onClick={() => open('review')}>{t('requestReview')} · r{revision}</Button>}
-        {!readonly && data && <ReviewBulk kind="reviews" items={data.reviews.filter(item => item.status !== 'retracted').map(item => ({ ...item, label: `${item.reviewerDisplay} · r${item.anchor.revision} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
+        {!readonly && data && data.reviews.filter(item => item.status !== 'retracted').length > 1 && <ReviewBulk kind="reviews" items={data.reviews.filter(item => item.status !== 'retracted').map(item => ({ ...item, label: `${item.reviewerDisplay} · r${item.anchor.revision} · ${t(item.status)}` }))} actor={actor} disabled={disabled} error={error} mutate={run} reload={reload} />}
         {data && <ReviewWorkflows data={data} revision={revision} actor={actor} disabled={disabled || !saved} readonly={readonly} mutate={run} error={error} reload={reload} snapshot={(number, onLoaded) => <SavedRevision entryId={entryId} revision={number} onLoaded={onLoaded} />} />}
         {data && !data.reviews.length && <EmptyState heading={t('noReviews')} />}
         <ul className="notebook-review-list">{data?.reviews.map(review => <li key={review.id}>
-          <div className="notebook-workspace-actions"><Badge>{t(review.status)}</Badge><strong>{review.reviewerDisplay}</strong><time>{review.updatedAt}</time></div>
+          <div className="notebook-workspace-actions"><Badge>{t(review.status)}</Badge><strong>{review.reviewerDisplay}</strong><time>{new Date(review.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</time></div>
           {review.stale && <Feedback kind="warning">{t('stale')}</Feedback>}{anchorView(review)}
           {review.note && <p className="notebook-review-text">{review.note}</p>}
           {review.previousReviewId && <small>{t('previous')}: {review.previousReviewId}</small>}
-          {review.decisionStatus && <p className="notebook-review-text">{t('previousDecision')}: {t(review.decisionStatus)} · {review.decisionBy} · {review.decisionAt}<br />{review.decisionReason}</p>}
+          {review.decisionStatus && <p className="notebook-review-text">{t('previousDecision')}: {t(review.decisionStatus)} · {review.decisionBy} · {new Date(review.decisionAt!).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}<br />{review.decisionReason}</p>}
           {!readonly && <div className="notebook-workspace-actions">
             {(['requested', 'in_progress'].includes(review.status) ? [
               ...(review.status === 'requested' ? [{ status: 'in_progress', label: 'begin' }] : []),
@@ -343,11 +364,11 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
       <TabsContent value="history" forceMount>
         {historyError && <Feedback kind="error">{historyError}</Feedback>}
         {!revisions && !historyError && <p role="status">{t('loading')}</p>}
-        {revisions && <HistoryComparison entryId={entryId} revisions={revisions} />}
+        {revisions && (revisions.length > 1 ? <HistoryComparison entryId={entryId} revisions={revisions} /> : <div className="notebook-workspace-form"><strong>{t('savedRevision', { revision })}</strong><p>{t('oneRevision')}</p><Button variant="link" onClick={() => setSnapshot(revision)}>{t('viewSource')}</Button></div>)}
         <h3>{t('timeline')}</h3>{data && !data.activity.length && <EmptyState heading={t('noActivity')} />}
         {data?.activityLimited && <p className="notebook-workspace-hint">{t('activityLimit')}</p>}
         <ol className="notebook-review-list">{data?.activity.map(item => <li key={item.id}>
-          <div className="notebook-workspace-actions"><time>{item.at}</time><strong>{item.actorDisplay}</strong><span>{item.action in messages ? t(item.action as MessageKey) : item.action}</span><Badge>r{item.revision} · v{item.version}</Badge></div>
+          <div className="notebook-workspace-actions"><time>{new Date(item.at).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</time><strong>{item.actorDisplay}</strong><span>{item.action in messages ? t(item.action as MessageKey) : item.action}</span><Badge>r{item.revision} · v{item.version}</Badge></div>
           <ReviewEventDetail action={item.action} detail={item.detail} />
         </li>)}</ol>
       </TabsContent>
