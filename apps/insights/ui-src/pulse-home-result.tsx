@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { openAppSession, useAppChat, useAppObject } from '@pero/app-sdk';
 import { Disclosure, Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
 import { cardKind, projectBrief } from './work-recap-model.mjs';
@@ -101,8 +101,9 @@ function Post({ card, t, locale }: { card: ResultCard; t: typeof copy.zh; locale
   </article>;
 }
 
-export function PulseHomeResult({ brief, createdAt, running, locale, notice }: {
+export function PulseHomeResult({ brief, createdAt, running, locale, notice, onDiscuss }: {
   brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; notice?: ReactNode;
+  onDiscuss?: (action: { discuss: (question: string) => void; discussing: boolean; label: string } | null) => void;
 }) {
   const t = copy[locale], chat = useAppChat(), id = useId();
   useAppObject({ id: 'insights-brief', kind: 'work-brief', label: locale === 'zh' ? '工作简报' : 'Work brief', state: brief });
@@ -118,6 +119,10 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice }: {
       .catch(reason => setDiscussionError(reason instanceof Error ? reason.message : String(reason)))
       .finally(() => setDiscussing(false));
   };
+  const onDiscussRef = useRef(onDiscuss);
+  onDiscussRef.current = onDiscuss;
+  useEffect(() => { onDiscussRef.current?.({ discuss, discussing, label: t.discuss }); }, [discussing, t.discuss]);
+  useEffect(() => () => onDiscussRef.current?.(null), []);
   if (!brief.cards.length && !brief.tomorrow && !summary) return <section className="point-insights-empty-result" aria-label={t.title}>
     {notice}
     <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
@@ -152,10 +157,8 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice }: {
       <div className="point-brief-rail">
         {notice}
         <section className="point-brief-discussion" aria-labelledby={`${id}-discussion`}>
-          <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div>
-            <Button variant="primary" busy={discussing} onClick={() => discuss(t.discuss)}>{t.discuss}</Button>
-          </div>
-          <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
+          <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div></div>
+          <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} variant="ghost" disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
           {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
           {brief.tomorrow && <section className="point-pulse-ahead"><h3>{t.ahead}</h3><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section>}
           <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>

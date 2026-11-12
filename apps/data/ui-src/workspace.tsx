@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { requestAppShell, useAppI18n } from '@pero/app-sdk';
-import { Table, Badge, Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { Table, Badge, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
@@ -24,6 +24,7 @@ type Props = {
   onRetryInspection(): void; onRecoverView(): void;
   onAddVersion(): void; onEdit(value: { name: string; projectRef: string; archived: boolean }): Promise<boolean>;
   onAsk(): void; canAsk: boolean;
+  command?: 'edit' | 'archive' | null; onCommandDone?(): void; focusMore?(): void;
   onSave(name: string): void; onOpen(view: SavedView): void; onExport(view: SavedView): void;
   onRecord(row: number): void;
 };
@@ -34,9 +35,12 @@ export function Workspace(props: Props) {
   const [typeDraft, setTypeDraft] = useState<{ field: string; numeric: boolean } | null>(null);
   const [priorAnalysis, setPriorAnalysis] = useState<ViewSpec | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false), [editing, setEditing] = useState(false);
-  const [shareNotice, setShareNotice] = useState('');
-  const more = useRef<HTMLButtonElement>(null), returnMore = useRef(false);
-  useEffect(() => { if (!editing && returnMore.current) { returnMore.current = false; more.current?.focus(); } }, [editing]);
+  const returnMore = useRef(false);
+  useEffect(() => { if (!editing && returnMore.current) { returnMore.current = false; props.focusMore?.(); } }, [editing, props.focusMore]);
+  useEffect(() => {
+    if (props.command === 'edit') { returnMore.current = true; setEditing(true); props.onCommandDone?.(); }
+    else if (props.command === 'archive') { setConfirmArchive(true); props.onCommandDone?.(); }
+  }, [props.command]);
   const [filterField, setFilterField] = useState(view.filter?.field ?? '');
   const [operator, setOperator] = useState(view.filter?.operator ?? 'contains');
   const [filterValue, setFilterValue] = useState(view.filter?.value ?? '');
@@ -89,10 +93,6 @@ export function Workspace(props: Props) {
       : asset.revision.length > 12 ? `${asset.revision}. Original file; contents are not indexed.`
         : 'Original file. Source and checksums are kept; contents are not indexed.';
   const openApp = (path: string) => { if (window.parent !== window) void requestAppShell('navigate', { path }); };
-  const shareReference = () => {
-    const body = JSON.stringify({ type: 'pero-dataset', datasetId: dataset.id, assetId: asset.id, name: dataset.name, sha256: asset.sha256, source: asset.source, revision: asset.revision }, null, 2);
-    void navigator.clipboard?.writeText(body).then(() => setShareNotice(t('shareCopied'))).catch(() => setShareNotice(''));
-  };
   return <>
     <header className="data-workspace-header">
       <div className="data-workspace-title">
@@ -100,23 +100,6 @@ export function Workspace(props: Props) {
           <h2 title={dataset.name}>{dataset.name}</h2>
           <div className="data-badges">{badges.map((badge, index) => <Badge key={badge} tone={index === 0 ? 'blue' : 'neutral'}>{badge}</Badge>)}</div>
           <p className="data-lede">{description}</p>
-        </div>
-        <div className="data-actions data-workspace-actions">
-          <Button variant="primary" disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('openNotebook')}</Button>
-          <Button disabled={busy || !props.canAsk} onClick={props.onAsk}>{t('askAgent')}</Button>
-          <Button disabled={busy} onClick={shareReference}>{t('share')}</Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger ref={more}>{t('more')}</DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem disabled={busy} onSelect={() => setEditing(true)}>Edit details</DropdownMenuItem>
-              <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => props.onAddVersion()}>Add version</DropdownMenuItem>
-              {analysis ? <DropdownMenuItem disabled={busy} onSelect={() => props.onTab('table')}>Explore data</DropdownMenuItem> : null}
-              <DropdownMenuSeparator />
-              {dataset.archived
-                ? <DropdownMenuItem disabled={busy} onSelect={() => props.onEdit({ ...metadata, archived: false })}>Restore dataset</DropdownMenuItem>
-                : <DropdownMenuItem disabled={busy} onSelect={() => setConfirmArchive(true)}>Archive dataset</DropdownMenuItem>}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
       <dl className="data-summary">
@@ -130,7 +113,6 @@ export function Workspace(props: Props) {
       </dl>
       {versions.length > 1 ? <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
         options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} /> : null}
-      {shareNotice ? <p className="data-note" role="status">{shareNotice}</p> : null}
       {needsAttention ? <p className="data-note" role="status">{custodyDetail(asset, result, false)}</p> : null}
       {failure ? <div className="data-actions">
         <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
@@ -367,6 +349,7 @@ export function Workspace(props: Props) {
           {displayedView.filter && inspected ? <span>{formatInt(inspected.matched)} matching</span> : null}
           {displayedView.selection.length > 0 ? <span>{displayedView.selection.length} selected</span> : null}
         </div> : null}
+        <Button variant="ghost" disabled={busy || !props.canAsk} onClick={props.onAsk}>{t('askAgent')}</Button>
         {tab === 'table' && inspected ? <div className="data-pagination">
           {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>Clear selection</Button> : null}
           <Button variant="ghost" disabled={busy || loading || stale || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>Previous</Button>

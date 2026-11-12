@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
-import {Button, Checkbox, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, Input, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
+import {AppBar, Button, Checkbox, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, LibraryHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
@@ -142,15 +142,12 @@ export function SkillsMarket() {
   return <main className="skills-market">
     <div className="skills-scroll" ref={scroller}>
       <div className="skills-page">
-        <header className="skills-heading">
-          <div><span className="skills-overline">{text('研究工具库','RESEARCH TOOLKIT')}</span><h1>{text('Skills 市场','Skills')}</h1><p>{text('找到合适的技能，把下一步研究做得更清楚。','Find the right skill for the next step in your research.')}</p></div>
-          <div className="skills-catalog-total">{catalog&&<><strong>{catalog.skills.length.toLocaleString(locale)}</strong><span>{text(`目录条目 · ${catalog.sources.length} 个来源`, `catalog skills · ${catalog.sources.length} sources`)}</span></>}<Button variant="ghost" onClick={()=>void load()} busy={loading} disabled={!capability}><Icon name="sync" size={14}/>{text('刷新','Refresh')}</Button></div>
-        </header>
         <Tabs value={view} onValueChange={next=>filter(()=>setView(next))}>
-          <TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
+          <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
             <TabsTrigger value="discover">{text('发现技能','Discover')}</TabsTrigger>
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
-          </TabsList>
+          </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={loading} disabled={!capability} onClick={() => void load()}><Icon name="sync" size={14}/></IconButton>} />
+          <LibraryHeader density="compact" title={text('Skills 市场','Skills')} subtitle={catalog ? text(`${catalog.skills.length.toLocaleString(locale)} 项 · ${catalog.sources.length} 个来源`, `${catalog.skills.length.toLocaleString(locale)} skills · ${catalog.sources.length} sources`) : text('找到合适的技能，把下一步研究做得更清楚。','Find the right skill for the next step in your research.')} />
           <div className="skills-tools">
             <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索技能','Search skills')} placeholder={text('搜索用途、技能名称或来源…','Search tasks, skill names or sources…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>

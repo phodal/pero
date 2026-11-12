@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { LocalEnvironmentRecord, LocalEnvironmentOperation } from '../../../../protocol/generated/host';
 import { Button } from '../components/button';
 import { Card } from '../components/card';
@@ -16,7 +16,10 @@ import { computeMessages } from './compute-messages';
 import { ProjectProposal } from './project-proposal';
 
 /** A view of the existing Host catalog: preparing/selecting never dispatches science. */
-export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs = 1000 }: { locale: string; fetchFn?: typeof fetch; pollMs?: number }) {
+export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs = 1000, onBar }: {
+  locale: string; fetchFn?: typeof fetch; pollMs?: number;
+  onBar?: (actions: { refresh: () => void; create: () => void; listing: boolean; busy: boolean }) => void;
+}) {
   const t = computeMessages(locale);
   const [values, setValues] = useState<LocalEnvironmentRecord[]>([]), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(''), [selected, setSelected] = useState('');
@@ -80,6 +83,11 @@ export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs
   useEffect(() => { if (selected) heading.current?.focus({ preventScroll: true }); }, [selected]);
   const status = (item: LocalEnvironmentRecord) => <Badge tone={item.state === 'failed' ? 'error' : item.state === 'preparing' ? 'info' : item.state === 'ready' ? 'success' : 'neutral'}>{t[item.state]}</Badge>;
   const open = (kind: 'create' | 'rebuild') => { setFormError(''); if (kind === 'rebuild' && value) setLabel(value.label); setDialog(kind); };
+  const publish = useRef(onBar);
+  publish.current = onBar;
+  useLayoutEffect(() => {
+    publish.current?.({ refresh: () => { void refresh(); }, create: () => open('create'), listing: !value, busy: !!busy });
+  }, [refresh, value, busy]);
   const submit = (form: HTMLFormElement) => {
     if (!form.reportValidity() || busy) return;
     void mutate(dialog === 'rebuild' && value ? { operation: 'rebuild', id: value.id, label } : { operation: 'create_locked', target, label });
@@ -109,8 +117,8 @@ export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs
       {value.prepared && <Disclosure variant="inline" summary={t.evidence}><dl className="env-observation"><dt>{t.lock}</dt><dd>{value.prepared.lock_sha256}</dd><dt>{t.content}</dt><dd>{value.prepared.observation.packages_sha256}</dd><dt>{t.dependencies}</dt><dd>{Object.entries(value.prepared.observation.packages).map(([name, version]) => <div key={name}>{name} {version}</div>)}</dd></dl></Disclosure>}
       {!!value.log.length && <Disclosure variant="inline" summary={t.log}><pre className="env-json">{value.log.join('\n')}</pre></Disclosure>}
     </> : <>
-      <div className="env-heading"><div><h2>{t.title}</h2><p className="env-note">{t.about}</p></div><div className="env-actions"><Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button>{!!values.length && <Button variant="primary" disabled={!!busy || preparing} onClick={() => open('create')}>{t.create}</Button>}</div></div>
-      {!loaded ? !error && <Feedback>{t.loading}</Feedback> : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment"/>} heading={t.empty} description={t.emptyNote} actions={<Button variant="primary" disabled={!!busy} onClick={() => open('create')}>{t.create}</Button>}/> : <div className="env-grid">{values.map(item => <Card className="env-tile" key={item.id}>
+      <div className="env-heading"><div><h2>{t.title}</h2><p className="env-note">{t.about}</p></div>{!onBar && <div className="env-actions"><Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button>{!!values.length && <Button variant="primary" disabled={!!busy || preparing} onClick={() => open('create')}>{t.create}</Button>}</div>}</div>
+      {!loaded ? !error && <Feedback>{t.loading}</Feedback> : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment"/>} heading={t.empty} description={t.emptyNote} actions={onBar ? undefined : <Button variant="primary" disabled={!!busy} onClick={() => open('create')}>{t.create}</Button>}/> : <div className="env-grid">{values.map(item => <Card className="env-tile" key={item.id}>
         <Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><div className="env-actions">{status(item)}{item.bound && <Badge tone="info">{t.chosen}</Badge>}</div><p className="env-note">{method(item)} · Python {item.prepared?.python_request ?? '3.12.14'} · uv</p>
         {item.error && <Feedback kind="error">{item.error}</Feedback>}
       </Card>)}</div>}

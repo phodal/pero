@@ -68,7 +68,7 @@ export default function Lcms2Yield() {
   const verdictLabel = (value: string) =>
     value === 'PASS' ? t('matchesFactors') : value === 'FAIL' ? t('fail') : value === 'INCONCLUSIVE' ? t('inconclusive') : t('unrun');
 
-  return <AppFrame label={t('title')}>
+  return <AppFrame label={t('title')} primary={state ? <Button className="yield-run" variant="primary" disabled={busy || task === 'train' || !state.checkout || (dataset === 'upload' && !upload?.smilesValues.length)} onClick={() => setConfirming(true)}>{task === 'train' ? t('runTrain') : t('runPrediction')}</Button> : undefined}>
     {!state ? <div className="yield-opening" role="status" aria-busy={loading || !error}>
       <div className="yield-opening-card">
         {error && !loading ? <>
@@ -115,7 +115,6 @@ export default function Lcms2Yield() {
         }} />
         <p className="yield-help">{upload ? (upload.smiles || upload.yieldExp ? t('mappingReady', { smiles: upload.smiles || '—', yields: [upload.yieldExp, upload.yieldPred].filter(Boolean).join(', ') || '—' }) : t('mappingNeeded')) : t('detectedPredict')}</p>
         <details className="yield-advanced"><summary>{t('advanced')}</summary><p className="yield-help">{t('advancedBody')} {t('uploadHint')}</p></details>
-        <Button className="yield-run" variant="primary" disabled={busy || task === 'train' || !state.checkout || (dataset === 'upload' && !upload?.smilesValues.length)} onClick={() => setConfirming(true)}>{task === 'train' ? t('runTrain') : t('runPrediction')}</Button>
         {busy ? <p role="status">{t('running')}</p> : null}
         {!state.checkout ? <p className="yield-help">{t('releaseMissing')}</p> : null}
         <nav className="yield-links">

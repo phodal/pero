@@ -24,7 +24,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | Sidebar / sidebar_surface | 紧凑导航、会话行尾独立新建入口、应用与账户入口。与页面的分界由内容表面的左上圆角和轻阴影承担 | 未实现功能占位、额外卡片边框、侧栏右侧硬分隔线 |
 | SidebarGroup / sidebar_group | 一组相关导航；跨任务域用 separated 分隔，必要时才给标签 | 每组都添加眉标或分隔线 |
 | SidebarRow / sidebar_row | 图标、名称、必要计数和选中态 | 计数外再套徽章、说明段落 |
-| LibraryHeader / library_header | 当前页面标题、必要副标题、局部动作 | 应用名和页面名重复、固定大块留白 |
+| LibraryHeader / library_header | 集合或对象标题与计数 | 页面级按钮、与窗口标签重复的应用名、固定大块留白 |
 | ListRow / list_row | 标题在前、元信息在后、独立行操作 | 多层卡片、整行嵌套按钮 |
 | SessionRow / session_row（GPUI） | 常规字重会话标题、右侧状态、独立行尾菜单 | 状态挤占标题左对齐、读取即解决权限、重复状态文字 |
 | ResearchResult / research_result（GPUI） | 会话中的结果标题与内容；research_note 保留来源和核验边界，research_table_style 复用可选择、可横向滚动的表格 | 格式标签、执行状态机、由显示文案推断验证结果 |
@@ -33,7 +33,8 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | ContentTab / content_tab | 内容名称、固定 / 预览 / 未保存状态、关闭 | 额外的大标题、固定宽度空白、嵌套按钮 |
 | Tabs | 页内视图切换、键盘移动、关联面板 | 与窗口 Tab 重复命名当前 App |
 | ToggleGroup | 同一内容的互斥表示方式或一组可切换选项 | 复制普通按钮的选中皮肤、代替关联面板的 Tabs |
-| AppBar / Toolbar | 当前内容的工具与操作 | 默认重复 App 名、全局导航 |
+| AppBar | 二级操作栏。`scope`、`utilities`、`commands`、`primary` 按此顺序；`tools` / `actions` / `title` 仍可用，`title` 只作上下文标签 | 第二个页面标题、outline secondary、与检查器重复的填充主按钮 |
+| Toolbar | 光标或选区工具 | 保存、导入、新建、运行、全局导航 |
 | IconButton / ghost_icon_button | 统一点击区域、可访问名称、提示 | 无标签的图标、第二个下拉箭头 |
 | DropdownMenu | 操作菜单，使用已有 Radix / GPUI 菜单行为 | 把操作伪装成当前选中值 |
 | Select / NativeSelect | Select 统一短列表、搜索与分组长列表；NativeSelect 仅用于必须保留系统弹层的兼容场景 | 无意混用系统弹层和共享弹层、替换表单校验 |

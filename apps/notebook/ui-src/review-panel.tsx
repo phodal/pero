@@ -298,7 +298,7 @@ function ReviewWorkspace({ entryId, revision, document, readonly = false, onReve
         {data && <Button variant="ghost" onClick={() => downloadFile(`Notebook-${entryId}-local-records.json`, JSON.stringify(data, null, 2), 'application/json')}>{t('exportRecords')}</Button>}
       </NotebookMenu>
     </div>
-    {draftChanged && <Feedback kind="warning">{t('unsaved', { revision })}{onSave && <Button busy={saveBusy} disabled={saveDisabled} onClick={onSave}>{t('saveRevision')}</Button>}</Feedback>}
+    {draftChanged && <Feedback kind="warning">{t('unsaved', { revision })}{onSave && <Button variant="ghost" busy={saveBusy} disabled={saveDisabled} onClick={onSave}>{t('saveRevision')}</Button>}</Feedback>}
     {loading && <p role="status">{t('loading')}</p>}
     {loadError && <Feedback kind="error">{loadError}</Feedback>}
     {savedError && <Feedback kind="error">{savedError}</Feedback>}

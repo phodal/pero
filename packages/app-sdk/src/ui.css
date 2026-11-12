@@ -73,17 +73,24 @@ button:disabled, input:disabled, select:disabled { cursor: default; opacity: .5;
   flex-wrap: wrap;
   gap: var(--pero-icon-gap);
   min-width: 0;
-  min-height: 0;
+  min-height: var(--pero-control-height);
   padding: 2px var(--pero-spacing-3);
   border-bottom: var(--pero-hairline);
   background: var(--pero-material-chrome);
 }
 .pero-app-bar-tools { display: flex; align-items: center; gap: var(--pero-icon-gap); min-width: 0; flex: 1 1 240px; flex-wrap:wrap; }
+.pero-app-bar-scope,
+.pero-app-bar-utilities,
+.pero-app-bar-commands,
+.pero-app-bar-primary { display: flex; align-items: center; gap: var(--pero-icon-gap); min-width: 0; }
+.pero-app-bar-utilities,
+.pero-app-bar-commands,
+.pero-app-bar-primary { flex: none; }
 .pero-app-bar-title { min-width: 0; }
-.pero-app-bar-title h1 {
+.pero-app-bar-context {
   margin: 0;
   overflow: hidden;
-  font: 600 var(--pero-font-heading)/1.25 var(--pero-font-family-sans, system-ui, sans-serif);
+  font: 500 var(--pero-font-body)/1.25 var(--pero-font-family-sans, system-ui, sans-serif);
   overflow-wrap:anywhere;
   white-space:normal;
 }

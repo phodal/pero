@@ -12,6 +12,7 @@
 .pa-nav-label { margin: 18px 8px 4px; }
 .pa-library-screen { display: flex; flex-direction: column; background: var(--pero-surface); }
 .pa-library-screen > .pa-library-content { display: flex; flex: 1; flex-direction: column; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; }
+.pa-library-papers-screen { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
 .pa-library-papers { flex: 1; min-height: 0; }
 .pa-library-list-pane { overflow: auto; padding: 20px 12px 12px; }
 .pa-library-placeholder { display: grid; gap: var(--pero-spacing-2); padding: var(--pero-spacing-4) var(--pero-spacing-2); border-bottom: var(--pero-hairline); }

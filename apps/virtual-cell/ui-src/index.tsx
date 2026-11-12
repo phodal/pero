@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
-import { Button, FilePicker, Disclosure, EmptyState, Feedback, Icon, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { AppBar, Button, FilePicker, Disclosure, EmptyState, Feedback, Icon, IconButton, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
 import { useWorkbench } from './use-workbench';
@@ -74,24 +74,28 @@ export default function VirtualCell() {
     {(lab.error || displayError) && <Feedback kind="error">{lab.error || displayError} <Button disabled={lab.busy} onClick={() => { setDisplayError(''); void lab.refresh(); }}>{t('retry')}</Button></Feedback>}
     {lab.busy && <Feedback>{t('busy')}</Feedback>}
     <Tabs value={view} onValueChange={setView} className="vc-view-tabs">
-      <Toolbar className="vc-navigation" actions={<>
-        <FilePicker compact multiple accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>
-        {!isComparison && <Button disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>}
-        <Button disabled={lab.busy} onClick={() => { void lab.refresh(); comparison.refresh(); download.refresh(); }}><Icon name="refresh"/>{t('refresh')}</Button>
-        <Button onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
-        <Button onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
-        <Button onClick={()=>{void chat.open().catch(error=>setDisplayError(String(error)));}}>{t('openChat')}</Button>
-      </>}>
-        <TabsList aria-label={t('scienceViews')}>
+      <AppBar className="vc-navigation" scope={<TabsList aria-label={t('scienceViews')}>
           <TabsTrigger value="cells"><Icon name="app"/>{t('cellsView')}</TabsTrigger>
           <TabsTrigger value="mechanism"><Icon name="nodes"/>{t('mechanismView')}</TabsTrigger>
           <TabsTrigger value="volume"><Icon name="models"/>{t('volumeView')}</TabsTrigger>
-        </TabsList>
-      </Toolbar>
+        </TabsList>}
+        utilities={<IconButton label={t('refresh')} disabled={lab.busy} onClick={() => { void lab.refresh(); comparison.refresh(); download.refresh(); }}><Icon name="refresh"/></IconButton>}
+        commands={<>
+          {!isComparison && <Button variant="ghost" disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>}
+          {view === 'cells' && mode === 'perturbation' && !isComparison && lab.input && ['split', 'queries', 'candidates'].map(operation => <Button key={operation} variant="ghost" disabled={lab.busy || (operation === 'candidates' && !lab.input.hasPlan)} onClick={() => lab.run(operation)}>{t(operation as 'split')}</Button>)}
+          {(isComparison && lab.input || view === 'cells' && mode === 'perturbation' && !isComparison && lab.input) && <FilePicker compact multiple variant="ghost" accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>}
+          <Button variant="ghost" onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
+          <Button variant="ghost" onClick={()=>{void chat.open({capture:true}).catch(error=>setDisplayError(String(error)));}}>{t('captureContext')}</Button>
+          <Button variant="ghost" onClick={()=>{void chat.open().catch(error=>setDisplayError(String(error)));}}>{t('openChat')}</Button>
+        </>}
+        primary={isComparison && lab.input
+          ? <Button variant="primary" disabled={!comparison.canStart} onClick={() => void comparison.start(lab.input.id)}>{comparison.pending === 'start' ? t('comparison_starting') : t('comparisonStart')}</Button>
+          : view === 'cells' && mode === 'perturbation' && !isComparison && lab.input
+            ? <Button variant="primary" disabled={lab.busy} onClick={() => lab.run('evaluate')}>{t('evaluate')}</Button>
+            : <FilePicker compact multiple variant="primary" accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>} />
       <TabsContent value="cells" forceMount><div className="vc-data-toolbar"><Select label={t('dataMode')} value={mode} onChange={setMode} options={[{ value: 'atlas', label: t('atlasMode') }, { value: 'perturbation', label: t('perturbationMode') }, { value: 'comparison', label: t('comparisonMode') }]}/>{mode === 'atlas' ? <Button onClick={() => downloadFile('virtual-cell-atlas.json', JSON.stringify(atlas), 'application/json')}>{t('exportView')}</Button> : <>{!!lab.items.length && <Select label={t('inputs')} disabled={lab.busy} value={lab.selected} options={lab.items.map(i => ({ value: i.id, label: `${i.source.id} — ${i.source.revision} (${i.id.slice(0, 8)})` }))} onChange={lab.choose}/>}{mode !== 'comparison' && <Button disabled={lab.busy || !lab.input} onClick={lab.exportInputs}>{t('template')}</Button>}</>}</div>
         {mode === 'atlas' ? <CellView key={identity(atlas, 'cells')} atlas={atlas} t={t}/> : mode === 'comparison' ? <ComparisonView key={comparison.selected || 'new'} comparison={comparison} download={download} input={lab.input} inputs={lab.items} t={t}/> : <>
           {lab.input?.source.id.startsWith('synthetic') && <Feedback>{t('sample')}</Feedback>}
-          <Toolbar>{['evaluate', 'split', 'queries', 'candidates'].map(operation => <Button key={operation} variant={operation === 'evaluate' ? 'primary' : 'secondary'} disabled={lab.busy || !lab.input || (operation === 'candidates' && !lab.input.hasPlan)} onClick={() => lab.run(operation)}>{t(operation as any)}</Button>)}</Toolbar>
           {lab.input && lab.bundle ? <PerturbationView key={lab.input.id} input={lab.input} bundle={lab.bundle} output={lab.output} t={t}/> : <EmptyState heading={lab.input ? t('busy') : t('empty')} description={t('format')}/>}
           {lab.input && !lab.input.hasPlan && <p className="vc-muted">{t('needPlan')}</p>}
         </>}

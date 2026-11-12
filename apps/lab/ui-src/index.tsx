@@ -1,7 +1,7 @@
 import { Disclosure, Popover, Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
-import { Button, FilePicker, Icon, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { AppBar, Button, FilePicker, Icon, IconButton, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { Comparison, Engine, Experiment, LabState, Protocol } from './types';
 import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
@@ -134,17 +134,18 @@ export default function Lab() {
     select_tab: { description: 'Show a Lab view.', parameters: { type: 'object', properties: { tab: { enum: ['deck', 'protocol', 'runs', 'results'] } }, required: ['tab'], additionalProperties: false }, run: ({ tab }) => { if (!['deck', 'protocol', 'runs', 'results'].includes(String(tab))) throw new Error('Unknown tab'); setTab(String(tab)); } },
   } });
   return <main className="lab" {...appObjectProps('lab')} aria-busy={loading || busy}>
-    <header className="lab-header"><div className="app-title"><Icon name="flask" size={18} /><h1>Lab</h1><Popover label="Simulation scope" trigger="Simulation only" triggerVariant="ghost">{() => <p>Illustrative dye model. No physical or biological validation.</p>}</Popover></div><div className="toolbar">
-      {experiment && <Button disabled={busy || loading} onClick={startNewExperiment}><Icon name="plus" />New experiment</Button>}
-      <Button className="icon-button" variant="ghost" aria-label="Refresh" title="Refresh" disabled={busy || loading} onClick={() => void perform(refresh)}><Icon name="refresh" /></Button>
-      {/* Composing must not mutate the referenced App object while Host verifies its revision. */}
-      {experiment ? <Button variant="primary" disabled={busy || loading || running} onClick={() => void chat.compose(`Help with Color Mixing experiment ${experiment.id}. Read its frozen criteria and lab state using Lab's declared tools. Propose a bounded Protocol IR, validate and simulate with PyLabRobot Chatterbox only, attach explicitly synthetic observations or inspect imported evidence, independently evaluate, then propose a linked revision with a reason based on the discrepancy. Do not change frozen criteria or claim physical validity.`, { attachments: [chat.objectReference('lab')], approveGoal: true }).catch(fail)}><Icon name="agent" />Approve goal and ask Agent</Button> : <Button variant="primary" disabled={loading} busy={busy} onClick={() => void freeze()}><Icon name="lock" />Freeze experiment</Button>}
-    </div></header>
+    <AppBar
+      scope={!loading ? <label className="experiment-picker">Experiment<Select label="Saved experiments" title={experiment?.objective} value={experiment?.id ?? ''} disabled={busy} onChange={value => { if (value) void open(value); else startNewExperiment(); }} options={[{value:"",label:"New experiment"}, ...history.map(item => ({value:item.id,label:`${item.objective} (${item.trials.length} trials)`}))]} /></label> : undefined}
+      utilities={<><Popover label="Simulation scope" trigger="Simulation only" triggerVariant="ghost">{() => <p>Illustrative dye model. No physical or biological validation.</p>}</Popover>
+        <IconButton label="Refresh" disabled={busy || loading} onClick={() => void perform(refresh)}><Icon name="refresh" /></IconButton></>}
+      commands={<>
+        {experiment && <Button variant="ghost" disabled={busy || loading} onClick={startNewExperiment}><Icon name="plus" />New experiment</Button>}
+        {experiment && <Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}><Icon name="export" />Export JSON</Button>}
+      </>}
+      primary={experiment ? <Button variant="primary" disabled={busy || loading || running} onClick={() => void chat.compose(`Help with Color Mixing experiment ${experiment.id}. Read its frozen criteria and lab state using Lab's declared tools. Propose a bounded Protocol IR, validate and simulate with PyLabRobot Chatterbox only, attach explicitly synthetic observations or inspect imported evidence, independently evaluate, then propose a linked revision with a reason based on the discrepancy. Do not change frozen criteria or claim physical validity.`, { attachments: [chat.objectReference('lab')], approveGoal: true }).catch(fail)}><Icon name="agent" />Approve goal and ask Agent</Button> : <Button variant="primary" disabled={loading} busy={busy} onClick={() => void freeze()}><Icon name="lock" />Freeze experiment</Button>} />
     {error && <div className="error app-error" role="alert"><Icon name="alert" />{error} <Button onClick={() => void perform(refresh)} disabled={busy}>Retry connection</Button></div>}
     {engine?.error && <p className="error app-error">{engine.error}</p>}
-    {!loading && <div className="context-row"><label className="experiment-picker">Experiment<Select label="Saved experiments" title={experiment?.objective} value={experiment?.id ?? ''} disabled={busy} onChange={value => { if (value) void open(value); else startNewExperiment(); }} options={[{value:"",label:"New experiment"}, ...history.map(item => ({value:item.id,label:`${item.objective} (${item.trials.length} trials)`}))]}/></label>
-      {experiment && <div className="toolbar"><label>Trial<Select label="Trial" value={trialId} onChange={setTrialId} disabled={busy} options={[{value:"",label:"Select trial"}, ...experiment.trials.map((item, index) => ({value:item.id,label:`${index + 1}: ${item.status}${item.parent_trial_id ? ' (revision)' : ''}`}))]}/></label><Button variant="ghost" disabled={busy} onClick={() => void perform(async () => { const report = await api.get<unknown>(`/api/experiments/${experiment.id}/export`); downloadFile(`lab-${experiment.id}.json`, JSON.stringify(report, null, 2), 'application/json'); setNotice('Evidence report exported.'); })}><Icon name="export" />Export JSON</Button></div>}
-    </div>}
+    {!loading && experiment && <div className="context-row"><div className="toolbar"><label>Trial<Select label="Trial" value={trialId} onChange={setTrialId} disabled={busy} options={[{value:"",label:"Select trial"}, ...experiment.trials.map((item, index) => ({value:item.id,label:`${index + 1}: ${item.status}${item.parent_trial_id ? ' (revision)' : ''}`}))]}/></label></div></div>}
     {experiment && <div className="experiment-summary"><span className="frozen-label"><Icon name="lock" size={12} />Frozen</span><span>{experiment.criteria.target_well}</span><span>{experiment.criteria.target_volume_ul} ± {experiment.criteria.volume_tolerance_ul} µL</span><span>Red fraction {experiment.criteria.target_fraction} ± {experiment.criteria.tolerance}</span><span>{experiment.trials.length}/{experiment.max_trials} trials</span></div>}
     <div className="lab-workspace">
     {loading ? <p className="empty" role="status">Loading saved experiments…</p> : <>

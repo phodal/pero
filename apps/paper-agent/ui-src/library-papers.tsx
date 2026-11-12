@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Button, EmptyIllustration, EmptyState, Icon, LibraryHeader, LoadingSkeleton, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppBar, Button, EmptyIllustration, EmptyState, Icon, IconButton, LibraryHeader, LoadingSkeleton, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
 import { PaperList } from './library';
 import { LibrarySearch } from './library-search';
 import { PaperInspector } from './paper-inspector';
@@ -24,13 +24,20 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
   const paper = rows.find(paper => paper.id === previewId) ?? rows[0];
   const selectedIds = selected.filter(id => papers.some(paper => paper.id === id));
   const title = filter === 'all' ? 'allPapers' : filter === 'reading' ? 'statusReading' : filter === 'to-read' ? 'statusToRead' : 'statusReviewed';
+  const readLabel = paper && statusOf(shelf, paper.id) === 'to-read' ? t('openReader') : t('continueReading');
+  const add = <Button variant={paper ? 'ghost' : 'primary'} onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button>;
+  const compare = selectedIds.length > 1 ? <Button variant="ghost" disabled={locked} onClick={() => onCompare(selectedIds)}><Icon name="columns" size={14}/>{t('comparePapers')}</Button> : null;
   function preview(paper: Paper) {
     setPreviewId(paper.id);
     if (window.matchMedia('(max-width: 940px)').matches) requestAnimationFrame(() => inspector.current?.focus());
   }
-  return <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
+  return <div className="pa-library-papers-screen"><AppBar
+    utilities={<IconButton label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></IconButton>}
+    commands={(compare || paper) ? <>{compare}{paper ? add : null}</> : undefined}
+    primary={paper ? <Button variant="primary" onClick={() => onRead(paper)}>{readLabel}</Button> : add}/>
+  <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
-      <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`} actions={<><Button variant="ghost" aria-label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></Button><Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button></>}/>
+      <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`}/>
       {loading ? <LoadingSkeleton label={t('loading')}>{[0, 1, 2].map(row => <div className="pa-library-placeholder" key={row}>
         <SkeletonBlock shape="title" width={row === 1 ? '68%' : '84%'}/><SkeletonBlock width="42%"/>
       </div>)}</LoadingSkeleton> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
@@ -38,7 +45,7 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
           <PaperList papers={rows} sort={sort} onSort={setSort} selected={selectedIds} previewId={paper?.id ?? ''} locked={locked} shelf={shelf} shelfFilter={filter} onShelfFilter={onFilter}
             onCycleStatus={id => onStatus(id, cycleStatus(statusOf(shelf, id)))}
             onFindMore={onFind} onRead={onRead} onPreview={preview} onSelect={(id, checked) => setSelected(current => checked ? [...current, id] : current.filter(value => value !== id))} t={t}/>
-          <div className="pa-library-selection"><span>{t(selectedIds.length ? 'selectedPapers' : 'previewHint')}{selectedIds.length ? ` ${selectedIds.length}` : ''}</span><div className="pa-actions">{selectedIds.length > 0 && <Button variant="ghost" onClick={() => setSelected([])}>{t('clearSelection')}</Button>}<Button disabled={locked || selectedIds.length < 2} onClick={() => onCompare(selectedIds)}><Icon name="columns" size={14}/>{t('comparePapers')}</Button></div></div>
+          <div className="pa-library-selection"><span>{t(selectedIds.length ? 'selectedPapers' : 'previewHint')}{selectedIds.length ? ` ${selectedIds.length}` : ''}</span><div className="pa-actions">{selectedIds.length > 0 && <Button variant="ghost" onClick={() => setSelected([])}>{t('clearSelection')}</Button>}</div></div>
         </>}
       </LibrarySearch>}
     </SplitPane>
@@ -46,5 +53,5 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
       <PaperInspector ref={inspector} api={api} paper={paper} shelf={shelf} library={library} savingId={savingId} locked={locked} t={t}
         onStatus={onStatus} onRead={onRead} onRecords={onRecords} onDiscover={onDiscover} onDownload={onDownload} onAsk={onAsk}/>
     </SplitPane>}
-  </Split>;
+  </Split></div>;
 }

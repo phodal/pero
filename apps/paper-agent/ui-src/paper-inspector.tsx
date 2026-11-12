@@ -32,9 +32,9 @@ function notePreview(item: PdfAnnotation) {
   return (item.note || item.quote || '').replace(/\s+/g, ' ').trim();
 }
 
-export function PaperInspectorHeader({ paper, status, savingId, locked, t, onRead, onStatus, onDownload }: {
+export function PaperInspectorHeader({ paper, status, savingId, locked, t, onStatus, onDownload }: {
   paper: Paper; status: ShelfStatus; savingId?: string; locked: boolean; t: Translator;
-  onRead(paper: Paper): void; onStatus(id: string, value: ShelfStatus): void;
+  onStatus(id: string, value: ShelfStatus): void;
   onDownload(paper: Paper, format: 'pdf' | 'tex'): void;
 }) {
   const [authorsOpen, setAuthorsOpen] = useState(false);
@@ -66,9 +66,6 @@ export function PaperInspectorHeader({ paper, status, savingId, locked, t, onRea
       <Badge tone={statusTone[status]}>{t(status === 'reading' ? 'statusReading' : status === 'to-read' ? 'statusToRead' : 'statusReviewed')}</Badge>
       <OutlineBadge>{contentKind(paper, t)}</OutlineBadge>
     </div>
-    <Button variant="primary" className="pa-inspector-read" onClick={() => onRead(paper)}>
-      <Icon name="skill" size={15}/>{t(status === 'to-read' ? 'openReader' : 'continueReading')}<Icon name="arrow" size={14}/>
-    </Button>
   </header>;
 }
 
@@ -261,7 +258,7 @@ export const PaperInspector = React.forwardRef<HTMLElement, {
   useEffect(() => { setTab('overview'); }, [paper.id]);
   return <section ref={ref} className="pa-paper-inspector" tabIndex={-1} aria-label={t('paperDetails')}>
     <PaperInspectorHeader paper={paper} status={status} savingId={savingId} locked={locked} t={t}
-      onRead={onRead} onStatus={onStatus} onDownload={onDownload}/>
+      onStatus={onStatus} onDownload={onDownload}/>
     <Tabs value={tab} onValueChange={value => setTab(value as InspectorTab)} className="pa-inspector-tabs">
       <TabsList aria-label={t('paperDetails')} variant="navigation">
         <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
