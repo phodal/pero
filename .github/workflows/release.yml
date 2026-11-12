@@ -327,6 +327,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Reject a moved tag or a CI result that is no longer green
         run: |
@@ -350,20 +351,7 @@ jobs:
           sha256sum --check SHA256SUMS
 
       - name: Write release notes
-        run: |
-          cat > release-notes.md <<'EOF_NOTES'
-          Pero Desktop development packages, built and launch-tested on native GitHub Actions runners.
-
-          - Pero: macOS Apple Silicon DMG, Windows x64 portable ZIP, Linux x64 portable tar.gz.
-          - Pero Native: separate macOS Apple Silicon DMG using GPUI and system WebKit, with bundled Host, Node and Apps; no source checkout needed. Native and Electron use separate data profiles.
-          - Task Center defaults to https://app.openpero.com.
-          - No source checkout needed: sign in, claim a public task and choose a save folder. Pero clones the repository and creates the task branch.
-          - Native local sessions and Apps are available; preparing a cloud contribution workspace is currently supported by Electron only. Python App environments are prepared on first use.
-          - Install Git and a supported coding CLI and authenticate the CLI before starting. Native coding CLIs are not bundled.
-          - To publish PRs, install GitHub CLI from https://cli.github.com and run `gh auth login --hostname github.com --git-protocol https` in any directory. Then check changes again in Pero. App sign-in and gh authorization are separate.
-          - macOS packages are ad-hoc signed and not notarized; Windows/Linux packages are unsigned development builds.
-          - Per-product build metadata and SHA256SUMS accompany every archive.
-          EOF_NOTES
+        run: bash scripts/ci/release-notes.sh
 
       - name: Upload to a draft, then publish only if the tag still matches
         run: |
