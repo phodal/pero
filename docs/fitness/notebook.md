@@ -654,3 +654,21 @@ under a sandbox without `allow-modals`, including cancel/Escape, failure/retry,
 selected/other/last-entry deletion and reload. Notebook typecheck/build and four
 focused backend tests pass. Light confirmation/failure screenshots were inspected;
 Native, Electron and packaged acceptance of this fix remain unverified.
+
+## Full App panels — 2026-11-12
+
+Skills now displays its complete page after Save binding, using Host-owned
+Electron and Native App surfaces. The real Electron acceptance test
+`tests/e2e/notebook-panels.mjs` passed for Skills catalog/search, matching embedded
+geometry, menu occlusion/state retention, saved revision and historical release.
+An isolated Native preview also displayed the actual Skills catalog, filtered
+`writing` to 174 matches, hid the App behind File, and restored the same search
+when File closed. The collapsed library icon and tabs shared one row. Native
+interaction and dark screenshots were inspected through CUA; no user data was
+deleted or skills installed.
+
+Notebook/SDK/core TypeScript checks, Notebook/Skills/Web/Desktop builds, Native
+compilation, one panel-region test and five Desktop transport tests passed during
+implementation. The final activity-retention/error-presentation adjustments were
+not rerun after the user's direct-commit instruction. Signed distributions,
+other operating systems and other Apps' complete workflows remain unverified.

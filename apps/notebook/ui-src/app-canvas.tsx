@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NodeViewProps } from '@tiptap/react';
-import { DeclaredAppCanvas, listInstalledAppViews, requestAppShell, useAppI18n, type InstalledAppViews } from '@pero/app-sdk';
+import { DeclaredAppCanvas, EmbeddedAppPanel, listInstalledAppViews, requestAppShell, useAppI18n, type InstalledAppViews } from '@pero/app-sdk';
 import { Button, Disclosure, Feedback, Field, Icon, IconButton, Input, Select, Textarea } from '@pero/app-sdk/ui';
 import { appCanvasAvailability, appCanvasPath, isSavedCanvasBinding, parseAppCanvasBinding, type AppCanvasBinding } from '@pero/notebook/app-canvas';
 import { parseControlEvidenceReceipt } from '@pero/notebook/control-evidence';
@@ -12,8 +12,10 @@ const controlView = 'notebook-experiment';
 
 const messages = {
   embedded: { en: 'Embedded view', zh: '内嵌视图' }, inputs: { en: 'View inputs (JSON)', zh: '视图输入（JSON）' },
-  panelOnly: { en: 'Panel navigation only', zh: '仅面板导航' }, schema: { en: 'Declared input schema', zh: '声明的输入结构' },
-  saved: { en: 'Save this binding as a Notebook revision before mounting it. Host verifies the saved revision and asks separately before every App action.', zh: '挂载前请将绑定保存为笔记修订。Host 会核对已保存修订，并在每次 App 操作前单独询问。' },
+  panelOnly: { en: 'Full App page', zh: '完整 App 页面' }, schema: { en: 'Declared input schema', zh: '声明的输入结构' },
+  saved: { en: 'Declared data views require a saved Notebook revision. Full App pages are live and save changes in their owning App.', zh: '声明的数据视图需要已保存的笔记修订。完整 App 页面是实时视图，修改保存在所属 App 中。' },
+  livePanel: { en: 'Live App · changes are saved in the owning App.', zh: '实时 App · 操作和修改保存在所属 App 中。' },
+  historicalPanel: { en: 'Historical notebook revision. Open the App separately to use its current page.', zh: '当前为笔记历史修订。请单独打开 App 使用它的实时页面。' },
   retained: { en: 'Retained result · unverified', zh: '保留结果 · 未核验' },
   help: { en: 'Canvas permissions and views', zh: '画布权限与视图' },
   bindingDetails: { en: 'Binding details', zh: '绑定详情' },
@@ -25,7 +27,7 @@ const messages = {
   loading: { en: 'Reading installed declarations from Host…', zh: '正在从 Host 读取已安装声明…' },
   empty: { en: 'Host returned no installed Apps.', zh: 'Host 未返回已安装 App。' },
   stale: { en: 'Showing the previous catalog; current availability is unverified.', zh: '当前显示上次目录；最新可用性尚未核实。' },
-  limits: { en: 'Only explicitly declared data views render inline. App actions require trusted Host confirmation; a saved binding grants no execution permission. Other panels open in their owning App.', zh: '仅显式声明的数据视图可内嵌显示。App 操作需要可信 Host 确认；保存绑定不授予执行权限。其他面板在所属 App 中打开。' },
+  limits: { en: 'Full App pages run in Host-owned surfaces with their own permissions. Declared data views retain their existing saved-revision and confirmation rules.', zh: '完整 App 页面由 Host 挂载，沿用所属 App 的权限。声明的数据视图仍需保存修订，并通过原有操作确认。' },
   openExperiment: { en: 'Open created experiment', zh: '打开已创建的实验' },
   opened: { en: 'Open request acknowledged.', zh: '打开请求已确认。' },
   actions: { en: 'Declared App actions', zh: 'App 声明的操作' },
@@ -118,7 +120,7 @@ export function AppCanvasView(view: NodeViewProps) {
     {view.editor.isEditable && showConfiguration && <div className="notebook-canvas-configuration">
       <div className="notebook-science-fields">
       <Field label={t('app')}>{control => <Select {...control} label={t('app')} placeholder={t('choose')} disabled={!!busy || !verified} value={app}
-        options={(catalog ?? []).map(item => ({ value: item.app, label: item.title, hint: `${item.app} · ${item.version}${item.enabled ? '' : ` · ${t('disabled-app')}`}`, disabled: !item.enabled }))}
+        options={(catalog ?? []).filter(item => item.app !== 'notebook').map(item => ({ value: item.app, label: item.title, hint: `${item.app} · ${item.version}${item.enabled ? '' : ` · ${t('disabled-app')}`}`, disabled: !item.enabled }))}
         onChange={value => { setApp(value); setPanel(''); setEmbedded(''); setInputs('{}'); }} />}</Field>
       <Field label={t('panel')}>{control => <Select {...control} label={t('panel')} placeholder={t('choosePanel')} disabled={!!busy || !verified || !selectedApp?.enabled} value={panel}
         options={(selectedApp?.panels ?? []).map(item => ({ value: item.id, label: item.title, hint: item.id }))} onChange={setPanel} />}</Field>
@@ -149,6 +151,10 @@ export function AppCanvasView(view: NodeViewProps) {
       {binding && <Button variant="ghost" disabled={!!busy} onClick={() => { view.updateAttributes({ binding: null }); setOpened(false); }}>{t('remove')}</Button>}
     </div>}
     {staleControl && pins && <ControlLabInputError stale />}
+    {binding && !binding.view && availability === 'available' && <>
+      <p className="notebook-note">{t(context?.readonly ? 'historicalPanel' : 'livePanel')}</p>
+      {!context?.readonly && <EmbeddedAppPanel app={binding.app} panel={binding.panel} title={boundApp?.title || binding.app} />}
+    </>}
     {binding?.view && !staleControl && !savedBinding && <div className="notebook-reference-actions">
       {context?.saveRevision && !context.readonly && <Button variant="primary" disabled={context.saveDisabled} busy={context.saving} onClick={context.saveRevision}>{t('saveRevision')}</Button>}
     </div>}

@@ -1,6 +1,6 @@
 # Notebook Canvas owner contract
 
-This implements bounded, declared data views inside Notebook. It does not embed arbitrary App panels, scripts, URLs or origins. Data is the first real consumer: its dataset inspector displays identity, archived state and immutable version digests, and its archive/restore action changes dataset metadata through the existing `Dataset.edit` transition. Files and versions are retained.
+Notebook supports both bounded declared data views and full installed App panels. Full panels use Host-owned surfaces; Notebook supplies only an installed App/panel identity and a visible region, never a URL, script or permission grant. Data is the first real consumer: its dataset inspector displays identity, archived state and immutable version digests, and its archive/restore action changes dataset metadata through the existing `Dataset.edit` transition. Files and versions are retained.
 
 ## Owners and admission
 
@@ -48,3 +48,17 @@ Focused Python tests cover real Data atomic replay and changed-parameter rejecti
 Data also declares `canvas-update`: a bounded text form for dataset name and its existing local `projectRef` display label. This label is not Host project membership. Optional `CanvasAction.inputs` contains only parameter name, label and maximum text length; Host bounds and validates the descriptor and still validates the complete action envelope against the installed write schema. No HTML, code, arbitrary route or permission enters the form.
 
 `DatasetDetailsChange` uses the existing `DatasetEdit` owner transition. Its observed name, project label and archived state must still match before dispatch changes metadata; a stale form returns a completed operation receipt with an explicit `not-applied` outcome and requires a refresh. The unchanged dataset and refusal receipt are persisted together so status can prove no change was applied instead of leaving recovery permanently unknown. Files, immutable versions and archive state are preserved. The real change and its receipt are saved atomically and replaying the same envelope returns the original receipt without overwriting a later owner edit. Text uses the same canonical compact sorted-key UTF-8 envelope digest as archive actions. Draft text survives denial and failure; historical/read-only views render neither metadata inputs nor action buttons. The existing shell consent, one-use tickets, operation journal, unknown-outcome guards and recovery remain the only execution path.
+
+## Full installed App panels (2026-11-12)
+
+A binding without `view` now mounts the complete installed panel after Save
+binding. Electron reuses the managed App iframe; Native reuses the App's own
+WebView and SDK transport. Target origins, backends, permissions and shell actions
+stay with the existing App owners. Notebook menus temporarily hide the live
+surface, and releasing the binding releases a surface without another workspace
+owner. Historical revisions show a notice instead of mounting an interactive page.
+Declared data views retain their saved-source and per-action confirmation contract.
+
+The current implementation retains one surface per App/panel. A second visible
+region for the same panel is refused. A partially clipped region waits until it
+is fully visible. This does not change a live App into immutable scientific evidence.
