@@ -255,7 +255,8 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   assert.deepEqual(historic, originalDescription);
   await openNotebookMenu(page, 'file');
   await button('Properties').click();
-  const projects = page.getByRole('region', { name: 'Host project associations' });
+  const properties = page.getByRole('complementary', { name: 'Properties', exact: true });
+  const projects = properties.getByRole('region', { name: 'Research project', exact: true });
   await projects.getByLabel('Host project', { exact: true }).selectOption('pi-study');
   await button('Link saved entry', projects).click();
   await expect(projects.getByText('Host project reference saved.')).toBeVisible();
@@ -264,7 +265,7 @@ test('Paper → Notebook → PI verification → Finding → Project preserves P
   const catalog = await fixture.request('notebook-projects', { name: 'notebook', request: { operation: 'list' } });
   assert.deepEqual(catalog.projects[0].entries, [{ id: entry.id, revision: String(latest.revision) }]);
   await page.screenshot({ path: resolve(output, 'interop-project.png'), fullPage: true });
-  await button('Close', page.getByRole('complementary', { name: 'Properties', exact: true })).click();
+  await button('Close', properties).click();
   await page.evaluate(location => window.postMessage({ type: 'pero:app:location', location }, window.location.origin),
     new URL(historic.descriptor.location).pathname.replace(/^\/main\//, ''));
   await openNotebookView(page, 'Notes');

@@ -113,6 +113,8 @@ test('Notebook reviews a real paper reference through the saved entry', { timeou
   await openReference();
   await page.getByRole('button', { name: 'Accept proposal', exact: true }).click();
   await expect(page.locator('.notebook-status')).toContainText('Revision 2');
+  // Accept installs the committed entry, which closes the prior inspector.
+  await openReference();
   await expect(page.getByText('Accepted as revision 2. The previous revision is unchanged.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept proposal', exact: true })).toHaveCount(0);
   await page.reload();
