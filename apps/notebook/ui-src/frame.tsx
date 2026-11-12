@@ -63,7 +63,13 @@ function Notebook() {
   const [selected, setSelected] = useState('');
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [entryQuery, setEntryQuery] = useState(''), [entryOrder, setEntryOrder] = useState('recent');
+  const [librarySearchOpen, setLibrarySearchOpen] = useState(false);
   const libraryImport = useRef<HTMLDivElement>(null);
+  const librarySearch = useRef<HTMLInputElement>(null);
+  const librarySearchVisible = librarySearchOpen || !!entryQuery.trim();
+  useEffect(() => {
+    if (librarySearchVisible) librarySearch.current?.focus();
+  }, [librarySearchVisible]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [history, setHistory] = useState<NotebookEntrySummary[] | null>(null);
   const [snapshot, setSnapshot] = useState<NotebookEntry | null>(null);
@@ -407,13 +413,24 @@ function Notebook() {
             <IconButton label={t('importNotebook')} disabled={!!busy} onClick={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" /></IconButton>
             <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
             <div hidden ref={libraryImport}>{importAction}</div>
+            <IconButton label={t('searchNotebooks')} aria-expanded={librarySearchVisible} aria-controls="notebook-library-search"
+              aria-pressed={librarySearchVisible} onClick={() => {
+                if (librarySearchVisible && !entryQuery.trim()) setLibrarySearchOpen(false);
+                else if (librarySearchVisible) librarySearch.current?.focus();
+                else setLibrarySearchOpen(true);
+              }}><Icon name="search" /></IconButton>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
           </div>
-          <div className="notebook-library-tools">
-            <SearchField aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery} onChange={event => setEntryQuery(event.target.value)} />
-          </div>
-          {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
+          {librarySearchVisible && <div className="notebook-library-tools" id="notebook-library-search">
+            <SearchField ref={librarySearch} aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery}
+              onChange={event => setEntryQuery(event.target.value)}
+              onKeyDown={event => {
+                if (event.key !== 'Escape') return;
+                if (entryQuery) setEntryQuery('');
+                else { setLibrarySearchOpen(false); event.currentTarget.blur(); }
+              }} />
+          </div>}
           <div className="notebook-library-heading"><DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" aria-label={t('sortNotebooks')}>{t(entryOrder === 'recent' ? 'recentNotebooks' : 'titleOrder')}<Icon name="chevron-down" size={12} /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="start"><DropdownMenuRadioGroup value={entryOrder} onValueChange={setEntryOrder}>
@@ -421,6 +438,7 @@ function Notebook() {
               <DropdownMenuRadioItem value="title">{t('titleOrder')}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup></DropdownMenuContent>
           </DropdownMenu></div>
+          {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
               const local = drafts[entry.id];

@@ -403,8 +403,8 @@ export function NotebookTextTools({ editor, extraTools }: { editor: Editor; extr
     {markButton('superscript')}
     {colorSelect('textColor', status.tone)}
     {editor.schema.marks.textBackground && colorSelect('textBackground', status.background)}
+    </Toolbar>
     <div className="notebook-format-extra" role="group" aria-label={t('more')}>
-      <span className="notebook-toolbar-divider" />
       <IconButton label={t('code')} aria-pressed={status.marks.includes('code')} disabled={!status.enabledMarks.includes('code')}
         onMouseDown={event => event.preventDefault()} onClick={() => toggleMark('code')}>{glyphs.code}</IconButton>
       {editor.schema.nodes.horizontalRule && <IconButton label={t('horizontalRule')} disabled={!canInsertRule}
@@ -418,7 +418,6 @@ export function NotebookTextTools({ editor, extraTools }: { editor: Editor; extr
       <IconButton label={t('symbols')} disabled={!status.inline} onMouseDown={event => event.preventDefault()}
         onClick={openSymbols}><span aria-hidden="true">Ω</span></IconButton>
     </div>
-    </Toolbar>
     <div className="notebook-format-overflow">
     <NotebookMenu name={t('more')} menu="format" icon="more" triggerClassName="notebook-overflow-trigger">
       {extraTools}
