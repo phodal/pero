@@ -9,7 +9,9 @@ the existing Python/PyPI stack on macOS ARM64 and Linux x86_64, but cannot suppl
 the missing Linux ARM64 solver artifact while preserving #59's versions.
 This is a candidate-specific no-go, not a rejection of Pixi for other methods.
 The [canonical tracker](../issues/2026-11-11-uv-locked-scientific-profiles.md)
-remains open for a demonstrated native-dependency fit before a second preparer.
+records the user's decision to finish this investigation and close #163 with
+PR #204. Pixi provider adoption is not planned within this issue; a new
+demonstrated native-dependency fit needs a separately scoped task.
 
 ## Inputs and method
 

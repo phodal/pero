@@ -1,8 +1,8 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 github_issue: 163
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/163
 ---
 # Locked scientific Python profiles
@@ -122,6 +122,15 @@ available, and no Linux runtime result is inferred.
 
 [Full evidence, replay and decision](../fitness/pixi-pybamm-fit.md). A patched
 custom wheel or dependency upgrade would require a separately identified recipe;
-neither demonstrates that Pixi repairs this frozen conflict. P2 remains deferred
-until a second real native-dependency case establishes provider value. #163 stays
-open; no unused preparer interface or production execution path was added.
+neither demonstrates that Pixi repairs this frozen conflict. At initial delivery,
+P2 was deferred and #163 remained open; no unused preparer interface or production
+execution path was added.
+
+## Final disposition — 2026-11-12
+
+The user approved merging PR #204 and closing #163 after review. P0/P1 are
+delivered; the P2 investigation concludes no-go for this frozen candidate.
+Pixi provider adoption is not planned within this issue. A future demonstrated
+native-dependency fit needs a separately scoped task, not an open-ended remainder
+here. Closing the tracker does not claim a Pixi implementation, Linux ARM64
+artifact repair, or acceptance of the previously unverified platforms.

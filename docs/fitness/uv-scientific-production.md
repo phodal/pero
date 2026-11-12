@@ -88,4 +88,5 @@ interface or speculative Pixi installation was introduced in this pass.
 The later [2026-11-12 Pixi fit experiment](pixi-pybamm-fit.md) tested that exact
 candidate. Its frozen Linux ARM64 gap remains unresolved by Pixi; macOS same-lock
 installation/rebuild and 12 numerical comparisons passed as positive controls.
-The candidate-specific no-go leaves P2 deferred and introduces no new provider.
+The candidate-specific no-go introduces no new provider. The user approved
+finishing #163 with that decision; future Pixi adoption needs a separate task.
