@@ -232,6 +232,31 @@ impl WorkspaceStore {
         }
         Ok(())
     }
+    fn preserve_unsupported_checkpoint(&self) -> io::Result<()> {
+        let path = self.directory.join("session.json");
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let reason = match serde_json::from_slice::<Checkpoint>(&bytes) {
+            Ok(saved) if saved.session.valid() => return Ok(()),
+            Ok(saved) if saved.session.version != 1 => "unsupported revision",
+            _ => "damaged",
+        };
+        let backup = path.with_extension("json.unsupported");
+        if !backup.exists() {
+            write(&backup, &bytes)?;
+        }
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            if reason == "unsupported revision" {
+                "Saved workspace uses an unsupported revision; the original file was left in place"
+            } else {
+                "Saved workspace is damaged; the original file was left in place"
+            },
+        ))
+    }
     pub fn needs_source(&self, key: &SourceKey) -> bool {
         !self.sources.iter().any(|source| &source.key == key)
     }
@@ -241,6 +266,7 @@ impl WorkspaceStore {
         mut session: WorkspaceSession,
         sources: Vec<WorkspaceSource>,
     ) -> io::Result<()> {
+        self.preserve_unsupported_checkpoint()?;
         for document in &mut session.documents {
             if document.legacy_draft && document.draft.is_none() {
                 document.draft = Some(
@@ -471,6 +497,94 @@ mod tests {
             Err(crate::file_documents::FileError::Conflict)
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "changed on disk");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_newer_workspace_revision_is_kept_and_not_replaced() {
+        let directory = std::env::temp_dir().join(format!("pero-workspace-{}", uuid::Uuid::new_v4()));
+        let settings = directory.join("settings.json");
+        let session = WorkspaceSession {
+            version: 1,
+            workspace: directory.to_string_lossy().into(),
+            navigation: WorkspaceSnapshot::default(),
+            documents: vec![],
+            web: vec![],
+            pull_requests: vec![],
+        };
+        let mut store = WorkspaceStore::new(&settings);
+        store.save(session.clone(), vec![]).unwrap();
+        let checkpoint = settings.with_extension("workspace").join("session.json");
+        let mut value: serde_json::Value = serde_json::from_slice(&std::fs::read(&checkpoint).unwrap()).unwrap();
+        value["session"]["version"] = serde_json::json!(2);
+        let original = serde_json::to_vec(&value).unwrap();
+        #[cfg(unix)]
+        let previous_mask = unsafe { libc::umask(0o022) };
+        write(&checkpoint, &original).unwrap();
+        let error = WorkspaceStore::new(&settings).load().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        let error = store.save(session.clone(), vec![]).unwrap_err();
+        assert!(error.to_string().contains("unsupported revision"));
+        assert_eq!(std::fs::read(&checkpoint).unwrap(), original);
+        let backup = checkpoint.with_extension("json.unsupported");
+        assert_eq!(std::fs::read(&backup).unwrap(), original);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&backup).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(std::fs::metadata(&checkpoint).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+        std::fs::write(&backup, b"earlier private copy").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(&backup).unwrap().permissions();
+            permissions.set_mode(0o600);
+            std::fs::set_permissions(&backup, permissions).unwrap();
+        }
+        assert!(store.save(session, vec![]).unwrap_err().to_string().contains("unsupported revision"));
+        assert_eq!(std::fs::read(&checkpoint).unwrap(), original);
+        assert_eq!(std::fs::read(&backup).unwrap(), b"earlier private copy");
+        #[cfg(unix)]
+        unsafe {
+            libc::umask(previous_mask);
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn damaged_workspace_bytes_are_kept_apart_from_a_newer_revision() {
+        let directory = std::env::temp_dir().join(format!("pero-workspace-{}", uuid::Uuid::new_v4()));
+        let settings = directory.join("settings.json");
+        let session = WorkspaceSession {
+            version: 1,
+            workspace: directory.to_string_lossy().into(),
+            navigation: WorkspaceSnapshot::default(),
+            documents: vec![],
+            web: vec![],
+            pull_requests: vec![],
+        };
+        let mut store = WorkspaceStore::new(&settings);
+        store.save(session.clone(), vec![]).unwrap();
+        let checkpoint = settings.with_extension("workspace").join("session.json");
+        for (bytes, expected) in [
+            (&b"{"[..], "damaged"),
+            (br#"{"session":{"version":1},"extra":true}"#, "damaged"),
+        ] {
+            std::fs::remove_dir_all(&directory).ok();
+            std::fs::create_dir_all(checkpoint.parent().unwrap()).unwrap();
+            write(&checkpoint, bytes).unwrap();
+            let error = store.save(session.clone(), vec![]).unwrap_err();
+            assert!(error.to_string().contains(expected), "{}", error);
+            assert!(!error.to_string().contains("unsupported revision"));
+            assert_eq!(std::fs::read(&checkpoint).unwrap(), bytes);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let backup = checkpoint.with_extension("json.unsupported");
+                assert_eq!(std::fs::metadata(&backup).unwrap().permissions().mode() & 0o777, 0o600);
+            }
+        }
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
