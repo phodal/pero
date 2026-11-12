@@ -454,14 +454,16 @@ mod surface {
             #[cfg(target_family = "wasm")]
             let preparation: Option<AnyElement> = None;
             let chrome = pero_theme::Chrome::from_app(cx);
-            let rail_width = if content_width < 720. { 148. } else { 200. };
-            let grid_width = (content_width - 48. - rail_width - 24.).max(120.);
-            let columns = if grid_width >= 720. { 2. } else { 1. };
-            let card_width = (grid_width - (columns - 1.) * 14.) / columns;
+            let grid_width = (content_width - 48.).max(160.);
+            let columns = if grid_width >= 720. { 3. } else if grid_width >= 480. { 2. } else { 1. };
+            let card_gap = 12.;
+            let card_width = (grid_width - (columns - 1.) * card_gap) / columns;
+            let card_hover = p.surface_hover;
+            let card_edge = p.input_border;
             div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(p.bg).p(px(24.))
                 .child(div().id("apps-library-header").flex().flex_shrink_0().items_center()
                     .child(div().flex_1().font_weight(FontWeight::SEMIBOLD).text_size(px(22.)).child(self.t("apps.manage")))
-                    .gap(px(pero_theme::ICON_GAP)).mb(px(24.))
+                    .gap(px(pero_theme::ICON_GAP)).mb(px(12.))
                     .child(pero_theme::action_button("apps-refresh", self.t("apps.refresh"), pero_theme::ActionKind::Ghost, chrome, cx)
                         .icon(Icon::default().path(pero_chat_ui::assets::UiIcon::Refresh.path()))
                         .disabled(busy)
@@ -506,17 +508,19 @@ mod surface {
                                     this.command(json!({"action":"apps_uninstall","name":name}), cx);
                                 })))))
                 })
-                .child(div().flex().gap(px(24.)).w_full()
-                    .child(div().id("apps-categories").w(px(rail_width)).flex_shrink_0().flex().flex_col().gap(px(4.))
-                        .child(div().px(px(8.)).py(px(8.)).text_color(p.text_muted).child(self.t("apps.categories")))
-                        .children(AppCategory::ALL.into_iter().enumerate().map(|(index, category)| {
-                            let count = self.apps.entries.iter().filter(|app| app.placement().in_catalog() && (category == AppCategory::All || app.category() == category)).count();
-                            Button::new(("app-category", index)).ghost().w_full().selected(self.apps.category == category)
-                                .accessibility_label(format!("{} ({})", self.t(category.label_key()), count))
-                                .child(div().w_full().flex().justify_between().child(self.t(category.label_key())).child(count.to_string()))
-                                .on_click(cx.listener(move |this, _, _, cx| { this.apps.category = category; cx.notify(); }))
-                        })))
-                    .child(div().id("apps-launchpad").flex_1().min_w_0().flex().flex_wrap().items_start().gap(px(14.))
+                .child(div().id("apps-categories").w_full().mb(px(16.)).flex().flex_wrap().items_center().gap(px(8.))
+                    .children(AppCategory::ALL.into_iter().enumerate().map(|(index, category)| {
+                        let count = self.apps.entries.iter().filter(|app| app.placement().in_catalog() && (category == AppCategory::All || app.category() == category)).count();
+                        let selected = self.apps.category == category;
+                        let count_color = if selected { p.accent_text } else { p.text_muted };
+                        Button::new(("app-category", index)).ghost().small().selected(selected)
+                            .accessibility_label(format!("{} ({})", self.t(category.label_key()), count))
+                            .child(div().flex().items_center().gap(px(6.))
+                                .child(self.t(category.label_key()))
+                                .child(div().text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(count_color).child(count.to_string())))
+                            .on_click(cx.listener(move |this, _, _, cx| { this.apps.category = category; cx.notify(); }))
+                    })))
+                .child(div().id("apps-launchpad").w_full().flex().flex_wrap().items_start().gap(px(card_gap))
                     .when(!busy && self.apps.error.is_none() && !self.apps.entries.is_empty() && !self.apps.entries.iter().any(|app| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)), |el| el.child(div().p(px(12.)).text_color(p.text_muted).child(self.t("apps.category_empty"))))
                     .children(self.apps.entries.iter().enumerate().filter(|(_, app)| app.placement().in_catalog() && (self.apps.category == AppCategory::All || app.category() == self.apps.category)).map(|(index, app)| {
                         let title = self.installed_app_title(&app.name, &app.display_name);
@@ -532,44 +536,59 @@ mod surface {
                         let toggle_label = self.t(if enabled { "apps.disable" } else { "apps.enable" });
                         let remove_label = self.t("apps.remove");
                         let menu_caption = format!("{}  {}", title, app.version);
-                        div().w(px(card_width)).min_w_0().min_h(px(112.)).flex().items_center().gap(px(14.)).p(px(16.))
-                            .rounded(px(12.)).border_1().border_color(p.border).bg(p.surface)
-                            .child(div().size(px(44.)).flex_shrink_0().rounded(px(8.)).bg(p.surface_muted)
-                                .border_1().border_color(p.border).flex().items_center().justify_center()
-                                .child(svg().path(icon).size(px(28.)).text_color(p.text)))
-                            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(4.))
-                                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().font_weight(FontWeight::SEMIBOLD).child(title.clone()))
-                                .child(div().text_size(px(12.)).text_color(p.text_muted).child(format!("{}   {}", self.t(app.category().label_key()), app.version)))
-                                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(12.)).text_color(p.text_muted).child(app.description.clone())))
-                            .child(div().flex_shrink_0().flex().flex_col().items_end().gap(px(4.))
-                                .child(Button::new(("app-open", index)).small()
-                                    .label(self.t(if enabled { "apps.open" } else { "apps.enable" }))
-                                    .disabled(busy)
-                                    .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        if enabled { this.open_app(open_name.clone(), panel.clone(), cx); }
-                                        else { this.apps.loading = true; this.command(json!({"action":"apps_enable","name":open_name}), cx); }
-                                        cx.notify();
-                                    })))
-                                .when(!required, |el| el.child(pero_theme::ghost_icon_button(("app-menu", index), chrome, cx)
-                                    .icon(Icon::default().path("icons/dots.svg")).accessibility_label(format!("{}: {}", title, self.t("apps.actions")))
-                                    .tooltip(self.t("apps.actions")).disabled(busy).dropdown_caret(false)
-                                    .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
-                                        let toggle = owner.clone(); let remove = owner.clone();
-                                        let toggle_name = toggle_name.clone(); let remove_name = remove_name.clone();
-                                        menu.min_w(px(180.)).item(PopupMenuItem::label(menu_caption.clone())).separator()
-                                            .item(PopupMenuItem::new(toggle_label).on_click(move |_, _, cx| {
-                                                let _ = toggle.update(cx, |this, cx| {
-                                                    this.apps.loading = true;
-                                                    this.command(json!({"action":if enabled {"apps_disable"} else {"apps_enable"},"name":toggle_name}), cx);
-                                                    cx.notify();
-                                                });
-                                            }))
-                                            .item(PopupMenuItem::new(remove_label).on_click(move |_, _, cx| {
-                                                let _ = remove.update(cx, |this, cx| { this.apps.removing = Some(remove_name.clone()); cx.notify(); });
-                                            }))
-                                    }))))
-                    })))).into_any_element()
+                        let (tile, ink) = if enabled {
+                            match app.category() {
+                                AppCategory::Research => (p.tint_apricot_surface, p.tint_apricot_text),
+                                AppCategory::Data => (p.tint_blue_surface, p.tint_blue_text),
+                                AppCategory::Tools | AppCategory::All => (p.accent_soft, p.accent_text),
+                            }
+                        } else {
+                            (p.surface_muted, p.text_muted)
+                        };
+                        div().w(px(card_width)).min_w_0().flex().items_center().gap(px(10.)).px(px(12.)).py(px(10.))
+                            .rounded(px(pero_theme::RADIUS_PANEL)).border_1().border_color(p.border).bg(p.surface)
+                            .hover(move |card| card.bg(card_hover).border_color(card_edge))
+                            .child(div().size(px(36.)).flex_shrink_0().rounded(px(pero_theme::RADIUS_SELECTION)).bg(tile)
+                                .flex().items_center().justify_center()
+                                .child(svg().path(icon).size(px(20.)).text_color(ink)))
+                            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.))
+                                .child(div().flex().items_center().gap(px(6.)).min_w_0()
+                                    .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis()
+                                        .font_weight(FontWeight::SEMIBOLD).text_size(chrome.text(pero_theme::TYPE_BODY)).child(title.clone()))
+                                    .child(div().flex_shrink_0().flex().items_center().gap(px(2.))
+                                        .child(Button::new(("app-open", index)).small()
+                                            .label(self.t(if enabled { "apps.open" } else { "apps.enable" }))
+                                            .disabled(busy)
+                                            .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                if enabled { this.open_app(open_name.clone(), panel.clone(), cx); }
+                                                else { this.apps.loading = true; this.command(json!({"action":"apps_enable","name":open_name}), cx); }
+                                                cx.notify();
+                                            })))
+                                        .when(!required, |el| el.child(pero_theme::ghost_icon_button(("app-menu", index), chrome, cx)
+                                            .icon(Icon::default().path("icons/dots.svg")).accessibility_label(format!("{}: {}", title, self.t("apps.actions")))
+                                            .tooltip(self.t("apps.actions")).disabled(busy).dropdown_caret(false)
+                                            .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
+                                                let toggle = owner.clone(); let remove = owner.clone();
+                                                let toggle_name = toggle_name.clone(); let remove_name = remove_name.clone();
+                                                menu.min_w(px(180.)).item(PopupMenuItem::label(menu_caption.clone())).separator()
+                                                    .item(PopupMenuItem::new(toggle_label).on_click(move |_, _, cx| {
+                                                        let _ = toggle.update(cx, |this, cx| {
+                                                            this.apps.loading = true;
+                                                            this.command(json!({"action":if enabled {"apps_disable"} else {"apps_enable"},"name":toggle_name}), cx);
+                                                            cx.notify();
+                                                        });
+                                                    }))
+                                                    .item(PopupMenuItem::new(remove_label).on_click(move |_, _, cx| {
+                                                        let _ = remove.update(cx, |this, cx| { this.apps.removing = Some(remove_name.clone()); cx.notify(); });
+                                                    }))
+                                            })))))
+                                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis()
+                                    .text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(p.text_muted)
+                                    .child(format!("{} · {}", self.t(app.category().label_key()), app.version)))
+                                .when(!app.description.is_empty(), |el| el.child(div().overflow_hidden().whitespace_nowrap().text_ellipsis()
+                                    .text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(p.text_muted).child(app.description.clone()))))
+                    }))).into_any_element()
         }
     }
 }
