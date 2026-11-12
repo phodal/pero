@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { packageScientificRuntime } from './scientific-runtime.mjs';
 import { packageNotebookDiagnostics } from './notebook-diagnostics.mjs';
 import { packageSourceParsers } from './source-parsers.mjs';
@@ -76,8 +77,9 @@ if (appName === 'paper-agent') {
     await cp(resolve(reader, path), resolve(target, path));
 }
 const manifest = JSON.parse(await readFile(resolve(appRoot, 'app.json'), 'utf8'));
+const buildMeta = appName === 'notebook' ? `<meta name="pero-app-build" content="${createHash('sha256').update(await readFile(resolve(outdir, 'index.js'))).update(await readFile(resolve(outdir, 'index.css'))).digest('hex').slice(0, 12)}">` : '';
 const title = manifest.displayName.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
+await writeFile(resolve(outdir, 'index.html'), `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>${buildMeta}<link rel="stylesheet" href="./index.css"></head><body><div id="app"></div><script type="module" src="./index.js"></script></body></html>\n`);
 await rm(resolve(outdir, '_reader'), { recursive: true, force: true });
 if (readerApps.includes(appName))
   await cp(readerDirectory, resolve(outdir, '_reader'), { recursive: true, filter: path => !/[\\/]fonts(?:[\\/]|$)/.test(path) });
