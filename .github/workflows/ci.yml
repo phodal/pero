@@ -40,7 +40,9 @@ defaults:
 jobs:
   notebook:
     name: Notebook revisions, workbook and browser contracts
-    uses: ./.github/workflows/notebook.yml
+    uses: ./.github/workflows/ci-jobs.yml
+    with:
+      suite: notebook
 
   scientific-viewer:
     name: Scientific Viewer browser inspection
@@ -815,8 +817,9 @@ jobs:
   desktop-linux:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')
     name: Linux build and contracts
-    uses: ./.github/workflows/desktop-check.yml
+    uses: ./.github/workflows/ci-jobs.yml
     with:
+      suite: desktop
       os: ubuntu-latest
       upload-runtime: true
 
@@ -827,8 +830,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
-    uses: ./.github/workflows/desktop-check.yml
+    uses: ./.github/workflows/ci-jobs.yml
     with:
+      suite: desktop
       os: ${{ matrix.os }}
 
   desktop-acceptance:
@@ -965,11 +969,15 @@ jobs:
 
   notebook-canvas:
     name: Notebook Canvas real Host browser acceptance
-    uses: ./.github/workflows/notebook-canvas.yml
+    uses: ./.github/workflows/ci-jobs.yml
+    with:
+      suite: notebook-canvas
 
   native-ui:
     name: Native shell compilation and unit contracts
-    uses: ./.github/workflows/native-ui.yml
+    uses: ./.github/workflows/ci-jobs.yml
+    with:
+      suite: native-ui
 
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
