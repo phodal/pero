@@ -33,7 +33,7 @@ interface ManagerProps { locale?: string; fetchFn?: typeof fetch; inspect?: Insp
 /** The Host remains the owner of preparation and backend bindings. */
 export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, inspect, pollMs = 1000 }: ManagerProps) {
   const t = managerMessages(locale), [values, setValues] = useState<LocalEnvironment[]>([]), [loaded, setLoaded] = useState(false);
-  const [computeVisited, setComputeVisited] = useState(false);
+  const [computeVisited, setComputeVisited] = useState(false), [inspectVisited, setInspectVisited] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [selected, setSelected] = useState(''), [tab, setTab] = useState('environments');
   const [accessRevoked, setAccessRevoked] = useState(false), [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false), [confirming, setConfirming] = useState(false), [label, setLabel] = useState(''), [target, setTarget] = useState<string>(METHODS[1].id);
@@ -158,9 +158,9 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
       {value.target === 'control-lab.ngspice' && <p className="env-note">{t.native}</p>}
       {!!value.log.length && <Disclosure variant="inline" className="env-install-log" summary={t.log}><pre className="env-json">{value.log.join('\n')}</pre></Disclosure>}
       {confirming && <Dialog title={t.confirmTitle} closeLabel={t.cancel} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t.cancel}</Button><Button variant="primary" busy={busy} onClick={() => { setConfirming(false); void request({ operation: 'bind', id: value.id }); }}>{t.confirm}</Button></>}><Feedback kind="warning" variant="block">{t.confirmText}</Feedback></Dialog>}
-    </> : <Tabs value={tab} onValueChange={value => { setTab(value); if (value === 'compute') setComputeVisited(true); }}>
+    </> : <Tabs value={tab} onValueChange={value => { setTab(value); if (value === 'compute') setComputeVisited(true); if (value === 'inspect') setInspectVisited(true); }}>
       <TabsList variant="navigation" aria-label={t.title}><TabsTrigger value="environments">{t.environments}</TabsTrigger><TabsTrigger value="compute">{computeMessages(locale).tab}</TabsTrigger><TabsTrigger value="inspect">{t.inspect}</TabsTrigger></TabsList>
-      <TabsContent value="environments" forceMount>
+      <TabsContent value="environments">
         {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} actions={<Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>} /> : <Table className="env-catalog-table" label={t.environments} density="comfortable" rows={values} rowId={item => item.id} columns={[
           { id: 'name', header: t.name, size: 320, cell: item => <div className="env-catalog-name"><span className="env-method-icon" data-tone={METHODS.find(method => method.id === item.target)!.tone}><Icon name={METHODS.find(method => method.id === item.target)!.icon} size={18}/></span><div><Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><p className="env-muted">{t.python} · {t.local}</p></div></div> },
           { id: 'method', header: t.method, size: 130, cell: item => METHODS.find(method => method.id === item.target)!.name },
@@ -168,8 +168,8 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
           { id: 'usedBy', header: t.usedBy, size: 120, cell: item => item.bound ? METHODS.find(method => method.id === item.target)!.app : '—' },
         ]} />}
       </TabsContent>
-      <TabsContent value="compute" forceMount>{computeVisited && <ComputeEnvironments locale={locale} fetchFn={fetchFn} pollMs={pollMs}/>}</TabsContent>
-      <TabsContent value="inspect" forceMount>{!accessRevoked && <EnvironmentChecks locale={locale} inspect={inspect} embedded />}</TabsContent>
+      <TabsContent value="compute" forceMount={computeVisited || undefined}>{computeVisited && <ComputeEnvironments locale={locale} fetchFn={fetchFn} pollMs={pollMs}/>}</TabsContent>
+      <TabsContent value="inspect" forceMount={inspectVisited || undefined}>{inspectVisited && !accessRevoked && <EnvironmentChecks locale={locale} inspect={inspect} embedded />}</TabsContent>
     </Tabs>}
   </div></main>;
 }
