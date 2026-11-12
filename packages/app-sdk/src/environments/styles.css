@@ -38,6 +38,9 @@
 .env-workspace-create .env-workspace-content{max-width:800px}
 .env-workspace-content>.pero-library-header{padding:0;background:transparent;align-items:flex-start;flex-wrap:wrap;flex:0 0 auto}
 .env-workspace-content>.pero-ui-tabs{flex:0 0 auto;min-width:0}
+.env-catalog-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-spacing-3);flex-wrap:wrap;min-width:0}
+.env-catalog-bar>.pero-ui-tabs-list{flex:1 1 auto;min-width:0}
+.env-catalog-bar>.env-actions{margin-inline-start:auto}
 .env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content[hidden],.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content[data-state=inactive]{display:none!important}
 .env-workspace .pero-library-heading h1{white-space:normal;overflow-wrap:anywhere}
 .env-workspace .pero-library-heading p{margin-top:var(--pero-spacing-2);line-height:1.5}
