@@ -1,0 +1,239 @@
+{
+  "mode": "real_model_receipt_audit",
+  "providerResponses": 273,
+  "questionReceipts": 270,
+  "arms": {
+    "A": {
+      "attempts": 90,
+      "exact": 33,
+      "errors": 0,
+      "p50Seconds": 1.184699333000026,
+      "p95Seconds": 2.207754708999346,
+      "byGroup": {
+        "basic": {
+          "attempts": 36,
+          "exact": 3
+        },
+        "clarification": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "refusal": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "trap": {
+          "attempts": 24,
+          "exact": 0
+        }
+      }
+    },
+    "B": {
+      "attempts": 90,
+      "exact": 32,
+      "errors": 1,
+      "p50Seconds": 1.3026413124998726,
+      "p95Seconds": 2.4717924579999817,
+      "byGroup": {
+        "basic": {
+          "attempts": 36,
+          "exact": 2
+        },
+        "clarification": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "refusal": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "trap": {
+          "attempts": 24,
+          "exact": 0
+        }
+      }
+    },
+    "C": {
+      "attempts": 90,
+      "exact": 87,
+      "errors": 0,
+      "p50Seconds": 1.3310117294995507,
+      "p95Seconds": 3.1182252500002505,
+      "byGroup": {
+        "basic": {
+          "attempts": 36,
+          "exact": 36
+        },
+        "clarification": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "refusal": {
+          "attempts": 15,
+          "exact": 15
+        },
+        "trap": {
+          "attempts": 24,
+          "exact": 21
+        }
+      }
+    }
+  },
+  "usage": {
+    "prompt_tokens": 539133,
+    "completion_tokens": 25917,
+    "prompt_cache_hit_tokens": 473216,
+    "prompt_cache_miss_tokens": 65917
+  },
+  "requestedModel": "deepseek-flash",
+  "observedModels": [
+    "deepseek-flash"
+  ],
+  "observedFingerprints": [
+    "bc19ba97cbe016479903222bb1578db6"
+  ],
+  "estimateUSD": {
+    "allOffPeak": 0.026857398,
+    "allPeak": 0.053714796,
+    "scope": "273 formal calls including B generation, not invoice",
+    "pricingSource": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "pricingObserved": "2026-11-12"
+  },
+  "humanMaintenanceMinutes": null,
+  "scientificAcceptance": "not_assessed",
+  "date": "2026-11-12",
+  "evaluationCodeCommit": "ab831a5f",
+  "advertisedModelRevision": "DeepSeek-V4.1-Flash-1017",
+  "advertisedRevisionSource": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "postHocAliasRoundingOnly": {
+    "A": 30,
+    "B": 24
+  },
+  "postHocDiagnosticCaveat": "Original exact-match scores unchanged; alias/rounding is not semantic-correctness adjudication.",
+  "fullAuditSHA256": "7ab15e4ceb5b331d95aa1d083f3d7ffb6f83bfe67b98a91a3ebdbc6f9c3f821e",
+  "rawJSONManifestSHA256": "0041e860e6666a27615a20edbebe31ecad7da13003dafa19e4ca883803ca9adb",
+  "upstreamCommit": "fc43a82600e18b19d159c52023f54f5572f537ac",
+  "upstreamImages": [
+    {
+      "name": "pero-152-upstream:fc43a826",
+      "id": "sha256:ac905b1900c3d7c683645585bf603e3d6072eab957756dddb21965ce74730b2c",
+      "repoDigests": [
+        "pero-152-upstream@sha256:ac905b1900c3d7c683645585bf603e3d6072eab957756dddb21965ce74730b2c"
+      ],
+      "architecture": "arm64",
+      "size": 305577933
+    },
+    {
+      "name": "pero-152-frontend:fc43a826",
+      "id": "sha256:c43b6d7dd6d9273de5798b850a084dcc9a56ff156cb0c84d73a8fa421d608562",
+      "repoDigests": [
+        "pero-152-frontend@sha256:c43b6d7dd6d9273de5798b850a084dcc9a56ff156cb0c84d73a8fa421d608562"
+      ],
+      "architecture": "arm64",
+      "size": 207651531
+    },
+    {
+      "name": "pero-152-mcp:fc43a826",
+      "id": "sha256:2a9c591515c5dc4947722439216a4e8cdf95c95ceba04493e28524e2a8f46854",
+      "repoDigests": [
+        "pero-152-mcp@sha256:2a9c591515c5dc4947722439216a4e8cdf95c95ceba04493e28524e2a8f46854"
+      ],
+      "architecture": "arm64",
+      "size": 113220286
+    },
+    {
+      "name": "pgvector/pgvector:pg17",
+      "id": "sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8",
+      "repoDigests": [
+        "pgvector/pgvector@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8"
+      ],
+      "architecture": "arm64",
+      "size": 155752791
+    }
+  ],
+  "apiTokenChecks": {
+    "passed": 14,
+    "checks": 14
+  },
+  "oauthMCPChecks": {
+    "passed": 23,
+    "checks": 23
+  },
+  "vaultFailClosed": {
+    "name": "partial_vault_fail_closed",
+    "status": 201,
+    "expected": "4xx without credential persistence",
+    "plaintextPersisted": true,
+    "passed": false
+  },
+  "readOnlyPostgres": {
+    "readBefore": "2|6",
+    "readAfter": "2|6",
+    "denied": [
+      "dml",
+      "ddl",
+      "catalog",
+      "file",
+      "multiple"
+    ]
+  },
+  "decision": "reuse-contract-only; full-service adoption blocked by live Vault failure; issue remains open",
+  "B_generation": [
+    {
+      "repetition": 1,
+      "status": "completed",
+      "elapsedSeconds": 8.186064499999702,
+      "usage": {
+        "completion_tokens": 1264,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 296,
+        "prompt_tokens": 296,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 1560
+      }
+    },
+    {
+      "repetition": 2,
+      "status": "completed",
+      "elapsedSeconds": 8.424107875000118,
+      "usage": {
+        "completion_tokens": 1248,
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 168,
+        "prompt_tokens": 296,
+        "prompt_tokens_details": {
+          "cached_tokens": 128
+        },
+        "total_tokens": 1544
+      }
+    },
+    {
+      "repetition": 3,
+      "status": "completed",
+      "elapsedSeconds": 7.712852708000355,
+      "usage": {
+        "completion_tokens": 1076,
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 168,
+        "prompt_tokens": 296,
+        "prompt_tokens_details": {
+          "cached_tokens": 128
+        },
+        "total_tokens": 1372
+      }
+    }
+  ],
+  "auditTamperControl": {
+    "exit_code": 1,
+    "diagnostic": "ValueError: Provider response mismatch: A-1-B01",
+    "original_unchanged": true
+  },
+  "cleanDeploymentReplay": {
+    "api_checks_passed": 14,
+    "readonly_checks_passed": 7,
+    "oauth_mcp_checks_passed": 23,
+    "vault_fail_closed": false
+  }
+}

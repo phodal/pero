@@ -101,6 +101,14 @@ B=32/90、C=87/90；部分 A/B 失败只有列别名或浮点精度差异，不�
 **实际失败：Vault fail-closed。** 仅配置 `VAULT_ADDR`、其余三项缺失，
 经已认证 Frontend 创建连接返回 HTTP 201；实际 Postgres catalog 中
 发现明文测试密码。只使用本任务合成密码，无真实来源凭据。
-这与原验收门槛不符，不能报告完整上游接入通过。OAuth/MCP 的完整
-PKCE、撤销、过期和断线链路仍需单独验证；API token 结果不能替代它。
+这与原验收门槛不符，不能报告完整上游接入通过。OAuth/MCP 随后由独立
+23 项真实探针验证：PKCE、工具发现/实际 readiness 调用、撤销、过期、
+角色降权和认证服务断开/恢复均通过；不是用 API token 结果代替它。
 原始证据位于 `test-results/issue-152-real/upstream/`。本 issue 保持 open。
+
+逐项结果、局限、费用估算和复跑命令见
+[真实验收报告](../fitness/data-semantics-real.md)，提交的小型 JSON 摘要保留
+用量、模型 fingerprint、镜像 identities 和失败门槛。原精确匹配分数不改；
+额外诊断确认 A 的 30 项、B 的 24 项仅列别名/六位精度不同，不能把原分差
+当成通用科学正确率收益。C 仍有三次 T08 真实绑定错误；B 有一次参数绑定错误。
+人类维护时间、独立人工审查和完整生产隔离/出网仍未建立证据。
