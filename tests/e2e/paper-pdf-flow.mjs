@@ -9,7 +9,8 @@ export async function saveLibraryCopies(frame, title, { tex = false, timeout = 2
   if (!await frame.locator('.pa-library-list').isVisible()) await backToLibrary(frame);
   const row = frame.locator('.pa-library-list > li').filter({ has: frame.getByText(title, { exact: true }) });
   await row.locator('.pero-list-open').click();
-  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: tex ? 'Download TeX' : 'Download PDF', exact: true }).click();
+  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'More actions', exact: true }).click();
+  await frame.getByRole('menuitem', { name: tex ? 'Download TeX' : 'Download PDF', exact: true }).click();
   await expect(progress.getByText(title, { exact: true })).toBeVisible();
   await expect(progress.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible({ timeout });
   await expect(frame.getByRole('dialog', { name: 'Save copies', exact: true })).toHaveCount(0);
