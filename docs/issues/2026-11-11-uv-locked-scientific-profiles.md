@@ -99,3 +99,29 @@ not execution acceptance.
 The P2 Pixi candidate from #59's real Linux ARM native ABI conflict needs a separate
 demonstrated resolver fit; no new provider was added. The user requested stopping
 new scope after completing this pass.
+
+## P2 resolver-fit investigation — 2026-11-12
+
+The user authorized the PyBaMM/Linux ARM64 Pixi follow-up. Preserve #59's
+Python 3.12.11, PyBaMM 25.10.2, CasADi 3.6.7 and pybammsolvers 0.3.3 before
+considering a second software preparer. First compare the Conda route and a
+Conda/PyPI mix using pinned Pixi 0.84.2. A dependency upgrade or the existing
+custom ABI-patched wheel is not evidence that Pixi resolves the frozen conflict.
+Keep experiments and download receipts under `test-results/issue-163-pixi/`.
+Only introduce a production seam after a demonstrated fit.
+
+Investigation completed: **no-go for this frozen candidate**. All three target
+platforms lack Conda pybammsolvers 0.3.3; a Conda native-stack route also lacks
+the pinned SciPy candidate. Conda Python plus the original PyPI pins locks on
+macOS ARM64/Linux x86_64 but still refuses Linux ARM64 for the missing solver
+wheel. The macOS positive control installed twice from identical lock bytes,
+passed all six existing numerical comparisons in each prefix, and refused a
+changed manifest under `--locked`. Real installation baselines were 8.63 s /
+1.95 s; Linux results are resolution only. No dedicated Lima instance is currently
+available, and no Linux runtime result is inferred.
+
+[Full evidence, replay and decision](../fitness/pixi-pybamm-fit.md). A patched
+custom wheel or dependency upgrade would require a separately identified recipe;
+neither demonstrates that Pixi repairs this frozen conflict. P2 remains deferred
+until a second real native-dependency case establishes provider value. #163 stays
+open; no unused preparer interface or production execution path was added.
