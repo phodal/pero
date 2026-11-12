@@ -223,6 +223,9 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs ci/);
   const published = release.jobs.publish.steps.map(step => step.run || '').join('\n');
+  assert.match(published, /git log --format='- %h %s'/);
+  assert.match(published, /git describe --tags --match 'v0\.1\.0-dev\.\*'/);
+  assert.doesNotMatch(published, /AI4S migration is complete/);
   const manifestStep = release.jobs.publish.steps.find(step => (step.run || '').includes('deployment-gate.mjs manifests'));
   assert.equal(manifestStep.env.GATE_REQUIRED_ARCHIVES, dispatchReleaseArchives.join(','));
   assert.ok(published.lastIndexOf('deployment-gate.mjs pin-tag') < published.indexOf('--draft=false'));

@@ -351,6 +351,14 @@ jobs:
 
       - name: Write release notes
         run: |
+          git fetch --no-tags origin "$GATE_TARGET_SHA"
+          git fetch origin 'refs/tags/v0.1.0-dev.*:refs/tags/v0.1.0-dev.*'
+          nearest=$(git describe --tags --match 'v0.1.0-dev.*' --abbrev=0 "${GATE_TARGET_SHA}^")
+          published=$(gh release list --limit 50 --json tagName,isDraft --jq '[.[] | select(.isDraft == false) | .tagName] | .[0]')
+          base="$nearest"
+          if [[ -n "$published" ]] && git merge-base --is-ancestor "$published" "$GATE_TARGET_SHA"; then
+            base="$published"
+          fi
           cat > release-notes.md <<'EOF_NOTES'
           Pero Desktop development packages, built and launch-tested on native GitHub Actions runners.
 
@@ -364,6 +372,12 @@ jobs:
           - macOS packages are ad-hoc signed and not notarized; Windows/Linux packages are unsigned development builds.
           - Per-product build metadata and SHA256SUMS accompany every archive.
           EOF_NOTES
+          {
+            echo
+            echo "Changes since ${base}:"
+            echo
+            git log --format='- %h %s' "${base}..${GATE_TARGET_SHA}"
+          } >> release-notes.md
 
       - name: Upload to a draft, then publish only if the tag still matches
         run: |
