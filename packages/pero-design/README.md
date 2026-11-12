@@ -38,6 +38,7 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | DropdownMenu | 操作菜单，使用已有 Radix / GPUI 菜单行为 | 把操作伪装成当前选中值 |
 | Select / NativeSelect | Select 统一短列表、搜索与分组长列表；NativeSelect 仅用于必须保留系统弹层的兼容场景 | 无意混用系统弹层和共享弹层、替换表单校验 |
 | FilePicker | 单文件 / 多文件、忙碌禁用、选中文件名 | 默认浏览器文件框、业务校验与上传逻辑 |
+| ColorPicker | 预设色、原生色板、十六进制输入与清除 | 领域色名映射、文档持久化与粘贴校验 |
 | Field / Input / Textarea | 关联标签、帮助和校验信息；保留原生表单语义 | 用 placeholder 代替标签、出错清空输入 |
 | Slider | 有界连续数值，方向键 / Home / End 与原生表单值 | 自建鼠标拖动和另一套数值状态 |
 | Checkbox / RadioGroup / Switch | 多选、单选和即时开关；选中与焦点分别呈现 | 用状态颜色代替名称和选中语义 |

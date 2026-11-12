@@ -8,6 +8,7 @@ export { ToggleGroup, ToggleGroupItem, type ToggleGroupProps, type ToggleGroupIt
 export { Stepper, type StepperProps, type StepperItem, type StepperEnd, type StepperStatus, type StepperView } from './stepper';
 export { Input, Textarea, MultiSelect, NativeSelect, type InputProps, type TextareaProps, type MultiSelectProps } from './input';
 export { TimeField, type TimeFieldProps } from './time-field';
+export { ColorPicker, normalizeHexColor, type ColorPickerProps, type ColorPickerPreset } from './color-picker';
 export { Field, type FieldProps, type FieldControlProps } from './field';
 export { Feedback, type FeedbackProps } from './feedback';
 export { Select, type SelectProps, type SelectOption } from './select';
