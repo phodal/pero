@@ -43,3 +43,28 @@ func TestComputationJournal(t *testing.T) {
 }
 
 var contextCanceled = errors.New("context canceled; its state was discarded")
+
+func TestJournalReceiptRecovery(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		receipts []Cell
+		status   CellStatus
+	}{
+		{"unfinished", []Cell{{ID: 1, Status: CellRunning, Generation: 1}}, CellUnknown},
+		{"completed replaces input", []Cell{{ID: 1, Status: CellRunning, Generation: 1}, {ID: 1, Status: CellCompleted, Generation: 1}}, CellCompleted},
+		{"failure replaces input", []Cell{{ID: 1, Status: CellRunning, Generation: 1}, {ID: 1, Status: CellFailed, Generation: 1}}, CellFailed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			journal := Journal{Status: KernelClosed}
+			for _, receipt := range test.receipts {
+				journal = journal.restore(receipt)
+			}
+			if journal.Status != KernelClosed || len(journal.History) != 1 || journal.History[0].Status != test.status {
+				t.Fatalf("restored outcome: %+v", journal)
+			}
+			if test.receipts[0].Status != CellRunning {
+				t.Fatal("restoring a receipt mutated it")
+			}
+		})
+	}
+}

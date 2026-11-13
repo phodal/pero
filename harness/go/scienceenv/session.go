@@ -144,25 +144,9 @@ func (e *Env) computation(agent *harness.Agent, language Language) (*computation
 			if event.Type != "science/cell" {
 				continue
 			}
-			var receipt struct {
-				Language Language `json:"language"`
-				Cell     Cell     `json:"cell"`
-			}
+			var receipt CellReceipt
 			if json.Unmarshal(event.Data, &receipt) == nil && receipt.Language == language {
-				index := receipt.Cell.ID - 1
-				if index >= 0 && index < len(current.journal.History) {
-					current.journal.History[index] = receipt.Cell
-				} else {
-					current.journal.History = append(current.journal.History, receipt.Cell)
-				}
-				current.journal.Generation = receipt.Cell.Generation
-			}
-		}
-		for index := range current.journal.History {
-			cell := &current.journal.History[index]
-			if cell.Status == CellRunning {
-				cell.Status = "unknown"
-				cell.Error = "Session stopped before a completion receipt. Variables were not restored; review file effects before rerunning."
+				current.journal = current.journal.restore(receipt.Cell)
 			}
 		}
 		languages[language] = current
@@ -233,10 +217,7 @@ func (c *computation) begin(ctx context.Context, code string, origin CellOrigin)
 		}
 		return nil, nil, err
 	}
-	if _, err := c.agent.Session().Append("science/cell", struct {
-		Language Language `json:"language"`
-		Cell     Cell     `json:"cell"`
-	}{c.language, journal.History[len(journal.History)-1]}); err != nil {
+	if _, err := c.agent.Session().Append("science/cell", CellReceipt{c.language, journal.History[len(journal.History)-1]}); err != nil {
 		return nil, nil, fmt.Errorf("Cell was not run because its input could not be saved: %w", err)
 	}
 	c.journal = journal
@@ -288,10 +269,7 @@ func (c *computation) run(ctx context.Context, kernel *Kernel, code string, load
 	c.cancel()
 	c.cancel = nil
 	c.journal = c.journal.finish(out, err, c.interrupted)
-	receipt := struct {
-		Language Language `json:"language"`
-		Cell     Cell     `json:"cell"`
-	}{c.language, c.journal.History[len(c.journal.History)-1]}
+	receipt := CellReceipt{c.language, c.journal.History[len(c.journal.History)-1]}
 	_, appendErr := c.agent.Session().Append("science/cell", receipt)
 	if appendErr != nil {
 		c.journal.Error = "Execution finished, but its receipt could not be saved: " + appendErr.Error()
