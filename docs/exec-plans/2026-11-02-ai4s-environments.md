@@ -211,3 +211,27 @@ Create-refusal messaging stays local and Cancel/reopen retains the draft. The
 installation log uses the public inline Disclosure. Migration, source revision,
 actual screenshots and explicit unverified scope are recorded against each
 review criterion in the [preparation report](../fitness/local-environment-preparation.md#2026-11-06-review-against-design-and-design-review).
+
+
+## 2026-11-13 Compute remote execution continuation
+
+- [x] Compute consumes a Host-only SSH/Slurm capability; the Python backend never
+  owns credentials, commands, processes or scheduling. Existing EnvironmentUses,
+  SlurmSite and owner receipts retain lifecycle authority.
+- [x] Fixed midpoint quadrature: probe, exclusive input staging, digest review,
+  explicit submission, original observation/logs, cancellation and collected
+  immutable byte references/downloads. Remote mutations cannot change saved bytes.
+- [x] Actual authenticated OpenSSH loopback App/Host execution, restart, log/output
+  collection and cancellation; actual browser click/download/hash/cancel flow.
+- [x] Slurm SSH fixture covers account, original identity, queue observation failure,
+  missing job, no replay and confirmed cancellation. This is not site acceptance.
+- [ ] Real Slurm allocation/accounting/site acceptance, MPI/OpenFOAM and GPU methods.
+- [ ] Domain App method admission through this remote path; current connected
+  numerical method is a fixed CPU reference, not arbitrary uploaded code.
+- [ ] Modal provider: no current compute owner seam exists; no cloud resources or
+  external deployment were created. Existing cloud SSH workstations use OpenSSH.
+
+This continues the existing environment implementation tracker and the separately
+open #60 HPC site gates; it does not create another incident or generic execution
+ledger. Contracts, operational prerequisites and observed scope are in the
+[remote Compute verification](../fitness/remote-compute.md).

@@ -1,49 +1,68 @@
 # Compute
 
-Independent HPC cluster workspace. This App saves and selects local **connection
-drafts**: name, login host or SSH alias, Slurm account, partition and working
-directory. Drafts remain **not connected**, including after editing or restart.
-The App does not collect passwords, keys or credentials and makes no SSH requests.
+Compute saves non-secret SSH workstation / Slurm connection configurations and
+consumes the Rust Host's remote execution capability. Authentication uses the
+Host's OpenSSH configuration, agent and existing `known_hosts`. The App never
+receives passwords, key material, SSH options or command/executable selection.
 
-The Jobs view says the cluster queue cannot be read until a cluster is connected.
-Its API returns `jobs: null` and `jobsStatus: not_connected`, not an empty result
-from an invented scheduler query. Slurm submission, monitoring and cancellation
-have no connected transport yet; those actions are absent.
+In **Remote execution**, choose a saved connection, probe access, then prepare the
+bundled CPU midpoint quadrature method. Preparation creates an exclusive remote
+attempt directory and freezes method, inputs, destination and observed submission
+software into a digest. Review the exact inputs and, for Slurm, account,
+partition and requested 1 CPU / 256 MiB / 600 seconds before **Approve and submit**.
+No scientific payload runs during preparation. The method also bounds its own
+CPU walltime to 600 seconds; SSH memory/CPU limits are not claimed as enforced.
 
-Separately, `executions/` under the app data directory is the one receipt
-directory the execution owner writes. A batch submission and its later
-scheduler observation share one file. A managed process writes a process
-receipt there too: host, entry, exit code and log names, with no external job
-id and no scientific verdict. When the owner cannot confirm how the process
-stopped, that same file says so and records no exit code. The use is not
-marked released until the file is durable. A missing directory is
-`executionsStatus: none`. A submission receipt and a scheduler observation stay
-distinct. Recorded entry, log and output paths are displayed only when the
-receipt names them. An unreadable receipt returns `executions: null`; it is not
-presented as an empty queue. Reproduce builds a review draft in the page and
-does not submit. Existing Host Worker settings and software Environments
-are explicit navigation destinations, not evidence of a connected Slurm cluster.
-HPC Benchmarks remains a separate App with its existing local reference methods.
+Host commits the existing `EnvironmentUses` transition and submission intent
+before dispatching. SSH records an original remote process group independently
+of the SSH connection. Slurm uses the existing `SlurmSite`, original job marker,
+cluster, job ID and submit time; queued is distinct from allocation. The allocated
+wrapper verifies the frozen entry, method and inputs before scientific work.
+Unknown submissions are never replayed. Observe the original identity instead;
+lost Slurm receipts/controller history require operator reconciliation at the
+retained site/path, rather than an invented empty queue or stopped result.
 
-Experiment reports imports a collected six-experiment PyBaMM report as a dated
-snapshot. All six rows remain visible, including failures, cancellation and missing
-evidence. The latest valid import persists in `task-report.json`; invalid imports
-retain it. GET/POST `/api/task-report` read/import that observation. Original result
-bytes, Run records and bounded logs can be downloaded. Numerical verdicts are
-recorded collector observations, not live or scientific acceptance. See the
-[method workflow](../../scripts/science/pybamm-sweep/README.md) to collect a new report.
+Observe reads original status and bounded logs. Cancellation requested and owner
+confirmed stop are distinct. Closing the App/Host leaves submitted remote work
+running; reopen and observe/cancel the original attempt. A Use releases only
+after durable original stop evidence. Host snapshots collected files by SHA-256;
+`compute:<attempt>:<sha256>` resolves through the authenticated artifact operation.
+Downloads return those local immutable bytes even if remote files change.
+Repeated collection retains existing references. Missing files are reported as
+partial collection, keeping the remote directory and allowing an explicit retry
+of missing files only. Files are bounded to 1 MiB each, 4 MiB per transport read;
+oversized files remain remote and the limitation is displayed.
 
-The standard App Python backend stores non-secret drafts atomically beneath
-`PERO_APP_DATA/clusters.json`; Host owns installation, origin authentication and
-process lifecycle. GET `/api/state` reads configuration and any owner receipts in `executions/`.
-POST `/api/clusters` creates or edits a draft. POST `/api/selection` chooses an
-existing draft. No endpoint accepts commands, receipt writes, or scientific execution.
+The first connected method is an intentionally fixed numerical reference, with
+samples and repetitions as inputs. Its result records a numerical check and
+`scientificAcceptance: unreviewed`. Domain Apps retain their own methods and
+verification; this does not dispatch arbitrary scripts, PyBaMM, HPC ReFrame,
+OpenFOAM, packages, or scientific acceptance. Cloud GPU workstations may use an
+existing SSH alias through the same provider; there is no GPU allocation or
+Modal API adapter in the current owner seams, and this change creates neither.
+
+**Owner receipts** reads the existing `executions/` directory. Submission and
+later scheduler observation replace the same owner receipt, rather than creating
+another Run database. It is not a site-wide queue listing. **Experiment reports**
+retains the existing six-experiment PyBaMM snapshot import and downloads; these
+collector observations are separate from the remote method.
+
+The standard Python backend stores configuration in `clusters.json`; the Host
+stores private remote invocation/evidence files under `.remote/` in Compute's
+App data. The private JSONL capability is injected only into this App backend.
+There is no public arbitrary-command, approval queue, retry scheduler or generic
+artifact database. GET/POST `/api/remote` forwards typed operations; original
+configuration/report APIs remain compatible with legacy Slurm drafts.
 
 Validation:
 
 ```sh
 npm --prefix apps/compute run typecheck
 npm --prefix apps/compute test
-PYTHON=/path/to/python3.12 npm --prefix apps/compute run test:browser
+npm --prefix apps/compute run test:browser
 node scripts/build/apps.mjs --app compute
+PERO_APP_PYTHON=/path/to/python3.12 cargo test -p pero-runtime --lib
 ```
+
+Authenticated loopback commands, screenshots and real Slurm site prerequisites:
+[remote Compute verification](../../docs/fitness/remote-compute.md).

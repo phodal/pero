@@ -3,6 +3,7 @@ import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from 
 import { Disclosure, AppFrame, Badge, Button, ContentPane, ContentSection, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, ListRow, LoadingSkeleton, MetadataList, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger, contentLayout, type MetadataItem } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
 import { TaskReport } from './task-report';
+import { RemoteExecution } from './remote-execution';
 import { messages, type Cluster, type ClusterInput, type ClusterState, type ExecutionReceipt } from './messages';
 import './styles.css';
 
@@ -53,7 +54,7 @@ export default function Compute() {
       jobs: null, jobsStatus: 'not_connected', executionsStatus: state?.executionsStatus ?? null } });
 
   return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" scope={
-    <TabsList variant="navigation" aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
+    <TabsList variant="navigation" aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger><TabsTrigger value="remote">{t('remote')}</TabsTrigger></TabsList>
   } utilities={<IconButton label={t('refresh')} disabled={busy || loading} onClick={() => void refresh()}><Icon name="refresh" /></IconButton>}
     commands={<DropdownMenu>
       <DropdownMenuTrigger aria-label={t('settings')}><Icon name="dots" /></DropdownMenuTrigger>
@@ -72,6 +73,7 @@ export default function Compute() {
       <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{error}</p></Disclosure></div> : null}
     {!state ? loading ? <LoadingSkeleton label={t('loading')} className="compute-loading"><SkeletonText /></LoadingSkeleton> : null : <>
       <TabsContent value="reports" className="compute-panel"><TaskReport /></TabsContent>
+      <TabsContent value="remote" className="compute-panel"><RemoteExecution active={active && tab === 'remote'} clusters={state.clusters} selectedClusterId={state.selectedClusterId} onManage={() => setTab('clusters')} /></TabsContent>
       <TabsContent value="jobs" className="compute-panel">
         {state.executionsStatus === 'unreadable' ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t('executionsUnreadable')}</Feedback>
           <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button>
