@@ -97,6 +97,9 @@ Host-backed Environments App and scoped Paper/Control Lab inspector:
 ReFrame benchmark library, local numerical references and separate Slurm/OpenFOAM
 acceptance: [HPC Benchmarks](hpc.md).
 
+Host-owned SSH/Slurm execution, authenticated loopback evidence and separate site
+acceptance: [Remote Compute](remote-compute.md).
+
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
 
