@@ -47,6 +47,7 @@ impl ChatWindow {
                     ChatAction::Command(value) => {
                         serde_json::to_value(value).expect("typed Host command")
                     }
+                    ChatAction::Mcp(request)=>serde_json::to_value(request).expect("typed MCP surface request"),
                     ChatAction::PreviewContext{reference,thread_id}=>json!({"action":"app_context_preview","reference":reference,"thread_id":thread_id}),
                     ChatAction::OpenContext{reference}=>{
                         let text=match &reference.content {
