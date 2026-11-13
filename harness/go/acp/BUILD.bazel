@@ -10,6 +10,7 @@ go_library(
         "models.go",
         "permission.go",
         "prompt.go",
+        "scientific_review.go",
         "server.go",
         "server_history.go",
         "stream.go",
@@ -23,6 +24,8 @@ go_library(
         "//mcp",
         "//model",
         "//runtime",
+        "//scientificreview",
+        "//scientificreviewer",
     ],
 )
 
@@ -37,6 +40,7 @@ go_test(
         "native_approval_test.go",
         "permission_test.go",
         "prompt_test.go",
+        "scientific_review_test.go",
         "stream_test.go",
         "title_test.go",
         "user_questions_test.go",
@@ -45,6 +49,7 @@ go_test(
     deps = [
         "//harness",
         "//runtime",
+        "//scientificreviewer",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ],
 )

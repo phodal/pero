@@ -30,10 +30,51 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 	record.cancelRequested = false
 	record.mu.Unlock()
 	defer cancel()
-	content, promptErr := promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
+	var content []harness.ContentBlock
+	var promptErr error
 	var result harness.TurnResult
 	var cleanup func()
-	if promptErr == nil {
+	manualReview := false
+	if s.scientificReviewer != nil && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
+		line := params.Prompt[0].Text
+		if parsed, matched := harness.ParseCommand(line); matched && parsed.Name == "review" {
+			manualReview = true
+			// Host may append App Use workflow text after the user's command.
+			// Review freezes retained session evidence; these extra text blocks
+			// neither change the command nor become new evidence for this review.
+			for _, block := range params.Prompt[1:] {
+				if block.Type != "text" {
+					promptErr = invalidError("/review reads retained conversation evidence. Remove attachments and run /review again; submit new evidence in a normal message first.")
+					break
+				}
+			}
+			if promptErr == nil {
+				var text string
+				text, promptErr = s.scientificReviewer.Command(promptCtx, record.agent, line)
+				if promptErr == nil && text != "" {
+					_, promptErr = record.agent.Session().Append("scientific-review/display", struct {
+						Text string `json:"text"`
+					}{Text: text})
+				}
+				if promptErr == nil {
+					promptErr = record.agent.Session().Flush(promptCtx)
+				}
+				if promptErr == nil {
+					var options []any
+					options, promptErr = s.configOptions(record.agent)
+					if promptErr == nil {
+						promptErr = s.writer.write(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{
+							"sessionId": record.agent.ID(), "update": map[string]any{"sessionUpdate": "config_option_update", "configOptions": options},
+						}})
+					}
+				}
+			}
+		}
+	}
+	if !manualReview {
+		content, promptErr = promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
+	}
+	if promptErr == nil && !manualReview {
 		message := harness.Message{Role: harness.RoleUser, Content: content}
 		if s.preparePrompt != nil {
 			var id harness.SessionID
@@ -55,6 +96,9 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 					break
 				}
 				result, promptErr = record.agent.PromptFollowup(promptCtx, harness.Message{Role: harness.RoleUser, Source: source, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "The previous turn reached its output token limit. Incomplete tool calls were discarded and did not write files. Inspect the current files before continuing the original task. Use smaller complete operations: write a minimal working skeleton, then fill it with focused incremental edits. Do not resend the same large file or replay incomplete arguments. Preserve the original requirements and verify the completed artifacts."}}})
+			}
+			if promptErr == nil && s.scientificReviewer != nil {
+				promptErr = s.scientificReviewer.AfterTurn(promptCtx, record.agent, result)
 			}
 		}
 		// Prompt can return as soon as its context is canceled. Retain the ACP
@@ -84,7 +128,7 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		}
 		return "", promptErr
 	}
-	if s.sessionTitles {
+	if s.sessionTitles && !manualReview {
 		record.agent.StartSessionTitle(result.Turn)
 	}
 	return promptStopReason(result.Reason), nil
