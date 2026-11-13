@@ -31,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(403); self.end_headers(); return
         Path(os.environ['PERO_APP_DATA'], 'observed').write_text('request')
         self.send_response(200); self.end_headers()
-        body = json.dumps({key: os.environ.get(key) for key in ('PERO_VIRTUAL_CELL_MODEL_URL', 'PERO_VIRTUAL_CELL_MODEL_TOKEN')}).encode() if self.path == '/deployment' else b'cell-result'
+        body = json.dumps({key: os.environ.get(key) for key in ('PERO_VIRTUAL_CELL_MODEL_URL', 'PERO_VIRTUAL_CELL_MODEL_TOKEN', 'PERO_NOTEBOOK_TEX_CACHE')}).encode() if self.path == '/deployment' else b'cell-result'
         self.wfile.write(body)
 server = TCPServer(('127.0.0.1', 0), Handler)
 print(json.dumps({'port':server.server_address[1]}), flush=True)
@@ -547,21 +547,23 @@ fn declared_stdlib_python_is_prepared_before_the_real_virtual_cell_backend_start
 }
 
 #[test]
-fn virtual_cell_remote_configuration_reaches_only_its_backend() {
+fn deployment_configuration_reaches_only_its_backend() {
     const CHILD: &str = "PERO_TEST_MODEL_CONFIG_CHILD";
     const URL: &str = "https://model.example.invalid";
     const TOKEN: &str = "test-model-capability";
+    const CACHE: &str = "/tmp/pero-test-tex-cache";
     if std::env::var(CHILD).as_deref() != Ok("1") {
         // Configure only this isolated Host test process; never mutate the
         // parent test runner's ambient environment while other tests run.
         let result = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "apps::tests::virtual_cell_remote_configuration_reaches_only_its_backend", "--nocapture"])
+            .args(["--exact", "apps::tests::deployment_configuration_reaches_only_its_backend", "--nocapture"])
             .env(CHILD, "1").env("PERO_VIRTUAL_CELL_MODEL_URL", URL)
-            .env("PERO_VIRTUAL_CELL_MODEL_TOKEN", TOKEN).status().unwrap();
+            .env("PERO_VIRTUAL_CELL_MODEL_TOKEN", TOKEN)
+            .env("PERO_NOTEBOOK_TEX_CACHE", CACHE).status().unwrap();
         assert!(result.success());
         return;
     }
-    for app in ["virtual-cell", "other-app"] {
+    for app in ["virtual-cell", "notebook", "other-app"] {
         let workspace = Workspace::new();
         let source = workspace.package(Some("python"));
         let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(source.join("app.json")).unwrap()).unwrap();
@@ -575,10 +577,10 @@ fn virtual_cell_remote_configuration_reaches_only_its_backend() {
         let observed: serde_json::Value = serde_json::from_str(&reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(5)).build().unwrap()
             .get(format!("{}/deployment", access.url)).header("X-Pero-App-Token", &access.token)
             .send().unwrap().error_for_status().unwrap().text().unwrap()).unwrap();
-        let expected = if app == "virtual-cell" {
-            serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":URL,"PERO_VIRTUAL_CELL_MODEL_TOKEN":TOKEN})
-        } else {
-            serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":null,"PERO_VIRTUAL_CELL_MODEL_TOKEN":null})
+        let expected = match app {
+            "virtual-cell" => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":URL,"PERO_VIRTUAL_CELL_MODEL_TOKEN":TOKEN,"PERO_NOTEBOOK_TEX_CACHE":null}),
+            "notebook" => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":null,"PERO_VIRTUAL_CELL_MODEL_TOKEN":null,"PERO_NOTEBOOK_TEX_CACHE":CACHE}),
+            _ => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":null,"PERO_VIRTUAL_CELL_MODEL_TOKEN":null,"PERO_NOTEBOOK_TEX_CACHE":null}),
         };
         assert_eq!(observed, expected, "{app}");
     }

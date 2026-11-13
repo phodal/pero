@@ -129,6 +129,11 @@ impl AppProcess {
                 }
             }
         }
+        if definition.name.as_str() == "notebook" {
+            if let Some(cache) = std::env::var_os("PERO_NOTEBOOK_TEX_CACHE") {
+                command.env("PERO_NOTEBOOK_TEX_CACHE", cache);
+            }
+        }
         if let Some(deployment) = reproduction {
             if let Some(scientific_python) = std::env::var_os("PERO_PAPER_SCIENTIFIC_PYTHON") {
                 command.env("PERO_PAPER_SCIENTIFIC_PYTHON", scientific_python);
