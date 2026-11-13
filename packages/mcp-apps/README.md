@@ -37,6 +37,7 @@ the recorded-result conversation entry:
 
 ```tsx
 import {McpAppSurface} from '@pero/mcp-apps/react';
+import '@pero/app-sdk/tokens.css';
 
 <McpAppSurface resource={resource} host={boundHost} context={hostContext}
   options={{size:{initialHeight:320, minHeight:120, maxHeight:560}}}

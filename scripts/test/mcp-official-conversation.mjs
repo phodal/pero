@@ -74,7 +74,7 @@ try{
   await expect(outer).toHaveCount(1);await expect(outer).toBeVisible();
   await expect(outer).toHaveAttribute('src',/tool_call=official-time-call/);
   const inline=page.frameLocator('section[aria-label="Interactive tool result"] > iframe');
-  const app=inline.frameLocator('#view > iframe').frameLocator('iframe');
+  const app=inline.frameLocator('#view iframe').frameLocator('iframe');
   await expect(app.locator('#server-time')).toHaveText(/^\d{4}-\d{2}-\d{2}T/,{timeout:15000});
   assert.equal((await businessCalls()).length,1,'initial automatic mounting replayed tools/call');
   assert.equal(provider.calls.length,2);

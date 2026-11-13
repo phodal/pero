@@ -42,6 +42,23 @@ existing core-contracts artifact. This section proves the public SDK fixture and
 isolated Notebook surface; full conversation acceptance is recorded separately.
 Native GPUI graphical and signed-package acceptance are not implied.
 
+### Integrated conversation run with the shared Surface
+
+After rebasing the SDK onto conversation implementation `12daa9347`, rebuilt
+Desktop and MCP assets and reran `scripts/test/mcp-official-conversation.mjs`.
+The unchanged Host/Harness and Wasm builds from that conversation implementation
+were reused. Actual Electron Workbench → Rust Host → Go ACP → upstream 2.0.4
+passed automatic mounting, collapse/expand, close/reopen, explicit UI tool call,
+live dark/narrow layout, `ui/message` follow-up and session cleanup.
+
+The audit records exactly two `get-time` calls (initial Agent call and one
+explicit UI call), two `ask` approvals and three deterministic loopback model
+requests. Mounting/reopening did not repeat the initial tool. No real model
+provider was called; no renderer errors were reported. Inspected the light and
+dark/narrow screenshots in `test-results/mcp-apps-conversation/`; the receipt is
+`result.json` in that directory. This validates both product entries using the
+shared Surface; it remains separate from Native graphical/package acceptance.
+
 ## Official compatibility example
 
 The primary example is the published and unchanged
