@@ -14,6 +14,13 @@
 .artifact-evidence-version { color:var(--pero-text-secondary); font-size:var(--pero-font-caption); }
 .artifact-inspector-message { padding:var(--pero-spacing-4); overflow:auto; overflow-wrap:anywhere; background:var(--pero-material-reading); }
 .artifact-inspector-message > * { max-width:72ch; margin-inline:auto; }
+.artifact-provenance { flex:none; min-width:0; overflow-wrap:anywhere; padding:var(--pero-spacing-2) var(--pero-spacing-3); border-bottom:1px solid var(--pero-border-subtle); background:var(--pero-surface-muted); font-size:var(--pero-font-caption); }
+.artifact-provenance-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--pero-spacing-1) var(--pero-spacing-2); }
+.artifact-provenance-status { color:var(--pero-text); }
+.artifact-provenance-status[data-outcome=failed] { color:var(--pero-error); }
+.artifact-provenance-status[data-outcome=cancelled] { color:var(--pero-text-muted); }
+.artifact-provenance-command { display:block; margin-top:var(--pero-spacing-1); white-space:pre-wrap; overflow-wrap:anywhere; }
+.artifact-provenance p { margin:var(--pero-spacing-1) 0 0; color:var(--pero-text-muted); }
 @media(max-width:360px) {
   .artifact-inspector-tabs .pero-ui-tabs-trigger svg { display:none; }
   .artifact-inspector-tabs.pero-ui-tabs-list[data-variant=navigation] > .pero-ui-tabs-trigger:not([data-unstyled]) { padding-inline:var(--pero-spacing-1); }
