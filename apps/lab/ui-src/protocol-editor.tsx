@@ -1,6 +1,6 @@
 import { Table, Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useId, useState } from 'react';
-import { Button, Icon } from '@pero/app-sdk/ui';
+import { Button, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import type { LabState } from './types';
 import { editProtocolStep, operationLabels, readStepEditor, suggestDraftTip } from './protocol-draft';
 
@@ -17,13 +17,10 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
   const extraFields = document && (Object.keys(document).some(key => !['version', 'initial_revision', 'steps'].includes(key))
     || document.steps.some(step => Object.keys(step).some(key => !['op', 'resource', 'volume_ul'].includes(key))));
   return <section className="protocol-draft" aria-label="Protocol editor">
-    <div className="section-toolbar editor-toolbar">
-      <h2>{heading}</h2>
-      <div className="view-switch" role="group" aria-label="Protocol format">
+    <LibraryHeader className="editor-toolbar" density="compact" title={heading} actions={<div className="view-switch" role="group" aria-label="Protocol format">
         <Button variant="ghost" aria-pressed={view === 'steps'} onClick={() => setView('steps')}><Icon name="ordered" />Steps</Button>
         <Button variant="ghost" aria-pressed={view === 'json'} onClick={() => setView('json')}><Icon name="code" />JSON</Button>
-      </div>
-    </div>
+      </div>} />
     <div className="protocol-body">
     {view === 'json' ? <label className="json-editor-label"><span className="muted">Protocol JSON</span><Textarea className="protocol-editor" spellCheck={false} value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /></label> : !document ? <div className="editor-message">
       <p className="error" role="status">{parsed.kind === 'json' && parsed.message}</p>
@@ -41,18 +38,18 @@ export function ProtocolEditor({ value, onChange, disabled, state, maxSteps, hea
           <td><Input aria-label={`Step ${index + 1} resource`} list={resourceList} value={step.resource} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'resource', event.target.value))} /></td>
           <td>{(step.op === 'aspirate' || step.op === 'dispense' || step.volume_ul !== undefined) ? <Input aria-label={`Step ${index + 1} volume in microliters`} type="number" step="any" value={step.volume_ul ?? ''} disabled={disabled} onChange={event => onChange(editProtocolStep(document, index, 'volume_ul', event.target.value))} /> : <span className="muted" aria-label="Not applicable">—</span>}</td>
           <td><div className="step-actions">
-            <Button className="icon-button" variant="ghost" aria-label={`Move step ${index + 1} up`} title="Move up" disabled={disabled || index === 0} onClick={() => {
+            <IconButton label={`Move step ${index + 1} up`} title="Move up" disabled={disabled || index === 0} onClick={() => {
               const steps = [...document.steps]; [steps[index - 1], steps[index]] = [steps[index], steps[index - 1]];
               onChange(JSON.stringify({ ...document, steps }, null, 2));
-            }}><Icon name="up" /></Button>
-            <Button className="icon-button" variant="ghost" aria-label={`Move step ${index + 1} down`} title="Move down" disabled={disabled || index === document.steps.length - 1} onClick={() => {
+            }}><Icon name="up" /></IconButton>
+            <IconButton label={`Move step ${index + 1} down`} title="Move down" disabled={disabled || index === document.steps.length - 1} onClick={() => {
               const steps = [...document.steps]; [steps[index + 1], steps[index]] = [steps[index], steps[index + 1]];
               onChange(JSON.stringify({ ...document, steps }, null, 2));
-            }}><Icon name="down" /></Button>
-            <Button className="icon-button" variant="ghost" aria-label={`Remove step ${index + 1}`} title="Remove step" disabled={disabled} onClick={() => {
+            }}><Icon name="down" /></IconButton>
+            <IconButton label={`Remove step ${index + 1}`} title="Remove step" disabled={disabled} onClick={() => {
               const after = JSON.stringify({ ...document, steps: document.steps.filter((_, at) => at !== index) }, null, 2);
               setRemoved({ before: value, after, step: index + 1 }); onChange(after);
-            }}><Icon name="trash" /></Button>
+            }}><Icon name="trash" /></IconButton>
           </div></td>
         </tr>)}</tbody>
       </Table>

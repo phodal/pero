@@ -32,10 +32,11 @@ function notePreview(item: PdfAnnotation) {
   return (item.note || item.quote || '').replace(/\s+/g, ' ').trim();
 }
 
-export function PaperInspectorHeader({ paper, status, savingId, locked, t, onStatus, onDownload }: {
+export function PaperInspectorHeader({ paper, status, savingId, locked, t, onStatus, onDownload, onRead }: {
   paper: Paper; status: ShelfStatus; savingId?: string; locked: boolean; t: Translator;
   onStatus(id: string, value: ShelfStatus): void;
   onDownload(paper: Paper, format: 'pdf' | 'tex'): void;
+  onRead(paper: Paper): void;
 }) {
   const [authorsOpen, setAuthorsOpen] = useState(false);
   const canPdf = !!(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf);
@@ -53,7 +54,7 @@ export function PaperInspectorHeader({ paper, status, savingId, locked, t, onSta
       <Badge tone={statusTone[status]}>{t(status === 'reading' ? 'statusReading' : status === 'to-read' ? 'statusToRead' : 'statusReviewed')}</Badge>
       <OutlineBadge>{contentKind(paper, t)}</OutlineBadge>
     </div>}
-    actions={<DropdownMenu>
+    actions={<><Button variant="primary" disabled={locked} onClick={() => onRead(paper)}>{t(status === 'to-read' ? 'openReader' : 'continueReading')}</Button><DropdownMenu>
       <DropdownMenuTrigger asChild>
         <IconButton label={t('moreActions')} variant="ghost"><Icon name="dots" size={16}/></IconButton>
       </DropdownMenuTrigger>
@@ -64,7 +65,7 @@ export function PaperInspectorHeader({ paper, status, savingId, locked, t, onSta
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={locked} onSelect={() => onStatus(paper.id, status === 'to-read' ? 'reading' : status === 'reading' ? 'reviewed' : 'to-read')}>{t('cycleReadingStatus')}</DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>}
+    </DropdownMenu></>}
   />;
 }
 
@@ -243,7 +244,7 @@ export const PaperInspector = React.forwardRef<HTMLElement, {
   return <section ref={ref} className="pa-paper-inspector" tabIndex={-1} aria-label={t('paperDetails')}>
     <Tabs value={tab} onValueChange={value => setTab(value as InspectorTab)} className="pa-inspector-tabs">
       <ContentPane id={`paper-inspector-${paper.id}`} label={t('paperDetails')} as="div" surface="reading" inset="compact" scroll="pane"
-        header={<PaperInspectorHeader paper={paper} status={status} savingId={savingId} locked={locked} t={t} onStatus={onStatus} onDownload={onDownload}/>}
+        header={<PaperInspectorHeader paper={paper} status={status} savingId={savingId} locked={locked} t={t} onStatus={onStatus} onDownload={onDownload} onRead={onRead}/>}
         toolbar={<TabsList aria-label={t('paperDetails')} variant="navigation">
           <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
           <TabsTrigger value="notes">{t('notesTab')}</TabsTrigger>

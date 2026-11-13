@@ -8,9 +8,8 @@ import { Table } from '../components/table';
 import { Feedback } from '../components/feedback';
 import { EmptyState } from '../components/empty-state';
 import { EmptyIllustration } from '../components/empty-illustration';
-import { Card } from '../components/card';
 import { Dialog } from '../components/dialog';
-import { Badge } from '../../../pero-design/src/components';
+import { Badge, LibraryHeader, ListRow } from '../../../pero-design/src/components';
 import { ContentPane, ContentSection, InspectorHeader, MetadataList } from '../../../pero-design/src/content';
 import { METHODS, METHOD_IDS, OBSERVATION_MAX_AGE_MS, observationState, requirementText, filterMethods } from './model.mjs';
 import { createInspectionSession, type InspectEnvironment } from './client.mjs';
@@ -79,7 +78,7 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
   ] : [];
   return <section className="pero-env env-inspection">
     {!method ? <ContentPane id="env-checks" label={t.title} as="div" surface="list" inset="compact" scroll="pane"
-      header={!embedded ? <h1>{t.title}</h1> : undefined}
+      header={!embedded ? <LibraryHeader density="compact" title={t.title} /> : undefined}
       toolbar={<div className="env-toolbar">
         <Input type="search" aria-label={t.search} placeholder={t.search} value={query} onChange={event => setQuery(event.target.value)} />
         <Select label={t.filter} value={filter} onChange={setFilter} options={['all', 'unchecked', 'matched', 'blocked', 'stale', 'error'].map(value => ({ value, label: t[value] }))} />
@@ -94,9 +93,7 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
           { id: 'app', header: t.app, size: 110, cell: item => item.app },
           { id: 'state', header: t.status, size: 170, cell: item => badge(item.id) },
           { id: 'actions', header: t.actions, size: 110, cell: item => check(item.id) },
-        ]} /> : <div className="env-grid">{methods.map(item => <Card key={item.id} className="env-tile" tone="blue" variant="soft">
-          <Button variant="ghost" onClick={() => { setSelected(item.id); setTab('software'); }}>{item.name}</Button><p className="env-muted">{item.software}</p>{badge(item.id)}<footer><span className="env-muted">{item.app}</span>{check(item.id)}</footer>
-        </Card>)}</div>}
+        ]} /> : <div className="env-grid">{methods.map(item => <div className="env-tile" key={item.id}><ListRow title={item.name} onOpen={() => { setSelected(item.id); setTab('software'); }} trailing={<>{badge(item.id)}{check(item.id)}</>} /><p className="env-muted">{item.software} · {item.app}</p></div>)}</div>}
       <p className="env-note">{t.noChanges}</p>
       {targets.filter(id => records[id]?.state === 'error').map(id => <Feedback key={id} kind="error" variant="block">{METHODS.find(item => item.id === id)!.name}: {records[id].error}{records[id].report && ` ${t.retained}`}</Feedback>)}
     </ContentPane> : <ContentPane id={`env-check-${method.id}`} label={method.name} as="div" surface="reading" inset="compact" scroll="pane"
@@ -132,6 +129,6 @@ export function EnvironmentInspectorAction(props: InspectionProps) {
   const [open, setOpen] = useState(false), t = messages(props.locale);
   const targets = props.targets ?? METHOD_IDS;
   return <span className="pero-env-trigger"><Button aria-haspopup="dialog" onClick={() => setOpen(true)}>{t.inspect}</Button>
-    {open && <Dialog title={t.title} closeLabel={t.close} onClose={() => setOpen(false)} className="pero-env-dialog" initialFocus=".pero-ui-dialog-close"><EnvironmentChecks {...props} targets={targets} selected={targets.length === 1 ? targets[0] : undefined} single={targets.length === 1} autoInspect={targets.length === 1} /></Dialog>}
+    {open && <Dialog title={t.title} closeLabel={t.close} onClose={() => setOpen(false)} className="pero-env-dialog" initialFocus=".pero-ui-dialog-close"><EnvironmentChecks {...props} embedded targets={targets} selected={targets.length === 1 ? targets[0] : undefined} single={targets.length === 1} autoInspect={targets.length === 1} /></Dialog>}
   </span>;
 }

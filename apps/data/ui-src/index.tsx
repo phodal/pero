@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppApiError, AppConversation, downloadFile, openDocument, requestAppShell, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
+import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
 import { AppFrame, Button, Checkbox, ContentPane, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane, contentLayout } from '@pero/app-sdk/ui';
 import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, formatDay, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
@@ -12,6 +12,10 @@ type InspectionSnapshot = { scope: string; attempt: number; view: ViewSpec; offs
 type Focus = { selection: Selection | null; view: ViewSpec; offset: number; parserVersion: string };
 type SourceBody = { datasetId: string; assetId: string; sha256: string; name: string; format: string; content: string };
 const focused = (selection: Selection | null, parserVersion: string): Focus => ({ selection, view: emptyView(), offset: 0, parserVersion });
+function hostPresent() {
+  const bridge = (window as Window & { ipc?: { postMessage?: unknown } }).ipc;
+  return window.parent !== window || typeof bridge?.postMessage === 'function';
+}
 
 function sourceKind(format: string) {
   if (format === 'json') return 'json' as const;
@@ -21,7 +25,7 @@ function sourceKind(format: string) {
 
 
 export default function Data() {
-  const api = useAppApi(), chat = useAppChat(), { active } = useAppContext();
+  const api = useAppApi(), chat = useAppChat(), navigate = useNavigate(), { active } = useAppContext();
   const { t } = useAppI18n(messages);
   const [state, setState] = useState<CatalogState | null>(null);
   const [focus, setFocus] = useState<Focus>(focused(null, ''));
@@ -37,7 +41,7 @@ export default function Data() {
   const [showChat, setShowChat] = useState(false), [tab, setTab] = useState('table');
   const [command, setCommand] = useState<'edit' | 'archive' | null>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
-  const libraryTitle = useRef<HTMLButtonElement>(null);
+  const libraryTitle = useRef<HTMLSpanElement>(null);
   const pending = useRef(false), requests = useRef(0), home = useRef(false);
   const visible = state ? visibleDatasets(state, query, project, archived, kind) : [];
   const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
@@ -227,7 +231,7 @@ export default function Data() {
     const body = JSON.stringify({ type: 'pero-dataset', datasetId: dataset.id, assetId: asset.id, name: dataset.name, sha256: asset.sha256, source: asset.source, revision: asset.revision }, null, 2);
     void navigator.clipboard?.writeText(body).then(() => setNotice(t('shareCopied'))).catch(() => setNotice(''));
   };
-  const openNotebook = () => { if (window.parent !== window) void requestAppShell('navigate', { path: '/apps/notebook/main' }); };
+  const openNotebook = () => { void navigate('/apps/notebook/main'); };
   const clearSelection = () => {
     home.current = true;
     setFocus(previous => ({ ...previous, selection: null }));
@@ -239,19 +243,19 @@ export default function Data() {
       <DropdownMenuTrigger ref={moreRef} aria-label={t('more')} className="pero-ui-icon-button"><Icon name="dots" /></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem disabled={busy} onSelect={shareReference}>{t('share')}</DropdownMenuItem>
-        <DropdownMenuItem disabled={busy} onSelect={() => setCommand('edit')}>Edit details</DropdownMenuItem>
-        <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => { setError(''); setImportTarget(dataset); }}>Add version</DropdownMenuItem>
-        {canInspect(asset) ? <DropdownMenuItem disabled={busy} onSelect={() => setTab('table')}>Explore data</DropdownMenuItem> : null}
+        <DropdownMenuItem disabled={busy} onSelect={() => setCommand('edit')}>{t('editDetails')}</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy || dataset.archived} onSelect={() => { setError(''); setImportTarget(dataset); }}>{t('addVersion')}</DropdownMenuItem>
+        {canInspect(asset) ? <DropdownMenuItem disabled={busy} onSelect={() => setTab('table')}>{t('exploreData')}</DropdownMenuItem> : null}
         <DropdownMenuSeparator />
         {dataset.archived
-          ? <DropdownMenuItem disabled={busy} onSelect={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, name: dataset.name, projectRef: dataset.projectRef, archived: false })); setNotice('Saved.'); })}>Restore dataset</DropdownMenuItem>
-          : <DropdownMenuItem disabled={busy} onSelect={() => setCommand('archive')}>Archive dataset</DropdownMenuItem>}
+          ? <DropdownMenuItem disabled={busy} onSelect={() => void perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, name: dataset.name, projectRef: dataset.projectRef, archived: false })); setNotice(t('savedNotice')); })}>{t('restoreDataset')}</DropdownMenuItem>
+          : <DropdownMenuItem disabled={busy} onSelect={() => setCommand('archive')}>{t('archiveDataset')}</DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>
     {state?.datasets.length && (ready || retained) ? <>
-      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>Source</Button>
-      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>Export records</Button>
-      {window.parent !== window ? <Button variant="ghost" aria-label={showChat ? 'Close chat' : 'Open chat'} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? 'Close chat' : 'Open chat'}</Button> : null}
+      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => loadSource())}>{t('source')}</Button>
+      <Button variant="ghost" disabled={busy || !ready} onClick={() => void perform(() => exportRows())}>{t('exportRecords')}</Button>
+      {hostPresent() ? <Button variant="ghost" aria-label={showChat ? t('closeChat') : t('openChat')} aria-expanded={showChat} onClick={() => setShowChat(value => !value)}>{showChat ? t('closeChat') : t('openChat')}</Button> : null}
     </> : null}
   </> : null;
   return <AppFrame className="data-page" label="Data" aria-busy={busy}
@@ -272,8 +276,9 @@ export default function Data() {
       : <Split storageKey="pero.data.catalog-width" collapseBelow={contentLayout.collapseBelow}>
       <SplitPane as="section" id="data-datasets" aria-label={t('datasets')} className="data-list" size={contentLayout.listSize} min={contentLayout.listMin} resizeLabel={t('resizeDatasets')}>
         <ContentPane id="data-catalog" label={t('datasets')} as="div" surface="list" inset="none" scroll="pane"
-          header={<LibraryHeader density="compact" title={<button ref={libraryTitle} type="button" className="data-library-title" aria-current={dataset ? undefined : 'page'} disabled={busy} onClick={clearSelection}>{t('datasets')}</button>}
-          subtitle={t(visible.length === 1 ? 'datasetCount' : 'datasetCountPlural', { count: String(visible.length) })} />}
+          header={<LibraryHeader density="compact" title={<span ref={libraryTitle} tabIndex={-1}>{t('datasets')}</span>}
+          subtitle={t(visible.length === 1 ? 'datasetCount' : 'datasetCountPlural', { count: String(visible.length) })}
+          actions={dataset ? <Button variant="ghost" disabled={busy} onClick={clearSelection}>{t('allData')}</Button> : undefined} />}
           toolbar={<div className="data-tools">
           <SearchField aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} />
           <div className="data-actions">
@@ -289,11 +294,12 @@ export default function Data() {
             const current = versionFor(item);
             const health = current ? availabilityLabel(current, item.id === dataset?.id ? result : null) : 'Missing';
             const attention = Boolean(current) && (health === 'Missing' || health === 'Changed');
+            const healthText = health === 'Stored' ? t('stored') : health === 'Changed' ? t('changedFile') : t('missingFile');
             const versionNo = current ? item.versions.indexOf(current.id) + 1 : item.versions.length;
             return <li key={item.id}><ListRow title={item.name} current={item.id === dataset?.id} onOpen={() => choose(item)}
               icon={<span className="data-row-icon" aria-hidden="true"><Icon name="database" size={16} /></span>}
-              meta={<>{(current?.format || item.kind).toUpperCase()} · {current ? formatBytes(current.size) : 'Missing'} · v{Math.max(1, versionNo)}
-                {attention ? <> · {health}</> : null}</>}
+              meta={<>{(current?.format || item.kind).toUpperCase()} · {current ? formatBytes(current.size) : healthText} · v{Math.max(1, versionNo)}
+                {attention ? <> · {healthText}</> : null}</>}
               time={current ? formatDay(current.createdAt) : undefined} /></li>;
           })}</ul> : <EmptyState icon={<EmptyIllustration kind={query || project || kind ? 'search' : 'data'} size="compact" />} heading={t(query || project || kind ? 'noMatches' : archived ? 'noArchived' : 'noActive')} description={t(query || project || kind ? 'filterHelp' : archived ? 'archivedHelp' : 'activeHelp')} />}
         </ContentPane>
@@ -315,7 +321,7 @@ export default function Data() {
               command={command} onCommandDone={() => setCommand(null)} focusMore={() => moreRef.current?.focus()}
               onAddVersion={() => { setError(''); setImportTarget(dataset); }}
               onAsk={() => {
-                if (!dataset || !asset || window.parent === window) return;
+                if (!dataset || !asset || !hostPresent()) return;
                 const prompt = ready
                   ? 'Analyze this dataset view. Check missingness and provenance, and support conclusions with record references.'
                   : 'This dataset is an original file without a table. Use the catalog identity, source, and checksum. Do not invent records or a scientific summary.';
@@ -323,8 +329,8 @@ export default function Data() {
                   datasetId: dataset.id, assetId: asset.id, sha256: asset.sha256, viewId: ready?.viewId ?? '', selectedCount: focus.view.selection.length,
                 })] }));
               }}
-              canAsk={window.parent !== window}
-              onEdit={value => perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? 'Archived. Original files remain stored.' : 'Saved.'); })}
+              canAsk={hostPresent()}
+              onEdit={value => perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? t('archivedNotice') : t('savedNotice')); })}
               onSave={name => { void perform(async () => { adopt(await api.post<CatalogState>('/api/views', { name, preview: { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion } })); setNotice('View and checks saved against this exact version.'); }); }}
               onOpen={(saved: SavedView) => { home.current = false; setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}
               onExport={saved => { const source = state.assets.find(item => item.id === saved.assetId)!; downloadFile(`${saved.name.replace(/[^a-z0-9_-]+/gi, '-') || 'dataset'}-reference.json`, JSON.stringify({ schemaVersion: 1, type: 'pero-dataset-view', ...saved, source: { name: source.name, kind: source.kind, size: source.size, source: source.source, revision: source.revision, license: source.license, sha256: source.sha256, bundleId: source.bundleId, sourceId: source.sourceId } }, null, 2), 'application/json'); }}
@@ -332,8 +338,8 @@ export default function Data() {
               objectActions={objectActions} onOpenNotebook={openNotebook} onDismiss={clearSelection} />
               : visible.length ? <EmptyState heading={t('noSelection')} description={t('selectionHelp')} /> : null}
           </SplitPane>
-          <SplitPane id="data-conversation" min={280} size={360} resizeLabel="Resize chat" className="data-chat" hidden={!showChat}>
-            {showChat ? <AppConversation fallback={<p role="status">Chat is unavailable here. Close and reopen it to retry.</p>} /> : null}
+          <SplitPane id="data-conversation" min={280} size={360} resizeLabel={t('resizeChat')} className="data-chat" hidden={!showChat}>
+            {showChat ? <AppConversation fallback={<p role="status">{t('chatUnavailable')}</p>} /> : null}
           </SplitPane>
         </Split>
       </SplitPane>

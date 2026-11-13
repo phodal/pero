@@ -1,5 +1,5 @@
 import { useAppInfo, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { Button } from '@pero/app-sdk/ui';
+import { Button, ContentSection } from '@pero/app-sdk/ui';
 import { useEffect, useState } from 'react';
 import { InsightsError } from './feedback';
 
@@ -40,10 +40,8 @@ export function ResearchUpdates({ hideEmpty = false }: { hideEmpty?: boolean }) 
     return () => controller.abort();
   }, [active, refresh]);
   if (hideEmpty && updates?.length === 0 && !busy && !error) return null;
-  return <section className="point-research-updates" data-empty={!updates?.length || undefined} aria-label={t('title')}>
-    <header><h2>{t('title')}</h2>
-    <Button variant="ghost" onClick={() => void navigate('/apps/paper-agent')}>{t('openPaper')}</Button>
-    <Button variant="ghost" disabled={busy} onClick={() => setRefresh(value => value + 1)}>{t('refresh')}</Button></header>
+  return <div className="point-research-updates" data-empty={!updates?.length || undefined}>
+    <ContentSection id="insights-research-updates" title={t('title')} actions={<><Button variant="ghost" onClick={() => void navigate('/apps/paper-agent')}>{t('openPaper')}</Button><Button variant="ghost" disabled={busy} onClick={() => setRefresh(value => value + 1)}>{t('refresh')}</Button></>}>
     {busy && updates && <p role="status">{t('refreshing')}</p>}
     {error && <InsightsError error={error} locale={t('locale') === 'zh' ? 'zh' : 'en'} context="research" />}
     {!updates && !error && <p role="status">{t('loading')}</p>}
@@ -60,5 +58,6 @@ export function ResearchUpdates({ hideEmpty = false }: { hideEmpty?: boolean }) 
           <p>{t('affected')} ({update.result.affectedAttempts.length + update.result.affectedReportIds.length})</p>}
       </>}
     </li>)}</ul>}
-  </section>;
+    </ContentSection>
+  </div>;
 }

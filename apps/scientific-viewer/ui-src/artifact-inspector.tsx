@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Button, ChatMarkdown, ContentIcon, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { ChatMarkdown, ContentIcon, Icon, IconButton, ListRow, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { ArtifactDocument } from './artifact-document';
@@ -68,20 +68,18 @@ function EvidenceFiles({ files, threadId, zh, open }: {
   return <>
     <div className="artifact-evidence-files">
       <div className="artifact-evidence-list">
-        {files.map(({ artifact, version, role }, at) => <Button
-          key={`${artifact.id}/${version.version}/${at}`} variant="ghost"
-          aria-pressed={at === chosen}
+        {files.map(({ artifact, version, role }, at) => <ListRow
+          key={`${artifact.id}/${version.version}/${at}`}
+          current={at === chosen}
+          icon={<ContentIcon source={{ path: version.filename ?? artifact.title }} />}
           title={version.filename ?? artifact.title}
-          onClick={() => setIndex(at)}>
-          <ContentIcon source={{ path: version.filename ?? artifact.title }} />
-          <span>{version.filename ?? artifact.title}</span><span className="artifact-evidence-version">v{version.version}</span>
-          {role === 'input' && <span className="artifact-evidence-version">{zh ? '输入' : 'Input'}</span>}
-        </Button>)}
+          meta={<>v{version.version}{role === 'input' && <> · {zh ? '输入' : 'Input'}</>}</>}
+          onOpen={() => setIndex(at)} />)}
       </div>
-      <Button variant="ghost" aria-label={zh ? '打开关联产物' : 'Open linked artifact'} title={zh ? '打开关联产物' : 'Open linked artifact'}
+      <IconButton label={zh ? '打开关联产物' : 'Open linked artifact'}
         onClick={() => open({ thread_id: threadId, artifact_id: locator.artifactId, version: locator.version })}>
         <Icon name="external-link" size={14} />
-      </Button>
+      </IconButton>
     </div>
     <ArtifactDocument key={`${locator.artifactId}/${locator.version}`} locator={locator} />
   </>;

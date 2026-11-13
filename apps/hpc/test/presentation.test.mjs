@@ -51,7 +51,7 @@ test('method summary separates execution from verification and keeps earlier spe
 
   assert.equal(document.querySelector('.app-header').getAttribute('aria-label'), 'HPC Benchmarks');
   assert.equal(document.querySelector('.app-header h1'), null, 'the workbench tab already names the App');
-  assert.equal(document.querySelector('.workspace-heading h2').textContent, benchmark.name);
+  assert.equal(document.querySelector('.pero-inspector-title').textContent, benchmark.name);
   assert.equal(document.querySelector('button[aria-label=Refresh]').disabled, false);
   assert.ok([...document.querySelectorAll('.app-header button')].some(el => el.textContent === 'Run local reference'), 'Run stays in the App when the host column header is enabled');
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { useAppContext } from "@pero/app-sdk";
-import { Disclosure, Table, Button, Checkbox, Icon } from "@pero/app-sdk/ui";
+import { Disclosure, Table, Button, Checkbox, ContentSection, Icon, InspectorHeader, MetadataList } from "@pero/app-sdk/ui";
 import type { Benchmark, Comparison, Run, Value, Verification } from "./types";
 import type { Message } from "./messages";
 import { RunPlots } from "./plots";
@@ -34,8 +34,7 @@ function CheckReport({ report, t }: { report: Verification; t: Translate }) {
   const checks = report.checks?.length ? report.checks : Object.entries(report.metrics).map(([id, value]) => ({
     id, label: id.replaceAll("_", " "), value, threshold: report.thresholds[id], passed: undefined,
   }));
-  return <>
-    <div className="section-heading check-heading"><h3><Icon name="shield" size={14} />{t("verification")}</h3><Status value={report.status} t={t} /></div>
+  return <ContentSection id="hpc-checks" title={t("verification")} actions={<Status value={report.status} t={t} />}>
     <Table label={t("verification")} density="compact" className="table-scroll" tableClassName="check-table"><thead><tr>
       <th scope="col">{t("metric")}</th><th scope="col">{t("measured")}</th><th scope="col">{t("limit")}</th><th scope="col">{t("verification")}</th>
     </tr></thead><tbody>{checks.map(check => <tr key={check.id}>
@@ -45,7 +44,7 @@ function CheckReport({ report, t }: { report: Verification; t: Translate }) {
     {!report.checks?.length && <Disclosure variant="inline" summary={<>{t("criteria")}</>}><Facts values={report.thresholds} /></Disclosure>}
 
     {report.errors.length > 0 && <ul className="error-text">{report.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
-  </>;
+  </ContentSection>;
 }
 
 export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExport }: {
@@ -54,19 +53,15 @@ export function RunEvidence({ run, t, busy, exporting, onVerify, onCancel, onExp
 }) {
   const active = run.status === "running" || Boolean(run.operation);
   return <section className="run-evidence" aria-label={t("details")}>
-    <div className="run-toolbar">
-      <div className="run-date"><Icon name="automation" size={14} /><span>{t("created")}</span><time dateTime={run.createdAt}>{new Date(run.createdAt).toLocaleString()}</time></div>
-      <div className="toolbar">
-        {run.status === "running" && <Button disabled={busy} onClick={onCancel}><Icon name="stop" size={14} />{t("cancel")}</Button>}
-        <Button disabled={busy || active || !run.artifacts.length} onClick={onVerify}><Icon name="sync" size={14} />{run.operation === "verify" ? t("verifying") : t("verify")}</Button>
-        <Button disabled={exporting || active || !run.artifacts.length} onClick={onExport}><Icon name="export" size={14} />{exporting ? t("exporting") : t("export")}</Button>
-      </div>
-    </div>
-    <dl className="run-overview">
-      <div><dt>{t("status")}</dt><dd><Status value={run.status} t={t} /></dd></div>
-      <div><dt>{t("verification")}</dt><dd>{run.operation === "verify" ? t("verifying") : <Status value={run.verification?.status} t={t} />}</dd></div>
-      <div><dt>{t("elapsed")}</dt><dd>{number(run.elapsedSeconds)}</dd></div>
-    </dl>
+    <InspectorHeader identity={t("created")} title={new Date(run.createdAt).toLocaleString()} status={<Status value={run.status} t={t} />} actions={<>
+      {run.status === "running" && <Button disabled={busy} onClick={onCancel}><Icon name="stop" size={14} />{t("cancel")}</Button>}
+      <Button disabled={busy || active || !run.artifacts.length} onClick={onVerify}><Icon name="sync" size={14} />{run.operation === "verify" ? t("verifying") : t("verify")}</Button>
+      <Button disabled={exporting || active || !run.artifacts.length} onClick={onExport}><Icon name="export" size={14} />{exporting ? t("exporting") : t("export")}</Button>
+    </>} />
+    <MetadataList items={[
+      { id: "verification", label: t("verification"), value: run.operation === "verify" ? t("verifying") : <Status value={run.verification?.status} t={t} /> },
+      { id: "elapsed", label: t("elapsed"), value: number(run.elapsedSeconds) },
+    ]} />
     {run.error && <p role="alert" className="error-text">{run.error}</p>}
     <RunPlots run={run} />
     {run.verification ? <CheckReport report={run.verification} t={t} /> : <p className="muted" role="status">{t("checkPending")}</p>}
@@ -97,7 +92,7 @@ export function RunTable({ benchmarks, runs, selectedId, chosen, t, onOpen, onCh
   </tr></thead><tbody>{runs.map(run => <tr key={run.id} className={selectedId === run.id ? "selected" : ""}>
     <td><Checkbox aria-label={`${t("chooseComparison")}: ${run.id}`} checked={chosen.includes(run.id)}
       disabled={run.status !== "completed" || Boolean(run.operation) || chosen.length >= 8 && !chosen.includes(run.id)} onCheckedChange={checked => onChoose(run, checked === true)} /></td>
-    <td><Button variant="link" className="text-button" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
+    <td><Button variant="link" aria-label={`${t("select")}: ${run.id}`} onClick={() => onOpen(run)}>{new Date(run.createdAt).toLocaleString()}</Button></td>
     <td>{run.benchmarkName}{!benchmarks.some(benchmark => benchmark.id === run.benchmarkId && benchmark.specDigest === run.specDigest) && <span className="prior-specification">{t("priorSpecification")}</span>}</td><td><Status value={run.status} t={t} /></td><td><Status value={run.verification?.status} t={t} /></td><td>{number(run.elapsedSeconds)}</td>
   </tr>)}</tbody></Table>;
 }

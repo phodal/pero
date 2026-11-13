@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { AppFrame, Badge, Button, Card, ContentPane, Dialog, EnvironmentInspector, Feedback, FilePicker, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { AppFrame, Badge, Button, Card, ContentPane, ContentSection, Dialog, EmptyState, EnvironmentInspector, Feedback, FilePicker, InspectorHeader, LibraryHeader, ListRow, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { seriesStyle } from '@pero/app-sdk/chart';
 import { messages, type CaseState, type Reaction } from './messages';
 import { detectColumns, readCsv, yieldPercent, uploadSmiles, matchingPredictions } from './plot';
@@ -68,24 +68,23 @@ export default function Lcms2Yield() {
   const verdictLabel = (value: string) =>
     value === 'PASS' ? t('matchesFactors') : value === 'FAIL' ? t('fail') : value === 'INCONCLUSIVE' ? t('inconclusive') : t('unrun');
 
-  return <AppFrame label={t('title')} primary={state ? <Button className="yield-run" variant="primary" disabled={busy || task === 'train' || !state.checkout || (dataset === 'upload' && !upload?.smilesValues.length)} onClick={() => setConfirming(true)}>{task === 'train' ? t('runTrain') : t('runPrediction')}</Button> : undefined}>
-    {!state ? <div className="yield-opening" role="status" aria-busy={loading || !error}>
+  return <Tabs className="yield-frame" value={panel} onValueChange={value => setPanel(value as 'results' | 'log')}>
+    <AppFrame label={t('title')} scope={state ? <TabsList variant="navigation" aria-label={t('results')}>
+      <TabsTrigger value="results">{t('results')}</TabsTrigger>
+      <TabsTrigger value="log">{t('log')}</TabsTrigger>
+    </TabsList> : undefined} primary={state ? <Button className="yield-run" variant="primary" disabled={busy || task === 'train' || !state.checkout || (dataset === 'upload' && !upload?.smilesValues.length)} onClick={() => setConfirming(true)}>{task === 'train' ? t('runTrain') : t('runPrediction')}</Button> : undefined}>
+    {!state && error && !loading ? <EmptyState heading={t('loadFailed')} description={t('operationFailed')} actions={<Button onClick={() => void refresh()}>{t('retry')}</Button>}><details><summary>{t('details')}</summary><p>{error}</p></details></EmptyState> : null}
+    {!state && (loading || !error) ? <div className="yield-opening" role="status" aria-busy="true">
       <div className="yield-opening-card">
-        {error && !loading ? <>
-          <h2>{t('loadFailed')}</h2>
-          <p>{t('operationFailed')}</p>
-          <Button onClick={() => void refresh()}>{t('retry')}</Button>
-          <details><summary>{t('details')}</summary><p>{error}</p></details>
-        </> : <>
-          <span className="yield-spinner" aria-hidden="true" />
-          <p className="yield-opening-lead">{t('loading')}</p>
-        </>}
+        <span className="yield-spinner" aria-hidden="true" />
+        <p className="yield-opening-lead">{t('loading')}</p>
       </div>
     </div> : null}
     {state && error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('operationFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
     {state ? <div className="yield-shell">
       <aside className="yield-input">
-      <ContentPane id="lcms-inputs" label={t('task')} as="div" surface="workspace" inset="compact" scroll="pane">
+      <ContentPane id="lcms-inputs" label={t('task')} as="div" surface="workspace" inset="compact" scroll="pane"
+        header={<LibraryHeader density="compact" title={t('task')} subtitle={task === 'train' ? t('taskTrain') : t('taskPredict')} />}>
         <Select label={t('task')} value={task} onChange={value => setTask(value as Task)} options={[{ value: 'predict', label: t('taskPredict') }, { value: 'train', label: t('taskTrain') }]} />
         <Select label={t('dataset')} value={dataset} onChange={value => setDataset(value as Dataset)} options={[
           { value: 'reactions', label: t('datasetAll', { count: state.population }) },
@@ -126,15 +125,12 @@ export default function Lcms2Yield() {
         </nav>
       </ContentPane>
       </aside>
-      <Tabs className="yield-tabs" value={panel} onValueChange={value => setPanel(value as 'results' | 'log')}>
-        <TabsList variant="content" aria-label={t('results')}>
-          <TabsTrigger value="results">{t('results')}</TabsTrigger>
-          <TabsTrigger value="log">{t('log')}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="log" className="yield-panel"><ContentPane id="lcms-log" label={t('log')} as="div" surface="workspace" inset="compact" scroll="pane">
+      <div className="yield-tabs">
+        <TabsContent value="log" className="yield-panel"><ContentPane id="lcms-log" label={t('log')} as="div" surface="workspace" inset="compact" scroll="pane"
+          header={<LibraryHeader density="compact" title={t('log')} />}>
           <p className="yield-help">{state.examples.status === 'UNRUN' ? t('outputEmpty') : `${t('officialExample')}: ${verdictLabel(state.examples.status)}`}</p>
           <IdentityNote t={t} identity={state.identity} />
-          <div className="yield-block"><h2>{t('environment')}</h2><EnvironmentInspector targets={['lcms2yield.inference']} /></div>
+          <ContentSection id="lcms-environment" title={t('environment')}><EnvironmentInspector targets={['lcms2yield.inference']} /></ContentSection>
           <p className="yield-help">{t('computeHelp')}</p>
         </ContentPane></TabsContent>
         <TabsContent value="results" className="yield-panel"><ContentPane id="lcms-results" label={t('results')} as="div" surface="workspace" inset="compact" scroll="pane">
@@ -148,7 +144,7 @@ export default function Lcms2Yield() {
               <p>{t('paperBody')}</p>
             </section> : null}
             <section className="yield-main">
-              {dataset === 'upload' ? <Card className="yield-detail"><h2>{upload?.name ?? t('upload')}</h2><p role="status">{uploadPredictions.length ? '' : t('unrun')}</p><ul className="yield-rows">{uploadPredictions.map(item => <li key={item.smiles}>{item.smiles} · {item.predicted}</li>)}</ul></Card> : <>
+              {dataset === 'upload' ? <Card className="yield-detail"><InspectorHeader title={upload?.name ?? t('upload')} status={uploadPredictions.length ? undefined : <span role="status">{t('unrun')}</span>} /><ul className="yield-rows">{uploadPredictions.map(item => <li key={item.smiles}>{item.smiles} · {item.predicted}</li>)}</ul></Card> : <>
                 {showTable ? <div className="yield-chart-wrap">
                   <div className="yield-plot-frame"><YieldPlot label={t('chart')} selected={reaction?.index ?? null} onSelect={index => { setSelected(index); }} points={visible.map(item => ({ index: item.index, reactionType: item.reactionType, x: yieldPercent(item.yieldExp), y: yieldPercent(item.yieldPred) }))} /></div>
                   <p className="yield-axis">{t('axisExp')} · {t('axisPred')}</p>
@@ -161,18 +157,19 @@ export default function Lcms2Yield() {
                   ]} /></div>
                 </div> : null}
                 <Card className="yield-detail">
-                  <ul className="yield-rows" aria-label={t('reactions')}>{visible.slice(0, 8).map(item => <li key={item.index}><button type="button" aria-current={item.index === reaction?.index} onClick={() => { setSelected(item.index); }}><span className="swatch" style={{ background: seriesStyle(TYPES.indexOf(item.reactionType)).stroke }} />{item.name}</button></li>)}</ul>
-                  <h2>{dataset === 'reactions' || showTable ? t('selected') : t('exampleOutput')}</h2>
+                  <ul className="yield-rows" aria-label={t('reactions')}>{visible.slice(0, 8).map(item => <li key={item.index}><ListRow current={item.index === reaction?.index} onOpen={() => setSelected(item.index)} title={<><span className="swatch" style={{ background: seriesStyle(TYPES.indexOf(item.reactionType)).stroke }} />{item.name}</>} /></li>)}</ul>
+                  <InspectorHeader title={dataset === 'reactions' || showTable ? reaction?.name ?? t('selected') : t('exampleOutput')} subtitle={(dataset === 'reactions' || showTable) && reaction ? t(reaction.reactionType) : undefined} />
                   {dataset === 'reactions' || showTable ? <ReactionInput t={t} reaction={reaction} structure={structure} drawing={drawingFor(reaction?.productSmiles)} /> : <ExampleOutput t={t} item={activeExample(state, dataset, exampleId)} structure={structure} drawing={structures[(dataset === 'readme' ? exampleId : dataset) as keyof typeof structures]} />}
                 </Card>
               </>}
             </section>
           </>}
         </ContentPane></TabsContent>
-      </Tabs>
+      </div>
     </div> : null}
     {confirming ? <Dialog title={t('confirmTitle')} closeLabel={t('cancel')} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t('cancel')}</Button><Button variant="primary" busy={busy} onClick={() => void post(dataset === 'upload' ? '/api/predict' : dataset === 'readme' ? '/api/examples' : '/api/rerun', dataset === 'upload' ? { confirm: true, smiles: upload?.smilesValues ?? [] } : dataset === 'readme' ? { confirm: true, set: 'readme' } : { confirm: true, reactionType: scopedType })}>{t('confirm')}</Button></>}><p>{t('confirmBody')}</p></Dialog> : null}
-  </AppFrame>;
+    </AppFrame>
+  </Tabs>;
 }
 
 function drawingFor(smiles?: string) {
@@ -204,8 +201,9 @@ function ExampleOutput({ t, item, structure, drawing }: { t: (key: string, value
       { id: 'published', label: t('publishedCf'), value: item.published },
       { id: 'rerun', label: t('cfRerun'), value: item.predicted ?? '—' },
     ]} />
-    <h3>{t('structure')}</h3>
+    <ContentSection id="lcms-example-structure" title={t('structure')}>
     {svg ? <div className="yield-structure" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="yield-help">{t('structureMissing')}</p>}
+    </ContentSection>
     <p className="yield-help">{t('outputLimit')}</p>
   </div>;
 }
@@ -214,15 +212,15 @@ function ReactionInput({ t, reaction, structure, drawing }: { t: (key: string, v
   if (!reaction) return <p className="yield-help">{t('noSelection')}</p>;
   const svg = drawing || (structure?.available ? structure.svg : null);
   return <div className="yield-detail">
-    <p>{reaction.name} · {t(reaction.reactionType)}</p>
     <MetadataList layout="stacked" items={[
       { id: 'product', label: t('product'), value: reaction.productSmiles, format: 'code' },
       { id: 'yield', label: t('yieldExp'), value: percent(reaction.yieldExp) },
       { id: 'cf', label: t('cfExp'), value: reaction.cfExp },
       ...(reaction.cfRerun !== null ? [{ id: 'rerun', label: t('cfRerun'), value: reaction.cfRerun }] : []),
     ]} />
-    <h3>{t('structure')}</h3>
+    <ContentSection id="lcms-reaction-structure" title={t('structure')}>
     {svg ? <div className="yield-structure" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="yield-help">{t('structureMissing')}</p>}
+    </ContentSection>
   </div>;
 }
 

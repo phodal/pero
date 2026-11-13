@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import { Disclosure, Button, Feedback } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Feedback, IconButton } from '@pero/app-sdk/ui';
 import type { PreviewSource } from './preview-source';
 import './artifact-preview.css';
 
@@ -82,9 +82,9 @@ export function PdfPreview({ source, zh, readingOnly = false, onPageText }: {
       <Button variant="ghost" disabled={!document || page >= document.numPages} onClick={() => setPage(value => value + 1)}>{zh ? '下一页' : 'Next'}</Button>
       {!readingOnly && <>
         <span className="artifact-toolbar-spacer" />
-        <Button variant="ghost" disabled={zoom <= 0.5} aria-label={zh ? '缩小' : 'Zoom out'} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</Button>
+        <IconButton disabled={zoom <= 0.5} label={zh ? '缩小' : 'Zoom out'} onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}>−</IconButton>
         <Button variant="ghost" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</Button>
-        <Button variant="ghost" disabled={zoom >= 3} aria-label={zh ? '放大' : 'Zoom in'} onClick={() => setZoom(value => Math.min(3, value + 0.25))}>+</Button>
+        <IconButton disabled={zoom >= 3} label={zh ? '放大' : 'Zoom in'} onClick={() => setZoom(value => Math.min(3, value + 0.25))}>+</IconButton>
       </>}
     </nav>}
     {error && <Feedback kind="error">{error}</Feedback>}

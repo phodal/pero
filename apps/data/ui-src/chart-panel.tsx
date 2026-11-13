@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppApiError, downloadFile, openDocument, useAppApi, useAppContext, useAppObject } from '@pero/app-sdk';
-import { Disclosure, Table, Button, Dialog, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
+import { Disclosure, Table, Button, ContentSection, Dialog, Feedback, FilePicker, InspectorHeader, ListRow, Select } from '@pero/app-sdk/ui';
 import { mountChartSurface } from '../../../packages/app-sdk/src/chart-surface';
 import type { ChartDataset, ViewSpec } from './model';
 
@@ -160,10 +160,10 @@ export function ChartPanel({ data, busy, inspectionPending, aggregationControls,
     {retained && <p className="data-retained" role="status">Showing the previous chart from {result!.document.source.label}. {pending || inspectionPending ? 'Updating; the current controls may differ.' : error ? 'The latest request failed; this chart has not been updated.' : 'Create a chart to apply the current controls.'}</p>}
     {data && !result && !pending && !error && <p className="data-muted">{mode === 'aggregate' ? 'Choose a grouping field.' : 'Choose chart fields.'}</p>}
     {result && <>
-      <div className="data-chart-result-heading"><h3>{result.document.title}</h3><div className="data-chart-actions">
+      <InspectorHeader title={result.document.title} actions={<div className="data-chart-actions">
         <Button onClick={() => downloadFile(`${result.document.id || 'chart'}.json`, result.content, 'application/json')}>Export chart JSON</Button>
         {result.document.source.catalogDatasetId && <Button onClick={() => void showSource().catch(reason => setError(String(reason)))}>Open source</Button>}
-      </div></div>
+      </div>} />
       {(result.document.chart.xLabel || result.document.chart.yLabel) && <p>{[result.document.chart.xLabel, result.document.chart.yLabel].filter(Boolean).join(' / ')}</p>}
       <ChartSurface document={result.document} />
       <div className="data-chart-notes">
@@ -186,20 +186,20 @@ export function ChartPanel({ data, busy, inspectionPending, aggregationControls,
             <dt>Source digest</dt><dd><code>{result.document.source.sha256}</code></dd>
             <dt>View</dt><dd><code>{result.document.source.viewId}</code></dd></> : null}</dl>
           {result.document.source.executedAt && <p>{result.document.source.executedAt}</p>}
-          <h3>Filter and selection</h3><pre>{JSON.stringify({ view: result.document.source.dataView ?? result.document.source.view, aggregation: result.document.source.aggregation }, null, 2)}</pre>
-          {result.document.source.sql ? <><h3>SQL</h3><pre>{result.document.source.sql}</pre></> : null}
+          <ContentSection id="data-chart-filter" title="Filter and selection"><pre>{JSON.stringify({ view: result.document.source.dataView ?? result.document.source.view, aggregation: result.document.source.aggregation }, null, 2)}</pre></ContentSection>
+          {result.document.source.sql ? <ContentSection id="data-chart-sql" title="SQL"><pre>{result.document.source.sql}</pre></ContentSection> : null}
         </div>
       </Dialog> : null}
     </>}
     <section className="data-saved">
-      <div className="data-saved-heading"><h2><Button variant="ghost" aria-expanded={savedOpen} aria-controls="data-saved-charts" onClick={() => setSavedOpen(value => !value)}>Saved charts</Button></h2>
+      <div className="data-saved-heading"><Button variant="ghost" aria-expanded={savedOpen} aria-controls="data-saved-charts" onClick={() => setSavedOpen(value => !value)}>Saved charts</Button>
         <FilePicker label="Open chart JSON" emptyLabel="Chart JSON, up to 2 MiB" accept=".json,application/json" disabled={busy || pending} busy={pending} onFile={file => void (async () => {
           try { if (file.size > 2 * 1024 * 1024) throw new Error('Chart JSON exceeds 2 MiB'); await acceptDocument(await file.text()); }
           catch (reason) { setError(String(reason)); }
         })()} /></div>
       {savedOpen && <div id="data-saved-charts">
         {savedError && <div className="data-chart-error" role="alert"><span>{savedError}</span><Button onClick={() => void listSaved()}>Retry</Button></div>}
-        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><Button variant="ghost" aria-label={`${item.title} (${item.type})`} disabled={busy || pending} onClick={() => void openSaved(item.artifactId)}><span><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</span><span>{item.type}</span></Button></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
+        {savedLoading && !saved.length ? <p className="data-muted" role="status">Loading charts…</p> : saved.length ? <ul className="data-saved-list">{saved.map(item => <li key={item.artifactId}><ListRow title={<><strong>{item.title}</strong>{item.source !== item.title && <small>{item.source}</small>}</>} trailing={<span>{item.type}</span>} onOpen={busy || pending ? undefined : () => void openSaved(item.artifactId)} /></li>)}</ul> : !savedError && <p className="data-muted">No saved charts.</p>}
       </div>}
     </section>
   </div>;

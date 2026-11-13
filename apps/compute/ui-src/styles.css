@@ -1,6 +1,7 @@
 html, body, #app { height: 100%; }
 .compute-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .compute-root .pero-app-bar { flex-wrap: wrap; }
+.compute-root .pero-app-bar .pero-ui-tabs-list { flex: none; width: auto; }
 .compute-panel { flex: 1; min-height: 0; overflow: auto; }
 .compute-panel:not([hidden]) { display: flex; flex-direction: column; }
 .compute-empty { flex: 1; align-content: center; }
@@ -37,4 +38,3 @@ html, body, #app { height: 100%; }
 .compute-report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); }
 .compute-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--pero-spacing-3); }
 .compute-report-row { min-width: 0; overflow-wrap: anywhere; }
-.compute-report-row h3 { margin-top: 0; }

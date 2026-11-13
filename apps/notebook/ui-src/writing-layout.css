@@ -2,15 +2,10 @@
 .notebook-nav { background: var(--pero-bg); }
 .notebook-nav-tools { padding: var(--pero-spacing-2) var(--pero-spacing-3); border: 0; }
 .notebook-nav-tools > .notebook-library-sort { margin-inline-start: auto; }
-.notebook-library-sort > .pero-ui-button:not([data-variant=unstyled]) {
-  min-height: var(--pero-control-height); height: auto; padding-inline: 8px; gap: 4px;
-  color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-weight: var(--pero-font-weight-medium);
-}
 .notebook-library-tools { padding: 0 var(--pero-spacing-3) var(--pero-spacing-2); }
 .notebook-list { padding: var(--pero-spacing-2); }
 .notebook-list .pero-list-row { margin-bottom: var(--pero-spacing-2); }
 .notebook-list .pero-list-title { font-weight: var(--pero-font-weight-semibold); }
-.notebook-documentbar { min-height: 0; box-sizing: border-box; padding: var(--pero-spacing-1) var(--pero-spacing-4); border: 0; }
 .notebook-breadcrumb { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); min-width: 0; }
 .notebook-breadcrumb > span { color: var(--pero-text-muted); overflow-wrap: anywhere; }
 .notebook-breadcrumb .notebook-view-tabs.pero-ui-tabs-list { margin: 0; }
@@ -51,7 +46,6 @@
 .notebook-work-area[data-stacked] { position: relative; }
 .notebook-work-area[data-stacked] > .notebook-inspector:not([hidden]) { position: absolute; z-index: 5; inset: 0 0 0 auto; width: min(100%, 360px); max-height: 100%; border-inline-start: var(--pero-hairline); box-shadow: -6px 0 24px rgb(0 0 0 / 8%); }
 @container notebook (max-width: 600px) {
-  .notebook-documentbar { padding-inline: var(--pero-spacing-3); gap: var(--pero-spacing-2); }
   .notebook-breadcrumb { flex-basis: 100%; }
   .notebook-documentbar .notebook-status { flex: 1; }
   .notebook-notes-main { padding: var(--pero-spacing-4) var(--pero-spacing-4) var(--pero-spacing-6); }

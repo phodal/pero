@@ -185,67 +185,70 @@ impl Workbench {
     }
 
     pub(crate) fn projects_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        div()
-            .id("projects")
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .overflow_y_scroll()
-            .p(px(pero_theme::WorkbenchStyle::PAGE))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(px(12.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(
-                                pero_theme::UiAppearance::global(cx)
-                                    .text(pero_theme::TextRole::Heading),
-                            )
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("nav.projects")),
-                    )
-                    .child(
-                        Button::new("all-project-tasks")
-                            .ghost()
-                            .label(self.t("project.all_tasks"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.selected_project = None;
-                                this.project_tab = ProjectTab::Tasks;
-                                this.navigate(WorkbenchPage::Tasks, cx);
-                                this.remote.connection.editing = false;
-                                this.remote.public_contributions = false;
-                                this.command(json!({"action":"remote_select","task_id":null}), cx);
-                                this.sync_follow(cx);
-                            })),
-                    )
-                    .child(
-                        Button::new("project-open-folder")
-                            .outline()
-                            .label(self.t("project.open_folder"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.command(json!({"action":"choose_workspace"}), cx)
-                            })),
-                    )
-                    .child(Button::new("project-new").primary().label(self.t("research.new"))
-                        .relative().child(self.view_bounds.projects.probe("new".into()))
-                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx)))),
+        // Chrome borrows the appearance global for its whole lifetime, so each
+        // command is styled and released before the next listener borrows `cx`.
+        let all_tasks = {
+            let chrome = pero_theme::Chrome::from_app(cx);
+            pero_theme::action_button(
+                "all-project-tasks",
+                self.t("project.all_tasks"),
+                pero_theme::ActionKind::Ghost,
+                chrome,
+                cx,
             )
-            .when(self.research.editor.is_some(), |el| el.child(self.research_editor(cx)))
-            .children(self.project_groups(cx).into_iter().filter(|(_, projects)| !projects.is_empty()).map(|(label, projects)| {
-                div()
-                    .mt(px(pero_theme::WorkbenchStyle::SECTION))
-                    .child(
-                        div().pb(px(6.)).text_color(p.text_muted)
-                            .font_weight(FontWeight::MEDIUM).child(self.t(label)),
-                    )
-                    .children(projects.into_iter().map(|project| {
-                        let caption = project.research_id()
-                            .and_then(|id| self.preferences.research_projects.iter().find(|saved| saved.id == id))
+        }
+        .on_click(cx.listener(|this, _, _, cx| {
+            this.selected_project = None;
+            this.project_tab = ProjectTab::Tasks;
+            this.navigate(WorkbenchPage::Tasks, cx);
+            this.remote.connection.editing = false;
+            this.remote.public_contributions = false;
+            this.command(json!({"action":"remote_select","task_id":null}), cx);
+            this.sync_follow(cx);
+        }));
+        let open_folder = {
+            let chrome = pero_theme::Chrome::from_app(cx);
+            pero_theme::action_button(
+                "project-open-folder",
+                self.t("project.open_folder"),
+                pero_theme::ActionKind::Ghost,
+                chrome,
+                cx,
+            )
+        }
+        .on_click(cx.listener(|this, _, _, cx| {
+            this.command(json!({"action":"choose_workspace"}), cx)
+        }));
+        let new_project = {
+            let chrome = pero_theme::Chrome::from_app(cx);
+            pero_theme::action_button(
+                "project-new",
+                self.t("research.new"),
+                pero_theme::ActionKind::Primary,
+                chrome,
+                cx,
+            )
+        }
+        .relative()
+        .child(self.view_bounds.projects.probe("new".into()))
+        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx)));
+        let sections = self
+            .project_groups(cx)
+            .into_iter()
+            .filter(|(_, projects)| !projects.is_empty())
+            .map(|(label, projects)| {
+                let count = projects.len();
+                let rows = projects
+                    .into_iter()
+                    .map(|project| {
+                        let caption = project
+                            .research_id()
+                            .and_then(|id| {
+                                self.preferences
+                                    .research_projects
+                                    .iter()
+                                    .find(|saved| saved.id == id)
+                            })
                             .map(|saved| saved.goal.clone())
                             .filter(|goal| !goal.is_empty())
                             .or(project.workspace)
@@ -258,10 +261,12 @@ impl Workbench {
                             .small()
                             .label(self.t("project.open"))
                             .accessibility_label(open_label)
-                            .relative().child(self.view_bounds.projects.probe(format!("open:{key}")))
+                            .relative()
+                            .child(self.view_bounds.projects.probe(format!("open:{key}")))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.open_project(key.clone(), window, cx)
                             }));
+                        let chrome = pero_theme::Chrome::from_app(cx);
                         pero_theme::list_row(
                             row_id,
                             project.name,
@@ -269,10 +274,107 @@ impl Workbench {
                             None,
                             false,
                             Some(action.into_any_element()),
-                            pero_theme::Chrome::from_app(cx),
+                            chrome,
                         )
-                    }))
-            }))
+                        .into_any_element()
+                    })
+                    .collect::<Vec<_>>();
+                let chrome = pero_theme::Chrome::from_app(cx);
+                div()
+                    .id(SharedString::from(format!("projects-section-{label}")))
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .child(pero_theme::library_header(
+                        SharedString::from(format!("projects-header-{label}")),
+                        self.t(label),
+                        Some(count.to_string().into()),
+                        None,
+                        chrome,
+                    ))
+                    .child(pero_theme::hairline(chrome))
+                    .children(rows)
+                    .into_any_element()
+            })
+            .collect::<Vec<_>>();
+        let editor = self
+            .research
+            .editor
+            .is_some()
+            .then(|| self.research_editor(cx));
+        let chrome = pero_theme::Chrome::from_app(cx);
+        div()
+            .id("projects")
+            .flex_1()
+            .min_w_0()
+            .min_h_0()
+            .h_full()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .bg(chrome.palette.bg)
+            .text_color(chrome.palette.text)
+            .child(
+                div()
+                    .id("projects-bar")
+                    .w_full()
+                    .flex_shrink_0()
+                    .min_h(chrome.control(pero_theme::ACTION_BUTTON_HEIGHT))
+                    .px(chrome.geo(pero_theme::SPACE_12))
+                    .py(px(2.))
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .gap(chrome.geo(pero_theme::ICON_GAP))
+                    .bg(chrome.palette.bg)
+                    .border_b(px(0.5))
+                    .border_color(chrome.palette.border)
+                    .child(
+                        div()
+                            .id("projects-scope")
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(chrome.text(pero_theme::TYPE_BODY))
+                            .font_weight(FontWeight::MEDIUM)
+                            .line_height(relative(1.25))
+                            .text_ellipsis()
+                            .child(self.t("nav.projects")),
+                    )
+                    .child(all_tasks)
+                    .child(open_folder)
+                    .child(new_project),
+            )
+            .child(
+                div()
+                    .id("projects-pane")
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .bg(chrome.list())
+                    .child(
+                        div()
+                            .id("projects-list")
+                            .flex_1()
+                            .min_h_0()
+                            .w_full()
+                            .overflow_y_scroll()
+                            .bg(chrome.list())
+                            .when_some(editor, |body, editor| {
+                                body.child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .bg(chrome.palette.bg)
+                                        .px(chrome.geo(pero_theme::SPACE_16))
+                                        .border_b(px(0.5))
+                                        .border_color(chrome.palette.border)
+                                        .child(editor),
+                                )
+                            })
+                            .children(sections),
+                    ),
+            )
     }
 
     fn project_switcher(&self, project: &Project, cx: &mut Context<Self>) -> impl IntoElement {

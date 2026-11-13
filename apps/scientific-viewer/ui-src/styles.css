@@ -12,13 +12,12 @@ button:not(.pero-ui-button):disabled, select:disabled { opacity:.5; cursor:defau
 :focus-visible { outline:2px solid var(--pero-focus,#007f86); outline-offset:2px; }
 [aria-current=true], [aria-pressed=true] { border-color:var(--pero-focus,#007f86); }
 nav, .source-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.viewer-toolbar { position:relative; padding:0 0 var(--pero-spacing-3); background:transparent; }
+.viewer-toolbar { position:relative; }
 .viewer-toolbar .pero-app-bar-tools { flex-wrap:wrap; }
 .file-select { width:240px; max-width:100%; min-width:120px; }
 .file-select .pero-select-trigger { font-weight:600; }
 .source-details summary { color:var(--pero-warning,#8a5d17); font-size:var(--pero-font-caption); line-height:24px; }
 .source-panel { position:absolute; top:100%; left:0; z-index:5; width:min(560px,100%); max-height:min(480px,70vh); overflow:auto; color:var(--pero-text,#172536); background:var(--pero-surface,#fff); border:1px solid var(--pero-border,#dce4ed); border-radius:6px; box-shadow:0 6px 20px #0000000d; padding:16px; }
-.source-panel h2 { font-size:var(--pero-font-body); }
 .source-panel dl { font-size:var(--pero-font-caption); }
 .removal-confirmation { margin-top:12px; padding-top:12px; border-top:.5px solid var(--pero-border,#dce4ed); }
 dl { display:grid; grid-template-columns:72px minmax(0,1fr); gap:6px 12px; margin:0 0 12px; }
@@ -40,9 +39,7 @@ table { border-collapse:collapse; width:100%; }
 th,td { text-align:left; padding:4px 8px; border-bottom:.5px solid var(--pero-border,#dce4ed); }
 pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:400px; overflow:auto; }
 svg,img,canvas { max-width:100%; }
-.preview-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:24px 0; }
-.preview-empty h2, .preview-empty p { margin:0; }
-.metadata-preview pre { padding:12px; background:var(--pero-bg,#f7f9fc); border-radius:4px; }
+.metadata-preview { padding:12px; background:var(--pero-bg,#f7f9fc); border-radius:4px; }
 .molecule-view { position:relative; height:calc(100vh - 130px); min-height:320px; }
-@media(max-width:700px) { .viewer-toolbar { gap:8px; } .viewer-actions { width:100%; margin-left:0; } .file-select { width:auto; max-width:100%; } .viewer-actions .example-select { min-width:0; flex:1; max-width:none; } }
+@media(max-width:700px) { .viewer-actions { width:100%; margin-left:0; } .file-select { width:auto; max-width:100%; } .viewer-actions .example-select { min-width:0; flex:1; max-width:none; } }
 @media(prefers-reduced-motion:reduce) { .scientific-viewer *, .scientific-viewer *::before, .scientific-viewer *::after { scroll-behavior:auto; animation:none; transition:none; } }

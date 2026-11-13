@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useStat
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAppContext } from '@pero/app-sdk';
-import { Button, CodeViewer, Feedback, type CodeViewerProps } from '@pero/app-sdk/ui';
+import { Button, CodeViewer, Feedback, IconButton, type CodeViewerProps } from '@pero/app-sdk/ui';
 import { previewKind, sourceText, type PreviewKind, type PreviewSource } from './preview-source';
 import type { Asset, MeshProvenance } from './files';
 import { TablePreview } from './table-preview';
@@ -31,9 +31,9 @@ function ImagePreview({ source, zh, download }: { source: PreviewSource; zh: boo
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   return <section className="artifact-image">
     <nav className="artifact-image-toolbar" aria-label={zh ? '图片缩放' : 'Image zoom'}>
-      <Button variant="ghost" disabled={zoom <= 0.25} onClick={() => setZoom(value => Math.max(0.25, value - 0.25))} aria-label={zh ? '缩小' : 'Zoom out'}>−</Button>
+      <IconButton disabled={zoom <= 0.25} onClick={() => setZoom(value => Math.max(0.25, value - 0.25))} label={zh ? '缩小' : 'Zoom out'}>−</IconButton>
       <Button variant="ghost" onClick={() => setZoom(1)}>{zoom === 1 ? (zh ? '适应窗口' : 'Fit to pane') : `${Math.round(zoom * 100)}%`}</Button>
-      <Button variant="ghost" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.25))} aria-label={zh ? '放大' : 'Zoom in'}>+</Button>
+      <IconButton disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.25))} label={zh ? '放大' : 'Zoom in'}>+</IconButton>
       <span className="artifact-toolbar-spacer" />
       <Button variant="ghost" onClick={download}>{zh ? '下载' : 'Download'}</Button>
     </nav>

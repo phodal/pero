@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Disclosure, Button, Feedback, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Button, Feedback, Icon, LibraryHeader } from '@pero/app-sdk/ui';
 import type { Api, PdfFocus } from './types';
 import { ResourceDetails } from './research-import';
 import { ResearchSources } from './research-sources';
@@ -30,7 +30,7 @@ export function ResearchBundleList({ bundles, onOpen }: { bundles: ResearchBundl
   return <section className="pa-research-bundles" aria-label={t('bundles')}><h2>{t('bundles')}</h2><ul>{bundles.map(bundle => <li key={bundle.id}><Button variant="ghost" onClick={() => onOpen(bundle.id)}>{bundle.title}</Button><small>{t('references', { count: bundle.resources.length })}</small></li>)}</ul></section>;
 }
 
-export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, startSourceIds, onRead, onBack }: { api: Api; id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean>; onBack(): void }) {
+export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, startSourceIds, onRead }: { api: Api; id: string; startDownloadIds: string[]; startPdfIds: string[]; startSourceIds: string[]; onRead(id: string, focus?: PdfFocus): void | boolean | Promise<void | boolean> }) {
   const { t } = useAppI18n(labels);
   const [bundle, setBundle] = useState<ResearchBundle | null>(null), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const sourceBatch = `${id}:${startSourceIds.join(',')}`;
@@ -46,9 +46,7 @@ export function ResearchBundleView({ api, id, startDownloadIds, startPdfIds, sta
     !(resource.kind === 'source_archive' && bundle.sourceDownloadIds?.includes(resource.id)) &&
     !(resource.kind === 'pdf_candidate' && bundle.pdfDownloadIds?.includes(resource.id))) ?? [];
   return <div className="pa-library-content pa-research-bundle">
-    <header className="pa-bundle-header"><Button variant="ghost" aria-label={t('back')} onClick={onBack}><Icon name="chevron-left"/></Button><h1>{bundle?.title ?? t('bundles')}</h1>
-      {bundle && <a href={bundle.seedUrl} target="_blank" rel="noreferrer">{t('original')}<Icon name="external-link" size={12}/></a>}
-    </header>
+    <header className="pa-bundle-header"><LibraryHeader density="compact" title={bundle?.title ?? t('bundles')} actions={bundle && <a href={bundle.seedUrl} target="_blank" rel="noreferrer">{t('original')}<Icon name="external-link" size={12}/></a>} /></header>
     {error ? <Feedback kind="error">{error}<Button onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button></Feedback> : !bundle && <p role="status">{t('loading')}</p>}
     {bundle && <>
       {!bundle.resources.length && <p>{t('empty')}</p>}

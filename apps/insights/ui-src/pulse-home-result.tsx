@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { openAppSession, useAppChat, useAppObject } from '@pero/app-sdk';
-import { Disclosure, Badge, Button, Card, CardHeader, EmptyIllustration, EmptyState, Icon } from '@pero/app-sdk/ui';
+import { Disclosure, Badge, Button, Card, CardHeader, ContentPane, ContentSection, EmptyIllustration, EmptyState, InspectorHeader, ListRow, Split, SplitPane, contentLayout } from '@pero/app-sdk/ui';
 import { cardKind, projectBrief } from './work-recap-model.mjs';
 import { InsightsError } from './feedback';
 import { RichText } from './rich-text';
@@ -101,17 +101,24 @@ function Post({ card, t, locale }: { card: ResultCard; t: typeof copy.zh; locale
   </article>;
 }
 
-export function PulseHomeResult({ brief, createdAt, running, locale, notice, onDiscuss }: {
-  brief: ResultBrief; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; notice?: ReactNode;
+function RegisterBrief({ brief, title }: { brief: ResultBrief; title: string }) {
+  useAppObject({ id: 'insights-brief', kind: 'work-brief', label: title, state: brief });
+  return null;
+}
+
+export function PulseHomeResult({ brief, createdAt, running, locale, notice, onDiscuss, header, supplement, fallback }: {
+  brief: ResultBrief | null; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; notice?: ReactNode;
   onDiscuss?: (action: { discuss: (question: string) => void; discussing: boolean; label: string } | null) => void;
+  header?: ReactNode; supplement?: ReactNode; fallback?: ReactNode;
 }) {
   const t = copy[locale], chat = useAppChat(), id = useId();
-  useAppObject({ id: 'insights-brief', kind: 'work-brief', label: locale === 'zh' ? '工作简报' : 'Work brief', state: brief });
+  const briefTitle = locale === 'zh' ? '工作简报' : 'Work brief';
   const [discussing, setDiscussing] = useState(false), [discussionError, setDiscussionError] = useState('');
   const [originalOpen, setOriginalOpen] = useState(false);
-  const edition = projectBrief(brief);
+  const edition = projectBrief(brief ?? { cards: [] });
   const stamp = when(createdAt, locale);
-  const summary = brief.summary?.trim() ?? '';
+  const summary = brief?.summary?.trim() ?? '';
+  const populated = !!brief && (!!brief.cards.length || !!brief.tomorrow || !!summary);
   const discuss = (question: string) => {
     if (discussing) return;
     setDiscussing(true); setDiscussionError('');
@@ -121,51 +128,72 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice, onD
   };
   const onDiscussRef = useRef(onDiscuss);
   onDiscussRef.current = onDiscuss;
-  useEffect(() => { onDiscussRef.current?.({ discuss, discussing, label: t.discuss }); }, [discussing, t.discuss]);
+  useEffect(() => {
+    if (!brief) { onDiscussRef.current?.(null); return; }
+    onDiscussRef.current?.({ discuss, discussing, label: t.discuss });
+  }, [brief, discussing, t.discuss]);
   useEffect(() => () => onDiscussRef.current?.(null), []);
-  if (!brief.cards.length && !brief.tomorrow && !summary) return <section className="point-insights-empty-result" aria-label={t.title}>
-    {notice}
-    <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
-    {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
-    {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
-  </section>;
-  return <section aria-label={t.title}>
-    {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
-    <div className="point-brief-layout">
-      <div className="point-brief-primary">
-        <section className="point-brief-summary" aria-labelledby={`${id}-summary`}>
-          <div className="point-brief-summary-head"><h2 id={`${id}-summary`}><Icon name="ai-sparkles" size={16}/>{t.summary}</h2>
-            {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
+  const reading = !brief ? fallback : !populated
+    ? <section className="point-insights-empty-result" aria-label={t.title}>
+      {notice}
+      <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
+      {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
+      {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
+    </section>
+    : <>
+        {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
+        <div className="point-brief-layout">
+          <div className="point-brief-primary">
+            <section className="point-brief-summary">
+              <ContentSection id={`${id}-summary`} title={t.summary} actions={createdAt ? <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p> : undefined}>
+              {summary ? <><div className="point-brief-summary-text"><RichText text={summary} /></div><p className="point-brief-summary-note">{t.summaryNote}</p></>
+                : <p className="point-brief-legacy-note">{t.legacy}</p>}
+              </ContentSection>
+            </section>
+            {!!edition.needCards.length && <Card asChild tone="apricot" variant="soft" className="point-brief-attention"><aside aria-label={t.attention}>
+              <ContentSection id={`${id}-attention`} title={t.attention}>
+              {edition.needCards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}
+              </ContentSection>
+            </aside></Card>}
+            {!!edition.cards.length && <section className="point-brief-findings">
+              <ContentSection id={`${id}-findings`} title={t.findings}>
+              <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
+                <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
+                  <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
+                </CardHeader>
+                <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
+              </section></Card>)}</div>
+              </ContentSection>
+            </section>}
           </div>
-          {summary ? <><div className="point-brief-summary-text"><RichText text={summary} /></div><p className="point-brief-summary-note">{t.summaryNote}</p></>
-            : <p className="point-brief-legacy-note">{t.legacy}</p>}
-        </section>
-        {!!edition.needCards.length && <Card asChild tone="apricot" variant="soft" className="point-brief-attention"><aside aria-labelledby={`${id}-attention`}>
-          <h2 id={`${id}-attention`} className="point-brief-section-title">{t.attention}</h2>
-          {edition.needCards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}
-        </aside></Card>}
-        {!!edition.cards.length && <section className="point-brief-findings" aria-labelledby={`${id}-findings`}>
-          <h2 id={`${id}-findings`} className="point-brief-section-title">{t.findings}</h2>
-          <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
-            <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
-              <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
-            </CardHeader>
-            <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
-          </section></Card>)}</div>
-        </section>}
-      </div>
-      <div className="point-brief-rail">
-        {notice}
-        <section className="point-brief-discussion" aria-labelledby={`${id}-discussion`}>
-          <div className="point-brief-discussion-head"><div><h2 id={`${id}-discussion`}>{t.discussion}</h2><p>{t.discussHint}</p></div></div>
-          <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <Button key={question} variant="ghost" disabled={discussing} onClick={() => discuss(question)}>{question}</Button>)}</div>
-          {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
-          {brief.tomorrow && <section className="point-pulse-ahead"><h3>{t.ahead}</h3><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section>}
-          <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
-            {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
-          </Disclosure>
-        </section>
-      </div>
-    </div>
-  </section>;
+        </div>
+      </>;
+  return <>
+    {brief ? <RegisterBrief brief={brief} title={briefTitle} /> : null}
+    <Split key="insights-brief-shell" className="point-insights-split" storageKey="pero.insights.brief-inspector" collapseBelow={contentLayout.collapseBelow}>
+    <SplitPane id="insights-brief-read" min={contentLayout.mainMin} as="section">
+      <ContentPane id="insights-brief" label={briefTitle} as="div" surface="workspace" inset="compact" scroll="pane" header={header}>
+        {reading}
+        {supplement}
+      </ContentPane>
+    </SplitPane>
+    <SplitPane hidden={!populated} id="insights-brief-inspector" as="aside" aria-label={t.discussion} size={contentLayout.inspectorWidth} min={contentLayout.inspectorMin} resizeLabel={locale === 'zh' ? '调整讨论栏宽度' : 'Resize discussion'}>
+      <ContentPane id="insights-brief-context" label={t.discussion} as="div" surface="reading" inset="compact" scroll="pane"
+        header={<InspectorHeader identity={briefTitle} title={t.discussion} />}>
+        <div className="point-brief-inspector">
+          {notice}
+          <section className="point-brief-discussion" aria-label={t.discussion}>
+            <p>{t.discussHint}</p>
+            <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <ListRow key={question} title={question} onOpen={discussing ? undefined : () => discuss(question)} />)}</div>
+            {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
+            {brief?.tomorrow && <div className="point-pulse-ahead"><ContentSection id={`${id}-ahead`} title={t.ahead}><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></ContentSection></div>}
+            <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
+              {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
+            </Disclosure>
+          </section>
+        </div>
+      </ContentPane>
+    </SplitPane>
+    </Split>
+  </>;
 }

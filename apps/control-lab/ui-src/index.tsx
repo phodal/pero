@@ -7,6 +7,7 @@ import {
   useAppAgent,
   useAppApi,
   useAppChat,
+  useAppContext,
   useAppDataChanged,
   useAppObject,
 } from "@pero/app-sdk";
@@ -33,7 +34,10 @@ const generatedDraftSchema = {
 export default function ControlLab() {
   const api = useAppApi(),
     chat = useAppChat(),
-    agent = useAppAgent();
+    agent = useAppAgent(),
+    { locale } = useAppContext();
+  const zh = locale === 'zh-CN';
+  const text = (en: string, zhText: string) => zh ? zhText : en;
   const [templates, setTemplates] = useState<Template[]>([]),
     [capabilities, setCapabilities] = useState<Capability[]>([]);
   const [history, setHistory] = useState<Summary[]>([]),
@@ -345,7 +349,7 @@ export default function ControlLab() {
     const id = generationSession.current;
     generationSession.current = "";
     setGenerating(false);
-    setDraftError("Generation cancelled.");
+    setDraftError(text("Generation cancelled.", "已取消生成。"));
     if (id && id !== "pending") void agent.cancel({ sessionId: id }).catch(() => {});
   }
   async function generateParameters() {
@@ -361,7 +365,7 @@ export default function ControlLab() {
       const info = await agent.refresh();
       if (token !== generationToken.current) return;
       const agentId = info.agents.find((item) => item.available)?.id;
-      if (!info.available || !agentId) throw new Error("No model is available.");
+      if (!info.available || !agentId) throw new Error(text("No model is available.", "没有可用模型。"));
       const started = await agent.start({
         requestId: crypto.randomUUID(),
         prompt,
@@ -386,10 +390,10 @@ export default function ControlLab() {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
       if (token !== generationToken.current) return;
-      if (status === "cancelled") throw new Error("Generation cancelled.");
-      if (status === "needs_input") throw new Error("No model is available.");
+      if (status === "cancelled") throw new Error(text("Generation cancelled.", "已取消生成。"));
+      if (status === "needs_input") throw new Error(text("No model is available.", "没有可用模型。"));
       if (draftApplied.current) return;
-      if (status !== "completed") throw new Error(draftFailure.current || "The host did not return a validated draft.");
+      if (status !== "completed") throw new Error(draftFailure.current || text("The host did not return a validated draft.", "宿主没有返回已校验的草稿。"));
       const next = applyTranscriptDraft(
         { parameters, criteria, budget },
         template,
@@ -461,7 +465,7 @@ export default function ControlLab() {
       setSelectedId(existing.id);
       setDraft(null);
       setError("");
-      setNotice("Matching candidate selected");
+      setNotice(text("Matching candidate selected", "已选中匹配的候选"));
       return;
     }
     setError("");
@@ -582,29 +586,29 @@ export default function ControlLab() {
     if (!experiment && specForm.current && !specForm.current.reportValidity()) return;
     void runDraft().catch(onError);
   };
-  const runButton = <Button variant={canRun ? "primary" : "ghost"} disabled={!canRun} aria-describedby="run-specification-effect" onClick={runSpecification}>Run experiment</Button>;
-  const newButton = <Button variant={canRun ? "ghost" : "primary"} disabled={busy || generating} onClick={newExperiment}>New experiment</Button>;
+  const runButton = <Button variant={canRun ? "primary" : "ghost"} disabled={!canRun} aria-describedby="run-specification-effect" onClick={runSpecification}>{text('Run experiment', '运行实验')}</Button>;
+  const newButton = <Button variant={canRun ? "ghost" : "primary"} disabled={busy || generating} onClick={newExperiment}>{text('New experiment', '新建实验')}</Button>;
   return (
     <div className="control-lab" {...appObjectProps("control-lab")}>
       {!experiment && <h1 className="pero-visually-hidden">Control Lab</h1>}
       <AppBar title={experiment?.title} scope={<>
-        {!experiment && <Select label="Template" value={templateId} disabled={loading || busy || generating}
+        {!experiment && <Select label={text('Template', '模板')} value={templateId} disabled={loading || busy || generating}
           options={templates.map(item => ({ value: item.id, label: item.title }))}
           onChange={value => { const item = templates.find(item => item.id === value); if (item) chooseTemplate(item); }}/>}
-        {!!history.length && <Select label="Open experiment" triggerLabel="Open experiment" value={targetId.current ?? ''} disabled={busy || generating}
-          options={[{ value: '', label: 'New draft' }, ...history.map(item => ({ value: item.id, label: item.title,
+        {!!history.length && <Select label={text('Open experiment', '打开实验')} triggerLabel={text('Open experiment', '打开实验')} value={targetId.current ?? ''} disabled={busy || generating}
+          options={[{ value: '', label: text('New draft', '新草稿') }, ...history.map(item => ({ value: item.id, label: item.title,
             hint: `${new Date(item.createdAt).toLocaleString()} · ${item.report?.verdict ?? item.status}` }))]}
           showHint onChange={value => value ? void open(value) : newExperiment()}/>}
       </>} utilities={capability?.available ? <span title={`${capability.engine} ${capability.version ?? 'available'}`}><EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']} /></span> : undefined}
       commands={<>
-        {experiment && <Button variant="ghost" disabled={busy} onClick={() => void exportEvidence(experiment.id).catch(onError)}>Export</Button>}
+        {experiment && <Button variant="ghost" disabled={busy} onClick={() => void exportEvidence(experiment.id).catch(onError)}>{text('Export', '导出')}</Button>}
         {experiment && <Button variant="ghost" disabled={busy} onClick={() =>
           void chat.compose(
             `Review Control Lab experiment ${experiment!.id}. Inspect the frozen specification and full verification denominator. Do not change the policy or claim engineering PASS from process success. Propose bounded candidates only.`,
             { attachments: [chat.objectReference("control-lab")], approveGoal: true },
-          ).catch(onError)}>Approve goal and discuss</Button>}
-        {experiment && <Button variant="ghost" disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>Duplicate settings</Button>}
-        {!experiment && preview && template && <Button variant="ghost" disabled={loading || busy || generating} onClick={() => freezeSpecification(specForm.current)}>Freeze specification</Button>}
+          ).catch(onError)}>{text('Approve goal and discuss', '确认目标并讨论')}</Button>}
+        {experiment && <Button variant="ghost" disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>{text('Duplicate settings', '复制设置')}</Button>}
+        {!experiment && preview && template && <Button variant="ghost" disabled={loading || busy || generating} onClick={() => freezeSpecification(specForm.current)}>{text('Freeze specification', '冻结规格')}</Button>}
         {canRun ? newButton : runButton}
       </>} primary={canRun ? runButton : newButton}/>
       {notice && <Feedback kind="info" variant="block">{notice}</Feedback>}
@@ -617,20 +621,20 @@ export default function ControlLab() {
               targetId.current ? void open(targetId.current) : void initialize()
             }
           >
-            Retry loading
+            {text('Retry loading', '重新加载')}
           </Button>
         </Feedback>
       )}
       <div className="layout">
         <main aria-busy={loading || busy || generating}>
           {capability && !capability.available && <div className="environment-notice">
-            <Feedback kind="warning" variant="block">{capability.engine} is unavailable. {capability.error}</Feedback>
+            <Feedback kind="warning" variant="block">{text(`${capability.engine} is unavailable.`, `${capability.engine} 不可用。`)} {capability.error}</Feedback>
             <EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']}/>
           </div>}
-          {loading && <Feedback>Loading templates and history…</Feedback>}
-          {busy && targetId.current && !experiment && <Feedback>Loading this experiment…</Feedback>}
-          {refreshing && <Feedback>Updating this experiment…</Feedback>}
-          {refreshError && <Feedback kind="warning" variant="block">Could not refresh this experiment. Showing the last loaded evidence. {refreshError}<Button onClick={() => experiment && void open(experiment.id)}>Retry refresh</Button></Feedback>}
+          {loading && <Feedback>{text('Loading templates and history…', '正在加载模板和历史…')}</Feedback>}
+          {busy && targetId.current && !experiment && <Feedback>{text('Loading this experiment…', '正在加载这个实验…')}</Feedback>}
+          {refreshing && <Feedback>{text('Updating this experiment…', '正在更新这个实验…')}</Feedback>}
+          {refreshError && <Feedback kind="warning" variant="block">{text('Could not refresh this experiment. Showing the last loaded evidence.', '无法刷新这个实验。仍显示上次加载的证据。')} {refreshError}<Button onClick={() => experiment && void open(experiment.id)}>{text('Retry refresh', '重试刷新')}</Button></Feedback>}
           {!experiment ? (preview && template && <Results
             experiment={preview} selectedId="baseline" template={template} draft={parameters}
             disabled={loading || busy || generating} onDraft={values => setParameters(prior => ({ ...prior, ...values }))} onSelect={() => {}}
@@ -641,22 +645,22 @@ export default function ControlLab() {
               onBudget={setBudget} onGenerate={() => void generateParameters()} onCancel={cancelGeneration} onFreeze={freezeSpecification}/>} />
           ) : (
             <>
-              {(running || !candidateLocked || experiment.status === "cancelled") && <section className="experiment-heading" aria-label="Experiment execution">
+              {(running || !candidateLocked || experiment.status === "cancelled") && <section className="experiment-heading" aria-label={text('Experiment execution', '实验执行')}>
                 {running ? <>
                   <div className="trial-progress">
                     <span role="status">
-                      {cancelRequested ? "Cancelling" : experiment.operation === "verify"
-                        ? "Verifying" : experiment.operation === "evaluate"
-                          ? "Evaluating proposal" : "Searching"} · {experiment.progress.completed} / {experiment.progress.total} trials
+                      {cancelRequested ? text('Cancelling', '正在取消') : experiment.operation === "verify"
+                        ? text('Verifying', '正在核验') : experiment.operation === "evaluate"
+                          ? text('Evaluating proposal', '正在评估方案') : text('Searching', '正在搜索')} · {experiment.progress.completed} / {experiment.progress.total} {text('trials', '次试次')}
                     </span>
-                    <Progress label="Completed trials" value={experiment.progress.completed} max={Math.max(1, experiment.progress.total)} />
+                    <Progress label={text('Completed trials', '已完成试次')} value={experiment.progress.completed} max={Math.max(1, experiment.progress.total)} />
                   </div>
                   <Button disabled={busy || cancelRequested} onClick={() => void act("cancel").catch(onError)}>
-                    {experiment.operation === "verify" ? "Cancel verification" : experiment.operation === "evaluate" ? "Cancel evaluation" : "Cancel search"}
+                    {experiment.operation === "verify" ? text('Cancel verification', '取消核验') : experiment.operation === "evaluate" ? text('Cancel evaluation', '取消评估') : text('Cancel search', '取消搜索')}
                   </Button>
                 </> : <div className="toolbar">
-                  {experiment.status === "cancelled" && <span role="status">Run cancelled</span>}
-                  {!candidateLocked && <Button variant="ghost" disabled={busy} onClick={() => void act("search", { budget: experiment.candidateBudget }).catch(onError)}>Run bounded search</Button>}
+                  {experiment.status === "cancelled" && <span role="status">{text('Run cancelled', '运行已取消')}</span>}
+                  {!candidateLocked && <Button variant="ghost" disabled={busy} onClick={() => void act("search", { budget: experiment.candidateBudget }).catch(onError)}>{text('Run bounded search', '运行有界搜索')}</Button>}
                 </div>}
               </section>}
               {experiment.error && <Feedback kind="error" variant="block">{experiment.error}</Feedback>}
@@ -673,17 +677,17 @@ export default function ControlLab() {
                   <div className="toolbar">
                     {candidateLocked ? <>
                       <Button variant="primary" disabled={busy} onClick={() => void act("verify").catch(onError)}>
-                        {experiment.report ? "Verify again" : "Verify locked candidate"}
+                        {experiment.report ? text('Verify again', '再次核验') : text('Verify locked candidate', '核验已锁定候选')}
                       </Button>
                       {experiment.report && <Button disabled={busy} onClick={() => void act("reevaluate").catch(onError)}>
-                        Re-evaluate evidence
+                        {text('Re-evaluate evidence', '重新评估证据')}
                       </Button>}
                     </> : <Button variant="primary" aria-describedby="lock-candidate-effect" disabled={busy}
                       onClick={() => void act("lock", { candidateId: selectedId }).catch(onError)}>
-                      Lock candidate
+                      {text('Lock candidate', '锁定候选')}
                     </Button>}
                   </div>
-                  {!candidateLocked && <p className="muted" id="lock-candidate-effect">Locking a candidate is permanent.</p>}
+                  {!candidateLocked && <p className="muted" id="lock-candidate-effect">{text('Locking a candidate is permanent.', '锁定候选后不能撤销。')}</p>}
                 </div>}
               />
               <Evidence key={`evidence-${experiment.id}-${linkedTrial?.request ?? 0}`} experiment={experiment} linkedTrialId={linkedTrial?.id} />

@@ -80,6 +80,7 @@ function Notebook() {
   const [error, setError] = useState('');
   const [replacementNotice, setReplacementNotice] = useState('');
   const [retry, setRetry] = useState(0);
+  const [barHost, setBarHost] = useState<HTMLDivElement | null>(null);
   const catalogRequest = useRef(0);
 
   const latestDrafts = useRef(drafts);
@@ -404,6 +405,7 @@ function Notebook() {
   </>;
   const createNotebook = (variant: 'primary' | 'ghost') => <Button aria-label={t('newNotebook')} variant={variant} disabled={!!busy} onClick={() => void create()}><Icon name="plus" />{t('newNotebook')}</Button>;
   return <AppFrame label={t('notebook')} className="notebook-app" utilities={entries?.length === 0 ? barUtilities : undefined} primary={entries?.length === 0 ? createNotebook('primary') : undefined}>
+    <div ref={setBarHost} className="notebook-app-bar" />
     <div hidden ref={libraryImport}>{importAction}</div>
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && !removing && <Feedback kind="error" variant="block">{error}</Feedback>}
@@ -413,8 +415,7 @@ function Notebook() {
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <ContentPane id="notebook-catalog" label={t('notebooks')} as="div" surface="list" inset="none" scroll="pane"
-            header={<div className="notebook-nav-tools">
-            <LibraryHeader density="compact" title={t('notebooks')} subtitle={String(entries.length)} />
+            header={<LibraryHeader density="compact" title={t('notebooks')} subtitle={String(entries.length)} actions={<>
             <IconButton label={t('searchNotebooks')} aria-expanded={librarySearchVisible} aria-controls="notebook-library-search"
               aria-pressed={librarySearchVisible} onClick={() => {
                 if (librarySearchVisible && !entryQuery.trim()) setLibrarySearchOpen(false);
@@ -429,8 +430,8 @@ function Notebook() {
               </DropdownMenuRadioGroup></DropdownMenuContent>
             </DropdownMenu></div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
-              title={t('collapseNotebooks')}               onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
-          </div>}
+              title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
+          </>} />}
             toolbar={librarySearchVisible && <div className="notebook-library-tools" id="notebook-library-search">
             <SearchField ref={librarySearch} aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery}
               onChange={event => setEntryQuery(event.target.value)}
@@ -515,7 +516,7 @@ function Notebook() {
                   saveDisabled: !current.dirty || current.newer || current.recoveryProtected || !!busy,
                   onHistory: snapshot ? undefined : () => void showHistory(),
                   snapshot: !!snapshot,
-                  barUtilities, createCommand: createNotebook('ghost'),
+                  barUtilities, createCommand: createNotebook('ghost'), barHost,
                   onBack: () => setSnapshot(null),
                   onRestore: () => {
                     if (!snapshot) return;
@@ -562,14 +563,19 @@ function Notebook() {
   </AppFrame>;
 }
 
+function NotebookLoadError({ message }: { message: string }) {
+  const { locale } = useAppContext();
+  const zh = locale === 'zh-CN';
+  return <AppFrame label="Notebook"><Feedback kind="error" variant="block">{zh ? 'Notebook 无法加载。' : 'Notebook could not load.'}
+    <Button onClick={() => location.reload()}>{zh ? '重新加载' : 'Reload'}</Button>
+    <Disclosure variant="inline" summary={zh ? '详情' : 'Details'}><pre>{message}</pre></Disclosure>
+  </Feedback></AppFrame>;
+}
 class NotebookErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string }> {
   state = { error: '' };
   static getDerivedStateFromError(error: Error) { return { error: error.message }; }
   render() {
-    return this.state.error ? <AppFrame label="Notebook"><Feedback kind="error" variant="block">Notebook could not load.
-      <Button onClick={() => location.reload()}>Reload</Button>
-      <Disclosure variant="inline" summary="Details"><pre>{this.state.error}</pre></Disclosure>
-    </Feedback></AppFrame> : this.props.children;
+    return this.state.error ? <NotebookLoadError message={this.state.error} /> : this.props.children;
   }
 }
 

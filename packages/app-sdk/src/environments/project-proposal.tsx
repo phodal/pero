@@ -5,6 +5,7 @@ import { Disclosure } from '../components/disclosure';
 import { Field } from '../components/field';
 import { Input } from '../components/input';
 import { Feedback } from '../components/feedback';
+import { ContentSection } from '../../../pero-design/src/content';
 
 export function ProjectProposal({locale, fetchFn}: {locale:string;fetchFn:typeof fetch}) {
   const zh=locale.startsWith('zh');
@@ -28,12 +29,13 @@ export function ProjectProposal({locale, fetchFn}: {locale:string;fetchFn:typeof
     </form>
     {error&&<Feedback kind="error" variant="block">{error}{proposal&&(zh?' 保留上次成功的提案。':' Showing the previous successful proposal.')}</Feedback>}
     {proposal&&<section aria-label={zh?'待审核环境提案':'Environment proposal for review'}>
-      <h3>{zh?'待审核':'Review required'}</h3><p>{proposal.source}</p>
+      <ContentSection id="env-proposal" title={zh?'待审核':'Review required'}><p>{proposal.source}</p>
       <dl className="env-observation"><dt>{zh?'Python 声明':'Python declarations'}</dt><dd>{proposal.python_requests.join(' · ')||'—'}</dd>
         <dt>{zh?'直接依赖':'Declared dependencies'}</dt><dd>{proposal.dependencies.map(value=><div key={value}>{value}</div>)}</dd>
         <dt>{zh?'锁定包记录数':'Locked package records'}</dt><dd>{proposal.locked_packages}</dd></dl>
       <ul>{proposal.warnings.map(value=><li key={value}>{value}</li>)}</ul>
       <Disclosure summary={zh?'声明文件与提案摘要':'Declaration and proposal digests'}><dl className="env-observation">{proposal.declarations.map(value=><React.Fragment key={value.name}><dt>{value.name}</dt><dd>{value.sha256}</dd></React.Fragment>)}<dt>SHA-256</dt><dd>{proposal.digest}</dd></dl></Disclosure>
+      </ContentSection>
     </section>}
   </Disclosure>;
 }

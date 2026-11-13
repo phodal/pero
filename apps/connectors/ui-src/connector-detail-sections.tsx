@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Checkbox, Dialog, Field, InfoTip, Input, Select } from './ui';
+import { Button, Checkbox, ContentSection, Dialog, Field, InfoTip, Input, Select } from './ui';
 import type { ConnectionView, ScopeGroup } from './connector-types.ts';
 import {
   BLOCK_REASON_LABELS, BLOCK_REASON_LABELS_EN, EFFECT_LABELS, EFFECT_LABELS_EN, toolSummary,
@@ -8,12 +8,14 @@ import {
 type Locale = 'zh' | 'en';
 const pick = (locale: Locale) => (zh: string, en: string) => locale === 'zh' ? zh : en;
 
-/** Flat titled block; `aside` sits on the heading row (counts, tabs, help). */
+/** Flat titled block; `aside` sits on the shared section heading (counts, tabs, help). */
 export function ConnectorSection({ title, aside, children, className }: { title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return <section className={['point-connector-section', className].filter(Boolean).join(' ')}>
-    <header className="point-connector-section-head"><h3>{title}</h3>{aside}</header>
-    {children}
-  </section>;
+  const id = `connector-${typeof title === 'string' ? title.replace(/\s+/g, '-').toLowerCase() : 'section'}`;
+  return <div className={['point-connector-section', className].filter(Boolean).join(' ')}>
+    {typeof title === 'string'
+      ? <ContentSection id={id} title={title} actions={aside}>{children}</ContentSection>
+      : <section><header className="point-connector-section-head"><h3>{title}</h3>{aside}</header>{children}</section>}
+  </div>;
 }
 
 /** Label beside control on wide dialogs, stacked when narrow. */

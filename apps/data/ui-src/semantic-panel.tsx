@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { downloadFile, useAppApi } from '@pero/app-sdk';
-import { Button, Checkbox, Disclosure, Feedback, Input, Select, Table, Textarea } from '@pero/app-sdk/ui';
+import { Button, Checkbox, ContentSection, Disclosure, Feedback, Input, Select, Table, Textarea } from '@pero/app-sdk/ui';
 
 type QuerySummary = { id: string; question: string; startedAt: string; snapshotId: string; definitionId: string };
 type Receipt = { status: string; reason: string; rows: Record<string, unknown>[]; rowCount: number | null; truncated: boolean };
@@ -68,11 +68,11 @@ export function SemanticPanel({ datasetId, assetId, fields }: { datasetId: strin
       <p className="data-note">Independent checks use the original export and compare the single result column “value”, with absolute tolerance 0.000001. This checks arithmetic, not the scientific interpretation.</p>
       <label>Reviewer<Input value={reviewer} onChange={e => { setReviewer(e.target.value); setReviewed(false); }} /></label>
       <label className="data-checkbox"><Checkbox checked={reviewed} onCheckedChange={value => setReviewed(value === true)} />I reviewed SQL, units, denominator, joins and missing values.</label>
-      <div className="data-actions"><Button variant="primary" disabled={busy || !reviewed || !reviewer.trim() || !fields.length} onClick={() => void act(execute)}>Save definition and run</Button>
+      <div className="data-actions"><Button disabled={busy || !reviewed || !reviewer.trim() || !fields.length} onClick={() => void act(execute)}>Save definition and run</Button>
         {busy && <span role="status">Processing query evidence…</span>}</div>
     </div>}
     {evidence && <section aria-label="Saved query result">
-      <h3>{evidence.intent.question}</h3>
+      <ContentSection id="data-query-result" title={evidence.intent.question}>
       <p>{evidence.receipt.status} · {evidence.receipt.rowCount ?? 'Unknown'} rows · Needs scientific review</p>
       {!current && <p>This saved result belongs to another fixed data version: {evidence.snapshot.sources.map(s => s.manifest.name).join(', ')}.</p>}
       {evidence.receipt.reason && <Feedback kind="error">{evidence.receipt.reason}</Feedback>}
@@ -88,11 +88,13 @@ export function SemanticPanel({ datasetId, assetId, fields }: { datasetId: strin
       {!evidence.definition.check && <p>This definition has no supported independent check.</p>}
       {checkResult && <p role="status">{checkResult}</p>}
       <p className="data-note">Query {evidence.id}. In Paper, choose this saved query when linking a claim.</p>
+      </ContentSection>
     </section>}
-    <h3>Saved queries</h3>
+    <ContentSection id="data-saved-queries" title="Saved queries">
     {history === null ? (!error && <p role="status">Loading history…</p>) : history.length === 0 ? <p>No saved query yet.</p> : history.map(item =>
       <div className="data-actions" key={item.id}><Button variant="ghost" disabled={busy} onClick={() => void act(async () => {
         setEvidence(await request<QueryEvidence>({ operation: 'read', queryId: item.id })); setEditing(false); setCheckResult('');
       })}>{item.question} · {item.startedAt}</Button></div>)}
+    </ContentSection>
   </section>;
 }

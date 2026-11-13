@@ -3,9 +3,14 @@
 .pa-shell {
   display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-inline-size: 0;
   min-block-size: 0;
 }
+.pa-workspace-pane { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.pero-app-bar .pa-library-scope { flex: none; width: auto; min-width: 0; }
+.pa-bundle-switch { flex: none; }
+.pa-bundle-switch .pero-select { width: 12rem; max-width: 100%; }
 
 .pa-workspace-nav {
   flex: 0 0 216px;
@@ -445,7 +450,7 @@
 }
 
 @container pa-workbench (max-width: 760px) {
-  .pa-workspace-nav { display: none; }
+  .pa-workspace-nav, .pa-library-scope, .pa-bundle-switch { display: none; }
   .pa-workspace-switch { display: block; }
   .pa-library-screen > .pa-library-content { max-inline-size: none; padding: 20px 16px 32px; }
   .pa-library-toolbar { margin-bottom: 8px; }

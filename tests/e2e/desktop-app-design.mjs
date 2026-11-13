@@ -523,7 +523,7 @@ test('Paper discovery distinguishes loading from zero results and retains the sa
   });
   t.after(()=>release?.());
   await page.goto(origin+'/paper-agent/index.html');
-  await page.locator('.pa-workspace-nav').getByRole('button',{name:'Discover',exact:true}).click();
+  await page.getByRole('tab',{name:'Discover',exact:true}).click();
   const discover=page.locator('.pa-discover'),input=discover.getByRole('searchbox',{name:'Search literature',exact:true});
   await input.fill('cell research');await input.press('Enter');
   await expect.poll(()=>reads).toBe(1);

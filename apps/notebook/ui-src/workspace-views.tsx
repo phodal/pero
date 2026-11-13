@@ -7,6 +7,7 @@ import { EntryWorkspaceActions } from './entry-workspace-actions';
 import { messages as notebookMessages } from './messages';
 import { NamedReferenceTools, NotebookReplacementTools, NotebookStatusBar } from './notebook-reference-controls';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ProcedureRichEditor, ProcedureStepEditor, ProcedureTimerView } from './procedure-step-editor';
 import { ProcedureParameters } from './procedure-parameters';
 import { ReferenceInspectorProvider, NOTEBOOK_OPEN_TARGET_EVENT } from './notebook-context';
@@ -18,7 +19,7 @@ import { useEditorState } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { worksheetBlocks } from './worksheet-model';
-import { AppBar, Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Split, SplitPane, ToggleGroup, ToggleGroupItem, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
+import { AppBar, Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, InspectorHeader, SearchField, Select, Split, SplitPane, ToggleGroup, ToggleGroupItem, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, notebookTarget, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
@@ -240,6 +241,8 @@ export type NotebookChrome = {
   propertyTools?: ReactNode;
   barUtilities?: ReactNode;
   createCommand?: ReactNode;
+  /** Full-width slot above the catalog. The document bar is the page AppBar. */
+  barHost?: HTMLElement | null;
   /** Stored document used for export when the editor is showing a placeholder. */
   retainedContent?: NotebookDocument['content'];
 };
@@ -277,7 +280,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     }
   }, [panel, referenceId, relevant]);
   useEffect(() => {
-    if (panel === 'reference' && referenceHost) referenceHost.closest('aside')?.querySelector<HTMLButtonElement>('.notebook-inspector-head button')?.focus();
+    if (panel === 'reference' && referenceHost) referenceHost.closest('aside')?.querySelector<HTMLButtonElement>('.pero-inspector-dismiss')?.focus();
   }, [panel, referenceId, referenceHost]);
   const views = ['notes', 'procedures'] as const;
   const view = views.find(item => item === tab) ?? 'notes';
@@ -346,12 +349,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
   const exportContent = () => chrome?.retainedContent ?? editor.getJSON() as NotebookDocument['content'];
   const downloadJson = () => downloadFile('Notebook.json', JSON.stringify({ ...document, content: exportContent() }, null, 2), 'application/json');
   const protocolPane = <ProceduresView procedures={document.procedures ?? []} readonly={readonly} selected={selectedProcedure} setSelected={setSelectedProcedure} onCopyLink={id => void copyLink(id)} onChange={procedures => onChange({ procedures })} />;
-  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={value => { setTab(value); if (panel === 'reference') setPanel(null); }} onKeyDown={event => {
-    if (event.key === 'Escape' && !event.defaultPrevented && (event.target as Element).closest('#notebook-inspector')) { event.preventDefault(); closePanel(); }
-    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
-  }}>
-    <div className="notebook-jupyter">
-      <AppBar className="notebook-documentbar"
+  const documentBar = <AppBar className="notebook-documentbar"
         scope={<>
           {chrome?.navigation}
           <div className="notebook-breadcrumb">{metadata.project && <span>{metadata.project}</span>}
@@ -394,9 +392,13 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           </>}
           {chrome?.createCommand}
         </>}
-        primary={chrome?.onSave ? <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button> : undefined} />
-      <div className="notebook-diagnostics-host" />
-    </div>
+        primary={chrome?.onSave ? <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button> : undefined} />;
+  const diagnostics = <div className="notebook-diagnostics-host" />;
+  return <Tabs className="notebook-workspace" data-notebook-entry-id={entryId} data-notebook-view={view} value={tab} onValueChange={value => { setTab(value); if (panel === 'reference') setPanel(null); }} onKeyDown={event => {
+    if (event.key === 'Escape' && !event.defaultPrevented && (event.target as Element).closest('#notebook-inspector')) { event.preventDefault(); closePanel(); }
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
+  }}>
+    {chrome?.barHost ? <>{createPortal(documentBar, chrome.barHost)}{diagnostics}</> : <div className="notebook-jupyter">{documentBar}{diagnostics}</div>}
     {error && <Feedback kind="error">{error}</Feedback>}
     {notice && <Feedback kind="success">{notice}</Feedback>}
     <Split className="notebook-work-area" storageKey="pero.notebook.inspector-width" collapseBelow={820} data-panel={panel || undefined}>
@@ -425,7 +427,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     </TabsContent>
     </SplitPane>
     <SplitPane hidden={!panel} as="aside" id="notebook-inspector" size={320} min={280} className="notebook-inspector" aria-label={panel === 'metadata' ? t('properties') : panel ? t(panel) : undefined}>
-      {panel && <><div className="notebook-inspector-head"><h2>{panel === 'metadata' ? t('properties') : t(panel)}</h2><IconButton label={t('close')} onClick={closePanel}><Icon name="close" /></IconButton></div>
+      {panel && <><InspectorHeader title={panel === 'metadata' ? t('properties') : t(panel)} dismiss={{ label: t('close'), onDismiss: closePanel }} />
       {panel === 'reference' && <div className="notebook-reference-host" ref={setReferenceHost} />}
       {panel === 'relevant' && <>
         {!relevant.length ? <EmptyState heading={t('noRelevant')} actions={!readonly && <NamedReferenceTools onInsert={nodes => { editor.commands.insertContentAt(editor.state.doc.content.size, [...nodes, { type: 'paragraph' }]); }} />} />
