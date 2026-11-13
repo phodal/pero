@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
       if (!file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; " + (url.host === 'chat' ? 'frame-src pero-app:; ' : '') + "object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; " + (url.host === 'chat' ? 'frame-src pero-app: http://127.0.0.1:*; ' : '') + "object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     }
     if (url.host !== 'workbench' || url.pathname !== '/') return new Response('Not found', { status: 404 });
@@ -130,6 +130,8 @@ app.whenReady().then(async () => {
     ...(product.chat ? {
       PATH: [resolve(root, 'bin'), resolve(root, 'node_modules/.bin'), process.env.PATH, resolve(app.getPath('home'), '.local/bin'), '/opt/homebrew/bin'].filter(Boolean).join(delimiter),
       PERO_AGENT_ROOT: root, PERO_ADAPTER_NODE: process.execPath,
+      PERO_MCP_PROVIDER_SCRIPT: resolve(__dirname, 'mcp-provider.cjs'),
+      PERO_NODE_BINARY: product.node === 'bundled' ? resolve(root, 'runtime/node/bin/node') : product.node === 'system' ? 'node' : process.execPath,
       ...(process.env.PERO_AGENTS_FILE ? { PERO_AGENTS_FILE: process.env.PERO_AGENTS_FILE } : {}),
     } : {}),
   }, stdio: 'pipe' });
@@ -154,7 +156,7 @@ app.whenReady().then(async () => {
       locale = message.text === 'zh-CN' ? 'zh-CN' : 'en'; menus();
       send('product:context', context());
     }
-    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_presented', 'artifact_document', 'artifact_context', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
+    if (product.chat && ['ready', 'agents', 'workspace', 'replay', 'mcp_runtime', 'mcp_app_view', 'mcp_error', 'workbench_settings', 'context_files', 'context_candidates', 'context_resolved', 'context_error', 'artifact_catalog', 'artifact_registered', 'artifact_presented', 'artifact_document', 'artifact_context', 'artifact_error', 'session_created', 'agent_info', 'session_authenticated', 'session_auth_required', 'session_auth_error', 'user_message', 'session_connecting', 'session_ready', 'session_update', 'model_changed', 'configuration_changed', 'turn_started', 'turn_finished', 'session_usage', 'permission', 'user_questions', 'user_questions_resolved', 'user_questions_error', 'session_error', 'session_closed', 'session_deleted', 'command_rejected', 'error'].includes(message.kind)) {
       send('product:event', message);
     }
   });
@@ -217,7 +219,7 @@ app.whenReady().then(async () => {
       if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ method: 'artifacts', action: 'register_file', request_id: randomUUID(), thread_id: value.thread_id, path: selected.filePaths[0] }) + '\n');
       return;
     }
-    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.engram', 'settings.engram.get', 'settings.engram.document', 'documents', 'workspace_files', 'artifacts', 'workspace_changes'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
+    if ((!['list_agents', 'workspace', 'new_session', 'prompt', 'cancel', 'permission', 'answer_user_questions', 'model', 'configure', 'authenticate', 'close', 'delete', 'search_context', 'resolve_context', 'attach_files'].includes(value.action || '') && !['mcp', 'settings.workbench', 'settings.workbench.get', 'settings.engram', 'settings.engram.get', 'settings.engram.document', 'documents', 'workspace_files', 'artifacts', 'workspace_changes'].includes(value.method || '')) || JSON.stringify(value).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(value as {action?:string;thread_id?:string});
     host.stdin!.write(JSON.stringify(value) + '\n');
   });

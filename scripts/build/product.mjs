@@ -1,4 +1,4 @@
-import {buildMcpApps} from './mcp-apps.mjs';
+import {buildMcpHost} from './mcp-assets.mjs';
 import { readFileSync, writeFileSync, mkdirSync, cpSync, rmSync, existsSync } from 'node:fs';
 import { resolve, join, sep, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -107,6 +107,6 @@ for (const { kind, executable, source } of runtimes) {
   const check = kind === 'python' ? ['-I', '-c', 'import json, http.server, ssl; print("Bundled Python ready")'] : ['--version'];
   execFileSync(join(destination, 'bin', executable), check, { stdio: 'inherit', env: { PATH: '/usr/bin:/bin' } });
 }
-await buildMcpApps(join(output, 'desktop/dist'));
+if (product.chat) await buildMcpHost(join(output, 'desktop/dist'));
 console.log(`Product staged: ${output}`);
 if (args.includes('--package')) execFileSync(process.execPath, [resolve(root, 'scripts/build/macos-package.mjs')], { stdio: 'inherit', env: { ...process.env, PERO_PRODUCT_PAYLOAD: output } });
