@@ -42,12 +42,14 @@ p {
   gap: 8px;
 }
 .control-lab { container-type: inline-size; }
-.layout { min-height: calc(100vh - 55px); }
-main { min-width: 0; padding: 12px; }
+.layout { min-height: calc(100vh - 55px); display: flex; flex-direction: column; }
+.workbench .pero-content-pane { flex: 1; min-height: 0; }
+.model-panel, .response-panel, .verification-panel { min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+main { min-width: 0; padding: 12px; display: flex; flex-direction: column; flex: 1; }
 .experiment-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 .trial-progress { display: grid; flex: 1; gap: 4px; max-width: 320px; }
-.workbench { gap: 0; align-items: stretch; }
-.workbench > .panel { border: 0; border-radius: 0; }
+.workbench { gap: 0; align-items: stretch; flex: 1; min-height: 0; }
+.workbench > .panel { border: 0; border-radius: 0; padding: 0; }
 .workbench[data-stacked] > .panel { border-bottom: 0.5px solid var(--pero-border); }
 .param { margin: 12px 0; }
 .param-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
