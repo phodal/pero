@@ -64,6 +64,7 @@
   },
   "backend": {
     "type": "python",
-    "entry": "backend/server.py"
+    "entry": "backend/server.py",
+    "python": "3.12"
   }
 }
