@@ -11,16 +11,16 @@ export class McpSessionPanels {
   private onBinding?:((binding:McpAppBinding)=>void);
   private onResource?:((selection:McpResourceSelection)=>void);
   constructor(rpc:McpSessionRpc,assets:string,openLink?:((url:string)=>Promise<void>),onBinding?:((binding:McpAppBinding)=>void),onResource?:((selection:McpResourceSelection)=>void)){this.rpc=rpc;this.assets=assets;this.openLink=openLink;this.onBinding=onBinding;this.onResource=onResource;}
-  async open(scope:McpSessionScope,locale='en'){
+  async open(scope:McpSessionScope,locale='en',call?:{server:string;generation:number;tool_call:string}){
     let entry=this.panels.get(scope.thread_id);
     if(entry&&(entry.scope.incarnation!==scope.incarnation||entry.scope.revision!==scope.revision)){await this.forgetThread(scope.thread_id);entry=undefined;}
     if(!entry){
-      const sources=new McpSessionSources(scope,(scope,call)=>this.rpc.request(scope,call),this.openLink,this.onResource);
+      const sources=new McpSessionSources(scope,(scope,call)=>this.rpc.request(scope,call),this.openLink,this.onResource,(scope,text)=>this.rpc.message(scope,text));
       const host=new McpHost('',this.assets,this.openLink,this.onBinding,sources);
       const ready=sources.list().then(()=>host.start());
       entry={scope:{...scope},host,ready};this.panels.set(scope.thread_id,entry);
     }
-    try{await entry.ready;return entry.host.open(scope.thread_id,locale);}
+    try{await entry.ready;return entry.host.open(scope.thread_id,locale,call);}
     catch(error){if(this.panels.get(scope.thread_id)===entry)this.panels.delete(scope.thread_id);await entry.host.close();throw error;}
   }
   ownsPanel(url:string){return [...this.panels.values()].some(entry=>entry.host.ownsPanel(url));}

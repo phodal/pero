@@ -156,6 +156,7 @@ test('closing an App while preparing or awaiting approval cannot start or replay
 
 test('invalid App resource or CSP closes its prepared binding before any tool call',async()=>{
   for(const contents of [
+    null,
     [{uri:'ui://other',mimeType:'text/html;profile=mcp-app',text:'wrong resource'}],
     [{uri:'ui://fixture/view',mimeType:'text/plain',text:'not an App'}],
     [{uri:'ui://fixture/view',mimeType:'text/html;profile=mcp-app',text:'bad policy',_meta:{ui:{csp:{connectDomains:['https://example.com/;script-src *']}}}}],
@@ -170,4 +171,43 @@ test('invalid App resource or CSP closes its prepared binding before any tool ca
     await sources.list();await assert.rejects(sources.command({action:'execute',server:'same',generation:2,thread_id:scope.thread_id,tool:'show',arguments:{},operation:'invalid'}));
     assert.equal(calls.filter(call=>call.action==='tool').length,0);assert.equal(calls.filter(call=>call.action==='close'&&call.binding==='invalid-view').length,1);await sources.close();
   }
+});
+
+test('an invalid original result revokes its adopted binding without executing a tool',async()=>{
+  const calls:McpSessionCall[]=[];
+  const sources=new McpSessionSources(scope,async(_,call)=>{
+    calls.push(call);
+    if(call.action==='list')return {servers:[{name:'same',generation:2,connected:true,tools:[tool]}]};
+    if(call.action==='adopt')return {binding:'invalid-original',resource,input:{},result:{content:null},tool:'show',resource_uri:'ui://fixture/view'};
+    if(call.action==='close')return {};
+    throw new Error('Original result adoption cannot execute tools');
+  });
+  await sources.list();
+  await assert.rejects(sources.command({action:'adopt',server:'same',generation:2,tool_call:'actual-call',operation:'invalid-original'}));
+  assert.deepEqual(calls.map(call=>call.action),['list','adopt','close']);await sources.close();
+});
+
+test('conversation views reuse the original call on mount and reopen; only live bindings can send messages',async()=>{
+  const calls:McpSessionCall[]=[],messages:{scope:typeof scope;text:string}[]=[];
+  const original={content:[{type:'text' as const,text:'original'}],structuredContent:{time:'original-time'},_meta:{private:'retained'}};
+  const sources=new McpSessionSources(scope,async(_,call)=>{
+    calls.push(call);
+    if(call.action==='list')return {servers:[{name:'same',generation:2,connected:true,tools:[tool]}]};
+    if(call.action==='adopt')return {binding:`remote-${calls.length}`,resource,input:{revision:4},result:original,tool:'show',resource_uri:'ui://fixture/view'};
+    if(call.action==='close')return {};
+    throw new Error('Opening a recorded view must not execute a tool');
+  },undefined,undefined,async(scope,text)=>{messages.push({scope,text});});
+  await sources.list();
+  const adopt=()=>sources.command({action:'adopt',server:'same',generation:2,tool_call:'actual-call',operation:'mount'}) as Promise<any>;
+  const first=await adopt();
+  assert.equal(first.binding.tool_call,'actual-call');assert.deepEqual(first.input,{revision:4});assert.deepEqual(first.result,original);
+  await sources.command({action:'message',binding:first.binding.id,text:'Follow up from the App'});
+  assert.deepEqual(messages,[{scope,text:'Follow up from the App'}]);
+  await sources.command({action:'close',binding:first.binding.id});
+  await assert.rejects(sources.command({action:'message',binding:first.binding.id,text:'closed'}),/closed/);
+  const reopened=await adopt();assert.deepEqual(reopened.result,original);assert.equal(reopened.binding.tool_call,first.binding.tool_call);
+  assert.equal(calls.filter(call=>call.action==='tool'||call.action==='prepare').length,0);
+  sources.observeServers([{server:'same',generation:3,status:'connected'}]);
+  await assert.rejects(sources.command({action:'message',binding:reopened.binding.id,text:'stale'}),/closed/);
+  assert.equal(messages.length,1);await sources.close();
 });

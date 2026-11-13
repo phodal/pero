@@ -7,6 +7,7 @@ import type {McpAppBinding} from '../../../packages/content-source/mcp-source.ts
 import {McpSources} from './mcp-sources.ts';
 import type {McpSessionSources} from './mcp-session-sources.ts';
 import {mcpSandboxCsp} from './mcp-policy.ts';
+const conversationAncestors='pero://workbench pero://chat';
 
 /** One privileged provider serves the trusted panel and a different-origin sandbox. */
 export class McpHost {
@@ -29,12 +30,12 @@ export class McpHost {
     this.panel=createServer((request,response)=>{void this.servePanel(request,response).catch(error=>this.fail(response,error));});
     this.origin=await this.listen(this.panel);
   }
-  open(thread:string|undefined,locale='en'){
+  open(thread:string|undefined,locale='en',call?:{server:string;generation:number;tool_call:string}){
     if(!this.origin)throw new Error('MCP Apps provider is unavailable');
     if(thread)this.sources.admitThread(thread);
     const token=[...this.panels].find(([,scope])=>scope===thread)?.[0]||randomBytes(32).toString('hex');
     this.panels.set(token,thread);
-    return `${this.origin}/?token=${token}&thread=${encodeURIComponent(thread||'')}&locale=${encodeURIComponent(locale)}&mode=${'scope' in this.sources?'session':'standalone'}`;
+    const url=new URL(`${this.origin}/`);url.search=new URLSearchParams({token,thread:thread||'',locale,mode:'scope' in this.sources?'session':'standalone',...(call?{server:call.server,generation:String(call.generation),tool_call:call.tool_call}:{})}).toString();return url.href;
   }
   forgetThread(thread:string){this.sources.forgetThread(thread);for(const [token,scope] of this.panels)if(scope===thread)this.panels.delete(token);}
   ownsPanel(value:string){if(!URL.canParse(value))return false;const url=new URL(value);return url.origin===this.origin&&this.panels.has(url.searchParams.get('token')||'');}
@@ -75,9 +76,9 @@ export class McpHost {
     if(command.action==='execute'&&command.thread_id!==thread)throw new Error('This conversation is outside the MCP panel binding');
     if('binding' in command&&this.sources.view(command.binding).binding.thread_id!==thread)throw new Error('This source is outside the MCP panel binding');
     const value=await this.sources.command(command);
-    if(command.action==='execute')this.onBinding?.((value as {binding:McpAppBinding}).binding);
+    if(command.action==='execute'||command.action==='adopt')this.onBinding?.((value as {binding:McpAppBinding}).binding);
     response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
-    response.end(JSON.stringify(command.action==='execute'?{...value as object,sandbox:`${this.sandboxOrigin}/sandbox?binding=${encodeURIComponent((value as {binding:{id:string}}).binding.id)}&host=${encodeURIComponent(this.origin)}`}:value));
+    response.end(JSON.stringify(command.action==='execute'||command.action==='adopt'?{...value as object,sandbox:`${this.sandboxOrigin}/sandbox?binding=${encodeURIComponent((value as {binding:{id:string}}).binding.id)}&host=${encodeURIComponent(this.origin)}`}:value));
   }
   private async serveSandbox(request:IncomingMessage,response:ServerResponse){
     const url=new URL(request.url||'/',this.sandboxOrigin);
@@ -85,14 +86,14 @@ export class McpHost {
     if(request.method==='GET'&&url.pathname==='/resource'){
       const view=this.sources.view(url.searchParams.get('binding')||'');
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',
-        'Content-Security-Policy':`${mcpSandboxCsp(view.csp)}; frame-ancestors ${this.origin} ${this.sandboxOrigin}`,
+        'Content-Security-Policy':`${mcpSandboxCsp(view.csp)}; frame-ancestors ${this.origin} ${this.sandboxOrigin} ${conversationAncestors}`,
         'Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=(), clipboard-write=()'});
       response.end(view.html);return;
     }
     if(request.method!=='GET'||url.pathname!=='/sandbox'||url.searchParams.get('host')!==this.origin)throw new Error('MCP sandbox is unavailable');
     const view=this.sources.view(url.searchParams.get('binding')||'');
     response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',
-      'Content-Security-Policy':`default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'self'; frame-ancestors ${this.origin}; base-uri 'none'; object-src 'none'`,'Referrer-Policy':'no-referrer',
+      'Content-Security-Policy':`default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'self'; frame-ancestors ${this.origin} ${conversationAncestors}; base-uri 'none'; object-src 'none'`,'Referrer-Policy':'no-referrer',
       'Permissions-Policy':'camera=(), microphone=(), geolocation=(), clipboard-write=()'});
     response.end('<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0"><script src="/sandbox.js"></script></body></html>');
   }
