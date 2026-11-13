@@ -28,15 +28,49 @@ frame removal, and graceful shutdown. This managed path creates no second
 standalone MCP client. Receipt: `test-results/mcp-apps-official/result.json`;
 screenshots: `vanilla-light.png` and `vanilla-dark-narrow.png` in that directory.
 
-Only serverTools/serverResources/openLinks are exposed by the runtime. Optional
-`ui/message`/`ui/update-model-context` are not advertised or implemented; the
-presence of those buttons in the unmodified teaching demo does not certify them.
+Managed views now also advertise text `ui/message`. `ui/update-model-context`,
+non-text messages and the demo's logging feature are not advertised.
+
+## Official demo in an actual conversation
+
+```sh
+PERO_OFFICIAL_MCP_ROOT=/tmp/pero-official-mcp-app node scripts/test/mcp-official-conversation.mjs
+```
+
+After building Web/WASM, Desktop, Host and Harness, this launches the actual
+Electron Workbench with Rust Host, Go ACP and the unchanged official package.
+The model is a deterministic loopback fixture, **not an external real model**.
+The fixture emits a real Agent tool request; a transparent stdio audit counts
+actual upstream `tools/call` messages. The npm integrity and exact served HTML
+are checked against the published 2.0.4 package.
+
+Observed: the tool result automatically opens inside its conversation without
+the tools/resources picker. Tool collapse/expansion retains the same iframe;
+closing/reopening restores the original captured timestamp. An explicit
+**Get Server Time** dispatches one follow-up tool call through the existing
+`ask` approval (both approvals click the actual GPUI **Allow once** control).
+The official **Send Message** enters the ordinary Host prompt
+owner and produces the next Agent reply in the same conversation. The receipt
+records **3 model requests, 2 actual get-time calls, 2 approvals**, with no
+additional tool/model call for mounting, expansion or reopening. Session close
+removes the surface. Evidence: `test-results/mcp-apps-conversation/result.json`.
+Inspected screenshots: `official-inline-light.png` at 1400×1050,
+`official-inline-dark-narrow.png` and `official-conversation-followup.png` at
+1100×1000 in that directory. Observed: the tool disclosure precedes the embedded
+view; theme updates reach the unchanged demo; the follow-up user message and
+Agent reply remain in the conversation. No horizontal resource overflow.
+
+This full product run caught and corrected two nesting omissions: Workbench's
+`frame-src` needed the loopback panel, and sandbox/resource `frame-ancestors`
+needed the trusted conversation origins. It preserves the separate origins and
+bound API. The renderer does not relax CSP for arbitrary remote hosts.
 
 ## Product path
 
 Rebuild Desktop (`node scripts/build/desktop.mjs`) or the Native connector helpers
 (`node scripts/build/connectors.mjs`). Enable Notebook, select an open Pero Agent
 conversation and open **session Tools and resources → Notebook Inspector**.
+Agent tool calls with a declared UI also open automatically in the tool row.
 Use the saved entry ID and optionally a revision; the initial result fixes the
 revision used by subsequent block/index/chunk reads. The new view lives at
 `ui://pero/notebook/inspector-v1`, on the existing `app_use` MCP server.
@@ -56,6 +90,10 @@ provider used by part of the isolated renderer acceptance.
 | `node scripts/build/connectors.mjs` | Passed; builds Native helper and self-contained resource |
 | `npm run test:app-use:unit` | 20 Host/core + 12 SDK tests passed |
 | Existing MCP sources/session Node suites | Passed, including resource/CSP rejection, approval cancellation, revocation and Unicode body decoding |
+| Original MCP call capture/adoption | Go `test -race ./mcp ./harness ./acp` passed; complete input/result/meta, original identity, repeated adoption, wrong session/generation/URI, model-only initial tool and closed receipts |
+| Conversation source adapter | Original mount/reopen sends no `tool`/`prepare`; closed/stale messages rejected; invalid prepared/adopted payload revokes remote binding |
+| App Product shell and staged provider | 29 tests passed; actual copied provider starts from a foreign working directory and serves panel/JS/CSS/sandbox; no full Product graphical claim |
+| Final build/contracts | Web/WASM, Desktop, Host and Native library check passed; 14 MCP contract tests, Host MCP/automation regression checks and 7 frozen Bazel checks passed |
 | `node tests/contracts/mcp-session-panel.mjs --browser` | Passed real Rust Host → Node provider → Go ACP → loopback MCP, including the production browser surface, one MCP connection, no model requests |
 | `PERO_MCP_BROWSER=1 npm run test:mcp-apps` | Passed actual Python Notebook backend → existing AppWriteRoutes → DesktopAppUse → official MCP client → production sandbox/Runtime in Chromium |
 | `PERO_MCP_BROWSER=1 PERO_MCP_RENDERER=electron npm run test:mcp-apps` | Passed same Notebook flow in a real hidden Electron BrowserWindow with sandbox, context isolation and no Node integration |
@@ -97,8 +135,7 @@ entire GPUI menu in each platform remains separate acceptance. Signed packages,
 Windows/Linux Native rendering, physical keyboard/screen-reader use and other
 third-party Host interoperability were not tested.
 
-Automatic inline opening from an Agent tool result is not implemented: the
-current product uses the explicit tools/resources entry. Reopening after process
+Interactive reopening after process
 restart, Task/Run/Artifact binding, notifications from background domain work,
 panel/fullscreen modes, writable approval workflows and Data/CI consumers remain
 follow-ups. The workspace package is private; no SDK publication or marketplace
@@ -119,7 +156,7 @@ Parent and resource themes both follow changes. Resource responses cannot replac
 a later source selection. The full managed pending-approval cancellation test
 was rerun against these final controls and passed.
 
-The Zed proposal, pinned source comparison and future inline identity seam are
+The Zed proposal, pinned source comparison and implemented inline identity seam are
 recorded in [the conversation design](../design-docs/mcp-apps-conversation.md).
 
 ## Draft PR CI follow-up

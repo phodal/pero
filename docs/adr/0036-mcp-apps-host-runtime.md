@@ -27,7 +27,10 @@ the view. A Host without MCP Apps continues using the same tool. Sources:
 The primary acceptance example is the published, unchanged
 `@modelcontextprotocol/server-basic-vanillajs@2.0.4`, including its real UI
 resource. It runs through Rust Host, Go ACP and the managed session panel;
-initial and interactive calls both pass the saved `ask` policy. Notebook remains
+initial and interactive calls both pass the saved `ask` policy. A conversation
+tool row automatically adopts the original input/result and resource without
+executing the initial tool again. Text `ui/message` enters the existing Host
+prompt owner and receives an acknowledgement without conversation contents. Notebook remains
 a secondary saved-content example. No new installed MCP Apps application is
 registered.
 
@@ -57,11 +60,12 @@ Sandbox CSP, independent origins, visibility checks, server generation checks
 and binding revocation remain in the existing provider. The extracted runtime
 receives bound callback ports, not raw connector clients or credentials.
 
-## Explicit v0 limits
+## Explicit limits
 
-Users open an Inspector through Chat's session tools/resources menu. This v0
-does not automatically render arbitrary Agent tool results inline. It does not
-persist MCP bindings across process restarts, replay tool calls, or implement
+The tools/resources menu supports explicit exploration alongside automatic
+conversation rendering. Views retain original tool-call identity when collapsed
+or reopened. The runtime does not persist MCP bindings across process restarts,
+replay tool calls, or implement `ui/update-model-context`, non-text `ui/message`,
 Run/Artifact identity, event subscriptions, approval editors, cross-plugin
 orchestration, panel/fullscreen negotiation, or Data/CI inspectors. Those require
 their actual owners and separate product acceptance. Runtime support is not a

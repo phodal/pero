@@ -13,6 +13,7 @@ const runtime = await mountMcpApp(container, {
   callTool: (name, args) => host.callBoundTool(binding, name, args),
   readResource: uri => host.readBoundResource(binding, uri),
   openLink: url => host.openBoundLink(binding, url),
+  sendMessage: text => host.submitBoundMessage(binding, text), // optional, text only
   revoke: () => host.closeBinding(binding),
   onState: state => showState(state),
   onError: error => showError(error),
@@ -84,5 +85,18 @@ PERO_MCP_BROWSER=1 PERO_MCP_RENDERER=electron npm run test:mcp-apps
 Current scope and evidence: [MCP Apps verification](../../docs/fitness/mcp-apps.md).
 
 The [conversation design](../../docs/design-docs/mcp-apps-conversation.md) records
-the Zed MCP Apps proposal and the intended tool-result ownership. Automatic
-inline mounting and `ui/message` submission are not implemented in this v0.
+the Zed MCP Apps proposal and implemented tool-result ownership. Agent calls
+automatically mount their recorded input/result in the conversation. Expanding
+or reopening the view never executes the initial tool. Managed `ui/message`
+submits text through the existing Host prompt owner and returns only an
+acknowledgement. `ui/update-model-context` remains unsupported.
+
+After building Desktop, Web/WASM, Host and Harness, verify the actual conversation:
+
+```sh
+node scripts/test/mcp-official-conversation.mjs
+```
+
+This uses the unmodified official package, real Workbench/Host/ACP and a local
+deterministic model fixture. A transparent stdio audit counts actual tools/call
+dispatches independently of the UI.

@@ -19,6 +19,9 @@ reuses it instead of introducing another MCP connection or authorization owner.
 | Notebook Inspector | `apps/notebook/mcp/inspector.tsx` | Saved identity/revision, text fallback, partial index/chunk reads, scientific status |
 | Saved read authority | Existing `AppUse` | Selected open conversation may inspect; writes still require a running turn |
 | Product assembly | Desktop, Product and Native connector composition roots | Same backend route and policy; self-contained HTML travels with built assets |
+| Original MCP App call | Go MCP dispatch → session-owned receipt → ACP descriptor | Complete original input/result; server generation and call identity; no initial tool replay |
+| Conversation view | Tool row → measured frame / Native child WebView | Replaces explicit opening as default; collapse retains view, close revokes binding; no AppCatalog entry |
+| View message | AppBridge → bound source → Host prompt owner | Text-only acknowledgement; ordinary queue/cancel/permission semantics; no model reply returned to iframe |
 
 The existing panel consumes the extracted runtime. It hides its developer input
 form while an App is open, keeps an explicit Close action and restores the form
@@ -33,12 +36,12 @@ generated token edit is introduced. Its theme receives live standard Host contex
 - [x] Standard Notebook Tool + Resource + structured result integration.
 - [x] Real Notebook revision and block reading in isolated browser frames.
 - [x] Compile/build, policy regressions and existing real Host/ACP/MCP chain.
+- [x] Agent result → automatic inline surface with the original tool-call identity/input/result, without executing the initial tool a second time.
+- [x] Standard text `ui/message` routed through existing Host conversation submission.
 - [x] Record observed surfaces and remaining scope in [verification](../fitness/mcp-apps.md).
 
 ## Follow-ups, not v0 acceptance claims
 
-- Agent result → automatic inline surface with original tool-call identity and
-  result, without executing the initial tool a second time.
 - Stable Task/Run/Artifact binding and cross-restart reopening without remounting
   expired authority or replaying effects.
 - Event-driven refresh and declared panel/fullscreen modes.
@@ -63,5 +66,9 @@ created. Notebook remains an optional business example, not the compatibility
 reference. Lifecycle and pagination fixes are included in these actual consumers.
 
 [Zed research and the conversation integration seam](../design-docs/mcp-apps-conversation.md)
-distinguish its proposal from shipped code and explicitly preserve the original
-tool-call result when future inline mounting is implemented.
+distinguish its proposal from shipped code. Original-call adoption and the
+measured conversation surface now implement that seam in #217. The official
+conversation acceptance uses real Workbench/Host/Go ACP with a deterministic
+loopback model; its audit proxy records actual tools/call requests without
+changing the upstream server or resource. Evidence is recorded in the fitness
+report after the actual graphical run.

@@ -26,7 +26,7 @@ does not establish a standard UI binding. Its implemented
 does offer useful lifecycle separation: live updates, history restoration, and
 materialization after expansion. Expanding content need not run execution again.
 
-## Pero ownership and next integration seam
+## Pero ownership and implemented conversation seam
 
 Pero already has a session-owned MCP connection and permission chain. Reuse it;
 the Zed proposal does not require adding another proxy/client to this runtime.
@@ -45,15 +45,33 @@ the Zed proposal does not require adding another proxy/client to this runtime.
 4. Follow-up tool calls retain the same MCP policy/approval owner. `ui/message`
    must enter the Host conversation submission/draft owner, with explicit busy,
    user-review and cancellation semantics. An iframe cannot start its own Agent.
-5. Hidden or closed rows release their view binding. Historical result data and
-   live execution authority remain distinct. Scientific outcomes are unchanged
-   by whether an interactive view is available.
+5. Collapsed rows retain their existing view without reinitializing it. Closing
+   the view revokes its binding; closing the session removes its surface and
+   authority. Historical result data and live execution authority remain distinct.
+   Scientific outcomes are unchanged by whether an interactive view is available.
 
-The current PR delivers the standard rendering seam and actual official-demo
-compatibility on the managed session chain. It still uses the explicit
-tools/resources entry for product discovery. Automatic inline tool-result
-capture, timeline slots and `ui/message` submission are the next implementation
-stage; they are not implied by this renderer or by Zed's proposal.
+The Go MCP dispatch captures the complete original result before model-content
+projection, with its actual tool-call ID and arguments. Only the owning store
+can project `_meta["pero.mcpApp"]` into ACP. `adopt` reads that receipt and the
+declaring resource on the same live server generation; it never invokes the
+initial tool. Model-only tool visibility can still produce a result view, while
+follow-up App calls retain their own visibility and approval checks.
+
+The conversation tool row automatically opens a measured inline slot. Electron
+and chat-only Web shells place the admitted frame at those bounds; Native uses
+a child WebView in the same tool row. No installed App or Web document is created.
+The tools/resources picker remains available for explicit exploration.
+
+Managed views advertise text `ui/message`. A bound view sends text through
+`mcp.message`; Host admits its live conversation incarnation/revision and calls
+the existing prompt owner. The acknowledgement means submission, including the
+existing visible busy queue, rather than completion. Model replies and other
+conversation content are never returned to the iframe. Unsupported non-text
+messages are rejected. `ui/update-model-context` is not advertised.
+
+After renderer restoration, a still-live original receipt can be adopted again.
+After process/session replacement, an expired receipt cannot grant interaction:
+ordinary historical tool content remains available and no tool is replayed.
 
 ## Presentation implemented now
 
@@ -62,6 +80,8 @@ MCP Apps brand header, persistent server sidebar or installation UI. Connections
 remain in Connectors. Parameter input and tool descriptions are preparation
 controls; they disappear while the result is displayed. Official example HTML
 is loaded unchanged, with its own UI and assets, through the shared sandbox.
+In a recorded conversation view, **Open view** restores the captured original
+result after **Close view**. It does not repeat the tool or the model turn.
 
 See [ADR 0036](../adr/0036-mcp-apps-host-runtime.md) and
 [verification](../fitness/mcp-apps.md) for shipped scope and measured evidence.
