@@ -1,3 +1,4 @@
+import {mountMcpSurfaces} from './mcp-surfaces';
 import {installContentAnalysis} from './content-analysis';
 import init, { run, receive_host_event, snapshot, paste_image, set_system_theme, set_appearance, compose } from './chat-wasm/pero_chat_web';
 import themes from './theme.generated.json';
@@ -19,6 +20,8 @@ let initialized = false;
 let initialContext: (context: ChatSurfaceContext) => void;
 const readyContext = new Promise<ChatSurfaceContext>(resolve => { initialContext = resolve; });
 const queued: HostEvent[] = [];
+const mcpSurfaces=mountMcpSurfaces();
+window.peroMcpAppSurface=json=>mcpSurfaces.update(JSON.parse(json));
 let publishedAppearance = '';
 const publishAppearance = () => {
   const appearance = JSON.parse(snapshot()).appearance;
@@ -52,6 +55,7 @@ window.addEventListener('message', event => {
     context = { ...event.data.context, appearance } as ChatSurfaceContext;
     initialContext(context); applyContext();
   } else if (event.data?.type === 'pero:chat:event') {
+    mcpSurfaces.observe(event.data.event);
     if (initialized) {
       receive_host_event(JSON.stringify(event.data.event));
       if (event.data.event.kind === 'workbench_settings') {

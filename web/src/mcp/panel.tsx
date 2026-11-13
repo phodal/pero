@@ -9,6 +9,7 @@ import type {McpAppBinding} from '../../../packages/content-source/mcp-source.ts
 
 const query=new URL(location.href).searchParams;
 const token=query.get('token'),thread=query.get('thread')||'',managed=query.get('mode')==='session';
+const recorded=query.get('tool_call');
 type AppTool={name:string;title:string;description?:string;inputSchema:Tool['inputSchema']};
 type ServerInfo={id:string;title:string;connected:boolean;generation?:number;tools:AppTool[]};
 type View=McpAppResource&{binding:McpAppBinding};
@@ -54,6 +55,8 @@ function ToolForm({tool,onOpen,busy}:{tool:AppTool;onOpen(args:Record<string,unk
 }
 
 function Panel(){
+  const [hostContext,setHostContext]=useState<{theme:'light'|'dark';locale:string}>({theme:query.get('theme')==='dark'?'dark':query.get('theme')==='light'?'light':matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',locale:query.get('locale')||'en'});
+  const context=useRef(hostContext);context.current=hostContext;
   const [servers,setServers]=useState<ServerInfo[]>([]),[serverId,setServerId]=useState('');
   const [selected,setSelected]=useState<{server:ServerInfo;tool:AppTool}>();
   const [view,setView]=useState<View>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState('Loading tools…');
@@ -81,16 +84,22 @@ function Panel(){
     setServerId(previous=>list.some(server=>server.id===previous)?previous:(list.find(server=>server.connected)||list[0])?.id||'');
     setStatus('');
   };
-  useEffect(()=>{void refresh().catch(report);},[]);
+  useEffect(()=>{void (recorded?open({}):refresh()).catch(report);},[]);
   useEffect(()=>{
     const colors=matchMedia('(prefers-color-scheme:dark)');
-    const update=()=>{
-      document.documentElement.dataset.theme=colors.matches?'dark':'light';
-      active.current?.runtime.setHostContext({theme:colors.matches?'dark':'light'});
+    const update=()=>setHostContext(previous=>({...previous,theme:colors.matches?'dark':'light'}));
+    const receive=(event:MessageEvent)=>{
+      if(event.source!==window.parent||!(['pero://workbench','pero://chat'].includes(event.origin)||window.parent===window&&event.origin===location.origin)||event.data?.type!=='pero:mcp:context')return;
+      const value=event.data.context;
+      if(['light','dark'].includes(value?.theme)&&typeof value.locale==='string')setHostContext({theme:value.theme,locale:value.locale});
     };
-    update();colors.addEventListener('change',update);
-    return ()=>colors.removeEventListener('change',update);
+    colors.addEventListener('change',update);window.addEventListener('message',receive);
+    return ()=>{colors.removeEventListener('change',update);window.removeEventListener('message',receive);};
   },[]);
+  useEffect(()=>{
+    document.documentElement.dataset.theme=hostContext.theme;document.documentElement.lang=hostContext.locale;
+    active.current?.runtime.setHostContext(hostContext);
+  },[hostContext]);
   useEffect(()=>{
     if(!view&&!busy&&hadView.current)document.querySelector<HTMLButtonElement>('#tool-form button[type="submit"]')?.focus();
     hadView.current=!!view||busy;
@@ -105,17 +114,17 @@ function Panel(){
     if(!view)return;
     let disposed=false;
     let mounted:Awaited<ReturnType<typeof mountMcpApp>>|undefined;
-    const colors=matchMedia('(prefers-color-scheme:dark)');
     void mountMcpApp(surface.current!,{...view,title:view.binding.tool},{
       callTool:(name,args)=>api({action:'tool',binding:view.binding.id,name,arguments:args}),
       readResource:uri=>api({action:'resource',binding:view.binding.id,uri}),
       openLink:async url=>{await api({action:'open_link',binding:view.binding.id,url});},
+      ...(managed?{sendMessage:async(text:string)=>{await api({action:'message',binding:view.binding.id,text});}}:{}),
       revoke:()=>api({action:'close',binding:view.binding.id}),
       onError:report,
       onState:state=>{if(state==='closed')setView(current=>current===view?undefined:current);setStatus(state==='connecting'?'Connecting view…':'');},
-    },{locale:query.get('locale')||'en',theme:colors.matches?'dark':'light'}).then(runtime=>{
+    },context.current).then(runtime=>{
       mounted=runtime;
-      if(disposed)void runtime.close().catch(report);else active.current={view,runtime};
+      if(disposed)void runtime.close().catch(report);else{active.current={view,runtime};runtime.setHostContext(context.current);}
     }).catch(report);
     return ()=>{
       disposed=true;
@@ -124,15 +133,16 @@ function Panel(){
     };
   },[view]);
   const open=async(args:Record<string,unknown>)=>{
-    if(!selected)return;
+    if(!selected&&!recorded)return;
     if(opening.current){setStatus('An App is awaiting approval. Complete it or close it before opening another App.');return;}
     const pending={id:crypto.randomUUID(),cancelled:false};opening.current=pending;
-    setBusy(true);setError('');setStatus('Running tool…');
+    setBusy(true);setError('');setStatus(recorded?'Loading tool view…':'Running tool…');
     try{
-      const next=await api<View>({action:'execute',server:selected.server.id,thread_id:thread,tool:selected.tool.name,arguments:args,
-        ...(managed?{generation:selected.server.generation,operation:pending.id}:{})});
+      const next=await api<View>(recorded?{action:'adopt',server:query.get('server'),generation:Number(query.get('generation')),tool_call:recorded,operation:pending.id}:
+        {action:'execute',server:selected!.server.id,thread_id:thread,tool:selected!.tool.name,arguments:args,
+        ...(managed?{generation:selected!.server.generation,operation:pending.id}:{})});
       if(pending.cancelled){await api({action:'close',binding:next.binding.id});return;}
-      opening.current=undefined;await close();resourceRequest.current++;setView({...next,title:selected.tool.title});setPage(undefined);
+      opening.current=undefined;await close();resourceRequest.current++;setView({...next,title:selected?.tool.title||next.binding.tool});setPage(undefined);
     }catch(error){if(!pending.cancelled)report(error);}
     finally{if(opening.current===pending)opening.current=undefined;setBusy(false);}
   };
@@ -163,15 +173,15 @@ function Panel(){
   });
   return <div className="mcp-surface">
     <AppBar scope={view?<span className="mcp-view-scope"><Badge>{servers.find(server=>server.id===view.binding.server)?.title||view.binding.server}</Badge>{view.title}</span>
-      :<Select label="MCP source" value={serverId} options={servers.map(server=>({value:server.id,label:server.title}))} onChange={id=>run(async()=>{
+      :recorded?<span className="mcp-view-scope">Tool result</span>:<Select label="MCP source" value={serverId} options={servers.map(server=>({value:server.id,label:server.title}))} onChange={id=>run(async()=>{
         const request=++resourceRequest.current;await close();if(request!==resourceRequest.current)return;
         setServerId(id);setSelected(undefined);setPage(undefined);setOutput(undefined);
       })} placeholder="Connected tools"/>}
-      utilities={!view&&<Button variant="ghost" onClick={()=>run(refresh)}>Refresh</Button>}
+      utilities={!view&&!recorded&&<Button variant="ghost" onClick={()=>run(refresh)}>Refresh</Button>}
       commands={(view||busy)&&<Button variant="ghost" onClick={()=>run(close)}>Close view</Button>}/>
     <div id="status" role="status">{status}</div>
     {error&&<Feedback kind="error" variant="block">{error}</Feedback>}
-    {!view&&<div id="servers" className="mcp-catalog">
+    {!view&&!recorded&&<div id="servers" className="mcp-catalog">
       {server&&!server.connected&&!managed&&<Button onClick={()=>run(async()=>{await api({action:'connect',server:server.id});await refresh();})}>Connect</Button>}
       {server?.connected&&<>
         <nav aria-label="Interactive tools">{server.tools.map(tool=><Button key={tool.name} variant={selected?.tool.name===tool.name?'secondary':'ghost'} onClick={()=>choose(tool)}>{tool.title}</Button>)}</nav>
@@ -180,7 +190,8 @@ function Panel(){
     </div>}
     <main className={view?'mcp-content mcp-content-active':'mcp-content'}>
       {!view&&selected&&<ToolForm key={`${selected.server.id}/${selected.tool.name}`} tool={selected.tool} onOpen={args=>void open(args)} busy={busy}/>}
-      {!view&&!selected&&!page&&!status&&<EmptyState title={servers.length?'Choose a tool result':'Connect a tool to get started'} description={servers.length?'Interactive results open here, using this conversation’s tool permissions.':'Manage MCP connections in Connectors, then open a conversation with the Pero Agent.'}/>}
+      {!view&&recorded&&!busy&&<Button onClick={()=>void open({})}>Open view</Button>}
+      {!view&&!recorded&&!selected&&!page&&!status&&<EmptyState title={servers.length?'Choose a tool result':'Connect a tool to get started'} description={servers.length?'Interactive results open here, using this conversation’s tool permissions.':'Manage MCP connections in Connectors, then open a conversation with the Pero Agent.'}/>}
       {page&&!view&&<section className="mcp-resources"><h2>{page.templates?'Resource templates':'Resources'}</h2>
         {page.resources?.map(resource=><Button key={resource.uri} variant="ghost" onClick={()=>run(()=>read(resource.uri))}>{resource.name||resource.uri}</Button>)}
         {page.resourceTemplates?.map(template=><TemplateRead key={template.uriTemplate} template={template} read={uri=>run(()=>read(uri))}/>)}

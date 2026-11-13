@@ -65,8 +65,9 @@ let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
 let mcpSessions:McpSessionPanels|undefined;
 let connectorMcp: ConnectorMcp | undefined;
-const mcpRequests=new Map<string,{thread:string|undefined;mode:'session'|'standalone'}>();
+const mcpRequests=new Map<string,{thread:string|undefined;mode:'session'|'standalone';call?:{server:string;generation:number;tool_call:string}}>();
 const mcpSessionScope=z.object({thread_id:z.string().min(1),incarnation:z.number().int().nonnegative(),revision:z.number().int().nonnegative()}).strict();
+const mcpOriginalCall=z.object({server:z.string().min(1),generation:z.number().int().nonnegative(),tool_call:z.string().min(1)});
 const mcpRpc=new McpSessionRpc(request=>{
   if(!ready||!host?.stdin.writable)throw new Error('The local runtime is unavailable');
   host.stdin.write(JSON.stringify(request)+'\n');
@@ -188,7 +189,7 @@ app.whenReady().then(async () => {
     if (!['workbench', 'chat'].includes(url.host) || !file.startsWith(directory + sep)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).href).then((response) => {
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; frame-src pero-app: pero://chat; object-src 'none'");
+      headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; frame-src pero-app: pero://chat http://127.0.0.1:*; object-src 'none'");
       return new Response(response.body, { status: response.status, headers });
     });
   });
@@ -281,12 +282,12 @@ app.whenReady().then(async () => {
             if(message.data?.mode!=='session'||!mcpSessions)throw new Error('Session MCP provider is unavailable');
             const scope=mcpSessionScope.parse(message.data.session);
             if(scope.thread_id!==request.thread)throw new Error('MCP session does not match the requested conversation');
-            url=await mcpSessions.open(scope,locale);
+            url=await mcpSessions.open(scope,locale,request.call);
           }else{
             if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
             mcpReady ||= mcpHost.start();await mcpReady;url=mcpHost.open(request.thread,locale);
           }
-          send({version:1,kind:'mcp_sources',request_id:message.request_id,thread_id:request.thread,text:'',data:{url}});
+          send({version:1,kind:request.call?'mcp_app_view':'mcp_sources',request_id:message.request_id,thread_id:request.thread,text:'',data:{url,...(request.call?{tool_call:request.call.tool_call}:{})}});
         })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
       }
       if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
@@ -395,11 +396,13 @@ app.whenReady().then(async () => {
     if(method==='mcp'){
       const request=command as {action?:unknown;thread_id?:unknown;mode?:unknown};
       if(request.mode!==undefined&&request.mode!=='session'&&request.mode!=='standalone')throw new Error('Invalid MCP source mode');
-      if(request.action!=='open'||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
+      if(!['open','adopt'].includes(String(request.action))||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
       const id=randomUUID(),thread=typeof request.thread_id==='string'?request.thread_id:undefined;
-      const mode=request.mode==='session'?'session':'standalone';
-      mcpRequests.set(id,{thread,mode});
-      host.stdin.write(JSON.stringify({method:'mcp',action:'open',request_id:id,thread_id:thread,mode})+'\n');return;
+      const call=request.action==='adopt'?mcpOriginalCall.parse(command):undefined;
+      if(call&&!thread)throw new Error('A tool result requires its original conversation');
+      const mode=call||request.mode==='session'?'session':'standalone';
+      mcpRequests.set(id,{thread,mode,call});
+      host.stdin.write(JSON.stringify({method:'mcp',action:call?'adopt':'open',request_id:id,thread_id:thread,mode,...call})+'\n');return;
     }
     if (action === 'harness_get' || action === 'harness_save') return harness.command(command);
     if (method === 'settings.harness') throw new Error('Use harness controls');

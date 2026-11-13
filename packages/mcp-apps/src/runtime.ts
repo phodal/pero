@@ -15,6 +15,7 @@ export type McpAppHost = {
   callTool(name: string, args: Record<string, unknown>): Promise<CallToolResult>;
   readResource(uri: string): Promise<ReadResourceResult>;
   openLink(url: string): Promise<void>;
+  sendMessage?(text: string): Promise<void>;
   revoke(): Promise<unknown>;
   onState(state: 'connecting' | 'ready' | 'closed'): void;
   onError(error: unknown): void;
@@ -30,7 +31,7 @@ export async function mountMcpApp(container: HTMLElement, resource: McpAppResour
   frame.referrerPolicy = 'no-referrer';
   container.append(frame);
   const bridge = new AppBridge(null, {name:'Pero MCP Apps Host', version:'1.0.0'},
-    {serverTools:{}, serverResources:{}, openLinks:{}, sandbox:{csp:resource.csp, permissions:{}}},
+    {serverTools:{}, serverResources:{}, openLinks:{}, ...(host.sendMessage?{message:{text:{}}}:{}), sandbox:{csp:resource.csp, permissions:{}}},
     {hostContext:{displayMode:'inline', availableDisplayModes:['inline'], platform:'desktop', ...context}});
   let closed = false;
   let closing: Promise<void> | undefined;
@@ -53,6 +54,11 @@ export async function mountMcpApp(container: HTMLElement, resource: McpAppResour
   bridge.oncalltool = params => host.callTool(params.name, params.arguments || {});
   bridge.onreadresource = params => host.readResource(params.uri);
   bridge.onopenlink = async ({url}) => { await host.openLink(url); return {}; };
+  if(host.sendMessage)bridge.onmessage = async ({content}) => {
+    if(closed||content.length===0||content.some(block=>block.type!=='text'))return {isError:true};
+    try{await host.sendMessage!(content.map(block=>(block as {text:string}).text).join('\n'));return {};}
+    catch(error){host.onError(error);return {isError:true};}
+  };
   bridge.oninitialized = () => {
     clearTimeout(initializing);
     if (closed) return;
