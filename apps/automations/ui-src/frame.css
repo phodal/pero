@@ -2,10 +2,12 @@
 html, body, #app { height: 100%; }
 #app { display: flex; flex-direction: column; min-height: 0; }
 body { margin: 0; background: var(--pero-bg); color: var(--pero-text); font: var(--pero-font-body)/1.5 var(--pero-font-family-sans, system-ui, sans-serif); }
+.automation-app { display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; }
 .automation-page { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; min-width: 0; min-height: 0; }
 .automation-column { display: flex; flex-direction: column; gap: var(--pero-spacing-5); min-height: 0; }
 .automation-stage { min-width: 0; }
-.automation-page > .pero-content-pane { flex: 1 1 auto; min-width: 0; min-height: 0; height: auto; }
+.automation-page > .pero-content-pane { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.automation-page > .pero-content-pane > .pero-content-body { display: flex; flex-direction: column; }
 .automation-app .pero-library-header { padding-inline: 0; margin-bottom: var(--pero-spacing-4); background: transparent; }
 .automation-app h2, .automation-app h3 { margin: 0; font-weight: 600; }
 .automation-app h2 { font-size: var(--pero-font-heading); }
@@ -25,12 +27,13 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 .template-desc { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--pero-text-muted); font-size: var(--pero-font-caption); line-height: 1.5; }
 .template-flow { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: var(--pero-spacing-2); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .workspace { display: flex; gap: var(--pero-spacing-6); align-items: start; }
-.catalog { flex: 1; min-width: 0; }
+.catalog { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-3); margin-bottom: var(--pero-spacing-4); }
 .search { position: relative; width: min(360px, 100%); margin-left: auto; display: flex; align-items: center; }
 .search > .pero-ui-glyph { position: absolute; left: 12px; color: var(--pero-text-muted); pointer-events: none; }
 .search input.pero-ui-input:not([data-unstyled]) { width: 100%; padding-inline-start: 36px; }
-.task-list { border: 1px solid var(--pero-border); border-radius: var(--pero-radius-panel); background: var(--pero-surface); overflow: hidden; }
+.task-list { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.task-list > [role=table] { border: 1px solid var(--pero-border); border-radius: var(--pero-radius-panel); background: var(--pero-surface); overflow: hidden; }
 .task-head, .task-row { display: grid; grid-template-columns: minmax(220px, 1.8fr) minmax(140px, 1fr) minmax(120px, .9fr) auto; column-gap: var(--pero-spacing-5); align-items: center; padding-inline: var(--pero-spacing-5); }
 .task-head { min-height: 40px; color: var(--pero-text-muted); font-size: var(--pero-font-caption); background: var(--pero-surface-muted); }
 .task-row { min-height: 96px; padding-block: var(--pero-spacing-4); border-top: var(--pero-hairline); }
@@ -48,7 +51,7 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 .schedule small, .result small { display: block; margin-top: 4px; overflow-wrap: anywhere; }
 .row-actions { display: flex; gap: var(--pero-spacing-1); justify-content: flex-end; }
 .scope { margin: 0; padding: var(--pero-spacing-3) var(--pero-spacing-5) var(--pero-spacing-4); }
-.task-list .pero-ui-empty-state { padding: var(--pero-spacing-6); }
+.task-list > .pero-ui-empty-state { flex: 1; align-content: center; }
 .details, .workspace > .pero-content-pane { width: min(100%, 400px); min-width: 0; flex-shrink: 0; border-inline-start: var(--pero-hairline); overflow-wrap: anywhere; }
 .details > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pero-spacing-3); margin-bottom: var(--pero-spacing-3); }
 .detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-4); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
