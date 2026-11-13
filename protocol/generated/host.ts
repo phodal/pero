@@ -1655,6 +1655,7 @@ export interface LayoutPreferences {
   artifact_view?: ArtifactView;
   resource_tab?: "files" | "artifacts";
   link_surface?: "in_app" | "external_browser";
+  diff_soft_wrap?: boolean;
 }
 export interface ListAgentsCommand {
   action: "list_agents";

@@ -9697,6 +9697,10 @@
             }
           ],
           "default": "in_app"
+        },
+        "diff_soft_wrap": {
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false

@@ -171,3 +171,109 @@ not repeated. No Canvas-share, continuous remote-desktop, machine-metrics or
 voice-transcript page was added: those content kinds are not workspace items,
 and the isolated desktop in ADR 0019 is an execution boundary rather than a
 session content view.
+
+## Continuous reading and typography — 2026-11-13
+
+Base `origin/master` `6b69b9c02`; isolated branch `codex/pr-view-layout` in
+`/Users/phodal/workspaces/pero-pr-layout`. This increment replaces the selected
+plain patch with Kit's retained continuous Diff. The optional file directory
+navigates without marking files read. Explicit viewed checkboxes keep the
+existing head-bound PR state. Unchanged file snapshots retain the diff entity
+and document. Missing, malformed and bounded patches remain visibly identified.
+
+The status/branch row and title precede one counted tab row. Changes statistics,
+wrap, viewed filtering and directory controls share that row; the repeated
+file-count summary is removed. Code follows the existing code-font setting at
+the shared 12/14 compact ratio with a 12px minimum. Syntax highlighting and
+word-level changed ranges come from Kit. Embedded Diff drops its extra outer
+border. A retained Kit patch keeps file headers at viewport width during
+horizontal code scrolling.
+
+Commit subjects are body-size medium weight; details and SHA/author use regular
+caption size with muted metadata. Checks use regular body text and 8px vertical
+padding. Names wrap independently from fixed status and Details columns.
+`LayoutPreferences.diff_soft_wrap` defaults true and persists through Host
+settings. Old settings and explicit false are covered by the layout contract.
+
+Observed in a rebuilt macOS arm64 Native development window using a rebuilt Host
+and isolated data home, with real public `phodal/pero#228` read through `gh`:
+
+- Changes shows five files, +9/−9, highlighted TSX/CSS and inline changed words.
+  The top/right edges no longer have the extra Diff border.
+- With wrapping disabled, file names, totals and viewed checkboxes remain in
+  the viewport during horizontal keyboard scrolling. Directory navigation and
+  explicit viewed controls were exercised. With wrapping enabled, long source
+  lines wrap within the content width, including with the directory open.
+- Disabling wrapping persisted to Host settings and survived a Native restart.
+  Final preview was left open on Changes with wrapping enabled.
+- Description, Commits, Checks and Reviews were opened. Commit bodies are no
+  longer wholly bold; long check names wrap while status/Details remain aligned.
+  Real bot review HTML rendered without a panic.
+
+Inspected local screenshots under `test-results/pr-layout/`: `01-changes-light.png`,
+`02-directory-horizontal-light.png`, `03-commits-light.png`, `04-checks-light.png`
+and `05-reviews-light.png`. These ignored artifacts are development evidence.
+The directory/horizontal capture predates the final merged tab/tool row; the
+other typography captures show the final layout.
+
+Validation: Native build and Wasm check pass. The Native-feature library suites
+pass (133 contract tests and 80 UI tests). `npm run check` passes TypeScript,
+generated contracts/theme/design/tokens/icons and 1219 bilingual messages.
+No new Electron runtime, dark-theme, actual narrow OS-window, signed-package,
+Windows/Linux or screen-reader acceptance is claimed for this increment.
+
+
+## Grouped checks, review timeline and compact commits — 2026-11-13
+
+This increment is based on PR #229 head `f0e265312` plus contracts commit
+`98b22a5cc` and the accompanying UI changes. It retains the PR's counted navigation,
+continuous highlighted Changes and Host-owned line-wrapping preference.
+
+Checks now classify check runs and legacy commit statuses once in the contracts
+core. The result groups distinguish attention, running, passed, skipped, neutral
+and unknown. Skipped/neutral groups start closed; their entries and counts remain
+available. A partial section never yields an all-passed tab label. On real public
+PR #228, 22 passes and 24 skips yield “Checks completed”, not “All checks passed”.
+Actual clicks collapsed the passed group and revealed all 24 skipped entries.
+Long names wrapped while the outcome and Details columns remained aligned.
+
+Reviews render independent retained Markdown entities beneath author/outcome
+headers, with a quiet timeline and shared initials avatars. The original bot
+HTML, code, lists and links remain intact; no generated author headings are
+inserted into the Markdown. Description/diff subscriptions are kept separately
+from replaceable review link subscriptions. Failed or unchanged refreshes retain
+the existing bodies and section scroll state.
+
+Commits show a medium-weight subject and muted author/SHA. A shared Collapsible
+reveals the full message, including co-author trailers, only when requested.
+The first real commit was expanded and closed through the Native control. The
+SHA control displays seven characters and copies the full value. No per-entry
+timestamps, unresolved counts or per-commit statistics are fabricated.
+
+Verification on macOS arm64 development Native + real Host:
+
+- Contracts: 134 tests passed; Native UI: 80 tests passed.
+- Native executable build, Wasm compile check and `npm run check` passed.
+- Final rebuilt light theme inspected on the three real PR #228 subviews, with
+  the chat pane open (roughly 760px PR content width). Full titles, metadata,
+  controls, wrapped check names and review code remained inside the content pane.
+- Dark theme was inspected during the preceding iteration. The final light-theme
+  captures are `test-results/pr-reading-views/04-commits-light.png`,
+  `05-checks-light.png` and `06-reviews-light.png`; each saved image was inspected.
+- Captures are ignored local evidence and are attached to PR #229, not committed
+  binary assets. Existing baseline screenshots in the PR remain separately dated.
+
+The isolated preview has no built Connectors service, so startup reports that
+unrelated service as unavailable; the PR Host read path completed normally. No
+new Electron runtime, final dark-theme capture, OS-window resize, signed package,
+Windows/Linux, screen-reader or external review-link click acceptance is claimed.
+
+
+Review follow-up on #229: the Kit cache-builder fixture reproduced its missing
+fifth-patch ENOENT, then passed after the fixture was updated (one test). The diff
+cache now associates identical patches with their head SHA so previously hidden
+files are filtered again when their marks become stale. An unchanged source/head
+keeps the existing viewport. Final Native library regression remains 134 contracts
+and 80 UI tests; the existing viewed-mark table pins head-bound marks. This cache
+correction was reviewed from current source and compiled; an actual rebased-PR
+refresh is not included in the Native captures above.

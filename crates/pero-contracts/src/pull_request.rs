@@ -1,6 +1,10 @@
 //! GitHub PR identity and observed review data. No transport or clock lives here.
 use serde::{Deserialize, Serialize};
 
+#[path = "pull_request_checks.rs"]
+mod checks;
+pub use checks::{CheckOutcome, CheckSummary};
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct PullRequestRef(String);

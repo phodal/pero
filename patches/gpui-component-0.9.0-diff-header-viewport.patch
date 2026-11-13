@@ -1,0 +1,17 @@
+--- a/crates/component/src/diff/mod.rs
++++ b/crates/component/src/diff/mod.rs
+@@ -1260,9 +1260,13 @@
+     };
+     let state = code.state.clone();
+     let name = document.path().clone();
++    // Headers stay in the viewport while code owns the horizontal scroll extent.
++    let viewport = code.state.read(cx).viewport().width;
++    let offset = code.state.read(cx).horizontal_scroll().offset().x;
+     v_flex()
+         .id("file-header")
+-        .w_full()
++        .relative().left(-offset)
++        .w(viewport)
+         .when(file > 0, |this| this.border_t_1())
+         .border_b_1()
+         .border_color(border)
