@@ -150,7 +150,7 @@ func failure(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status = 404
 		message = err.Error()
-	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput):
+	case errors.Is(err, store.ErrContributionInput), errors.Is(err, store.ErrEnrollmentInput), errors.Is(err, store.ErrTaskInput):
 		status = 400
 		message = err.Error()
 	case errors.Is(err, store.ErrForbidden):
@@ -234,7 +234,7 @@ func (a *API) createTask(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &spec) {
 		return
 	}
-	if !bounded(spec.Title, 240) || !bounded(spec.Prompt, 64000) || !bounded(spec.Acceptance, 16000) || !bounded(spec.ProjectID, 128) || !bounded(spec.WorkspaceKey, 128) || !bounded(spec.AgentID, 128) {
+	if spec.Validate() != nil {
 		invalid(w)
 		return
 	}

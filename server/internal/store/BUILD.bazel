@@ -20,6 +20,7 @@ go_library(
         "store.go",
         "worker_devices.go",
         "tasks.go",
+        "task_creation.go",
     ],
     importpath = "github.com/phodal/pero/server/internal/store",
     visibility = ["//server:__subpackages__"],
