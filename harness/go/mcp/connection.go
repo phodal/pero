@@ -307,6 +307,9 @@ func (s *mcpConnectionSupervisor) syncGeneration(ctx context.Context, generation
 	if err != nil {
 		return err
 	}
+	for index := range definitions {
+		definitions[index].Generation = generation.id
+	}
 	var apps []Tool
 	if s.access != nil {
 		apps, err = buildMCPAudienceTools(generation.session, s.serverName, tools, s.toolCallTimeout, s.calls.push, true)

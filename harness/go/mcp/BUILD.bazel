@@ -4,6 +4,7 @@ go_library(
     name = "mcp",
     srcs = [
         "access.go",
+        "app_result.go",
         "config.go",
         "connection.go",
         "elicit.go",

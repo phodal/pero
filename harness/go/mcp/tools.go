@@ -21,6 +21,9 @@ type Tool struct {
 	// Name is the exact remote identity, not the model-facing normalized name.
 	Name   string
 	Schema harnessmodel.ToolSchema
+	// ResourceURI is the declaring tool's UI link, not data supplied by its result.
+	ResourceURI string
+	Generation  uint64
 	// Explicit mutating annotations participate in the caller's approval policy.
 	RequiresApproval bool
 	Execute          func(context.Context, json.RawMessage) (harnesstool.Result, error)
@@ -71,6 +74,7 @@ func buildMCPAudienceTools(session *mcp.ClientSession, serverName string, remote
 		publicNames[name] = remoteName
 		tool := Tool{
 			Name:             remoteName,
+			ResourceURI:      appResource(remote.Meta),
 			RequiresApproval: remote.Annotations != nil && !remote.Annotations.ReadOnlyHint,
 			Schema:           harnessmodel.ToolSchema{Name: name, Description: remote.Description, InputSchema: schema, OutputSchema: canonicalOutputSchema(name, remote.OutputSchema)},
 			Execute: func(callCtx context.Context, raw json.RawMessage) (harnesstool.Result, error) {
@@ -90,6 +94,9 @@ func buildMCPAudienceTools(session *mcp.ClientSession, serverName string, remote
 				result, err := session.CallTool(requestCtx, &mcp.CallToolParams{Name: remoteName, Arguments: arguments})
 				if err != nil {
 					return harnesstool.Result{}, SafeError(err)
+				}
+				if err = captureAppResult(callCtx, result); err != nil {
+					return harnesstool.Result{}, err
 				}
 				converted, err := fromMCPResult(result)
 				if app && err == nil {
