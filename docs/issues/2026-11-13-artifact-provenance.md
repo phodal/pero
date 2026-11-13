@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: in_progress
+status: resolved
 date: 2026-11-13
 ---
 
@@ -31,7 +31,12 @@ recorded interpreter/dependencies and verifies the resulting hash.
 
 ## Verification
 
-Pending: pure receipt outcome compatibility checks; actual local Python runs and
-Host save/restart/version/failure/cancellation; production Inspector in browser;
-export replay and exact output comparison. Native and signed packaging are
-separate acceptance scopes.
+Completed: receipt compatibility/outcome checks, actual local Python capture and
+Host save/restart/version/failure/cancellation, production Inspector in Chromium,
+and downloaded ZIP replay matching the selected historical output hash. The
+recorder also retains no-output launch failures as deliverable reports. Unknown
+and legacy artifacts explicitly retain missing observations.
+
+Commands, observed screenshots, source versions and remaining platform scope:
+[verification record](../fitness/artifact-provenance.md). Native, Electron shell,
+signed packaging and scientific conclusions are separate acceptance scopes.

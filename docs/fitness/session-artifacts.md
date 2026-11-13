@@ -644,3 +644,12 @@ tool; compact multiline/wrapped drafts, cancellation, scope restoration and the
 embedded permission card retain their prior assertions. Its existing CJS
 `import.meta` build warning remains. Native capture of that Product shell was not
 part of this run.
+
+## Observed invocation and fixed-version export — 2026-11-13
+
+The existing receipt/store now accepts compatible v2 execution observations,
+retained pre-run sources and deliverable no-output reports. The production
+Inspector displays recorded outcomes and missing observations and exports exact
+selected-version reproduction material. Real local Python, Host restart/history,
+Chromium presentation and downloaded ZIP replay evidence, including limitations,
+are recorded in [artifact provenance verification](artifact-provenance.md).
