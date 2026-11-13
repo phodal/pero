@@ -435,6 +435,32 @@ fn interrupted_claim_is_reconciled_without_replaying_prompt() {
     assert!(!fixture.root.join("marker").exists());
 }
 
+#[test]
+fn terminal_recovery_retains_only_unuploaded_evidence_without_replay() {
+    for (status, acknowledged) in [("reconcile", 0), ("succeeded", 0), ("reconcile", 1)] {
+        let fixture = Fixture::new("hello", false, false);
+        fixture.state.lock().unwrap().run["status"] = json!(status);
+        let run = fixture.state.lock().unwrap().run.clone();
+        let events = json!([{"seq":1,"kind":"session_update","text":"unuploaded calculation evidence"}]);
+        std::fs::write(fixture.root.join("state.json"), json!({"pending_claim":null,"active":{
+            "run":run,"events":events,"acknowledged":acknowledged,"result":null
+        }}).to_string()).unwrap();
+        assert!(fixture.run().status.success());
+        assert!(!fixture.root.join("marker").exists());
+        assert!(fixture.state.lock().unwrap().claim_keys.is_empty());
+        let directory = fixture.root.join("state.retained");
+        if acknowledged == 0 {
+            let path = std::fs::read_dir(directory).unwrap().next().unwrap().unwrap().path();
+            let receipt: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            assert_eq!(receipt["run"]["id"], "run_1");
+            assert_eq!(receipt["events"], events);
+            assert_eq!(receipt["acknowledged"], 0);
+        } else {
+            assert!(!directory.exists());
+        }
+    }
+}
+
 
 // Native protocol fixture, never executes tools or makes model/network calls.
 #[test]

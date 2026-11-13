@@ -53,6 +53,31 @@ impl Drop for StateLock {
 }
 
 impl Journal {
+    // A terminal Cloud Run cannot accept late events. Keep their original local
+    // evidence before clearing intake state; this receipt never authorizes replay.
+    pub fn retain_unuploaded(&self) -> Result<(), String> {
+        let Some(active) = &self.state.active else { return Ok(()) };
+        if active.events.last().is_none_or(|event| event.seq <= active.acknowledged) {
+            return Ok(());
+        }
+        let directory = self.path.with_extension("retained");
+        std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let key: String = ring::digest::digest(&ring::digest::SHA256, active.run.id.as_bytes())
+            .as_ref().iter().map(|byte| format!("{byte:02x}")).collect();
+        let path = directory.join(format!("{key}.json"));
+        let pending = path.with_extension("pending");
+        let mut file = private_file(&pending)?;
+        file.set_len(0).map_err(|e| e.to_string())?;
+        file.write_all(&serde_json::to_vec(active).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        file.sync_all().map_err(|e| e.to_string())?;
+        drop(file);
+        std::fs::rename(pending, path).map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        File::open(directory).and_then(|file| file.sync_all()).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn open(path: PathBuf) -> Result<Self, String> {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
