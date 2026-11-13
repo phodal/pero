@@ -11,7 +11,7 @@ import { EmptyIllustration } from '../components/empty-illustration';
 import { Disclosure } from '../components/disclosure';
 import { Dialog } from '../components/dialog';
 import { Progress } from '../components/progress';
-import { Badge } from '../../../pero-design/src/components';
+import { Badge, ListRow } from '../../../pero-design/src/components';
 import { ContentPane, ContentSection, InspectorHeader, MetadataList } from '../../../pero-design/src/content';
 import { computeMessages } from './compute-messages';
 import { ProjectProposal } from './project-proposal';
@@ -125,17 +125,15 @@ export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs
     </ContentPane> : <ContentPane id="compute-env-catalog" label={t.title} as="div" surface="workspace" inset="compact" scroll="pane"
       header={<InspectorHeader title={t.title} subtitle={t.about} actions={!onBar ? <><Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button>{!!values.length && <Button variant="primary" disabled={!!busy || preparing} onClick={() => open('create')}>{t.create}</Button>}</> : undefined} />}>
       {loaded && <Card tone="blue" variant="soft" className="env-recipe-summary">
-        <h3>{t.current}</h3>{current.map(item => <div className="env-heading" key={item.id}><p>{method(item)} · {item.label}</p>
+        <ContentSection id="compute-env-current" title={t.current}>{current.map(item => <div className="env-heading" key={item.id}><p>{method(item)} · {item.label}</p>
           <Button disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'unbind_compute', target: item.target === 'paper-agent.pcgym' ? item.target : 'control-lab.python-control' })}>{t.returnService}</Button></div>)}
-        {!current.length && <p className="env-note">{t.noSelection}</p>}<p className="env-note">{t.boundary}</p>
+        {!current.length && <p className="env-note">{t.noSelection}</p>}<p className="env-note">{t.boundary}</p></ContentSection>
       </Card>}
       <p className="env-note">{t.history}</p>
       <ProjectProposal locale={locale} fetchFn={fetchFn}/>
       {error && <Feedback kind="error" variant="block">{error} {loaded && t.retained} <Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button></Feedback>}
-      {!loaded ? !error && <Feedback>{t.loading}</Feedback> : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment"/>} heading={t.empty} description={t.emptyNote} actions={onBar ? undefined : <Button variant="primary" disabled={!!busy} onClick={() => open('create')}>{t.create}</Button>}/> : <div className="env-grid">{values.map(item => <Card className="env-tile" key={item.id}>
-        <Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><div className="env-actions">{status(item)}{item.bound && <Badge tone="info">{t.chosen}</Badge>}</div><p className="env-note">{method(item)} · Python {item.prepared?.python_request ?? '3.12.14'} · uv</p>
-        {item.error && <Feedback kind="error">{item.error}</Feedback>}
-      </Card>)}</div>}
+      {!loaded ? !error && <Feedback>{t.loading}</Feedback> : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment"/>} heading={t.empty} description={t.emptyNote} actions={onBar ? undefined : <Button variant="primary" disabled={!!busy} onClick={() => open('create')}>{t.create}</Button>}/> : <div className="env-grid">{values.map(item => <div className="env-tile" key={item.id}><ListRow title={item.label} onOpen={() => setSelected(item.id)} trailing={<>{status(item)}{item.bound && <Badge tone="info">{t.chosen}</Badge>}</>} /><p className="env-note">{method(item)} · Python {item.prepared?.python_request ?? '3.12.14'} · uv</p>
+        {item.error && <Feedback kind="error">{item.error}</Feedback>}</div>)}</div>}
     </ContentPane>}
     {!!busy && busy !== 'prepare' && <Feedback>{t.pending}</Feedback>}
     {dialog && <Dialog title={dialog === 'rebuild' ? t.rebuildTitle : t.create} closeLabel={t.cancel} onClose={() => { if (!busy) setDialog(null); }}>

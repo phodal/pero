@@ -131,21 +131,22 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
     {(creating || value) && <AppBar scope={<Button variant="ghost" disabled={busy} onClick={back}><Icon family="shell" name="back" />{t.back}</Button>}
       primary={value && !value.bound && value.state !== 'preparing' ? <Button variant="primary" busy={busy} onClick={() => value.state === 'ready' ? setConfirming(true) : void request({ operation: 'prepare', id: value.id })}>{value.state === 'ready' ? t.bind : t.prepare}</Button> : undefined} />}
     {error && !creating && <div className="env-load-error"><Feedback kind="error" variant="block">{!loaded && `${t.failedLoad}: `}{error}{loaded && ` ${t.retained}`}</Feedback><Button disabled={busy} onClick={() => void request({ operation: 'list' })}>{t.retry}</Button></div>}
-    {creating ? <ContentPane id="env-create" label={t.create} as="div" surface="workspace" inset="compact" scroll="pane" header={<LibraryHeader density="compact" title={<span tabIndex={-1}>{t.create}</span>} subtitle={t.createNote} />}>
+    {creating ? <ContentPane id="env-create" label={t.create} as="div" surface="workspace" inset="none" scroll="pane" header={<LibraryHeader density="compact" title={<span tabIndex={-1}>{t.create}</span>} subtitle={t.createNote} />}>
     <form className="env-create-form" onSubmit={event => { event.preventDefault(); createEnvironment(event.currentTarget); }}>
       <Field label={t.name} controlId="env-name">{control => <Input {...control} ref={input} required maxLength={80} autoComplete="off" value={label} disabled={busy} onChange={event => setLabel(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) createEnvironment(event.currentTarget.form!); } }} />}</Field>
-      <section className="env-method-section" aria-labelledby="env-method-label">
-        <h3 id="env-method-label">{t.method}</h3>
-        <RadioGroup id="env-method" aria-labelledby="env-method-label" value={target} disabled={busy} onValueChange={setTarget} className="env-method-choices">
+      <div className="env-method-section">
+        <ContentSection id="env-method" title={t.method}>
+        <RadioGroup id="env-method-options" aria-labelledby="env-method-title" value={target} disabled={busy} onValueChange={setTarget} className="env-method-choices">
           {[...METHODS.slice(1), METHODS[0]].map(item => <RadioGroupItem key={item.id} variant="card" value={item.id} aria-label={item.name}>
             <span className="env-method-option"><span className="env-method-icon" data-tone={item.tone}><Icon name={item.icon} size={18} /></span>
               <span className="env-method-copy"><strong>{item.name}</strong><span>{item.id === 'paper-agent.pcgym' ? t.pcgymNote : item.id === 'control-lab.ngspice' ? t.circuitNote : item.id === 'lcms2yield.inference' ? t.lcmsNote : t.controlNote}</span></span>
             </span>
           </RadioGroupItem>)}
         </RadioGroup>
-      </section>
-      <Card tone="blue" variant="soft" className="env-recipe-summary" asChild><section aria-labelledby="env-software-title">
-        <h3 id="env-software-title"><Icon name="cube" size={18}/>{t.software}</h3>
+        </ContentSection>
+      </div>
+      <Card tone="blue" variant="soft" className="env-recipe-summary">
+        <ContentSection id="env-software" title={t.software}>
         <dl className="env-recipe-facts">
           <div><dt>{t.runtime}</dt><dd>{t.python} · {t.local}</dd></div>
           <div><dt>{t.packages}</dt><dd className="env-package-list">{method.software.split(', ').map(name => <OutlineBadge key={name}>{name}</OutlineBadge>)}</dd></div>
@@ -154,7 +155,8 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
         {method.app === 'Control Lab' && <p className="env-note">{t.shared}</p>}
         {target === 'control-lab.ngspice' && <Feedback kind="warning" variant="block">{t.native}</Feedback>}
         {target === 'lcms2yield.inference' && <p className="env-note">{t.lcms}</p>}
-      </section></Card>
+        </ContentSection>
+      </Card>
       {createError && <Feedback kind="error" variant="block">{t.createFailed} {createError}</Feedback>}
       <footer className="env-create-footer"><p className="env-note">{t.preparationNote}</p><div className="env-form-actions"><Button variant="ghost" disabled={busy} onClick={back}>{t.cancel}</Button><Button type="submit" variant="primary" busy={busy} onClick={event => { event.preventDefault(); createEnvironment(event.currentTarget.form!); }}>{t.createPrepare}</Button></div></footer>
     </form></ContentPane> : value ? <ContentPane id={`env-${value.id}`} label={value.label} as="div" surface="reading" inset="compact" scroll="pane"
@@ -178,7 +180,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
         primary={tab === 'environments' ? <Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button> : tab === 'compute' && computeListing ? <Button variant="primary" disabled={busy || computeBusy} onClick={() => computeCreate.current()}>{computeCopy.create}</Button> : undefined} />
       <TabsContent value="environments">
         <ContentPane id="env-catalog" label={t.environments} as="div" surface="list" inset="none" scroll="pane">
-        {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} /> : <Table className="env-catalog-table" label={t.environments} density="comfortable" rows={values} rowId={item => item.id} columns={[
+        {!loaded ? busy ? <LoadingSkeleton className="env-catalog-empty" label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState className="env-catalog-empty" icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} /> : <Table className="env-catalog-table" label={t.environments} density="comfortable" rows={values} rowId={item => item.id} columns={[
           { id: 'name', header: t.name, size: 320, cell: item => <div className="env-catalog-name"><span className="env-method-icon" data-tone={METHODS.find(method => method.id === item.target)!.tone}><Icon name={METHODS.find(method => method.id === item.target)!.icon} size={18}/></span><div><Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><p className="env-muted">{t.python} · {t.local}</p></div></div> },
           { id: 'method', header: t.method, size: 130, cell: item => METHODS.find(method => method.id === item.target)!.name },
           { id: 'status', header: t.status, size: 140, cell: item => status(item) },

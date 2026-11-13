@@ -31,21 +31,19 @@
 .env-footer{justify-content:space-between;align-items:flex-start;border-top:.5px solid var(--pero-border);padding-top:var(--pero-spacing-3)}
 .env-footer .env-note{max-width:60ch;flex:1;min-width:min(180px,100%)}
 .pero-env-trigger{display:inline-flex}
-/* Higher specificity than `.pero-env { display:grid }` so the page does not
-   stretch header/tab rows across the webview height (Native WKWebView). */
-.pero-env.env-workspace{display:flex;flex-direction:column;align-items:stretch;gap:0;min-height:100%;height:auto;background:var(--pero-bg);padding:var(--pero-spacing-5) var(--pero-spacing-6)}
-.env-workspace-content{width:100%;max-width:1120px;margin:0 auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:var(--pero-spacing-4);flex:0 0 auto;min-width:0}
-.env-workspace-create .env-workspace-content{max-width:800px}
-.env-workspace-content>.pero-library-header{padding:0;background:transparent;align-items:flex-start;flex-wrap:wrap;flex:0 0 auto}
-.env-workspace-content>.pero-ui-tabs{flex:0 0 auto;min-width:0}
+/* Higher specificity than `.pero-env { display:grid }`. The bar stays one row;
+   the pane under it fills the webview. Page padding and a max-width column
+   used to leave the empty catalog as a short card. */
+.pero-env.env-workspace{display:flex;flex-direction:column;align-items:stretch;gap:0;flex:1 1 auto;height:100%;min-height:0;overflow:hidden;background:var(--pero-bg);padding:0}
+.env-workspace-content{width:100%;max-width:none;margin:0;display:flex;flex-direction:column;align-items:stretch;flex:1 1 auto;min-height:0;min-width:0;gap:0}
+.env-workspace-content>.pero-app-bar,.env-workspace-content>.pero-ui-tabs>.pero-app-bar{flex:none}
+.env-workspace-content>.pero-ui-tabs{display:flex;flex:1 1 auto;flex-direction:column;min-width:0;min-height:0}
 .env-catalog-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-spacing-3);flex-wrap:wrap;min-width:0}
 .env-catalog-bar>.pero-ui-tabs-list{flex:1 1 auto;min-width:0}
 .env-catalog-bar>.env-actions{margin-inline-start:auto}
 .env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content[hidden],.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content[data-state=inactive]{display:none!important}
-.env-workspace .pero-library-heading h1{white-space:normal;overflow-wrap:anywhere}
-.env-workspace .pero-library-heading p{margin-top:var(--pero-spacing-2);line-height:1.5}
 .env-back{align-self:flex-start}
-.env-create-form{display:grid;gap:var(--pero-spacing-5);width:100%;margin:0}
+.env-create-form{display:grid;gap:var(--pero-spacing-5);width:100%;max-width:800px;margin:0;padding:var(--pero-spacing-4) var(--pero-spacing-4) var(--pero-spacing-6)}
 .env-method-section{display:grid;gap:var(--pero-spacing-3);min-width:0}
 .env-method-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr))}
 .env-method-option{display:flex;align-items:flex-start;gap:var(--pero-spacing-2);min-width:0}
@@ -56,7 +54,6 @@
 .env-method-icon[data-tone=blue]{background:var(--pero-tint-blue-surface);color:var(--pero-tint-blue-text)}
 .env-method-icon[data-tone=apricot]{background:var(--pero-tint-apricot-surface);color:var(--pero-tint-apricot-text)}
 .env-recipe-summary{display:grid;gap:var(--pero-spacing-3)}
-.env-recipe-summary h3{display:flex;align-items:center;gap:var(--pero-spacing-2);color:var(--pero-tint-blue-text)}
 .env-package-list{display:flex;gap:var(--pero-spacing-2);flex-wrap:wrap}
 .env-package-list>.pero-badge{font-family:var(--pero-font-family-mono)}
 .env-recipe-facts{display:grid;gap:var(--pero-spacing-2);margin:0}
@@ -70,7 +67,13 @@
 .env-catalog-name>div{min-width:0}
 .env-catalog-name .env-muted{margin-top:var(--pero-spacing-1)}
 .env-catalog-table{background:var(--pero-surface);border-radius:var(--pero-radius-panel)}
-.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content{padding-top:var(--pero-spacing-5)}
+.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content:not([hidden]){display:flex;flex:1 1 auto;flex-direction:column;min-height:0;min-width:0;padding:0}
+.env-workspace .pero-content-pane{height:auto;flex:1 1 auto;min-height:0}
+.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content:not([hidden])>.env-compute,
+.env-workspace-content>.pero-ui-tabs>.pero-ui-tabs-content:not([hidden])>.pero-env{flex:1 1 auto;min-height:0;min-width:0}
+.env-workspace .env-compute{display:flex;flex-direction:column;min-height:0;gap:var(--pero-spacing-4)}
+#env-catalog>.pero-content-body{display:flex;flex-direction:column;min-height:0}
+#env-catalog>.pero-content-body>.env-catalog-empty{flex:1;align-content:center}
 @media(max-width:640px){.env-method-choices{grid-template-columns:1fr}.env-recipe-facts>div{grid-template-columns:5rem minmax(0,1fr)}}
 .env-install-log{font-size:var(--pero-font-caption)}
 .env-inspection{padding:0}
@@ -79,7 +82,6 @@
 .env-dependency-table{max-width:720px}
 .pero-env .pero-ui-feedback{overflow-wrap:anywhere}
 .env-load-error{display:grid;gap:var(--pero-spacing-2);justify-items:start}
-@media(max-width:580px){.env-workspace{padding:var(--pero-spacing-4)}.env-toolbar .pero-ui-toggle-group{margin-left:0}.env-heading{align-items:flex-start}.env-observation{grid-template-columns:1fr;gap:var(--pero-spacing-1)}.env-observation dd{margin-bottom:var(--pero-spacing-2)}.env-footer .env-note{min-width:100%}}
+@media(max-width:580px){.env-toolbar .pero-ui-toggle-group{margin-left:0}.env-heading{align-items:flex-start}.env-observation{grid-template-columns:1fr;gap:var(--pero-spacing-1)}.env-observation dd{margin-bottom:var(--pero-spacing-2)}.env-footer .env-note{min-width:100%}}
 
 .env-compute,.env-preparation-progress{display:grid;gap:var(--pero-spacing-4);min-width:0}
-.env-compute .env-tile>.pero-ui-button{justify-self:start;white-space:normal;text-align:start;overflow-wrap:anywhere}
