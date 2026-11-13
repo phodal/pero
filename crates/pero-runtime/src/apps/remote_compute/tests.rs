@@ -24,6 +24,77 @@ fn remote_requests_admit_only_the_fixed_method_and_typed_references() {
     }
 }
 
+#[test]
+fn remote_presentation_does_not_infer_queued_or_stopped_from_incomplete_owner_facts() {
+    let id = identity("attempt".into()).unwrap();
+    let cluster = Cluster {
+        id: id.clone(),
+        name: "site".into(),
+        host: "alias".into(),
+        account: String::new(),
+        partition: "cpu".into(),
+        workdir: "/tmp/site".into(),
+        scheduler: Scheduler::Slurm,
+    };
+    let probe = SshProbe {
+        hostname: "node".into(),
+        system: "Linux".into(),
+        architecture: "x86_64".into(),
+        python: "3.12.0".into(),
+    };
+    let constraints = BatchConstraints::new(identity("cpu".into()).unwrap(), 1, 256, 600).unwrap();
+    let submission = BatchSubmission {
+        operation: id.clone(),
+        cluster: id.clone(),
+        constraints,
+        payload: ContentDigest::of(&"payload"),
+        job_id: 1,
+        submit_time: 1,
+    };
+    let mut a = Attempt {
+        id: id.clone(),
+        cluster,
+        input: serde_json::from_value(json!({"samples":1000,"repetitions":1})).unwrap(),
+        directory: "/tmp/site/attempt".into(),
+        digest: ContentDigest::of(&"plan"),
+        snapshot: snapshot(&probe, &id, &id, 1).unwrap(),
+        staged: true,
+        slurm: None,
+        submitted_at: Some(1),
+        process: None,
+        batch: Some(submission.clone()),
+        batch_observation: None,
+        cancel_requested: false,
+        outputs: vec![],
+        collection_error: None,
+        error: None,
+    };
+    for (states, end_time, expected) in [
+        (vec![BatchState::Pending], None, "queued"),
+        (vec![BatchState::Running], None, "running"),
+        (vec![], None, "unknown"),
+        (vec![BatchState::Unknown], None, "unknown"),
+        (vec![BatchState::Cancelled], None, "unknown"),
+        (vec![BatchState::Cancelled], Some(2), "stopped"),
+        (vec![BatchState::Completed], Some(2), "completed"),
+        (vec![BatchState::Failed], Some(2), "failed"),
+    ] {
+        a.batch_observation = Some(BatchObservation {
+            submission: submission.clone(),
+            states,
+            nodes: String::new(),
+            start_time: None,
+            end_time,
+        });
+        assert_eq!(a.display_state(), expected);
+    }
+    a.submitted_at = None;
+    a.staged = false;
+    assert_eq!(a.display_state(), "preparation_failed");
+    a.staged = true;
+    assert_eq!(a.display_state(), "prepared");
+}
+
 /// Actual App HTTP → private Host → authenticated OpenSSH → remote Python.
 /// Opt-in because the operator supplies the existing/disposable SSH configuration.
 #[test]

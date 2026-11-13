@@ -65,6 +65,8 @@ struct Attempt {
     directory: PathBuf,
     digest: ContentDigest,
     snapshot: EnvironmentSnapshot,
+    #[serde(default)]
+    staged: bool,
     slurm: Option<SlurmRequest>,
     #[serde(default)]
     submitted_at: Option<u64>,
@@ -88,6 +90,55 @@ struct Output {
     path: String,
     sha256: ContentDigest,
     reference: String,
+}
+
+impl Attempt {
+    /// Presentation of owner facts, never an independent execution transition.
+    fn display_state(&self) -> &'static str {
+        if self.submitted_at.is_none() {
+            if self.staged {
+                "prepared"
+            } else {
+                "preparation_failed"
+            }
+        } else if let Some(o) = &self.batch_observation {
+            if o.stopped() {
+                if o.states.contains(&BatchState::Completed) {
+                    "completed"
+                } else if o.states.contains(&BatchState::Cancelled) {
+                    "stopped"
+                } else {
+                    "failed"
+                }
+            } else if o.states.is_empty() || o.states.contains(&BatchState::Unknown) {
+                "unknown"
+            } else if self.cancel_requested {
+                "cancel_requested"
+            } else if o.states.contains(&BatchState::Running) {
+                "running"
+            } else if o.states.contains(&BatchState::Pending) {
+                "queued"
+            } else {
+                "unknown"
+            }
+        } else if let Some(p) = &self.process {
+            if p.running {
+                if self.cancel_requested {
+                    "cancel_requested"
+                } else {
+                    "running"
+                }
+            } else if self.cancel_requested {
+                "stopped"
+            } else if p.exit_code == Some(0) {
+                "completed"
+            } else {
+                "failed"
+            }
+        } else {
+            "unknown"
+        }
+    }
 }
 
 pub(super) struct RemoteCompute {
@@ -225,43 +276,6 @@ impl Owner<'_> {
             .get(&a.id)?
             .map(|v| format!("{:?}", v.state().state()))
             .unwrap_or_else(|| "NotAcquired".into());
-        let state = if a.submitted_at.is_none() {
-            "prepared"
-        } else if let Some(o) = &a.batch_observation {
-            if o.stopped() {
-                if o.states.contains(&BatchState::Completed) {
-                    "completed"
-                } else if o.states.contains(&BatchState::Cancelled) {
-                    "stopped"
-                } else {
-                    "failed"
-                }
-            } else if o.states.is_empty() || o.states.contains(&BatchState::Unknown) {
-                "unknown"
-            } else if a.cancel_requested {
-                "cancel_requested"
-            } else if o.states.contains(&BatchState::Running) {
-                "running"
-            } else {
-                "queued"
-            }
-        } else if let Some(p) = &a.process {
-            if p.running {
-                if a.cancel_requested {
-                    "cancel_requested"
-                } else {
-                    "running"
-                }
-            } else if a.cancel_requested {
-                "stopped"
-            } else if p.exit_code == Some(0) {
-                "completed"
-            } else {
-                "failed"
-            }
-        } else {
-            "unknown"
-        };
         let logs = |name| {
             fs::read_to_string(
                 self.data
@@ -273,7 +287,7 @@ impl Owner<'_> {
         };
         Ok(
             serde_json::json!({"id":a.id,"clusterId":a.cluster.id,"host":a.cluster.host,"scheduler":a.cluster.scheduler,"account":a.cluster.account,"partition":a.cluster.partition,"directory":a.directory,"digest":a.digest,
-            "samples":a.input.samples(),"repetitions":a.input.repetitions(),"useState":use_state,"state":state,"logs":{"stdout":logs("stdout.log"),"stderr":logs("stderr.log")},
+            "samples":a.input.samples(),"repetitions":a.input.repetitions(),"useState":use_state,"state":a.display_state(),"logs":{"stdout":logs("stdout.log"),"stderr":logs("stderr.log")},
             "outputs":a.outputs,"collected":!a.outputs.is_empty(),"error":a.error.as_ref().or(a.collection_error.as_ref()),"exitCode":a.process.as_ref().and_then(|p| p.exit_code),"jobId":a.batch.as_ref().map(|b| b.job_id)}),
         )
     }
@@ -345,13 +359,14 @@ impl Owner<'_> {
                 )?;
                 let digest =
                     ContentDigest::of(&(&cluster, &input, &directory, &snapshot, QUADRATURE));
-                let attempt = Attempt {
+                let mut attempt = Attempt {
                     id,
                     cluster,
                     input,
                     directory,
                     digest,
                     snapshot,
+                    staged: false,
                     slurm,
                     submitted_at: None,
                     process: None,
@@ -375,6 +390,8 @@ impl Owner<'_> {
                     self.save(&a)?;
                     return Err(error);
                 }
+                attempt.staged = true;
+                self.save(&attempt)?;
             }
             Request::Submit { id, digest } => {
                 let mut a = self.load(&id)?;
@@ -384,7 +401,7 @@ impl Owner<'_> {
                 if a.submitted_at.is_some() {
                     return Err("Submission already requested; observe the original attempt, do not submit again".into());
                 }
-                if a.error.is_some() {
+                if !a.staged || a.error.is_some() {
                     return Err("Preparation did not complete; prepare a new attempt".into());
                 }
                 let (probe, site) = self.inspect(&a.cluster)?;
