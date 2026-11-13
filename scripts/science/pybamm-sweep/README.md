@@ -237,3 +237,46 @@ persisted child-start event, then SIGSTOPs that actual child to make cancellatio
 and parent-death cleanup observable; it does not claim cancellation at a
 particular solver timestep. Polls observe external states with bounded deadlines.
 The cluster and owned processes stop on exit; evidence files remain.
+
+## Deployed HTTPS / one self-hosted Worker
+
+`deployed.py` runs the existing frozen method through a deployed control plane.
+It enrolls one dedicated device in a unique acceptance project, creates three
+explicitly targeted Tasks, and starts the production Rust Worker on this machine.
+It never dispatches imported repository tasks or calls a model provider.
+
+Prepare the pinned Python environment above and build the current Worker. The
+operator JSON must be supplied privately and contain `token`; no credential goes
+in command arguments. Use a new output directory for each invocation:
+
+```sh
+python3.12 scripts/science/pybamm-sweep/deployed.py --allow-live \
+  --origin https://app.openpero.com \
+  --operator-file /absolute/private/operator.json \
+  --worker-bin /absolute/path/pero/target/debug/pero-worker \
+  --python /absolute/path/pybamm-venv/bin/python \
+  --output /absolute/path/new-private-evidence-directory
+```
+
+The command first calculates locally to reject an incompatible environment before
+remote provisioning. Then it checks actual numerical output against the existing
+reference, actual child-process cancellation, and connection loss followed by
+original-journal reconciliation without prompt replay. Create/dispatch retries
+must return the original identities. Cancellation/failure cases observe a durable
+child-start event and SIGSTOP that actual child, as in the existing VM acceptance;
+they do not measure solver-timestep cancellation.
+
+Only the connection-loss case uses a loopback CONNECT proxy. TLS remains directly
+between the Worker and the deployed HTTPS endpoint; closing this test's tunnels
+does not change firewall, system proxy or other applications. The normal and
+cancellation cases connect directly to the configured HTTPS service.
+
+The output directory is private (0700, files 0600). `*.private.json` contains
+enrollment recovery data/Worker credentials and must not be published. The safe
+`receipt.json`, method/binary hashes, per-case event snapshots, numerical check,
+Worker journals and local calculation files retain the evidence. Processes and
+proxy stop on exit. An unresolved Run may prevent device disable with HTTP 409;
+the receipt records that original Worker fence for explicit operator review,
+rather than deleting data or bypassing reconciliation. This is one execution
+machine, numerical consistency and production transport acceptance, not general
+coding-Agent permissions, multi-machine or scientific acceptance.
