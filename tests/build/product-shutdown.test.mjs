@@ -13,7 +13,7 @@ const bundled = await build({
     build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path.startsWith('node:') ? undefined : { path: args.path, namespace: 'ports' });
     build.onLoad({ filter: /.*/, namespace: 'ports' }, () => ({ contents: `
       export const { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell,
-        DesktopApps, DesktopAppUse, DesktopComputer, HostArtifactDelivery, Product } = ports;
+        DesktopApps, DesktopAppUse, DesktopComputer, HostArtifactDelivery, NotebookInspector, Product } = ports;
       export const harnessEnvironment = () => ({}), translate = (_, key) => key;
       export const testWindowOptions = {}, computerPermissions = {}, ConversationContentRead = {};
       export const confirmReproduction = () => {}, confirmDoclingSetup = () => {}, bindAppFrameEditing = () => {};
@@ -57,6 +57,7 @@ async function product() {
     globalShortcut: { register() {}, unregisterAll() {} },
     DesktopApps: class { accept() { return false; } close() {} },
     HostArtifactDelivery: class { accept() { return false; } close() {} },
+    NotebookInspector: class {},
     DesktopAppUse: class {
       constructor(_window, send) { ports.appEvent = send; }
       async start() { return {}; } async close() {} reset() {} accept() {}
