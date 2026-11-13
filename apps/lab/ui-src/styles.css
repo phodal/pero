@@ -1,15 +1,12 @@
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; }
+#app { display: flex; flex-direction: column; min-height: 0; }
 body { margin: 0; color: var(--pero-text); background: var(--pero-bg); font: var(--pero-font-body)/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 button, input, select, textarea { font: inherit; }
-.lab { height: 100dvh; width: 100%; max-width: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.lab h1 { font-size: var(--pero-font-heading); margin: 0; line-height: 1.4; }
-.lab h2 { font-size: var(--pero-font-body); margin: 0 0 8px; font-weight: 600; }
-.lab p { margin: 8px 0; }
+.lab { flex: 1; height: 100%; min-height: 0; width: 100%; max-width: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.lab :where(p) { margin: 8px 0; }
 .lab .pero-ui-glyph { flex: none; }
-.lab .pero-ui-button.icon-button { width: var(--pero-icon-button); padding: 0; flex: none; }
 .lab input:disabled, .lab select:disabled, .lab textarea:disabled { color: var(--pero-disabled-text); background: var(--pero-disabled); }
-.lab :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 .lab label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
 .muted { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .error { color: var(--pero-error); overflow-wrap: anywhere; }
@@ -32,14 +29,14 @@ button, input, select, textarea { font: inherit; }
 .status-message { text-align: right; color: var(--pero-info); }
 .lab .pero-ui-split { min-height: 0; flex: 1; }
 .lab .pero-ui-split-pane { min-height: 0; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
-.lab .pero-ui-split-pane > .pero-content-pane { flex: 1; min-height: 0; }
-.lab .pero-ui-split-handle { background: var(--pero-border); }
+.lab .pero-ui-split-pane > .pero-content-pane { flex: 1; min-height: 0; height: auto; }
 .lab .pero-ui-split[data-stacked] { flex: none; width: 100%; max-width: 100%; min-width: 0; overflow: visible; }
 .lab .pero-ui-split[data-stacked] > .pero-ui-split-pane[data-sized],
 .lab .pero-ui-split[data-stacked] > .pero-ui-split-pane:not([data-sized]) { flex: 0 0 auto; width: 100%; max-width: 100%; min-width: 0; min-height: 0; overflow: visible; }
 .lab .pero-ui-split[data-stacked] > .pero-ui-split-pane + .pero-ui-split-pane { border-top: .5px solid var(--pero-border); }
 .lab-workspace:has(> .pero-ui-split[data-stacked]), .lab .workbench-panel:has(> .pero-ui-split[data-stacked]) { overflow: auto; }
 .goal-pane { padding: 0; background: var(--pero-surface); }
+.new-experiment { padding: var(--pero-spacing-3) var(--pero-spacing-4); }
 .new-experiment > h2, .section-toolbar h2 { display: flex; align-items: center; gap: 8px; }
 .objective-input { resize: vertical; min-height: 76px; }
 .fields > label { flex: 1; min-width: 110px; }
@@ -48,9 +45,10 @@ button, input, select, textarea { font: inherit; }
 .facts dt { color: var(--pero-text-muted); }
 .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
 .lab .experiment-tabs { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
-.lab .pero-ui-tabs-list:not([data-unstyled]) { flex: none; gap: 0; padding: 0 12px; background: var(--pero-surface); border-bottom: .5px solid var(--pero-border); }
-.lab .pero-ui-tabs-trigger:not([data-unstyled]) { min-height: 30px; padding: 4px 12px; border-radius: 0; border-bottom: 2px solid transparent; line-height: 1.4; }
-.lab .pero-ui-tabs-trigger:not([data-unstyled])[data-state=active] { background: transparent; color: var(--pero-text); border-bottom-color: var(--pero-action); font-weight: 600; }
+.lab .experiment-tabs > .pero-app-bar { flex: none; }
+.lab .pero-app-bar .pero-ui-tabs-list { flex: none; width: auto; min-width: 0; }
+.lab .pero-app-bar .experiment-picker,
+.lab .pero-app-bar .trial-picker { flex: 0 1 16rem; flex-direction: row; align-items: center; gap: 8px; margin: 0; min-width: 8rem; max-width: 16rem; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
 .lab .pero-ui-tabs-content { flex: 1; min-height: 0; padding: 0; overflow: hidden; background: var(--pero-surface); display: flex; flex-direction: column; }
 .lab .pero-ui-tabs-content > .pero-content-pane, .lab .workbench-panel > .pero-ui-split { flex: 1; min-height: 0; }
 .lab .workbench-panel:not([hidden]) { display: flex; padding: 0; overflow: hidden; }
@@ -59,7 +57,7 @@ button, input, select, textarea { font: inherit; }
 .candidate-status { font-size: var(--pero-font-caption); padding: 1px 6px; background: var(--pero-surface-muted); border-radius: 4px; color: var(--pero-text-muted); }
 .deck-compact, .deck-surface { display: flex; flex-direction: column; min-height: 0; }
 .deck-surface { flex: 1; }
-.deck-toolbar { flex: none; padding: 10px 12px; background: var(--pero-surface); }
+.deck-toolbar { flex: none; }
 .deck-canvas { display: flex; align-items: flex-start; justify-content: flex-start; flex: 1; min-height: 350px; overflow: auto; padding: 24px; background: var(--pero-surface-muted); }
 .plate-tray { flex: 0 0 auto; width: max(520px, calc(var(--pero-font-caption) * 36)); min-width: 380px; margin: auto; padding: 12px; border: 1px solid var(--pero-border); border-radius: 10px; background: var(--pero-bg); }
 .plate { display: grid; grid-template-columns: calc(var(--pero-font-caption) * 1.5) repeat(12, minmax(24px, 1fr)); gap: 4px; }
@@ -76,7 +74,6 @@ button, input, select, textarea { font: inherit; }
 .resource-pane, .well-inspector { background: var(--pero-surface); }
 .selected-well, .deck-resources { padding: 12px; }
 .selected-well { border-bottom: .5px solid var(--pero-border); }
-.selected-well h2 { font-weight: 400; }
 .well-metrics { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0; font-size: var(--pero-font-caption); }
 .well-metrics dt { color: var(--pero-text-muted); }
 .well-metrics dd { margin: 3px 0 0; font-size: var(--pero-font-body); font-variant-numeric: tabular-nums; }
@@ -98,7 +95,7 @@ button, input, select, textarea { font: inherit; }
 .lab .draft-pane { display: flex; flex-direction: column; overflow: hidden; background: var(--pero-surface); }
 .candidate-pane { background: var(--pero-bg); }
 .protocol-draft { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-.editor-toolbar { min-height: 44px; flex: none; padding: 10px 12px; border-bottom: .5px solid var(--pero-border); }
+.editor-toolbar { flex: none; border-bottom: var(--pero-hairline); }
 .view-switch { display: flex; padding: 2px; gap: 2px; border-radius: 4px; background: var(--pero-surface-muted); }
 .protocol-body { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 0 12px 12px; }
 .step-table-scroll { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; }
@@ -112,7 +109,6 @@ button, input, select, textarea { font: inherit; }
 .lab .step-table tbody th { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .lab .step-table tbody tr:focus-within { background: var(--pero-accent-soft); }
 .step-actions { display: flex; gap: 2px; }
-.step-actions .pero-ui-button { color: var(--pero-text-muted); }
 .editor-add { justify-content: space-between; margin-top: 8px; }
 .editor-message { margin: 8px 0; }
 .lab .json-editor-label { height: 100%; min-height: 300px; margin: 12px 0 0; padding-bottom: 12px; }
