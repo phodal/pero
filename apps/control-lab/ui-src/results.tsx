@@ -1,6 +1,6 @@
 import { Disclosure, Badge, Button, Card, Checkbox, Dialog, EmptyState, Feedback, Input, Select, RadioGroup, RadioGroupItem, Slider, Table, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import React, { useEffect, useRef, useState } from "react";
-import { Split, SplitPane } from "@pero/app-sdk/ui";
+import { ContentPane, Split, SplitPane } from "@pero/app-sdk/ui";
 import type { Check, Experiment, Series, Template } from "./types";
 import {
   chartTarget,
@@ -225,7 +225,7 @@ export function Results({
     <>
       <Split key={hasTrials ? "results" : "setup"} className="workbench" data-preparing={!hasTrials || undefined} storageKey={hasTrials ? "control-lab.results.panes" : "control-lab.setup.panes"} collapseBelow={hasTrials ? 1080 : 760}>
         <SplitPane as="section" id="model" className="model-panel panel" size={setup ? 420 : 300} min={280} resizeLabel="Resize model setup">
-          <h2>Model and setup</h2>
+          <ContentPane id="control-model" label="Model and setup" as="div" surface="workspace" inset="compact" scroll="pane" header={<h2>Model and setup</h2>}>
           {!isFilter && <Card tone="apricot" variant="soft" className="model-expression">{model}</Card>}
           <p className="muted">{isFilter ? "Equal R/C, idealized op-amp" : "Continuous SISO, unit feedback"}</p>
           {names.map((name) => {
@@ -257,8 +257,10 @@ export function Results({
             <dt>Final cases</dt><dd>{rows.length}</dd>
           </dl>}
           <Button type="button" onClick={() => setPolicyOpen(true)}>View verification policy</Button>
+          </ContentPane>
         </SplitPane>
         <SplitPane as="section" id="response" className="response-panel panel" min={300}>
+          <ContentPane id="control-response" label="Response analysis" as="div" surface="workspace" inset="compact" scroll="pane">
           {setup ?? <>
           <div className="panel-heading">
             <h2>Response analysis</h2>
@@ -283,9 +285,11 @@ export function Results({
           {selected?.error && <Feedback kind="error" variant="block">{selected.error}</Feedback>}
           {baseline?.error && baseline !== selected && <Feedback kind="error" variant="block">Baseline: {baseline.error}</Feedback>}
           </>}
+          </ContentPane>
         </SplitPane>
         {hasTrials && <SplitPane as="section" id="verification" className="verification-panel panel" size={300} min={260} resizeLabel="Resize verification">
-          <h2>{verified ? "Final verification" : "Search checks"}</h2>
+          <ContentPane id="control-verification" label={verified ? "Final verification" : "Search checks"} as="div" surface="reading" inset="compact" scroll="pane"
+            header={<h2>{verified ? "Final verification" : "Search checks"}</h2>}>
           <div className={`verdict-header status ${summary.verdict}`}>
             <strong>{summary.title}</strong>
             <span>{summary.detail}</span>
@@ -307,6 +311,7 @@ export function Results({
               <Button type="button" onClick={() => suggestion.values && onDraft(suggestion.values)}>Use proposal</Button>
             </div>
           </div>}
+          </ContentPane>
         </SplitPane>}
       </Split>
       {experiment.candidates.length > 0 && <section className="candidate-panel panel">

@@ -12,6 +12,7 @@ import { Disclosure } from '../components/disclosure';
 import { Dialog } from '../components/dialog';
 import { Progress } from '../components/progress';
 import { Badge } from '../../../pero-design/src/components';
+import { ContentPane, ContentSection, InspectorHeader, MetadataList } from '../../../pero-design/src/content';
 import { computeMessages } from './compute-messages';
 import { ProjectProposal } from './project-proposal';
 
@@ -92,37 +93,50 @@ export function ComputeEnvironments({ locale, fetchFn = globalThis.fetch, pollMs
     if (!form.reportValidity() || busy) return;
     void mutate(dialog === 'rebuild' && value ? { operation: 'rebuild', id: value.id, label } : { operation: 'create_locked', target, label });
   };
+  const detailActions = value ? <>
+    {(value.state === 'created' || value.state === 'failed') && <Button variant="primary" busy={busy === 'prepare'} disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'prepare', id: value.id })}>{value.state === 'failed' ? t.retry : t.prepare}</Button>}
+    {value.state === 'ready' && (value.bound ? <Badge tone="info">{t.chosen}</Badge> : <Button variant="primary" busy={busy === 'bind_compute'} disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'bind_compute', id: value.id })}>{t.choose}</Button>)}
+    {value.prepared && <Button disabled={!!busy || preparing} onClick={() => open('rebuild')}>{t.rebuild}</Button>}
+    {value.state === 'preparing' && <Button busy={cancelling} disabled={cancelling} onClick={() => void cancelPreparation()}>{t.cancelPreparation}</Button>}
+  </> : null;
   return <section className="env-compute" aria-label={t.title}>
-    {loaded && <Card tone="blue" variant="soft" className="env-recipe-summary">
-      <h3>{t.current}</h3>{current.map(item => <div className="env-heading" key={item.id}><p>{method(item)} · {item.label}</p>
-        <Button disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'unbind_compute', target: item.target === 'paper-agent.pcgym' ? item.target : 'control-lab.python-control' })}>{t.returnService}</Button></div>)}
-      {!current.length && <p className="env-note">{t.noSelection}</p>}<p className="env-note">{t.boundary}</p>
-    </Card>}
-    <p className="env-note">{t.history}</p>
-    <ProjectProposal locale={locale} fetchFn={fetchFn}/>
-    {error && <Feedback kind="error" variant="block">{error} {loaded && t.retained} <Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button></Feedback>}
-    {value ? <>
-      <Button className="env-back" variant="ghost" onClick={() => setSelected('')}>{t.back}</Button>
-      <div className="env-heading"><h2 ref={heading} tabIndex={-1}>{value.label}</h2>{status(value)}</div>
-      <dl className="env-facts"><div><dt>{t.source}</dt><dd>{method(value)} · {t.sourceValue}</dd></div><div><dt>{t.python}</dt><dd>{value.prepared?.python_request ?? '3.12.14'}</dd></div><div><dt>{t.manager}</dt><dd>uv {value.prepared?.uv_version ?? '0.12.20'}</dd></div></dl>
-      <div className="env-actions">
-        {(value.state === 'created' || value.state === 'failed') && <Button variant="primary" busy={busy === 'prepare'} disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'prepare', id: value.id })}>{value.state === 'failed' ? t.retry : t.prepare}</Button>}
-        {value.state === 'ready' && (value.bound ? <Badge tone="info">{t.chosen}</Badge> : <Button variant="primary" busy={busy === 'bind_compute'} disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'bind_compute', id: value.id })}>{t.choose}</Button>)}
-        {value.prepared && <Button disabled={!!busy || preparing} onClick={() => open('rebuild')}>{t.rebuild}</Button>}
-        {value.state === 'preparing' && <Button busy={cancelling} disabled={cancelling} onClick={() => void cancelPreparation()}>{t.cancelPreparation}</Button>}
-      </div>
+    {value ? <ContentPane id={`compute-env-${value.id}`} label={value.label} as="div" surface="reading" inset="compact" scroll="pane"
+      header={<InspectorHeader titleRef={heading} title={value.label} identity={method(value)} subtitle={t.sourceValue} status={status(value)} actions={detailActions} />}
+      toolbar={<Button className="env-back" variant="ghost" onClick={() => setSelected('')}>{t.back}</Button>}>
+      <p className="env-note">{t.history}</p>
+      <ContentSection id={`compute-env-facts-${value.id}`} title={t.source}>
+        <MetadataList items={[
+          { id: 'source', label: t.source, value: `${method(value)} · ${t.sourceValue}` },
+          { id: 'python', label: t.python, value: value.prepared?.python_request ?? '3.12.14' },
+          { id: 'manager', label: t.manager, value: `uv ${value.prepared?.uv_version ?? '0.12.20'}` },
+        ]} />
+      </ContentSection>
       {value.error && <Feedback kind="error" variant="block">{value.failure && <strong>{t[value.failure.stage]}: </strong>}{value.error}</Feedback>}
       {(value.state === 'preparing' || busy === 'prepare') && <div className="env-preparation-progress"><Progress label={t.preparing}/><Feedback>{value.log.at(-1) || t.starting}</Feedback><p className="env-note">{t.noPercent}</p></div>}
       <p className="env-note">{value.prepared ? t.published : t.recipe}</p>
-      {value.prepared && <Disclosure variant="inline" summary={t.evidence}><dl className="env-observation"><dt>{t.lock}</dt><dd>{value.prepared.lock_sha256}</dd><dt>{t.content}</dt><dd>{value.prepared.observation.packages_sha256}</dd><dt>{t.dependencies}</dt><dd>{Object.entries(value.prepared.observation.packages).map(([name, version]) => <div key={name}>{name} {version}</div>)}</dd></dl></Disclosure>}
+      {value.prepared && <ContentSection id={`compute-env-evidence-${value.id}`} title={t.evidence}>
+        <MetadataList layout="stacked" items={[
+          { id: 'lock', label: t.lock, value: value.prepared.lock_sha256, format: 'code' },
+          { id: 'content', label: t.content, value: value.prepared.observation.packages_sha256, format: 'code' },
+          { id: 'dependencies', label: t.dependencies, value: Object.entries(value.prepared.observation.packages).map(([name, version]) => <div key={name}>{name} {version}</div>) },
+        ]} />
+      </ContentSection>}
       {!!value.log.length && <Disclosure variant="inline" summary={t.log}><pre className="env-json">{value.log.join('\n')}</pre></Disclosure>}
-    </> : <>
-      <div className="env-heading"><div><h2>{t.title}</h2><p className="env-note">{t.about}</p></div>{!onBar && <div className="env-actions"><Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button>{!!values.length && <Button variant="primary" disabled={!!busy || preparing} onClick={() => open('create')}>{t.create}</Button>}</div>}</div>
+    </ContentPane> : <ContentPane id="compute-env-catalog" label={t.title} as="div" surface="workspace" inset="compact" scroll="pane"
+      header={<InspectorHeader title={t.title} subtitle={t.about} actions={!onBar ? <><Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button>{!!values.length && <Button variant="primary" disabled={!!busy || preparing} onClick={() => open('create')}>{t.create}</Button>}</> : undefined} />}>
+      {loaded && <Card tone="blue" variant="soft" className="env-recipe-summary">
+        <h3>{t.current}</h3>{current.map(item => <div className="env-heading" key={item.id}><p>{method(item)} · {item.label}</p>
+          <Button disabled={!!busy || preparing} onClick={() => void mutate({ operation: 'unbind_compute', target: item.target === 'paper-agent.pcgym' ? item.target : 'control-lab.python-control' })}>{t.returnService}</Button></div>)}
+        {!current.length && <p className="env-note">{t.noSelection}</p>}<p className="env-note">{t.boundary}</p>
+      </Card>}
+      <p className="env-note">{t.history}</p>
+      <ProjectProposal locale={locale} fetchFn={fetchFn}/>
+      {error && <Feedback kind="error" variant="block">{error} {loaded && t.retained} <Button disabled={!!busy} onClick={() => void refresh()}>{t.refresh}</Button></Feedback>}
       {!loaded ? !error && <Feedback>{t.loading}</Feedback> : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment"/>} heading={t.empty} description={t.emptyNote} actions={onBar ? undefined : <Button variant="primary" disabled={!!busy} onClick={() => open('create')}>{t.create}</Button>}/> : <div className="env-grid">{values.map(item => <Card className="env-tile" key={item.id}>
         <Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><div className="env-actions">{status(item)}{item.bound && <Badge tone="info">{t.chosen}</Badge>}</div><p className="env-note">{method(item)} · Python {item.prepared?.python_request ?? '3.12.14'} · uv</p>
         {item.error && <Feedback kind="error">{item.error}</Feedback>}
       </Card>)}</div>}
-    </>}
+    </ContentPane>}
     {!!busy && busy !== 'prepare' && <Feedback>{t.pending}</Feedback>}
     {dialog && <Dialog title={dialog === 'rebuild' ? t.rebuildTitle : t.create} closeLabel={t.cancel} onClose={() => { if (!busy) setDialog(null); }}>
       <form className="env-create-form" onSubmit={event => { event.preventDefault(); submit(event.currentTarget); }}>

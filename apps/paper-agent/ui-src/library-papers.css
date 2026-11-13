@@ -14,7 +14,8 @@
 .pa-library-screen > .pa-library-content { display: flex; flex: 1; flex-direction: column; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; }
 .pa-library-papers-screen { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
 .pa-library-papers { flex: 1; min-height: 0; }
-.pa-library-list-pane { overflow: auto; padding: 20px 12px 12px; }
+.pa-library-list-pane { overflow: hidden; display: flex; flex-direction: column; min-height: 0; padding: 0; }
+.pa-library-list-pane > .pero-content-pane { flex: 1; min-height: 0; }
 .pa-library-placeholder { display: grid; gap: var(--pero-spacing-2); padding: var(--pero-spacing-4) var(--pero-spacing-2); border-bottom: var(--pero-hairline); }
 .pa-library-papers .pa-library-heading.pero-library-header { justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 0 8px; min-height: 0; background: transparent; }
 .pa-library-papers .pa-library-heading .pero-library-heading { display: flex; flex-direction: row; align-items: baseline; gap: 10px; }

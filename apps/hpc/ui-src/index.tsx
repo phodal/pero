@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { appObjectProps, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from "@pero/app-sdk";
-import { Disclosure, AppBar, Button, Feedback, Icon, IconButton, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
+import { Disclosure, AppBar, Button, ContentPane, Feedback, Icon, IconButton, Input, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from "@pero/app-sdk/ui";
 import { messages, type Message } from "./messages";
 import { ComparisonTable, RunEvidence, RunTable } from "./results";
 import { MethodSpec } from "./method";
@@ -172,18 +172,23 @@ export default function HpcBenchmarks() {
     {data && !data.runtime.reframeAvailable && <div className="app-feedback"><Feedback kind="warning" variant="block">{data.runtime.message}</Feedback><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
     {loading ? <main className="loading" role="status">{t("loading")}</main> : <Split storageKey="hpc:benchmark-explorer-width" collapseBelow={760} className="workbench">
       <SplitPane id="hpc-benchmarks" size={232} min={210} stackedBasis="auto" resizeLabel={t("methods")} as="aside" className="benchmark-explorer">
-        <div className="explorer-header"><h2>{t("methods")}</h2><div className="benchmark-search"><Icon name="search" size={14} /><Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} /></div></div>
+        <ContentPane id="hpc-method-list" label={t("methods")} as="div" surface="list" inset="compact" scroll="pane"
+          header={<div className="explorer-header"><h2>{t("methods")}</h2></div>}
+          toolbar={<div className="benchmark-search"><Icon name="search" size={14} /><Input type="search" aria-label={t("search")} placeholder={t("search")} value={query} onChange={event => setQuery(event.target.value)} /></div>}
+          footer={data && <div className="explorer-runtime"><span><Icon name="local" size={14} />{t("local")}</span><span className="runtime-version">ReFrame {data.runtime.reframeVersion ?? "—"}<span className={data.runtime.reframeAvailable ? "status-pass" : "status-incomplete"}>{t(data.runtime.reframeAvailable ? "ready" : "unavailable")}</span></span></div>}>
         <nav className="benchmark-list" aria-label={t("methods")}>
           {filteredBenchmarks.map(benchmark => <Button key={benchmark.id} variant="ghost" className="benchmark-item" aria-label={benchmark.name} aria-current={selectedBenchmark?.id === benchmark.id ? "page" : undefined} onClick={() => chooseBenchmark(benchmark)}>
             <span className="benchmark-name">{benchmark.name}</span><span className="benchmark-meta"><span>{benchmark.version}</span>{!benchmark.available && <span className="unavailable-label">{t("unavailable")}</span>}</span>
           </Button>)}
           {!filteredBenchmarks.length && <p className="empty">{t(data?.benchmarks.length ? "noMatch" : "noMethods")}</p>}
         </nav>
-        {data && <div className="explorer-runtime"><span><Icon name="local" size={14} />{t("local")}</span><span className="runtime-version">ReFrame {data.runtime.reframeVersion ?? "—"}<span className={data.runtime.reframeAvailable ? "status-pass" : "status-incomplete"}>{t(data.runtime.reframeAvailable ? "ready" : "unavailable")}</span></span></div>}
+        </ContentPane>
       </SplitPane>
       <SplitPane id="hpc-workspace" min={360} as="section" role="main" className="content">
-        <div className="workspace-heading"><h2>{selectedBenchmark?.name ?? t("methods")}</h2>{selectedBenchmark && <span className="method-version">{selectedBenchmark.version}</span>}</div>
-        <Tabs value={tab} onValueChange={setTab} className="content-tabs"><TabsList><TabsTrigger value="method">{t("method")}</TabsTrigger><TabsTrigger value="runs">{t("results")}</TabsTrigger><TabsTrigger value="compare">{t("compare")}{chosen.length ? ` (${chosen.length})` : ""}</TabsTrigger></TabsList>
+        <Tabs value={tab} onValueChange={setTab} className="content-tabs">
+        <ContentPane id="hpc-method-workspace" label={selectedBenchmark?.name ?? t("methods")} as="div" surface="workspace" inset="compact" scroll="pane"
+          header={<div className="workspace-heading"><h2>{selectedBenchmark?.name ?? t("methods")}</h2>{selectedBenchmark && <span className="method-version">{selectedBenchmark.version}</span>}</div>}
+          toolbar={<TabsList><TabsTrigger value="method">{t("method")}</TabsTrigger><TabsTrigger value="runs">{t("results")}</TabsTrigger><TabsTrigger value="compare">{t("compare")}{chosen.length ? ` (${chosen.length})` : ""}</TabsTrigger></TabsList>}>
           <TabsContent value="method" className="method-content">
             {selectedBenchmark && data ? <MethodSpec benchmark={selectedBenchmark} latestRun={latestRun} t={t} onOpen={run => void openRun(run).catch(onError)} /> : <p className="empty">{t("noMethods")}</p>}
           </TabsContent>
@@ -201,6 +206,7 @@ export default function HpcBenchmarks() {
             {comparison && <ComparisonTable comparison={comparison} t={t} />}
             <h3 className="history-heading">{t("history")}</h3>{data?.runs.length ? <RunTable benchmarks={data.benchmarks} runs={data.runs} selectedId={selectedRun?.id ?? ""} chosen={chosen} t={t} onOpen={run => void openRun(run).catch(onError)} onChoose={chooseRun} /> : <p className="empty">{t("noRuns")}</p>}
           </TabsContent>
+        </ContentPane>
         </Tabs>
       </SplitPane>
     </Split>}

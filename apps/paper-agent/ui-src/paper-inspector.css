@@ -1,13 +1,16 @@
 /* Paper inspector: understand and act, not a full reader. */
-.pa-library-inspector-pane { overflow: auto; background: var(--pero-surface); }
+.pa-library-inspector-pane { overflow: hidden; display: flex; flex-direction: column; min-height: 0; background: var(--pero-surface); }
+.pa-library-inspector-pane > .pa-paper-inspector { flex: 1; min-height: 0; }
 .pa-paper-inspector {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 100%;
-  padding: 16px 14px 18px;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
   outline-offset: -3px;
 }
+.pa-paper-inspector > .pa-inspector-tabs,
+.pa-paper-inspector .pero-content-pane { flex: 1; min-height: 0; }
 .pa-inspector-header { display: grid; gap: 8px; min-inline-size: 0; }
 .pa-inspector-kicker {
   display: flex;

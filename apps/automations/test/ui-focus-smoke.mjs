@@ -27,9 +27,10 @@ await withPreview('long', async app => {
   const row = app.getByRole('row').filter({has: app.getByRole('button', {name: 'Pulse 每日简报', exact: true})});
   await row.getByRole('button', {name: 'Details', exact: true}).click();
   const details = app.getByRole('region', {name: 'Automation details'});
+  const title = details.getByRole('heading', {name: 'Pulse 每日简报'});
   await expect(details).toBeInViewport();
-  await expect(details).toBeFocused();
-  await details.press('Tab');
+  await expect(title).toBeFocused();
+  await title.press('Tab');
   await expect(app.getByRole('button', {name: 'Edit', exact: true})).toBeFocused();
   await expect(app.locator('.latest')).not.toContainText('Summarize the supplied local material.');
   await expect(app.getByRole('button', {name: 'Open session', exact: true})).toBeVisible();

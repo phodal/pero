@@ -1,6 +1,6 @@
 import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppBar, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
+import { AppBar, ContentPane, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
@@ -272,8 +272,9 @@ export default function Insights() {
       <AppBar utilities={brief ? generate : undefined} primary={brief
         ? (discussAction ? <Button variant="primary" busy={discussAction.discussing} onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined)
         : generate} />
-      <LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
-        subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'} />
+      <ContentPane id="insights-brief" label={locale === 'zh' ? '工作简报' : 'Work brief'} as="div" surface="workspace" inset="regular" scroll="pane"
+        header={<LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
+          subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'} />}>
       {brief ? <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss} />
         : <Card tone="blue" variant="soft" className="point-insights-start">
         <h2>{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</h2>
@@ -289,6 +290,7 @@ export default function Insights() {
         </div>
       </Card>}
       <ResearchUpdates hideEmpty={!!brief} />
+      </ContentPane>
     </div>
   </main>;
 }

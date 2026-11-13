@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useNavigate } from '@pero/app-sdk';
-import { AppFrame, Badge, Button, Card, Dialog, EnvironmentInspector, Feedback, FilePicker, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { AppFrame, Badge, Button, Card, ContentPane, Dialog, EnvironmentInspector, Feedback, FilePicker, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { seriesStyle } from '@pero/app-sdk/chart';
 import { messages, type CaseState, type Reaction } from './messages';
 import { detectColumns, readCsv, yieldPercent, uploadSmiles, matchingPredictions } from './plot';
@@ -85,6 +85,7 @@ export default function Lcms2Yield() {
     {state && error ? <div className="yield-recovery"><Feedback kind="error" variant="block">{t('operationFailed')}</Feedback><Button onClick={() => void refresh()}>{t('retry')}</Button><details><summary>{t('details')}</summary><p>{error}</p></details></div> : null}
     {state ? <div className="yield-shell">
       <aside className="yield-input">
+      <ContentPane id="lcms-inputs" label={t('task')} as="div" surface="workspace" inset="compact" scroll="pane">
         <Select label={t('task')} value={task} onChange={value => setTask(value as Task)} options={[{ value: 'predict', label: t('taskPredict') }, { value: 'train', label: t('taskTrain') }]} />
         <Select label={t('dataset')} value={dataset} onChange={value => setDataset(value as Dataset)} options={[
           { value: 'reactions', label: t('datasetAll', { count: state.population }) },
@@ -123,19 +124,20 @@ export default function Lcms2Yield() {
           <Button variant="ghost" onClick={() => void navigate(state.links.compute)}>{t('openCompute')}</Button>
           <Button variant="ghost" onClick={() => void navigate(state.links.workers)}>{t('workers')}</Button>
         </nav>
+      </ContentPane>
       </aside>
       <Tabs className="yield-tabs" value={panel} onValueChange={value => setPanel(value as 'results' | 'log')}>
         <TabsList variant="content" aria-label={t('results')}>
           <TabsTrigger value="results">{t('results')}</TabsTrigger>
           <TabsTrigger value="log">{t('log')}</TabsTrigger>
         </TabsList>
-        <TabsContent value="log" className="yield-panel">
+        <TabsContent value="log" className="yield-panel"><ContentPane id="lcms-log" label={t('log')} as="div" surface="workspace" inset="compact" scroll="pane">
           <p className="yield-help">{state.examples.status === 'UNRUN' ? t('outputEmpty') : `${t('officialExample')}: ${verdictLabel(state.examples.status)}`}</p>
           <IdentityNote t={t} identity={state.identity} />
           <div className="yield-block"><h2>{t('environment')}</h2><EnvironmentInspector targets={['lcms2yield.inference']} /></div>
           <p className="yield-help">{t('computeHelp')}</p>
-        </TabsContent>
-        <TabsContent value="results" className="yield-panel">
+        </ContentPane></TabsContent>
+        <TabsContent value="results" className="yield-panel"><ContentPane id="lcms-results" label={t('results')} as="div" surface="workspace" inset="compact" scroll="pane">
           {task === 'train' ? <p className="yield-help">{t('detectedTrain')}</p> : <>
             {showTable ? <section className="yield-facts" aria-label={t('yieldTable')}>
               <ul>
@@ -152,7 +154,11 @@ export default function Lcms2Yield() {
                   <p className="yield-axis">{t('axisExp')} · {t('axisPred')}</p>
                   <p className="yield-help">{t('chartHelp')}</p>
                   <ul className="yield-legend">{TYPES.map((type, index) => <li key={type}><span className="swatch" style={{ background: seriesStyle(index).stroke }} />{t(type)} · {state.typeCounts[type] ?? 0}</li>)}</ul>
-                  <dl className="yield-metrics"><div><dt>{t('r2')}</dt><dd>{Number(state.fit.r2).toFixed(3)}</dd></div><div><dt>{t('rmse')}</dt><dd>{Number(state.fit.rmse).toFixed(2)}</dd></div><div><dt>{t('pearson')}</dt><dd>{Number(state.fit.pearson).toFixed(3)}</dd></div></dl>
+                  <div className="yield-metrics"><MetadataList layout="stacked" items={[
+                    { id: 'r2', label: t('r2'), value: Number(state.fit.r2).toFixed(3) },
+                    { id: 'rmse', label: t('rmse'), value: Number(state.fit.rmse).toFixed(2) },
+                    { id: 'pearson', label: t('pearson'), value: Number(state.fit.pearson).toFixed(3) },
+                  ]} /></div>
                 </div> : null}
                 <Card className="yield-detail">
                   <ul className="yield-rows" aria-label={t('reactions')}>{visible.slice(0, 8).map(item => <li key={item.index}><button type="button" aria-current={item.index === reaction?.index} onClick={() => { setSelected(item.index); }}><span className="swatch" style={{ background: seriesStyle(TYPES.indexOf(item.reactionType)).stroke }} />{item.name}</button></li>)}</ul>
@@ -162,7 +168,7 @@ export default function Lcms2Yield() {
               </>}
             </section>
           </>}
-        </TabsContent>
+        </ContentPane></TabsContent>
       </Tabs>
     </div> : null}
     {confirming ? <Dialog title={t('confirmTitle')} closeLabel={t('cancel')} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t('cancel')}</Button><Button variant="primary" busy={busy} onClick={() => void post(dataset === 'upload' ? '/api/predict' : dataset === 'readme' ? '/api/examples' : '/api/rerun', dataset === 'upload' ? { confirm: true, smiles: upload?.smilesValues ?? [] } : dataset === 'readme' ? { confirm: true, set: 'readme' } : { confirm: true, reactionType: scopedType })}>{t('confirm')}</Button></>}><p>{t('confirmBody')}</p></Dialog> : null}
@@ -194,10 +200,10 @@ function ExampleOutput({ t, item, structure, drawing }: { t: (key: string, value
   const svg = drawing || (structure?.available ? structure.svg : null);
   return <div className="yield-detail">
     <p className="yield-smiles">{item.smiles}</p>
-    <dl>
-      <div><dt>{t('publishedCf')}</dt><dd>{item.published}</dd></div>
-      <div><dt>{t('cfRerun')}</dt><dd>{item.predicted ?? '—'}</dd></div>
-    </dl>
+    <MetadataList items={[
+      { id: 'published', label: t('publishedCf'), value: item.published },
+      { id: 'rerun', label: t('cfRerun'), value: item.predicted ?? '—' },
+    ]} />
     <h3>{t('structure')}</h3>
     {svg ? <div className="yield-structure" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="yield-help">{t('structureMissing')}</p>}
     <p className="yield-help">{t('outputLimit')}</p>
@@ -209,12 +215,12 @@ function ReactionInput({ t, reaction, structure, drawing }: { t: (key: string, v
   const svg = drawing || (structure?.available ? structure.svg : null);
   return <div className="yield-detail">
     <p>{reaction.name} · {t(reaction.reactionType)}</p>
-    <dl>
-      <div className="yield-smiles"><dt>{t('product')}</dt><dd>{reaction.productSmiles}</dd></div>
-      <div><dt>{t('yieldExp')}</dt><dd>{percent(reaction.yieldExp)}</dd></div>
-      <div><dt>{t('cfExp')}</dt><dd>{reaction.cfExp}</dd></div>
-      {reaction.cfRerun !== null ? <div><dt>{t('cfRerun')}</dt><dd>{reaction.cfRerun}</dd></div> : null}
-    </dl>
+    <MetadataList layout="stacked" items={[
+      { id: 'product', label: t('product'), value: reaction.productSmiles, format: 'code' },
+      { id: 'yield', label: t('yieldExp'), value: percent(reaction.yieldExp) },
+      { id: 'cf', label: t('cfExp'), value: reaction.cfExp },
+      ...(reaction.cfRerun !== null ? [{ id: 'rerun', label: t('cfRerun'), value: reaction.cfRerun }] : []),
+    ]} />
     <h3>{t('structure')}</h3>
     {svg ? <div className="yield-structure" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="yield-help">{t('structureMissing')}</p>}
   </div>;

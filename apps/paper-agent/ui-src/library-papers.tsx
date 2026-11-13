@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AppBar, Button, EmptyIllustration, EmptyState, Icon, IconButton, LibraryHeader, LoadingSkeleton, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppBar, Button, ContentPane, EmptyIllustration, EmptyState, Icon, IconButton, LibraryHeader, LoadingSkeleton, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
 import { PaperList } from './library';
 import { LibrarySearch } from './library-search';
 import { PaperInspector } from './paper-inspector';
@@ -37,7 +37,8 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
     primary={paper ? <Button variant="primary" onClick={() => onRead(paper)}>{readLabel}</Button> : add}/>
   <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
-      <LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`}/>
+      <ContentPane id="paper-library-catalog" label={t(title)} as="div" surface="list" inset="compact" scroll="pane"
+        header={<LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`}/>}>
       {loading ? <LoadingSkeleton label={t('loading')}>{[0, 1, 2].map(row => <div className="pa-library-placeholder" key={row}>
         <SkeletonBlock shape="title" width={row === 1 ? '68%' : '84%'}/><SkeletonBlock width="42%"/>
       </div>)}</LoadingSkeleton> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
@@ -48,6 +49,7 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
           <div className="pa-library-selection"><span>{t(selectedIds.length ? 'selectedPapers' : 'previewHint')}{selectedIds.length ? ` ${selectedIds.length}` : ''}</span><div className="pa-actions">{selectedIds.length > 0 && <Button variant="ghost" onClick={() => setSelected([])}>{t('clearSelection')}</Button>}</div></div>
         </>}
       </LibrarySearch>}
+      </ContentPane>
     </SplitPane>
     {showDetails && paper && !loading && !query && <SplitPane id="paper-library-inspector" size={400} min={320} resizeLabel={t('resizePaperDetails')} className="pa-library-inspector-pane" stackedBasis="auto">
       <PaperInspector ref={inspector} api={api} paper={paper} shelf={shelf} library={library} savingId={savingId} locked={locked} t={t}

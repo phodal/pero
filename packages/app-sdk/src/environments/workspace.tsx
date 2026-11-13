@@ -18,6 +18,7 @@ import { LoadingSkeleton, SkeletonText } from '../components/skeleton';
 import { Disclosure } from '../components/disclosure';
 import { Dialog } from '../components/dialog';
 import { Badge, OutlineBadge, LibraryHeader } from '../../../pero-design/src/components';
+import { ContentPane, ContentSection, InspectorHeader, MetadataList } from '../../../pero-design/src/content';
 import { METHODS } from './model.mjs';
 import { EnvironmentChecks, type InspectionProps } from './inspection';
 
@@ -39,7 +40,7 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [selected, setSelected] = useState(''), [tab, setTab] = useState('environments');
   const [accessRevoked, setAccessRevoked] = useState(false), [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false), [confirming, setConfirming] = useState(false), [label, setLabel] = useState(''), [target, setTarget] = useState<string>(METHODS[1].id);
-  const mounted = useRef(false), pending = useRef(false), latestValues = useRef(values), generation = useRef(0), heading = useRef<HTMLSpanElement>(null), input = useRef<HTMLInputElement>(null);
+  const mounted = useRef(false), pending = useRef(false), latestValues = useRef(values), generation = useRef(0), heading = useRef<HTMLHeadingElement>(null), input = useRef<HTMLInputElement>(null);
   const computeRefresh = useRef<() => void>(() => {}), computeCreate = useRef<() => void>(() => {});
   const [computeListing, setComputeListing] = useState(true), [computeBusy, setComputeBusy] = useState(false);
   const previousPage = useRef('catalog'); latestValues.current = values;
@@ -129,11 +130,9 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
   return <main className={`pero-env env-workspace${creating ? ' env-workspace-create' : ''}`}><div className="env-workspace-content">
     {(creating || value) && <AppBar scope={<Button variant="ghost" disabled={busy} onClick={back}><Icon family="shell" name="back" />{t.back}</Button>}
       primary={value && !value.bound && value.state !== 'preparing' ? <Button variant="primary" busy={busy} onClick={() => value.state === 'ready' ? setConfirming(true) : void request({ operation: 'prepare', id: value.id })}>{value.state === 'ready' ? t.bind : t.prepare}</Button> : undefined} />}
-    {(creating || value) && <LibraryHeader density="compact" title={<span ref={heading} tabIndex={-1}>{creating ? t.create : value!.label}</span>}
-      subtitle={creating ? t.createNote : `${method.name} · ${t.local}`}
-      actions={<>{value && status(value)}{value?.bound ? <span className="env-muted">{t.active}</span> : null}</>} />}
     {error && !creating && <div className="env-load-error"><Feedback kind="error" variant="block">{!loaded && `${t.failedLoad}: `}{error}{loaded && ` ${t.retained}`}</Feedback><Button disabled={busy} onClick={() => void request({ operation: 'list' })}>{t.retry}</Button></div>}
-    {creating ? <form className="env-create-form" onSubmit={event => { event.preventDefault(); createEnvironment(event.currentTarget); }}>
+    {creating ? <ContentPane id="env-create" label={t.create} as="div" surface="workspace" inset="compact" scroll="pane" header={<LibraryHeader density="compact" title={<span tabIndex={-1}>{t.create}</span>} subtitle={t.createNote} />}>
+    <form className="env-create-form" onSubmit={event => { event.preventDefault(); createEnvironment(event.currentTarget); }}>
       <Field label={t.name} controlId="env-name">{control => <Input {...control} ref={input} required maxLength={80} autoComplete="off" value={label} disabled={busy} onChange={event => setLabel(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) createEnvironment(event.currentTarget.form!); } }} />}</Field>
       <section className="env-method-section" aria-labelledby="env-method-label">
         <h3 id="env-method-label">{t.method}</h3>
@@ -158,27 +157,34 @@ export function EnvironmentManager({ locale = 'en', fetchFn = globalThis.fetch, 
       </section></Card>
       {createError && <Feedback kind="error" variant="block">{t.createFailed} {createError}</Feedback>}
       <footer className="env-create-footer"><p className="env-note">{t.preparationNote}</p><div className="env-form-actions"><Button variant="ghost" disabled={busy} onClick={back}>{t.cancel}</Button><Button type="submit" variant="primary" busy={busy} onClick={event => { event.preventDefault(); createEnvironment(event.currentTarget.form!); }}>{t.createPrepare}</Button></div></footer>
-    </form> : value ? <>
-      <dl className="env-facts">{[[t.method, method.name], ['Python', '3.12'], [t.usedBy, value.bound ? method.app : '—']].map(([name, text]) => <div key={name}><dt>{name}</dt><dd>{text}</dd></div>)}</dl>
+    </form></ContentPane> : value ? <ContentPane id={`env-${value.id}`} label={value.label} as="div" surface="reading" inset="compact" scroll="pane"
+      header={<InspectorHeader titleRef={heading} title={value.label} identity={method.name} subtitle={t.local} status={<>{status(value)}{value.bound ? <span className="env-muted">{t.active}</span> : null}</>} />}>
+      <ContentSection id={`env-facts-${value.id}`} title={t.status}>
+        <MetadataList items={[{ id: 'method', label: t.method, value: method.name }, { id: 'python', label: 'Python', value: '3.12' }, { id: 'used', label: t.usedBy, value: value.bound ? method.app : '—' }]} />
+      </ContentSection>
       {method.app === 'Control Lab' && <p className="env-note">{t.shared}</p>}{value.target === 'lcms2yield.inference' && <p className="env-note">{t.lcms}</p>}{value.error && <Feedback kind="error" variant="block">{value.error}</Feedback>}
       {value.state === 'preparing' && <Feedback>{value.log.filter(line => !line.startsWith('WARN')).at(-1) || t.preparing}</Feedback>}
-      <h3>{t.dependencies}</h3><Table className="env-dependency-table" label={t.dependencies} density="compact" rows={value.dependencies.map(dependency => { const [name, version] = dependency.split('=='); return { name, version }; })} rowId={item => item.name} columns={[
-        { id: 'name', header: t.name, size: 240, cell: item => item.name }, { id: 'version', header: t.version, size: 150, cell: item => item.version ?? '—' },
-      ]} />
+      <ContentSection id={`env-dependencies-${value.id}`} title={t.dependencies}>
+        <Table className="env-dependency-table" label={t.dependencies} density="compact" rows={value.dependencies.map(dependency => { const [name, version] = dependency.split('=='); return { name, version }; })} rowId={item => item.name} columns={[
+          { id: 'name', header: t.name, size: 240, cell: item => item.name }, { id: 'version', header: t.version, size: 150, cell: item => item.version ?? '—' },
+        ]} />
+      </ContentSection>
       {value.target === 'control-lab.ngspice' && <p className="env-note">{t.native}</p>}
       {!!value.log.length && <Disclosure variant="inline" className="env-install-log" summary={t.log}><pre className="env-json">{value.log.join('\n')}</pre></Disclosure>}
       {confirming && <Dialog title={t.confirmTitle} closeLabel={t.cancel} onClose={() => setConfirming(false)} footer={<><Button onClick={() => setConfirming(false)}>{t.cancel}</Button><Button variant="primary" busy={busy} onClick={() => { setConfirming(false); void request({ operation: 'bind', id: value.id }); }}>{t.confirm}</Button></>}><Feedback kind="warning" variant="block">{t.confirmText}</Feedback></Dialog>}
-    </> : <Tabs value={tab} onValueChange={value => { setTab(value); if (value === 'compute') setComputeVisited(true); if (value === 'inspect') setInspectVisited(true); }}>
+    </ContentPane> : <Tabs value={tab} onValueChange={value => { setTab(value); if (value === 'compute') setComputeVisited(true); if (value === 'inspect') setInspectVisited(true); }}>
       <AppBar scope={<TabsList variant="navigation" aria-label={t.title}><TabsTrigger value="environments">{t.environments}</TabsTrigger><TabsTrigger value="compute">{computeCopy.tab}</TabsTrigger><TabsTrigger value="inspect">{t.inspect}</TabsTrigger></TabsList>}
         utilities={<IconButton label={tab === 'compute' ? computeCopy.refresh : t.refresh} disabled={busy || (tab === 'compute' && computeBusy)} onClick={() => { if (tab === 'compute') computeRefresh.current(); else void request({ operation: 'list' }); }}><Icon name="refresh" /></IconButton>}
-        primary={tab === 'compute' ? (computeListing ? <Button variant="primary" disabled={busy || computeBusy} onClick={() => computeCreate.current()}>{computeCopy.create}</Button> : null) : <Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button>} />
+        primary={tab === 'environments' ? <Button variant="primary" disabled={busy} onClick={startCreating}>{t.create}</Button> : tab === 'compute' && computeListing ? <Button variant="primary" disabled={busy || computeBusy} onClick={() => computeCreate.current()}>{computeCopy.create}</Button> : undefined} />
       <TabsContent value="environments">
+        <ContentPane id="env-catalog" label={t.environments} as="div" surface="list" inset="none" scroll="pane">
         {!loaded ? busy ? <LoadingSkeleton label={t.loading}><SkeletonText /></LoadingSkeleton> : null : !values.length ? <EmptyState icon={<EmptyIllustration kind="environment" />} heading={t.empty} description={t.emptyNote} /> : <Table className="env-catalog-table" label={t.environments} density="comfortable" rows={values} rowId={item => item.id} columns={[
           { id: 'name', header: t.name, size: 320, cell: item => <div className="env-catalog-name"><span className="env-method-icon" data-tone={METHODS.find(method => method.id === item.target)!.tone}><Icon name={METHODS.find(method => method.id === item.target)!.icon} size={18}/></span><div><Button variant="link" onClick={() => setSelected(item.id)}>{item.label}</Button><p className="env-muted">{t.python} · {t.local}</p></div></div> },
           { id: 'method', header: t.method, size: 130, cell: item => METHODS.find(method => method.id === item.target)!.name },
           { id: 'status', header: t.status, size: 140, cell: item => status(item) },
           { id: 'usedBy', header: t.usedBy, size: 120, cell: item => item.bound ? METHODS.find(method => method.id === item.target)!.app : '—' },
         ]} />}
+        </ContentPane>
       </TabsContent>
       <TabsContent value="compute" forceMount={computeVisited || undefined}>{computeVisited && <ComputeEnvironments locale={locale} fetchFn={fetchFn} pollMs={pollMs} onBar={bindComputeBar}/>}</TabsContent>
       <TabsContent value="inspect" forceMount={inspectVisited || undefined}>{inspectVisited && !accessRevoked && <EnvironmentChecks locale={locale} inspect={inspect} embedded />}</TabsContent>
