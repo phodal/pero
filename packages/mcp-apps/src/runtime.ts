@@ -1,6 +1,8 @@
 import {AppBridge, PostMessageTransport, type McpUiResourceCsp, type McpUiHostContext} from '@modelcontextprotocol/ext-apps/app-bridge';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import {closeMcpView} from './lifecycle.ts';
+import {defaultMcpAppSize, mcpAppHeight, mcpAppSizePolicy, type McpAppSizePolicy} from './size.ts';
+export {defaultMcpAppSize, mcpAppHeight, mcpAppSizePolicy, type McpAppSizePolicy} from './size.ts';
 
 /** A resolved resource. The adapter owns its binding and enforces every operation. */
 export type McpAppResource = Readonly<{
@@ -20,17 +22,28 @@ export type McpAppHost = {
   onState(state: 'connecting' | 'ready' | 'closed'): void;
   onError(error: unknown): void;
 };
+export type McpAppRuntimeOptions = Readonly<{
+  hostInfo?: {name: string; version: string};
+  size?: McpAppSizePolicy;
+}>;
+export type McpAppRuntime = {
+  close(): Promise<void>;
+  setHostContext(context: McpUiHostContext): void;
+  setSizePolicy(policy: McpAppSizePolicy): void;
+};
 
 /** Standard MCP Apps rendering; no Pero IPC, credentials, or execution ownership. */
 export async function mountMcpApp(container: HTMLElement, resource: McpAppResource, host: McpAppHost,
-  context: McpUiHostContext = {}) {
+  context: McpUiHostContext = {}, options: McpAppRuntimeOptions = {}): Promise<McpAppRuntime> {
+  let size = mcpAppSizePolicy(options.size ?? defaultMcpAppSize);
+  let contentHeight = size.initialHeight;
   const frame = document.createElement('iframe');
   frame.title = resource.title;
-  frame.style.cssText = 'width:100%;height:480px;min-height:240px;border:0;display:block';
+  frame.style.cssText = `width:100%;height:${size.initialHeight}px;min-height:${size.minHeight}px;border:0;display:block`;
   frame.sandbox.add('allow-scripts', 'allow-same-origin');
   frame.referrerPolicy = 'no-referrer';
   container.append(frame);
-  const bridge = new AppBridge(null, {name:'Pero MCP Apps Host', version:'1.0.0'},
+  const bridge = new AppBridge(null, options.hostInfo ?? {name:'Pero MCP Apps Host', version:'1.0.0'},
     {serverTools:{}, serverResources:{}, openLinks:{}, ...(host.sendMessage?{message:{text:{}}}:{}), sandbox:{csp:resource.csp, permissions:{}}},
     {hostContext:{displayMode:'inline', availableDisplayModes:['inline'], platform:'desktop', ...context}});
   let closed = false;
@@ -39,8 +52,8 @@ export async function mountMcpApp(container: HTMLElement, resource: McpAppResour
     closed = true;
     clearTimeout(initializing);
     await closeMcpView({
-      revoke:host.revoke,
-      teardown:() => bridge.teardownResource({}, {timeout:3000}),
+      revoke:() => host.revoke(),
+      teardown:() => frame.isConnected ? bridge.teardownResource({}, {timeout:3000}) : Promise.resolve(),
       dispose:async () => {
         try{await bridge.close();}
         finally{frame.remove();host.onState('closed');}
@@ -66,20 +79,31 @@ export async function mountMcpApp(container: HTMLElement, resource: McpAppResour
       if(!closed)return bridge.sendToolResult(resource.result);
     }).then(() => { if (!closed) host.onState('ready'); }).catch(error=>{if(!closed)host.onError(error);});
   };
-  bridge.onsizechange = ({height}) => { if(!closed && height!==undefined)frame.style.height=`${Math.min(960,Math.max(240,height))}px`; };
+  bridge.onsizechange = ({height}) => {
+    if(!closed && height!==undefined){contentHeight=height;frame.style.height=`${mcpAppHeight(size,height)}px`;}
+  };
   bridge.onerror = error => { if (!closed) host.onError(error); };
   bridge.onsandboxready = () => {
     if(closed)return;
     void bridge.sendSandboxResourceReady({html:resource.html, csp:resource.csp,
-      sandbox:'allow-scripts allow-same-origin allow-forms'}).catch(host.onError);
+      sandbox:'allow-scripts allow-same-origin allow-forms'}).catch(error => {if(!closed)host.onError(error);});
   };
-  bridge.onrequestteardown = () => { void close().catch(host.onError); };
+  bridge.onrequestteardown = () => { void close().catch(error => host.onError(error)); };
   try {
     await bridge.connect(new PostMessageTransport(frame.contentWindow!, frame.contentWindow!));
     frame.src = resource.sandbox;
   } catch (error) {
-    await close().catch(host.onError);
+    await close().catch(error => host.onError(error));
     throw error;
   }
-  return {close, setHostContext:(value:McpUiHostContext) => { if (!closed) bridge.setHostContext(value); }};
+  return {
+    close,
+    setHostContext:(value:McpUiHostContext) => { if (!closed) bridge.setHostContext(value); },
+    setSizePolicy:(value:McpAppSizePolicy) => {
+      if(closed)return;
+      size=mcpAppSizePolicy(value);
+      frame.style.minHeight=`${size.minHeight}px`;
+      frame.style.height=`${mcpAppHeight(size,contentHeight)}px`;
+    },
+  };
 }
