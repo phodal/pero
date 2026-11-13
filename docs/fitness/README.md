@@ -1,5 +1,8 @@
 # Quality gates
 
+Combined shared computation, provenance, Reviewer and P1 workflow verification:
+[Scientific workflow integration](science-p0-p1-integration.md).
+
 Versioned Virtual Cell CPU task packages, reusable model endpoint state,
 independent arithmetic checks and real browser scope:
 [Domain task workflows](domain-workflows.md).
