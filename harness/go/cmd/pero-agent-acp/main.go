@@ -513,6 +513,9 @@ func run() (resultErr error) {
 	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
+	if science != nil {
+		serverOptions.Science = science.DispatchJSON
+	}
 	if pluginHooks != nil {
 		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }
 		serverOptions.RenderAssistantText = pluginHooks.DisplayedAssistantText

@@ -11,6 +11,14 @@ use serde::{Deserialize, Serialize};
 )]
 pub enum AgentRequest {
     Info,
+    ScienceSessions,
+    Science {
+        session_id: String,
+        action: String,
+        language: String,
+        #[serde(default)]
+        code: String,
+    },
     Start {
         request_id: String,
         prompt: String,

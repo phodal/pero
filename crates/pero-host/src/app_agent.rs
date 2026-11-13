@@ -52,6 +52,10 @@ impl Manager {
                 "MCP settings are unavailable or invalid; review local connector settings"
             })?;
         let mut agent = agent.with_managed_mcp(&configuration);
+        if agent.id == "pero" && scope.as_ref().is_some_and(|scope| scope.app == "scientific-viewer")
+            && !agent.args.iter().any(|argument| argument == "--science-env") {
+            agent.args.push("--science-env".into());
+        }
         let market_skills = if scope.is_none() {
             self.apps.as_ref().map(|apps| apps.market_selections()).transpose()?.unwrap_or_default()
         } else {Vec::new()};
@@ -148,6 +152,8 @@ impl Manager {
         request: AgentRequest,
     ) -> Result<serde_json::Value, String> {
         match request {
+            AgentRequest::ScienceSessions => Ok(self.app_science_sessions(&app)),
+            AgentRequest::Science { .. } => Err("Science requests require asynchronous Host dispatch".into()),
             AgentRequest::Info => Ok(
                 serde_json::json!({"available":true,"workspace":self.workspace,
                 "agents":self.agents.iter().map(|agent| serde_json::json!({"id":agent.id,"name":agent.name,"available":agent.available()})).collect::<Vec<_>>() }),
@@ -252,6 +258,28 @@ impl Manager {
             .ok_or_else(|| "This session does not belong to the requesting App".into())
     }
 
+    fn app_session_belongs_to(&self, app: &AppName, thread: &str) -> bool {
+        self.app_bindings.get(thread).is_some_and(|binding| &binding.app == app)
+            || self.visible_history().iter().rev().find(|event| event.kind == "session_created" && event.thread_id.as_deref() == Some(thread))
+                .is_some_and(|event| event.data["scope"]["app"].as_str() == Some(app.as_str()))
+    }
+
+    pub fn app_science_sessions(&self, app: &AppName) -> serde_json::Value {
+        let mut sessions = self.sessions.iter().filter(|(thread, handle)| !handle.tx.is_closed() && self.app_session_belongs_to(app, thread))
+            .map(|(thread,handle)| serde_json::json!({"sessionId":thread,"ready":handle.mcp_runtime.lock().unwrap().session_id.is_some()})).collect::<Vec<_>>();
+        sessions.sort_by(|left,right|left["sessionId"].as_str().cmp(&right["sessionId"].as_str()));
+        serde_json::json!({"sessions":sessions})
+    }
+
+    pub fn app_science_request(&mut self, app: AppName, request_id: String, request: AgentRequest) -> Result<(), String> {
+        let AgentRequest::Science {session_id,action,language,code} = request else {return Err("Expected a science request".into());};
+        if !self.app_session_belongs_to(&app,&session_id) { return Err("This session does not belong to the requesting App".into()); }
+        let handle=self.sessions.get(&session_id).ok_or("This science session is no longer active")?;
+        handle.tx.send(acp::SessionCommand::Science(acp::ScienceRequest {
+            request_id,thread_id:session_id,command:serde_json::json!({"action":action,"language":language,"code":code}),reply:self.tx.clone(),
+        })).map_err(|_|"This science session is no longer active".into())
+    }
+
     pub fn stop_app_sessions(&mut self, app: &AppName) {
         let sessions = self
             .app_bindings
@@ -270,5 +298,51 @@ impl Manager {
             .filter(|(_, mounted)| mounted.dependencies.plugins.iter().any(|entry| &entry.name == plugin))
             .map(|(id, _)| id.clone()).collect::<Vec<_>>();
         for thread_id in sessions { self.command(HostCommand::Close { thread_id }); }
+    }
+}
+
+#[cfg(test)]
+mod science_access_tests {
+    use super::*;
+    use std::{sync::mpsc, time::{Duration, Instant}};
+
+    fn until(events: &mpsc::Receiver<HostEvent>, kind: &str) -> HostEvent {
+        let deadline=Instant::now()+Duration::from_secs(10);
+        loop {
+            let event=events.recv_timeout(deadline.saturating_duration_since(Instant::now())).unwrap();
+            if event.kind==kind {return event;}
+            assert_ne!(event.kind,"session_error","{}",event.text);
+        }
+    }
+
+    #[test]
+    fn app_kernel_access_uses_existing_chat_scope_and_rejects_another_app() {
+        let directory=std::env::temp_dir().join(format!("pero-science-scope-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&directory).unwrap();
+        let mut manager=Manager::new(directory.clone());
+        let (events,rx)=mpsc::channel();
+        manager.tx=events.clone();
+        let fixture=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/runtime/lifecycle-agent.mjs");
+        for (thread,app) in [("mine","scientific-viewer"),("other","paper-agent")] {
+            let config=serde_json::from_value(serde_json::json!({"id":"fixture","name":"Science scope","command":"node","args":[fixture],"env":{"PERO_FIXTURE_SCENARIO":"science"}})).unwrap();
+            let handle=acp::start(config,directory.clone(),thread.into(),events.clone());
+            until(&rx,"session_ready");
+            manager.sessions.insert(thread.into(),handle);
+            let mut created=HostEvent::new("session_created",None,String::new());
+            created.thread_id=Some(thread.into());
+            created.data=serde_json::json!({"scope":{"app":app,"panel":"viewer"}});
+            manager.history.lock().unwrap().record(created);
+        }
+        let viewer=AppName::try_from("scientific-viewer".to_owned()).unwrap();
+        assert_eq!(manager.app_science_sessions(&viewer),serde_json::json!({"sessions":[{"sessionId":"mine","ready":true}]}));
+        let command=|session:&str|AgentRequest::Science {session_id:session.into(),action:"status".into(),language:"python".into(),code:String::new()};
+        assert!(manager.app_science_request(viewer.clone(),"denied".into(),command("other")).is_err());
+        manager.app_science_request(viewer,"owned".into(),command("mine")).unwrap();
+        let response=until(&rx,"apps_result");
+        assert_eq!(response.request_id.as_deref(),Some("owned"));
+        assert_eq!(response.data["ok"],true);
+        for handle in manager.sessions.values() {handle.tx.send(acp::SessionCommand::Close).unwrap();}
+        for _ in 0..2 {until(&rx,"session_closed");}
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }
