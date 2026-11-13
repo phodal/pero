@@ -247,7 +247,7 @@ export type NotebookChrome = {
 export function NotebookWorkspace({ editor, entryId, revision, document, readonly, onChange, onReplaceDocument, chrome, tools, helpTools, children, historyControls }: {
   editor: Editor; entryId: string; revision: number; document: NotebookDocument; readonly: boolean;
   onChange: (partial: Partial<NotebookDocument>) => void; children: ReactNode;
-  chrome?: NotebookChrome; tools?: ReactNode; helpTools?: ReactNode;
+  chrome?: NotebookChrome; tools?: ReactNode; helpTools?: (closeMenu: () => void) => ReactNode;
   historyControls?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void };
   onReplaceDocument?(document: NotebookDocument): void;
 }) {
@@ -384,7 +384,7 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
             onAdded={(procedures, id) => { onChange({ procedures }); setSelectedProcedure(id); setSplit(true); setTab('notes'); setError(''); }}
             onError={setError} onMention={() => setMention({ name: '', note: '' })} />
           <Button variant="ghost" onClick={() => setDialog('help')}>{t('help')}</Button>
-          {helpTools}
+          {helpTools?.(close)}
           {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content') && <small>Build {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content')}</small>}
           </>}
           </NotebookMenu>
