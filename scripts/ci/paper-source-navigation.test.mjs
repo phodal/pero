@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { paperComponents, elements, drain } from './paper-component-harness.mjs';
 
 const find = (host, predicate) => elements(host.tree, predicate)[0];
+
+test('element search visits ContentPane header, toolbar, feedback and footer', () => {
+  const slot = name => ({ type: 'Button', props: { 'aria-label': name, children: name } });
+  const tree = { type: 'ContentPane', props: { header: slot('header'), toolbar: slot('toolbar'), feedback: slot('feedback'), footer: slot('footer'), children: 'body' } };
+  for (const name of ['header', 'toolbar', 'feedback', 'footer']) {
+    assert.equal(elements(tree, node => node.props?.['aria-label'] === name)[0]?.props['aria-label'], name);
+  }
+  assert.equal(elements({ type: 'ContentPane', props: { children: 'body' } }, node => node.props?.['aria-label'] === 'toolbar')[0], undefined);
+});
 const byType = (host, type) => find(host, node => node.type === type);
 const bundle = { id: 'bundle', sourceDownloadIds: ['source'], pdfDownloadIds: ['pdf'], resources: [
   { id: 'source', kind: 'source_archive', revision: 'v1' }, { id: 'pdf', kind: 'pdf_candidate' },

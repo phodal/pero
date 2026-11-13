@@ -4,10 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const directory = resolve(import.meta.dirname, '../dist');
 const palettes = JSON.parse(await readFile(resolve(import.meta.dirname, '../../../web/src/theme.generated.json'), 'utf8'));
-const records = [{ id: 'pulse-daily-brief', name: 'Pulse 每日简报', prompt: 'Summarize the supplied local material.', rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'Local', enabled: true, target: { kind: 'local' }, next: null, scheduled: false, error: 'Re-save this schedule to freeze its IANA time zone', runs: [
+const pulse = { id: 'pulse-daily-brief', name: 'Pulse 每日简报', prompt: 'Summarize the supplied local material.', rule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'Local', enabled: true, target: { kind: 'local' }, next: null, scheduled: false, error: 'Re-save this schedule to freeze its IANA time zone', runs: [
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:35:00+08:00', trigger: 'manual' }, scheduled_for: '2026-10-31T08:35:00+08:00', settled_at: '2026-10-31T08:35:00+08:00', state: 'succeeded', session_id: 'fixture-session' },
   { key: { automation: 'pulse-daily-brief', slot: '2026-10-31T08:33:00+08:00', trigger: 'schedule' }, scheduled_for: '2026-10-31T08:33:00+08:00', state: 'skipped', skip_reason: 'missed' },
-]}];
+]};
+const longTasks = Array.from({length: 24}, (_, index) => ({id: `long-${index + 1}`, name: `Long task ${index + 1}`, prompt: 'Hold a place in a long list.', rule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0', timezone: 'UTC', enabled: true, target: {kind: 'local'}, next: null, scheduled: true, runs: []}));
+const records = process.env.PERO_AUTOMATION_FIXTURE === 'empty' ? [] : process.env.PERO_AUTOMATION_FIXTURE === 'long' ? [...longTasks, pulse] : [pulse];
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
   if (request.method === 'POST' && url.pathname === '/host/automation') {

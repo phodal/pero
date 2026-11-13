@@ -2,6 +2,8 @@
 html, body, #app { min-height: 100%; }
 body { margin: 0; background: var(--pero-bg); color: var(--pero-text); font: var(--pero-font-body)/1.5 var(--pero-font-family-sans, system-ui, sans-serif); }
 .automation-page { max-width: 1440px; margin: auto; padding: var(--pero-spacing-5) var(--pero-spacing-6) var(--pero-spacing-6); }
+.automation-column { display: flex; flex-direction: column; gap: var(--pero-spacing-5); }
+.automation-stage { min-width: 0; }
 .automation-app .pero-library-header { padding-inline: 0; margin-bottom: var(--pero-spacing-4); background: transparent; }
 .automation-app h2, .automation-app h3 { margin: 0; font-weight: 600; }
 .automation-app h2 { font-size: var(--pero-font-heading); }
@@ -51,6 +53,12 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 .detail-note { margin: 0 0 var(--pero-spacing-3); color: var(--pero-error); font-size: var(--pero-font-caption); }
 .details .pero-ui-tabs { margin-top: var(--pero-spacing-2); }
 .details .pero-ui-tabs-content { padding-top: var(--pero-spacing-4); }
+.overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 270px); gap: var(--pero-spacing-6); }
+.section-head { margin-bottom: var(--pero-spacing-3); }
+.empty-result { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: var(--pero-spacing-5); border: 1px dashed var(--pero-border); border-radius: var(--pero-radius-panel); }
+.empty-result p { margin: 0; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.context { min-width: 0; }
+.result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); }
 .instructions { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 var(--pero-spacing-4); padding: var(--pero-spacing-3); border-radius: var(--pero-radius-selection); background: var(--pero-surface-muted); }
 .latest { display: grid; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); padding: var(--pero-spacing-3); border: 1px solid var(--pero-border); border-radius: var(--pero-radius-selection); }
 .latest .pero-ui-button { justify-self: start; width: auto; }
@@ -81,6 +89,7 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
   .template-grid { grid-template-columns: 1fr 1fr; }
   .workspace { flex-direction: column; }
   .details, .workspace > .pero-content-pane { width: 100%; border-inline-start: 0; border-top: var(--pero-hairline); }
+  .overview { grid-template-columns: 1fr; }
   .task-head { display: none; }
   .task-head, .task-row { grid-template-columns: 1fr; row-gap: var(--pero-spacing-2); }
   .row-actions { justify-content: flex-start; }
