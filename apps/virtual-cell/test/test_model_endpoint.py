@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 import fixture
 from contract import Invalid, canonical
 from local_comparisons import ComparisonHistory
-from model_endpoint import AdditiveEndpoint, ModelState
+from model_endpoint import AdditiveEndpoint, MODEL, ModelState
 from server import handler
 from workbench import Workbench
 
@@ -140,3 +140,54 @@ class ModelEndpointTests(unittest.TestCase):
             model.start(identity)
         self.assertEqual(model.read()["status"], "failed")
         self.assertEqual(model.stop()["status"], "stopped")
+
+    def test_truncated_remote_responses_fail_start_and_prediction_without_leaving_model_busy(self):
+        for operation in ("start", "predict"):
+            with self.subTest(operation=operation):
+                broken = threading.Event()
+                broken.set()
+                readiness = {}
+
+                class TruncatedEndpoint(BaseHTTPRequestHandler):
+                    def log_message(self, *_args):
+                        pass
+
+                    def truncated(self):
+                        self.send_response(200)
+                        self.send_header("Transfer-Encoding", "chunked")
+                        self.end_headers()
+                        self.wfile.write(b'20\r\n{"status":')
+                        self.close_connection = True
+
+                    def do_GET(self):
+                        if operation == "start" and broken.is_set():
+                            return self.truncated()
+                        body = canonical(readiness)
+                        self.send_response(200)
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+
+                    def do_POST(self):
+                        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                        self.truncated()
+
+                server = ThreadingHTTPServer(("127.0.0.1", 0), TruncatedEndpoint)
+                serving = threading.Thread(target=server.serve_forever)
+                serving.start()
+                self.addCleanup(server.server_close)
+                self.addCleanup(serving.join)
+                self.addCleanup(server.shutdown)
+                _base, workbench, _history, model, _request = self.service(f"http://127.0.0.1:{server.server_port}")
+                data = fixture.dataset()
+                identity = workbench.import_bundle({"dataset": data, "spec": fixture.spec(data)})["id"]
+                readiness.update(status="ready", inputId=identity, model=MODEL)
+                if operation == "predict":
+                    model.start(identity)
+                with self.assertRaisesRegex(Invalid, "model_endpoint_response_invalid"):
+                    getattr(model, operation)(identity)
+                self.assertEqual(model.read()["status"], "failed")
+                self.assertIn("model_endpoint_response_invalid", model.read()["error"])
+                self.assertEqual(model.stop()["status"], "stopped")
+                broken.clear()
+                self.assertEqual(model.start(identity)["status"], "ready")

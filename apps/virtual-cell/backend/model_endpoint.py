@@ -5,6 +5,7 @@ not a pretrained biological model. Remote deployments use this same narrow
 contract; their inputs must be explicitly provisioned before connection.
 """
 from dataclasses import dataclass, replace
+from http.client import HTTPException
 import json
 import os
 import threading
@@ -86,8 +87,11 @@ class AdditiveEndpoint:
         if self.remote_token:
             headers["X-Pero-App-Token"] = self.remote_token
         request = Request(self.remote_url + path, data=canonical(body) if body is not None else None, headers=headers)
-        with urlopen(request, timeout=30) as response:
-            raw = response.read(16 * 1024 * 1024 + 1)
+        try:
+            with urlopen(request, timeout=30) as response:
+                raw = response.read(16 * 1024 * 1024 + 1)
+        except HTTPException as error:
+            raise Invalid("model_endpoint_response_invalid", str(error)) from error
         if len(raw) > 16 * 1024 * 1024:
             raise Invalid("model_endpoint_response_too_large")
         document = json.loads(raw)
