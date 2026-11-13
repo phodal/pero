@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scientificreviewer",
+    srcs = ["app.go", "snapshot.go"],
+    importpath = "github.com/phodal/pero/harness/go/scientificreviewer",
+    visibility = ["//visibility:public"],
+    deps = ["//harness", "//runtime", "//scientificreview", "//subagents"],
+)
+
+go_test(
+    name = "scientificreviewer_test",
+    srcs = ["app_test.go"],
+    embed = [":scientificreviewer"],
+    deps = ["//harness", "//runtime", "//scientificreview"],
+)
