@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
-import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
+import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
@@ -146,7 +146,6 @@ export function SkillsMarket() {
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
           </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={loading} disabled={!capability} onClick={() => void load()}><Icon name="sync" size={14}/></IconButton>} />
           <ContentPane id="skills-catalog" label={text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
-            header={<LibraryHeader density="compact" title={view==='installed'?text('你的已安装技能','Your installed skills'):text('浏览技能','Browse skills')} subtitle={catalog ? text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`) : text('找到合适的技能，把下一步研究做得更清楚。','Find the right skill for the next step in your research.')} />}
             toolbar={<div className="skills-tools">
             <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索技能','Search skills')} placeholder={text('搜索用途、技能名称或来源…','Search tasks, skill names or sources…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>
