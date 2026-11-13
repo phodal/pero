@@ -13,6 +13,8 @@ pub(crate) struct RemoteState {
     pub connection: crate::remote_connection::ConnectionForm,
     seen_connection: bool,
     pub creating: bool,
+    pub(crate) creation_request_id: String,
+    pub(crate) target_worker: Option<String>,
     pub(crate) submitting: bool,
     pub search: Entity<InputState>,
     pub title: Entity<InputState>,
@@ -61,6 +63,8 @@ impl RemoteState {
             seen_connection: false,
             data: json!({"configured":false,"loading":false,"tasks":[],"workers":[],"detail":null}),
             creating: false,
+            creation_request_id: String::new(),
+            target_worker: None,
             submitting: false,
             search,
             title,
@@ -133,7 +137,7 @@ impl RemoteState {
             "title":self.title.read(cx).value().as_ref(),"prompt":self.prompt.read(cx).value().as_ref(),
             "acceptance":self.acceptance.read(cx).value().as_ref(),
             "project":self.project.read(cx).value().as_ref(),"workspace":self.workspace.read(cx).value().as_ref(),
-            "agent":self.agent,"form_error":self.form_error,"filter":self.filter,"search":self.search.read(cx).value().as_ref()})
+            "agent":self.agent,"target_worker":self.target_worker,"form_error":self.form_error,"filter":self.filter,"search":self.search.read(cx).value().as_ref()})
     }
 }
 
@@ -235,6 +239,11 @@ impl Workbench {
         let was_authenticating = self.remote.data["connection"]["authenticating"]
             .as_bool()
             .unwrap_or(false);
+        if self.remote.data["selected_task_id"] != event.data["selected_task_id"]
+            && !self.remote.submitting
+        {
+            self.remote.target_worker = None;
+        }
         self.remote.data = event.data.clone();
         self.reconcile_project_selection(cx);
         if !self.remote.loading() {
@@ -307,7 +316,7 @@ impl Workbench {
     }
     pub(crate) fn create_remote(&mut self, cx: &mut Context<Self>) {
         if !self.remote.configured()
-            || !self.remote.operator()
+            || !(self.remote.operator() || self.remote.client())
             || self.remote.loading()
             || self.remote.submitting
         {
@@ -342,7 +351,7 @@ impl Workbench {
         self.remote.submitting = true;
         self.command(
             json!({"action":"remote_create","title":title,"prompt":prompt,"acceptance":acceptance,
-            "project_id":project,"workspace_key":workspace,"agent_id":self.remote_agent(cx)}),
+            "project_id":project,"workspace_key":workspace,"agent_id":self.remote_agent(cx),"request_id":self.remote.creation_request_id}),
             cx,
         );
     }
@@ -356,7 +365,21 @@ impl Workbench {
         self.remote
             .acceptance
             .update(cx, |input, cx| input.set_value("", window, cx));
+        self.remote.creation_request_id = uuid::Uuid::new_v4().to_string();
+        self.remote.target_worker = None;
         self.remote.creating = true;
+        if self.remote.client() {
+            if let Some(project) = self.remote.data["identity"]["projects"]
+                .as_array()
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+            {
+                self.remote
+                    .project
+                    .update(cx, |input, cx| input.set_value(project, window, cx));
+            }
+        }
         self.remote.submitting = false;
         self.remote.form_error = None;
         self.remote.confirm_cancel = None;

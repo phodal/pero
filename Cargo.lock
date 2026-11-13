@@ -6133,6 +6133,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "url",
+ "uuid",
  "vt100",
  "wasm-bindgen",
  "webkit2gtk",

@@ -164,31 +164,7 @@ func taskSourceStale(t *Task) bool {
 }
 
 func (s *Store) ClientWorkers(ctx context.Context, client *Client) ([]Worker, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id,name,projects,labels FROM workers WHERE projects && $1 ORDER BY created_at,id`, client.Projects)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	workers := []Worker{}
-	allowed := map[string]bool{}
-	for _, project := range client.Projects {
-		allowed[project] = true
-	}
-	for rows.Next() {
-		var w Worker
-		if err = rows.Scan(&w.ID, &w.Name, &w.Projects, &w.Labels); err != nil {
-			return nil, err
-		}
-		visible := []string{}
-		for _, project := range w.Projects {
-			if allowed[project] {
-				visible = append(visible, project)
-			}
-		}
-		w.Projects = visible
-		workers = append(workers, w)
-	}
-	return workers, rows.Err()
+	return s.listWorkers(ctx, append([]string{}, client.Projects...))
 }
 
 func (s *Store) ClaimTask(ctx context.Context, client *Client, id string) (*Task, error) {

@@ -17,6 +17,7 @@ required-features = ["native"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+uuid = { version = "1", features = ["v4", "js"] }
 pero-contracts.workspace = true
 pero-theme.workspace = true
 pero-chat-ui.workspace = true

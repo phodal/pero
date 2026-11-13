@@ -91,13 +91,14 @@ impl Workbench {
                                 )),
                             ),
                     )
+                    .child(self.remote_target_picker(None, busy, cx))
                     .child(field(
                         self.t("remote.agent"),
                         div()
                             .flex()
                             .flex_wrap()
                             .gap(px(6.))
-                            .when(agents.is_empty(), |el| el.child(agent.clone()))
+                            .child(agent.clone())
                             .children(agents.iter().enumerate().map(|(i, a)| {
                                 let id = a.id.clone();
                                 Button::new(("remote-agent", i))

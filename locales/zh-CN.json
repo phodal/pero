@@ -525,7 +525,7 @@
   "cloud.select_hint": "查看它的委派进度、执行节点和执行记录。",
   "cloud.show_technical": "显示技术详情",
   "cloud.hide_technical": "隐藏技术详情",
-  "cloud.workers_hint": "本机仅执行配置范围内的任务，关闭桌面会停止本机执行。其他设备的状态仅反映已加载的任务。",
+  "cloud.workers_hint": "在线状态来自已认证的联络观察，执行范围和权限仍由各机器配置决定。",
   "cloud.no_workers": "还没有执行节点",
   "cloud.no_workers_hint": "本机 Host 只处理本机会话，不会认领 Cloud 任务。请管理员配置并启动 pero-worker；节点上线后，排队中的任务会自动开始。",
   "cloud.col.worker": "节点",
@@ -1204,5 +1204,13 @@
   "pr.blocked": "受阻",
   "pr.hide_viewed": "隐藏已读",
   "pr.show_viewed": "显示已读",
-  "workspace.conversation": "查看对话"
+  "workspace.conversation": "查看对话",
+  "remote.target": "执行机器",
+  "remote.target_unavailable": "所选机器已不匹配此任务，请重新选择执行目标。",
+  "remote.target_any": "任意兼容执行机",
+  "remote.no_compatible_worker": "尚未注册匹配的执行机，请在执行设置中启用设备。",
+  "cloud.worker.unknown": "尚未联络",
+  "cloud.worker.offline": "离线",
+  "cloud.worker.disabled": "已停用",
+  "cloud.worker.attention": "需要复核"
 }

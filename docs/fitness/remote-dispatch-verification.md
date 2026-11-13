@@ -120,3 +120,59 @@ Desktop tool/conversation and i18n suites passed. The combined remote suite
 again passed with 51 Tasks, and the two-client GitHub flow passed with frozen
 source/Run evidence and no requests from disabled Execute controls. The earlier
 failure table is retained as historical evidence from the original slice.
+
+
+## 2026-11-13 — Scoped creation and observed machines (#223)
+
+Source: `codex/self-hosted-machines` over `master d41f19b56`; implementation
+commits `6c20242c` through `37da6c04`. Acceptance harness and this record were
+uncommitted during the run. P0 recovery PR #222 is a separate branch and was
+not folded into this slice. No public environment was changed.
+
+| Check | Observed result |
+| --- | --- |
+| `go -C server test -race ./...` with `PERO_TEST_DATABASE_URL` | Passed against real isolated PostgreSQL schemas, including scoped creation, atomic creator claim, receipt replay, forged input, capabilities, private occupancy and disable |
+| `node scripts/cargo.mjs +nightly-2026-10-28 test -p pero-ui --features native --lib` | 79 passed; includes target compatibility and existing Native connection tests |
+| `npm run check` | Passed: TypeScript, generated contracts/tokens/icons and 1214 bilingual messages |
+| Wasm build + wasm-bindgen + `npm run build:web`; `node scripts/build/desktop.mjs` | Passed; existing dead-code/eval/import.meta warnings remain |
+| `node tests/e2e/self-hosted-machines.mjs` with isolated database | Passed: real Electron client credential, Go HTTP, PostgreSQL, independent Rust Worker and deterministic ACP fixture; two tasks, zero page errors |
+
+The loopback proxy forwards creation to the real server, then drops the first
+successful response. The UI retains its draft. A second real click sends the
+same idempotency key and receives the same task ID; the list contains one task.
+A different enrolled machine with the same capability cannot claim the explicitly
+targeted queued Run. The selected independent Worker executes ACP and uploads
+session events. A second `wait` task reaches running, then the actual Stop and
+confirmation controls drive it to cancelled. Presence is checked independently
+of occupied Run state. The pure expiry table fixes time explicitly, including
+the exact 15-second boundary; no timestamp sleeps or public-network tests.
+
+Inspected local screenshots in
+`test-results/self-hosted-machines/desktop/`: `create-form`, `creation-retry`,
+`target-detail`, `completed`, `running`, `cancel-confirmation`, `cancelled`,
+`workers-idle`, `workers-dark`, `workers-narrow`, `tasks-narrow`. A preceding
+probe's `workers-running` shows the real active task alongside unknown and idle
+machines. The settings layout retains readable names, status and project scope
+in light/dark at 1280px and 1000px window widths. The final task-list capture waits
+for observable pixel stability after the settings closing animation. Evidence:
+`result.json`. Screenshots remain local at the user's request.
+
+Reproduce after building the Host, Worker, Wasm/Web and Desktop:
+
+```sh
+PERO_TEST_DATABASE_URL='<disposable PostgreSQL URL>' node tests/e2e/self-hosted-machines.mjs
+```
+
+`PERO_TEST_ELECTRON_EXECUTABLE` optionally selects an existing Electron executable.
+The suite creates/drops its own schema and closes its owned processes. The local
+PostgreSQL instance uses a private Unix socket; no literal TCP port is bound for
+that database. HTTP servers bind ephemeral loopback ports.
+
+Limits: Native adapter source and library behavior compiled/tested, but its new
+client creation route and actual Native window have no independent end-to-end
+acceptance here. No signed/package installation, real model, scientific verdict
+or P1 production rollout is established. The general writable-agent approval and
+persistent follow-up work remain separate. New clients accept old observation-free
+responses; old clients with closed schemas need updating before the new server
+Worker fields are rolled out. Keep API contact observation separate from machine
+readiness and execution permission.
