@@ -10809,6 +10809,9 @@
         },
         "text": {
           "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
         }
       },
       "required": [

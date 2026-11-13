@@ -170,7 +170,7 @@ model McpSourceSession {thread_id:string;incarnation:safeint;revision:safeint;..
 model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
 model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;mode?:"standalone"|"session";session?:McpSourceSession|null;action?:"open"|"adopt";server?:string;generation?:safeint;tool_call?:string;...Closed}}
 model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{url:string;...Closed}}
-model McpErrorEvent {kind:"mcp_error";...EventBase}
+model McpErrorEvent {kind:"mcp_error";...EventBase;thread_id?:string}
 model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
 model McpAppViewEvent {kind:"mcp_app_view";...ThreadEventBase;data:{tool_call:string;url:string;...Closed}}
 model McpMessageRequest {method:"mcp.message";request_id:string;thread_id:string;incarnation:safeint;revision:safeint;text:string;...Closed}

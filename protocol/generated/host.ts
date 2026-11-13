@@ -2514,6 +2514,7 @@ export interface McpErrorEvent {
   version: 1;
   request_id: string | null;
   text: string;
+  thread_id?: string;
 }
 export interface McpAppOpenedEvent {
   kind: "mcp_app_opened";
