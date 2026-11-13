@@ -28,13 +28,13 @@ const messages = {
 } as const;
 
 /** Non-modal so users can select, format and paste in the actual notebook while inspecting. */
-export function NotebookEditorDiagnostics({ editor }: { editor: Editor }) {
+export function NotebookEditorDiagnostics({ editor, onOpen }: { editor: Editor; onOpen?(): void }) {
   const { t } = useAppI18n(messages);
   const [open, setOpen] = useState(false);
   const host = open ? document.querySelector('.notebook-diagnostics-host') : null;
   const panel = open ? <EditorInspectorPanel editor={editor} /> : null;
   return <div className="notebook-editor-diagnostics">
-    <Button variant="ghost" aria-expanded={open} onClick={() => setOpen(value => !value)}>{t(open ? 'close' : 'title')}</Button>
+    <Button variant="ghost" aria-expanded={open} onClick={() => { setOpen(!open); if (!open) onOpen?.(); }}>{t(open ? 'close' : 'title')}</Button>
     {host && panel ? createPortal(<div className="notebook-editor-diagnostics notebook-diagnostics-panel">
       <Button variant="ghost" onClick={() => setOpen(false)}>{t('close')}</Button>
       {panel}

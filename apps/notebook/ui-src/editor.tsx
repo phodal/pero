@@ -226,14 +226,14 @@ export function NotebookEditor({ content, document: entryDocument, savedDocument
         insertTools={<><NotebookMenu name={t('insertWord')} menu="insert" caret triggerClassName="notebook-insert-trigger">
           {close => <NotebookInsertTools closeMenu={close} editor={editor} document={entryDocument} onCreateEntry={onCreateEntry} />}
         </NotebookMenu></>} />}
-      helpTools={<>
+      helpTools={closeMenu => <>
         <NotebookCommandTools entryId={entryId} readonly={editorReadonly} handlers={{ save: editorReadonly ? undefined : onSave,
           export: () => downloadFile('Notebook.json', JSON.stringify(blockedRef.current ? documentRef.current : { ...documentRef.current, content: editor.getJSON() }, null, 2), 'application/json'),
           print: () => { window.dispatchEvent(new CustomEvent(NOTEBOOK_PRINT_OPEN_EVENT, { detail: { entryId } })); },
           ...(!editorReadonly ? { section: () => insertBlocks(editor, [{ type: 'section', content: [{ type: 'paragraph' }] }]),
             symbols: () => { editor.view.dom.dispatchEvent(new CustomEvent(NOTEBOOK_SYMBOLS_EVENT)); } } : {}),
         }} />
-        {!editorReadonly && <NotebookEditorDiagnostics editor={editor} />}
+        {!editorReadonly && <NotebookEditorDiagnostics editor={editor} onOpen={closeMenu} />}
       </>}>
       <NotebookSurface editor={editor} readonly={editorReadonly}><EditorContent className="notebook-editor" data-empty={editor.isEmpty || undefined} editor={editor} /></NotebookSurface>
     </NotebookWorkspace></NotebookContextProvider>;

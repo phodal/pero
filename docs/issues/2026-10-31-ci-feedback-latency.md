@@ -6,6 +6,26 @@ date: 2026-10-31
 
 # CI delays integration failures behind serial acceptance
 
+## 2026-11-13 diagnostics handoff leaves File over the editor
+
+After #210 was updated onto master `29fc1570`, head `31bfa86e` failed the
+real Notebook browser scenario in [run 43338375027](https://github.com/phodal/pero/actions/runs/43338375027).
+Opening Editor diagnostics from File mounted its non-modal panel in the workspace
+but left the File popup open over the editor. The earlier test-only Escape closed
+a different, earlier menu opening and could not repair this handoff.
+
+Pass the existing File close callback through the help-tools slot to the
+Editor diagnostics opening action. Do not close unrelated retained tools or
+force a click through the popup. The actual editor regression checks automatic
+File closure, a retained visible diagnostics portal, editor focus, and repeated
+open/close. Browser acceptance now requires the File popup to be hidden and the
+diagnostics panel visible before editing.
+
+The new regression failed on `31bfa86e` and passed with the repair. Six focused
+menu/diagnostics/reference tests, Notebook build and typecheck passed locally.
+Full editor and exact-head browser verification remain in progress; final PR
+verification identifies the tested commit and evidence.
+
 ## 2026-11-12 generated lock and UI contract drift
 
 Master `e7f362a24e4de043b4802c7ee825e2d7bdd73b21`,
