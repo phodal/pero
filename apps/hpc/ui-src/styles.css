@@ -3,8 +3,6 @@ html, body, #app { height: 100%; min-height: 0; overflow: hidden; }
 body { margin: 0; background: var(--pero-bg); }
 .hpc-app { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; font: var(--pero-font-body)/1.45 var(--pero-font-family-sans); color: var(--pero-text); background: var(--pero-surface); }
 h1, h2, h3, p { margin: 0; }
-h1 { font-size: var(--pero-font-heading); font-weight: 650; line-height: 1.4; letter-spacing: -0.02em; }
-h2, h3 { font-size: var(--pero-font-body); font-weight: 600; }
 .hpc-app button, .hpc-app summary { cursor: pointer; }
 .hpc-app button:focus-visible, .hpc-app input:focus-visible, .hpc-app summary:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16px; margin: 2px 0; }
@@ -18,14 +16,10 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .unavailable-note { margin-bottom: 12px; padding: 8px 12px; font-size: var(--pero-font-caption); }
 .workbench { overflow: hidden; }
 .benchmark-explorer { display: flex; flex-direction: column; overflow: hidden; background: var(--pero-bg); }
-.explorer-header { flex: none; padding: 12px; }
-.explorer-header h2 { margin-bottom: 12px; }
 .benchmark-search { position: relative; }
 .benchmark-search > svg { position: absolute; top: 50%; transform: translateY(-50%); left: 7px; color: var(--pero-text-muted); pointer-events: none; }
 .hpc-app .benchmark-search .pero-ui-input { padding-left: 26px; }
 .benchmark-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; }
-.hpc-app .benchmark-item { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; min-height: 60px; padding: 8px 10px; text-align: left; font: inherit; }
-.benchmark-name { font-size: var(--pero-font-body); line-height: 1.45; font-weight: 550; overflow-wrap: anywhere; }
 .benchmark-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: var(--pero-font-caption); line-height: 1.4; color: var(--pero-text-muted); }
 .unavailable-label { color: var(--pero-warning); }
 .benchmark-list > .empty { padding: 12px 6px; font-size: var(--pero-font-caption); }
@@ -34,17 +28,12 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .runtime-version { color: var(--pero-text-muted); flex-wrap: wrap; }
 .runtime-version > span { margin-left: auto; }
 .content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.workspace-heading { flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 12px; }
-.workspace-heading h2 { font-size: var(--pero-font-heading); line-height: 1.4; font-weight: 600; }
-.method-version { color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-variant-numeric: tabular-nums; }
 .content-tabs { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .hpc-app .content-tabs > .pero-ui-tabs-list { flex: none; padding-inline: var(--pero-spacing-3); }
 .hpc-app .content-tabs > .pero-ui-tabs-content { flex: 1; min-height: 0; margin: 0; overflow-y: auto; padding: 12px; }
 .hpc-app .content-tabs > .method-content { padding: 0; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .method-layout { flex: none; min-height: 100%; }
 .specification { padding: 12px; }
-.specification > h3 { margin-bottom: 12px; }
 .method-formula { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; min-height: 144px; padding: 24px 12px; margin-bottom: 24px; border: 1px solid var(--pero-border); border-radius: 4px; background: var(--pero-bg); font: var(--pero-font-title)/1.5 math, Georgia, serif; overflow-wrap: anywhere; }
 .integral-symbol { font-size: var(--pero-font-title); }
 .integral-limits { display: flex; flex-direction: column; justify-content: center; gap: 8px; margin-left: -6px; }
@@ -53,14 +42,11 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .facts dt, .facts dd { padding: 8px 0; line-height: 1.45; border-bottom: 1px solid var(--pero-border); overflow-wrap: anywhere; }
 .facts dt { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .facts dd { margin: 0; font-size: var(--pero-font-body); }
-.specification > .facts { max-width: 560px; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); }
+.specification .facts { max-width: 560px; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); }
 .acceptance-rules { padding: 12px; background: var(--pero-bg); }
-.inspector-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.inspector-heading > svg { color: var(--pero-text-muted); }
-.acceptance-rules > .facts { grid-template-columns: minmax(0, 1fr) auto; }
-.acceptance-rules > .facts dd { text-align: right; font-size: var(--pero-font-caption); font-weight: 600; }
+.acceptance-rules > .pero-content-section .facts { grid-template-columns: minmax(0, 1fr) auto; }
+.acceptance-rules > .pero-content-section .facts dd { text-align: right; font-size: var(--pero-font-caption); font-weight: 600; }
 .acceptance-rules details { font-size: var(--pero-font-caption); border-top: 1px solid var(--pero-border); padding-top: 8px; }
-.acceptance-rules > .facts + details { border-top: 0; }
 .acceptance-rules details .facts dt, .acceptance-rules details .facts dd { font-size: var(--pero-font-caption); padding: 4px 0; }
 .latest-run { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--pero-border); font-size: var(--pero-font-caption); }
 .latest-run > svg { color: var(--pero-text-muted); }
@@ -81,30 +67,17 @@ input[type=checkbox] { accent-color: var(--pero-action); width: 16px; height: 16
 .check-table td:not(:first-child) { font-variant-numeric: tabular-nums; }
 .check-table td:last-child, .check-table th:last-child { text-align: right; }
 tr.selected { background: var(--pero-accent-soft); }
-.hpc-app .text-button.pero-ui-button { padding: 0; text-align: left; font: inherit; }
 .status { font-size: var(--pero-font-caption); white-space: nowrap; }
 .status-pass, .status-completed { color: var(--pero-success); }
 .status-fail, .status-failed { color: var(--pero-error); }
 .status-running { color: var(--pero-info); }
 .status-incomplete, .status-interrupted { color: var(--pero-warning); }
 .status-pending, .status-cancelled { color: var(--pero-text-muted); }
-.run-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
-.run-date { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: var(--pero-font-caption); }
-.run-date > svg, .run-date > span { color: var(--pero-text-muted); }
-.run-overview { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px; margin: 0 0 12px; background: var(--pero-bg); border: 1px solid var(--pero-border); border-radius: 4px; font-size: var(--pero-font-caption); }
-.run-overview > div { display: flex; align-items: baseline; gap: 8px; }
-.run-overview dt { color: var(--pero-text-muted); }
-.run-overview dd { margin: 0; font-variant-numeric: tabular-nums; }
 .run-summary { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 12px 0; font-size: var(--pero-font-caption); }
 .run-summary dt { color: var(--pero-text-muted); }
 .run-summary dd { margin: 2px 0 0; }
-.history-heading { border-top: 1px solid var(--pero-border); padding-top: 12px; margin: 12px 0; }
 .run-history { border-top: 1px solid var(--pero-border); padding-top: 8px; }
 .run-history > summary { font-weight: 600; }
-.run-history .section-heading > h3 { font-weight: 500; color: var(--pero-text-muted); }
-.check-heading { margin-top: 12px; }
-.check-heading h3 { display: flex; align-items: center; gap: 6px; }
-.check-heading h3 svg { color: var(--pero-text-muted); }
 .error-text { color: var(--pero-error); overflow-wrap: anywhere; margin: 8px 0; }
 details { margin: 12px 0; }
 details > :not(summary) { margin-top: 8px; }
@@ -132,18 +105,12 @@ details > :not(summary) { margin-top: 8px; }
 .result-plots[data-stacked] > .pero-ui-split-pane { padding: 0; }
 .result-plots[data-stacked] > .error-plot { margin-top: 12px; }
 .hpc-app .workbench[data-stacked] > .benchmark-explorer { flex: 0 0 auto; max-height: 176px; min-height: 0; border-bottom: 1px solid var(--pero-border); }
-.workbench[data-stacked] .explorer-header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
-.workbench[data-stacked] .explorer-header h2 { flex: none; margin: 0; }
 .workbench[data-stacked] .benchmark-search { flex: 1; }
 .workbench[data-stacked] .benchmark-list { max-height: 134px; padding-bottom: 6px; }
-.workbench[data-stacked] .benchmark-item { min-height: 48px; padding-top: 4px; padding-bottom: 4px; }
 .workbench[data-stacked] .explorer-runtime { display: none; }
 @media (max-width: 600px) {
   .app-header .discuss-button span { display: none; }
   .hpc-app .app-header .discuss-button { min-width: var(--pero-control-height); padding-inline: var(--pero-spacing-1); }
 
-  .section-heading { align-items: flex-start; }
   .method-formula { min-height: 112px; }
-  .run-overview { gap: 8px 16px; }
-  .run-overview > div { gap: 6px; }
 }

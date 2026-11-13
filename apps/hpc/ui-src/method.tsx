@@ -1,5 +1,5 @@
 import React from "react";
-import { Disclosure, Button, Icon, Split, SplitPane } from "@pero/app-sdk/ui";
+import { Disclosure, Button, ContentSection, Icon, Split, SplitPane } from "@pero/app-sdk/ui";
 import { Facts, number, Status } from "./results";
 import type { Benchmark, Run } from "./types";
 import type { Message } from "./messages";
@@ -21,16 +21,14 @@ export function MethodSpec({ benchmark, latestRun, t, onOpen }: {
     <Split storageKey="hpc:method-rules-width" collapseBelow={700} className="method-layout">
       <SplitPane id="hpc-specification" min={320} as="section" className="specification">
         {!benchmark.available && <p className="unavailable-note" role="status">{benchmark.unavailableReason || t("unavailable")}</p>}
-        {formula && <h3>{t("problem")}</h3>}
-        {formula && <div className="method-formula">
+        {formula && <ContentSection id="hpc-problem" title={t("problem")}><div className="method-formula">
           {integrand ? <><span className="integral-symbol">∫</span><span className="integral-limits"><sup>{number(parameters.upperBound)}</sup><sub>{number(parameters.lowerBound)}</sub></span><span>{formula}</span><span>dx</span><span>=</span><span>{parameters.reference === "math.pi" ? "π" : String(parameters.reference ?? "")}</span></> : formula}
-        </div>}
-        <h3>{t("parameters")}</h3>
-        <Facts values={inputs} />
+        </div></ContentSection>}
+        <ContentSection id="hpc-parameters" title={t("parameters")}><Facts values={inputs} /></ContentSection>
         {latestRun && <div className="latest-run"><Icon name="automation" size={14} /><div><strong>{t("latestRun")}</strong><time dateTime={latestRun.createdAt}>{new Date(latestRun.createdAt).toLocaleString()}</time></div><Status value={latestRun.verification?.status ?? (latestRun.status === "completed" ? null : latestRun.status)} t={t} /><Button variant="ghost" className="icon-button" aria-label={t("openLatest")} title={t("openLatest")} onClick={() => onOpen(latestRun)}><Icon name="arrow" size={14} /></Button></div>}
       </SplitPane>
       <SplitPane id="hpc-rules" size={320} min={280} stackedBasis="auto" resizeLabel={t("criteria")} as="aside" className="acceptance-rules">
-        <div className="inspector-heading"><Icon name="shield" size={14} /><h3>{t("criteria")}</h3></div><Facts values={benchmark.criteria} />
+        <ContentSection id="hpc-criteria" title={t("criteria")}><Facts values={benchmark.criteria} /></ContentSection>
         <Disclosure variant="inline" summary={<>{t("environment")}</>}><Facts values={benchmark.environment} /><p className="scope-note">{t("boundary")}</p></Disclosure>
         <Disclosure variant="inline" summary={<>{t("specification")}</>}><p>{description}</p>
           {benchmark.specDigest && <p>{t("digest")}<br /><code className="digest">{benchmark.specDigest}</code></p>}
