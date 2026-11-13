@@ -791,6 +791,7 @@ jobs:
           npx playwright install --with-deps chromium
           node --experimental-transform-types tests/contracts/mcp-session-panel.mjs --browser
           npm run test:mcp-official -- --install
+          npm run test:mcp-app-sdk
           PERO_MCP_BROWSER=1 PERO_APP_PYTHON="$RUNNER_TEMP/notebook-canvas-python/bin/python" npm run test:mcp-apps
       - name: Host MCP ownership contracts
         id: host_mcp_ownership
