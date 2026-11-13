@@ -1,18 +1,18 @@
 import React from 'react';
-import { Table, Button, Icon, PageHeader } from '@pero/app-sdk/ui';
+import { Table, Button, LibraryHeader } from '@pero/app-sdk/ui';
 import type { Translator } from './i18n';
 import type { Paper } from './types';
 
-export function ComparePapers({ papers, saving, busy, onDownload, onBack, onCompare, t }: {
+export function ComparePapers({ papers, saving, busy, onDownload, onCompare, t }: {
   papers: Paper[]; saving: boolean; busy: boolean;
-  onDownload(paper: Paper): void; onBack(): void; onCompare(fullText: boolean): void; t: Translator;
+  onDownload(paper: Paper): void; onCompare(fullText: boolean): void; t: Translator;
 }) {
   const pdfReady = papers.filter(paper => paper.hasSearchablePdf).length;
   const textReady = papers.length > 1 && papers.every(paper => paper.hasSavedText);
   const allPdfReady = papers.length > 1 && pdfReady === papers.length;
   const textOnly = papers.some(paper => paper.contentKind !== 'full-text');
   return <div className="pa-research-page">
-    <PageHeader title={t('comparePapers')} navigation={<Button variant="ghost" aria-label={t('backFromComparison')} onClick={onBack}><Icon name="chevron-left" size={16}/></Button>}/>
+    <LibraryHeader density="compact" title={t('comparePapers')} />
     <p className="pa-research-description" role="status">{t('comparisonPdfReady')} {pdfReady}/{papers.length}</p>
     <Table label={t('comparePapers')} tableClassName="pa-comparison-table">
       <thead><tr><th scope="col">{t('paperColumn')}</th><th scope="col">{t('savedText')}</th><th scope="col">PDF</th></tr></thead>

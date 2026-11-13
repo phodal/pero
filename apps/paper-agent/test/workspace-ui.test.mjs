@@ -23,7 +23,10 @@ async function fixture(t, fullApp = false) {
     export { PdfActions } from './pdf-actions';
     export { messages } from './i18n';
     export { AppApiProvider, appSurface } from '@pero/app-sdk';` });
-  const { React, ui, render, dom } = env;
+  const { React, ui, render, dom, click: press } = env;
+  const click = element => element?.getAttribute?.('role') === 'tab'
+    ? React.act(async () => element.dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true, button: 0 })))
+    : press(element);
   dom.window.matchMedia = globalThis.matchMedia;
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
   dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ x: 10, y: 10, width: 240, height: 32, top: 10, left: 10, right: 250, bottom: 42, toJSON() { return this; } });
@@ -39,7 +42,7 @@ async function fixture(t, fullApp = false) {
     node.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   });
   const key = (node, value, options = {}) => React.act(async () => node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...options })));
-  return { ...env, t: translate, mount, button, input, key };
+  return { ...env, click, t: translate, mount, button, input, key };
 }
 
 const paper = { id: 'p1', title: 'Saved source', source: 'local', sourceId: 'local-1', authors: [], url: 'https://example.test/paper', contentKind: 'abstract', fetchedAt: '2026-11-06', contentDigest: 'digest' };
@@ -59,7 +62,7 @@ test('Paper navigation retains the unsaved autonomous research draft', async t =
     allowedApiPaths: ['/api'], allowedEvents: [], fetch, surface: f.ui.appSurface,
     subscribeFn: () => () => {}, navigateFn() {}, notifyFn() {},
   }, f.React.createElement(f.ui.PaperAgent)));
-  const nav = label => [...document.querySelectorAll('.pa-workspace-nav button')].find(node => node.getAttribute('aria-label')?.startsWith(label));
+  const nav = label => [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === label && !node.closest('[hidden]'));
   await f.click(nav('Autonomous research'));
   const question = [...document.querySelectorAll('.pa-programs textarea')].find(node => [...node.labels].some(label => label.textContent.trim() === 'Research question'));
   assert.ok(question, 'Research question has an associated visible label');
@@ -151,7 +154,7 @@ test('Paper results recover first-load failure, retain records on 503, and remov
   }, f.React.createElement(f.ui.PaperAgent)));
   const respond = async (status, value) => f.React.act(async () => pending.shift()(new Response(typeof value === 'string' ? value : JSON.stringify(value), { status })));
   await mount(true);
-  const resultNav = document.querySelector('.pa-workspace-nav [aria-label="Research results"]');
+  const resultNav = [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === 'Research results' && !node.closest('[hidden]'));
   assert.ok(resultNav, document.body.textContent);
   await f.click(resultNav);
   assert.ok(document.querySelector('.pa-results [role=status]'));

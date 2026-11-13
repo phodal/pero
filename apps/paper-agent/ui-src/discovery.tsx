@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Disclosure, Button, EmptyState, Feedback, Icon, Select, ToggleGroup, ToggleGroupItem, Toolbar } from '@pero/app-sdk/ui';
+import { Disclosure, Button, EmptyState, Feedback, Icon, LibraryHeader, Select, ToggleGroup, ToggleGroupItem, Toolbar } from '@pero/app-sdk/ui';
 import type { Api, DiscoveryBatch, DiscoveryPaper, DiscoveryRelation, Library, Paper } from './types';
 import type { Translator } from './i18n';
 import './discover-search.css';
 
 export type DiscoveryOpening = { seed: Paper } | { historyId: string };
 type Choice = { status: 'choose-seed'; candidates: DiscoveryPaper[] };
-export function Discovery({ api, opening, library, locked, selected, onRefresh, onRead, onCompare, onReturn, onBack, t }: {
+export function Discovery({ api, opening, library, locked, selected, onRefresh, onRead, onCompare, onReturn, t }: {
   api: Api; opening: DiscoveryOpening | null; library: Library; locked: boolean; selected: string[];
   onRefresh(): Promise<void>; onRead(paper: Paper): Promise<void>; onReturn(id: string): void;
-  onCompare(paper: Paper, seedId: string): boolean; onBack(): void; t: Translator;
+  onCompare(paper: Paper, seedId: string): boolean; t: Translator;
 }) {
   const seed = opening && 'seed' in opening ? opening.seed : null;
   const [batch, setBatch] = useState<DiscoveryBatch | null>(null), [choices, setChoices] = useState<DiscoveryPaper[] | null>(null);
@@ -66,11 +66,7 @@ export function Discovery({ api, opening, library, locked, selected, onRefresh, 
   }
   const seedTitle = batch?.seedTitle ?? seed?.title;
   return <section className="pa-discovery pa-explore" aria-label={t('discover')}>
-    <header className="pa-discovery-head">
-      <Button variant="ghost" className="pa-discovery-back" aria-label={t('backToLibrary')} onClick={onBack}><Icon name="chevron-left" size={16}/><span>{t('discover')}</span></Button>
-      {seedTitle && <Button variant="ghost" className="pa-discovery-return" onClick={() => onReturn(batch?.seedId ?? seed!.id)}>{t('backToSeed')}</Button>}
-      <h1 className="pa-discovery-seed-title">{seedTitle ?? t('discover')}</h1>
-    </header>
+    <LibraryHeader density="compact" title={seedTitle ?? t('discover')} actions={seedTitle ? <Button variant="ghost" onClick={() => onReturn(batch?.seedId ?? seed!.id)}>{t('backToSeed')}</Button> : undefined} />
     {!!library.discoveries?.length && <div className="pa-exploration-history"><Select label={t('explorationHistory')} value={batch?.id ?? ''} disabled={busy} onChange={id => { if (id) void reopen(id); }} options={[{ value: '', label: t('chooseExploration') }, ...(library.discoveries ?? []).map(item => ({ value: item.id, label: `${item.seedTitle} / ${t(item.relation)} / ${item.page}` }))]}/></div>}
     <ToggleGroup type="single" className="pa-discovery-relations" value={relation} onValueChange={value => { if (value) void load(value as DiscoveryRelation, 1, batch?.work.id ?? last.current.workId); }} disabled={busy || !!action || (!seed && !batch)} aria-label={t('discover')}>
       {(['related', 'references', 'citing'] as const).map(key => <ToggleGroupItem key={key} value={key}>{t(key)}</ToggleGroupItem>)}

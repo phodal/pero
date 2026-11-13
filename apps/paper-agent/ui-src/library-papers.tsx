@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, type ReactNode } from 'react';
 import { AppBar, Button, ContentPane, EmptyIllustration, EmptyState, Icon, IconButton, LibraryHeader, LoadingSkeleton, SkeletonBlock, Split, SplitPane } from '@pero/app-sdk/ui';
 import { PaperList } from './library';
 import { LibrarySearch } from './library-search';
@@ -8,9 +8,9 @@ import type { Api, Library, LocalSearchHit, Paper } from './types';
 import type { Translator } from './i18n';
 
 /** Preview owns no source copy: every action uses the selected saved Paper. */
-export function LibraryPapers({ api, papers, shelf, library, filter, loading, unavailable = false, savingId, activeHitId, locked, showDetails, t, onFilter, onStatus, onRefresh, onImport, onRead, onRecords, onDiscover, onDownload, onSearchHit, onFind, onCompare, onAsk }: {
+export function LibraryPapers({ api, papers, shelf, library, filter, loading, unavailable = false, savingId, activeHitId, locked, showDetails, scope, t, onFilter, onStatus, onRefresh, onImport, onRead, onRecords, onDiscover, onDownload, onSearchHit, onFind, onCompare, onAsk }: {
   api: Api; papers: Paper[]; shelf: Shelf; library?: Pick<Library, 'intents' | 'studies' | 'discoveries' | 'favorites'>;
-  filter: ShelfFilter; loading: boolean; unavailable?: boolean; savingId?: string; activeHitId?: string; locked: boolean; showDetails: boolean; t: Translator;
+  filter: ShelfFilter; loading: boolean; unavailable?: boolean; savingId?: string; activeHitId?: string; locked: boolean; showDetails: boolean; scope?: ReactNode; t: Translator;
   onFilter(value: ShelfFilter): void; onStatus(id: string, value: ShelfStatus): void; onRefresh(): void; onImport(): void;
   onRead(paper: Paper): void; onRecords(paper: Paper): void; onDiscover(paper: Paper): void; onDownload(paper: Paper, format: 'pdf' | 'tex'): void;
   onSearchHit(hit: LocalSearchHit): Promise<void>; onFind(): void; onCompare(ids: string[]): void;
@@ -24,21 +24,20 @@ export function LibraryPapers({ api, papers, shelf, library, filter, loading, un
   const paper = rows.find(paper => paper.id === previewId) ?? rows[0];
   const selectedIds = selected.filter(id => papers.some(paper => paper.id === id));
   const title = filter === 'all' ? 'allPapers' : filter === 'reading' ? 'statusReading' : filter === 'to-read' ? 'statusToRead' : 'statusReviewed';
-  const readLabel = paper && statusOf(shelf, paper.id) === 'to-read' ? t('openReader') : t('continueReading');
-  const add = <Button variant={paper ? 'ghost' : 'primary'} onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button>;
   const compare = selectedIds.length > 1 ? <Button variant="ghost" disabled={locked} onClick={() => onCompare(selectedIds)}><Icon name="columns" size={14}/>{t('comparePapers')}</Button> : null;
   function preview(paper: Paper) {
     setPreviewId(paper.id);
     if (window.matchMedia('(max-width: 940px)').matches) requestAnimationFrame(() => inspector.current?.focus());
   }
   return <div className="pa-library-papers-screen"><AppBar
+    scope={scope}
     utilities={<IconButton label={t('refresh')} onClick={onRefresh}><Icon name="refresh" size={15}/></IconButton>}
-    commands={(compare || paper) ? <>{compare}{paper ? add : null}</> : undefined}
-    primary={paper ? <Button variant="primary" onClick={() => onRead(paper)}>{readLabel}</Button> : add}/>
+    commands={compare ?? undefined}
+    primary={<Button variant="primary" onClick={onImport}><Icon name="plus" size={15}/>{t('add')}</Button>}/>
   <Split storageKey="paper-agent.library-preview" collapseBelow={940} className="pa-library-papers">
     <SplitPane id="paper-library-list" min={360} className="pa-library-list-pane">
       <ContentPane id="paper-library-catalog" label={t(title)} as="div" surface="list" inset="compact" scroll="pane"
-        header={<LibraryHeader className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`}/>}>
+        header={<LibraryHeader density="compact" className="pa-library-heading" title={t(title)} subtitle={`${rows.length} ${t('sourcesCount')}`}/>}>
       {loading ? <LoadingSkeleton label={t('loading')}>{[0, 1, 2].map(row => <div className="pa-library-placeholder" key={row}>
         <SkeletonBlock shape="title" width={row === 1 ? '68%' : '84%'}/><SkeletonBlock width="42%"/>
       </div>)}</LoadingSkeleton> : !unavailable && <LibrarySearch api={api} t={t} activeHitId={activeHitId} onOpen={onSearchHit} onQueryChange={setQuery} onFind={onFind}>
