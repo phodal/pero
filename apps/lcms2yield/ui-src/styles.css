@@ -31,13 +31,6 @@ html, body, #app { height: 100%; }
   text-align: center;
 }
 
-.yield-opening-card h2 {
-  margin: 0;
-  font-size: var(--pero-font-title);
-  font-weight: 600;
-  line-height: 1.25;
-}
-
 .yield-opening-card p {
   margin: 0;
   max-width: 22rem;
@@ -75,6 +68,9 @@ html, body, #app { height: 100%; }
   .yield-spinner { animation: none; }
 }
 
+.yield-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.yield-frame > .pero-app { flex: 1; min-height: 0; }
+.yield-frame .pero-app-bar .pero-ui-tabs-list { flex: none; width: auto; min-width: 0; }
 .yield-shell {
   display: grid;
   grid-template-columns: 19rem minmax(0, 1fr);
@@ -185,8 +181,6 @@ html, body, #app { height: 100%; }
 .yield-metrics dd { margin: 0; font-variant-numeric: tabular-nums; }
 
 .yield-detail { min-width: 0; }
-.yield-detail h2 { margin: 0; font-size: var(--pero-font-body); }
-.yield-detail h3 { margin: var(--pero-spacing-3) 0 var(--pero-spacing-2); font-size: var(--pero-font-body); }
 .yield-rows {
   list-style: none;
   margin: 0 0 var(--pero-spacing-3);
@@ -197,20 +191,6 @@ html, body, #app { height: 100%; }
   border-radius: var(--pero-radius-selection, 8px);
   background: var(--pero-surface);
 }
-.yield-rows button {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  text-align: start;
-  background: transparent;
-  border: 0;
-  padding: var(--pero-spacing-2);
-  color: var(--pero-text);
-  cursor: pointer;
-}
-.yield-rows button:hover { background: var(--pero-surface-hover); }
-.yield-rows button[aria-current="true"] { background: var(--pero-accent-soft); }
-.yield-rows button:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: -2px; }
 .yield-detail dl { display: grid; grid-template-columns: 1fr; gap: var(--pero-spacing-2); margin: 0; }
 .yield-detail dl > div { min-width: 0; }
 .yield-detail dt { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
@@ -218,7 +198,6 @@ html, body, #app { height: 100%; }
 .yield-smiles dd { overflow-wrap: anywhere; font-variant-numeric: normal; }
 .yield-structure svg { display: block; width: 100%; height: auto; max-height: 12rem; }
 
-.yield-block h2 { margin: 0 0 var(--pero-spacing-2); font-size: var(--pero-font-body); }
 .yield-identity { margin: 0; padding-left: 1.1rem; }
 .yield-identity-note { display: flex; flex-direction: column; gap: var(--pero-spacing-1); }
 .yield-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); padding: var(--pero-spacing-3); }
