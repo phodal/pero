@@ -37,21 +37,22 @@ import React from 'react';import {createRoot} from 'react-dom/client';
 import {mountMcpApp} from '@pero/mcp-apps';import {McpAppSurface} from '@pero/mcp-apps/react';
 import {applyMcpAppTheme,mcpAppHostContext} from '@pero/mcp-apps/theme';import '@pero/app-sdk/tokens.css';
 class HostAdapter {
-  calls=0;revocations=0;errors=[];states=[];rejectRevoke=false;
+  calls=0;revocations=0;errors=[];states=[];rejectRevoke=false;revocationWait;
   async callTool(){this.calls++;return {content:[{type:'text',text:'Updated via UI tool'}],structuredContent:{value:'Updated via UI tool'}};}
   async readResource(){return {contents:[]};}async openLink(){}
-  async revoke(){this.revocations++;if(this.rejectRevoke)throw new Error('Fixture binding revocation failed');}onState(state){this.states.push(state);}onError(error){this.errors.push(String(error));}
+  async revoke(){this.revocations++;await this.revocationWait;if(this.rejectRevoke)throw new Error('Fixture binding revocation failed');}onState(state){this.states.push(state);}onError(error){this.errors.push(String(error));}
 }
 applyMcpAppTheme({theme:'light',locale:'en'});
 let context=mcpAppHostContext({theme:'light',locale:'en'}),size={initialHeight:240,minHeight:120,maxHeight:400};
 const resource=id=>({title:'SDK result '+id,html:'served by the production sandbox',sandbox:window.proxyOrigin+'/sandbox?host='+encodeURIComponent(location.origin)+'&binding='+id,
   input:{savedId:'saved-42'},result:{content:[{type:'text',text:'Original saved result'}],structuredContent:{value:'Original saved result'}}});
-window.adapters={raw:new HostAdapter(),surface:new HostAdapter(),failure:new HostAdapter(),unmount:new HostAdapter()};window.adapters.failure.rejectRevoke=true;
+window.adapters={raw:new HostAdapter(),surface:new HostAdapter(),replacement:new HostAdapter(),failure:new HostAdapter(),unmount:new HostAdapter()};window.adapters.failure.rejectRevoke=true;
 const surfaceRef=React.createRef(),reactRoot=createRoot(document.querySelector('#surface'));
 let selected=resource('surface'),adapter=window.adapters.surface;
 const render=()=>reactRoot.render(<React.StrictMode><McpAppSurface ref={surfaceRef} resource={selected} host={adapter} context={context}
   options={{hostInfo:{name:'SDK browser acceptance',version:'1.0.0'},size}} onClose={()=>{window.closeNotifications=(window.closeNotifications||0)+1;if(adapter===window.adapters.failure){window.failureDismissed=true;reactRoot.render(null);}}}/></React.StrictMode>);
 window.sdk={surfaceRef,update(theme,locale){applyMcpAppTheme({theme,locale});context=mcpAppHostContext({theme,locale});size={initialHeight:180,minHeight:100,maxHeight:280};window.sdk.raw.setHostContext(context);window.sdk.raw.setSizePolicy(size);render();},
+  replaceReady(){window.adapters.surface.revocationWait=new Promise(resolve=>{window.releasePreviousRevoke=resolve;});selected=resource('replacement');adapter=window.adapters.replacement;render();},
   failRevoke(){selected=resource('failure');adapter=window.adapters.failure;render();},
   reopen(){selected=resource('unmount');adapter=window.adapters.unmount;render();},unmount(){reactRoot.unmount();}};
 mountMcpApp(document.querySelector('#raw'),resource('raw'),window.adapters.raw,context,{hostInfo:{name:'Direct Host adapter',version:'1.0.0'},size})
@@ -104,12 +105,28 @@ try{
   await expect.poll(()=>surface().locator('html').evaluate(el=>el.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:join(evidence,'dark-narrow.png'),fullPage:true});
   assert.equal(await surface().locator('body').evaluate(()=>{try{void window.top.document;return true;}catch{return false;}}),false);
+  await page.evaluate(()=>window.sdk.replaceReady());
+  await expect.poll(()=>page.evaluate(()=>window.adapters.surface.revocations)).toBe(1);
+  await expect(page.locator('#surface iframe')).toHaveCount(1);
+  await expect(page.locator('#surface iframe')).toHaveAttribute('title','SDK result replacement');
+  await expect(surface().locator('#payload')).toHaveText('Original saved result');
+  assert.equal(await page.evaluate(()=>window.adapters.surface.states.at(-1)),'ready');
+  assert.equal(await page.evaluate(()=>window.adapters.replacement.revocations),0);
+  assert.equal(await page.evaluate(()=>window.adapters.replacement.calls),0);
+  assert.equal(await surface().locator('html').evaluate(()=>window.receivedResults),1);
+  await page.evaluate(()=>window.releasePreviousRevoke());
+  await expect.poll(()=>page.evaluate(()=>window.adapters.surface.states.at(-1))).toBe('closed');
+  await expect(page.locator('#surface iframe')).toHaveCount(1);
+  await expect(page.locator('#surface iframe')).toHaveAttribute('title','SDK result replacement');
+  assert.equal(await page.evaluate(()=>window.adapters.surface.revocations),1);
+  assert.equal(await page.evaluate(()=>window.adapters.surface.calls),1);
   await page.evaluate(()=>window.sdk.raw.close());await expect(page.locator('#raw iframe')).toHaveCount(0);
   assert.equal(await page.evaluate(()=>window.adapters.raw.revocations),1);
   await page.getByRole('button',{name:'Close view',exact:true}).click();
   await expect(page.locator('#surface iframe')).toHaveCount(0);
   await expect(page.locator('#surface')).toContainText('Original saved result');
   assert.equal(await page.evaluate(()=>window.adapters.surface.revocations),1);
+  assert.equal(await page.evaluate(()=>window.adapters.replacement.revocations),1);
   await page.evaluate(()=>window.sdk.failRevoke());await expect(surface().locator('#payload')).toHaveText('Original saved result');
   await page.getByRole('button',{name:'Close view',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.failureDismissed)).toBe(true);
@@ -123,9 +140,9 @@ try{
   const adapters=await page.evaluate(()=>Object.fromEntries(Object.entries(window.adapters).map(([name,value])=>[name,{calls:value.calls,revocations:value.revocations,errors:value.errors,states:value.states}])));
   assert.deepEqual(errors,[]);for(const [name,adapter] of Object.entries(adapters))if(name!=='failure')assert.deepEqual(adapter.errors,[]);
   assert.equal(adapters.failure.revocations,1);assert(adapters.failure.errors.every(error=>error==='Error: Fixture binding revocation failed'));
-  assert.equal(resources.get('raw'),1);assert.equal(resources.get('failure'),1);assert.equal(resources.get('unmount'),1);
+  assert.equal(resources.get('raw'),1);assert.equal(resources.get('replacement'),1);assert.equal(resources.get('failure'),1);assert.equal(resources.get('unmount'),1);
   await writeFile(join(evidence,'result.json'),JSON.stringify({passed:true,scope:'Public SDK browser fixture; not full Workbench or Native acceptance',
-    checks:['object Host adapter receiver','original input and result','StrictMode single live frame without spurious revocation','shared Surface fallback','size update without reconnect or tool replay','live theme and locale mapping','independent origin','failed revoke still dismisses and reports error','close and unmount revoke'],
+    checks:['object Host adapter receiver','original input and result','StrictMode single live frame without spurious revocation','shared Surface fallback','size update without reconnect or tool replay','live theme and locale mapping','independent origin','ready resource replacement detaches previous view while revocation waits without tool replay','failed revoke still dismisses and reports error','close and unmount revoke'],
     resources:Object.fromEntries(resources),adapters,screenshots:['light.png','dark-narrow.png']},null,2));
   console.log('MCP App SDK: shared Surface, theme, size policy and Host callback regression passed.');
 }finally{

@@ -39,13 +39,16 @@ export const McpAppSurface = forwardRef<McpAppSurfaceHandle, McpAppSurfaceProps>
 
   useEffect(() => {
     let disposed = false;
+    let slot: HTMLDivElement | undefined;
     owner.live = true;
     setPhase('connecting');setError(undefined);setClosing(false);
     // StrictMode probes setup/cleanup synchronously. Allocate only after that
     // probe, so its cleanup cannot revoke the actual mount's admitted binding.
     const mounting = Promise.resolve().then(() => {
       if (disposed) return;
-      return mountMcpApp(container.current!, resource, {
+      slot = container.current!.ownerDocument.createElement('div');
+      container.current!.append(slot);
+      return mountMcpApp(slot, resource, {
         callTool: (name, args) => owner.host.callTool(name, args),
         readResource: uri => owner.host.readResource(uri),
         openLink: url => owner.host.openLink(url),
@@ -67,6 +70,7 @@ export const McpAppSurface = forwardRef<McpAppSurfaceHandle, McpAppSurfaceProps>
     return () => {
       disposed = true;
       owner.live = false;
+      slot?.remove();
       void mounting.then(runtime => runtime?.close()).catch(report);
     };
   }, [resource]);
