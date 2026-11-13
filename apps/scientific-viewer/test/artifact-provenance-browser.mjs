@@ -87,6 +87,7 @@ try {
   const codeView = page.locator('.cm-content:visible');
   const screenshot = async name => {
     const file = `${name}.png`;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.screenshot({ path: join(output, file) }); screenshots.push(file);
   };
   const select = async (artifactId, version = 1) => {
