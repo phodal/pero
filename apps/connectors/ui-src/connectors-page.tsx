@@ -321,7 +321,6 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     {notice && mode !== 'custom' && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
 
     {mode === 'catalog' && <TabsContent value="catalog" className="point-connectors-catalog"><ContentPane id="connectors-catalog" label={copy('服务目录', 'Service catalog')} as="div" surface="list" inset="compact" scroll="pane"
-      header={<LibraryHeader density="compact" title={copy('服务目录', 'Service catalog')} subtitle={String(matchesCatalog.length)} />}
       toolbar={<div className="point-connectors-search-tools"><SearchField placeholder={copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
         <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('服务分类', 'Service category')} onValueChange={next => { if (next) setCategory(next); }}>
           <ToggleGroupItem value="all">{copy('全部服务', 'All services')}<span className="point-connectors-filter-count">{matchesSearch.length}</span></ToggleGroupItem>
