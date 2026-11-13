@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { downloadFile, useAppApi } from '@pero/app-sdk';
-import { Button, Feedback, Icon, Textarea } from '@pero/app-sdk/ui';
+import { Button, Feedback, Icon, Select, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from './notebook';
-
-type CellOutput = { output_type?: string; text?: string | string[]; traceback?: string[]; data?: Record<string, string | string[]> };
+import { NotebookOutput } from './notebook-output';
+import { SharedNotebook } from './shared-notebook';
 
 type KernelState = {
   session: string;
@@ -15,10 +15,23 @@ type KernelState = {
   error: string;
 };
 
-export function NotebookRunner({ notebook, edited, name, zh, onChange, onKernel }: {
+type RunnerProps = {
   notebook: NotebookDocument; edited: boolean; name: string; zh: boolean; onChange(value: NotebookDocument): void;
   onKernel(active: boolean): void;
-}) {
+};
+
+export function NotebookRunner(props: RunnerProps) {
+  const [mode, setMode] = useState('shared');
+  return <section className="notebook-runner">
+    <Select label={props.zh ? '计算会话' : 'Computation session'} value={mode}
+      options={[{ value: 'shared', label: props.zh ? '与 Agent 共享会话' : 'Shared Agent session' },
+        { value: 'local', label: props.zh ? '独立 Python 内核' : 'Separate Python kernel' }]}
+      onChange={value => { setMode(value); props.onKernel(false); }} />
+    {mode === 'shared' ? <SharedNotebook {...props} /> : <LocalNotebook {...props} />}
+  </section>;
+}
+
+function LocalNotebook({ notebook, edited, name, zh, onChange, onKernel }: RunnerProps) {
   const api = useAppApi();
   const [kernel, setKernel] = useState<KernelState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,21 +145,7 @@ export function NotebookRunner({ notebook, edited, name, zh, onChange, onKernel 
             }}
             onChange={event => onChange({ ...notebook, cells: notebook.cells.map((cell, at) => at === index
               ? { ...cell, source: event.target.value, outputs: [], execution_count: null } : cell) })} />
-          {!!cell.outputs?.length && <div className="notebook-live-output" aria-label={zh ? '单元输出' : 'Cell output'}
-            data-error={cell.outputs.some(value => (value as CellOutput)?.output_type === 'error') || undefined}>
-              <div className="notebook-output-label">{zh ? '输出' : 'Output'}</div>
-              {cell.outputs.map((value, offset) => {
-                const output = value as CellOutput;
-                const image = output?.data?.['image/png'];
-                const png = Array.isArray(image) ? image.join('') : image;
-                const imageShown = typeof png === 'string' && /^[a-z0-9+/=\s]+$/i.test(png);
-                const text = output?.text ?? output?.traceback?.join('\n') ?? (imageShown ? undefined : output?.data?.['text/plain']);
-                return <React.Fragment key={offset}>
-                  {imageShown && <img src={`data:image/png;base64,${png}`} alt={zh ? '单元图像输出' : 'Cell image output'} />}
-                  {text != null && <pre>{Array.isArray(text) ? text.join('') : text}</pre>}
-                </React.Fragment>;
-              })}
-          </div>}
+          <NotebookOutput outputs={cell.outputs ?? []} zh={zh} />
         </section>;
       })}
       <Button variant="ghost" className="notebook-add-cell" disabled={busy || running || notebook.cells.length >= 500}

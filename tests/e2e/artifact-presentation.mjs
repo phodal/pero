@@ -123,6 +123,8 @@ try {
   await page.screenshot({ path: resolve(output, 'inline-image.png'), scale: 'css' });
   if (process.env.PERO_NOTEBOOK_TEST_PREFIX) {
     await send('Deliver Notebook and present expanded notebook', 2, 'analysis.ipynb');
+    await viewer.getByRole('combobox', { name: 'Computation session' }).click();
+    await viewer.getByRole('option', { name: 'Separate Python kernel' }).click();
     await viewer.getByRole('button', { name: 'Start Python kernel' }).click();
     await viewer.getByRole('textbox', { name: 'Code cell 2' }).fill('shared = 40\nprint(shared)');
     await viewer.getByRole('button', { name: 'Run cell 2' }).click();
