@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type MouseEvent } from 'react';
-import { Button, Feedback, Input, Split, SplitPane, ToggleGroup, ToggleGroupItem } from '@pero/app-sdk/ui';
+import { Button, Feedback, IconButton, Input, Split, SplitPane, ToggleGroup, ToggleGroupItem } from '@pero/app-sdk/ui';
 import { complement, parseGenBank, type BaseSpan, type SequenceFeature, type SequenceRecord } from './sequence-record';
 import { annotatedResidues, type AnnotatedResidue } from './sequence-translation';
 import { cutBoundary, restrictionSites, type RestrictionSite } from './sequence-restriction';
@@ -271,9 +271,9 @@ function SequenceWorkspace({ record, name, zh }: { record: SequenceRecord; name:
             {map === 'circular' && cutSites.length > 0 && <Button variant="ghost" aria-pressed={showCuts}
               onClick={() => setShowCuts(!showCuts)}>{t.cutSites}</Button>}
             <div className="sequence-zoom">
-              <Button variant="ghost" aria-label={zh ? '缩小地图' : 'Zoom out map'} disabled={zoom <= 1} onClick={() => setZoom(value => value - 0.25)}>−</Button>
+              <IconButton label={zh ? '缩小地图' : 'Zoom out map'} disabled={zoom <= 1} onClick={() => setZoom(value => value - 0.25)}>−</IconButton>
               <Button variant="ghost" aria-label={zh ? '重置地图缩放' : 'Reset map zoom'} onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</Button>
-              <Button variant="ghost" aria-label={zh ? '放大地图' : 'Zoom in map'} disabled={zoom >= 2} onClick={() => setZoom(value => value + 0.25)}>+</Button>
+              <IconButton label={zh ? '放大地图' : 'Zoom in map'} disabled={zoom >= 2} onClick={() => setZoom(value => value + 0.25)}>+</IconButton>
             </div>
           </div>
           <div className="sequence-map-scroll">

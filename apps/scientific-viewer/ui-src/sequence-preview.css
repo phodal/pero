@@ -29,7 +29,6 @@
 .sequence-pane-bar { min-height: 44px; justify-content: space-between; flex-wrap: wrap; }
 .sequence-pane-bar strong { font-size: var(--pero-font-caption); font-weight: 600; }
 .sequence-zoom { display: flex; align-items: center; gap: var(--pero-spacing-1); }
-.sequence-zoom .pero-ui-button { padding-inline: var(--pero-spacing-1); }
 .sequence-bases,.sequence-map-scroll { flex: 1; overflow: auto; min-height: 0; }
 .sequence-bases { padding-inline: 12px; font-family: var(--sequence-mono); font-size: var(--pero-font-code, 13px); }
 .sequence-measure { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }

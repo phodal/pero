@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppChat, useAppContext, openPaperApp } from '@pero/app-sdk';
-import { Disclosure, AppBar, Button, ContentPane, Feedback, FilePicker, MetadataList, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
+import { Disclosure, AppBar, Button, ContentPane, ContentSection, EmptyState, Feedback, FilePicker, MetadataList, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { ResearchLab, researchLabAsset, type ResearchLabEntry } from './research-lab';
@@ -15,19 +15,25 @@ import { RichPreview } from './rich-preview';
 import './styles.css';
 class PreviewBoundary extends React.Component<{children: React.ReactNode}, {error: string}> {
   state = { error: '' }; static getDerivedStateFromError(error: Error) { return { error: error.message }; }
-  render() { return this.state.error ? <section className="preview-empty"><h2>Preview unavailable</h2><Feedback kind="error">{this.state.error}</Feedback><Button onClick={() => document.getElementById('viewer-file')?.focus()}>Choose another file</Button></section> : this.props.children; }
+  render() { return this.state.error ? <PreviewError message={this.state.error} /> : this.props.children; }
+}
+function PreviewError({ message }: { message: string }) {
+  const { locale } = useAppContext();
+  const zh = locale === 'zh-CN';
+  return <EmptyState heading={zh ? '无法预览' : 'Preview unavailable'} description={<Feedback kind="error">{message}</Feedback>} actions={<Button onClick={() => document.getElementById('viewer-file')?.focus()}>{zh ? '选择其他文件' : 'Choose another file'}</Button>} />;
 }
 function Preview({ asset }: { asset: Asset }) {
   const { locale } = useAppContext();
+  const zh = locale === 'zh-CN';
   switch (inspect(asset.name, asset.mediaType)) {
     case 'table': return <TablePreview asset={asset} />;
     case 'structure': return <Structure asset={asset} />;
     case 'molecule': return <Molecules asset={asset} />;
     case 'pdf': return <PdfPreview source={asset} zh={locale === 'zh-CN'} readingOnly />;
     case 'notebook': return <NotebookPreview asset={asset} />;
-    case 'json': return <section className="metadata-preview" aria-label="JSON preview"><h2>Metadata</h2><pre>{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></section>;
+    case 'json': return <ContentSection id="viewer-json" title={zh ? '元数据' : 'Metadata'}><pre className="metadata-preview">{JSON.stringify(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(asset.bytes)), null, 2)}</pre></ContentSection>;
     case 'sequence': case 'mesh': case 'image': case 'code': case 'markdown': case 'html': case 'text': return <RichPreview source={{ ...asset, mediaType: asset.mediaType ?? '' }} provenance={asset.provenance} />;
-    default: return <section className="preview-empty"><h2>Metadata only</h2><p className="muted">This format has no preview. Open Source details to inspect the file.</p></section>;
+    default: return <EmptyState heading={zh ? '仅元数据' : 'Metadata only'} description={zh ? '此格式没有预览。打开来源可查看文件信息。' : 'This format has no preview. Open Source details to inspect the file.'} />;
   }
 }
 export default function ScientificViewer() {
@@ -36,7 +42,10 @@ export default function ScientificViewer() {
   const [loading, setLoading] = useState(true), [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState('');
   const removeButton = useRef<HTMLElement>(null);
-  const t = { molecules: 'Molecular illustrations', paper: 'Open Paper App', import: 'Import file', importing: 'Importing…', examples: 'Examples', file: 'Current file', source: 'Source details', unverified: 'Unverified', synthetic: 'Synthetic example, unverified', size: 'Size', origin: 'Source', license: 'License', discuss: 'Discuss metadata', remove: 'Remove local copy', removing: 'Removing…', cancel: 'Cancel', confirm: 'Confirm removal', loading: 'Loading files…', retry: 'Retry', limit: 'Up to 10 MiB per file', removal: (name: string) => `Remove “${name}” from this App? The original file is unchanged.` };
+  const { locale } = useAppContext();
+  const zh = locale === 'zh-CN';
+  const text = (en: string, zhText: string) => zh ? zhText : en;
+  const t = { molecules: text('Molecular illustrations', '分子示意'), paper: text('Open Paper App', '打开论文'), import: text('Import file', '导入文件'), importing: text('Importing…', '正在导入…'), examples: text('Examples', '示例'), file: text('Current file', '当前文件'), source: text('Source details', '来源'), unverified: text('Unverified', '未核验'), synthetic: text('Synthetic example, unverified', '合成示例，未核验'), size: text('Size', '大小'), origin: text('Source', '来源'), license: text('License', '许可'), discuss: text('Discuss metadata', '讨论元数据'), remove: text('Remove local copy', '移除本地副本'), removing: text('Removing…', '正在移除…'), cancel: text('Cancel', '取消'), confirm: text('Confirm removal', '确认移除'), loading: text('Loading files…', '正在加载文件…'), retry: text('Retry', '重试'), limit: text('Up to 10 MiB per file', '每个文件最大 10 MiB'), researchLab: text('Research Lab', '研究实验室'), removal: (name: string) => zh ? `从本应用移除「${name}」？原始文件不会改变。` : `Remove “${name}” from this App? The original file is unchanged.` };
   const chat = useAppChat(); const asset = assets.find(item => item.id === selected);
   const refresh = async () => setAssets(await files());
   async function loadFiles() {
@@ -75,10 +84,10 @@ export default function ScientificViewer() {
     finally { setRemoving(false); }
   }
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
-    <AppBar className="viewer-toolbar" aria-label="File actions" scope={<Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: 'Research Lab' }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />} tools={<>
+    <AppBar className="viewer-toolbar" aria-label="File actions" scope={<Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: t.researchLab }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />} tools={<>
       {asset && <Disclosure variant="inline" className="source-details" key={asset.id} summaryProps={{ 'aria-label': t.source, 'aria-describedby': 'source-status' }} summary={<><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></>}>
         <div className="source-panel">
-          <h2>{t.source}</h2><MetadataList layout="stacked" items={[
+          <MetadataList layout="stacked" items={[
             { id: 'size', label: t.size, value: `${asset.size.toLocaleString('en-US')} bytes` },
             { id: 'origin', label: t.origin, value: asset.source },
             { id: 'license', label: t.license, value: asset.license },
@@ -92,7 +101,7 @@ export default function ScientificViewer() {
           </div>}
         </div></Disclosure>}
       </>} commands={<>
-        <Button variant="ghost" disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>Research Lab</Button>
+        <Button variant="ghost" disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>{t.researchLab}</Button>
         <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
           {sequenceExamples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(
             new File([example.text], example.name), { source: example.source, license: 'GenBank data usage policy' },
@@ -105,7 +114,7 @@ export default function ScientificViewer() {
       </>} primary={<FilePicker compact variant="primary" title={t.limit} label={importing ? t.importing : t.import} emptyLabel="" busy={importing} onFile={file => void importFile(file)}/>}/>
     {loading && <p role="status">{t.loading}</p>}
     {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
-    {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}
+    {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>{text('Dismiss', '关闭')}</Button></div>}
     <article className="viewer-content"><ContentPane id="scientific-viewer-preview" label={asset?.name || 'Scientific Viewer'} as="div" surface="reading" inset="none" scroll="content">{!loading && !loadError && (selected === 'research-lab' ? <ResearchLab busy={importing} onOpen={entry => void openResearchModel(entry)} /> : asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</ContentPane></article>
   </main>;
 }

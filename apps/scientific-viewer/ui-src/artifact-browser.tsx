@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '@pero/app-sdk';
-import { Button, ContentIcon, Feedback, Icon, IconButton, Popover } from '@pero/app-sdk/ui';
+import { Button, ContentIcon, ContentSection, Feedback, Icon, IconButton, ListRow, Popover } from '@pero/app-sdk/ui';
 import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { admitArtifactBrowser, artifactTarget, artifactVersion, checkpointCompanions, selectedArtifact, type ArtifactBrowserContext } from './artifact-browser-model';
@@ -25,7 +25,7 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
   const quickLook = quickLookRequested || context?.inline === true;
   const items = useRef(new Map<string, HTMLElement>()), grid = useRef<HTMLDivElement>(null);
   const browserScroll = useRef<HTMLDivElement>(null), savedScroll = useRef(0), restoreFocus = useRef(false);
-  const quickReturn = useRef<HTMLElement>(null);
+  const quickReturn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!threadId) { setError('Choose a conversation to browse its artifacts'); return; }
     const receive = (event: MessageEvent) => {
@@ -94,17 +94,17 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
     </Button>;
   };
   const shellDocumentBar = context?.shell_document_bar === true;
-  const backToArtifacts = <Button ref={quickReturn} variant="ghost" aria-label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></Button>;
+  const backToArtifacts = <IconButton ref={quickReturn} label={zh ? '返回产物' : 'Back to artifacts'} onClick={closePreview}><Icon name="arrow-left" size={14} /></IconButton>;
   const documentBar = (artifact: SessionArtifact, version: SessionArtifactVersion) => <div className="artifact-browser-document-bar">
     {quickLook && !context?.inline && backToArtifacts}
     <ContentIcon source={{ path: version.filename ?? artifact.title }} />
     <span className="artifact-browser-filename" title={version.filename ?? artifact.title}>{version.filename ?? artifact.title}</span>
     <div className="artifact-browser-versions">
-      {!context?.inline && <Button variant="ghost" aria-label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
-        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version - 1 })}><Icon name="chevron-left" size={14} /></Button>}
+      {!context?.inline && <IconButton label={zh ? '上一版本' : 'Previous version'} disabled={version.version <= 1}
+        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version - 1 })}><Icon name="chevron-left" size={14} /></IconButton>}
       <span>v{version.version} / {artifactVersion(artifact).version}</span>
-      {!context?.inline && <Button variant="ghost" aria-label={zh ? '下一版本' : 'Next version'} disabled={version.version >= artifactVersion(artifact).version}
-        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></Button>}
+      {!context?.inline && <IconButton label={zh ? '下一版本' : 'Next version'} disabled={version.version >= artifactVersion(artifact).version}
+        onClick={() => select({ thread_id: threadId, artifact_id: artifact.id, version: version.version + 1 })}><Icon name="chevron-right" size={14} /></IconButton>}
     </div>
     <Popover label={zh ? '版本详情' : 'Version details'} triggerVariant="ghost" trigger={<Icon name="info" size={14} />} contentClassName="artifact-version-popover">
       {close => <><dl className="artifact-version-details" tabIndex={0}>
@@ -119,25 +119,27 @@ export function ArtifactBrowser({ threadId }: { threadId: string }) {
         </>}
         <dt>SHA-256</dt><dd><code>{version.sha256}</code></dd>
       </dl>
-      {!!version.related?.length && <section className="artifact-checkpoint-exports" aria-label={zh ? '关联文件' : 'Linked files'}>
-        <h3>{zh ? '关联文件' : 'Linked files'}</h3>
+      {!!version.related?.length && <div className="artifact-checkpoint-exports">
+        <ContentSection id="artifact-linked-files" title={zh ? '关联文件' : 'Linked files'}>
         {version.related.map((link, index) => {
           const item = context?.artifacts.find(item => item.id === link.artifact_id);
           const snapshot = item?.versions.find(snapshot => snapshot.version === link.version);
           const name = item && snapshot ? snapshot.filename ?? item.title : (zh ? '文件不可用' : 'File unavailable');
-          return <Button key={index} variant="ghost" disabled={!snapshot} onClick={() => {
+          return <ListRow key={index} title={`${relationLabels[link.role][zh ? 0 : 1]} · ${name} · v${link.version}`} onOpen={snapshot ? () => {
             close();
             select({ thread_id: threadId, artifact_id: link.artifact_id, version: link.version });
-          }}>{relationLabels[link.role][zh ? 0 : 1]} · {name} · v{link.version}</Button>;
+          } : undefined} />;
         })}
-      </section>}
-      {companions.length > 0 && <section className="artifact-checkpoint-exports" aria-label={zh ? '同一检查点的交付物' : 'Exports from this checkpoint'}>
-        <h3>{zh ? '同一检查点的交付物' : 'Exports from this checkpoint'}</h3>
-        {companions.map(({ artifact: item, version: snapshot }) => <Button key={`${item.id}/${snapshot.version}`} variant="ghost" onClick={() => {
+        </ContentSection>
+      </div>}
+      {companions.length > 0 && <div className="artifact-checkpoint-exports">
+        <ContentSection id="artifact-checkpoint-exports" title={zh ? '同一检查点的交付物' : 'Exports from this checkpoint'}>
+        {companions.map(({ artifact: item, version: snapshot }) => <ListRow key={`${item.id}/${snapshot.version}`} title={`${snapshot.filename ?? item.title} · v${snapshot.version}`} onOpen={() => {
           close();
           select({ thread_id: threadId, artifact_id: item.id, version: snapshot.version });
-        }}>{snapshot.filename ?? item.title} · v{snapshot.version}</Button>)}
-      </section>}</>}
+        }} />)}
+        </ContentSection>
+      </div>}</>}
     </Popover>
     {context?.inline && <>
       <IconButton label={zh ? '在面板中打开' : 'Open in pane'}

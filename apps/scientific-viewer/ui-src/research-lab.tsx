@@ -25,8 +25,8 @@ export async function researchLabAsset(entry: ResearchLabEntry): Promise<Asset> 
 
 export function ResearchLab({ busy, onOpen }: { busy: boolean; onOpen(entry: ResearchLabEntry): void }) {
   const { locale } = useAppContext(), zh = locale === 'zh-CN';
-  return <section className="research-lab" aria-label="Research Lab">
-    <LibraryHeader title="Research Lab" subtitle={zh ? '三个精选实验室示意模型' : 'Three selected laboratory illustrations'} />
+  return <section className="research-lab" aria-label={zh ? '研究实验室' : 'Research Lab'}>
+    <LibraryHeader title={zh ? '研究实验室' : 'Research Lab'} subtitle={zh ? '三个精选实验室示意模型' : 'Three selected laboratory illustrations'} />
     <p className="research-lab-intro">{zh ? '打开模型即可旋转和缩放，并在本地保留副本。仅用于科研场景说明，不是计量数据或物理仿真；不是完整模型套件。' : 'Open a model to inspect it in 3D and keep a local copy. These are research illustrations, not measurements or physics simulations. This is a selection, not the full kit.'}</p>
     <ul className="research-lab-list">{manifest.map(entry => <li key={entry.id}>
       <div><h3>{entry.name}</h3><p>Polyfork · CC BY 4.0 · GLB · {(entry.bytes / 1024).toFixed(1)} KiB</p></div>
