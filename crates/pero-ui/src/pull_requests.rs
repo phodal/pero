@@ -13,7 +13,9 @@ pub(crate) struct PullRequestContent {
     pub state: PullRequestView,
     description: Entity<StreamText>,
     reviews: Entity<StreamText>,
-    scrolls: [ScrollHandle; 5],
+    pub(super) scrolls: [ScrollHandle; 5],
+    pub(super) directory_open: bool,
+    pub(super) diff: crate::pull_request_diff::PullRequestDiff,
     _links: Vec<Subscription>,
 }
 impl Workbench {
@@ -78,11 +80,17 @@ impl Workbench {
                 )
             })
             .collect();
+        let diff = crate::pull_request_diff::PullRequestDiff::new(cx);
+        let observer = cx.observe(&diff.state, |_, _, cx| cx.notify());
+        let mut links = links;
+        links.push(observer);
         self.pull_requests.push(PullRequestContent {
             state,
             description,
             reviews,
             scrolls: std::array::from_fn(|_| ScrollHandle::new()),
+            directory_open: false,
+            diff,
             _links: links,
         });
         self.refresh_pull_request(&reference, cx);
@@ -180,6 +188,9 @@ impl Workbench {
         };
         let summary = if view.state.receive(request_id, result) {
             let sections = view.state.sections;
+            if sections.files && view.state.error.is_none() {
+                view.diff.receive(&view.state, cx);
+            }
             if let Some(snapshot) = &view.state.snapshot {
                 if sections.body {
                     let body = snapshot.body.clone();
@@ -202,7 +213,10 @@ impl Workbench {
                     view.reviews.update(cx, |view, cx| view.replace(&text, cx));
                 }
             }
-            view.state.snapshot.as_ref().map(|snapshot| snapshot.summary())
+            view.state
+                .snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.summary())
         } else {
             None
         };
@@ -271,10 +285,10 @@ impl Workbench {
         let mut header = div()
             .flex()
             .flex_col()
-            .gap(px(8.))
-            .p(px(16.))
-            .border_b_1()
-            .border_color(p.border);
+            .gap(px(pero_theme::SPACE_8))
+            .px(px(pero_theme::SPACE_16))
+            .pt(px(pero_theme::SPACE_12))
+            .pb(px(pero_theme::SPACE_8));
         let refresh = reference.clone();
         let external = reference.url().to_owned();
         let actions = div()
@@ -286,7 +300,9 @@ impl Workbench {
                 Button::new("pr-refresh")
                     .ghost()
                     .small()
-                    .label(self.t("pr.refresh"))
+                    .icon(IconName::RefreshCw)
+                    .accessibility_label(self.t("pr.refresh"))
+                    .tooltip(self.t("pr.refresh"))
                     .child(self.view_bounds.pull_request.probe("refresh".into()))
                     .disabled(state.pending.is_some())
                     .on_click(
@@ -297,7 +313,9 @@ impl Workbench {
                 Button::new("pr-external")
                     .ghost()
                     .small()
-                    .label(self.t("pr.external"))
+                    .icon(IconName::ExternalLink)
+                    .accessibility_label(self.t("pr.external"))
+                    .tooltip(self.t("pr.external"))
                     .on_click(move |_, _, cx| cx.open_url(&external)),
             );
         let actions = actions.when(
@@ -335,32 +353,29 @@ impl Workbench {
                                 .border_color(status_color),
                         )
                         .child(div().text_color(p.text_muted).child(format!(
-                            "{} · {} → {}",
+                            "{}  ·  {} → {}",
                             reference.repository(),
                             snapshot.head,
                             snapshot.base
                         )))
+                        .child(div().flex_1())
                         .child(actions),
                 )
                 .child(
                     div()
+                        .flex()
+                        .flex_wrap()
+                        .items_baseline()
+                        .gap(px(pero_theme::SPACE_4))
                         .text_size(chrome.text(pero_theme::TYPE_HEADING))
                         .font_weight(FontWeight::SEMIBOLD)
                         .whitespace_normal()
-                        .child(format!("{} #{}", snapshot.title, reference.number())),
-                )
-                .child(
-                    div()
-                        .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                        .text_color(p.text_muted)
-                        .child(format!(
-                            "{} · {} {}  +{} −{}",
-                            snapshot.author,
-                            snapshot.changed_files,
-                            self.t("pr.files"),
-                            snapshot.additions,
-                            snapshot.deletions
-                        )),
+                        .child(snapshot.title.clone())
+                        .child(
+                            div()
+                                .text_color(p.text_muted)
+                                .child(format!(" #{}", reference.number())),
+                        ),
                 );
         } else {
             header = header
@@ -373,6 +388,7 @@ impl Workbench {
         }
         let tabs = div()
             .flex()
+            .items_center()
             .flex_wrap()
             .gap(px(4.))
             .px(px(12.))
@@ -389,6 +405,22 @@ impl Workbench {
                             .ghost()
                             .small()
                             .label(self.t(tab.key()))
+                            .when_some(
+                                state.snapshot.as_ref().and_then(|snapshot| match tab {
+                                    PullRequestTab::Changes => {
+                                        Some(snapshot.changed_files as usize)
+                                    }
+                                    PullRequestTab::Commits => Some(snapshot.commits.items.len()),
+                                    PullRequestTab::Checks => Some(snapshot.checks.items.len()),
+                                    PullRequestTab::Reviews => Some(snapshot.reviews.items.len()),
+                                    PullRequestTab::Description => None,
+                                }),
+                                |button, count| {
+                                    button.child(
+                                        div().text_color(p.text_muted).child(count.to_string()),
+                                    )
+                                },
+                            )
                             .child(self.view_bounds.pull_request.probe(tab.key().into()))
                             .selected(state.tab == tab)
                             .on_click(cx.listener(move |this, _, _, cx| {
@@ -403,14 +435,24 @@ impl Workbench {
                                 cx.notify();
                             }))
                     }),
-            );
+            )
+            .when(state.tab == PullRequestTab::Changes, |el| {
+                el.when_some(state.snapshot.as_ref(), |el, snapshot| {
+                    el.child(self.pull_request_change_tools(view, snapshot, cx))
+                })
+            });
         let mut body = div()
             .id(SharedString::from(format!("pr-body-{}", reference.url())))
             .flex_1()
             .min_h_0()
             .min_w_0()
-            .overflow_y_scroll()
-            .track_scroll(&view.scrolls[state.tab.index()]);
+            .when(state.tab != PullRequestTab::Changes, |el| {
+                el.overflow_y_scroll()
+                    .track_scroll(&view.scrolls[state.tab.index()])
+            })
+            .when(state.tab == PullRequestTab::Changes, |el| {
+                el.flex().flex_col().overflow_hidden()
+            });
         if let Some(error) = &state.error {
             body = body.child(pero_theme::feedback(
                 "pr-error",
@@ -473,6 +515,10 @@ impl Workbench {
                         body = body.child(div().p(px(20.)).child(self.t("pr.no_commits")));
                     }
                     for commit in &snapshot.commits.items {
+                        let (subject, details) = commit
+                            .message
+                            .split_once('\n')
+                            .unwrap_or((&commit.message, ""));
                         body = body.child(
                             div()
                                 .flex()
@@ -483,15 +529,30 @@ impl Workbench {
                                 .border_color(p.border)
                                 .child(
                                     div()
-                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .font_weight(FontWeight::MEDIUM)
                                         .whitespace_normal()
-                                        .child(commit.message.clone()),
+                                        .child(subject.to_owned()),
                                 )
-                                .child(div().text_color(p.text_muted).child(format!(
-                                    "{} · {}",
-                                    commit.sha.chars().take(8).collect::<String>(),
-                                    commit.author
-                                ))),
+                                .when(!details.trim().is_empty(), |el| {
+                                    el.child(
+                                        div()
+                                            .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                                            .font_weight(FontWeight::NORMAL)
+                                            .line_height(relative(1.5))
+                                            .whitespace_normal()
+                                            .child(details.trim().to_owned()),
+                                    )
+                                })
+                                .child(
+                                    div()
+                                        .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                                        .text_color(p.text_muted)
+                                        .child(format!(
+                                            "{} · {}",
+                                            commit.sha.chars().take(8).collect::<String>(),
+                                            commit.author
+                                        )),
+                                ),
                         );
                     }
                 }
@@ -502,20 +563,32 @@ impl Workbench {
                     for (index, check) in snapshot.checks.items.iter().enumerate() {
                         let mut row = div()
                             .flex()
-                            .flex_wrap()
-                            .gap(px(12.))
-                            .p(px(16.))
+                            .items_start()
+                            .gap(px(pero_theme::SPACE_12))
+                            .px(px(pero_theme::SPACE_16))
+                            .py(px(pero_theme::SPACE_8))
                             .border_b_1()
                             .border_color(p.border)
-                            .child(div().flex_1().whitespace_normal().child(check.name.clone()))
                             .child(
-                                div().text_color(p.text_muted).child(
-                                    check
-                                        .conclusion
-                                        .as_deref()
-                                        .unwrap_or(&check.status)
-                                        .to_owned(),
-                                ),
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .whitespace_normal()
+                                    .child(check.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .w(chrome.text(pero_theme::TYPE_CAPTION) * 8.)
+                                    .text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                                    .text_color(p.text_muted)
+                                    .child(
+                                        check
+                                            .conclusion
+                                            .as_deref()
+                                            .unwrap_or(&check.status)
+                                            .to_owned(),
+                                    ),
                             );
                         if let Some(url) = &check.url {
                             let url = url.clone();
@@ -531,137 +604,7 @@ impl Workbench {
                     }
                 }
                 PullRequestTab::Changes => {
-                    if snapshot.files.items.len() as u64 != snapshot.changed_files {
-                        body = body.child(div().p(px(12.)).child(self.t("pr.files_limited")));
-                    }
-                    let hide_reference = reference.clone();
-                    let hide_viewed = state.hide_viewed;
-                    body = body.child(
-                        Button::new("pr-hide-viewed")
-                            .ghost()
-                            .small()
-                            .label(self.t(if hide_viewed { "pr.show_viewed" } else { "pr.hide_viewed" }))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                if let Some(view) = this.pull_requests.iter_mut().find(|view| view.state.reference == hide_reference) {
-                                    view.state.hide_viewed = !view.state.hide_viewed;
-                                }
-                                cx.notify();
-                            })),
-                    );
-                    let mut files = div().id("pr-file-list").max_h(px(180.)).overflow_y_scroll();
-                    for (index, file) in snapshot.files.items.iter().enumerate() {
-                        if !state.shows_file(&file.filename) {
-                            continue;
-                        }
-                        let selected = state.selected_file.as_deref() == Some(&file.filename);
-                        let name = file.filename.clone();
-                        let reference = reference.clone();
-                        files = files.child(
-                            Button::new(("pr-file", index))
-                                .ghost()
-                                .small()
-                                .w_full()
-                                .justify_start()
-                                .label({
-                                    let mark = match state.viewed_status(&file.filename) {
-                                        ViewedStatus::Viewed => self.t("pr.viewed"),
-                                        ViewedStatus::Stale => self.t("pr.stale"),
-                                        ViewedStatus::Unseen => "",
-                                    };
-                                    let prefix = if mark.is_empty() {
-                                        String::new()
-                                    } else {
-                                        format!("{mark} ")
-                                    };
-                                    format!(
-                                        "{prefix}{}  +{} −{}  {}",
-                                        file.filename, file.additions, file.deletions, file.status
-                                    )
-                                })
-                                .selected(selected)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if let Some(view) = this
-                                        .pull_requests
-                                        .iter_mut()
-                                        .find(|view| view.state.reference == reference)
-                                    {
-                                        view.state.selected_file = Some(name.clone());
-                                        view.state.mark_viewed(&name);
-                                    }
-                                    this.queue_workspace_checkpoint(cx);
-                                    cx.notify();
-                                })),
-                        );
-                    }
-                    body = body.child(files);
-                    if let Some(file) = snapshot
-                        .files
-                        .items
-                        .iter()
-                        .find(|file| Some(&file.filename) == state.selected_file.as_ref())
-                    {
-                        let viewed = state.viewed_status(&file.filename);
-                        let mark_reference = reference.clone();
-                        let mark_name = file.filename.clone();
-                        body = body.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(8.))
-                                .p(px(12.))
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                        .whitespace_normal()
-                                        .child(file.filename.clone()),
-                                )
-                                .child(
-                                    Button::new("pr-viewed")
-                                        .ghost()
-                                        .small()
-                                        .label(self.t(if viewed == ViewedStatus::Unseen {
-                                            "pr.mark_viewed"
-                                        } else {
-                                            "pr.unmark_viewed"
-                                        }))
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            if let Some(view) = this.pull_requests.iter_mut().find(|view| view.state.reference == mark_reference) {
-                                                if view.state.viewed_status(&mark_name) == ViewedStatus::Unseen {
-                                                    view.state.mark_viewed(&mark_name);
-                                                } else {
-                                                    view.state.unmark_viewed(&mark_name);
-                                                }
-                                            }
-                                            this.queue_workspace_checkpoint(cx);
-                                            cx.notify();
-                                        })),
-                                ),
-                        );
-                        if let Some(previous) = &file.previous_filename {
-                            body = body.child(
-                                div()
-                                    .p(px(12.))
-                                    .text_color(p.text_muted)
-                                    .child(format!("{previous} → {}", file.filename)),
-                            );
-                        }
-                        if let Some(patch) = &file.patch {
-                            body = body.child(pero_chat_ui::comparison::unified_comparison(
-                                &pero_contracts::workspace_changes::FileComparison::Text {
-                                    patch: patch.clone(),
-                                },
-                                self.t("pr.diff_limited"),
-                                cx,
-                            ));
-                        } else {
-                            body =
-                                body.child(div().p(px(20.)).child(self.t("pr.patch_unavailable")));
-                        }
-                    }
-                    if snapshot.changed_files == 0 && snapshot.files.error.is_none() {
-                        body = body.child(div().p(px(20.)).child(self.t("pr.no_changes")));
-                    }
+                    body = body.child(self.pull_request_changes(view, snapshot, cx));
                 }
             }
         }
@@ -673,6 +616,8 @@ impl Workbench {
             .min_w_0()
             .bg(p.surface)
             .text_color(p.text)
+            .text_size(chrome.text(pero_theme::TYPE_BODY))
+            .font_weight(FontWeight::NORMAL)
             .child(header)
             .child(tabs)
             .child(body)
