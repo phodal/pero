@@ -22,7 +22,12 @@ export interface LocalEnvironmentApp {
 }
 export interface LocalEnvironmentCreate {
   operation: "create";
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  target:
+    | "paper-agent.pcgym"
+    | "control-lab.python-control"
+    | "control-lab.ngspice"
+    | "lcms2yield.inference"
+    | "virtual-cell.comparison";
   label: string;
 }
 export interface LocalEnvironmentList {
@@ -73,7 +78,12 @@ export interface LocalEnvironmentUnbindCompute {
 export interface EnvironmentInspectionApp {
   action: "environment";
   name: AppName;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  target:
+    | "paper-agent.pcgym"
+    | "control-lab.python-control"
+    | "control-lab.ngspice"
+    | "lcms2yield.inference"
+    | "virtual-cell.comparison";
   method: "apps";
   id: RequestId;
 }
@@ -83,7 +93,12 @@ export interface LocalEnvironmentRecord {
   prepared?: LockedPythonProfile | null;
   id: AppName;
   label: string;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  target:
+    | "paper-agent.pcgym"
+    | "control-lab.python-control"
+    | "control-lab.ngspice"
+    | "lcms2yield.inference"
+    | "virtual-cell.comparison";
   dependencies: string[];
   state: "created" | "preparing" | "ready" | "failed";
   log: string[];
@@ -115,7 +130,12 @@ export interface ComputePackages {
 }
 export interface EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";
-  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  method:
+    | "paper-agent.pcgym"
+    | "control-lab.python-control"
+    | "control-lab.ngspice"
+    | "lcms2yield.inference"
+    | "virtual-cell.comparison";
   scope: "configured-interpreter";
   evidence: "metadata_only";
   observed_at_ms: string;

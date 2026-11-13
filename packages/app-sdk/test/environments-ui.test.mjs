@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { createUiRuntime } from './ui-test-runtime.mjs';
+import { METHODS } from '../src/environments/model.mjs';
 
 const target = 'control-lab.python-control';
 const profile = {id:'local-control',label:'Research',target,dependencies:['control==0.10.2'],state:'preparing',log:['Installing control'],error:null,bound:false};
@@ -100,7 +101,7 @@ test('creation uses visible radio choices and respects IME confirmation before o
   const control=document.querySelector('[role=radio][aria-label=Control]');
   await click(control);
   assert.equal(control.getAttribute('aria-checked'),'true');
-  assert.equal(document.querySelectorAll('[role=radio]').length,4);
+  assert.equal(document.querySelectorAll('[role=radio]').length,METHODS.length);
   await React.act(async () => document.querySelector('form').requestSubmit());
   assert.match(document.querySelector('[role=alert]').textContent,/Could not create the environment/);
   assert.equal(name.value,'实验');assert.equal(button('Retry'),undefined);

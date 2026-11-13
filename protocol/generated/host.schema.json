@@ -8037,6 +8037,10 @@
             {
               "type": "string",
               "const": "lcms2yield.inference"
+            },
+            {
+              "type": "string",
+              "const": "virtual-cell.comparison"
             }
           ]
         },
@@ -8083,6 +8087,10 @@
             {
               "type": "string",
               "const": "lcms2yield.inference"
+            },
+            {
+              "type": "string",
+              "const": "virtual-cell.comparison"
             }
           ]
         },
@@ -9900,6 +9908,10 @@
             {
               "type": "string",
               "const": "lcms2yield.inference"
+            },
+            {
+              "type": "string",
+              "const": "virtual-cell.comparison"
             }
           ]
         },
@@ -10126,6 +10138,10 @@
             {
               "type": "string",
               "const": "lcms2yield.inference"
+            },
+            {
+              "type": "string",
+              "const": "virtual-cell.comparison"
             }
           ]
         },
