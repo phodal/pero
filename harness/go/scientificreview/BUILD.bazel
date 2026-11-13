@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "scientificreview",
-    srcs = ["presentation.go", "review.go"],
+    srcs = [
+        "presentation.go",
+        "review.go",
+    ],
     importpath = "github.com/phodal/pero/harness/go/scientificreview",
     visibility = ["//visibility:public"],
 )

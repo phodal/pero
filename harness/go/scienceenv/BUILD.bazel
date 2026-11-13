@@ -4,9 +4,9 @@ go_library(
     name = "scienceenv",
     srcs = [
         "journal.go",
-        "session.go",
         "kernel.go",
         "mcp.go",
+        "session.go",
         "skill.go",
         "tools.go",
     ],
@@ -27,8 +27,8 @@ go_test(
     name = "scienceenv_test",
     srcs = [
         "journal_test.go",
-        "session_test.go",
         "kernel_test.go",
+        "session_test.go",
         "skill_test.go",
         "tools_test.go",
     ],
