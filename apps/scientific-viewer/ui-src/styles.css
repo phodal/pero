@@ -25,7 +25,8 @@ dl { display:grid; grid-template-columns:72px minmax(0,1fr); gap:6px 12px; margi
 dt { color:var(--pero-text-muted,#596b7d); }
 dd { margin:0; overflow-wrap:anywhere; }
 .hash { font-family:monospace; font-size:var(--pero-font-caption); }
-.viewer-content { min-width:0; min-height:0; flex:1; overflow:auto; }
+.viewer-content { min-width:0; min-height:0; flex:1; overflow:hidden; display:flex; flex-direction:column; }
+.viewer-content > .pero-content-pane { flex:1; min-height:0; }
 .default-explorer { position:relative; height:100%; min-height:380px; }
 .default-explorer .molecule-toolbar { position:absolute; right:0; top:0; z-index:1; padding-top:0; }
 .default-explorer .molecule-title { display:none; }
