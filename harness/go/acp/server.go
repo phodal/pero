@@ -58,6 +58,8 @@ type Options struct {
 	// with a fresh message ID before human prompt admission. The returned cleanup
 	// runs after settlement, including rejection and cancellation.
 	PreparePrompt func(context.Context, *harness.Agent, *harness.Message) (func(), error)
+	// Science forwards UI commands to the existing session-owned computation.
+	Science func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 }
 
 type Server struct {
@@ -100,6 +102,7 @@ type Server struct {
 	holdAssistantText   func(*harness.Agent) bool
 	renderAssistantText func(context.Context, *harness.Agent, string) string
 	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
+	science             func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 }
 
 type clientResponse struct {
@@ -168,6 +171,7 @@ func NewServer(options Options) (*Server, error) {
 		outputLimitRecoveries: options.OutputLimitRecoveries,
 		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
+		science:  options.Science,
 		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
@@ -321,6 +325,8 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		return map[string]any{}, nil
 	case MCPSessionMethod:
 		return s.mcpSessionRequest(ctx, message.Params)
+	case ScienceSessionMethod:
+		return s.scienceSessionRequest(ctx, message.Params)
 	case "session/new":
 		var params NewSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {
