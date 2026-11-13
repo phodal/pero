@@ -9,6 +9,23 @@ import (
 	"github.com/phodal/pero/harness/go/scientificreview"
 )
 
+// scienceCellReceipt is a read projection of the kernel owner's journal. Outcome
+// and origin precede potentially long code/output so bounded evidence retains
+// their meaning; the reviewer neither executes cells nor changes their states.
+type scienceCellReceipt struct {
+	Language string `json:"language"`
+	Cell     struct {
+		ID             int             `json:"id"`
+		Status         string          `json:"status"`
+		Origin         string          `json:"origin"`
+		Generation     int             `json:"generation"`
+		ExecutionCount int             `json:"execution_count"`
+		Error          string          `json:"error"`
+		Code           string          `json:"code"`
+		Outputs        json.RawMessage `json:"outputs"`
+	} `json:"cell"`
+}
+
 // freeze observes the committed session once. Answers are selected before tool
 // evidence so large results cannot displace the answer being reviewed. Budgets
 // count encoded JSON bytes, including escaping and artifact reference metadata.
@@ -73,6 +90,10 @@ func freeze(session *harness.Session) (scientificreview.Snapshot, error) {
 		snapshot.Messages = append(snapshot.Messages, message)
 		remaining -= len(encoded)
 	}
+	seenCells := make(map[struct {
+		language string
+		id       int
+	}]bool)
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
 		id := fmt.Sprintf("event:%d", event.Seq)
@@ -91,6 +112,24 @@ func freeze(session *harness.Session) (scientificreview.Snapshot, error) {
 			kind = "user_requirement"
 		case "tool/call":
 			kind, text = "tool_call", string(event.Data)
+		case "science/cell":
+			var receipt scienceCellReceipt
+			if err := json.Unmarshal(event.Data, &receipt); err != nil {
+				return snapshot, err
+			}
+			key := struct {
+				language string
+				id       int
+			}{receipt.Language, receipt.Cell.ID}
+			if seenCells[key] {
+				continue
+			}
+			seenCells[key] = true
+			encoded, err := json.Marshal(receipt)
+			if err != nil {
+				return snapshot, err
+			}
+			kind, text = "science_cell", string(encoded)
 		case "tool/result":
 			kind, text = "tool_result", string(event.Data)
 			var block harness.ContentBlock

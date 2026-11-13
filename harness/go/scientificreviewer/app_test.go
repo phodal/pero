@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -435,6 +436,15 @@ func TestSnapshotBoundsEscapedHistoryAndKeepsLatestAnswer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := agent.Session().Append("science/cell", map[string]any{
+		"language": "python", "cell": map[string]any{
+			"id": 1, "status": "unknown", "origin": "user", "generation": 1,
+			"execution_count": 1, "error": "completion was not observed",
+			"code": strings.Repeat("<\"\\\n测", 4000), "outputs": []any{},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := agent.Session().Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -445,6 +455,72 @@ func TestSnapshotBoundsEscapedHistoryAndKeepsLatestAnswer(t *testing.T) {
 	encoded, _ := json.Marshal(snapshot)
 	if !snapshot.Truncated || len(encoded) > scientificreview.MaxSnapshotBytes || len(snapshot.Messages) != 6 || snapshot.Messages[5].ID != "long-7" || !utf8.Valid(encoded) {
 		t.Fatalf("invalid bounded review packet: bytes=%d messages=%d truncated=%v", len(encoded), len(snapshot.Messages), snapshot.Truncated)
+	}
+	for _, evidence := range snapshot.Evidence {
+		if evidence.Kind == "science_cell" && strings.Contains(evidence.Text, `"status":"unknown"`) && strings.Contains(evidence.Text, `"origin":"user"`) {
+			return
+		}
+	}
+	t.Fatal("bounded shared-cell evidence lost its unknown outcome or user origin")
+}
+
+func TestSnapshotUsesLatestSharedCellEvidence(t *testing.T) {
+	for _, status := range []string{"completed", "failed", "interrupted", "unknown", "running"} {
+		t.Run(status, func(t *testing.T) {
+			ctx, _, app, agent, _, _ := reviewerFixture(t, &reviewAdapter{})
+			prompt(t, ctx, app, agent)
+			expected := make(map[string]map[string]any)
+			for _, cell := range []struct {
+				language, status, origin, code, output string
+				id, generation                         int
+			}{
+				{"python", "running", "user", "print(shared_value)", "", 1, 1},
+				{"python", status, "user", "print(shared_value)", "17\n", 1, 1},
+				{"r", "completed", "agent", "print(shared_value)", "900\n", 1, 1},
+				{"python", "completed", "user", "print(42)", "42\n", 2, 2},
+			} {
+				payload := map[string]any{"language": cell.language, "cell": map[string]any{
+					"id": cell.id, "status": cell.status, "origin": cell.origin, "code": cell.code,
+					"generation": cell.generation, "execution_count": cell.id, "error": "",
+					"outputs": []any{map[string]any{"output_type": "stream", "name": "stdout", "text": cell.output}},
+				}}
+				event, err := agent.Session().Append("science/cell", payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var retained map[string]any
+				if err := json.Unmarshal(event.Data, &retained); err != nil {
+					t.Fatal(err)
+				}
+				expected[fmt.Sprintf("%s:%d", cell.language, cell.id)] = retained
+			}
+			if _, err := app.Command(ctx, agent, "/review"); err != nil {
+				t.Fatal(err)
+			}
+			reports, err := readReports(agent)
+			if err != nil || len(reports) != 1 {
+				t.Fatalf("reports=%#v error=%v", reports, err)
+			}
+			seen := make(map[string]bool)
+			for _, evidence := range reports[0].Snapshot.Evidence {
+				if evidence.Kind != "science_cell" {
+					continue
+				}
+				var receipt map[string]any
+				if err := json.Unmarshal([]byte(evidence.Text), &receipt); err != nil {
+					t.Fatal(err)
+				}
+				cell := receipt["cell"].(map[string]any)
+				key := fmt.Sprintf("%s:%.0f", receipt["language"], cell["id"])
+				if seen[key] || !reflect.DeepEqual(receipt, expected[key]) {
+					t.Fatalf("review lost the latest shared cell: %s = %#v", key, receipt)
+				}
+				seen[key] = true
+			}
+			if len(seen) != len(expected) {
+				t.Fatalf("review retained %d shared cells, want %d", len(seen), len(expected))
+			}
+		})
 	}
 }
 
