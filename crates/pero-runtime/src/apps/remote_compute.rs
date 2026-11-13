@@ -93,6 +93,10 @@ struct Output {
 }
 
 impl Attempt {
+    fn collection_complete(&self) -> bool {
+        !self.outputs.is_empty() && self.collection_error.is_none()
+    }
+
     /// Presentation of owner facts, never an independent execution transition.
     fn display_state(&self) -> &'static str {
         if self.submitted_at.is_none() {
@@ -288,7 +292,7 @@ impl Owner<'_> {
         Ok(
             serde_json::json!({"id":a.id,"clusterId":a.cluster.id,"host":a.cluster.host,"scheduler":a.cluster.scheduler,"account":a.cluster.account,"partition":a.cluster.partition,"directory":a.directory,"digest":a.digest,
             "samples":a.input.samples(),"repetitions":a.input.repetitions(),"useState":use_state,"state":a.display_state(),"logs":{"stdout":logs("stdout.log"),"stderr":logs("stderr.log")},
-            "outputs":a.outputs,"collected":!a.outputs.is_empty(),"error":a.error.as_ref().or(a.collection_error.as_ref()),"exitCode":a.process.as_ref().and_then(|p| p.exit_code),"jobId":a.batch.as_ref().map(|b| b.job_id)}),
+            "outputs":a.outputs,"collected":!a.outputs.is_empty(),"collectionComplete":a.collection_complete(),"error":a.error.as_ref().or(a.collection_error.as_ref()),"exitCode":a.process.as_ref().and_then(|p| p.exit_code),"jobId":a.batch.as_ref().map(|b| b.job_id)}),
         )
     }
     fn apply(&mut self, request: Request) -> Result<serde_json::Value, String> {
@@ -522,7 +526,7 @@ impl Owner<'_> {
         collect: bool,
     ) -> Result<serde_json::Value, String> {
         let mut a = self.load(&id)?;
-        if collect && !a.outputs.is_empty() && a.collection_error.is_none() {
+        if collect && a.collection_complete() {
             return self.state();
         }
         if a.submitted_at.is_none() {

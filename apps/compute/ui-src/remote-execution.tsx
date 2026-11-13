@@ -28,6 +28,7 @@ const messages: AppMessages = {
   observe: { en: 'Observe original execution', zh: '读取原执行状态' },
   cancel: { en: 'Request cancellation', zh: '请求取消' },
   collect: { en: 'Collect and save evidence', zh: '收集并保存证据' },
+  collectRetry: { en: 'Retry collecting missing evidence', zh: '重试收集缺失证据' },
   refresh: { en: 'Refresh saved executions', zh: '刷新已保存执行' },
   loading: { en: 'Loading remote execution evidence…', zh: '正在读取远程执行证据…' },
   busy: { en: 'Waiting for Host…', zh: '正在等待 Host…' },
@@ -75,7 +76,7 @@ export type RemoteAttempt = {
   samples: number; repetitions: number; useState: string;
   state: 'prepared' | 'preparation_failed' | 'running' | 'queued' | 'completed' | 'failed' | 'cancel_requested' | 'stopped' | 'unknown';
   logs: { stdout: string; stderr: string }; outputs: { path: string; sha256: string; reference: string }[];
-  error?: string; exitCode?: number; jobId?: number; collected: boolean; account?: string; partition?: string;
+  error?: string; exitCode?: number; jobId?: number; collected: boolean; collectionComplete: boolean; account?: string; partition?: string;
 };
 type RemoteState = { available: boolean; error?: string; attempts: RemoteAttempt[];
   probe?: { clusterId: string; endpoint?: string; host: string; platform: string; python: string; cluster?: string } };
@@ -154,7 +155,7 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
   ] : [];
   const executionStarted = attempt && !['prepared', 'preparation_failed'].includes(attempt.state);
   const cancellable = attempt && ['running', 'queued', 'unknown'].includes(attempt.state);
-  const collectable = attempt && ['completed', 'failed', 'stopped'].includes(attempt.state) && !attempt.collected;
+  const collectable = attempt && ['completed', 'failed', 'stopped'].includes(attempt.state) && !attempt.collectionComplete;
 
   return <div className="compute-remote-root">
     <div className="compute-remote-actions"><IconButton label={t('refresh')} disabled={loading || busy} onClick={() => void refresh()}><Icon name="refresh" /></IconButton>
@@ -199,7 +200,7 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
               {attempt.state === 'prepared' && uncertainSubmission !== attempt.id ? <Button variant="primary" disabled={disabled} onClick={() => void update('submit', { id: attempt.id, digest: attempt.digest })}>{t('approve')}</Button> : null}
               {executionStarted || uncertainSubmission === attempt.id ? <Button disabled={disabled} onClick={() => void update('observe', { id: attempt.id })}>{t('observe')}</Button> : null}
               {cancellable ? <Button disabled={disabled} onClick={() => void update('cancel', { id: attempt.id })}>{t('cancel')}</Button> : null}
-              {collectable ? <Button variant="primary" disabled={disabled} onClick={() => void update('collect', { id: attempt.id })}>{t('collect')}</Button> : null}
+              {collectable ? <Button variant="primary" disabled={disabled} onClick={() => void update('collect', { id: attempt.id })}>{t(attempt.collected ? 'collectRetry' : 'collect')}</Button> : null}
             </div>} />}>
             {attempt.state === 'prepared' ? <p className="compute-help">{t('preparedHelp')}</p> : null}
             {attempt.error ? <Feedback kind="error" variant="block">{attempt.error}</Feedback> : null}

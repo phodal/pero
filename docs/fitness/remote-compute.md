@@ -55,6 +55,12 @@ submission, cancellation requested and owner-confirmed stop are separate states.
 
 ## Observed verification
 
+PR #225 review correction: retained outputs and completed collection are separate
+facts. The owner reports `collectionComplete` from its persisted output/error
+receipt. Partial collection keeps already downloaded files and a retry action,
+including after refreshing saved executions; retry does not submit another job.
+The existing owner fact table and browser lifecycle exercise this recovery.
+
 macOS arm64 development checkout, 2026-11-13 (L0 and scoped L2 local transport):
 
 | Check | Observed result |

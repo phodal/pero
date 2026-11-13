@@ -93,6 +93,24 @@ fn remote_presentation_does_not_infer_queued_or_stopped_from_incomplete_owner_fa
     assert_eq!(a.display_state(), "preparation_failed");
     a.staged = true;
     assert_eq!(a.display_state(), "prepared");
+    for (retained, error, complete) in [
+        (false, None, false),
+        (false, Some("No evidence collected"), false),
+        (true, Some("Partial evidence collected"), false),
+        (true, None, true),
+    ] {
+        a.outputs = if retained {
+            vec![Output {
+                path: "stdout.log".into(),
+                sha256: ContentDigest::of(&"log"),
+                reference: "compute:attempt:log".into(),
+            }]
+        } else {
+            vec![]
+        };
+        a.collection_error = error.map(str::to_owned);
+        assert_eq!(a.collection_complete(), complete);
+    }
 }
 
 /// Actual App HTTP → private Host → authenticated OpenSSH → remote Python.

@@ -366,13 +366,13 @@ test('remote controls consume Host observations, frozen approval and fixed colle
   const digest = 'ab'.repeat(32), resultBytes = Buffer.from('{"integral":3.14159265}\n');
   const outputDigest = createHash('sha256').update(resultBytes).digest('hex'), reference = `compute:remote-1:${outputDigest}`;
   const state = { available: true, attempts: [] };
-  let count = 0, failObservation = false, unknownSubmission = false, failPreparation = false;
+  let count = 0, collections = 0, failObservation = false, unknownSubmission = false, failPreparation = false;
   const owner = input => {
     if (!input) return { value: state };
     if (input.operation === 'probe') state.probe = { clusterId: cluster.id, endpoint: cluster.host, host: cluster.host, platform: 'Linux fixture', python: '3.12.8' };
     if (input.operation === 'prepare') state.attempts.unshift({ id: `remote-${++count}`, clusterId: cluster.id, host: cluster.host,
       scheduler: 'ssh', directory: `/tmp/research/remote-${count}`, digest, samples: input.samples, repetitions: input.repetitions,
-      state: failPreparation ? 'preparation_failed' : 'prepared', error: failPreparation ? 'Input staging was interrupted before readiness was recorded' : undefined, useState: '', logs: { stdout: '', stderr: '' }, outputs: [], collected: false });
+      state: failPreparation ? 'preparation_failed' : 'prepared', error: failPreparation ? 'Input staging was interrupted before readiness was recorded' : undefined, useState: '', logs: { stdout: '', stderr: '' }, outputs: [], collected: false, collectionComplete: false });
     const attempt = state.attempts.find(item => item.id === input.id);
     if (input.operation === 'artifact') {
       assert.equal(input.digest, outputDigest);
@@ -389,7 +389,11 @@ test('remote controls consume Host observations, frozen approval and fixed colle
       attempt.exitCode = attempt.state === 'stopped' ? 143 : 0; attempt.logs.stdout = 'completed repetition 1: 3.14159265\n';
     }
     if (input.operation === 'cancel') attempt.state = 'cancel_requested';
-    if (input.operation === 'collect') { attempt.collected = true; attempt.outputs = [{ path: 'result.json', sha256: outputDigest, reference }]; }
+    if (input.operation === 'collect') {
+      attempt.collected = true; attempt.collectionComplete = ++collections > 1;
+      attempt.error = attempt.collectionComplete ? undefined : 'Partial evidence collected; remote path retained. Missing log';
+      attempt.outputs = [{ path: 'result.json', sha256: outputDigest, reference }];
+    }
     return { value: state };
   };
   const { page, frame, requests } = await fixture(t, { cluster, remote: owner });
@@ -415,6 +419,11 @@ test('remote controls consume Host observations, frozen approval and fixed colle
   await expect(frame.locator('[aria-label="stdout"]')).toContainText('3.14159265');
   await frame.getByRole('button', { name: '收集并保存证据', exact: true }).click();
   await expect(frame.getByText(reference, { exact: true })).toBeVisible();
+  await expect(frame.getByRole('button', { name: '重试收集缺失证据', exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: '刷新已保存执行', exact: true }).click();
+  await expect(frame.getByText(reference, { exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: '重试收集缺失证据', exact: true }).click();
+  await expect(frame.getByRole('button', { name: '重试收集缺失证据', exact: true })).toHaveCount(0);
   const downloading = page.waitForEvent('download');
   await frame.getByRole('button', { name: '下载原始产物', exact: true }).click();
   const chunks = []; for await (const chunk of await (await downloading).createReadStream()) chunks.push(chunk);
