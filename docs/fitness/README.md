@@ -13,6 +13,9 @@ Notebook block editing, Excel calculation and exchange, and versioned evidence:
 Shared human/Agent Python/R execution, Notebook observation and lifecycle:
 [Shared science session](shared-science-session.md).
 
+Saved publication builds, panel/code/data provenance, offline Tectonic and
+historical PDF previews: [Notebook publication workflow](notebook-publication.md).
+
 Pinned marimo/Jupyter runtime experiment, existing Science Kernel comparison,
 cancellation, offline exports and a proposed owner handoff:
 [Computational Notebook PoC B](notebook-runtime-poc.md).
