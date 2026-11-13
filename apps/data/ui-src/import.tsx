@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useAppI18n } from '@pero/app-sdk';
-import { Button, Card, Dialog, Disclosure, Feedback, Field, FilePicker, Input, Select } from '@pero/app-sdk/ui';
+import { Button, Card, ContentSection, Dialog, Disclosure, Feedback, Field, FilePicker, Input, Select } from '@pero/app-sdk/ui';
 import { DataForm, SubmitButton } from './submit-button';
 import { formatBytes, type CatalogState, type Dataset } from './model';
 import { messages } from './i18n';
@@ -28,9 +28,10 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
         projectRef: target?.projectRef ?? String(values.get('projectRef') || '') });
     }}>
       <Card tone="blue" variant="soft" className="data-import-file">
-        <h3>{t('file')}</h3>
+        <ContentSection id="data-import-file" title={t('file')}>
         <FilePicker label={t('chooseFile')} emptyLabel={t('noFile')} accept="" disabled={busy} onFile={setFile} />
         <p>{t('fileHelp', { limit: formatBytes(state.limits.importBytes) })}</p>
+        </ContentSection>
       </Card>
       {!target ? <Field label={t('type')} description={t(kind === 'model' ? 'modelHelp' : 'datasetHelp')}>
         {control => <Select {...control} name="kind" label={t('type')} value={kind} onChange={value => setKind(value === 'model' ? 'model' : 'dataset')} disabled={busy}
@@ -45,10 +46,10 @@ export function ImportDialog({ state, target, busy, error, onClose, onImport, on
       {fileError || error ? <Feedback kind="error">{fileError || <>{t('requestFailed')}<Disclosure variant="inline" summary={<>{t('errorDetails')}</>}>{error}</Disclosure></>}</Feedback> : null}
     </DataForm>
     {!target && state.sources.length ? <Disclosure className="data-sources" summary={t('publicSources')}>
-      {state.sources.map(source => <section key={source.id}><h3>{source.name}</h3>
+      {state.sources.map(source => <ContentSection key={source.id} id={`data-source-${source.id}`} title={source.name}>
         <p>{formatBytes(source.size)} / {source.license}</p><p>{source.sourceUrl}</p><code>{source.revision}</code>
         <Button onClick={() => onDownload(source.id)} disabled={busy || state.download?.status === 'running'}>{t('downloadSource', { name: source.name })}</Button>
-      </section>)}
+      </ContentSection>)}
     </Disclosure> : null}
   </Dialog>;
 }

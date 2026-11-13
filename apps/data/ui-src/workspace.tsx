@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { requestAppShell, useAppI18n } from '@pero/app-sdk';
+import { useAppI18n, useNavigate } from '@pero/app-sdk';
 import type { ReactNode } from 'react';
-import { Badge, Button, Checkbox, ContentPane, ContentSection, EmptyState, EmptyIllustration, Feedback, Icon, Input, InspectorHeader, MetadataList, Select, Split, SplitPane, Table, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar, contentLayout, type MetadataItem } from '@pero/app-sdk/ui';
+import { Badge, Button, Checkbox, ContentPane, ContentSection, EmptyState, EmptyIllustration, Feedback, Icon, Input, InspectorHeader, ListRow, MetadataList, Select, Split, SplitPane, Table, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar, contentLayout, type MetadataItem } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
@@ -9,12 +9,6 @@ import { DatasetDetails } from './dataset-details';
 import { DataForm, SubmitButton } from './submit-button';
 import { messages } from './i18n';
 import { applyInterpretation, availabilityLabel, canInspect, catalogAvailability, custodyDetail, datasetBadges, emptyView, formatBytes, formatDay, formatInt, sourceHost, versionLabel, type Asset, type ChartDataset, type Dataset, type InspectionOutcome, type OkInspection, type SavedView, type ViewIssue, type ViewSpec } from './model';
-
-const operators = [
-  { value: 'contains', label: 'Contains' }, { value: 'eq', label: 'Equals' },
-  { value: 'gte', label: 'At least' }, { value: 'lte', label: 'At most' },
-  { value: 'missing', label: 'Missing field' }, { value: 'null', label: 'Null value' },
-];
 
 type Props = {
   dataset: Dataset; asset: Asset; assets: Asset[]; views: SavedView[];
@@ -36,6 +30,14 @@ type Props = {
 export function Workspace(props: Props) {
   const { dataset, asset, result, fields, view, loading, busy } = props;
   const { t } = useAppI18n(messages);
+  const operators = [
+    { value: 'contains', label: t('opContains') }, { value: 'eq', label: t('opEquals') },
+    { value: 'gte', label: t('opAtLeast') }, { value: 'lte', label: t('opAtMost') },
+    { value: 'missing', label: t('opMissing') }, { value: 'null', label: t('opNull') },
+  ];
+  const navigate = useNavigate();
+  const bridge = (window as Window & { ipc?: { postMessage?: unknown } }).ipc;
+  const hostPresent = window.parent !== window || typeof bridge?.postMessage === 'function';
   const [typeDraft, setTypeDraft] = useState<{ field: string; numeric: boolean } | null>(null);
   const [priorAnalysis, setPriorAnalysis] = useState<ViewSpec | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false), [editing, setEditing] = useState(false);
@@ -90,66 +92,66 @@ export function Workspace(props: Props) {
   const recordedSha = asset.checksums.find(item => item.algorithm === 'sha256' && item.value === asset.sha256);
   const otherChecksums = asset.checksums.filter(item => item !== recordedSha);
   const updated = formatDay(asset.createdAt);
-  const badges = datasetBadges(asset);
+  const badges = datasetBadges(asset).map(badge => badge === 'Single cell' ? t('singleCell') : badge === 'Perturbation' ? t('perturbation') : badge);
   const description = fields
-    ? `${formatInt(fields.report.rowCount)} records · ${formatInt(fields.report.fields.length)} fields`
-    : dataset.kind === 'model' ? 'Model file kept with its version history.'
-      : asset.revision.length > 12 ? `${asset.revision}. Original file; contents are not indexed.`
-        : 'Original file. Source and checksums are kept; contents are not indexed.';
-  const openApp = (path: string) => { if (window.parent !== window) void requestAppShell('navigate', { path }); };
+    ? t('recordFieldCount', { records: formatInt(fields.report.rowCount), fields: formatInt(fields.report.fields.length) })
+    : dataset.kind === 'model' ? t('modelKept')
+      : asset.revision.length > 12 ? t('revisionUnindexed', { revision: asset.revision })
+        : t('originalUnindexed');
+  const availability = t(catalogAvailability(asset, result) === 'present' ? 'stored' : catalogAvailability(asset, result) === 'missing' ? 'missingFile' : 'changedFile');
   const metadataItems: MetadataItem[] = [
-    { id: 'type', label: 'Type', value: dataset.kind === 'model' ? 'Model' : 'Dataset' },
-    { id: 'format', label: 'Format', value: format },
-    { id: 'size', label: 'Size', value: formatBytes(asset.size) },
-    { id: 'version', label: 'Version', value: asset.revision || `v${versionIndex + 1}` },
+    { id: 'type', label: t('type'), value: dataset.kind === 'model' ? t('model') : t('dataset') },
+    { id: 'format', label: t('metaFormat'), value: format },
+    { id: 'size', label: t('metaSize'), value: formatBytes(asset.size) },
+    { id: 'version', label: t('metaVersion'), value: asset.revision || `v${versionIndex + 1}` },
     { id: 'sha256', label: 'SHA-256', value: asset.sha256, format: 'code', action: <CopyDigest label="SHA-256" value={asset.sha256} /> },
     ...otherChecksums.map(item => ({ id: `${item.algorithm}:${item.value}`, label: item.algorithm.toUpperCase(), value: item.value, format: 'code' as const, action: <CopyDigest label={item.algorithm.toUpperCase()} value={item.value} /> })),
-    { id: 'added', label: 'Added', value: asset.createdAt || 'Unknown' },
-    { id: 'updated', label: 'Updated', value: updated || 'Unknown' },
-    { id: 'license', label: 'License', value: asset.license || 'Unknown' },
-    { id: 'source', label: 'Source', value: /^https:\/\//.test(asset.source) ? <a href={asset.source}>{sourceHost(asset.source)}</a> : (asset.source || 'Unknown') },
-    { id: 'project', label: 'Project', value: dataset.projectRef || t('unassigned'), action: dataset.projectRef ? undefined : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign</Button> },
-    ...(asset.bundleId ? [{ id: 'bundle', label: 'Paper bundle', value: asset.bundleId, format: 'code' as const }] : []),
+    { id: 'added', label: t('metaAdded'), value: asset.createdAt || t('unknownLicense') },
+    { id: 'updated', label: t('metaUpdated'), value: updated || t('unknownLicense') },
+    { id: 'license', label: t('license'), value: asset.license || t('unknownLicense') },
+    { id: 'source', label: t('source'), value: /^https:\/\//.test(asset.source) ? <a href={asset.source}>{sourceHost(asset.source)}</a> : (asset.source || t('unknownLicense')) },
+    { id: 'project', label: t('metaProject'), value: dataset.projectRef || t('unassigned'), action: dataset.projectRef ? undefined : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>{t('assignProject')}</Button> },
+    ...(asset.bundleId ? [{ id: 'bundle', label: t('paperBundle'), value: asset.bundleId, format: 'code' as const }] : []),
     ...(fields ? [
-      { id: 'records', label: 'Records', value: formatInt(fields.report.rowCount) },
-      { id: 'fields', label: 'Fields', value: formatInt(fields.report.fields.length) },
+      { id: 'records', label: t('metaRecords'), value: formatInt(fields.report.rowCount) },
+      { id: 'fields', label: t('metaFields'), value: formatInt(fields.report.fields.length) },
     ] : []),
   ];
   return <>
     {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => { returnMore.current = true; setEditing(false); }} /> : null}
-    <Split storageKey="pero.data.object-panes" collapseBelow={contentLayout.collapseBelow} className="data-object-split">
+    <Split storageKey="pero.data.object-panes" className="data-object-split">
       <SplitPane id="data-main-preview" min={contentLayout.mainMin}>
         <Tabs value={tab} onValueChange={props.onTab}>
           <ContentPane id={`data-preview-${dataset.id}`} label={t('preview')} as="div" surface="workspace" inset="none" scroll="pane"
-            toolbar={<TabsList aria-label="Dataset views">
+            toolbar={<TabsList aria-label={t('datasetViews')}>
         <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
         <TabsTrigger value="versions">{t('versions')} ({versions.length})</TabsTrigger>
         <TabsTrigger value="files">{t('files')}</TabsTrigger>
         <TabsTrigger value="citations">{t('citations')} (0)</TabsTrigger>
-        {analysis ? <><TabsTrigger value="table">Table</TabsTrigger><TabsTrigger value="fields">Fields</TabsTrigger>
-        <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="queries">Queries</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
+        {analysis ? <><TabsTrigger value="table">{t('viewTable')}</TabsTrigger><TabsTrigger value="fields">{t('viewFields')}</TabsTrigger>
+        <TabsTrigger value="chart">{t('viewChart')}</TabsTrigger><TabsTrigger value="queries">{t('viewQueries')}</TabsTrigger><TabsTrigger value="checks">{t('viewChecks')}</TabsTrigger></> : null}
             </TabsList>}
             feedback={<>
               {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
-              {needsAttention ? <p className="data-note" role="status">{custodyDetail(asset, result, false)}</p> : null}
+              {needsAttention ? <p className="data-note" role="status">{custodyText(custodyDetail(asset, result, false), formatBytes(asset.size), t)}</p> : null}
               {failure ? <div className="data-actions">
                 <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
                 {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
-                {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
+                {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>{t('retryInspection')}</Button> : null}
               </div> : null}
             </>}
             footer={<footer className="data-workspace-footer">
               <div className="data-statusbar">
                 {fields ? <div className="data-counts">
-                  <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)}` : formatInt(fields.report.rowCount)} records</span>
-                  <span>{fields.report.fields.length} fields</span>
-                  {displayedView.filter && inspected ? <span>{formatInt(inspected.matched)} matching</span> : null}
-                  {displayedView.selection.length > 0 ? <span>{displayedView.selection.length} selected</span> : null}
+                  <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)} ${t('recordsWord')}` : t('recordsCount', { count: formatInt(fields.report.rowCount) })}</span>
+                  <span>{t('fieldsCount', { count: fields.report.fields.length })}</span>
+                  {displayedView.filter && inspected ? <span>{t('matchingCount', { count: formatInt(inspected.matched) })}</span> : null}
+                  {displayedView.selection.length > 0 ? <span>{t('selectedCount', { count: displayedView.selection.length })}</span> : null}
                 </div> : null}
                 {tab === 'table' && inspected ? <div className="data-pagination">
-                  {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>Clear selection</Button> : null}
-                  <Button variant="ghost" disabled={busy || loading || stale || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>Previous</Button>
-                  <Button variant="ghost" disabled={busy || loading || stale || inspected.nextOffset == null} onClick={() => props.onPage(inspected.nextOffset!)}>Next</Button>
+                  {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>{t('clearSelection')}</Button> : null}
+                  <Button variant="ghost" disabled={busy || loading || stale || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>{t('previous')}</Button>
+                  <Button variant="ghost" disabled={busy || loading || stale || inspected.nextOffset == null} onClick={() => props.onPage(inspected.nextOffset!)}>{t('next')}</Button>
                 </div> : null}
               </div>
             </footer>}
@@ -157,35 +159,35 @@ export function Workspace(props: Props) {
       <TabsContent value="queries" forceMount><SemanticPanel key={asset.id} datasetId={dataset.id} assetId={asset.id} fields={fields?.columns ?? []} /></TabsContent>
       <TabsContent value="overview">
         <div className="data-overview data-overview-grid">
-          {fields ? <section className="data-panel data-overview-span">
-            <h3>Columns</h3>
-            <p className="data-note">Observed on the full input. Open Fields to choose displayed columns, units, or a number interpretation.</p>
-            <div className="data-actions"><Button disabled={busy} onClick={() => props.onTab('fields')}>Open fields</Button></div>
-            <Table label="Column summary" density="compact" className="data-rows-scroll" tableClassName="data-rows">
-              <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Missing</th></tr></thead>
+          {fields ? <div className="data-panel data-overview-span">
+            <ContentSection id="data-columns" title={t('columns')} actions={<Button disabled={busy} onClick={() => props.onTab('fields')}>{t('openFields')}</Button>}>
+            <p className="data-note">{t('columnsNote')}</p>
+            <Table label={t('columnSummary')} density="compact" className="data-rows-scroll" tableClassName="data-rows">
+              <thead><tr><th scope="col">{t('fieldColumn')}</th><th scope="col">{t('typeColumn')}</th><th scope="col">{t('missingColumn')}</th></tr></thead>
               <tbody>{fields.report.fields.map(field => <tr key={field.name}>
                 <th scope="row">{field.name}</th>
                 <td>{view.interpretations?.[field.name] ? 'Decimal number (explicit)' : (field.kinds.join(', ') || '—')}</td>
                 <td>{field.missing ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'missing', field: field.name })}>{field.missing}</Button> : '0'}</td>
               </tr>)}</tbody>
             </Table>
-            <h3>Quality</h3>
+            </ContentSection>
+            <ContentSection id="data-quality" title={t('quality')} actions={<Button disabled={busy} onClick={() => props.onTab('checks')}>{t('openChecks')}</Button>}>
             <dl className="data-facts">
-              <dt>Missing fields</dt><dd>{formatInt(fields.report.missing)} {fields.report.missing > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'missing' })}>Show missing rows</Button> : null}</dd>
-              <dt>Explicit nulls</dt><dd>{formatInt(fields.report.nulls)} {fields.report.nulls > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'null' })}>Show null rows</Button> : null}</dd>
-              <dt>Empty strings</dt><dd>{formatInt(fields.report.empty)} {fields.report.empty > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'empty' })}>Show empty rows</Button> : null}</dd>
-              <dt>Duplicate rows</dt><dd>{formatInt(fields.report.duplicateRows)} {fields.report.duplicateRows > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'duplicate' })}>Show duplicate rows</Button> : null}</dd>
-              <dt>Conversion failures</dt><dd>{formatInt(fields.report.conversionFailures ?? 0)} {!!fields.report.conversionFailures && <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'conversion' })}>Show conversion failures</Button>}</dd>
+              <dt>{t('missingFields')}</dt><dd>{formatInt(fields.report.missing)} {fields.report.missing > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'missing' })}>{t('showMissingRows')}</Button> : null}</dd>
+              <dt>{t('explicitNulls')}</dt><dd>{formatInt(fields.report.nulls)} {fields.report.nulls > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'null' })}>{t('showNullRows')}</Button> : null}</dd>
+              <dt>{t('emptyStrings')}</dt><dd>{formatInt(fields.report.empty)} {fields.report.empty > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'empty' })}>{t('showEmptyRows')}</Button> : null}</dd>
+              <dt>{t('duplicateRows')}</dt><dd>{formatInt(fields.report.duplicateRows)} {fields.report.duplicateRows > 0 ? <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'duplicate' })}>{t('showDuplicateRows')}</Button> : null}</dd>
+              <dt>{t('conversionFailures')}</dt><dd>{formatInt(fields.report.conversionFailures ?? 0)} {!!fields.report.conversionFailures && <Button disabled={busy || loading} onClick={() => showIssue({ kind: 'conversion' })}>{t('showConversionFailures')}</Button>}</dd>
             </dl>
-            <Button disabled={busy} onClick={() => props.onTab('checks')}>Open checks</Button>
-          </section> : null}
-          {props.views.length ? <section className="data-panel data-overview-span"><h3>Saved views</h3>
+            </ContentSection>
+          </div> : null}
+          {props.views.length ? <div className="data-panel data-overview-span"><ContentSection id="data-saved-views" title={t('savedViews')}>
           {props.views.map(saved => <section className="data-saved-view" key={saved.id}>
-            <div className="data-actions"><Button disabled={busy} onClick={() => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }}>{saved.name}</Button><Button onClick={() => props.onExport(saved)}>Export reference</Button></div>
+            <ListRow title={saved.name} onOpen={busy ? undefined : () => { setPriorAnalysis(null); setTypeDraft(null); props.onOpen(saved); props.onTab('table'); }} trailing={<Button onClick={() => props.onExport(saved)}>{t('exportReference')}</Button>} />
             <p className="data-note">v{dataset.versions.indexOf(saved.assetId) + 1} / {saved.report.parserVersion} / {saved.report.rowCount} records / {saved.report.duplicateRows} duplicate rows</p>
             <p className="data-note">Saved report, not a claim about current file availability.</p>
-          </section>)}</section> : null}
-          <p className="data-note data-overview-span">A project reference groups datasets. It is not a permission boundary. Original bytes remain immutable. Add version appends an immutable file; importing the same filename creates a separate dataset.</p>
+          </section>)}</ContentSection></div> : null}
+          <p className="data-note data-overview-span">{t('projectReferenceNote')}</p>
         </div>
       </TabsContent>
       {analysis ? <><TabsContent value="table">
@@ -193,25 +195,25 @@ export function Workspace(props: Props) {
         {!loading && (!fields || failure?.status === 'rejected' || failure?.status === 'invalid') && (view.filter || view.issue || Object.keys(view.interpretations ?? {}).length > 0) ? <Button disabled={busy} onClick={() => props.onView(emptyView())}>Reset view</Button> : null}
         {fields ? <>
           {view.issue ? <div className="data-issue-scope"><p>{stale ? 'Requested issue rows: ' : 'Issue rows: '}{view.issue.kind}{view.issue.field ? ` in ${view.issue.field}` : ''}. {view.filter ? 'Full-input checks; showing issue rows within the current filter.' : 'Full-input issue rows.'} {priorAnalysis ? 'Previous filter and selection paused; Return restores the prior analysis.' : 'Saved issue view; Return removes the issue condition.'}</p><Button disabled={busy} onClick={() => { props.onView(priorAnalysis ?? { ...view, issue: null, selection: [] }); setPriorAnalysis(null); }}>Return to analysis</Button></div> : null}
-          <Toolbar className="data-controls" aria-label="Filter and sort">
+          <Toolbar className="data-controls" aria-label={t('filterAndSort')}>
             <div className="data-filter-controls">
-              <Select panelClassName="data-select-panel" className="data-filter-field" label="Filter field" value={filterField} disabled={busy}
-                options={[{ value: '', label: 'No filter' }, ...fieldOptions]} onChange={setFilterField} />
-              <Select panelClassName="data-select-panel" className="data-filter-condition" label="Condition" value={operator} disabled={busy}
+              <Select panelClassName="data-select-panel" className="data-filter-field" label={t('filterField')} value={filterField} disabled={busy}
+                options={[{ value: '', label: t('noFilter') }, ...fieldOptions]} onChange={setFilterField} />
+              <Select panelClassName="data-select-panel" className="data-filter-condition" label={t('condition')} value={operator} disabled={busy}
                 options={operators} onChange={setOperator} />
-              <Input className="data-filter-value" aria-label="Filter value" placeholder="Filter value" value={filterValue}
+              <Input className="data-filter-value" aria-label={t('filterValue')} placeholder={t('filterValue')} value={filterValue}
                 disabled={busy || operator === 'missing' || operator === 'null'} maxLength={4096}
                 onChange={event => setFilterValue(event.target.value)}
                 onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing && !busy) applyFilter(); }} />
-              <Button disabled={busy || loading} onClick={applyFilter}>Apply</Button>
-              {view.filter ? <Button disabled={busy} onClick={props.onRecoverView}>Clear filter</Button> : null}
+              <Button disabled={busy || loading} onClick={applyFilter}>{t('apply')}</Button>
+              {view.filter ? <Button disabled={busy} onClick={props.onRecoverView}>{t('clearFilter')}</Button> : null}
             </div>
             <div className="data-sort-controls">
-              <Select panelClassName="data-select-panel" label="Sort field" value={view.sort?.field ?? ''} disabled={busy}
-                options={[{ value: '', label: 'Sort field' }, ...fieldOptions]}
+              <Select panelClassName="data-select-panel" label={t('sortField')} value={view.sort?.field ?? ''} disabled={busy}
+                options={[{ value: '', label: t('sortField') }, ...fieldOptions]}
                 onChange={field => props.onView({ ...view, sort: field ? { field, descending: view.sort?.descending ?? false } : null })} />
               <Button disabled={busy || !view.sort} onClick={() => props.onView({ ...view, sort: { field: view.sort!.field, descending: !view.sort!.descending } })}>
-                {view.sort?.descending ? 'Descending' : 'Ascending'}
+                {view.sort?.descending ? t('descending') : t('ascending')}
               </Button>
             </div>
           </Toolbar>
@@ -295,29 +297,24 @@ export function Workspace(props: Props) {
             <thead><tr><th scope="col">Row</th><th scope="col">Duplicate of</th><th scope="col">Source line</th></tr></thead>
             <tbody>{inspected.report.duplicates.map(item => <tr key={item.row}><td>{item.row}</td><td>{item.duplicateOf}</td><td>{item.sourceLine ?? '—'} <Button disabled={busy || stale} onClick={() => props.onRecord(item.row - 1)}>Source row {item.row}</Button></td></tr>)}</tbody>
           </Table> : null}
-        </> : <p className="data-note">No current checks.</p>}
+        </> : <p className="data-note">{t('noCurrentChecks')}</p>}
       </TabsContent>
       </> : null}
       <TabsContent value="versions">
-        <div className="data-history">{versions.map((version, index) => <section key={version.id}>
-          <Button aria-pressed={version.id === asset.id} disabled={busy} onClick={() => props.onVersion(version.id)}>{versionLabel(version, index)}</Button>
-          <p className="data-note">{availabilityLabel(version, result)} · {version.sha256.slice(0, 12)}</p>
-          <code title={version.sha256}>{version.sha256}</code>
-        </section>)}</div>
-        <p className="data-note">Each version is an immutable file. Saved views stay on Overview and remain pinned to the version they were saved from.</p>
+        <div className="data-history">{versions.map((version, index) => <ListRow key={version.id} title={versionLabel(version, index)} current={version.id === asset.id} meta={<><span>{availabilityText(availabilityLabel(version, result), t)} · {version.sha256.slice(0, 12)}</span><code title={version.sha256}>{version.sha256}</code></>} onOpen={busy ? undefined : () => props.onVersion(version.id)} />)}</div>
+        <p className="data-note">{t('versionsNote')}</p>
       </TabsContent>
       <TabsContent value="files">
-        <section className="data-panel">
-          <h3>{asset.name}</h3>
+        <ContentSection id="data-file" title={asset.name}>
           <table className="data-facts" aria-label={t('files')}>
             <tbody>
-              <tr><th scope="row">Format</th><td>{format}</td></tr>
-              <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
-              <tr><th scope="row">Availability</th><td>{availabilityLabel(asset, result)}</td></tr>
+              <tr><th scope="row">{t('metaFormat')}</th><td>{format}</td></tr>
+              <tr><th scope="row">{t('metaSize')}</th><td>{formatBytes(asset.size)}</td></tr>
+              <tr><th scope="row">{t('availability')}</th><td>{availabilityText(availabilityLabel(asset, result), t)}</td></tr>
               <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} /></td></tr>
             </tbody>
           </table>
-        </section>
+        </ContentSection>
       </TabsContent>
       <TabsContent value="citations">
         <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading={t('citations')} description={t('noCitations')} />
@@ -331,10 +328,10 @@ export function Workspace(props: Props) {
             title={dataset.name}
             identity={<div className="data-badges">{badges.map((badge, index) => <Badge key={badge} tone={index === 0 ? 'blue' : 'neutral'}>{badge}</Badge>)}</div>}
             subtitle={description}
-            status={<span>{availabilityLabel(asset, result)}</span>}
+            status={<span>{availability}</span>}
             actions={<>
               {props.objectActions}
-              <Button variant="primary" disabled={busy || window.parent === window} onClick={props.onOpenNotebook}>{t('openNotebook')}</Button>
+              <Button variant="primary" disabled={busy || !hostPresent} onClick={props.onOpenNotebook}>{t('openNotebook')}</Button>
             </>}
             dismiss={{ label: t('close'), onDismiss: props.onDismiss }}
           />}
@@ -345,25 +342,25 @@ export function Workspace(props: Props) {
           </ContentSection>
           <ContentSection id={`data-status-${dataset.id}`} title={t('statusTitle')}>
             <ul className="data-status-list">
-              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{availabilityLabel(asset, result)}</li>
-              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{present ? 'File integrity · size matches' : custodyDetail(asset, result, false)}</li>
-              <li data-ok={analysis || undefined}><Icon name={analysis ? 'check' : 'info'} size={14} />{analysis ? 'Table inspection available' : 'Original file · contents not indexed'}</li>
+              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{availability}</li>
+              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{present ? t('filePresent') : custodyText(custodyDetail(asset, result, false), formatBytes(asset.size), t)}</li>
+              <li data-ok={analysis || undefined}><Icon name={analysis ? 'check' : 'info'} size={14} />{analysis ? t('tableReady') : t('notIndexed')}</li>
               {recordedSha?.provenance ? <li><Icon name="info" size={14} />{recordedSha.provenance}</li>
-                : <li><Icon name="info" size={14} />Digest recorded at admission</li>}
+                : <li><Icon name="info" size={14} />{t('digestRecorded')}</li>}
             </ul>
           </ContentSection>
           <ContentSection id={`data-relations-${dataset.id}`} title={t('quickActions')}>
-            {versions.length > 1 ? <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
+            {versions.length > 1 ? <Select label={t('metaVersion')} value={asset.id} onChange={props.onVersion} disabled={busy}
               options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} /> : null}
             {confirmArchive ? <div className="data-actions">
-              <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
-              <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
-              <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
+              <p>{t('archivePrompt')}</p>
+              <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>{t('confirmArchive')}</Button>
+              <Button onClick={() => setConfirmArchive(false)}>{t('cancel')}</Button>
             </div> : null}
             <div className="data-quick-actions">
-              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('analyzeNotebook')}</Button>
-              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/control-lab/main')}>{t('useControlLab')}</Button>
-              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/compute/main')}>{t('openCompute')}</Button>
+              <ListRow title={t('analyzeNotebook')} onOpen={busy || !hostPresent ? undefined : () => void navigate('/apps/notebook/main')} />
+              <ListRow title={t('useControlLab')} onOpen={busy || !hostPresent ? undefined : () => void navigate('/apps/control-lab/main')} />
+              <ListRow title={t('openCompute')} onOpen={busy || !hostPresent ? undefined : () => void navigate('/apps/compute/main')} />
             </div>
           </ContentSection>
         </ContentPane>
@@ -372,18 +369,35 @@ export function Workspace(props: Props) {
   </>;
 }
 
+function availabilityText(label: string, t: (key: string) => string) {
+  if (label === 'Stored') return t('stored');
+  if (label === 'Missing') return t('missingFile');
+  if (label === 'Changed') return t('changedFile');
+  return label;
+}
+
+function custodyText(detail: string, size: string, t: (key: string, vars?: Record<string, string | number>) => string) {
+  if (detail === 'Inspected bytes match the admitted SHA-256.') return t('bytesMatched');
+  if (detail === 'Original file is missing.') return t('fileMissing');
+  if (detail === 'File size no longer matches the admitted size.') return t('sizeChanged');
+  if (detail === 'Admitted SHA-256 does not match the current file.') return t('digestMismatch');
+  return t('filePresentDetail', { size });
+}
+
 function CopyDigest({ value, label }: { value: string; label: string }) {
+  const { t } = useAppI18n(messages);
   const [copied, setCopied] = useState(false);
   return <Button variant="ghost" onClick={() => {
     void navigator.clipboard?.writeText(value).then(() => setCopied(true)).catch(() => setCopied(false));
-  }}>{copied ? 'Copied' : `Copy ${label}`}</Button>;
+  }}>{copied ? t('copied') : t('copyValue', { label })}</Button>;
 }
 
 function DigestValue({ value, label }: { value: string; label: string }) {
+  const { t } = useAppI18n(messages);
   const [copied, setCopied] = useState(false);
   return <span className="data-actions"><code>{value}</code><Button variant="ghost" onClick={() => {
     void navigator.clipboard?.writeText(value).then(() => setCopied(true)).catch(() => setCopied(false));
-  }}>{copied ? 'Copied' : `Copy ${label}`}</Button></span>;
+  }}>{copied ? t('copied') : t('copyValue', { label })}</Button></span>;
 }
 
 function FieldUnit({ field, unit, disabled, onCommit }: { field: string; unit: string; disabled: boolean; onCommit(unit: string): void }) {
