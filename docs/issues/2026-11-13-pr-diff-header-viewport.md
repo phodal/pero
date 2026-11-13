@@ -48,3 +48,9 @@ A follow-up review found that the Checks module declaration lost its wasm/native
 condition during integration. Default-feature `pero-ui` compilation reproduced
 unresolved imports. The declaration now uses the same condition as the other PR
 views; both default-feature and Native library suites are checked.
+
+Linux CI also exposed a stale Host stdio test expectation: both layout objects
+omitted the newly persisted `diff_soft_wrap` field. Exact object comparisons
+then reported nine cascading preference failures. The compatibility expectation
+now includes the default true value, and the saved preference explicitly uses
+false so acknowledgement, rejection retention and restart prove both cases.
