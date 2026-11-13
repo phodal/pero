@@ -67,7 +67,8 @@ export default function ControlLab() {
     generationSession = useRef(""),
     draftApplied = useRef(false),
     draftFailure = useRef(""),
-    experimentNow = useRef(experiment);
+    experimentNow = useRef(experiment),
+    specForm = useRef<HTMLFormElement>(null);
   experimentNow.current = experiment;
   const template = templates.find((item) => item.id === templateId),
     running = experiment?.status === "running";
@@ -577,10 +578,16 @@ export default function ControlLab() {
   );
   const canRun = Boolean((experiment || preview) && tunable.length && capability?.available && !busy && !generating && !running && !experiment?.lockedCandidateId);
   const candidateLocked = Boolean(experiment?.lockedCandidateId);
+  const runSpecification = () => {
+    if (!experiment && specForm.current && !specForm.current.reportValidity()) return;
+    void runDraft().catch(onError);
+  };
+  const runButton = <Button variant={canRun ? "primary" : "ghost"} disabled={!canRun} aria-describedby="run-specification-effect" onClick={runSpecification}>Run experiment</Button>;
+  const newButton = <Button variant={canRun ? "ghost" : "primary"} disabled={busy || generating} onClick={newExperiment}>New experiment</Button>;
   return (
     <div className="control-lab" {...appObjectProps("control-lab")}>
       {!experiment && <h1 className="pero-visually-hidden">Control Lab</h1>}
-      <AppBar title={experiment?.title} tools={<>
+      <AppBar title={experiment?.title} scope={<>
         {!experiment && <Select label="Template" value={templateId} disabled={loading || busy || generating}
           options={templates.map(item => ({ value: item.id, label: item.title }))}
           onChange={value => { const item = templates.find(item => item.id === value); if (item) chooseTemplate(item); }}/>}
@@ -588,29 +595,18 @@ export default function ControlLab() {
           options={[{ value: '', label: 'New draft' }, ...history.map(item => ({ value: item.id, label: item.title,
             hint: `${new Date(item.createdAt).toLocaleString()} · ${item.report?.verdict ?? item.status}` }))]}
           showHint onChange={value => value ? void open(value) : newExperiment()}/>}
-      </>} actions={<>
-        {capability?.available && <span title={`${capability.engine} ${capability.version ?? 'available'}`}><EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']} /></span>}
-        {experiment && <Button disabled={busy} onClick={() => void exportEvidence(experiment.id).catch(onError)}>Export</Button>}
-        {experiment && <Button
-          disabled={busy}
-          onClick={() =>
-            void chat
-              .compose(
-                `Review Control Lab experiment ${experiment!.id}. Inspect the frozen specification and full verification denominator. Do not change the policy or claim engineering PASS from process success. Propose bounded candidates only.`,
-                { attachments: [chat.objectReference("control-lab")], approveGoal: true },
-              )
-              .catch(onError)
-          }
-        >
-          Approve goal and discuss
-        </Button>}
-        {experiment && <Button disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>
-          Duplicate settings
-        </Button>}
-        <Button disabled={busy || generating} onClick={newExperiment}>
-          New experiment
-        </Button>
-      </>}/>
+      </>} utilities={capability?.available ? <span title={`${capability.engine} ${capability.version ?? 'available'}`}><EnvironmentInspector targets={[capability.engine === 'ngspice' ? 'control-lab.ngspice' : 'control-lab.python-control']} /></span> : undefined}
+      commands={<>
+        {experiment && <Button variant="ghost" disabled={busy} onClick={() => void exportEvidence(experiment.id).catch(onError)}>Export</Button>}
+        {experiment && <Button variant="ghost" disabled={busy} onClick={() =>
+          void chat.compose(
+            `Review Control Lab experiment ${experiment!.id}. Inspect the frozen specification and full verification denominator. Do not change the policy or claim engineering PASS from process success. Propose bounded candidates only.`,
+            { attachments: [chat.objectReference("control-lab")], approveGoal: true },
+          ).catch(onError)}>Approve goal and discuss</Button>}
+        {experiment && <Button variant="ghost" disabled={busy || running} onClick={() => void create(experiment).catch(onError)}>Duplicate settings</Button>}
+        {!experiment && preview && template && <Button variant="ghost" disabled={loading || busy || generating} onClick={() => freezeSpecification(specForm.current)}>Freeze specification</Button>}
+        {canRun ? newButton : runButton}
+      </>} primary={canRun ? runButton : newButton}/>
       {notice && <Feedback kind="info" variant="block">{notice}</Feedback>}
       {draftError && <Feedback kind="error" variant="block">{draftError}</Feedback>}
       {error && (
@@ -639,11 +635,10 @@ export default function ControlLab() {
             experiment={preview} selectedId="baseline" template={template} draft={parameters}
             disabled={loading || busy || generating} onDraft={values => setParameters(prior => ({ ...prior, ...values }))} onSelect={() => {}}
             setup={<Specification template={template} tunable={tunable} parameters={parameters} criteria={criteria} budget={budget}
-              disabled={loading || busy || generating} generating={generating} canRun={canRun}
+              disabled={loading || busy || generating} generating={generating} formRef={specForm}
               onParameter={(name, value) => setParameters(prior => ({ ...prior, [name]: value }))}
               onCriterion={(name, value) => setCriteria(prior => ({ ...prior, [name]: value }))}
-              onBudget={setBudget} onGenerate={() => void generateParameters()} onCancel={cancelGeneration} onFreeze={freezeSpecification}
-              onRun={() => void runDraft().catch(onError)}/>} />
+              onBudget={setBudget} onGenerate={() => void generateParameters()} onCancel={cancelGeneration} onFreeze={freezeSpecification}/>} />
           ) : (
             <>
               {(running || !candidateLocked || experiment.status === "cancelled") && <section className="experiment-heading" aria-label="Experiment execution">
@@ -661,18 +656,7 @@ export default function ControlLab() {
                   </Button>
                 </> : <div className="toolbar">
                   {experiment.status === "cancelled" && <span role="status">Run cancelled</span>}
-                  {!candidateLocked && <>
-                    {tunable.length > 0 && <Button variant="primary" disabled={!canRun} onClick={() => void runDraft().catch(onError)}>
-                      Run experiment
-                    </Button>}
-                    <Button
-                      variant={tunable.length ? "secondary" : "primary"}
-                      disabled={busy}
-                      onClick={() => void act("search", { budget: experiment.candidateBudget }).catch(onError)}
-                    >
-                      Run bounded search
-                    </Button>
-                  </>}
+                  {!candidateLocked && <Button variant="ghost" disabled={busy} onClick={() => void act("search", { budget: experiment.candidateBudget }).catch(onError)}>Run bounded search</Button>}
                 </div>}
               </section>}
               {experiment.error && <Feedback kind="error" variant="block">{experiment.error}</Feedback>}

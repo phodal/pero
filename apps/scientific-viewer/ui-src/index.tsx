@@ -75,8 +75,7 @@ export default function ScientificViewer() {
     finally { setRemoving(false); }
   }
   return <main className="scientific-viewer"><h1 className="sr-only">Scientific Viewer</h1>
-    <AppBar className="viewer-toolbar" aria-label="File actions" tools={<>
-      <Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: 'Research Lab' }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />
+    <AppBar className="viewer-toolbar" aria-label="File actions" scope={<Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: 'Research Lab' }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />} tools={<>
       {asset && <Disclosure variant="inline" className="source-details" key={asset.id} summaryProps={{ 'aria-label': t.source, 'aria-describedby': 'source-status' }} summary={<><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></>}>
         <div className="source-panel">
           <h2>{t.source}</h2><dl><dt>{t.size}</dt><dd>{asset.size.toLocaleString('en-US')} bytes</dd><dt>{t.origin}</dt><dd>{asset.source}</dd><dt>{t.license}</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd></dl>
@@ -87,9 +86,9 @@ export default function ScientificViewer() {
               <Button variant="danger" disabled={removing} onClick={() => void confirmRemoval()}>{removing ? t.removing : t.confirm}</Button></div>
           </div>}
         </div></Disclosure>}
-      </>} actions={<>
-        <Button disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>Research Lab</Button>
-        <DropdownMenu><DropdownMenuTrigger asChild><Button disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+      </>} commands={<>
+        <Button variant="ghost" disabled={importing || loading} onClick={() => { setPendingRemoval(null); setSelected('research-lab'); }}>Research Lab</Button>
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" disabled={importing}>{t.examples}</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
           {sequenceExamples.map(example => <DropdownMenuItem key={example.name} onSelect={() => void importFile(
             new File([example.text], example.name), { source: example.source, license: 'GenBank data usage policy' },
           )}>{example.name}</DropdownMenuItem>)}
@@ -97,9 +96,8 @@ export default function ScientificViewer() {
             new File([example.text], example.name), { synthetic: true, source: 'Pero independently authored synthetic example', license: 'CC0-1.0' },
           )}>{example.name}</DropdownMenuItem>)}
         </DropdownMenuContent></DropdownMenu>
-        <Button onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</Button>
-        <FilePicker compact variant="primary" title={t.limit} label={importing ? t.importing : t.import} emptyLabel="" busy={importing} onFile={file => void importFile(file)}/>
-      </>}/>
+        <Button variant="ghost" onClick={() => void openPaperApp().catch(error => setError(String(error)))}>{t.paper}</Button>
+      </>} primary={<FilePicker compact variant="primary" title={t.limit} label={importing ? t.importing : t.import} emptyLabel="" busy={importing} onFile={file => void importFile(file)}/>}/>
     {loading && <p role="status">{t.loading}</p>}
     {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
     {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}

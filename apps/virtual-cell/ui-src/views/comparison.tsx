@@ -76,9 +76,7 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
     {c.error && <Feedback kind="error">{c.error} <Button onClick={c.refresh}>{t('refresh')}</Button></Feedback>}
     {c.availability && !c.availability.available && <Feedback kind="error">{c.availability.reason === 'comparison_platform_unsupported' ? t('comparisonPlatform') : c.availability.reason}</Feedback>}
     {documentError && <Feedback kind="error">{documentError}</Feedback>}
-    {!input ? <EmptyState heading={t('comparisonMissingInput')}/> : <Toolbar actions={
-      <Button variant="primary" disabled={!c.canStart} onClick={() => void c.start(input.id)}>{c.pending === 'start' ? t('comparison_starting') : t('comparisonStart')}</Button>
-    }><span>{t('comparisonMethods')}: control, train_mean, additive</span></Toolbar>}
+    {!input ? <EmptyState heading={t('comparisonMissingInput')}/> : <p className="vc-muted">{t('comparisonMethods')}: control, train_mean, additive</p>}
     {input && <Disclosure summary={t('comparisonInputIdentity')}><dl className="vc-properties">
       <dt>{t('sourceLink')}</dt><dd>{input.source.id}</dd><dt>{t('comparisonRevision')}</dt><dd>{input.source.revision}</dd>
       <dt>{t('comparisonDatasetDigest')}</dt><dd>{input.datasetDigest}</dd><dt>{t('comparisonSpecDigest')}</dt><dd>{input.specDigest}</dd>

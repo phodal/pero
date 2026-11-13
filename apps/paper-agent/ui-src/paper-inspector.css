@@ -58,7 +58,6 @@
   line-height: 1.4;
 }
 .pa-inspector-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.pa-inspector-read { width: 100%; min-height: var(--pero-control-height); }
 .pa-inspector-tabs { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
 .pa-inspector-tabs .pero-ui-tabs-list[data-variant=navigation] {
   gap: 0;

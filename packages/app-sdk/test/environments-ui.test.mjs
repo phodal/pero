@@ -17,7 +17,7 @@ async function runtime(t) {
   dom.window.HTMLElement.prototype.scrollIntoView = function () {};
   dom.window.HTMLElement.prototype.getBoundingClientRect = function () {return {x:20,y:60,top:60,left:20,right:220,bottom:90,width:200,height:30,toJSON(){return this;}};};
   return {...env,
-    button: label => [...document.querySelectorAll('button')].find(node => node.textContent === label),
+    button: label => [...document.querySelectorAll('button')].find(node => node.textContent === label || node.getAttribute('aria-label') === label),
     focus: node => React.act(async () => node.focus()),
     fill: (node,value) => React.act(async () => {Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(node,value); node.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}),
   };

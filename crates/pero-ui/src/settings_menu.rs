@@ -123,7 +123,7 @@ impl Workbench {
                 let target = workbench.clone();
                 let saved = preferences.clone();
                 let appearance_choices = appearance_choices.clone();
-                menu = menu.submenu(appearance.clone(), window, cx, move |menu, _, _| {
+                menu = menu.submenu_with_icon(Some(Icon::default().path("icons/sun.svg")), appearance.clone(), window, cx, move |menu, _, _| {
                     appearance_choices.iter().fold(menu, |menu, (mode, label)| {
                         let target = target.clone();
                         let mut next = saved.clone();
@@ -141,7 +141,7 @@ impl Workbench {
                 });
                 let target = workbench.clone();
                 let selected_locale = locale.clone();
-                menu = menu.submenu(language.clone(), window, cx, move |menu, _, _| {
+                menu = menu.submenu_with_icon(Some(Icon::default().path("icons/languages.svg")), language.clone(), window, cx, move |menu, _, _| {
                     [("zh-CN", "简体中文"), ("en", "English")].into_iter().fold(
                         menu,
                         |menu, (value, label)| {

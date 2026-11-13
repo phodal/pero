@@ -163,11 +163,10 @@ export default function HpcBenchmarks() {
 
   return <div className="hpc-app" {...appObjectProps("hpc-benchmarks")}>
     <h1 className="visually-hidden">{t("title")}</h1>
-    <AppBar className="app-header" aria-label={t("title")} actions={<>
-      <IconButton label={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={16} /></IconButton>
-        <Button className="discuss-button" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>
-        <Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button>
-    </>}/>
+    <AppBar className="app-header" aria-label={t("title")}
+      utilities={<IconButton label={t("refresh")} disabled={loading || busy} onClick={() => void refresh().catch(onError)}><Icon name="sync" size={16} /></IconButton>}
+      commands={<Button className="discuss-button" variant="ghost" aria-label={t("discuss")} title={t("discuss")} disabled={loading || !selectedBenchmark} onClick={() => void discuss().catch(onError)}><Icon name="agent" size={14} /><span>{t("discuss")}</span></Button>}
+      primary={<Button variant="primary" disabled={loading || busy || Boolean(active) || !selectedBenchmark?.available || !data?.runtime.reframeAvailable} onClick={() => void startRun()}><Icon name="play" size={14} />{t(selectedBenchmark?.available ? "run" : "runBenchmark")}</Button>}/>
     {notice && <Feedback className="app-notice">{t(notice)}</Feedback>}
     {error && <div className="app-feedback"><Feedback kind="error" variant="block">{error}</Feedback><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}
     {data && !data.runtime.reframeAvailable && <div className="app-feedback"><Feedback kind="warning" variant="block">{data.runtime.message}</Feedback><Button onClick={() => void initialize()}>{t("reload")}</Button></div>}

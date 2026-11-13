@@ -18,7 +18,7 @@ import { useEditorState } from '@tiptap/react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { writeWorkbook } from '@pero/notebook/workbook';
 import { worksheetBlocks } from './worksheet-model';
-import { Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Split, SplitPane, ToggleGroup, ToggleGroupItem, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
+import { AppBar, Badge, Button, Checkbox, Dialog, Disclosure, EmptyState, Feedback, Field, Icon, IconButton, Input, SearchField, Select, Split, SplitPane, ToggleGroup, ToggleGroupItem, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from '@pero/app-sdk/ui';
 import type { NotebookDocument } from '@pero/notebook';
 import { changeMetadata, changeProcedures, notebookLinkHash, parseNotebookLink, notebookTarget, procedureKinds, procedurePlannedMinutes, notebookMarkdown, notebookRelevantItems, notebookSearchItems, searchNotebook, workspaceLimits,
   type MetadataChange, type NotebookMetadata, type NotebookProcedure, type NotebookProcedureStep, type ProcedureChange } from '@pero/notebook/workspace';
@@ -238,6 +238,8 @@ export type NotebookChrome = {
   snapshot?: boolean;
   fileTools?: ReactNode;
   propertyTools?: ReactNode;
+  barUtilities?: ReactNode;
+  createCommand?: ReactNode;
   /** Stored document used for export when the editor is showing a placeholder. */
   retainedContent?: NotebookDocument['content'];
 };
@@ -349,20 +351,19 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openSearch(); }
   }}>
     <div className="notebook-jupyter">
-      <div className="notebook-documentbar">
-        {chrome?.navigation}
-        <div className="notebook-breadcrumb">{metadata.project && <span>{metadata.project}</span>}
-          <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
-            {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
-          </TabsList>
-        </div>
-        {chrome && <span className="notebook-status" role="status">{chrome.status}</span>}
-        {chrome?.snapshot && <div className="notebook-toolbar-end">
-          <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
-          <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
-        </div>}
-        {chrome?.onSave && <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button>}
-        <NotebookMenu name={t('file')} menu="file" icon="more">
+      <AppBar className="notebook-documentbar"
+        scope={<>
+          {chrome?.navigation}
+          <div className="notebook-breadcrumb">{metadata.project && <span>{metadata.project}</span>}
+            <TabsList className="notebook-view-tabs" aria-label={t('views')} variant="navigation">
+              {views.map(value => <TabsTrigger key={value} value={value} aria-label={t(value)}>{t(value)}</TabsTrigger>)}
+            </TabsList>
+          </div>
+        </>}
+        title={chrome ? <span className="notebook-status" role="status">{chrome.status}</span> : undefined}
+        utilities={chrome?.barUtilities}
+        commands={<>
+          <NotebookMenu name={t('file')} menu="file" icon="more">
           {close => <>
           <Button variant="ghost" onClick={() => { openSearch(); close(); }}><Icon name="search" />{t('search')}</Button>
           {(['relevant', 'review'] as const).map(value => <Button key={value} variant="ghost" onClick={() => {
@@ -386,8 +387,14 @@ export function NotebookWorkspace({ editor, entryId, revision, document, readonl
           {helpTools}
           {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content') && <small>Build {window.document.querySelector('meta[name=pero-app-build]')?.getAttribute('content')}</small>}
           </>}
-        </NotebookMenu>
-      </div>
+          </NotebookMenu>
+          {chrome?.snapshot && <>
+            <Button variant="ghost" onClick={chrome.onBack}>{notebook('backToDraft')}</Button>
+            <Button variant="ghost" disabled={chrome.restoreDisabled} onClick={chrome.onRestore}>{notebook('restoreDraft')}</Button>
+          </>}
+          {chrome?.createCommand}
+        </>}
+        primary={chrome?.onSave ? <Button variant="primary" className="notebook-save" busy={chrome.saveBusy} disabled={chrome.saveDisabled} onClick={chrome.onSave}>{notebook('save')}</Button> : undefined} />
       <div className="notebook-diagnostics-host" />
     </div>
     {error && <Feedback kind="error">{error}</Feedback>}

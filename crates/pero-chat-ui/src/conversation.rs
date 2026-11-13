@@ -215,11 +215,20 @@ impl ComposerDraft {
     ) -> Result<Self, ComposerDraftError> {
         use gpui_kit::component::input::InputContent;
         let base = if replace { Self { content: InputContent::new(""), references: Default::default() } } else { self.clone() };
-        let references = base.admit_contexts(contexts, images)?;
+        let app_prompt_exists = !text.is_empty()
+            && contexts.iter().any(|reference| reference.kind == pero_contracts::context::ContextKind::AppObject)
+            && base.content.text().contains(text);
+        let mut app_ids = Self::contexts(&base.content, &base.references).into_iter()
+            .filter(|reference| reference.kind == pero_contracts::context::ContextKind::AppObject)
+            .map(|reference| reference.id).collect::<std::collections::HashSet<_>>();
+        let contexts = contexts.iter().filter(|reference| {
+            reference.kind != pero_contracts::context::ContextKind::AppObject || app_ids.insert(reference.id.clone())
+        }).cloned().collect::<Vec<_>>();
+        let references = base.admit_contexts(&contexts, images)?;
         let mut text_value = base.content.text().to_string();
         let mut tokens = base.content.tokens().iter().map(|span| (span.range(), span.token().clone())).collect::<Vec<_>>();
-        text_value.push_str(text);
-        for reference in contexts {
+        if !app_prompt_exists { text_value.push_str(text); }
+        for reference in &contexts {
             let start = text_value.len();
             let token = Self::reference_token(reference);
             text_value.push_str(token.text());
@@ -720,6 +729,35 @@ mod composer_draft_tests {
         assert_eq!(ContextReference::validate_all(&submitted), Ok(()));
         assert_eq!(draft.append("", &[file("seventeenth", 1)], false, false).err(),
             Some(ComposerDraftError::Context("Choose at most 16 context references")));
+    }
+
+    #[test]
+    fn app_discussion_additions_preserve_unique_snapshots_and_user_edits() {
+        let app = ContextReference { kind: ContextKind::AppObject, ..file("app-v1", 1) };
+        let empty = ComposerDraft { content: InputContent::new("我的问题。"), references: Default::default() };
+        let first = empty.append("审阅基准。", &[app.clone()], false, false).unwrap();
+        for (message, incoming, replace, prompt, ids) in [
+            ("审阅基准。", vec![app.clone()], false, "我的问题。审阅基准。@app-v1 ", vec!["app-v1"]),
+            ("审阅基准。", vec![app.clone(), app.clone()], false, "我的问题。审阅基准。@app-v1 ", vec!["app-v1"]),
+            ("补充比较。", vec![app.clone()], false, "我的问题。审阅基准。@app-v1 补充比较。", vec!["app-v1"]),
+            ("审阅基准。", vec![ContextReference { id: "app-v2".into(), ..app.clone() }], false,
+                "我的问题。审阅基准。@app-v1 @app-v1 ", vec!["app-v1", "app-v2"]),
+            ("审阅基准。", vec![app.clone()], true, "审阅基准。@app-v1 ", vec!["app-v1"]),
+        ] {
+            let next = first.append(message, &incoming, replace, false).unwrap();
+            assert_eq!(next.content.text().as_ref(), prompt);
+            assert_eq!(next.content.tokens().iter().map(|span| span.token().id().as_ref()).collect::<Vec<_>>(), ids);
+            assert_eq!(ComposerDraft::contexts(&next.content, &next.references).len(), ids.len());
+        }
+        // Removing a chip leaves its old reference in the editor map until the next edit.
+        let removed = ComposerDraft { content: InputContent::new("审阅基准。后续问题。"), references: first.references.clone() };
+        let restored = removed.append("审阅基准。", &[app.clone()], false, false).unwrap();
+        assert_eq!(restored.content.text().as_ref(), "审阅基准。后续问题。@app-v1 ");
+        assert_eq!(restored.content.tokens().len(), 1);
+        // Clearing the draft permits the same discussion again.
+        let cleared = ComposerDraft { content: InputContent::new(""), references: first.references };
+        let restored = cleared.append("审阅基准。", &[app], false, false).unwrap();
+        assert_eq!(restored.content.text().as_ref(), "审阅基准。@app-v1 ");
     }
 
     #[test]

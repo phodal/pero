@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
@@ -397,22 +397,23 @@ function Notebook() {
 
   const visibleEntries = (entries ?? []).filter(entry => (drafts[entry.id]?.document.title || entry.title).toLocaleLowerCase().includes(entryQuery.trim().toLocaleLowerCase()));
   if (entryOrder === 'title') visibleEntries.sort((a, b) => (drafts[a.id]?.document.title || a.title).localeCompare(drafts[b.id]?.document.title || b.title));
-  const createAction = <Button aria-label={t('newNotebook')} variant="primary" disabled={!!busy} onClick={() => void create()}><Icon name="plus" /> {!entries?.length && t('newNotebook')}</Button>;
   const importAction = <FilePicker compact label={t('importNotebook')} emptyLabel="" accept=".json,application/json" variant="ghost" disabled={!!busy} onFile={file => void importNotebook(file)} />;
-  return <AppFrame label={t('notebook')} className="notebook-app">
+  const barUtilities = <>
+    <IconButton label={t('importNotebook')} disabled={!!busy} onClick={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" /></IconButton>
+    <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
+  </>;
+  const createNotebook = (variant: 'primary' | 'ghost') => <Button aria-label={t('newNotebook')} variant={variant} disabled={!!busy} onClick={() => void create()}><Icon name="plus" />{t('newNotebook')}</Button>;
+  return <AppFrame label={t('notebook')} className="notebook-app" utilities={entries?.length === 0 ? barUtilities : undefined} primary={entries?.length === 0 ? createNotebook('primary') : undefined}>
+    <div hidden ref={libraryImport}>{importAction}</div>
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && !removing && <Feedback kind="error" variant="block">{error}</Feedback>}
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
     {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
-      : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />}
-        actions={<>{createAction}{importAction}</>} />
+      : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />} heading={t('noNotebooks')} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <div className="notebook-nav-tools">
-            {createAction}
-            <IconButton label={t('importNotebook')} disabled={!!busy} onClick={() => libraryImport.current?.querySelector<HTMLInputElement>('input[type=file]')?.click()}><Icon name="upload" /></IconButton>
-            <IconButton label={t('refresh')} disabled={!!busy} onClick={() => { void refresh(); setRetry(value => value + 1); }}><Icon name="sync" /></IconButton>
-            <div hidden ref={libraryImport}>{importAction}</div>
+            <LibraryHeader density="compact" title={t('notebooks')} subtitle={String(entries.length)} />
             <IconButton label={t('searchNotebooks')} aria-expanded={librarySearchVisible} aria-controls="notebook-library-search"
               aria-pressed={librarySearchVisible} onClick={() => {
                 if (librarySearchVisible && !entryQuery.trim()) setLibrarySearchOpen(false);
@@ -508,6 +509,7 @@ function Notebook() {
                   saveDisabled: !current.dirty || current.newer || current.recoveryProtected || !!busy,
                   onHistory: snapshot ? undefined : () => void showHistory(),
                   snapshot: !!snapshot,
+                  barUtilities, createCommand: createNotebook('ghost'),
                   onBack: () => setSnapshot(null),
                   onRestore: () => {
                     if (!snapshot) return;

@@ -27,7 +27,7 @@ mod session_row;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub use session_row::{project_accent, session_actions, session_row};
 #[cfg(any(target_family = "wasm", feature = "native"))]
-pub use shell::{content_tab, content_tab_label, content_tab_close_button, ContentTabState, edge_shadow, sidebar_group, sidebar_surface, window_bar};
+pub use shell::{content_tab, content_tab_label, content_tab_close_button, ContentTabState, edge_shadow, edge_shadow_plate, sidebar_group, sidebar_surface, window_bar};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod appearance;
 #[cfg(any(target_family = "wasm", feature = "native"))]

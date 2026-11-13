@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
-import { Disclosure, AppFrame, Badge, Button, Card, EmptyIllustration, EmptyState, Feedback, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Disclosure, AppFrame, Badge, Button, Card, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
 import { TaskReport } from './task-report';
 import { messages, type Cluster, type ClusterInput, type ClusterState, type ExecutionReceipt } from './messages';
@@ -52,10 +52,17 @@ export default function Compute() {
     state: { loading, busy, clusters: state?.clusters ?? null, selectedClusterId: state?.selectedClusterId ?? null,
       jobs: null, jobsStatus: 'not_connected', executionsStatus: state?.executionsStatus ?? null } });
 
-  return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" tools={
+  return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" scope={
     <TabsList aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
-  } actions={<><Button disabled={busy || loading} onClick={() => void refresh()}>{t('refresh')}</Button>
-    {tab === 'clusters' && Boolean(state?.clusters.length) ? <Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button> : null}</>}>
+  } utilities={<IconButton label={t('refresh')} disabled={busy || loading} onClick={() => void refresh()}><Icon name="refresh" /></IconButton>}
+    commands={<DropdownMenu>
+      <DropdownMenuTrigger aria-label={t('settings')}><Icon name="dots" /></DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => void open('/workers')}>{t('workers')}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void open('/apps/environments')}>{t('environments')}</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>}
+    primary={tab === 'clusters' ? <Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button> : null}>
     {loading && state ? <p className="compute-status" role="status">{t('refreshing')}</p> : null}
     {busy && editing === undefined ? <p className="compute-status" role="status">{t('selecting')}</p> : null}
     {notice ? <p className="compute-status" role="status">{notice}</p> : null}
@@ -107,8 +114,8 @@ export default function Compute() {
           actions={<Button variant="primary" onClick={() => setTab('clusters')}>{t('manage')}</Button>} />}
       </TabsContent>
       <TabsContent value="clusters" className="compute-panel">
-        {!state.clusters.length ? <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('noClusters')}</h2>} description={t('noClustersHelp')}
-          actions={<Button variant="primary" disabled={busy} onClick={() => edit(null)}>{t('add')}</Button>} />
+        <p className="compute-help">{t('settingsHelp')}</p>
+        {!state.clusters.length ? <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('noClusters')}</h2>} description={t('noClustersHelp')} />
           : <Split storageKey="pero.compute.cluster-width" collapseBelow={760} className="compute-split">
             <SplitPane id="compute-clusters" as="section" size={300} min={240} aria-label={t('clusters')} className="compute-list">
               <fieldset className="compute-cluster-choices" disabled={busy} aria-label={t('clusters')}><ul>{state.clusters.map(cluster => <li key={cluster.id}><ListRow title={cluster.name} meta={<>{cluster.host} · {t('notConnected')}</>}
@@ -123,10 +130,6 @@ export default function Compute() {
           </Split>}
       </TabsContent>
     </>}
-    <footer className="compute-settings"><span>{t('settingsHelp')}</span><nav aria-label={t('settings')}>
-      <Button variant="ghost" onClick={() => void open('/workers')}>{t('workers')}</Button>
-      <Button variant="ghost" onClick={() => void open('/apps/environments')}>{t('environments')}</Button>
-    </nav></footer>
     {editing !== undefined ? <ClusterDialog cluster={editing} busy={busy} error={error} onClose={() => { if (!pending.current) { setEditing(undefined); setError(''); } }}
       onSave={(value: ClusterInput) => void update('/api/clusters', value, true)} /> : null}
   </AppFrame></Tabs>;

@@ -1,6 +1,6 @@
 import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
-import { useEffect, useRef, useState } from 'react';
-import { Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppBar, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
@@ -231,6 +231,13 @@ export default function Insights() {
     ? (locale === 'zh' ? '继续检查生成结果' : 'Check generation') : brief
     ? (locale === 'zh' ? '重新生成' : 'Regenerate') : generationError
     ? (locale === 'zh' ? '重试生成' : 'Retry generation') : (locale === 'zh' ? '生成简报' : 'Generate brief');
+  const discussRef = useRef<((question: string) => void) | null>(null);
+  const [discussAction, setDiscussAction] = useState<{ discussing: boolean; label: string } | null>(null);
+  const onDiscuss = useCallback((action: { discuss: (question: string) => void; discussing: boolean; label: string } | null) => {
+    if (!action) { discussRef.current = null; setDiscussAction(current => current === null ? current : null); return; }
+    discussRef.current = action.discuss;
+    setDiscussAction(current => current?.label === action.label && current.discussing === action.discussing ? current : { label: action.label, discussing: action.discussing });
+  }, []);
   const generate = brief
     ? <IconButton label={generateLabel} busy={running} disabled={waiting || !recap || !modelReady}
         onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}><Icon name="refresh" size={16}/></IconButton>
@@ -262,10 +269,12 @@ export default function Insights() {
   </>;
   return <main className="point-pulse-page">
     <div className="point-pulse-main">
+      <AppBar utilities={brief ? generate : undefined} primary={brief
+        ? (discussAction ? <Button variant="primary" busy={discussAction.discussing} onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined)
+        : generate} />
       <LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
-        subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}
-        actions={brief && generate} />
-      {brief ? <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} />
+        subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'} />
+      {brief ? <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss} />
         : <Card tone="blue" variant="soft" className="point-insights-start">
         <h2>{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</h2>
         {error || restoreError || generationError ? <div className="point-insights-feedback">{feedback}</div>
@@ -275,7 +284,7 @@ export default function Insights() {
           : <p className="point-insights-start-copy">{!modelReady
             ? (locale === 'zh' ? '未连接可用 Agent。请先在设置 → 模型与 Agent 中配置，再检查连接。' : 'No Agent is connected. Connect an Agent to generate a brief.')
             : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
-        <div className="point-insights-start-actions">{generate}
+        <div className="point-insights-start-actions">
           {!modelReady && !waiting && <Button variant="ghost" onClick={() => void agent.refresh()}>{locale === 'zh' ? '检查 Agent 连接' : 'Check Agent connection'}</Button>}
         </div>
       </Card>}

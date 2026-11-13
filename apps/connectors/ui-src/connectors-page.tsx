@@ -20,7 +20,7 @@ import { connectorSections, connectorShelf, connectorShelfLabels } from './conne
 import { CustomMcps } from './custom-mcps';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
-import { Button, Card, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem, Toolbar } from './ui';
+import { AppBar, Button, Card, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem } from './ui';
 
 
 const ATTENTION = new Set(['needs-attention', 'needs-authorization', 'needs-configuration', 'not-verified']);
@@ -304,14 +304,13 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     {loading && dialogOnly && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
-    <Toolbar className="point-page-toolbar point-connectors-toolbar">
-      <TabsList variant="navigation" aria-label={copy('视图', 'View')}>
+    <AppBar className="point-page-toolbar point-connectors-toolbar" scope={<TabsList variant="navigation" aria-label={copy('视图', 'View')}>
         <TabsTrigger value="catalog">{copy('服务目录', 'Service catalog')}</TabsTrigger>
         <TabsTrigger value="manage">{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</TabsTrigger>
         <TabsTrigger value="custom">{copy('自定义 MCPs', 'Custom MCPs')}</TabsTrigger>
-      </TabsList>
-      {mode !== 'custom' && <div className="point-page-actions"><IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton><Button onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button></div>}
-    </Toolbar>
+      </TabsList>}
+      utilities={mode !== 'custom' ? <IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton> : undefined}
+      primary={mode !== 'custom' ? <Button variant="primary" onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button> : undefined} />
 
     <div className="point-connectors-search-tools"><SearchField placeholder={mode === 'custom' ? copy('搜索自定义 MCP', 'Search custom MCPs') : mode === 'manage' ? copy('搜索已安装连接', 'Search installed connections') : copy('搜索服务与能力', 'Search services and capabilities')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} /></div>
     {mode === 'catalog' && <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('服务分类', 'Service category')} onValueChange={next => { if (next) setCategory(next); }}>
@@ -370,10 +369,9 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       </section>)}
       {!matchesCatalog.length && (!guides.length || !catalogDirectory.length) && !loading && !error && (catalogDirectory.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
         heading={copy('没有匹配的服务', 'No matching services')} description={copy('换个关键词，或清除分类筛选。', 'Try another search or clear the category filter.')}
-        actions={<Button onClick={() => { setSearch(''); setCategory('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
+        actions={<Button variant="ghost" onClick={() => { setSearch(''); setCategory('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
         : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('服务目录暂无内容', 'No services available')}
-          description={copy('重新加载目录，或添加自定义 MCP。', 'Reload the service catalog or add a custom MCP.')}
-          actions={<><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button><Button onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></>} />)}
+          description={copy('重新加载目录，或添加自定义 MCP。', 'Reload the service catalog or add a custom MCP.')} />)}
     </TabsContent>}
 
     {mode === 'manage' && <TabsContent value="manage" className="point-connectors-manage">
@@ -406,7 +404,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
         actions={<Button onClick={() => { setSearch(''); setStateFilter('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
         : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('尚未添加连接', 'No connections yet')}
           description={copy('从服务目录安装一个连接，或添加自定义 MCP。', 'Install a connection from the service catalog or add a custom MCP.')}
-          actions={<><Button variant="primary" onClick={() => { setMode('catalog'); setSearch(''); setCategory('all'); }}>{copy('查看服务目录', 'Browse service catalog')}</Button><Button onClick={openImport}>{copy('添加自定义 MCP', 'Add custom MCP')}</Button></>} />)}
+          actions={<Button variant="ghost" onClick={() => { setMode('catalog'); setSearch(''); setCategory('all'); }}>{copy('查看服务目录', 'Browse service catalog')}</Button>} />)}
     </TabsContent>}
 
     {mode === 'custom' && <TabsContent value="custom" className="point-connectors-manage"><CustomMcps locale={locale} query={search} /></TabsContent>}

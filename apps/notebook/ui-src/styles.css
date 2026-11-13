@@ -632,6 +632,8 @@ form.notebook-workspace-actions { align-items: end; }
 
 /* Document actions stay visible independently of editing focus and scroll. */
 .notebook-documentbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); padding: var(--pero-spacing-2); border-bottom: var(--pero-hairline); }
+.notebook-documentbar.pero-app-bar { border-bottom: var(--pero-hairline); min-height: var(--pero-control-height); }
+.notebook-nav-tools .pero-library-header { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 0; background: transparent; }
 .notebook-documentbar .notebook-status { flex: 1 1 14rem; min-width: 0; white-space: normal; }
 .notebook-documentbar .notebook-save { flex-shrink: 0; }
 .notebook-workspace-navigation { display: flex; align-items: center; min-width: 0; border-top: var(--pero-hairline); }

@@ -89,3 +89,16 @@ key events do not cross documents. App manifests still declare one panel and
 use the generic App content icon; package-defined logos are a separate change.
 Arbitrary external websites, WebContentsView, free pane docking, native WebView,
 real provider/model execution and signed installation were not added or certified.
+
+## Settings menu icons — 2026-11-12
+
+Source: `cc2f0c6a` plus the settings-menu icon change, with concurrent project
+view edits in the working tree. Appearance and Language use the existing shared
+`sun` and `languages` assets through Kit's submenu icon API. The same icon column
+aligns these labels with Account and All settings; no component or token migration.
+
+Wasm/Web builds and the Native-feature `pero-ui` check passed. An isolated macOS
+Electron smoke opened both submenus using the keyboard in Chinese/light/dark;
+page errors were empty. Light Appearance and dark Language screenshots were
+inspected for alignment and contrast. Evidence: `test-results/settings-menu-icons/`.
+Native window rendering and signed packages were not checked.
