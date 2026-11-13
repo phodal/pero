@@ -102,3 +102,18 @@ action. `apply-edits` still requires its existing Host grant and `baseRevision`;
 its `propose_reference` operation creates a proposal for existing review. Control
 Lab, Paper Agent and Host Projects retain their current execution, verification,
 source and association ownership. This adds no global Host protocol or kernel.
+
+## MCP Apps Inspector
+
+With the development Host/Desktop or Native connector helpers rebuilt, open a
+conversation using the Pero Agent, then choose session **Tools and resources →
+Notebook Inspector**. Notebook must be enabled; enter a saved entry ID and an
+optional saved revision, then Open App. The resource uses the existing
+`read-entry` route and keeps the returned revision fixed when browsing blocks.
+It remains usable between turns in that selected, open conversation.
+
+This is a read-only standard MCP App. Unsaved editor changes stay in Notebook;
+scientific acceptance states are not changed. Ordinary MCP tool text remains
+available to clients without UI support. See the
+[runtime SDK](../../packages/mcp-apps/README.md) and
+[verification scope](../../docs/fitness/mcp-apps.md).
