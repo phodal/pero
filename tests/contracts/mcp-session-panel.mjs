@@ -139,13 +139,12 @@ try{
       const beforePending=events.length,beforeOpeningCalls=mcp.toolCalls;
       await page.getByRole('button',{name:'show',exact:true}).click();
       await page.getByLabel('label',{exact:true}).fill('Pending App');
-      await page.getByRole('button',{name:'Open App',exact:true}).click();
+      await page.getByRole('button',{name:'Open view',exact:true}).click();
       const pendingPermission=await next('permission',event=>events.indexOf(event)>=beforePending);
       // Selecting another tool form must not replace the in-flight opening identity.
       await page.getByRole('button',{name:'show',exact:true}).click();
-      await page.getByRole('button',{name:'Open App',exact:true}).click();
-      await expect(page.locator('#status')).toContainText('An App is awaiting approval');
-      await page.getByRole('button',{name:'Close App',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Open view',exact:true})).toBeDisabled();
+      await page.getByRole('button',{name:'Close view',exact:true}).click();
       send({action:'permission',thread_id:pendingPermission.thread_id,request_id:pendingPermission.data.permission_id,option_id:'allow-once'});
       await api({action:'list'}); // Ordered barrier after cancellation and the late answer.
       assert.equal(mcp.toolCalls,beforeOpeningCalls);
@@ -154,7 +153,7 @@ try{
       await page.getByRole('button',{name:'show',exact:true}).click();
       await page.getByLabel('label',{exact:true}).fill('Actual session App');
       const beforeApproval=events.length;
-      await page.getByRole('button',{name:'Open App',exact:true}).click();
+      await page.getByRole('button',{name:'Open view',exact:true}).click();
       if(slowApproval){
         const permission=await next('permission',event=>events.indexOf(event)>=beforeApproval);
         // Intentionally model a user reviewing approval beyond the 45-second setup deadline.
@@ -174,7 +173,7 @@ try{
       await page.emulateMedia({colorScheme:'dark'});
       await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       await page.screenshot({path:join(evidence,'app-dark-narrow.png')});
-      await page.getByRole('button',{name:'Close App',exact:true}).click();
+      await page.getByRole('button',{name:'Close view',exact:true}).click();
       await expect(page.locator('#view iframe')).toHaveCount(0);
       assert.equal(mcp.initializations,1);assert.equal(modelRequests,0);assert.deepEqual(errors,[]);
     }finally{await browser.close();}

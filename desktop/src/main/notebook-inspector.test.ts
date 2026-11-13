@@ -105,7 +105,7 @@ test('saved Notebook Inspector uses real revisions, MCP resources and the existi
     await page.getByRole('button',{name:'Notebook Inspector',exact:true}).click();
     await page.getByLabel('entryId',{exact:true}).fill(entry.id);
     await page.getByLabel('revision',{exact:true}).fill('1');
-    await page.getByRole('button',{name:'Open App',exact:true}).click();
+    await page.getByRole('button',{name:'Open view',exact:true}).click();
     const app=page.frameLocator('#view > iframe').frameLocator('iframe');
     try { await expect(app.getByRole('heading',{name:document.title,exact:true})).toBeVisible(); }
     catch(error){ console.error({errors,frames:await Promise.all(page.frames().map(async frame=>({url:frame.url(),text:await frame.locator('body').innerText().catch(()=>'' )})))});throw error; }
@@ -124,7 +124,7 @@ test('saved Notebook Inspector uses real revisions, MCP resources and the existi
     await page.screenshot({path:join(evidence,'dark-narrow.png')});
     // An iframe cannot read its Host or reach an undeclared network destination.
     assert.equal(await app.locator('body').evaluate(()=>{try{void window.top!.document;return true;}catch{return false;}}),false);
-    await page.getByRole('button',{name:'Close App',exact:true}).click();
+    await page.getByRole('button',{name:'Close view',exact:true}).click();
     await expect(page.locator('#view iframe')).toHaveCount(0);
     assert.deepEqual(errors,[]);
   }

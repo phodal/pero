@@ -53,11 +53,12 @@ export class McpHost {
   }
   private async servePanel(request:IncomingMessage,response:ServerResponse){
     const url=new URL(request.url||'/',this.origin);
+    if(request.method==='GET'&&url.pathname==='/panel.css'){await this.asset(response,'mcp-panel.css','text/css');return;}
     if(request.method==='GET'&&url.pathname==='/panel.js'){await this.asset(response,'mcp-panel.js','text/javascript');return;}
     if(request.method==='GET'&&url.pathname==='/'){
       if(!this.panels.has(url.searchParams.get('token')||''))throw new Error('This MCP source panel is unavailable');
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer',
-        'Content-Security-Policy':`default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-src ${this.sandboxOrigin}; base-uri 'none'; object-src 'none'`});
+        'Content-Security-Policy':`default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src ${this.sandboxOrigin}; base-uri 'none'; object-src 'none'`});
       response.end(PANEL_HTML);return;
     }
     const token=request.headers.authorization?.replace(/^Bearer /,'')||'';
@@ -101,6 +102,4 @@ export class McpHost {
     this.panel=undefined;this.sandbox=undefined;this.origin='';this.panels.clear();
   }
 }
-const PANEL_HTML=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>MCP Apps</title><style>
-:root{color-scheme:light dark;font:14px system-ui;background:Canvas;color:CanvasText}body{margin:0}header{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid GrayText}h1{font-size:16px;margin:0}button,input,select,textarea{font:inherit;color:inherit;background:Field;border:1px solid GrayText;border-radius:4px;padding:5px 8px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}main{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:calc(100vh - 48px)}aside{border-right:1px solid GrayText;padding:12px}section{padding:12px;min-width:0}label{display:block;margin:8px 0}input,textarea,select{box-sizing:border-box;width:100%}textarea{min-height:68px;font:13px ui-monospace,monospace}details{margin-top:12px}article{padding:8px 0;border-bottom:1px solid GrayText}article button{margin-right:5px}#status{padding:0 14px;white-space:pre-wrap}iframe{width:100%;height:70vh;border:0}#tool-form{max-width:600px}#tool-form button{margin:8px 8px 8px 0}@media(max-width:650px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid GrayText}}
-</style></head><body><header><h1>MCP Apps</h1><button id="refresh">Refresh</button></header><div id="status" role="status"></div><main><aside id="servers"></aside><section><form id="tool-form"></form><div id="view"></div></section></main><script src="/panel.js"></script></body></html>`;
+const PANEL_HTML=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tools and resources</title><link rel="stylesheet" href="/panel.css"></head><body><div id="root"></div><script src="/panel.js"></script></body></html>`;

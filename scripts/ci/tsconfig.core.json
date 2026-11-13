@@ -3,6 +3,7 @@
   "include": [
     "../../desktop/src/**/*.ts",
     "../../web/src/**/*.ts",
+    "../../web/src/**/*.tsx",
     "../../web/vite.config.ts",
     "../../protocol/generated/*.ts"
   ],
