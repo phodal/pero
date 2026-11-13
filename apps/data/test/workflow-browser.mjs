@@ -169,7 +169,7 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     await expect(page.getByRole('button', { name: 'Clear filter', exact: true })).toHaveCount(0);
     await tab('Overview');
     await expect(page.getByRole('heading', { name: 'Saved views', exact: true })).toBeVisible();
-    await expect(page.locator('.data-facts code', { hasText: asset.sha256 })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Basic info', exact: true }).locator('code', { hasText: asset.sha256 })).toBeVisible();
     await page.getByRole('button', { name: 'Numeric baseline', exact: true }).click();
     await expect.poll(rowNumbers).toEqual(['2', '1', '6']);
     checks.push('reverting an interpreted field warns before clearing its incompatible numeric filter and keeps the table usable');

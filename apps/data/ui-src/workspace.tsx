@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { requestAppShell, useAppI18n } from '@pero/app-sdk';
-import { Table, Badge, Button, Checkbox, EmptyState, EmptyIllustration, Feedback, Icon, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import type { ReactNode } from 'react';
+import { Badge, Button, Checkbox, ContentPane, ContentSection, EmptyState, EmptyIllustration, Feedback, Icon, Input, InspectorHeader, MetadataList, Select, Split, SplitPane, Table, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar, contentLayout, type MetadataItem } from '@pero/app-sdk/ui';
 import { InterpretationPreview } from './interpretation';
 import { SemanticPanel } from './semantic-panel';
 import { ChartPanel } from './chart-panel';
@@ -27,6 +28,9 @@ type Props = {
   command?: 'edit' | 'archive' | null; onCommandDone?(): void; focusMore?(): void;
   onSave(name: string): void; onOpen(view: SavedView): void; onExport(view: SavedView): void;
   onRecord(row: number): void;
+  objectActions?: ReactNode;
+  onOpenNotebook(): void;
+  onDismiss(): void;
 };
 
 export function Workspace(props: Props) {
@@ -93,88 +97,66 @@ export function Workspace(props: Props) {
       : asset.revision.length > 12 ? `${asset.revision}. Original file; contents are not indexed.`
         : 'Original file. Source and checksums are kept; contents are not indexed.';
   const openApp = (path: string) => { if (window.parent !== window) void requestAppShell('navigate', { path }); };
+  const metadataItems: MetadataItem[] = [
+    { id: 'type', label: 'Type', value: dataset.kind === 'model' ? 'Model' : 'Dataset' },
+    { id: 'format', label: 'Format', value: format },
+    { id: 'size', label: 'Size', value: formatBytes(asset.size) },
+    { id: 'version', label: 'Version', value: asset.revision || `v${versionIndex + 1}` },
+    { id: 'sha256', label: 'SHA-256', value: asset.sha256, format: 'code', action: <CopyDigest label="SHA-256" value={asset.sha256} /> },
+    ...otherChecksums.map(item => ({ id: `${item.algorithm}:${item.value}`, label: item.algorithm.toUpperCase(), value: item.value, format: 'code' as const, action: <CopyDigest label={item.algorithm.toUpperCase()} value={item.value} /> })),
+    { id: 'added', label: 'Added', value: asset.createdAt || 'Unknown' },
+    { id: 'updated', label: 'Updated', value: updated || 'Unknown' },
+    { id: 'license', label: 'License', value: asset.license || 'Unknown' },
+    { id: 'source', label: 'Source', value: /^https:\/\//.test(asset.source) ? <a href={asset.source}>{sourceHost(asset.source)}</a> : (asset.source || 'Unknown') },
+    { id: 'project', label: 'Project', value: dataset.projectRef || t('unassigned'), action: dataset.projectRef ? undefined : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign</Button> },
+    ...(asset.bundleId ? [{ id: 'bundle', label: 'Paper bundle', value: asset.bundleId, format: 'code' as const }] : []),
+    ...(fields ? [
+      { id: 'records', label: 'Records', value: formatInt(fields.report.rowCount) },
+      { id: 'fields', label: 'Fields', value: formatInt(fields.report.fields.length) },
+    ] : []),
+  ];
   return <>
-    <header className="data-workspace-header">
-      <div className="data-workspace-title">
-        <div className="data-workspace-identity">
-          <h2 title={dataset.name}>{dataset.name}</h2>
-          <div className="data-badges">{badges.map((badge, index) => <Badge key={badge} tone={index === 0 ? 'blue' : 'neutral'}>{badge}</Badge>)}</div>
-          <p className="data-lede">{description}</p>
-        </div>
-      </div>
-      <dl className="data-summary">
-        <div><dt><Icon name="database" size={14} /> Size</dt><dd>{formatBytes(asset.size)}</dd></div>
-        <div><dt><Icon name="git-branch" size={14} /> Version</dt><dd>v{versionIndex + 1}</dd></div>
-        <div><dt><Icon name="clock" size={14} /> Updated</dt><dd>{updated || 'Unknown'}</dd></div>
-        <div><dt><Icon name="file" size={14} /> License</dt><dd>{asset.license || 'Unknown'}</dd></div>
-        <div><dt><Icon name="external-link" size={14} /> Source</dt><dd>{/^https:\/\//.test(asset.source)
-          ? <a href={asset.source}>{sourceHost(asset.source)}</a> : (asset.source || 'Unknown')}</dd></div>
-        {fields ? <><div><dt>Records</dt><dd>{formatInt(fields.report.rowCount)}</dd></div><div><dt>Fields</dt><dd>{formatInt(fields.report.fields.length)}</dd></div></> : null}
-      </dl>
-      {versions.length > 1 ? <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
-        options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} /> : null}
-      {needsAttention ? <p className="data-note" role="status">{custodyDetail(asset, result, false)}</p> : null}
-      {failure ? <div className="data-actions">
-        <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
-        {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
-        {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
-      </div> : null}
-      {confirmArchive ? <div className="data-actions">
-        <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
-        <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
-        <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
-      </div> : null}
-    </header>
     {editing ? <DatasetDetails dataset={dataset} busy={busy} error={props.error} onSave={props.onEdit} onClose={() => { returnMore.current = true; setEditing(false); }} /> : null}
-    {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
-    <Tabs value={tab} onValueChange={props.onTab}>
-      <TabsList aria-label="Dataset views">
+    <Split storageKey="pero.data.object-panes" collapseBelow={contentLayout.collapseBelow} className="data-object-split">
+      <SplitPane id="data-main-preview" min={contentLayout.mainMin}>
+        <Tabs value={tab} onValueChange={props.onTab}>
+          <ContentPane id={`data-preview-${dataset.id}`} label={t('preview')} as="div" surface="workspace" inset="none" scroll="pane"
+            toolbar={<TabsList aria-label="Dataset views">
         <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
         <TabsTrigger value="versions">{t('versions')} ({versions.length})</TabsTrigger>
         <TabsTrigger value="files">{t('files')}</TabsTrigger>
         <TabsTrigger value="citations">{t('citations')} (0)</TabsTrigger>
         {analysis ? <><TabsTrigger value="table">Table</TabsTrigger><TabsTrigger value="fields">Fields</TabsTrigger>
         <TabsTrigger value="chart">Chart</TabsTrigger><TabsTrigger value="queries">Queries</TabsTrigger><TabsTrigger value="checks">Checks</TabsTrigger></> : null}
-      </TabsList>
+            </TabsList>}
+            feedback={<>
+              {stale ? <p className="data-retained" role="status">{loading ? 'Updating.' : 'Update failed.'} Showing the last successful result: {displayedView.filter ? `${displayedView.filter.field} ${displayedView.filter.operator} ${displayedView.filter.value}` : 'all records'}{displayedView.sort ? `, ${displayedView.sort.field} ${displayedView.sort.descending ? 'descending' : 'ascending'}` : ''}{displayedView.issue ? `, ${displayedView.issue.kind} issues` : ''}{displayedView.selection.length ? `, ${displayedView.selection.length} selected` : ''}.</p> : null}
+              {needsAttention ? <p className="data-note" role="status">{custodyDetail(asset, result, false)}</p> : null}
+              {failure ? <div className="data-actions">
+                <Feedback kind={failure.status === 'unsupported' ? 'status' : 'error'}>{failure.message}</Feedback>
+                {failure.status === 'rejected' && !fields ? <Button disabled={busy} onClick={props.onRecoverView}>{props.recoveryLabel}</Button> : null}
+                {failure.status === 'unavailable' || failure.status === 'forbidden' ? <Button disabled={busy} onClick={props.onRetryInspection}>Retry inspection</Button> : null}
+              </div> : null}
+            </>}
+            footer={<footer className="data-workspace-footer">
+              <div className="data-statusbar">
+                {fields ? <div className="data-counts">
+                  <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)}` : formatInt(fields.report.rowCount)} records</span>
+                  <span>{fields.report.fields.length} fields</span>
+                  {displayedView.filter && inspected ? <span>{formatInt(inspected.matched)} matching</span> : null}
+                  {displayedView.selection.length > 0 ? <span>{displayedView.selection.length} selected</span> : null}
+                </div> : null}
+                {tab === 'table' && inspected ? <div className="data-pagination">
+                  {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>Clear selection</Button> : null}
+                  <Button variant="ghost" disabled={busy || loading || stale || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>Previous</Button>
+                  <Button variant="ghost" disabled={busy || loading || stale || inspected.nextOffset == null} onClick={() => props.onPage(inspected.nextOffset!)}>Next</Button>
+                </div> : null}
+              </div>
+            </footer>}
+          >
       <TabsContent value="queries" forceMount><SemanticPanel key={asset.id} datasetId={dataset.id} assetId={asset.id} fields={fields?.columns ?? []} /></TabsContent>
       <TabsContent value="overview">
         <div className="data-overview data-overview-grid">
-          <section className="data-panel">
-            <h3>{t('basicInfo')}</h3>
-            <table className="data-facts" aria-label={t('basicInfo')}>
-              <tbody>
-                <tr><th scope="row">Type</th><td>{dataset.kind === 'model' ? 'Model' : 'Dataset'}</td></tr>
-                <tr><th scope="row">Format</th><td>{format}</td></tr>
-                <tr><th scope="row">Size</th><td>{formatBytes(asset.size)}</td></tr>
-                <tr><th scope="row">Version</th><td>{asset.revision || `v${versionIndex + 1}`}</td></tr>
-                <tr><th scope="row">SHA-256</th><td><DigestValue label="SHA-256" value={asset.sha256} /></td></tr>
-                {otherChecksums.map(item => <tr key={`${item.algorithm}:${item.value}`}><th scope="row">{item.algorithm.toUpperCase()}</th><td><DigestValue label={item.algorithm.toUpperCase()} value={item.value} /></td></tr>)}
-                <tr><th scope="row">Added</th><td>{asset.createdAt}</td></tr>
-                <tr><th scope="row">Project</th><td>{dataset.projectRef || t('unassigned')}{dataset.projectRef ? null : <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>Assign</Button>}</td></tr>
-                {asset.bundleId ? <tr><th scope="row">Paper bundle</th><td>{asset.bundleId}</td></tr> : null}
-              </tbody>
-            </table>
-          </section>
-          <div className="data-overview-side">
-            <section className="data-panel">
-              <h3>{t('statusTitle')}</h3>
-              <ul className="data-status-list">
-                <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{availabilityLabel(asset, result)}</li>
-                <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{present ? 'File integrity · size matches' : custodyDetail(asset, result, false)}</li>
-                <li data-ok={analysis || undefined}><Icon name={analysis ? 'check' : 'info'} size={14} />{analysis ? 'Table inspection available' : 'Original file · contents not indexed'}</li>
-                {recordedSha?.provenance ? <li><Icon name="info" size={14} />{recordedSha.provenance}</li>
-                  : <li><Icon name="info" size={14} />Digest recorded at admission</li>}
-              </ul>
-            </section>
-            <section className="data-panel">
-              <h3>{t('quickActions')}</h3>
-              <div className="data-quick-actions">
-                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('analyzeNotebook')}</Button>
-                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/control-lab/main')}>{t('useControlLab')}</Button>
-                <Button disabled={busy || window.parent === window} onClick={() => openApp('/apps/compute/main')}>{t('openCompute')}</Button>
-              </div>
-            </section>
-          </div>
           {fields ? <section className="data-panel data-overview-span">
             <h3>Columns</h3>
             <p className="data-note">Observed on the full input. Open Fields to choose displayed columns, units, or a number interpretation.</p>
@@ -340,25 +322,61 @@ export function Workspace(props: Props) {
       <TabsContent value="citations">
         <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading={t('citations')} description={t('noCitations')} />
       </TabsContent>
-    </Tabs>
-    <footer className="data-workspace-footer">
-      <div className="data-statusbar">
-        {fields ? <div className="data-counts">
-          <span>{inspected ? `${inspected.rows.length ? inspected.offset + 1 : 0}–${inspected.offset + inspected.rows.length} / ${formatInt(inspected.matched)}` : formatInt(fields.report.rowCount)} records</span>
-          <span>{fields.report.fields.length} fields</span>
-          {displayedView.filter && inspected ? <span>{formatInt(inspected.matched)} matching</span> : null}
-          {displayedView.selection.length > 0 ? <span>{displayedView.selection.length} selected</span> : null}
-        </div> : null}
-        <Button variant="ghost" disabled={busy || !props.canAsk} onClick={props.onAsk}>{t('askAgent')}</Button>
-        {tab === 'table' && inspected ? <div className="data-pagination">
-          {view.selection.length > 0 ? <Button variant="ghost" disabled={busy} onClick={() => props.onView({ ...view, selection: [] })}>Clear selection</Button> : null}
-          <Button variant="ghost" disabled={busy || loading || stale || inspected.offset === 0} onClick={() => props.onPage(Math.max(0, inspected.offset - 50))}>Previous</Button>
-          <Button variant="ghost" disabled={busy || loading || stale || inspected.nextOffset == null} onClick={() => props.onPage(inspected.nextOffset!)}>Next</Button>
-        </div> : null}
-      </div>
-
-    </footer>
+          </ContentPane>
+        </Tabs>
+      </SplitPane>
+      <SplitPane id="data-inspector" as="aside" aria-label={dataset.name} size={contentLayout.inspectorWidth} min={contentLayout.inspectorMin}>
+        <ContentPane id={`data-inspector-${dataset.id}`} label={dataset.name} as="div" surface="reading" inset="compact" scroll="pane"
+          header={<InspectorHeader
+            title={dataset.name}
+            identity={<div className="data-badges">{badges.map((badge, index) => <Badge key={badge} tone={index === 0 ? 'blue' : 'neutral'}>{badge}</Badge>)}</div>}
+            subtitle={description}
+            status={<span>{availabilityLabel(asset, result)}</span>}
+            actions={<>
+              {props.objectActions}
+              <Button variant="primary" disabled={busy || window.parent === window} onClick={props.onOpenNotebook}>{t('openNotebook')}</Button>
+            </>}
+            dismiss={{ label: t('close'), onDismiss: props.onDismiss }}
+          />}
+          footer={<Button variant="ghost" disabled={busy || !props.canAsk} onClick={props.onAsk}>{t('askAgent')}</Button>}
+        >
+          <ContentSection id={`data-properties-${dataset.id}`} title={t('basicInfo')}>
+            <MetadataList items={metadataItems} />
+          </ContentSection>
+          <ContentSection id={`data-status-${dataset.id}`} title={t('statusTitle')}>
+            <ul className="data-status-list">
+              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{availabilityLabel(asset, result)}</li>
+              <li data-ok={present || undefined}><Icon name={present ? 'check' : 'info'} size={14} />{present ? 'File integrity · size matches' : custodyDetail(asset, result, false)}</li>
+              <li data-ok={analysis || undefined}><Icon name={analysis ? 'check' : 'info'} size={14} />{analysis ? 'Table inspection available' : 'Original file · contents not indexed'}</li>
+              {recordedSha?.provenance ? <li><Icon name="info" size={14} />{recordedSha.provenance}</li>
+                : <li><Icon name="info" size={14} />Digest recorded at admission</li>}
+            </ul>
+          </ContentSection>
+          <ContentSection id={`data-relations-${dataset.id}`} title={t('quickActions')}>
+            {versions.length > 1 ? <Select label="Version" value={asset.id} onChange={props.onVersion} disabled={busy}
+              options={versions.map((version, index) => ({ value: version.id, label: versionLabel(version, index) }))} /> : null}
+            {confirmArchive ? <div className="data-actions">
+              <p>Hide this dataset? Original files and saved views remain; no disk space is freed.</p>
+              <Button disabled={busy} onClick={() => { props.onEdit({ ...metadata, archived: true }); setConfirmArchive(false); }}>Confirm archive</Button>
+              <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
+            </div> : null}
+            <div className="data-quick-actions">
+              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/notebook/main')}>{t('analyzeNotebook')}</Button>
+              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/control-lab/main')}>{t('useControlLab')}</Button>
+              <Button variant="ghost" disabled={busy || window.parent === window} onClick={() => openApp('/apps/compute/main')}>{t('openCompute')}</Button>
+            </div>
+          </ContentSection>
+        </ContentPane>
+      </SplitPane>
+    </Split>
   </>;
+}
+
+function CopyDigest({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return <Button variant="ghost" onClick={() => {
+    void navigator.clipboard?.writeText(value).then(() => setCopied(true)).catch(() => setCopied(false));
+  }}>{copied ? 'Copied' : `Copy ${label}`}</Button>;
 }
 
 function DigestValue({ value, label }: { value: string; label: string }) {

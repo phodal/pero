@@ -16,10 +16,11 @@ import { EmptyState } from '../../app-sdk/src/components/empty-state';
 import { EmptyIllustration } from '../../app-sdk/src/components/empty-illustration';
 import { LoadingSkeleton, SkeletonText } from '../../app-sdk/src/components/skeleton';
 import { WorkbenchExample } from './workbench';
+import { ContentPanesExample } from './content-panes';
 import { Select } from '../../app-sdk/src/components/select';
 import { IconButton } from '../../app-sdk/src/components/icon-button';
 
-const screens = ['窗口与导航', '标签与控件', '标题与列表', '输入与状态', '表单与反馈', '菜单与浮层'] as const;
+const screens = ['窗口与导航', '标签与控件', '标题与列表', '输入与状态', '表单与反馈', '菜单与浮层', '内容区'] as const;
 function Catalog() {
   const [screen, setScreen] = useState<string>(screens[0]);
   const [dark, setDark] = useState(false), [collapsed, setCollapsed] = useState(false);
@@ -52,6 +53,7 @@ function Catalog() {
             </>}
             {screen === '表单与反馈' && <FormsExample/>}
             {screen === '菜单与浮层' && <MenusExample/>}
+            {screen === '内容区' && <ContentPanesExample/>}
             {screen === '标签与控件' && <WorkbenchExample/>}
             {screen === '标题与列表' && <>
               <SearchField id="catalog-search" aria-label="搜索论文" placeholder="搜索论文…" value={query} onChange={e => setQuery(e.target.value)}/>
