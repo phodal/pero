@@ -72,8 +72,6 @@ main { min-width: 0; padding: 12px; display: flex; flex-direction: column; flex:
 .verdict-header.PASS { background: var(--pero-success-bg); }
 .verdict-header.INCONCLUSIVE { background: var(--pero-warning-bg); }
 .verify-list { display: grid; margin-top: 12px; }
-.verify-list .check-row.pero-ui-button { font:inherit; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; width: 100%; text-align: left; padding: 8px 4px; }
-.check-row .pero-badge { justify-self:end; }
 .check-values { grid-column: 1 / -1; font-variant-numeric: tabular-nums; }
 .check-values strong { color: var(--pero-text); }
 .final-check-group h3 { margin-bottom: 4px; }
@@ -216,7 +214,6 @@ summary {
 }
 
 .control-lab > .pero-ui-feedback { margin:var(--pero-spacing-2) var(--pero-spacing-3); }
-.control-lab .pero-app-bar { padding-block:var(--pero-spacing-2); }
 .param-head label { margin:0; }
 .candidate-option { white-space:normal; }
 

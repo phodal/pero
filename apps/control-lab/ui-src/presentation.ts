@@ -1,4 +1,34 @@
 import type { Check, Experiment, Field, Series, Template, Trial, Verdict } from "./types.ts";
+
+const fieldLabels: Record<string, string> = {
+  'Proportional gain': '比例增益',
+  'Integral gain': '积分增益',
+  'Derivative gain': '微分增益',
+  'Derivative filter pole': '微分滤波极点',
+  'Observation window': '观测窗口',
+  'Samples': '采样数',
+  'Maximum target overshoot': '最大目标超调',
+  'Maximum target settling time': '最大目标调节时间',
+  'Maximum target error': '最大目标误差',
+  'Target settling band': '目标调节带',
+  'Maximum absolute control effort': '最大控制量',
+  'Maximum final disturbance residual': '最大终态扰动残差',
+  'Minimum gain margin': '最小增益裕度',
+  'Minimum phase margin': '最小相位裕度',
+  'Resistance': '电阻',
+  'Capacitance': '电容',
+  'Amplifier gain': '放大增益',
+  'Target −3 dB cutoff': '目标 −3 dB 截止频率',
+  'Cutoff relative tolerance': '截止频率相对容差',
+  'Target DC gain': '目标直流增益',
+  'DC gain relative tolerance': '直流增益相对容差',
+  'Maximum passband peaking': '最大通带峰值',
+};
+
+/** English parameter names stay on the API. Chinese chrome maps them at the form. */
+export function fieldLabel(label: string, locale: string) {
+  return locale === 'zh-CN' ? fieldLabels[label] ?? label : label;
+}
 /** The denominator is the frozen final scenario set, never only successful trials. */
 export function verificationRows(experiment: Experiment) {
   return experiment.scenarios
