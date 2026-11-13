@@ -44,6 +44,7 @@ go_test(
     embed = [":acp"],
     deps = [
         "//harness",
+        "//mcp",
         "//runtime",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ],
