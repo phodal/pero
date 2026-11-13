@@ -106,11 +106,11 @@ test('saved Notebook Inspector uses real revisions, MCP resources and the existi
     await page.getByLabel('entryId',{exact:true}).fill(entry.id);
     await page.getByLabel('revision',{exact:true}).fill('1');
     await page.getByRole('button',{name:'Open view',exact:true}).click();
-    const app=page.frameLocator('#view > iframe').frameLocator('iframe');
+    const app=page.frameLocator('#view iframe').frameLocator('iframe');
     try { await expect(app.getByRole('heading',{name:document.title,exact:true})).toBeVisible(); }
     catch(error){ console.error({errors,frames:await Promise.all(page.frames().map(async frame=>({url:frame.url(),text:await frame.locator('body').innerText().catch(()=>'' )})))});throw error; }
     await expect(app.getByText('Sample A: 12.5 U/mL. Review pending.',{exact:true})).toBeVisible();
-    const binding=new URL((await page.locator('#view > iframe').getAttribute('src'))!).searchParams.get('binding')!;
+    const binding=new URL((await page.locator('#view iframe').getAttribute('src'))!).searchParams.get('binding')!;
     await assert.rejects(host.sources.command({action:'tool',binding,name:'app_write',arguments:{}}),/not available/);
     await app.getByRole('button',{name:'Browse blocks',exact:true}).click();
     await expect(app.getByRole('button',{name:'Read observations',exact:true})).toBeVisible();

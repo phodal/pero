@@ -1,6 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {mountMcpApp, type McpAppResource} from '@pero/mcp-apps';
+import type {McpAppResource} from '@pero/mcp-apps';
+import {McpAppSurface, type McpAppSurfaceHandle} from '@pero/mcp-apps/react';
+import {applyMcpAppTheme, mcpAppHostContext} from '@pero/mcp-apps/theme';
+import type {McpUiHostContext} from '@modelcontextprotocol/ext-apps/app-bridge';
 import {AppBar, Badge, Button, Disclosure, EmptyState, Feedback, Field, Input, Select, Textarea} from '@pero/app-sdk/ui';
 import '@pero/app-sdk/tokens.css';
 import './panel.css';
@@ -56,26 +59,24 @@ function ToolForm({tool,onOpen,busy}:{tool:AppTool;onOpen(args:Record<string,unk
 
 function Panel(){
   const [hostContext,setHostContext]=useState<{theme:'light'|'dark';locale:string}>({theme:query.get('theme')==='dark'?'dark':query.get('theme')==='light'?'light':matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',locale:query.get('locale')||'en'});
-  const context=useRef(hostContext);context.current=hostContext;
+  const [surfaceContext,setSurfaceContext]=useState<McpUiHostContext>(hostContext);
   const [servers,setServers]=useState<ServerInfo[]>([]),[serverId,setServerId]=useState('');
   const [selected,setSelected]=useState<{server:ServerInfo;tool:AppTool}>();
   const [view,setView]=useState<View>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[status,setStatus]=useState('Loading tools…');
   const [page,setPage]=useState<ResourcePage>(),[output,setOutput]=useState<{uri:string;text:string}>();
-  const surface=useRef<HTMLDivElement>(null);
-  const active=useRef<{view:View;runtime:Awaited<ReturnType<typeof mountMcpApp>>}|undefined>(undefined);
+  const surface=useRef<McpAppSurfaceHandle>(null);
   const opening=useRef<{id:string;cancelled:boolean}|undefined>(undefined);
   const resourceRequest=useRef(0);
   const hadView=useRef(false);
   const server=servers.find(server=>server.id===serverId);
   const report=(error:unknown)=>{setError(message(error));setStatus('');};
   const close=async()=>{
-    const pending=opening.current,previous=active.current,closingView=previous?.view||view;
+    const pending=opening.current,previous=surface.current,closingView=view;
     if(pending)pending.cancelled=true;
-    if(active.current===previous)active.current=undefined;
     try{
       if(pending){await api({action:'cancel_open',operation:pending.id});if(opening.current===pending)opening.current=undefined;}
     }finally{
-      try{await previous?.runtime.close();}
+      try{await previous?.close();}
       finally{setView(current=>current===closingView?undefined:current);if(!opening.current)setStatus('');}
     }
   };
@@ -97,8 +98,7 @@ function Panel(){
     return ()=>{colors.removeEventListener('change',update);window.removeEventListener('message',receive);};
   },[]);
   useEffect(()=>{
-    document.documentElement.dataset.theme=hostContext.theme;document.documentElement.lang=hostContext.locale;
-    active.current?.runtime.setHostContext(hostContext);
+    applyMcpAppTheme(hostContext);setSurfaceContext(mcpAppHostContext(hostContext));
   },[hostContext]);
   useEffect(()=>{
     if(!view&&!busy&&hadView.current)document.querySelector<HTMLButtonElement>('#tool-form button[type="submit"]')?.focus();
@@ -110,28 +110,6 @@ function Panel(){
     const dismiss=()=>{void close().catch(()=>{});};window.addEventListener('pagehide',dismiss);
     return ()=>window.removeEventListener('pagehide',dismiss);
   });
-  useEffect(()=>{
-    if(!view)return;
-    let disposed=false;
-    let mounted:Awaited<ReturnType<typeof mountMcpApp>>|undefined;
-    void mountMcpApp(surface.current!,{...view,title:view.binding.tool},{
-      callTool:(name,args)=>api({action:'tool',binding:view.binding.id,name,arguments:args}),
-      readResource:uri=>api({action:'resource',binding:view.binding.id,uri}),
-      openLink:async url=>{await api({action:'open_link',binding:view.binding.id,url});},
-      ...(managed?{sendMessage:async(text:string)=>{await api({action:'message',binding:view.binding.id,text});}}:{}),
-      revoke:()=>api({action:'close',binding:view.binding.id}),
-      onError:report,
-      onState:state=>{if(state==='closed')setView(current=>current===view?undefined:current);setStatus(state==='connecting'?'Connecting view…':'');},
-    },context.current).then(runtime=>{
-      mounted=runtime;
-      if(disposed)void runtime.close().catch(report);else{active.current={view,runtime};runtime.setHostContext(context.current);}
-    }).catch(report);
-    return ()=>{
-      disposed=true;
-      if(active.current?.view===view)active.current=undefined;
-      void mounted?.close().catch(report);
-    };
-  },[view]);
   const open=async(args:Record<string,unknown>)=>{
     if(!selected&&!recorded)return;
     if(opening.current){setStatus('An App is awaiting approval. Complete it or close it before opening another App.');return;}
@@ -178,7 +156,7 @@ function Panel(){
         setServerId(id);setSelected(undefined);setPage(undefined);setOutput(undefined);
       })} placeholder="Connected tools"/>}
       utilities={!view&&!recorded&&<Button variant="ghost" onClick={()=>run(refresh)}>Refresh</Button>}
-      commands={(view||busy)&&<Button variant="ghost" onClick={()=>run(close)}>Close view</Button>}/>
+      commands={!view&&busy&&<Button variant="ghost" onClick={()=>run(close)}>Close view</Button>}/>
     <div id="status" role="status">{status}</div>
     {error&&<Feedback kind="error" variant="block">{error}</Feedback>}
     {!view&&!recorded&&<div id="servers" className="mcp-catalog">
@@ -198,7 +176,16 @@ function Panel(){
         {page.nextCursor&&<Button onClick={()=>run(()=>browse(page.server,page.templates,page.nextCursor))}>Next page</Button>}
         {output&&<><pre>{output.text}</pre><Button onClick={()=>run(async()=>{await api({action:'attach_resource',server:page.server.id,generation:page.server.generation,uri:output.uri});setStatus('Resource added to the Chat draft as untrusted context. Review it before sending.');})}>Add to Chat (text only, up to 64 KB)</Button></>}
       </section>}
-      <div id="view" ref={surface} hidden={!view}/>
+      <div id="view" hidden={!view}>{view&&<McpAppSurface ref={surface} resource={view} context={surfaceContext}
+        onClose={()=>setView(undefined)} onRetry={recorded?()=>void open({}):undefined}
+        options={{size:recorded?{initialHeight:320,minHeight:120,maxHeight:480}:{initialHeight:480,minHeight:240,maxHeight:960}}}
+        host={{
+          callTool:(name,args)=>api({action:'tool',binding:view.binding.id,name,arguments:args}),
+          readResource:uri=>api({action:'resource',binding:view.binding.id,uri}),
+          openLink:async url=>{await api({action:'open_link',binding:view.binding.id,url});},
+          ...(managed?{sendMessage:async(text:string)=>{await api({action:'message',binding:view.binding.id,text});}}:{}),
+          revoke:()=>api({action:'close',binding:view.binding.id}),
+        }}/>}</div>
     </main>
   </div>;
 }

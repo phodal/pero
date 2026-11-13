@@ -69,7 +69,7 @@ try{
   const initial=page.waitForResponse(response=>response.url().endsWith('/api')&&response.request().postDataJSON()?.action==='execute');
   await page.getByRole('button',{name:'Open view',exact:true}).click();
   assert.equal((await (await initial).json()).html,await readFile(join(directory,'dist/mcp-app.html'),'utf8'));
-  const app=page.frameLocator('#view > iframe').frameLocator('iframe');
+  const app=page.frameLocator('#view iframe').frameLocator('iframe');
   await expect(app.locator('#server-time')).toHaveText(/^\d{4}-\d{2}-\d{2}T/);
   const response=page.waitForResponse(response=>response.url().endsWith('/api')&&response.request().postDataJSON()?.action==='tool');
   await app.getByRole('button',{name:'Get Server Time',exact:true}).click();

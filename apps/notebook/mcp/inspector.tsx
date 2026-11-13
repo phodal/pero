@@ -1,6 +1,7 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {App} from '@modelcontextprotocol/ext-apps';
+import {applyMcpAppTheme} from '@pero/mcp-apps/theme';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {z} from 'zod';
 import {Button, Badge, Feedback, Disclosure, Table} from '@pero/app-sdk/ui';
@@ -38,7 +39,6 @@ style.textContent=`
   blockquote{margin:var(--pero-spacing-3) 0;padding-left:var(--pero-spacing-4);border-left:2px solid var(--pero-border)}
 `;
 document.head.append(style);
-function theme(mode:string|undefined){if(mode)document.documentElement.dataset.theme=mode==='dark'?'dark':'light';}
 app.onteardown=async()=>{root.unmount();return {};};
 
 function Block({value}:{value:NotebookNode}){
@@ -77,10 +77,10 @@ function Inspector(){
   useEffect(()=>{
     mounted.current=true;
     app.ontoolresult=receive;
-    app.onhostcontextchanged=context=>{theme(context.theme);if(context.locale)setLocale(context.locale);};
+    app.onhostcontextchanged=context=>{applyMcpAppTheme(context);if(context.locale)setLocale(context.locale);};
     void app.connect().then(()=>{
       if(!mounted.current)return;
-      const context=app.getHostContext();theme(context?.theme);setLocale(context?.locale);
+      const context=app.getHostContext();if(context)applyMcpAppTheme(context);setLocale(context?.locale);
     }).catch(error=>{if(mounted.current)setError(String(error));});
     return ()=>{mounted.current=false;};
   },[]);

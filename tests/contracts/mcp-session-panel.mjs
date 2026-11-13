@@ -161,7 +161,7 @@ try{
         send({action:'permission',thread_id:permission.thread_id,request_id:permission.data.permission_id,option_id:'allow-once'});
         approvePermissions=true;
       }
-      const app=page.frameLocator('#view > iframe').frameLocator('iframe');
+      const app=page.frameLocator('#view iframe').frameLocator('iframe');
       await expect(app.locator('#input')).toHaveText('Actual session App');
       await expect(app.locator('#result')).toHaveText('Actual session App');
       await expect(app.locator('body')).toHaveAttribute('data-host-access','denied');
