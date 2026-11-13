@@ -70,6 +70,9 @@ pub struct ExternalRunEvidence {
     /// Original workspace path for a code/input file frozen before execution.
     #[serde(default)]
     pub source_path: Option<String>,
+    /// Observed execute permission on retained workspace code, never on input data.
+    #[serde(default)]
+    pub executable: Option<bool>,
 }
 
 fn workspace_path(path: &str) -> bool {
@@ -96,6 +99,8 @@ impl ExternalRunManifest {
                         .source_path
                         .as_ref()
                         .is_some_and(|path| !workspace_path(path))
+                    || item.executable.is_some()
+                        && (item.role != ArtifactRelationRole::Code || item.source_path.is_none())
             })
         {
             return Err(ArtifactError::Source);
@@ -106,7 +111,7 @@ impl ExternalRunManifest {
                 || self.execution.is_some()
                 || self.output_path.is_some()
                 || self.output_kind.is_some()
-                || self.evidence.iter().any(|item| item.source_path.is_some())
+                || self.evidence.iter().any(|item| item.source_path.is_some() || item.executable.is_some())
             {
                 return Err(ArtifactError::Source);
             }
@@ -214,6 +219,18 @@ mod tests {
         spawn["execution"]["exit_code"] = json!(null);
         spawn["execution"]["spawn_error"] = json!("ENOENT");
         cases.push(("launch failure", spawn, true));
+        for (name, role, source, executable, valid) in [
+            ("executable workspace code", "code", Some("run.sh"), Some(true), true),
+            ("nonexecutable workspace code", "code", Some("analysis.py"), Some(false), true),
+            ("legacy code without mode", "code", Some("analysis.py"), None, true),
+            ("input cannot declare execute permission", "input", Some("input.csv"), Some(true), false),
+            ("executable needs a workspace path", "code", None, Some(true), false),
+        ] {
+            let mut receipt = current.clone();
+            receipt["evidence"] = json!([{"path":"retained/source","role":role,
+                "sha256":"b".repeat(64),"source_path":source,"executable":executable}]);
+            cases.push((name, receipt, valid));
+        }
         for (name, value, accepted) in cases {
             let receipt: ExternalRunManifest = serde_json::from_value(value).unwrap();
             assert_eq!(receipt.validate().is_ok(), accepted, "{name}");

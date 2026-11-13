@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { unzipSync } from 'fflate';
 import { admitArtifactProvenance, artifactEvidence, exportArtifactReproduction, provenanceGaps, readArtifactProvenance } from '../ui-src/artifact-provenance.ts';
@@ -30,6 +30,8 @@ test('execution observation admits old receipts and preserves failure, cancellat
     value => { value.invocation.args = [null]; },
     value => { value.output_path = '../result.json'; },
     value => { value.execution.finished_at = '2026-11-12T00:00:00Z'; },
+    value => { value.evidence = [{ path: 'retained/input', role: 'input', sha256: hash('input'), source_path: 'input', executable: true }]; },
+    value => { value.evidence = [{ path: 'retained/code', role: 'code', sha256: hash('code'), source_path: 'run.sh', executable: 'yes' }]; },
   ]) { const value = receipt(); mutate(value); assert.throws(() => admitArtifactProvenance(value, hash(output))); }
 });
 
@@ -81,6 +83,51 @@ test('fixed-version export retains receipt and bytes and reruns actual code in t
   assert.equal(await readFile(join(directory, 'replay-workspace/out/result.json'), 'utf8'), output);
   const repeated = spawnSync(process.execPath, [join(directory, 'replay.mjs')], { encoding: 'utf8' });
   assert.notEqual(repeated.status, 0); // Replaying cannot overwrite the previous run.
+});
+
+test('recorded direct executable code remains executable through export and replay while inputs do not', { skip: process.platform === 'win32' }, async t => {
+  const workspace = await mkdtemp(join(tmpdir(), 'pero-provenance-executable-'));
+  t.after(() => rm(workspace, { recursive: true, force: true }));
+  await writeFile(join(workspace, 'run.sh'), '#!/bin/sh\ncat input.txt > result.txt\n', { mode: 0o750 });
+  await writeFile(join(workspace, 'input.txt'), 'retained input\n', { mode: 0o750 });
+  const wrapper = resolve(import.meta.dirname, '../../../scripts/record-external-run.mjs');
+  const recorded = spawnSync(process.execPath, [wrapper, 'test', 'executable', 'result.txt', '--input', 'input.txt', '--', './run.sh'], { cwd: workspace, encoding: 'utf8' });
+  assert.equal(recorded.status, 0, recorded.stderr);
+  const sidecarPath = 'result.txt.pero-run.json';
+  const sidecar = await readFile(join(workspace, sidecarPath));
+  const receipt = JSON.parse(sidecar);
+  assert.equal(receipt.evidence.find(file => file.role === 'code').executable, true);
+  assert.equal(receipt.evidence.find(file => file.role === 'input').executable, undefined);
+  const entries = [...receipt.evidence, { path: sidecarPath, role: 'run_record' }];
+  const content = new Map();
+  const evidence = [];
+  for (const [index, file] of entries.entries()) {
+    const raw = await readFile(join(workspace, file.path));
+    const version = { version: 1, sha256: hash(raw), bytes: raw.length, filename: file.path.split('/').at(-1),
+      format: { kind: 'text' }, created_at: 1, source: { kind: 'file', path: join(workspace, file.path) } };
+    const artifact = { id: `evidence-${index}`, thread_id: 'thread', title: version.filename, versions: [version] };
+    evidence.push({ artifact, version, role: file.role });
+    content.set(`/host/artifacts/thread/${artifact.id}/1`, { raw, version });
+  }
+  const raw = await readFile(join(workspace, 'result.txt'));
+  const version = { version: 1, sha256: hash(raw), bytes: raw.length, filename: 'result.txt', format: { kind: 'text' }, created_at: 1 };
+  const selected = { artifact: { id: 'output', thread_id: 'thread', title: 'Executable result', versions: [version] }, version };
+  content.set('/host/artifacts/thread/output/1', { raw, version });
+  const fetcher = async url => {
+    const file = content.get(url);
+    return new Response(file.raw, { headers: { 'Content-Type': 'text/plain', 'X-Pero-Artifact-Name': file.version.filename,
+      'X-Pero-Artifact-Sha256': file.version.sha256, 'X-Pero-Artifact-Kind': 'document' } });
+  };
+  const archive = unzipSync(await exportArtifactReproduction('thread', selected, evidence, fetcher));
+  const exported = join(workspace, 'exported');
+  for (const [name, bytes] of Object.entries(archive)) {
+    const path = join(exported, name); await mkdir(dirname(path), { recursive: true }); await writeFile(path, bytes);
+  }
+  const replay = spawnSync(process.execPath, [join(exported, 'replay.mjs')], { encoding: 'utf8' });
+  assert.equal(replay.status, 0, replay.stderr);
+  assert.match(replay.stdout, /Output SHA-256 matches retained version/);
+  assert.equal((await stat(join(exported, 'replay-workspace/run.sh'))).mode & 0o100, 0o100);
+  assert.equal((await stat(join(exported, 'replay-workspace/input.txt'))).mode & 0o111, 0);
 });
 
 test('export distinguishes unavailable provenance and rejects missing or changed retained evidence', async () => {

@@ -4,7 +4,7 @@ import { artifactSourceUrl, readArtifactSnapshot, type ArtifactSnapshot } from '
 
 export type ArtifactEvidence = Readonly<{ artifact: SessionArtifact; version: SessionArtifactVersion; role: ArtifactRelationRole }>;
 export type ArtifactSelection = Readonly<{ artifact: SessionArtifact; version: SessionArtifactVersion }>;
-export type RunEvidence = Readonly<{ path: string; role: ArtifactRelationRole; sha256: string; source_path?: string }>;
+export type RunEvidence = Readonly<{ path: string; role: ArtifactRelationRole; sha256: string; source_path?: string; executable?: boolean }>;
 export type ArtifactProvenance = Readonly<{
   schema_version: 1 | 2; system: string; run_id: string;
   outcome: 'succeeded' | 'failed' | 'cancelled'; output_sha256: string; evidence: RunEvidence[];
@@ -27,7 +27,8 @@ export function admitArtifactProvenance(value: unknown, outputSha256: string): A
     || !['succeeded', 'failed', 'cancelled'].includes(value.outcome as string) || !digest(value.output_sha256)
     || value.output_sha256 !== outputSha256 || !Array.isArray(value.evidence) || value.evidence.length >= 16
     || value.evidence.some(item => !record(item) || !text(item.path) || !digest(item.sha256)
-      || !roles.includes(item.role as ArtifactRelationRole) || (item.source_path !== undefined && !workspacePath(item.source_path)))) {
+      || !roles.includes(item.role as ArtifactRelationRole) || (item.source_path !== undefined && !workspacePath(item.source_path))
+      || (item.executable !== undefined && (typeof item.executable !== 'boolean' || item.role !== 'code' || !workspacePath(item.source_path))))) {
     throw new Error('The execution receipt does not match this artifact version');
   }
   if (value.schema_version === 2) {
@@ -50,7 +51,7 @@ export function admitArtifactProvenance(value: unknown, outputSha256: string): A
       throw new Error('The execution outcome conflicts with its process observation');
     }
   } else if (value.invocation !== undefined || value.execution !== undefined || value.output_path !== undefined || value.output_kind !== undefined
-    || value.evidence.some(item => item.source_path !== undefined)) {
+    || value.evidence.some(item => item.source_path !== undefined || item.executable !== undefined)) {
     throw new Error('A legacy execution receipt cannot carry version 2 observations');
   }
   return value as ArtifactProvenance;
@@ -128,7 +129,8 @@ export async function exportArtifactReproduction(threadId: string, selected: Art
     const observation = provenance?.evidence.find(observed => observed.role === item.role && observed.sha256 === snapshot.sha256
       && item.version.source.kind === 'file' && item.version.source.path.replaceAll('\\', '/').endsWith(`/${observed.path.replaceAll('\\', '/')}`));
     return { archive_path: archivePath, artifact_id: item.artifact.id, version: item.version.version,
-      role: item.role, sha256: snapshot.sha256, ...(observation?.source_path ? { source_path: observation.source_path } : {}) };
+      role: item.role, sha256: snapshot.sha256, ...(observation?.source_path ? { source_path: observation.source_path } : {}),
+      ...(observation?.executable !== undefined ? { executable: observation.executable } : {}) };
   });
   if (provenance?.evidence.some(observed => !evidence.some(item => item.role === observed.role && item.version.sha256 === observed.sha256))) {
     throw new Error('The execution receipt references evidence that is not retained with this version');
@@ -180,7 +182,7 @@ for (const file of manifest.files) {
   if (!file.source_path || !['code', 'input'].includes(file.role)) continue;
   const target = resolve(workspace, file.source_path);
   await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, retained.get(file.archive_path));
+  await writeFile(target, retained.get(file.archive_path), { mode: file.role === 'code' && file.executable === true ? 0o755 : 0o644 });
 }
 const output = resolve(workspace, manifest.output.workspace_path);
 await mkdir(dirname(output), { recursive: true });

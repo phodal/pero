@@ -38,7 +38,7 @@ const currentFile = async name => {
     relativeFile(path);
     const details = await stat(path, { bigint: true });
     if (!details.isFile()) throw new Error(`Expected a regular file at ${name}`);
-    return { path, revision: `${details.ino}/${details.size}/${details.ctimeNs}`, size: Number(details.size) };
+    return { path, revision: `${details.ino}/${details.size}/${details.ctimeNs}`, size: Number(details.size), executable: (details.mode & 0o111n) !== 0n };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
@@ -85,7 +85,8 @@ for (const file of sources.values()) {
   const retained = resolve(directory, 'files', sourcePath);
   await mkdir(dirname(retained), { recursive: true });
   await copyFile(file.path, retained);
-  evidence.push({ path: relativeFile(retained), role: file.role, sha256: await digest(retained), source_path: sourcePath });
+  evidence.push({ path: relativeFile(retained), role: file.role, sha256: await digest(retained), source_path: sourcePath,
+    ...(file.role === 'code' && file.executable ? { executable: true } : {}) });
 }
 const stdout = resolve(directory, 'stdout.log'), stderr = resolve(directory, 'stderr.log'), environment = resolve(directory, 'environment.json');
 const observed = { platform: process.platform, architecture: process.arch, wrapper_node: process.version,
