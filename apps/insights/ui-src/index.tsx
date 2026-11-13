@@ -1,6 +1,6 @@
 import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppBar, ContentPane, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
+import { AppFrame, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
 import { PulseHomeResult, type ResultBrief } from './pulse-home-result';
 import type { RecapSession, RecapTurn, WorkRecap } from './pulse-work-recap';
@@ -245,17 +245,19 @@ export default function Insights() {
         onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
   const feedback = <>
     {error && <><InsightsError error={error} locale={locale} context="records" /><Button disabled={loading} onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</Button></>}
-    {restoreError && <Feedback kind="warning" variant="block" className="point-insights-restore">
-      <p>{selectedThread !== null
-        ? (locale === 'zh' ? '这份简报未能恢复。' : 'This brief could not be restored.')
-        : (locale === 'zh' ? '部分历史简报未能恢复。' : 'Some previous briefs could not be restored.')}
-        {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '最近可读取的简报仍保留。' : 'The latest readable brief remains.'}</span>}
-      </p>
+    {restoreError && <>
+      <Feedback kind="warning" variant="block" className="point-insights-restore">
+        <p>{selectedThread !== null
+          ? (locale === 'zh' ? '这份简报未能恢复。' : 'This brief could not be restored.')
+          : (locale === 'zh' ? '部分历史简报未能恢复。' : 'Some previous briefs could not be restored.')}
+          {brief && <span className="point-insights-error-hint">{locale === 'zh' ? '最近可读取的简报仍保留。' : 'The latest readable brief remains.'}</span>}
+        </p>
+      </Feedback>
       <div className="point-insights-restore-actions">
         <Button variant="link" disabled={loading} onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '重新读取' : 'Reload'}</Button>
         <Disclosure variant="inline" className="point-insights-diagnostics" summary={<>{locale === 'zh' ? '技术详情' : 'Technical details'}</>}><pre>{restoreError.slice(0, 1000)}</pre></Disclosure>
       </div>
-    </Feedback>}
+    </>}
     {generationError && <>
       {generationError.kind === 'host' ? <InsightsError error={generationError.message} locale={locale} retained={!!brief} />
         : <Feedback kind="error" variant="block">
@@ -267,30 +269,30 @@ export default function Insights() {
       {generationSession && <Button onClick={() => void openAppSession(generationSession).catch(reason => setGenerationError({ kind: 'host', message: String(reason) }))}>{locale === 'zh' ? '打开生成会话' : 'Open generation session'}</Button>}
     </>}
   </>;
-  return <main className="point-pulse-page">
-    <div className="point-pulse-main">
-      <AppBar utilities={brief ? generate : undefined} primary={brief
-        ? (discussAction ? <Button variant="primary" busy={discussAction.discussing} onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined)
-        : generate} />
-      <ContentPane id="insights-brief" label={locale === 'zh' ? '工作简报' : 'Work brief'} as="div" surface="workspace" inset="regular" scroll="pane"
-        header={<LibraryHeader density="compact" className="point-pulse-top" title={locale === 'zh' ? '工作简报' : 'Work brief'}
-          subtitle={brief ? undefined : locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'} />}>
-      {brief ? <PulseHomeResult brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss} />
-        : <Card tone="blue" variant="soft" className="point-insights-start">
-        <h2>{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</h2>
-        {error || restoreError || generationError ? <div className="point-insights-feedback">{feedback}</div>
-          : waiting || running ? <Feedback kind="status">{waiting
-            ? (locale === 'zh' ? '正在读取工作记录与 Agent 状态…' : 'Loading work records and Agent availability…')
-            : (locale === 'zh' ? '正在整理工作记录，生成你的简报…' : 'Reading your work records and preparing your brief…')}</Feedback>
-          : <p className="point-insights-start-copy">{!modelReady
-            ? (locale === 'zh' ? '未连接可用 Agent。请先在设置 → 模型与 Agent 中配置，再检查连接。' : 'No Agent is connected. Connect an Agent to generate a brief.')
-            : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
-        <div className="point-insights-start-actions">
-          {!modelReady && !waiting && <Button variant="ghost" onClick={() => void agent.refresh()}>{locale === 'zh' ? '检查 Agent 连接' : 'Check Agent connection'}</Button>}
-        </div>
-      </Card>}
-      <ResearchUpdates hideEmpty={!!brief} />
-      </ContentPane>
+  const briefTitle = locale === 'zh' ? '工作简报' : 'Work brief';
+  const briefHeader = <LibraryHeader density="compact" className="point-pulse-top" title={briefTitle} />;
+  const updates = <ResearchUpdates key="insights-research-updates" hideEmpty={!!brief} />;
+  return <AppFrame className="point-pulse-page" label={briefTitle}
+    scope={<span className="point-insights-scope">{locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}</span>}
+    utilities={brief ? generate : undefined}
+    primary={brief
+      ? (discussAction ? <Button variant="primary" busy={discussAction.discussing} onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined)
+      : generate}>
+    <div className="point-insights-body">
+      <PulseHomeResult header={briefHeader} supplement={updates} brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss}
+        fallback={<Card tone="blue" variant="soft" className="point-insights-start">
+          <p className="point-insights-start-title">{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</p>
+          {error || restoreError || generationError ? <div className="point-insights-feedback">{feedback}</div>
+            : waiting || running ? <Feedback kind="status">{waiting
+              ? (locale === 'zh' ? '正在读取工作记录与 Agent 状态…' : 'Loading work records and Agent availability…')
+              : (locale === 'zh' ? '正在整理工作记录，生成你的简报…' : 'Reading your work records and preparing your brief…')}</Feedback>
+            : <p className="point-insights-start-copy">{!modelReady
+              ? (locale === 'zh' ? '未连接可用 Agent。请先在设置 → 模型与 Agent 中配置，再检查连接。' : 'No Agent is connected. Connect an Agent to generate a brief.')
+              : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
+          <div className="point-insights-start-actions">
+            {!modelReady && !waiting && <Button variant="ghost" onClick={() => void agent.refresh()}>{locale === 'zh' ? '检查 Agent 连接' : 'Check Agent connection'}</Button>}
+          </div>
+        </Card>} />
     </div>
-  </main>;
+  </AppFrame>;
 }
