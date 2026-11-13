@@ -1,5 +1,8 @@
 html,body,#app{height:100%;min-height:0}
-.skills-market{height:100%;min-height:0;min-width:0;position:relative;background:var(--pero-bg);color:var(--pero-text)}
+.skills-market{height:100%;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;background:var(--pero-bg);color:var(--pero-text)}
+.skills-frame{flex:1;min-height:0;display:flex;flex-direction:column}
+.skills-frame>.pero-content-pane{flex:1;min-height:0}
+.skills-frame .pero-content-body{max-width:1370px;width:100%;margin-inline:auto}
 .skills-market a{color:var(--pero-link);text-underline-offset:3px}
 .skills-market code{font-family:var(--pero-font-code,monospace);font-size:var(--pero-font-caption,12px);overflow-wrap:anywhere}
 .skills-scroll{height:100%;min-height:0;overflow:auto;scrollbar-gutter:stable}
