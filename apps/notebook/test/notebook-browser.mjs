@@ -100,28 +100,33 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'zh-CN', dark: true, active: true } }, location.origin));
   const color = page.getByRole('button', { name: '文字颜色', exact: true });
   await color.click();
-  const palette = page.getByRole('listbox', { name: '文字颜色', exact: true });
-  await expect(palette.getByRole('option', { name: '默认', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(palette.getByRole('option', { name: '玫红', exact: true })).toBeVisible();
-  assert.equal(await palette.getByRole('option').evaluateAll(options =>
+  const palette = page.getByRole('dialog', { name: '文字颜色', exact: true });
+  await expect(palette.getByRole('button', { name: '默认', exact: true })).toHaveAttribute('data-selected', 'true');
+  await expect(palette.getByRole('button', { name: '玫红', exact: true })).toBeVisible();
+  assert.equal(await palette.getByRole('button').evaluateAll(options =>
     options.every(option => {
-      const label = option.querySelector(':scope > span');
-      return !!label && label.scrollWidth <= label.clientWidth && !!option.querySelector('.notebook-swatch');
+      const label = option.querySelector('.pero-ui-color-picker-option-label');
+      return !!label && label.scrollWidth <= label.clientWidth && !!option.querySelector('.pero-ui-color-picker-swatch');
     })), true);
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: resolve(output, 'editor-color-menu-narrow-dark.png') });
-  await palette.press('End');
-  await palette.press('Enter');
+  // ColorPicker is a rich popover: Tab visits its presets and custom inputs.
+  for (const label of ['默认', '蓝色', '绿色', '玫红', '琥珀色', '橙色', '紫色']) {
+    await page.keyboard.press('Tab');
+    await expect(palette.getByRole('button', { name: label, exact: true })).toBeFocused();
+  }
+  await page.keyboard.press('Enter');
+  await expect(palette).toBeHidden();
   await expect(page.locator('.notebook-prose [data-notebook-text-color=violet]')).toHaveText('Calibration and controls');
   await page.getByRole('button', { name: '文字高亮', exact: true }).click();
-  await page.getByRole('option', { name: '橙色', exact: true }).click();
+  await page.getByRole('dialog', { name: '文字高亮', exact: true }).getByRole('button', { name: '橙色', exact: true }).click();
   await expect(page.locator('.notebook-prose [data-notebook-text-background=orange]')).toHaveText('Calibration and controls');
   await page.setViewportSize({ width: 1320, height: 950 });
   await page.evaluate(() => window.postMessage({ type: 'pero:app:context', context: { locale: 'en', dark: false, active: true } }, location.origin));
   const highlight = page.getByRole('button', { name: 'Highlight', exact: true });
   await highlight.click();
-  const highlights = page.getByRole('listbox', { name: 'Highlight', exact: true });
-  await expect(highlights.getByRole('option', { name: 'Orange', exact: true })).toHaveAttribute('aria-selected', 'true');
+  const highlights = page.getByRole('dialog', { name: 'Highlight', exact: true });
+  await expect(highlights.getByRole('button', { name: 'Orange', exact: true })).toHaveAttribute('data-selected', 'true');
   await page.screenshot({ path: resolve(output, 'editor-highlight-menu-light.png') });
   await highlights.press('Escape');
   await expect(highlight).toBeFocused();
@@ -394,6 +399,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(views.locator('[data-notebook-menu=file]')).toHaveCount(1);
   await page.locator('[data-notebook-menu=file] .pero-ui-popover-trigger').click();
   await expect(page.locator('.notebook-statusbar [data-notebook-menu=view]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'File', exact: true })).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();

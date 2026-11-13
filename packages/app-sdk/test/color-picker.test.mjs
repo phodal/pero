@@ -25,7 +25,18 @@ test('color picker exposes presets, hex entry and clear', async t => {
   assert.ok(trigger);
   trigger.getBoundingClientRect = () => ({ x: 10, y: 10, width: 40, height: 30, top: 10, left: 10, right: 50, bottom: 40, toJSON() { return this; } });
   await click(trigger);
-  await click([...document.querySelectorAll('.pero-ui-color-picker-option')].find(item => item.textContent.includes('Green')));
+  const palette = document.querySelector('[role=dialog][aria-label=Ink]');
+  assert.ok(palette);
+  assert.equal(palette.querySelector('[data-selected=true]').textContent, 'Blue');
+  for (const label of ['Default', 'Blue', 'Green']) {
+    await React.act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+      key: 'Tab', bubbles: true, cancelable: true,
+    })));
+    assert.equal(document.activeElement.textContent, label);
+  }
+  await click(document.activeElement);
+  assert.equal(document.querySelector('[role=dialog][aria-label=Ink]'), null);
+  assert.equal(document.activeElement, trigger);
   assert.deepEqual(picks, ['green']);
 
   await render(React.createElement(ColorPicker, {
@@ -46,4 +57,10 @@ test('color picker exposes presets, hex entry and clear', async t => {
   await click(document.querySelector('button[aria-label="Ink"]'));
   await click([...document.querySelectorAll('.pero-ui-color-picker-option')].find(item => item.textContent.includes('Default')));
   assert.equal(picks.at(-1), null);
+  await click(trigger);
+  await React.act(async () => trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', {
+    key: 'Escape', bubbles: true, cancelable: true,
+  })));
+  assert.equal(document.querySelector('[role=dialog][aria-label=Ink]'), null);
+  assert.equal(document.activeElement, trigger);
 });

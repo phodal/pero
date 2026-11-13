@@ -21,16 +21,22 @@ test('only the explicitly marked image-only Study HTTP 400 is expected console o
 test('Library Save targets the exact title instead of a substring-related paper', async () => {
   for (const tex of [false, true]) {
     const title = 'image-only', exactTitle = {}, stop = new Error('selected exact paper download');
-    let opened = false;
+    let opened = false, menuOpened = false;
     const frame = {
       getByRole: (role, options) => {
+        if (role === 'menuitem') {
+          assert.equal(opened, true, 'the exact paper must be opened before downloading');
+          assert.equal(menuOpened, true, 'the download action requires opening the overflow menu');
+          assert.deepEqual(options, { name: tex ? 'Download TeX' : 'Download PDF', exact: true });
+          return { click: async () => { throw stop; } };
+        }
         assert.equal(role, 'region');
         if (options.name === 'Download') return { isVisible: async () => false };
         assert.deepEqual(options, { name: 'Paper details', exact: true });
         assert.equal(opened, true, 'the exact paper must be opened before downloading');
         return { getByRole: (role, options) => {
-          assert.equal(role, 'button'); assert.deepEqual(options, { name: tex ? 'Download TeX' : 'Download PDF', exact: true });
-          return { click: async () => { throw stop; } };
+          assert.equal(role, 'button'); assert.deepEqual(options, { name: 'More actions', exact: true });
+          return { click: async () => { menuOpened = true; } };
         } };
       },
       getByText: (value, options) => { assert.equal(value, title); assert.deepEqual(options, { exact: true }); return exactTitle; },
@@ -48,6 +54,7 @@ test('Library Save targets the exact title instead of a substring-related paper'
     };
     await assert.rejects(saveLibraryCopies(frame, title, { tex }), error => error === stop);
     assert.equal(opened, true);
+    assert.equal(menuOpened, true);
   }
 });
 

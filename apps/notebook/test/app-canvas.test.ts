@@ -29,6 +29,10 @@ test('App Canvas binds actual declarations and keeps availability, navigation an
     `,
   });
   const { React, ui, dom, render, click } = runtime;
+  // Live App surfaces publish their position every frame; use the cancellable
+  // browser scheduler rather than recursively flushing frames as microtasks.
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
   dispose = () => React.act(async () => editor?.destroy());
   dom.window.HTMLElement.prototype.scrollIntoView = function () {};
   const declaration = { app: 'control-lab', title: 'Control Lab', version: '1', revision: 'a'.repeat(64), enabled: true,
