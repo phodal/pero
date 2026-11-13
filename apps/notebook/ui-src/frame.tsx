@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, ContentPane, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
@@ -412,7 +412,8 @@ function Notebook() {
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />} heading={t('noNotebooks')} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
-          <div className="notebook-nav-tools">
+          <ContentPane id="notebook-catalog" label={t('notebooks')} as="div" surface="list" inset="none" scroll="pane"
+            header={<div className="notebook-nav-tools">
             <LibraryHeader density="compact" title={t('notebooks')} subtitle={String(entries.length)} />
             <IconButton label={t('searchNotebooks')} aria-expanded={librarySearchVisible} aria-controls="notebook-library-search"
               aria-pressed={librarySearchVisible} onClick={() => {
@@ -428,9 +429,9 @@ function Notebook() {
               </DropdownMenuRadioGroup></DropdownMenuContent>
             </DropdownMenu></div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
-              title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
-          </div>
-          {librarySearchVisible && <div className="notebook-library-tools" id="notebook-library-search">
+              title={t('collapseNotebooks')}               onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
+          </div>}
+            toolbar={librarySearchVisible && <div className="notebook-library-tools" id="notebook-library-search">
             <SearchField ref={librarySearch} aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery}
               onChange={event => setEntryQuery(event.target.value)}
               onKeyDown={event => {
@@ -439,6 +440,7 @@ function Notebook() {
                 else { setLibrarySearchOpen(false); event.currentTarget.blur(); }
               }} />
           </div>}
+          >
           {!visibleEntries.length && <p className="notebook-note">{t('noMatchingEntries')}</p>}
           <ul className="notebook-list">
             {visibleEntries.map(entry => {
@@ -460,13 +462,26 @@ function Notebook() {
                 </DropdownMenu>} /></li>;
             })}
           </ul>
+          </ContentPane>
         </SplitPane>}
         <SplitPane as="section" id="notebook-document" aria-label={t('body')} min={350} className="notebook-page">
+          <ContentPane id="notebook-editor-pane" label={shown?.document.title || t('body')} as="div" surface="workspace" inset="none" scroll="content"
+            feedback={<>
+              {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
+              {!snapshot && current?.storageError && <Feedback kind="error" variant="block">{current.storageError}
+                <Button onClick={() => downloadFile('notebook-draft-recovery.json', current.recovery ?? JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportRecovery')}</Button>
+                {!current.recoveryProtected && <Button onClick={() => setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], durable: false, storageError: '' } }))}>{t('retry')}</Button>}
+                <Button onClick={() => { if (window.confirm(t('discardRecoveryConfirm'))) void loadLatest(); }}>{t('discardRecovery')}</Button>
+              </Feedback>}
+              {!snapshot && current?.newer && <Feedback kind="warning" variant="block">
+                {t('conflict')} <Button onClick={() => downloadFile('notebook-draft.json', JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportDraft')}</Button>
+                <Button busy={busy === 'reload'} onClick={() => { if (window.confirm(t('discardDraftConfirm'))) void loadLatest(); }}>{t('loadLatest')}</Button>
+              </Feedback>}
+            </>}>
           {!navigationOpen && (!shown || !draft || !current) && <div>
             <IconButton label={t('notebooks')} title={t('expandNotebooks')} aria-expanded={false} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>
           </div>}
-          {openError && <Feedback kind="error" variant="block">{openError} <Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
           {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
             : <div className="notebook-document" onKeyDownCapture={event => {
               const action = snapshot ? null : documentHistoryShortcut(event);
@@ -474,15 +489,6 @@ function Notebook() {
               event.preventDefault(); event.stopPropagation();
               applyHistory({ type: action });
             }}>
-              {!snapshot && current.storageError && <Feedback kind="error" variant="block">{current.storageError}
-                <Button onClick={() => downloadFile('notebook-draft-recovery.json', current.recovery ?? JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportRecovery')}</Button>
-                {!current.recoveryProtected && <Button onClick={() => setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], durable: false, storageError: '' } }))}>{t('retry')}</Button>}
-                <Button onClick={() => { if (window.confirm(t('discardRecoveryConfirm'))) void loadLatest(); }}>{t('discardRecovery')}</Button>
-              </Feedback>}
-              {!snapshot && current.newer && <Feedback kind="warning" variant="block">
-                {t('conflict')} <Button onClick={() => downloadFile('notebook-draft.json', JSON.stringify(current.document, null, 2), 'application/json')}>{t('exportDraft')}</Button>
-                <Button busy={busy === 'reload'} onClick={() => { if (window.confirm(t('discardDraftConfirm'))) void loadLatest(); }}>{t('loadLatest')}</Button>
-              </Feedback>}
               {!snapshot && history && <section aria-label={t('history')} className="notebook-revisions">
                 <ul>{history.map(revision => <li key={revision.revision}>
                   <Button variant="ghost" disabled={!!busy} onClick={() => void perform('history', async () => {
@@ -542,6 +548,7 @@ function Notebook() {
                 readonly={!!snapshot} document={draft} entryId={shown.id} revision={shown.revision} onCreateEntry={createFromDocument} onDocumentChange={snapshot ? undefined : updateDraft}
                 content={draft.content} onChange={snapshot ? undefined : (content, group) => updateDraft({ content }, group)} />
             </div>}
+          </ContentPane>
         </SplitPane>
       </Split>}
     {removing && <Dialog title={t('deleteNotebookTitle')} size="sm" closeLabel={t('closeAction')}
