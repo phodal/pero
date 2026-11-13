@@ -58,6 +58,7 @@ export class McpSources {
   }
   async command(command:McpPanelCommand):Promise<unknown>{
     switch(command.action){
+      case 'adopt':case 'message':throw new Error('This operation requires a managed conversation');
       case 'list':return this.list();
       case 'resources':case 'templates':case 'read':case 'attach_resource':case 'cancel_open':throw new Error('Resource browsing requires a managed session panel');
       case 'configure':{

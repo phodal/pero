@@ -13,6 +13,8 @@ export const McpPanelCommandSchema=z.discriminatedUnion('action',[
   z.object({action:z.literal('connect'),server:z.string()}).strict(),
   z.object({action:z.literal('disconnect'),server:z.string()}).strict(),
   z.object({action:z.literal('execute'),server:z.string(),thread_id:z.string(),tool:z.string(),arguments:args,generation:z.number().int().nonnegative().optional(),operation:z.string().min(1).max(128).optional()}).strict(),
+  z.object({action:z.literal('adopt'),server:z.string(),generation:z.number().int().nonnegative(),tool_call:z.string().min(1),operation:z.string().min(1).max(128)}).strict(),
+  z.object({action:z.literal('message'),binding:z.string(),text:z.string().min(1).max(64000)}).strict(),
   z.object({action:z.literal('tool'),binding:z.string(),name:z.string(),arguments:args}).strict(),
   z.object({action:z.literal('resource'),binding:z.string(),uri:z.string()}).strict(),
   z.object({action:z.literal('resources'),server:z.string(),generation:z.number().int().nonnegative(),cursor:z.string().optional()}).strict(),

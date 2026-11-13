@@ -1,3 +1,4 @@
+import {buildMcpApps} from './mcp-apps.mjs';
 // Pero-owned build inputs; no sibling Point checkout or prebuilt driver.
 import { build } from 'esbuild';
 import { mkdirSync, cpSync, existsSync } from 'node:fs';
@@ -16,6 +17,7 @@ if (!existsSync(resolve(source, 'node_modules/fflate/package.json'))) {
 }
 execFileSync('cargo', [test ? 'test' : 'build', '--locked', '--manifest-path', resolve(root, 'use/connectors/worker/Cargo.toml'), ...(release ? ['--release'] : [])], { stdio: 'inherit' });
 if (!test) {
+  await buildMcpApps(resolve(source,'helpers'));
   const binary = `pero-connector-worker${process.platform === 'win32' ? '.exe' : ''}`;
   mkdirSync(resolve(root, 'target', profile), { recursive: true });
   cpSync(resolve(root, 'use/connectors/worker/target', profile, binary), resolve(root, 'target', profile, binary));

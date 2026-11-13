@@ -1,0 +1,12 @@
+html,body,#root{margin:0;min-height:100%;background:var(--pero-surface);color:var(--pero-text);font:var(--pero-font-body,14px) system-ui}
+.mcp-surface{min-height:100vh}.mcp-surface .pero-app-bar{padding:var(--pero-spacing-2) var(--pero-spacing-4)}
+.mcp-view-scope{display:flex;align-items:center;gap:var(--pero-spacing-2);font-size:var(--pero-font-caption,12px);color:var(--pero-text-muted)}
+#status:not(:empty),.mcp-surface>.pero-ui-feedback{margin:var(--pero-spacing-3) var(--pero-spacing-4)}
+.mcp-catalog{padding:var(--pero-spacing-2) var(--pero-spacing-4);display:flex;gap:var(--pero-spacing-3);flex-wrap:wrap;justify-content:space-between}
+.mcp-catalog nav{display:flex;gap:var(--pero-spacing-2);flex-wrap:wrap}
+.mcp-content{padding:var(--pero-spacing-4);max-width:900px;margin:auto}.mcp-content-active{padding:0;max-width:none}
+#tool-form{max-width:640px}#tool-form h2,.mcp-resources h2{font-size:18px;font-weight:600;margin:0 0 var(--pero-spacing-4)}
+.mcp-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:var(--pero-spacing-4);margin-bottom:var(--pero-spacing-4)}
+.mcp-form-actions{margin-top:var(--pero-spacing-4)}.mcp-template{display:flex;align-items:end;gap:var(--pero-spacing-2);margin:var(--pero-spacing-3) 0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px ui-monospace,monospace;line-height:1.6}
+@media(max-width:600px){.mcp-catalog,.mcp-view-scope,.mcp-template{align-items:stretch;flex-direction:column}}

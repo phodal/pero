@@ -28,8 +28,9 @@ for (const ancestorReact of [false, true]) {
       const checkout = join(directory, 'checkout');
       const app = join(checkout, 'apps/sample');
       const sdk = join(checkout, 'packages/app-sdk/src');
+      const mcp = join(checkout, 'packages/mcp-apps');
       const reader = join(directory, 'reader');
-      for (const path of [join(app, 'ui-src'), sdk, reader, join(checkout, 'node_modules')]) mkdirSync(path, { recursive: true });
+      for (const path of [join(app, 'ui-src'), sdk, mcp, reader, join(checkout, 'node_modules')]) mkdirSync(path, { recursive: true });
       // Copy real packages, not symlinks: two physical copies of even the same
       // React version have different module identity and reproduce the failure.
       for (const name of ['react', 'react-dom', 'scheduler']) {
@@ -38,7 +39,8 @@ for (const ancestorReact of [false, true]) {
       }
       symlinkSync(resolve(root, 'node_modules/esbuild'), join(checkout, 'node_modules/esbuild'), 'junction');
       cpSync(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
-      writeFileSync(join(sdk, '../package.json'), JSON.stringify({exports:{'.':'./src/index.tsx','./core':'./src/core.mjs'}}));
+      writeFileSync(join(sdk, '../package.json'), JSON.stringify({name:'@pero/app-sdk',exports:{'.':'./src/index.tsx','./core':'./src/core.mjs'}}));
+      cpSync(join(root, 'packages/mcp-apps/package.json'), join(mcp, 'package.json'));
       writeFileSync(join(sdk, 'core.mjs'), 'export const supported = true;');
       writeFileSync(join(app, 'app.json'), JSON.stringify({ displayName: 'React fixture' }));
       writeFileSync(join(reader, 'index.html'), 'reader fixture');

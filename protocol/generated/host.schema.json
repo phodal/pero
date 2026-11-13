@@ -8751,6 +8751,9 @@
           "$ref": "#/$defs/McpAppOpenedEvent"
         },
         {
+          "$ref": "#/$defs/McpAppViewEvent"
+        },
+        {
           "$ref": "#/$defs/DocumentChooseEvent"
         },
         {
@@ -8976,6 +8979,9 @@
         },
         {
           "$ref": "#/$defs/McpSessionRequest"
+        },
+        {
+          "$ref": "#/$defs/McpMessageRequest"
         },
         {
           "$ref": "#/$defs/IconThemeRequest"
@@ -10724,6 +10730,61 @@
       ],
       "additionalProperties": false
     },
+    "McpAppViewEvent": {
+      "title": "McpAppViewEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "mcp_app_view"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "tool_call": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tool_call",
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "McpErrorEvent": {
       "title": "McpErrorEvent",
       "type": "object",
@@ -10747,6 +10808,9 @@
           ]
         },
         "text": {
+          "type": "string"
+        },
+        "thread_id": {
           "type": "string"
         }
       },
@@ -10773,6 +10837,40 @@
       "required": [
         "type",
         "url"
+      ],
+      "additionalProperties": false
+    },
+    "McpMessageRequest": {
+      "title": "McpMessageRequest",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "mcp.message"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "incarnation": {
+          "type": "integer"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "request_id",
+        "thread_id",
+        "incarnation",
+        "revision",
+        "text"
       ],
       "additionalProperties": false
     },
@@ -10853,6 +10951,27 @@
                   "type": "null"
                 }
               ]
+            },
+            "action": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "open"
+                },
+                {
+                  "type": "string",
+                  "const": "adopt"
+                }
+              ]
+            },
+            "server": {
+              "type": "string"
+            },
+            "generation": {
+              "type": "integer"
+            },
+            "tool_call": {
+              "type": "string"
             }
           },
           "required": [
@@ -11324,6 +11443,10 @@
             },
             {
               "type": "string",
+              "const": "adopt"
+            },
+            {
+              "type": "string",
               "const": "tool"
             },
             {
@@ -11355,6 +11478,9 @@
           "$ref": "#/$defs/McpSessionArguments"
         },
         "binding": {
+          "type": "string"
+        },
+        "tool_call": {
           "type": "string"
         }
       },
@@ -11521,8 +11647,16 @@
           "const": "mcp"
         },
         "action": {
-          "type": "string",
-          "const": "open"
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "adopt"
+            }
+          ]
         },
         "request_id": {
           "type": "string"
@@ -11549,6 +11683,15 @@
             }
           ],
           "default": "standalone"
+        },
+        "server": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "tool_call": {
+          "type": "string"
         }
       },
       "required": [

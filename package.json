@@ -6,7 +6,8 @@
     "desktop",
     "web",
     "packages/app-sdk",
-    "packages/notebook"
+    "packages/notebook",
+    "packages/mcp-apps"
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace @pero/desktop",
@@ -87,6 +88,9 @@
     "test:computer:linux": "xvfb-run -a node tests/e2e/computer-linux.mjs",
     "build:connectors": "node scripts/build/connectors.mjs",
     "test:connectors": "npm run build:connectors && node --test apps/connectors/test/*.test.mjs packages/connectors/test/*.test.mjs desktop/src/main/connector-*.test.ts && node scripts/build/connectors.mjs --test",
+    "test:mcp-official": "node scripts/test/mcp-official.mjs",
+    "test:mcp-apps": "node scripts/test/mcp-apps.mjs",
+    "test:mcp-app-sdk": "node --test packages/mcp-apps/src/*.test.ts && node scripts/test/mcp-app-sdk.mjs",
     "test:connectors:e2e": "node tests/e2e/connectors.mjs"
   },
   "devDependencies": {

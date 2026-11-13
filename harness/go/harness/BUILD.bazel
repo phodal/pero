@@ -51,6 +51,7 @@ go_library(
         "main_request.go",
         "mcp.go",
         "mcp_access.go",
+        "mcp_app_call.go",
         "mcp_instructions.go",
         "media_compat.go",
         "model_info.go",

@@ -43,6 +43,8 @@ pub use artifact_panel::{ResourceColumn, ResourcePrimary};
 mod pane_toolbar;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod artifact_surface;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub mod mcp_app_surface;
 #[cfg(target_family = "wasm")]
 pub mod web_platform;
 #[cfg(any(target_family = "wasm", feature = "native"))]

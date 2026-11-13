@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Clone, Debug)]
 pub enum ChatAction {
     Command(HostCommand),
+    Mcp(pero_contracts::mcp_source::McpSourceRequest),
     Content(crate::artifact_read::ContentReadIntent),
     Artifacts(pero_contracts::session_artifact::ArtifactRequest),
     WorkspaceFiles(pero_contracts::workspace_files::WorkspaceFilesRequest),
@@ -315,6 +316,7 @@ impl ChatPanel {
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
+            if !visible { self.hide_mcp_surfaces(); }
             if visible {
                 if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
                 if self.active_chat.is_none() && self.replayed { self.new_draft(cx); }
@@ -347,6 +349,7 @@ impl ChatPanel {
     }
 
     pub fn receive(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if self.receive_mcp_app(event,cx){return true;}
         if self.receive_files(event, cx) { return true; }
         if self.changes_event(event,cx) {return true;}
         if self.receive_artifacts(event, cx) { return true; }
@@ -508,6 +511,8 @@ impl ChatPanel {
 
 impl Render for ChatPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.hide_mcp_surfaces();
+        self.sync_mcp_app_requests(cx);
         self.composer_focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let views: Vec<_> = self.chats.iter().flat_map(|chat| chat.messages.iter().map(|message|message.view.clone()).chain(chat.tools.iter().filter_map(|tool|tool.view.clone()))).collect();
         for view in views {

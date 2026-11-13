@@ -190,6 +190,7 @@ mod rendering {
                             cx.notify();
                         })),
                 )
+                .when(open,|el|el.child(self.mcp_app_surface(conversation_id,tool,cx)))
                 .when(open, |el| {
                     el.child(
                         div()

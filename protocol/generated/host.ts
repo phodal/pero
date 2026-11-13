@@ -11,6 +11,7 @@ export type HostInput =
   | TerminalRequest
   | McpSettingsRequest
   | McpSessionRequest
+  | McpMessageRequest
   | IconThemeRequest
   | McpSourceRequest
   | WorkspaceSessionRequest
@@ -212,6 +213,7 @@ export type HostEvent =
   | McpSourcesEvent
   | McpErrorEvent
   | McpAppOpenedEvent
+  | McpAppViewEvent
   | DocumentChooseEvent
   | FileDocumentEvent
   | WorkspaceFilesListEvent
@@ -539,7 +541,7 @@ export interface McpSessionRequest {
   thread_id: string;
   incarnation: number;
   revision: number;
-  action: "list" | "resources" | "templates" | "read" | "prepare" | "tool" | "resource" | "close";
+  action: "list" | "resources" | "templates" | "read" | "prepare" | "adopt" | "tool" | "resource" | "close";
   server?: string;
   generation?: number;
   name?: string;
@@ -547,9 +549,18 @@ export interface McpSessionRequest {
   cursor?: string;
   arguments?: McpSessionArguments;
   binding?: string;
+  tool_call?: string;
 }
 export interface McpSessionArguments {
   [k: string]: unknown | undefined;
+}
+export interface McpMessageRequest {
+  method: "mcp.message";
+  request_id: string;
+  thread_id: string;
+  incarnation: number;
+  revision: number;
+  text: string;
 }
 export interface GetIconThemes {
   method: "icons";
@@ -576,10 +587,13 @@ export interface RemoveIconTheme {
 }
 export interface McpSourceRequest {
   method: "mcp";
-  action: "open";
+  action: "open" | "adopt";
   request_id: string;
   thread_id?: string | null;
   mode?: "standalone" | "session";
+  server?: string;
+  generation?: number;
+  tool_call?: string;
 }
 export interface GetWorkspaceSession {
   method: "workspace";
@@ -2474,6 +2488,10 @@ export interface McpPermittedEvent {
     locale: string;
     mode?: "standalone" | "session";
     session?: McpSourceSession | null;
+    action?: "open" | "adopt";
+    server?: string;
+    generation?: number;
+    tool_call?: string;
   };
 }
 export interface McpSourceSession {
@@ -2496,6 +2514,7 @@ export interface McpErrorEvent {
   version: 1;
   request_id: string | null;
   text: string;
+  thread_id?: string;
 }
 export interface McpAppOpenedEvent {
   kind: "mcp_app_opened";
@@ -2512,6 +2531,17 @@ export interface McpAppBinding {
   tool: string;
   tool_call: string;
   thread_id: string;
+}
+export interface McpAppViewEvent {
+  kind: "mcp_app_view";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    tool_call: string;
+    url: string;
+  };
 }
 export interface DocumentChooseEvent {
   kind: "document_choose";

@@ -84,6 +84,7 @@ pub struct ToolLocation {
 
 #[derive(Clone, Serialize)]
 pub struct Tool {
+    pub mcp_app: Option<crate::mcp_app_surface::McpInlineView>,
     pub table: Option<crate::table_view::TableView>,
     pub chart: Option<crate::chart_view::ChartView>,
     pub control: Option<crate::control_result::ControlResult>,
@@ -431,6 +432,7 @@ impl Conversation {
                     .position(|tool| tool.id == id)
                     .unwrap_or_else(|| {
                         self.tools.push(Tool {
+                            mcp_app: None,
                             table: None,
                             chart: None,
                             control: None,
@@ -470,6 +472,11 @@ impl Conversation {
                     self.timeline.push(StreamItem::Tool(index));
                 }
                 let tool = &mut self.tools[index];
+                if let Some(descriptor)=pero_contracts::mcp_source::McpAppDescriptor::from_update(data) {
+                    if tool.mcp_app.as_ref().is_none_or(|view|view.descriptor!=descriptor) {
+                        tool.mcp_app=Some(crate::mcp_app_surface::McpInlineView::new(descriptor));
+                    }
+                }
                 if let Some(title) = data["title"].as_str() {
                     tool.title = title.into();
                 }

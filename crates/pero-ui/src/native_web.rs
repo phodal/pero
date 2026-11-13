@@ -219,6 +219,11 @@ impl NativeWebPage {
         }
         self.changed(cx);
     }
+    pub(crate) fn post_message(&self, message: &serde_json::Value, cx: &App) -> anyhow::Result<()> {
+        self.view.as_ref().ok_or_else(|| anyhow::anyhow!("Native view is unavailable"))?
+            .read(cx).raw().evaluate_script(&format!("window.postMessage({message}, location.origin)"))?;
+        Ok(())
+    }
     #[cfg(feature = "native-probe")]
     pub fn inspect(
         &self,

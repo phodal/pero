@@ -1,3 +1,4 @@
+import { NotebookInspector } from './notebook-inspector.ts';
 import { createServer, type Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -81,6 +82,7 @@ export class DesktopAppUse {
   private readonly deliverArtifact?: ArtifactDeliveryPort;
   readonly computer?: DesktopComputer;
   private readonly uiAvailable: boolean;
+  private readonly inspector?: NotebookInspector;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -91,8 +93,10 @@ export class DesktopAppUse {
     },
     computer?: DesktopComputer,
     deliverArtifact?: ArtifactDeliveryPort,
+    inspector?: NotebookInspector,
   ) {
     this.deliverArtifact = deliverArtifact;
+    this.inspector = inspector;
     this.computer = computer;
     this.uiAvailable = typeof surface === 'function';
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
@@ -263,6 +267,7 @@ export class DesktopAppUse {
         if (!response.writableFinished) controller.abort();
       });
       let id: unknown = null;
+      let resourceRequest = false;
       try {
         const chunks: Buffer[] = [];
         let size = 0;
@@ -275,6 +280,7 @@ export class DesktopAppUse {
           chunks.push(chunk);
         }
         const message = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        resourceRequest = message.method === 'resources/list' || message.method === 'resources/read';
         if(message.method==='tools/call' && typeof message.params?.name==='string' && message.params.name.startsWith('app__') && this.writes) {
           const definition=this.pluginWrites(thread, await this.writes.describe()).find(d=>`app__${d.app}__${d.name}`===message.params.name);
           if(!definition)throw new AppUseError('APP_WRITE_UNKNOWN','This enabled App has no such declared tool');
@@ -289,14 +295,25 @@ export class DesktopAppUse {
             )
               ? message.params.protocolVersion
               : '2025-03-26',
-            capabilities: { tools: {} },
+            capabilities: { tools: {}, ...(this.inspector ? {resources:{}} : {}) },
             serverInfo: { name: 'pero-app-use', version: '0.1.0' },
             instructions: (this.uiAvailable ? TOOL.description : 'Use app_describe and app_write for declared App data tools. Native App UI operation and capture are unavailable.') + (this.computer ? '\n' + COMPUTER_INSTRUCTIONS : '') + (this.deliverArtifact ? '\n' + DELIVER_ARTIFACT_TOOL.description + '\n' + PRESENT_ARTIFACT_TOOL.description : ''),
           };
+        else if (this.inspector && ['resources/list', 'resources/read'].includes(message.method)) {
+          // Resources follow the same mounted App declaration and session access as tools.
+          const available=this.writes && this.pluginWrites(thread,await this.writes.describe()).some(d=>this.inspector!.supports(d));
+          if(message.method==='resources/list')result={resources:available?[{uri:NotebookInspector.uri,name:'Notebook Inspector',mimeType:'text/html;profile=mcp-app'}]:[]};
+          else
+          result = await this.authority.access(thread, {app:'notebook',panel:'main'}, async () => {
+            if(!available)throw new AppUseError('APP_WRITE_UNKNOWN','Notebook Inspector is unavailable in this conversation.');
+            if(message.params?.uri!==NotebookInspector.uri)throw new AppUseError('APP_WRITE_UNKNOWN','Unknown Notebook Inspector resource.');
+            return this.inspector!.read();
+          },controller.signal,'saved-read');
+        }
         else if (message.method === 'tools/list')
           result = {
             tools: [
-              ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:false},description:d.description,inputSchema:d.schema})) : []),
+              ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:this.inspector?.supports(d) || false},...(this.inspector?.supports(d)?{title:'Notebook Inspector',_meta:{ui:{resourceUri:NotebookInspector.uri}}}:{}),description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
               ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL] : []),
@@ -339,7 +356,8 @@ export class DesktopAppUse {
                     },
                   ]
                 : []),
-            ],
+            ].map(tool=>this.inspector && tool.name!==NotebookInspector.tool
+              ? {...tool,_meta:{ui:{visibility:['model']}}} : tool),
           };
         else if (message.method === 'tools/call' && message.params?.name === 'app_describe' && this.writes) {
           if (message.params.arguments && Object.keys(message.params.arguments).length)
@@ -384,7 +402,7 @@ export class DesktopAppUse {
                 result: await this.writes!.apply(prepared, signal, goal, {threadId:thread, operationId:crypto.randomUUID()}) };
             },
             controller.signal,
-            'app-data',
+            this.inspector?.supports(definition) ? 'saved-read' : 'app-data',
           );
           const sourceImage = PaperSourceImage.parse(prepared, value.result);
           const selected=JSON.parse(await this.results.select(thread,sourceImage ? { ...value, result: sourceImage.metadata() } : value));
@@ -392,7 +410,8 @@ export class DesktopAppUse {
           if(Array.isArray(links) && links.length<=64 && links.every(link=>link && typeof link.label==='string' && link.label.length>0 && link.label.length<=200 && typeof link.location==='string' && /^[a-zA-Z0-9/_-]{1,512}$/.test(link.location))) {
             selected.appLinks=links.map(link=>({label:link.label,url:`pero-app-location://${definition.app}/${definition.panel}/${link.location}`}));
           }
-          result = { content: [{ type: 'text', text: JSON.stringify(selected) }, ...(sourceImage ? [sourceImage.content()] : [])], isError: false };
+          result = { content: [{ type: 'text', text: JSON.stringify(selected) }, ...(sourceImage ? [sourceImage.content()] : [])],
+            ...(this.inspector?.supports(definition)?{structuredContent:value}:{}), isError: false };
         } else if (message.method === 'tools/call' && (message.params?.name === 'deliver_artifact' || message.params?.name === 'present_artifact') && this.deliverArtifact) {
           const input = message.params.name === 'present_artifact'
             ? parseArtifactPresentation(message.params.arguments)
@@ -456,6 +475,12 @@ export class DesktopAppUse {
           .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
           .end(JSON.stringify({ jsonrpc: '2.0', id, result }));
       } catch (error) {
+        if(resourceRequest){
+          response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({
+            jsonrpc:'2.0',id,error:{code:-32000,message:error instanceof Error?error.message:'MCP resource unavailable'},
+          }));
+          return;
+        }
         response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(
           JSON.stringify({
             jsonrpc: '2.0',

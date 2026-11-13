@@ -1,3 +1,5 @@
+import { NotebookInspector } from '../../../desktop/src/main/notebook-inspector.ts';
+import { fileURLToPath } from 'node:url';
 // Native shell composition. Same manager and MCP authority as Electron Main.
 import { createInterface } from 'node:readline';
 import { HostConnectors } from './host.mjs';
@@ -35,7 +37,7 @@ const appUse = new DesktopAppUse({
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
 }, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, undefined,
-  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }));
+  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))));
 
 let closing;
 const close = () => closing ??= (async () => {

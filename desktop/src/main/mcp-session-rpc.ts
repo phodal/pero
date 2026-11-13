@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import type {McpSessionRequest as HostMcpSessionRequest} from '../../../protocol/generated/host.ts';
 export type McpSessionScope={thread_id:string;incarnation:number;revision:number};
-export type McpSessionCall={action:HostMcpSessionRequest['action'];server?:string;generation?:number;name?:string;uri?:string;cursor?:string;arguments?:Record<string,unknown>;binding?:string};
-export type McpSessionRequest=McpSessionScope&McpSessionCall&{method:'mcp.session';request_id:string};
+export type McpSessionCall={action:HostMcpSessionRequest['action'];server?:string;generation?:number;name?:string;uri?:string;cursor?:string;arguments?:Record<string,unknown>;binding?:string;tool_call?:string};
+export type McpSessionRequest=McpSessionScope&{request_id:string}&(McpSessionCall&{method:'mcp.session'}|{method:'mcp.message';text:string;action?:never});
 type Reply={kind?:unknown;request_id?:unknown;thread_id?:unknown;data?:{incarnation?:unknown;revision?:unknown;result?:unknown;reason?:unknown}};
 /** Correlates only Host responses; never retries an uncertain tool operation. */
 export class McpSessionRpc {
@@ -11,12 +11,16 @@ export class McpSessionRpc {
   private timeout:number;
   constructor(send:(request:McpSessionRequest)=>void,timeout=300_000){this.send=send;this.timeout=timeout;}
   request(scope:McpSessionScope,call:McpSessionCall):Promise<unknown>{
+    return this.dispatch(scope,{...call,method:'mcp.session'});
+  }
+  async message(scope:McpSessionScope,text:string):Promise<void>{await this.dispatch(scope,{method:'mcp.message',text});}
+  private dispatch(scope:McpSessionScope,call:McpSessionCall&{method:'mcp.session'}|{method:'mcp.message';text:string}):Promise<unknown>{
     if(this.pending.size>=64)return Promise.reject(new Error('Too many pending MCP session requests'));
     const request_id=randomUUID();
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{this.pending.delete(request_id);reject(new Error('MCP session request timed out; its outcome is unknown. Do not replay a tool call.'));},this.timeout);
       this.pending.set(request_id,{scope:{...scope},resolve,reject,timer});
-      try{this.send({...call,...scope,method:'mcp.session',request_id});}
+      try{this.send({...call,...scope,request_id});}
       catch(error){clearTimeout(timer);this.pending.delete(request_id);reject(error instanceof Error?error:new Error('MCP session transport unavailable'));}
     });
   }

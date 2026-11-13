@@ -49,3 +49,17 @@ No dependency upgrades, backend changes, paid providers or external writes.
 Browser/Electron/native window behavior, macOS/Windows, signed packaging and
 full Reader/Host builds remain unverified; the executable runtime regression
 is not a claim of those acceptance levels.
+
+## SDK fixture maintenance — 2026-11-13
+
+PR #217's shared MCP Surface extraction makes the App builder read the package
+names/exports of both SDKs. The isolated React-resolution checkout still holds
+only a nameless App SDK fixture manifest, so its two cases fail on the missing
+MCP SDK manifest before bundling. This is a fixture composition omission, not
+a recurrence of split React identity. Keep the real MCP package manifest and
+the App SDK fixture's package name in that checkout; retain every existing
+module-identity, hook-rendering and portable-payload assertion.
+
+Reproduced both failures with the pinned Paper dependencies installed. After
+completing the fixture manifests, all seven App-build/PDF-restoration cases
+pass; neither production resolution nor the assertions changed.

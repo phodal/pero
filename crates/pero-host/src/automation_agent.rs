@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn restored_execution_never_replays_or_accepts_interactive_permission() {
+    fn restored_execution_never_replays_or_accepts_interactive_commands() {
         let mut manager = fixture_manager();
         assert!(manager.automation_reconciliation_admit("unknown").is_err());
         manager.automation_restore_execution("reserved".into());
@@ -280,6 +280,7 @@ mod tests {
         assert!(manager.automation_owns_command(&HostCommand::Permission {
             thread_id: "reserved".into(), request_id: "permission".into(), option_id: Some("allow".into()),
         }));
+        assert!(!manager.command(HostCommand::Prompt {thread_id:"reserved".into(),text:"View message".into(),contexts:vec![]}));
         assert!(manager.sessions.is_empty());
     }
 

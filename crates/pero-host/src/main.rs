@@ -126,7 +126,7 @@ fn main() -> io::Result<()> {
             agents.dispatch_mcp(value);
             continue;
         }
-        if value.get("method").and_then(|value| value.as_str()) == Some("mcp.session") {
+        if value.get("method").and_then(|value| value.as_str()) .is_some_and(|method|matches!(method,"mcp.session"|"mcp.message")) {
             agents.dispatch_mcp_session(value);
             continue;
         }

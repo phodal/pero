@@ -1,3 +1,4 @@
+import {mountMcpSurfaces} from './mcp-surfaces';
 import { connectHost } from './host-connection';
 import { installAutomation } from './automation';
 import {installContentAnalysis} from './content-analysis';
@@ -49,6 +50,8 @@ try {
   }
   window.peroShortcutMenu = json => { void window.pero?.shortcutMenu(JSON.parse(json)); };
   await init();
+  const mcpSurfaces=mountMcpSurfaces();
+  window.peroMcpAppSurface=json=>mcpSurfaces.update(JSON.parse(json));
   const artifactPreview = mountArtifactPreview(
     (target, text, id) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_compose', request_id: id, text, data: target })),
     target => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_select', request_id: null, text: '', data: target })),
@@ -159,6 +162,7 @@ try {
   const automationOperations = installAutomation(command => window.pero
     ? window.pero.sessionCommand(command) : Promise.reject(new Error('Desktop Host required')));
   const onEvent = (event: HostEvent) => {
+    mcpSurfaces.observe(event);
     automationOperations.event(event);
     if (event.kind === 'automation_operations_open') return;
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }

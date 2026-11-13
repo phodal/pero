@@ -9,6 +9,8 @@ import {z} from 'zod';
 export type McpResourceSelection=McpSessionScope&{server:string;generation:number;uri:string;contents:{uri:string;mimeType?:string;text:string}[]};
 const TextResourceResult=z.object({contents:z.array(z.object({uri:z.string().min(1),text:z.string().refine(text=>!text.includes('\0')),mimeType:z.string().optional(),blob:z.never().optional()})).min(1).max(16)});
 const Catalog=z.object({servers:z.array(z.object({name:z.string(),generation:z.number().int().nonnegative(),connected:z.boolean(),tools:z.array(ToolSchema)}))});
+const PreparedBinding=z.object({binding:z.string().min(1),resource:z.unknown()});
+const AdoptedCall=z.object({input:z.record(z.string(),z.unknown()),result:CallToolResultSchema,tool:z.string().min(1),resource_uri:z.string().min(1)});
 /** The existing ACP session owns IO and authority. This adapter creates no MCP client. */
 export class McpSessionSources {
   private alive=true;
@@ -19,7 +21,8 @@ export class McpSessionSources {
   private rpc:(scope:McpSessionScope,call:McpSessionCall)=>Promise<unknown>;
   private openLink?:((url:string)=>Promise<void>);
   private onResource?:((selection:McpResourceSelection)=>void);
-  constructor(scope:McpSessionScope,rpc:(scope:McpSessionScope,call:McpSessionCall)=>Promise<unknown>,openLink?:((url:string)=>Promise<void>),onResource?:((selection:McpResourceSelection)=>void)){this.scope={...scope};this.rpc=rpc;this.openLink=openLink;this.onResource=onResource;}
+  private sendMessage?:((scope:McpSessionScope,text:string)=>Promise<void>);
+  constructor(scope:McpSessionScope,rpc:(scope:McpSessionScope,call:McpSessionCall)=>Promise<unknown>,openLink?:((url:string)=>Promise<void>),onResource?:((selection:McpResourceSelection)=>void),sendMessage?:((scope:McpSessionScope,text:string)=>Promise<void>)){this.scope={...scope};this.rpc=rpc;this.openLink=openLink;this.onResource=onResource;this.sendMessage=sendMessage;}
   async load(){}
   admitThread(thread:string){if(!this.alive||thread!==this.scope.thread_id)throw new Error('This MCP session is unavailable');}
   forgetThread(thread:string){if(thread===this.scope.thread_id){this.alive=false;this.bindings.clear();this.catalog.clear();}}
@@ -65,14 +68,19 @@ export class McpSessionSources {
         if(operation.remote)await this.call({action:'close',binding:operation.remote});
         return {};
       }
-      case 'execute':{
-        if(command.thread_id!==this.scope.thread_id)throw new Error('This conversation is outside the MCP panel binding');
-        const server=this.server(command.server,command.generation),tool=server.tools.find(tool=>tool.name===command.tool),uri=tool&&getToolUiResourceUri(tool);
-        if(!uri)throw new Error('This tool does not declare an MCP App resource');
+      case 'execute':case 'adopt':{
+        if(command.action==='execute'&&command.thread_id!==this.scope.thread_id)throw new Error('This conversation is outside the MCP panel binding');
+        const server=this.server(command.server,command.generation);
         if(!command.operation||this.opening.has(command.operation))throw new Error('An MCP App operation identity is required');
         const operation:{cancelled:boolean;remote?:string}={cancelled:false};this.opening.set(command.operation,operation);
         try{
-          const prepared=z.object({binding:z.string().min(1),resource:z.unknown()}).parse(await this.call({action:'prepare',server:command.server,generation:command.generation,name:command.tool}));
+          const receipt=command.action==='adopt'?await this.call({action:'adopt',server:command.server,generation:command.generation,tool_call:command.tool_call}):undefined;
+          const original=receipt===undefined?undefined:PreparedBinding.parse(receipt);
+          operation.remote=original?.binding;
+          const adopted=receipt===undefined?undefined:AdoptedCall.parse(receipt);
+          const tool=server.tools.find(tool=>tool.name===(adopted?.tool??(command.action==='execute'?command.tool:''))),uri=tool&&getToolUiResourceUri(tool);
+          if(!uri||adopted&&adopted.resource_uri!==uri)throw new Error('This tool does not declare the bound MCP App resource');
+          const prepared=original??PreparedBinding.parse(await this.call({action:'prepare',server:command.server,generation:command.generation,name:tool.name}));
           operation.remote=prepared.binding;
           if(operation.cancelled)throw new Error('MCP App opening cancelled');
           const resource=ReadResourceResultSchema.parse(prepared.resource);
@@ -81,10 +89,11 @@ export class McpSessionSources {
           const meta=McpUiResourceMetaSchema.parse(content._meta?.ui??{});
           const csp=admitMcpCsp(meta.csp);
           this.server(command.server,command.generation);
-          const result=CallToolResultSchema.parse(await this.call({action:'tool',binding:prepared.binding,name:command.tool,arguments:command.arguments}));
+          const input=adopted?.input??(command.action==='execute'?command.arguments:{});
+          const result=adopted?.result??CallToolResultSchema.parse(await this.call({action:'tool',binding:prepared.binding,name:tool.name,arguments:input}));
           if(operation.cancelled)throw new Error('MCP App opening cancelled');
           this.server(command.server,command.generation);
-          const view:McpView={binding:{id:randomUUID(),server:command.server,resource_uri:uri,tool:command.tool,tool_call:randomUUID(),thread_id:this.scope.thread_id},html:content.text,csp,input:command.arguments,result};
+          const view:McpView={binding:{id:randomUUID(),server:command.server,resource_uri:uri,tool:tool.name,tool_call:command.action==='adopt'?command.tool_call:randomUUID(),thread_id:this.scope.thread_id},html:content.text,csp,input,result};
           this.bindings.set(view.binding.id,{view,remote:prepared.binding,generation:server.generation});return view;
         }catch(error){if(operation.remote)await this.call({action:'close',binding:operation.remote}).catch(()=>{});throw error;}
         finally{this.opening.delete(command.operation);}
@@ -93,9 +102,13 @@ export class McpSessionSources {
         const entry=this.bindings.get(command.binding);if(!entry)return {};
         this.bindings.delete(command.binding);return this.call({action:'close',binding:entry.remote});
       }
-      case 'tool':case 'resource':case 'open_link':{
+      case 'tool':case 'resource':case 'open_link':case 'message':{
         const view=this.view(command.binding),entry=this.bindings.get(command.binding)!;
         this.server(view.binding.server,entry.generation);
+        if(command.action==='message'){
+          if(!this.sendMessage)throw new Error('Sending messages to this conversation is unavailable');
+          await this.sendMessage(this.scope,command.text);return {};
+        }
         if(command.action==='tool')return this.call({action:'tool',binding:entry.remote,name:command.name,arguments:command.arguments});
         if(command.action==='resource'){
           if(command.uri!==view.binding.resource_uri)throw new Error('This resource is outside the MCP App binding');

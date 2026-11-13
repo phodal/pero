@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/phodal/pero/harness/go/harness"
+	harnessmcp "github.com/phodal/pero/harness/go/mcp"
 )
 
 func TestMCPSessionAccessUsesOwnedHTTPConnection(t *testing.T) {
@@ -28,7 +30,8 @@ func TestMCPSessionAccessUsesOwnedHTTPConnection(t *testing.T) {
 				<-ctx.Done()
 				return nil, ctx.Err()
 			}
-			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "visible result"}}}, nil
+			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "visible result"}},
+				StructuredContent: map[string]any{"calls": calls.Load()}, Meta: sdk.Meta{"private": "original UI metadata"}}, nil
 		})
 	}
 	fixture.AddResource(&sdk.Resource{URI: "ui://app/view", Name: "App", MIMEType: "text/html;profile=mcp-app"}, func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
@@ -113,6 +116,36 @@ func TestMCPSessionAccessUsesOwnedHTTPConnection(t *testing.T) {
 	if connections.Load() != 1 || calls.Load() != 1 {
 		t.Fatalf("connections=%d calls=%d", connections.Load(), calls.Load())
 	}
+	outcome, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: server.sessions[id].agent, CallID: "actual-agent-call",
+		Name: harness.PublicMCPToolName(harnessmcp.NormalizeServerName("User Docs"), "show"), Arguments: json.RawMessage(`{"label":"original"}`)})
+	if err != nil || outcome.Result.IsError {
+		t.Fatalf("actual Agent call: %v %+v", err, outcome.Result)
+	}
+	var projected bytes.Buffer
+	server.writer = &wireWriter{encoder: json.NewEncoder(&projected)}
+	block, _ := json.Marshal(harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: outcome.Request.CallID, Content: outcome.Result.Content, Meta: outcome.Result.Meta})
+	server.project(server.sessions[id], harness.Event{Type: "tool/result", Data: block})
+	var notification struct {
+		Params struct {
+			Update struct {
+				Meta map[string]harness.MCPAppDescriptor `json:"_meta"`
+			} `json:"update"`
+		} `json:"params"`
+	}
+	if json.Unmarshal(projected.Bytes(), &notification) != nil {
+		t.Fatal(projected.String())
+	}
+	descriptor := notification.Params.Update.Meta["pero.mcpApp"]
+	if descriptor.Server != "User Docs" || descriptor.ToolCall != "actual-agent-call" || descriptor.ResourceURI != "ui://app/view" || descriptor.Generation != 1 {
+		t.Fatalf("missing trusted ACP identity: %s", projected.String())
+	}
+	adopted, rpcErr := command(id, harness.MCPSessionRequest{Action: "adopt", Server: descriptor.Server, Generation: descriptor.Generation, ToolCall: descriptor.ToolCall})
+	if rpcErr != nil || !strings.Contains(string(adopted), `"_meta":{"private":"original UI metadata"}`) || !strings.Contains(string(adopted), `"input":{"label":"original"}`) {
+		t.Fatalf("original result serialization: %s %v", adopted, rpcErr)
+	}
+	if calls.Load() != 2 || connections.Load() != 1 {
+		t.Fatal("adoption repeated the tool or opened another MCP connection")
+	}
 	finished := make(chan *rpcError, 1)
 	go func() {
 		_, rpcErr := command(id, harness.MCPSessionRequest{Action: "tool", Binding: view.Binding, Name: "wait"})
@@ -139,7 +172,7 @@ func TestMCPSessionAccessUsesOwnedHTTPConnection(t *testing.T) {
 	if _, rpcErr := command(id, harness.MCPSessionRequest{Action: "list"}); rpcErr == nil {
 		t.Fatal("closed session accepted")
 	}
-	if connections.Load() != 1 || calls.Load() != 2 {
+	if connections.Load() != 1 || calls.Load() != 3 {
 		t.Fatalf("unexpected replay or connection: connections=%d calls=%d", connections.Load(), calls.Load())
 	}
 }

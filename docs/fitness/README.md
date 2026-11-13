@@ -157,6 +157,9 @@ Local workspace ROADMAP loading and ACP execution: [local-roadmap.md](local-road
 
 MCP 「工具与资源」 acceptance progress, with the ROADMAP checkbox still open: [mcp-tools-resources.md](mcp-tools-resources.md).
 
+Reusable standard MCP Apps surface and actual saved Notebook Inspector:
+[MCP Apps runtime](mcp-apps.md).
+
 Current conversation and ACP UI acceptance: [conversation-verification.md](conversation-verification.md). The bootstrap-only boundaries above are historical; actual provider replies and remaining limits are recorded separately.
 
 Shared GPUI App Chat, Workbench scope switching and optional standalone Product

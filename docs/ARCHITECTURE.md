@@ -16,6 +16,11 @@ HTML iframe。`apps/virtual-cell` 是首个接入实例，`apps/paper-agent` 提
 Host 管理；Paper 的领域读取与研究台账经声明路由接入 Agent。
 Task/Run 与远程 App 部署尚未与此机制连接。
 
+[ADR 0036](adr/0036-mcp-apps-host-runtime.md) 将标准 MCP Apps 渲染与生命周期提取到
+`packages/mcp-apps`。Host 继续拥有 MCP 连接、资源绑定和授权，首个业务消费者是
+读取已保存修订的 Notebook Inspector。当前通过会话工具与资源入口显式打开；
+自动内联呈现、Run/Artifact 关联和跨重启恢复仍待实现。
+
 App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协议；
 不需要外部 Point SDK checkout、兼容运行包或 Project 二进制。
 

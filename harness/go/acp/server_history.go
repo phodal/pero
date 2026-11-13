@@ -201,6 +201,11 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 		}
 
 		update = map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": block.ToolCallID, "status": status, "content": content}
+		if !block.IsError {
+			if descriptor := record.agent.MCPAccess().AppDescriptor(block.ToolCallID); descriptor != nil {
+				update.(map[string]any)["_meta"] = map[string]any{"pero.mcpApp": descriptor}
+			}
+		}
 	default:
 		return
 	}

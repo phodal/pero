@@ -1,0 +1,10 @@
+{
+  "name": "@pero/mcp-apps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/runtime.ts", "./lifecycle": "./src/lifecycle.ts", "./react": "./src/surface.tsx", "./theme": "./src/theme.ts" },
+  "peerDependencies": { "@modelcontextprotocol/ext-apps": "^1.7.5", "@modelcontextprotocol/sdk": "^1.32.2", "react": ">=19", "@pero/app-sdk": "^0.1.0" },
+  "peerDependenciesMeta": {"react":{"optional":true},"@pero/app-sdk":{"optional":true}},
+  "devDependencies": {"@pero/app-sdk":"file:../app-sdk"}
+}

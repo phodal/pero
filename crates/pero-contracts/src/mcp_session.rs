@@ -135,6 +135,7 @@ pub enum McpSessionAction {
     Templates,
     Read,
     Prepare,
+    Adopt,
     Tool,
     Resource,
     Close,
@@ -163,6 +164,8 @@ pub struct McpSessionRequest {
     pub arguments: Option<serde_json::Map<String, serde_json::Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub binding: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call: Option<String>,
 }
 
 impl McpSessionRequest {
@@ -176,6 +179,7 @@ impl McpSessionRequest {
                 | McpSessionAction::Templates
                 | McpSessionAction::Read
                 | McpSessionAction::Prepare
+                | McpSessionAction::Adopt
         );
         let binding = matches!(
             self.action,
@@ -205,6 +209,8 @@ impl McpSessionRequest {
             || self
                 .generation
                 .is_some_and(|g| g == 0 || g > 9_007_199_254_740_991)
+            || matches!(self.action, McpSessionAction::Adopt) != self.tool_call.is_some()
+            || self.tool_call.as_ref().is_some_and(|s| !bounded(s, 256))
             || binding != self.binding.is_some()
             || self.binding.as_ref().is_some_and(|s| !bounded(s, 256))
             || tool != self.name.is_some()
@@ -272,6 +278,7 @@ mod request_tests {
                 "tool",
                 json!({"binding":"opaque","name":"refresh","arguments":{}}),
             ),
+            ("adopt", json!({"server":"docs","generation":3,"tool_call":"original-call"})),
             ("resource", json!({"binding":"opaque","uri":"ui://view"})),
             ("close", json!({"binding":"opaque"})),
         ] {
@@ -319,5 +326,39 @@ mod request_tests {
         let mut forged = base;
         forged["sessionId"] = "another-session".into();
         assert!(serde_json::from_value::<McpSessionRequest>(forged).is_err());
+    }
+}
+/// A view message uses the ordinary Host prompt owner, after live session admission.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpMessageRequest {
+    pub method: String,
+    pub request_id: String,
+    pub thread_id: String,
+    pub incarnation: u64,
+    pub revision: u64,
+    pub text: String,
+}
+impl McpMessageRequest {
+    pub fn validate(&self) -> Result<McpSessionTarget, McpSessionError> {
+        if self.method != "mcp.message"
+            || self.request_id.is_empty()
+            || self.request_id.len() > 128
+            || self.thread_id.is_empty()
+            || self.thread_id.len() > 128
+            || self.incarnation == 0
+            || self.text.trim().is_empty()
+            || self.text.len() > 64_000
+            || crate::context::validate_prompt_text(&self.text).is_err()
+        {
+            return Err(McpSessionError::Invalid);
+        }
+        Ok(McpSessionTarget {
+            thread_id: self.thread_id.clone(),
+            incarnation: self.incarnation,
+            revision: self.revision,
+            server: None,
+            generation: None,
+        })
     }
 }

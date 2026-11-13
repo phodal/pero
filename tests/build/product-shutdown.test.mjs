@@ -13,7 +13,7 @@ const bundled = await build({
     build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path.startsWith('node:') ? undefined : { path: args.path, namespace: 'ports' });
     build.onLoad({ filter: /.*/, namespace: 'ports' }, () => ({ contents: `
       export const { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell,
-        DesktopApps, DesktopAppUse, DesktopComputer, HostArtifactDelivery, Product } = ports;
+        DesktopApps, DesktopAppUse, DesktopComputer, HostArtifactDelivery, NotebookInspector, Product } = ports;
       export const harnessEnvironment = () => ({}), translate = (_, key) => key;
       export const testWindowOptions = {}, computerPermissions = {}, ConversationContentRead = {};
       export const confirmReproduction = () => {}, confirmDoclingSetup = () => {}, bindAppFrameEditing = () => {};
@@ -21,11 +21,12 @@ const bundled = await build({
   } }],
 });
 
-async function product() {
-  const delivered = [], lifecycle = new EventEmitter(), protocols = new Map();
+async function product(fields = {}) {
+  const delivered = [], commands = [], handlers = new Map(), lifecycle = new EventEmitter(), protocols = new Map();
+  let hostOptions;
   const host = new EventEmitter();
   host.stdout = new PassThrough(); host.stderr = new PassThrough();
-  host.stdin = new Writable({ write(_chunk, _encoding, done) { done(); } });
+  host.stdin = new Writable({ write(chunk, _encoding, done) { commands.push(JSON.parse(String(chunk))); done(); } });
   const app = new EventEmitter(), theme = new EventEmitter();
   let window, boot;
   const ports = {
@@ -51,44 +52,69 @@ async function product() {
       isDestroyed() { return this.destroyed; }
       async loadURL() {}
     },
-    ipcMain: { handle() {} }, Menu: { buildFromTemplate: value => value, setApplicationMenu() {} },
+    ipcMain: { handle(channel,handler) { handlers.set(channel,handler); } }, Menu: { buildFromTemplate: value => value, setApplicationMenu() {} },
     protocol: { handle(scheme, handler) { protocols.set(scheme, handler); }, registerSchemesAsPrivileged() {} }, nativeTheme: theme,
     net: { fetch: async () => new Response('<h1>Product transport fixture</h1>') },
     globalShortcut: { register() {}, unregisterAll() {} },
     DesktopApps: class { accept() { return false; } close() {} },
     HostArtifactDelivery: class { accept() { return false; } close() {} },
+    NotebookInspector: class {},
     DesktopAppUse: class {
       constructor(_window, send) { ports.appEvent = send; }
-      async start() { return {}; } async close() {} reset() {} accept() {}
+      async start() { return {}; } async close() {} reset() {} accept() {} command() {}
     },
     DesktopComputer: class {
       constructor(_path, _profile, send) { ports.computerEvent = send; }
       async stop() {}
     },
-    Product: { parse: () => ({ shell: 'app', name: 'Fixture', id: 'fixture', chat: true, required: [] }) },
+    Product: { parse: () => ({ shell: 'app', name: 'Fixture', id: 'fixture', chat: true, required: [], ...fields }) },
   };
   const require = createRequire(import.meta.url);
   runInNewContext(bundled.outputFiles[0].text, {
     ports, __dirname: '/tmp/fixture/desktop/dist', process, console, setTimeout, clearTimeout, URL, Headers, Response,
-    require: name => name === 'node:child_process' ? { spawn: () => host }
+    require: name => name === 'node:child_process' ? { spawn: (_command,_args,options) => { hostOptions=options;return host; } }
       : name === 'node:fs' ? { readFileSync: () => '{}' } : require(name),
   });
   await boot;
   const message = (kind, fields = {}) => host.stdout.write(JSON.stringify({ version: 1, kind, text: 'en', ...fields }) + '\n');
-  return { app, host, window, delivered, ports, protocols, lifecycle, message };
+  return { app, host, window, delivered, ports, protocols, lifecycle, message, commands, hostOptions,
+    invoke:(channel,value)=>handlers.get(channel)({sender:window.webContents,senderFrame:{url:'pero://workbench/'}},value) };
 }
 
-test('Product Chat forwards the Host artifact context receipt to its composer', async () => {
+for (const [kind,data] of [
+  ['artifact_context',{id:'session-artifact:report:v2',kind:'file',source:'report.md',content:'Frozen report'}],
+  ['mcp_runtime',{thread_id:'chat',incarnation:1,revision:2,servers:[]}],
+  ['mcp_app_view',{tool_call:'call-1',url:'http://127.0.0.1:40123/?tool_call=call-1'}],
+  ['mcp_error',{tool_call:'call-1'}],
+]) test(`Product Chat forwards the Host ${kind} receipt through its renderer port`, async () => {
   const fixture = await product();
   try {
-    const receipt = { request_id: 'artifact-context-1', thread_id: 'chat', text: '',
-      data: { id: 'session-artifact:report:v2', kind: 'file', source: 'report.md', content: 'Frozen report' } };
-    fixture.message('artifact_context', receipt);
-    assert.deepEqual(JSON.parse(JSON.stringify(fixture.delivered)), [{ channel: 'product:event', value: { version: 1, kind: 'artifact_context', ...receipt } }]);
-  } finally { fixture.host.stdout.end(); fixture.host.stderr.end(); fixture.host.emit('close', 0); }
+    const receipt={request_id:'context-1',thread_id:'chat',text:'',data};
+    fixture.message(kind,receipt);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.delivered)),[{channel:'product:event',value:{version:1,kind,...receipt}}]);
+  } finally { fixture.host.stdout.end();fixture.host.stderr.end();fixture.host.emit('close',0); }
 });
 
-test('Product Chat response permits artifact frames without broadening the reader response', async () => {
+test('Product Chat forwards bound MCP commands to its existing Host',async()=>{
+  const fixture=await product();
+  try{
+    fixture.message('ready');
+    const command={method:'mcp',action:'adopt',request_id:'view-1',thread_id:'chat',server:'Docs',generation:1,tool_call:'call-1'};
+    await fixture.invoke('product:session',command);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.commands)),[command]);
+    await assert.rejects(fixture.invoke('product:session',{method:'unknown'}),/Invalid session command/);
+  }finally{fixture.host.stdout.end();fixture.host.stderr.end();fixture.host.emit('close',0);}
+});
+
+for(const node of [undefined,'system','bundled']) test(`Product MCP uses staged assets and its ${node||'Electron'} Node runtime`,async()=>{
+  const fixture=await product({node});
+  try{
+    assert.equal(fixture.hostOptions.env.PERO_MCP_PROVIDER_SCRIPT,'/tmp/fixture/desktop/dist/mcp-provider.cjs');
+    assert.equal(fixture.hostOptions.env.PERO_NODE_BINARY,node==='bundled'?'/tmp/fixture/runtime/node/bin/node':node==='system'?'node':process.execPath);
+  }finally{fixture.host.stdout.end();fixture.host.stderr.end();fixture.host.emit('close',0);}
+});
+
+test('Product Chat permits artifact and loopback result frames while its reader stays restricted', async () => {
   const fixture = await product();
   try {
     const serve = fixture.protocols.get('pero');
@@ -98,7 +124,7 @@ test('Product Chat response permits artifact frames without broadening the reade
       assert.equal(await response.text(), '<h1>Product transport fixture</h1>');
       const csp = response.headers.get('Content-Security-Policy');
       assert.ok(csp.includes("default-src 'self'"));
-      assert.equal(csp.match(/(?:^|; )frame-src ([^;]+)/)?.[1], host === 'chat' ? 'pero-app:' : undefined);
+      assert.equal(csp.match(/(?:^|; )frame-src ([^;]+)/)?.[1], host === 'chat' ? 'pero-app: http://127.0.0.1:*' : undefined);
     }
   } finally { fixture.host.stdout.end(); fixture.host.stderr.end(); fixture.host.emit('close', 0); }
 });

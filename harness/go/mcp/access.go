@@ -87,6 +87,30 @@ func (a *SessionAccess) Check(name string, generation uint64) error {
 	_, err := a.current(name, generation)
 	return err
 }
+
+func (entry accessServer) appResource(name string) string {
+	for _, remote := range entry.tools {
+		if remote.Name == name {
+			return appResource(remote.Meta)
+		}
+	}
+	return ""
+}
+
+// AppResource resolves the declaring tool independently of tool-call audience.
+// An already executed model-only tool can display a View without being called by it.
+func (a *SessionAccess) AppResource(server string, generation uint64, name string) (string, error) {
+	entry, err := a.current(server, generation)
+	if err != nil {
+		return "", err
+	}
+	uri := entry.appResource(name)
+	if uri == "" {
+		return "", errors.New("tool does not declare an MCP App resource")
+	}
+	return uri, nil
+}
+
 func (a *SessionAccess) AppTool(server string, generation uint64, name, resource string, opening bool) (Tool, string, error) {
 	entry, err := a.current(server, generation)
 	if err != nil {
@@ -96,13 +120,7 @@ func (a *SessionAccess) AppTool(server string, generation uint64, name, resource
 	if !ok {
 		return Tool{}, "", errors.New("tool is not available to this MCP App")
 	}
-	var uri string
-	for _, remote := range entry.tools {
-		if remote.Name == name {
-			uri = appResource(remote.Meta)
-			break
-		}
-	}
+	uri := entry.appResource(name)
 	if opening && uri == "" || !opening && uri != "" && uri != resource {
 		return Tool{}, "", errors.New("tool is outside the MCP App resource binding")
 	}

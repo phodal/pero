@@ -165,20 +165,22 @@ model SelectIconTheme {method:"icons";action:"select";request_id:string;id:strin
 model RemoveIconTheme {method:"icons";action:"remove";request_id:string;id:string;...Closed}
 @oneOf union IconThemeRequest {GetIconThemes,InstallIconTheme,SelectIconTheme,RemoveIconTheme}
 model IconThemesEvent {kind:"icon_themes"|"icon_themes_error";...EventBase;data:IconThemeState}
-model McpSourceRequest {method:"mcp";action:"open";request_id:string;thread_id?:string|null;mode?:"standalone"|"session"="standalone";...Closed}
+model McpSourceRequest {method:"mcp";action:"open"|"adopt";request_id:string;thread_id?:string|null;mode?:"standalone"|"session"="standalone";server?:string;generation?:safeint;tool_call?:string;...Closed}
 model McpSourceSession {thread_id:string;incarnation:safeint;revision:safeint;...Closed}
 model McpAppBinding {id:string;server:string;resource_uri:string;tool:string;tool_call:string;thread_id:string;...Closed}
-model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;mode?:"standalone"|"session";session?:McpSourceSession|null;...Closed}}
+model McpPermittedEvent {kind:"mcp_permitted";...EventBase;thread_id?:string;data:{locale:string;mode?:"standalone"|"session";session?:McpSourceSession|null;action?:"open"|"adopt";server?:string;generation?:safeint;tool_call?:string;...Closed}}
 model McpSourcesEvent {kind:"mcp_sources";...EventBase;thread_id?:string;data:{url:string;...Closed}}
-model McpErrorEvent {kind:"mcp_error";...EventBase}
+model McpErrorEvent {kind:"mcp_error";...EventBase;thread_id?:string}
 model McpAppOpenedEvent {kind:"mcp_app_opened";...ThreadEventBase;data:McpAppBinding}
+model McpAppViewEvent {kind:"mcp_app_view";...ThreadEventBase;data:{tool_call:string;url:string;...Closed}}
+model McpMessageRequest {method:"mcp.message";request_id:string;thread_id:string;incarnation:safeint;revision:safeint;text:string;...Closed}
 
 model McpSessionArguments is Record<unknown>;
 // Operations on the existing Agent-owned MCP session; the shell never supplies an ACP session ID.
 model McpSessionRequest {
   method:"mcp.session";request_id:string;thread_id:string;incarnation:safeint;revision:safeint;
-  action:"list"|"resources"|"templates"|"read"|"prepare"|"tool"|"resource"|"close";
-  server?:string;generation?:safeint;name?:string;uri?:string;cursor?:string;arguments?:McpSessionArguments;binding?:string;...Closed
+  action:"list"|"resources"|"templates"|"read"|"prepare"|"adopt"|"tool"|"resource"|"close";
+  server?:string;generation?:safeint;name?:string;uri?:string;cursor?:string;arguments?:McpSessionArguments;binding?:string;tool_call?:string;...Closed
 }
 model McpResourceText {uri:string;text:string;mimeType?:string;...Closed}
 model McpResourceSelectedEvent {kind:"mcp_resource_selected";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;server:string;generation:safeint;uri:string;contents:McpResourceText[];...Closed}}
@@ -354,7 +356,7 @@ model EngramSettingsErrorEvent { kind: "engram_settings_error"; ...EventBase; }
 union HostInput {
   Pero.Automation.AutomationRequest,
   TerminalRequest,
-  McpSettingsRequest, McpSessionRequest,
+  McpSettingsRequest, McpSessionRequest, McpMessageRequest,
   IconThemeRequest,
   McpSourceRequest,
   WorkspaceSessionRequest,
@@ -575,7 +577,7 @@ union HostEvent {
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,
   DocumentOpenEvent,
-  McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,
+  McpPermittedEvent,McpSourcesEvent,McpErrorEvent,McpAppOpenedEvent,McpAppViewEvent,
   DocumentChooseEvent,
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
