@@ -48,6 +48,23 @@ test('Notebook tool popups dismiss by keyboard and retain mounted scientific too
     assert.equal(panel(menu).hidden, true, menu);
     assert.equal(document.activeElement, trigger(menu), menu);
   }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await click(trigger('file'));
+    const diagnosticsAction = [...panel('file').querySelectorAll('button')].find(node => node.textContent === 'Editor diagnostics');
+    assert.ok(diagnosticsAction);
+    await click(diagnosticsAction);
+    assert.equal(trigger('file').getAttribute('aria-expanded'), 'false', 'Opening diagnostics hands off from File to the workspace');
+    assert.equal(panel('file').hidden, true);
+    const diagnostics = document.querySelector<HTMLElement>('.notebook-diagnostics-host section[aria-label="Editor diagnostics"]');
+    assert.ok(diagnostics);
+    assert.equal(diagnostics.closest('[hidden]'), null, 'Diagnostics remain visible outside the retained File popup');
+    const notes = document.querySelector<HTMLElement>('.tiptap')!;
+    await React.act(async () => notes.focus());
+    assert.equal(document.activeElement, notes, 'The non-modal inspector leaves the notebook editable');
+    assert.equal(diagnostics.isConnected, true);
+    await click(document.querySelector('.notebook-diagnostics-host button')!);
+    assert.equal(document.querySelector('.notebook-diagnostics-host section'), null);
+  }
   await click(trigger('insert'));
   assert.match(panel('insert').textContent ?? '', /Structure/);
   assert.ok(panel('insert').querySelector('.notebook-menu-items > .notebook-menu-label')?.textContent === 'Structure');

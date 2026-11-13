@@ -29,7 +29,9 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   await frame.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect(libraryRow(frame, article.title)).toHaveCount(1);
   await libraryRow(frame, article.title).locator('.pero-list-open').click();
-  await expect(frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'Download PDF', exact: true })).toBeDisabled();
+  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'More actions', exact: true }).click();
+  await expect(frame.getByRole('menuitem', { name: 'Download PDF', exact: true })).toBeDisabled();
+  await frame.getByRole('menu').press('Escape');
   const dialog = await saveLibraryCopies(frame, paper.title);
   await expect(dialog.getByRole('status').filter({ hasText: /^Downloaded$/ })).toBeVisible();
   await expect(dialog).toContainText('OCR is not available');
@@ -75,7 +77,9 @@ export async function exerciseImageOnly({ frame, page, profile, out }) {
   expect(library.papers.find(item => item.id === paper.id).hasCachedPdf).toBe(true);
   await expect(libraryRow(frame, paper.title)).toHaveCount(1);
   await libraryRow(frame, paper.title).locator('.pero-list-open').click();
-  await expect(frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'Download PDF', exact: true })).toBeEnabled();
+  await frame.getByRole('region', { name: 'Paper details', exact: true }).getByRole('button', { name: 'More actions', exact: true }).click();
+  await expect(frame.getByRole('menuitem', { name: 'Download PDF', exact: true })).toBeEnabled();
+  await frame.getByRole('menu').press('Escape');
   const cachedDialog = await saveLibraryCopies(frame, paper.title);
   await cachedDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await libraryRow(frame, paper.title).locator('.pero-list-open').dblclick();

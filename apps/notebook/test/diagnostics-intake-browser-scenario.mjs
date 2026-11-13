@@ -15,6 +15,8 @@ export async function verifyDiagnosticsAndIntake(page, origin, output) {
   await openNotebookMenu(page, 'help');
   await button('Editor diagnostics').click();
   const diagnostics = page.getByRole('region', { name: 'Editor diagnostics', exact: true });
+  await expect(page.getByRole('dialog', { name: 'File', exact: true })).toBeHidden();
+  await expect(diagnostics).toBeVisible();
   await notes.click(); await page.keyboard.press('End'); await page.keyboard.type(' and live edit');
   await diagnostics.getByLabel('Inspect', { exact: true }).selectOption('performance');
   await expect(diagnostics).toContainText('document changes');
