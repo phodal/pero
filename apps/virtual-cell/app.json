@@ -4,6 +4,9 @@
   "version": "0.2.0",
   "displayName": "Virtual Cell",
   "description": "单细胞图谱与扰动分析、反应模拟和三维体素浏览。",
+  "permissions": {
+    "host": ["agent", "agent-plugin"]
+  },
   "contributes": {
     "panels": [
       {
@@ -12,7 +15,28 @@
         "entry": "dist/index.html"
       }
     ],
+    "agentPlugin": {
+      "schema": "pero.app-agent-plugin.v1",
+      "instructions": "Use comparison-step read to inspect the versioned Virtual Cell task package, retained inputs, reusable additive model and comparison history. Import only JSON documents explicitly supplied or selected by the user with import-inputs; never silently import synthetic data. Use the returned immutable inputId for start-model and run. The model is an optional empirical CPU baseline without pretrained weights. Observe a returned runId with read; check a succeeded run with check for an independent numerical receipt. Use cancel only for the selected run and stop-model to release the loaded model. Retain dataset/spec/split and prediction identities. A successful process or numerical check does not establish biological validity, blind evaluation or scientific acceptance. Follow Host authorization and the mounted tool-call budget; do not invent another execution loop or retry a possibly accepted run request.",
+      "tools": ["comparison-step", "import-inputs"],
+      "maxCalls": 12
+    },
     "writes": [
+      {
+        "name": "comparison-step",
+        "description": "Read the task package and existing evidence, load/release its bounded model, or run/check/cancel one frozen comparison through the existing owners. read accepts optional runId; start-model/run require inputId; check/cancel require runId; stop-model takes no IDs. No arbitrary code, paths, downloads or scientific acceptance.",
+        "path": "/api/task-step",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {"enum": ["read", "start-model", "stop-model", "run", "check", "cancel"]},
+            "inputId": {"type": "string", "minLength": 64, "maxLength": 64},
+            "runId": {"type": "string", "minLength": 32, "maxLength": 32}
+          },
+          "required": ["action"],
+          "additionalProperties": false
+        }
+      },
       {
         "name": "import-inputs",
         "description": "Import explicit Virtual Cell JSON input documents; the backend validates scientific input contracts. This does not run or accept an experiment.",

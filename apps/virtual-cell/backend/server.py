@@ -14,6 +14,7 @@ from local_comparisons import ComparisonHistory
 from workbench import MAX_BODY, Workbench
 from model_endpoint import AdditiveEndpoint
 from task_package import PACKAGE
+from task_step import TaskStep, execute_step
 
 
 def authenticated(secret, token):
@@ -56,6 +57,8 @@ def handler(workbench, secret, comparisons=None, dataset=None, model=None):
                 data = json.loads(body) if body else {}
                 if not isinstance(data, dict):
                     raise Invalid("request_invalid")
+                if self.command == "POST" and self.path == "/api/task-step":
+                    return self.reply(200, execute_step(TaskStep.parse(data), workbench, comparisons, model))
                 if self.command == "GET" and self.path == "/api/task-package":
                     return self.reply(200, PACKAGE.document(workbench.source))
                 if self.path == "/api/model" and self.command == "GET":
