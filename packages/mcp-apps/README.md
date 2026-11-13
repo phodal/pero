@@ -20,8 +20,56 @@ const runtime = await mountMcpApp(container, {
 }, {theme:'light', locale:'en'});
 
 runtime.setHostContext({theme:'dark'});
+runtime.setSizePolicy({initialHeight:320, minHeight:120, maxHeight:560});
 await runtime.close();
 ```
+
+`mountMcpApp` also accepts a fifth options argument with `hostInfo` and a
+`size: {initialHeight, minHeight, maxHeight}` container policy. A View's standard
+size notification is bounded by that policy. Updating the policy or Host context
+does not reconnect the View or execute a tool. Host adapters may implement ports
+as object/class methods; their method receiver is preserved.
+
+## Shared Host surface
+
+React containers use the same `McpAppSurface` in the tools/resources panel and
+the recorded-result conversation entry:
+
+```tsx
+import {McpAppSurface} from '@pero/mcp-apps/react';
+
+<McpAppSurface resource={resource} host={boundHost} context={hostContext}
+  options={{size:{initialHeight:320, minHeight:120, maxHeight:560}}}
+  onClose={dismissResult} />
+```
+
+The Surface owns View connection feedback, local errors, text fallback, closing
+and React cleanup. Its optional ref exposes `close()` for Host dismissal. Keep
+the admitted `resource` identity stable while context or container size changes.
+`host.onState` and `host.onError` are optional observation callbacks on this
+React entry. Catalogs, parameter forms, original tool execution and authorization
+stay in the product adapter.
+
+An optional `onRetry` asks the owner to obtain a newly admitted View resource;
+the Surface does not replay the initial tool or restore a revoked binding.
+Closing an interactive View retains its ordinary result as a text fallback
+until the product dismisses that result.
+
+## Theme and existing controls
+
+`@pero/mcp-apps/theme` is the single purpose-based mapping between the existing
+Pero design tokens and standard MCP Host styles:
+
+- `mcpAppHostContext(context, element?)` reads the Host's current shared tokens
+  into standard `styles.variables`; explicit Host style values take precedence.
+- `applyMcpAppTheme(context, document?)` applies theme, locale, standard styles
+  and font CSS to a View document. Partial updates retain omitted values.
+
+Notebook uses this adapter and the existing `@pero/app-sdk/ui` controls. The
+shared Surface also uses those controls; there is no second Button/Table design
+system. Third-party Views, including the official demo, remain unchanged and
+receive standard Host context. Official `App` / `ext-apps/react` continue to own
+the View protocol and connection hooks.
 
 The adapter must resolve a `ui://` resource from the same MCP server as the
 declaring tool, validate its metadata before dispatch, and provide a separate

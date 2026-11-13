@@ -9,6 +9,39 @@ Source: `codex/mcp-apps-conversation`, based on master `7f10d0919`; see the PR c
 Environment: macOS arm64, Node 26.8.1, existing pinned npm dependencies.
 These are local checks; CI configuration is updated but no release result is claimed. Concurrent Data/Paper edits are excluded by the isolated worktree.
 
+## Shared SDK Surface verification — 2026-11-13
+
+The SDK now exports a shared React `McpAppSurface`, standard theme adaptation and
+container size policy. The tools/resources panel and its recorded-result route
+consume the same Surface; Notebook consumes the shared View theme mapping.
+Controls remain in `@pero/app-sdk/ui`, with no generated token changes.
+
+Local macOS/Node 26 checks on the SDK implementation:
+
+- Core TypeScript and MCP asset builds passed.
+- Size/theme concept tables passed (5 tests including theme subcases).
+- `node scripts/test/mcp-app-sdk.mjs` passed with actual AppBridge, production
+  sandbox, two loopback origins and React StrictMode. Class Host methods revoke
+  their actual owner; original input/result, one iframe, live size/theme/locale
+  changes, retained text fallback and active unmount passed. A failing revoke
+  still completes disposal and product dismissal, with its error observed.
+- Each fixture resource was fetched once and each Host revoked once. Updating
+  size/theme did not reconnect or replay a tool; only the explicitly clicked
+  UI tool ran. No unexpected Host or page errors were reported.
+- Existing MCP source/session tests passed 14/14. The real Python Notebook
+  backend passed with Chromium and Electron after migration to the Surface.
+  Python 3.14 and `PYTHONPATH=packages/source-extraction/python` were used.
+- Frozen Bazel checks passed 7/7 after the normal lock translation.
+
+Inspected `test-results/mcp-app-sdk/light.png` and `dark-narrow.png` (1100/560px)
+and the Notebook browser/Electron images: retained source content, readable
+light/dark controls, live locale and no horizontal overflow. SDK failure,
+fallback and cleanup receipts are in `test-results/mcp-app-sdk/result.json`.
+These generated screenshots/receipts are not committed; CI uploads them in the
+existing core-contracts artifact. This section proves the public SDK fixture and
+isolated Notebook surface; full conversation acceptance is recorded separately.
+Native GPUI graphical and signed-package acceptance are not implied.
+
 ## Official compatibility example
 
 The primary example is the published and unchanged

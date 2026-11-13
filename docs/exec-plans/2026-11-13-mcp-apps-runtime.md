@@ -40,7 +40,30 @@ generated token edit is introduced. Its theme receives live standard Host contex
 - [x] Standard text `ui/message` routed through existing Host conversation submission.
 - [x] Record observed surfaces and remaining scope in [verification](../fitness/mcp-apps.md).
 
-## Follow-ups, not v0 acceptance claims
+## Shared SDK UI migration — 2026-11-13
+
+The public SDK now owns the Host Surface as well as the protocol runtime.
+`web/src/mcp/panel.tsx` consumes that same Surface for explicit tool opening and
+the conversation's recorded-result route; catalogs and execution remain in the
+adapter. The original result is a value, not an instruction to run a tool again.
+
+| Previous owner | Shared owner | Preserved behavior |
+| --- | --- | --- |
+| Panel's mount/error/cleanup effect | `@pero/mcp-apps/react` `McpAppSurface` | Bound callbacks, local failure, text fallback and dismissal |
+| Panel/Notebook theme assignments | `@pero/mcp-apps/theme` | Live theme/locale, existing generated tokens and standard Host styles |
+| Runtime's fixed iframe heights | `McpAppSizePolicy` | Container bounds, standard size notifications, no reconnect on resize |
+| Bare Host method callbacks | Receiver-preserving runtime calls | Class adapters revoke their actual binding |
+
+Controls remain in `@pero/app-sdk/ui`; no token source or generated style is
+changed. Resource retry requires an owner callback to obtain current authority
+and never repeats the initial tool. Runtime core remains independent of React;
+the optional React entry depends on the existing shared design library.
+
+Verification is recorded in `docs/fitness/mcp-apps.md` after the affected running
+surfaces are checked. This migration does not by itself establish Native or
+packaged-product acceptance.
+
+## Remaining product work
 
 - Stable Task/Run/Artifact binding and cross-restart reopening without remounting
   expired authority or replaying effects.
