@@ -34,6 +34,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       if (params.clientCapabilities?._meta?.['pero.mcpRuntime'] !== 1) { fail(id, -32602, 'Missing runtime capability'); return; }
       reply(id, {protocolVersion: 1, agentCapabilities: {mcpCapabilities: {http: true}, ...(scenario !== 'runtime_unobservable' ? {_meta: {'pero.mcpRuntime': 1}} : {})}, authMethods: []}); return;
     }
+    if (scenario === 'science') { reply(id, {protocolVersion:1,agentCapabilities:{_meta:{'pero.scienceSession':1}}}); return; }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
     if (scenario === 'dsh_wire') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
@@ -71,6 +72,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'legacy_modes') session.modes = {currentModeId:mode,availableModes:[{id:'agent',name:'Agent'},{id:'plan',name:'Plan'}]};
     reply(id, session);
     if (scenario === 'composer') send({ method:'session/update', params:{sessionId:'fixture-session', update:{sessionUpdate:'available_commands_update', availableCommands:[{name:'compact',description:'Compact conversation',input:{hint:'instructions'}}]}} });
+  } else if (method === '_pero/science/session' && scenario === 'science') {
+    reply(id, {session:params.sessionId,command:params.request,duringTurn:active!==undefined});
   } else if (method === 'authenticate') {
     if (params.methodId !== 'login') { fail(id, -32602, 'Unadvertised login invoked'); return; }
     authenticated = true;

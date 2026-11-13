@@ -21,7 +21,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-const SETUP_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 3 } else { 45 });
+pub(super) const SETUP_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 3 } else { 45 });
 const CANCEL_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 1 } else { 5 });
 const MAX_DEFERRED_COMMANDS: usize = 16;
 
@@ -34,6 +34,7 @@ pub enum PromptRejection {
 }
 
 pub enum SessionCommand {
+    Science(super::science::ScienceRequest),
     McpSession { request: pero_contracts::mcp_session::McpSessionRequest, reply: Sender<HostEvent> },
     Prompt(String),
     PromptWithContext {
@@ -198,6 +199,10 @@ fn defer(
     thread: &str,
 ) {
     if deferred.len() >= MAX_DEFERRED_COMMANDS {
+        if let SessionCommand::Science(request) = command {
+            request.reply(Err("Session command queue is full".into()));
+            return;
+        }
         if let SessionCommand::McpSession { request, reply } = &command {
             super::mcp_session::reply(reply, request, Err(pero_contracts::mcp_session::McpSessionError::Unavailable));
             return;
@@ -383,7 +388,7 @@ async fn run(
         )
         .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
             let mut deferred = VecDeque::new();
-            let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1, "pero.mcpToolPolicy": 1, "pero.mcpSession": 1}});
+            let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1, "pero.mcpToolPolicy": 1, "pero.mcpSession": 1, "pero.scienceSession": 1}});
             if interactive { capabilities["_meta"][super::user_questions::CAPABILITY] = json!(1); }
             let Some(initialized) = setup_request(
                 connection.send_request(UntypedMessage::new("initialize", json!({
@@ -397,6 +402,7 @@ async fn run(
             config.validate_mcp_tool_policy_capability(
                 initialized["agentCapabilities"]["_meta"][super::mcp::TOOL_POLICY_CAPABILITY] == json!(1),
             ).map_err(|message| failure(&message))?;
+            let science_negotiated = initialized["agentCapabilities"]["_meta"][super::science::CAPABILITY] == json!(1);
             let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
             // Never start a session under a protocol version this client does not implement.
@@ -577,6 +583,7 @@ async fn run(
                                     return Err(failure("Agent did not acknowledge cancellation; session closed"));
                                 },
                                 command = commands.recv() => match command {
+                                    Some(SessionCommand::Science(request)) => super::science::dispatch(&connection, &session_id, science_negotiated, request),
                                     Some(SessionCommand::Cancel) => {
                                         user_questions.clear();
                                         permissions.lock().unwrap().clear();
@@ -619,6 +626,7 @@ async fn run(
                             Err(error) => event(&tx, &thread, "session_error", error.to_string(), Value::Null),
                         }
                     },
+                    Some(SessionCommand::Science(request)) => super::science::dispatch(&connection, &session_id, science_negotiated, request),
                     Some(SessionCommand::McpSession { request, reply }) => {
                         use pero_contracts::mcp_session::McpSessionError;
                         let target = request.target();

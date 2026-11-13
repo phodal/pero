@@ -8,6 +8,8 @@ mod mcp_runtime;
 mod prompt;
 mod registry;
 mod session;
+mod science;
+pub use science::ScienceRequest;
 mod user_questions;
 pub use agent_client_protocol as sdk;
 pub use app_use::{AppUseEndpoint, APP_USE_SKILL};
