@@ -6,6 +6,9 @@ remaining gaps: [Design principles audit — 2026-11-11](2026-11-11-design-princ
 Notebook block editing, Excel calculation and exchange, and versioned evidence:
 [Notebook verification](notebook.md).
 
+Shared human/Agent Python/R execution, Notebook observation and lifecycle:
+[Shared science session](shared-science-session.md).
+
 Pinned marimo/Jupyter runtime experiment, existing Science Kernel comparison,
 cancellation, offline exports and a proposed owner handoff:
 [Computational Notebook PoC B](notebook-runtime-poc.md).

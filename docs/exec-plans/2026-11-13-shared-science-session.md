@@ -1,6 +1,6 @@
 ---
 kind: progress_note
-status: in_progress
+status: completed
 ---
 
 # Shared human / Agent computation session
