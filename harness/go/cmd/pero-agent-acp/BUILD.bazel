@@ -45,6 +45,7 @@ go_library(
         "//runtime",
         "//sandbox",
         "//scienceenv",
+		"//scientificreviewer",
         "//skills",
         "//subagents",
         "//tasks",

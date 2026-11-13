@@ -28,6 +28,7 @@ import (
 	"github.com/phodal/pero/harness/go/providers/openai"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/scienceenv"
+	"github.com/phodal/pero/harness/go/scientificreviewer"
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
@@ -231,7 +232,7 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: delegation.Enabled || len(packages) > 0 || web.enabled(), Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}
@@ -388,6 +389,10 @@ func run() (resultErr error) {
 	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
 	}
+	reviewer, err := scientificreviewer.Mount(ctx, h, persistence)
+	if err != nil {
+		return err
+	}
 	if len(packages) > 0 || web.enabled() {
 		stateRoot, err := filepath.Abs(filepath.Join(*sessions, "plugin-hooks"))
 		if err != nil {
@@ -512,6 +517,7 @@ func run() (resultErr error) {
 	}
 	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
+	serverOptions.ScientificReviewer = reviewer
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if pluginHooks != nil {
 		serverOptions.HoldAssistantText = func(*harness.Agent) bool { return pluginHooks.HoldsAssistantText() }
