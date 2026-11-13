@@ -6,12 +6,8 @@ body { margin: 0; background: var(--pero-bg); color: var(--pero-text); font: var
 .page-title h1 { margin: 0; font: 600 var(--pero-font-title)/1.25 var(--pero-font-family-sans, system-ui, sans-serif); }
 .page-title p { margin: 6px 0 0; max-width: 42rem; color: var(--pero-text-muted); }
 .page-tools, .actions, .editor-footer { display: flex; align-items: center; gap: var(--pero-spacing-2); flex-wrap: wrap; }
-.view-switch { display: inline-flex; gap: 2px; }
-.view-switch .pero-ui-toggle-item, .filter-chip { display: inline-flex; align-items: center; gap: 8px; min-height: var(--pero-control-height); padding: 7px 12px; border: 1px solid transparent; border-radius: var(--pero-radius-button); background: transparent; color: var(--pero-text-muted); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); cursor: pointer; }
-.view-switch .pero-ui-toggle-item[data-state=on], .filter-chip[data-state=on] { background: var(--pero-surface-muted); color: var(--pero-text); border-color: var(--pero-border); font-weight: 600; }
-.view-switch .pero-ui-toggle-item:hover, .filter-chip:hover { background: var(--pero-surface-hover); }
-.view-switch .pero-ui-toggle-item:focus-visible, .filter-chip:focus-visible { outline: 2px solid var(--pero-focus); outline-offset: 2px; }
 .filter-strip { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: var(--pero-spacing-4); }
+.filter-chip { display: inline-flex; align-items: center; gap: 8px; }
 .filter-chip span { font-size: var(--pero-font-caption); font-variant-numeric: tabular-nums; opacity: .72; }
 .feedback { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); }
 .templates { margin-bottom: var(--pero-spacing-5); }

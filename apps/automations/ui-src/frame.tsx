@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppProvider, useAppContext} from '@pero/app-sdk';
 import {Badge, Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
@@ -66,6 +66,7 @@ const enCopy = {
   next: 'Next',
   dash: '—',
   noRuns: 'No runs yet.',
+  noRunHint: 'A finished run is shown here. The task text stays above.',
   noAutomations: 'No automations yet',
   noAutomationsHint: 'Create one or choose a template.',
   noMatches: 'No matching automations',
@@ -158,6 +159,7 @@ const zhCopy: Copy = {
   next: '下次',
   dash: '—',
   noRuns: '还没有运行。',
+  noRunHint: '完成后的运行会显示在这里。任务正文仍在上方。',
   noAutomations: '还没有自动化',
   noAutomationsHint: '新建一个，或从场景模板开始。',
   noMatches: '没有匹配的自动化',
@@ -337,7 +339,7 @@ function Editor({draft, busy, t, onPatch, onClose, onSave}: {draft: Draft; busy:
     <div className="editor-body">
       <div>
         <h2>{t.contentHeading}</h2>
-        <label>{t.name}<Input value={draft.name} onChange={event => onPatch({name: event.target.value})} maxLength={200}/></label>
+        <label>{t.name}<Input data-panel-focus="" value={draft.name} onChange={event => onPatch({name: event.target.value})} maxLength={200}/></label>
         <label>{t.instructions}<Textarea value={draft.prompt} onChange={event => onPatch({prompt: event.target.value})} rows={6} maxLength={16000}/></label>
       </div>
       <div>
@@ -359,9 +361,11 @@ function Editor({draft, busy, t, onPatch, onClose, onSave}: {draft: Draft; busy:
 
 function Detail({record, t, when, zh, onEdit, onDismiss}: {record: Automation; t: Copy; when: (value?: string) => string; zh: boolean; onEdit: () => void; onDismiss: () => void}) {
   const [tab, setTab] = useState('overview');
-  const latest = record.runs[record.runs.length - 1];
+  const latest = record.runs.at(-1);
+  const session = newestSession(record.runs);
+  const outcome = latest && phrase(latest.error || latest.skip_reason, zh);
   const status = statusOf(record, t);
-  return <section className="job" aria-label={t.details}>
+  return <section className="job" aria-label={t.details} tabIndex={-1} data-panel-focus="">
     <header className="job-head">
       <div>
         <h2>{record.name}</h2>
@@ -379,10 +383,10 @@ function Detail({record, t, when, zh, onEdit, onDismiss}: {record: Automation; t
             <header className="section-head"><h3>{t.contentHeading}</h3></header>
             <p className="instructions">{record.prompt}</p>
             <header className="section-head"><h3>{t.latest}</h3></header>
-            {!latest ? <div className="empty-result"><span className="task-icon"><Icon name="document" size={18}/></span><h4>{t.noRuns}</h4><p>{t.run}</p></div> : <div className="latest">
+            {!latest ? <div className="empty-result"><span className="task-icon"><Icon name="document" size={18}/></span><h4>{t.noRuns}</h4><p>{t.noRunHint}</p></div> : <div className="latest">
               <div className="result-meta"><Badge tone={runTone(latest.state)}>{runLabel(latest.state, t)}</Badge><time dateTime={latest.scheduled_for}>{when(latest.scheduled_for)}</time><span>{phrase(latest.key.trigger, zh)}</span>{latest.skip_reason && <span>{phrase(latest.skip_reason, zh)}</span>}</div>
-              <p>{phrase(latest.error, zh) || record.prompt}</p>
-              <footer><span>{t.kept}</span>{latest.session_id && <Button type="button" onClick={() => openSession(latest.session_id!)}>{t.openSession}</Button>}</footer>
+              {outcome && <p>{outcome}</p>}
+              <footer><span>{t.kept}</span>{session?.session_id && <Button type="button" onClick={() => openSession(session.session_id!)}>{t.openSession}</Button>}</footer>
             </div>}
           </div>
           <aside className="context">
@@ -421,6 +425,7 @@ function Automations() {
   const pickTemplate = (template: typeof templates[number]) => {
     setDraft({...newDraft(), ...template, name: templateTitle(template.name, zh), prompt: templateBlurb(template.name, template.prompt, zh)});
     setGallery(false);
+    revealPanel();
   };
   const queried = items.filter(item => `${item.name} ${item.prompt}`.toLowerCase().includes(query.trim().toLowerCase()));
   const visible = queried.filter(item => matchesStatus(item, status));
@@ -431,19 +436,30 @@ function Automations() {
     unavailable: queried.filter(item => matchesStatus(item, 'unavailable')).length,
   };
   const record = items.find(item => item.id === selected);
-  const showCatalog = gallery && items.length > 0;
+  const showCatalog = gallery && (items.length > 0 || view === 'calendar');
+  const stage = useRef<HTMLDivElement>(null);
+  const [reveal, setReveal] = useState(0);
+  const revealPanel = () => setReveal(value => value + 1);
+  useEffect(() => {
+    if (!reveal) return;
+    const node = stage.current;
+    if (!node) return;
+    node.scrollIntoView({block: 'nearest'});
+    const field = node.querySelector<HTMLElement>('[data-panel-focus]');
+    (field ?? node).focus();
+  }, [reveal]);
   const welcome = !items.length && !loading;
   return <main className="automation-app">
     <div className="automation-page">
       <header className="page-heading">
         <div className="page-title"><h1>{t.title}</h1>{welcome && <p>{t.subtitle}</p>}</div>
         <div className="page-tools">
-          <ToggleGroup unstyled className="view-switch" type="single" value={view} aria-label={t.view} onValueChange={value => { if (value === 'list' || value === 'calendar') setView(value); }}>
-            <ToggleGroupItem unstyled value="list"><Icon name="list" size={16}/>{t.list}</ToggleGroupItem>
-            <ToggleGroupItem unstyled value="calendar"><Icon name="calendar" size={16}/>{t.calendar}</ToggleGroupItem>
+          <ToggleGroup type="single" value={view} aria-label={t.view} onValueChange={value => { if (value === 'list' || value === 'calendar') setView(value); }}>
+            <ToggleGroupItem value="list"><Icon name="list" size={16}/>{t.list}</ToggleGroupItem>
+            <ToggleGroupItem value="calendar"><Icon name="calendar" size={16}/>{t.calendar}</ToggleGroupItem>
           </ToggleGroup>
           <Button type="button" onClick={() => setGallery(value => !value)}>{t.templates}</Button>
-          <Button variant="primary" onClick={() => { setDraft(newDraft()); setGallery(false); }}><Icon name="plus" size={16}/>{t.create}</Button>
+          <Button variant="primary" onClick={() => { setDraft(newDraft()); setGallery(false); revealPanel(); }}><Icon name="plus" size={16}/>{t.create}</Button>
         </div>
       </header>
       {error && <Feedback kind="error" variant="block" className="feedback">{error}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
@@ -451,10 +467,10 @@ function Automations() {
       {showCatalog && <TemplateCatalog zh={zh} t={t} onPick={pickTemplate}/>}
       <section className="catalog" aria-label={t.listLabel}>
         <div className="toolbar"><div className="search"><Icon name="search" size={16}/><Input aria-label={t.search} type="search" placeholder={t.search} value={query} onChange={event => search(event.target.value)}/></div></div>
-        <ToggleGroup unstyled className="filter-strip" type="single" value={status} aria-label={t.statusFilter} onValueChange={value => { if (value === 'all' || value === 'enabled' || value === 'paused' || value === 'unavailable') setStatus(value); }}>
-          {(['all', 'enabled', 'paused', 'unavailable'] as const).map(value => <ToggleGroupItem unstyled className="filter-chip" key={value} value={value}>{t[value]}<span>{counts[value]}</span></ToggleGroupItem>)}
+        <ToggleGroup className="filter-strip" type="single" value={status} aria-label={t.statusFilter} onValueChange={value => { if (value === 'all' || value === 'enabled' || value === 'paused' || value === 'unavailable') setStatus(value); }}>
+          {(['all', 'enabled', 'paused', 'unavailable'] as const).map(value => <ToggleGroupItem className="filter-chip" key={value} value={value}>{t[value]}<span>{counts[value]}</span></ToggleGroupItem>)}
         </ToggleGroup>
-        {loading ? <Feedback>{t.loading}</Feedback> : view === 'calendar' ? <Calendar items={visible} locale={zh ? 'zh-CN' : 'en'} t={t} onOpen={id => { select(id); setDraft(undefined); }}/> : <div className="task-list">
+        {loading ? <Feedback>{t.loading}</Feedback> : view === 'calendar' ? <Calendar items={visible} locale={zh ? 'zh-CN' : 'en'} t={t} onOpen={id => { select(id); setDraft(undefined); revealPanel(); }}/> : <div className="task-list">
           {visible.length ? <div role="table" aria-label={t.listLabel}>
             <div role="row" className="task-head"><span>{t.task}</span><span>{t.schedule}</span><span>{t.latest}</span><span>{t.actions}</span></div>
             {visible.map(item => {
@@ -465,7 +481,7 @@ function Automations() {
                   <span className="task-icon" aria-hidden="true">{item.event ? <Icon family="shell" name="webhook" size={18}/> : <Icon name="nodes" size={18}/>}</span>
                   <div>
                     <div className="title-line">
-                      <Button variant="ghost" className="automation-name" aria-current={item.id === selected ? 'true' : undefined} onClick={() => { select(item.id); setDraft(undefined); }}>{item.name}</Button>
+                      <Button variant="ghost" className="automation-name" aria-current={item.id === selected ? 'true' : undefined} onClick={() => { select(item.id); setDraft(undefined); revealPanel(); }}>{item.name}</Button>
                       <Badge tone={state.tone}>{state.label}</Badge>
                     </div>
                     <p className="description">{item.prompt}</p>
@@ -476,9 +492,9 @@ function Automations() {
                 <div className="schedule"><span><Icon name="clock" size={14}/>{scheduleTitle(item, t)}</span><small>{item.scheduled ? (item.next ? `${t.next} ${when(item.next)}` : item.timezone) : t.notScheduled}</small></div>
                 <div className="result">{latest ? <><Badge tone={runTone(latest.state)}>{runLabel(latest.state, t)}</Badge><small>{phrase(latest.error || latest.skip_reason, zh) || when(latest.scheduled_for)}</small></> : <small>{t.noRuns}</small>}</div>
                 <div className="row-actions">{item.kind === 'research_watch' ? <span className="muted">{t.managed}</span> : <>
-                  <IconButton variant="secondary" label={t.run} disabled={busy || !!item.in_flight || !item.enabled || !item.scheduled} onClick={() => void perform(async () => { const receipt = await automationRequest<{request_id: string}>('POST', `${path(item.id)}/run`); select(item.id); setNotice(`${t.queued} · ${receipt.request_id}`); })}><Icon name="play" size={16}/></IconButton>
+                  <IconButton variant="secondary" label={t.run} disabled={busy || !!item.in_flight || !item.enabled || !item.scheduled} onClick={() => void perform(async () => { const receipt = await automationRequest<{request_id: string}>('POST', `${path(item.id)}/run`); select(item.id); revealPanel(); setNotice(`${t.queued} · ${receipt.request_id}`); })}><Icon name="play" size={16}/></IconButton>
                   <IconButton variant="secondary" label={item.enabled ? t.pause : t.enable} disabled={busy} onClick={() => void perform(async () => { await automationRequest('PUT', path(item.id), {enabled: !item.enabled}); })}><Icon name={item.enabled ? 'pause' : 'play'} size={16}/></IconButton>
-                  <IconButton variant="secondary" label={t.openDetail} onClick={() => { select(item.id); setDraft(undefined); }}><Icon name="panel-right" size={16}/></IconButton>
+                  <IconButton variant="secondary" label={t.openDetail} onClick={() => { select(item.id); setDraft(undefined); revealPanel(); }}><Icon name="panel-right" size={16}/></IconButton>
                 </>}</div>
               </div>;
             })}
@@ -486,7 +502,7 @@ function Automations() {
           {!!visible.length && <p className="scope">{t.scope}</p>}
         </div>}
       </section>
-      {draft ? <Editor draft={draft} busy={busy} t={t} onPatch={patch} onClose={() => setDraft(undefined)} onSave={() => void save()}/> : record && <Detail key={record.id} record={record} t={t} when={when} zh={zh} onEdit={() => setDraft(editDraft(record))} onDismiss={() => select(undefined)}/>}
+      {(draft || record) && <div ref={stage}>{draft ? <Editor draft={draft} busy={busy} t={t} onPatch={patch} onClose={() => setDraft(undefined)} onSave={() => void save()}/> : <Detail key={record!.id} record={record!} t={t} when={when} zh={zh} onEdit={() => { setDraft(editDraft(record!)); revealPanel(); }} onDismiss={() => select(undefined)}/>}</div>}
     </div>
   </main>;
 }

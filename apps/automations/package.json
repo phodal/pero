@@ -7,7 +7,7 @@
     "build": "node ../../scripts/build/automation-app.mjs",
     "test": "node --test test/*.test.mjs",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
-    "test:ui": "node test/ui-smoke.mjs"
+    "test:ui": "node test/ui-smoke.mjs && node test/ui-focus-smoke.mjs"
   },
   "dependencies": {
     "react": "19.2.8",
