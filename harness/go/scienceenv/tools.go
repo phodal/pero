@@ -36,12 +36,6 @@ type Options struct {
 	MCP            func(context.Context, *harness.Agent, MCPCall) (json.RawMessage, error)
 }
 
-type sessionKernels struct {
-	python *Kernel
-	repl   *Kernel
-	r      *Kernel
-}
-
 // Env owns one python, repl, and R process per agent session.
 type Env struct {
 	mu        sync.Mutex
@@ -52,7 +46,9 @@ type Env struct {
 	skillRoot string
 	email     string
 	mcpNames  []string
-	sessions  map[string]*sessionKernels
+	harness   *harness.Harness
+	sessions  map[*harness.Agent]map[Language]*computation
+	closed    bool
 	artifacts map[string]map[string]artifactRecord
 }
 
@@ -87,7 +83,7 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (*Env, error) 
 			return nil, errors.New("science skill root must be a directory")
 		}
 	}
-	env := &Env{workspace: workspace, pythonBin: pythonBin, rscript: opts.Rscript, mcp: opts.MCP, skillRoot: skillRoot, email: strings.TrimSpace(opts.ContactEmail)}
+	env := &Env{harness: h, workspace: workspace, pythonBin: pythonBin, rscript: opts.Rscript, mcp: opts.MCP, skillRoot: skillRoot, email: strings.TrimSpace(opts.ContactEmail)}
 	if opts.MCPServersRoot != "" {
 		names, mcpErr := env.mountLiteratureMCP(ctx, h, opts.MCPPython, opts.MCPServersRoot)
 		if mcpErr != nil {
@@ -140,55 +136,15 @@ func (e *Env) execute(ctx context.Context, request harness.ToolRequest, language
 	if json.Unmarshal(request.Arguments, &args) != nil || strings.TrimSpace(args.Code) == "" {
 		return cellError("science kernel requires code"), nil
 	}
-	session := string(request.Agent.ID())
-	kernel, err := e.kernel(session, language)
+	current, err := e.computation(request.Agent, language)
 	if err != nil {
 		return cellError(err.Error()), nil
 	}
-	out, err := kernel.Exec(ctx, args.Code, e.host(session, language, request.Agent))
+	out, err := current.execute(ctx, args.Code, AgentCell, false)
 	if err != nil {
 		return cellError(err.Error()), nil
 	}
 	return cellValue(out), nil
-}
-
-func (e *Env) kernel(session string, language Language) (*Kernel, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.sessions == nil {
-		e.sessions = map[string]*sessionKernels{}
-	}
-	current := e.sessions[session]
-	if current == nil {
-		current = &sessionKernels{}
-		e.sessions[session] = current
-	}
-	switch language {
-	case Python:
-		return e.cached(&current.python, Config{Language: Python, Interpreter: e.pythonBin, Workspace: e.workspace})
-	case Repl:
-		return e.cached(&current.repl, Config{Language: Repl, Interpreter: e.pythonBin, Workspace: e.workspace})
-	case R:
-		bin, err := resolveInterpreter(e.rscript)
-		if err != nil {
-			return nil, fmt.Errorf("science R: %w", err)
-		}
-		return e.cached(&current.r, Config{Language: R, Interpreter: bin, Workspace: e.workspace})
-	default:
-		return nil, errors.New("unknown science kernel")
-	}
-}
-
-func (e *Env) cached(slot **Kernel, cfg Config) (*Kernel, error) {
-	if *slot != nil {
-		return *slot, nil
-	}
-	kernel, err := Start(cfg)
-	if err != nil {
-		return nil, err
-	}
-	*slot = kernel
-	return kernel, nil
 }
 
 // Close stops every kernel. A nil Env is safe.
@@ -197,12 +153,16 @@ func (e *Env) Close() error {
 		return nil
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	var err error
-	for _, current := range e.sessions {
-		err = errors.Join(err, current.python.Close(), current.repl.Close(), current.r.Close())
-	}
+	e.closed = true
+	sessions := e.sessions
 	e.sessions = nil
+	e.mu.Unlock()
+	var err error
+	for _, languages := range sessions {
+		for _, current := range languages {
+			err = errors.Join(err, current.close())
+		}
+	}
 	return err
 }
 
