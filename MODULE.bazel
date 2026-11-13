@@ -31,6 +31,7 @@ npm.npm_translate_lock(
         "//:desktop/package.json",
         "//:packages/app-sdk/package.json",
         "//:packages/notebook/package.json",
+        "//:packages/mcp-apps/package.json",
         "//:web/package.json",
     ],
     run_lifecycle_hooks = False,

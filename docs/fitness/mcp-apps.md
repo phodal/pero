@@ -121,3 +121,19 @@ was rerun against these final controls and passed.
 
 The Zed proposal, pinned source comparison and future inline identity seam are
 recorded in [the conversation design](../design-docs/mcp-apps-conversation.md).
+
+## Draft PR CI follow-up
+
+At PR #217 head `564b804e`, CI exposed two composition omissions: the new
+workspace was absent from the Bazel translation inputs/derived lock, and the
+Product shutdown test's existing shell-port fake did not export the newly
+injected Notebook resource. These were integration failures, not MCP protocol
+or scientific backend failures.
+
+The workspace is now declared in both package-manager owners and MODULE data;
+Bazel regenerated the pnpm importer and input-hash record. Local
+`bazel test --config=ci //:checks` passed all 7 checks with the frozen lock policy.
+The existing Product port fake now includes NotebookInspector, with all 7
+original shutdown/dispatch assertions passing. No assertion or production
+permission was weakened. Updated remote checks must be evaluated on the new
+head rather than counting the previous failed run as passing.
