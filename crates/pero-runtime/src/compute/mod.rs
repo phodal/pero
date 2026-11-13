@@ -4,9 +4,11 @@ mod compose;
 mod docker;
 mod receipt;
 mod slurm;
+mod ssh;
 pub use compose::{ComposeDeployment, ComposeEvidence, ComposeMember};
 pub use receipt::{ProcessReceipt, store_batch_receipt, store_process_receipt};
-pub use slurm::SlurmSite;
+pub use slurm::{SlurmInvocation, SlurmSite};
+pub use ssh::{CollectedFile, RemoteProcessObservation, SshProbe, SshTransport, StagedFile};
 mod local;
 use crate::environments::{Identity, ResourceBinding};
 use crate::owned_process::OwnedProcess;
@@ -91,17 +93,33 @@ mod tests;
 /// External CLI inspection must not hold Host admission indefinitely. Timeout
 /// means an unknown external effect; callers must reconcile the original ID.
 fn command_output(command: &mut Command) -> Result<std::process::Output, String> {
+    command_input(command, None)
+}
+
+fn command_input(
+    command: &mut Command,
+    input: Option<&[u8]>,
+) -> Result<std::process::Output, String> {
     use std::{
-        io::Read,
+        io::{Read, Write},
         process::Stdio,
         time::{Duration, Instant},
     };
     const LIMIT: u64 = 8 * 1024 * 1024;
     command
-        .stdin(Stdio::null())
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut process = OwnedProcess::spawn(command).map_err(|e| e.to_string())?;
+    let writer = input.map(|bytes| {
+        let mut stdin = process.child_mut().stdin.take().unwrap();
+        let bytes = bytes.to_vec();
+        std::thread::spawn(move || stdin.write_all(&bytes))
+    });
     let stdout = process.child_mut().stdout.take().unwrap();
     let stderr = process.child_mut().stderr.take().unwrap();
     let out = std::thread::spawn(move || {
@@ -137,6 +155,12 @@ fn command_output(command: &mut Command) -> Result<std::process::Output, String>
         .join()
         .map_err(|_| "CLI stderr reader failed")?
         .map_err(|e| e.to_string())?;
+    if let Some(writer) = writer {
+        writer
+            .join()
+            .map_err(|_| "CLI input writer failed")?
+            .map_err(|e| e.to_string())?;
+    }
     let status = status.ok_or("CLI timed out; reconcile the original resource before retry")?;
     if stdout.len() as u64 > LIMIT || stderr.len() as u64 > LIMIT {
         return Err("CLI observation exceeded 8 MiB".into());
