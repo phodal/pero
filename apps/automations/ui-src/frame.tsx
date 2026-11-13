@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppProvider, useAppContext} from '@pero/app-sdk';
 import {AppFrame, Badge, Button, Checkbox, ContentPane, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
-import {automationRequest, openSession} from './transport';
+import {automationHostFailure, automationRequest, openSession} from './transport';
 import {draftBody, editDraft, newDraft, templates, weekdays, type Automation, type Draft, type Run, type Schedule} from './model';
 import './frame.css';
 
@@ -73,6 +73,7 @@ const enCopy = {
   noMatchesHint: 'Try a different search.',
   clear: 'Clear filters',
   loading: 'Loading…',
+  loadFailed: 'Could not load automations.',
   retry: 'Retry',
   saved: 'Saved',
   queued: 'Run queued',
@@ -166,6 +167,7 @@ const zhCopy: Copy = {
   noMatchesHint: '试试其他关键词，或清除筛选。',
   clear: '清除筛选',
   loading: '正在读取…',
+  loadFailed: '暂时无法读取自动化。',
   retry: '重试',
   saved: '已保存',
   queued: '已排队运行',
@@ -205,6 +207,12 @@ function useCopy() {
   const {locale} = useAppContext();
   const zh = locale === 'zh-CN';
   return {locale, zh, t: zh ? zhCopy : enCopy, when: (value?: string) => value ? new Date(value).toLocaleString(locale) : (zh ? zhCopy : enCopy).dash};
+}
+function hostFailure(message: string) {
+  return message === automationHostFailure || /expected pattern|Unexpected token|not valid JSON/.test(message);
+}
+function visibleError(message: string, t: Copy) {
+  return hostFailure(message) ? t.loadFailed : message;
 }
 function templateTitle(name: string, zh: boolean) {
   return zh ? templateCopy[name]?.[0] ?? name : name;
@@ -395,7 +403,12 @@ function Automations() {
   const [draft, setDraft] = useState<Draft>(), [gallery, setGallery] = useState(false), [query, search] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all'), [view, setView] = useState<'list' | 'calendar'>('list');
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const refresh = async () => { const result = await automationRequest<{items: Automation[]}>('GET', '/api/automations'); setItems(result.items); setLoading(false); };
+  const refresh = async () => {
+    const result = await automationRequest<{items: Automation[]}>('GET', '/api/automations');
+    setItems(result.items);
+    setError(current => hostFailure(current) ? '' : current);
+    setLoading(false);
+  };
   useEffect(() => {
     let stopped = false; let timer: ReturnType<typeof setTimeout>;
     const tick = async () => { try { if (!stopped) await refresh(); } catch (reason) { if (!stopped) { setError((reason as Error).message); setLoading(false); } } finally { if (!stopped) timer = setTimeout(tick, 5000); } };
@@ -450,7 +463,7 @@ function Automations() {
       <ContentPane id="automation-catalog" label={t.listLabel} as="div" surface="list" inset="regular" scroll="pane"
         header={<LibraryHeader density="compact" title={t.title} subtitle={t.subtitle} />}
         feedback={<>
-          {error && <Feedback kind="error" variant="block" className="feedback">{error}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
+          {error && <Feedback kind="error" variant="block" className="feedback">{visibleError(error, t)}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
           {notice && <Feedback>{notice}</Feedback>}
         </>}>
       {showCatalog && <TemplateCatalog zh={zh} t={t} onPick={pickTemplate}/>}
