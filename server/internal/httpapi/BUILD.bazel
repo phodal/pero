@@ -39,6 +39,7 @@ go_test(
         "isolated_live_test.go",
         "isolated_live_diagnostics_test.go",
         "worker_devices_test.go",
+        "self_hosted_test.go",
         "desktop_github_test.go",
         "desktop_connector_test.go",
         "github_test.go",
