@@ -35,7 +35,9 @@ func mountPaperResearch(ctx context.Context, h *harness.Harness, config paperRes
 		if err != nil {
 			return nil, err
 		}
-		if _, err = tools.RestrictWhen(run, func(_ *harness.Agent, name string) bool { return allowed[name] }); err != nil {
+		if _, err = tools.RestrictWhen(run, func(agent *harness.Agent, name string) bool {
+			return allowed[name] || name == "scientific_review_disposition" || agent.Delegated() && name == "structured_output"
+		}); err != nil {
 			return nil, err
 		}
 		hooks, err := point.Resolve(run, harness.AgentHooksKey)

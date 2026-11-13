@@ -96,7 +96,15 @@ func (s *Server) configOptions(agent *harness.Agent) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(options, permission), nil
+	options = append(options, permission)
+	if s.scientificReviewer != nil {
+		review, err := s.scientificReviewConfig(agent)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, review)
+	}
+	return options, nil
 }
 
 func (s *Server) beginIdleConfig(record *activeSession, reason string) (func(), *rpcError) {
@@ -142,6 +150,8 @@ func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (
 		return nil, classify(err)
 	}
 	switch p.ConfigID {
+	case "scientific_review":
+		return s.setScientificReviewOption(ctx, record, p.Value)
 	case "permission":
 		return s.setPermissionOption(record, p.Value)
 	case "model":

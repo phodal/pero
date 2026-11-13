@@ -19,6 +19,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/scientificreviewer"
 )
 
 type Options struct {
@@ -60,6 +61,8 @@ type Options struct {
 	PreparePrompt func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 	// Science forwards UI commands to the existing session-owned computation.
 	Science func(context.Context, *harness.Agent, json.RawMessage) (any, error)
+	// ScientificReviewer shares the existing session and bounded subagent owner.
+	ScientificReviewer *scientificreviewer.App
 }
 
 type Server struct {
@@ -103,6 +106,7 @@ type Server struct {
 	renderAssistantText func(context.Context, *harness.Agent, string) string
 	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 	science             func(context.Context, *harness.Agent, json.RawMessage) (any, error)
+	scientificReviewer  *scientificreviewer.App
 }
 
 type clientResponse struct {
@@ -171,8 +175,9 @@ func NewServer(options Options) (*Server, error) {
 		outputLimitRecoveries: options.OutputLimitRecoveries,
 		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
-		science:  options.Science,
-		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		science:            options.Science,
+		scientificReviewer: options.ScientificReviewer,
+		sessions:           make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }
@@ -570,6 +575,9 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 		}
 	}
 	committed = true
+	if s.scientificReviewer != nil && s.writer != nil {
+		return s.advertiseScientificReview(agent.ID())
+	}
 	return nil
 }
 
