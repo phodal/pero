@@ -88,3 +88,27 @@ border ownership are tracked in the canonical local incident
 [PR diff header viewport](../issues/2026-11-13-pr-diff-header-viewport.md).
 Actual macOS Native observations and checks for this increment are recorded in
 [verification](../fitness/pull-request-view.md#continuous-reading-and-typography--2026-11-13).
+
+## Checks, Reviews and Commits reading layout — 2026-11-13
+
+The three Cursor references establish one reading order per section: grouped
+check results with compact aligned rows; review author/outcome followed by the
+original Markdown; commit subject followed by message details and identity.
+This increment was developed on `codex/pr-reading-views` and integrated with
+`codex/pr-view-layout` for PR #229. The common header, Changes tools and diff
+retain their existing implementation.
+
+Migration: inline Checks/Commits rows move into concept-named view modules;
+concatenated Reviews Markdown with synthetic level-three headings becomes one
+retained StreamText per review. All bodies retain workspace-owned Markdown link
+routing, section errors, existing scroll handles, and explicit read-only access.
+Check grouping consumes one typed outcome classification in the contracts core.
+Skipped, neutral and unknown checks remain distinct from successful checks.
+Shared Button/Collapsible, Avatar, type/spacing and palette roles supply controls
+and presentation. Commit copy acts on the full SHA, while displaying a short SHA.
+Commit messages are disclosed per SHA, leaving the default list compact.
+
+No timestamps, per-commit file statistics, unresolved discussion counts or
+chronological ordering are invented from fields absent in the current snapshot.
+Native inspection and verification receipts are recorded in the existing PR
+fitness record after the implementation is built.

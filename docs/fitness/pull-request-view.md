@@ -221,3 +221,49 @@ pass (133 contract tests and 80 UI tests). `npm run check` passes TypeScript,
 generated contracts/theme/design/tokens/icons and 1219 bilingual messages.
 No new Electron runtime, dark-theme, actual narrow OS-window, signed-package,
 Windows/Linux or screen-reader acceptance is claimed for this increment.
+
+
+## Grouped checks, review timeline and compact commits — 2026-11-13
+
+This increment is based on PR #229 head `f0e265312` plus contracts commit
+`98b22a5cc` and the accompanying UI changes. It retains the PR's counted navigation,
+continuous highlighted Changes and Host-owned line-wrapping preference.
+
+Checks now classify check runs and legacy commit statuses once in the contracts
+core. The result groups distinguish attention, running, passed, skipped, neutral
+and unknown. Skipped/neutral groups start closed; their entries and counts remain
+available. A partial section never yields an all-passed tab label. On real public
+PR #228, 22 passes and 24 skips yield “Checks completed”, not “All checks passed”.
+Actual clicks collapsed the passed group and revealed all 24 skipped entries.
+Long names wrapped while the outcome and Details columns remained aligned.
+
+Reviews render independent retained Markdown entities beneath author/outcome
+headers, with a quiet timeline and shared initials avatars. The original bot
+HTML, code, lists and links remain intact; no generated author headings are
+inserted into the Markdown. Description/diff subscriptions are kept separately
+from replaceable review link subscriptions. Failed or unchanged refreshes retain
+the existing bodies and section scroll state.
+
+Commits show a medium-weight subject and muted author/SHA. A shared Collapsible
+reveals the full message, including co-author trailers, only when requested.
+The first real commit was expanded and closed through the Native control. The
+SHA control displays seven characters and copies the full value. No per-entry
+timestamps, unresolved counts or per-commit statistics are fabricated.
+
+Verification on macOS arm64 development Native + real Host:
+
+- Contracts: 134 tests passed; Native UI: 80 tests passed.
+- Native executable build, Wasm compile check and `npm run check` passed.
+- Final rebuilt light theme inspected on the three real PR #228 subviews, with
+  the chat pane open (roughly 760px PR content width). Full titles, metadata,
+  controls, wrapped check names and review code remained inside the content pane.
+- Dark theme was inspected during the preceding iteration. The final light-theme
+  captures are `test-results/pr-reading-views/04-commits-light.png`,
+  `05-checks-light.png` and `06-reviews-light.png`; each saved image was inspected.
+- Captures are ignored local evidence and are attached to PR #229, not committed
+  binary assets. Existing baseline screenshots in the PR remain separately dated.
+
+The isolated preview has no built Connectors service, so startup reports that
+unrelated service as unavailable; the PR Host read path completed normally. No
+new Electron runtime, final dark-theme capture, OS-window resize, signed package,
+Windows/Linux, screen-reader or external review-link click acceptance is claimed.

@@ -12,11 +12,14 @@ use serde_json::json;
 pub(crate) struct PullRequestContent {
     pub state: PullRequestView,
     description: Entity<StreamText>,
-    reviews: Entity<StreamText>,
+    pub(super) reviews: Vec<Entity<StreamText>>,
+    pub(super) commit_details_open: std::collections::BTreeSet<String>,
+    pub(super) check_groups_open: [bool; 6],
     pub(super) scrolls: [ScrollHandle; 5],
     pub(super) directory_open: bool,
     pub(super) diff: crate::pull_request_diff::PullRequestDiff,
     _links: Vec<Subscription>,
+    _review_links: Vec<Subscription>,
 }
 impl Workbench {
     pub(crate) fn open_pull_request(
@@ -57,41 +60,20 @@ impl Workbench {
         {
             state.restore_reading(reading);
         }
-        let description = cx.new(|cx| StreamText::new("", cx));
-        let reviews = cx.new(|cx| StreamText::new("", cx));
-        let links: Vec<_> = [&description, &reviews]
-            .into_iter()
-            .map(|view| {
-                view.update(cx, |view, _| view.capture_links = true);
-                cx.subscribe_in(
-                    view,
-                    &mut *window,
-                    |this, _, link: &pero_chat_ui::stream::MarkdownLink, window, cx| {
-                        this.follow_link(
-                            &link.href,
-                            pero_contracts::workbench::LinkClick {
-                                middle: link.middle,
-                                primary_modifier: link.primary_modifier,
-                            },
-                            window,
-                            cx,
-                        );
-                    },
-                )
-            })
-            .collect();
+        let (description, link) = pull_request_markdown("", window, cx);
         let diff = crate::pull_request_diff::PullRequestDiff::new(cx);
         let observer = cx.observe(&diff.state, |_, _, cx| cx.notify());
-        let mut links = links;
-        links.push(observer);
         self.pull_requests.push(PullRequestContent {
             state,
             description,
-            reviews,
+            reviews: Vec::new(),
+            commit_details_open: Default::default(),
+            check_groups_open: [true, true, true, false, false, true],
             scrolls: std::array::from_fn(|_| ScrollHandle::new()),
             directory_open: false,
             diff,
-            _links: links,
+            _links: vec![link, observer],
+            _review_links: Vec::new(),
         });
         self.refresh_pull_request(&reference, cx);
     }
@@ -198,19 +180,13 @@ impl Workbench {
                         .update(cx, |view, cx| view.replace(&body, cx));
                 }
                 if sections.reviews {
-                    let text = snapshot
-                        .reviews
-                        .items
-                        .iter()
-                        .map(|review| {
-                            format!(
-                                "### {} · {}\n\n{}\n",
-                                review.author, review.state, review.body
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    view.reviews.update(cx, |view, cx| view.replace(&text, cx));
+                    view._review_links.clear();
+                    view.reviews.clear();
+                    for review in &snapshot.reviews.items {
+                        let (body, link) = pull_request_markdown(&review.body, window, cx);
+                        view.reviews.push(body);
+                        view._review_links.push(link);
+                    }
                 }
             }
             view.state
@@ -404,7 +380,15 @@ impl Workbench {
                         Button::new(("pr-subview", index))
                             .ghost()
                             .small()
-                            .label(self.t(tab.key()))
+                            .label(match (tab, state.snapshot.as_ref()) {
+                                (PullRequestTab::Checks, Some(snapshot))
+                                    if snapshot.checks.error.is_none()
+                                        && !snapshot.checks.items.is_empty() =>
+                                {
+                                    self.t(CheckSummary::from_checks(&snapshot.checks.items).key())
+                                }
+                                _ => self.t(tab.key()),
+                            })
                             .when_some(
                                 state.snapshot.as_ref().and_then(|snapshot| match tab {
                                     PullRequestTab::Changes => {
@@ -504,104 +488,13 @@ impl Workbench {
                     );
                 }
                 PullRequestTab::Reviews => {
-                    if snapshot.reviews.items.is_empty() && snapshot.reviews.error.is_none() {
-                        body = body.child(div().p(px(20.)).child(self.t("pr.no_reviews")));
-                    } else {
-                        body = body.child(div().p(px(20.)).child(view.reviews.clone()));
-                    }
+                    body = body.child(self.pull_request_reviews(view, cx));
                 }
                 PullRequestTab::Commits => {
-                    if snapshot.commits.items.is_empty() && snapshot.commits.error.is_none() {
-                        body = body.child(div().p(px(20.)).child(self.t("pr.no_commits")));
-                    }
-                    for commit in &snapshot.commits.items {
-                        let (subject, details) = commit
-                            .message
-                            .split_once('\n')
-                            .unwrap_or((&commit.message, ""));
-                        body = body.child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(4.))
-                                .p(px(16.))
-                                .border_b_1()
-                                .border_color(p.border)
-                                .child(
-                                    div()
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .whitespace_normal()
-                                        .child(subject.to_owned()),
-                                )
-                                .when(!details.trim().is_empty(), |el| {
-                                    el.child(
-                                        div()
-                                            .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                                            .font_weight(FontWeight::NORMAL)
-                                            .line_height(relative(1.5))
-                                            .whitespace_normal()
-                                            .child(details.trim().to_owned()),
-                                    )
-                                })
-                                .child(
-                                    div()
-                                        .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                                        .text_color(p.text_muted)
-                                        .child(format!(
-                                            "{} · {}",
-                                            commit.sha.chars().take(8).collect::<String>(),
-                                            commit.author
-                                        )),
-                                ),
-                        );
-                    }
+                    body = body.child(self.pull_request_commits(view, cx));
                 }
                 PullRequestTab::Checks => {
-                    if snapshot.checks.items.is_empty() && snapshot.checks.error.is_none() {
-                        body = body.child(div().p(px(20.)).child(self.t("pr.no_checks")));
-                    }
-                    for (index, check) in snapshot.checks.items.iter().enumerate() {
-                        let mut row = div()
-                            .flex()
-                            .items_start()
-                            .gap(px(pero_theme::SPACE_12))
-                            .px(px(pero_theme::SPACE_16))
-                            .py(px(pero_theme::SPACE_8))
-                            .border_b_1()
-                            .border_color(p.border)
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .whitespace_normal()
-                                    .child(check.name.clone()),
-                            )
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .w(chrome.text(pero_theme::TYPE_CAPTION) * 8.)
-                                    .text_size(chrome.text(pero_theme::TYPE_CAPTION))
-                                    .text_color(p.text_muted)
-                                    .child(
-                                        check
-                                            .conclusion
-                                            .as_deref()
-                                            .unwrap_or(&check.status)
-                                            .to_owned(),
-                                    ),
-                            );
-                        if let Some(url) = &check.url {
-                            let url = url.clone();
-                            row = row.child(
-                                Button::new(("pr-check", index))
-                                    .ghost()
-                                    .small()
-                                    .label(self.t("pr.details"))
-                                    .on_click(move |_, _, cx| cx.open_url(&url)),
-                            );
-                        }
-                        body = body.child(row);
-                    }
+                    body = body.child(self.pull_request_checks(view, cx));
                 }
                 PullRequestTab::Changes => {
                     body = body.child(self.pull_request_changes(view, snapshot, cx));
@@ -623,4 +516,30 @@ impl Workbench {
             .child(body)
             .into_any_element()
     }
+}
+
+/// PR prose shares the workspace link owner, including each independent review body.
+fn pull_request_markdown(
+    text: &str,
+    window: &mut Window,
+    cx: &mut Context<Workbench>,
+) -> (Entity<StreamText>, Subscription) {
+    let body = cx.new(|cx| StreamText::new(text, cx));
+    body.update(cx, |view, _| view.capture_links = true);
+    let link = cx.subscribe_in(
+        &body,
+        window,
+        |this, _, link: &pero_chat_ui::stream::MarkdownLink, window, cx| {
+            this.follow_link(
+                &link.href,
+                pero_contracts::workbench::LinkClick {
+                    middle: link.middle,
+                    primary_modifier: link.primary_modifier,
+                },
+                window,
+                cx,
+            );
+        },
+    );
+    (body, link)
 }
