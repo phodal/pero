@@ -525,7 +525,7 @@
   "cloud.select_hint": "See its delegation progress, Worker and execution record.",
   "cloud.show_technical": "Show technical details",
   "cloud.hide_technical": "Hide technical details",
-  "cloud.workers_hint": "This device runs tasks within its configured scope. Closing Desktop stops local execution. Other device status reflects loaded tasks.",
+  "cloud.workers_hint": "Presence reflects authenticated contact. Execution scope and permissions are controlled on each machine.",
   "cloud.no_workers": "No Workers yet",
   "cloud.no_workers_hint": "The local Host handles local sessions and does not claim Cloud tasks. Ask an operator to configure and start pero-worker. Queued tasks start once that Worker is online.",
   "cloud.col.worker": "Worker",
@@ -1204,5 +1204,13 @@
   "pr.blocked": "Blocked",
   "pr.hide_viewed": "Hide viewed",
   "pr.show_viewed": "Show viewed",
-  "workspace.conversation": "Conversation"
+  "workspace.conversation": "Conversation",
+  "remote.target": "Run on",
+  "remote.target_unavailable": "The selected machine no longer matches this task. Choose an execution target.",
+  "remote.target_any": "Any compatible machine",
+  "remote.no_compatible_worker": "No matching machine is registered. Enable a device in execution settings.",
+  "cloud.worker.unknown": "Not observed",
+  "cloud.worker.offline": "Offline",
+  "cloud.worker.disabled": "Disabled",
+  "cloud.worker.attention": "Needs review"
 }
