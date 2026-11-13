@@ -123,12 +123,29 @@ export interface Claimant {
   name: string;
 }
 export interface Worker {
+  presence?: WorkerPresence;
+  enabled?: boolean;
+  occupied?: boolean;
+  capabilities?: WorkerCapability[];
+  current_run_id?: string;
+  current_task_id?: string;
+  current_run_status?: RunStatus;
   id: Id;
   name: string;
   projects: string[];
   labels?: string[];
   last_seen_at?: string | null;
   created_at?: string;
+}
+export interface WorkerPresence {
+  state: "unknown" | "online" | "offline";
+  last_seen_at: string | null;
+  observed_at: string;
+}
+export interface WorkerCapability {
+  project_id: Id;
+  workspace_key: Id;
+  agent_id: Id;
 }
 export interface RunEvent {
   seq: number;
@@ -211,11 +228,6 @@ export interface EnrollWorker {
   projects: string[];
   capabilities: WorkerCapability[];
   enrollment_secret: string;
-}
-export interface WorkerCapability {
-  project_id: Id;
-  workspace_key: Id;
-  agent_id: Id;
 }
 export interface DisableWorkerResult {
   disabled: boolean;
