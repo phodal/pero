@@ -267,3 +267,13 @@ The isolated preview has no built Connectors service, so startup reports that
 unrelated service as unavailable; the PR Host read path completed normally. No
 new Electron runtime, final dark-theme capture, OS-window resize, signed package,
 Windows/Linux, screen-reader or external review-link click acceptance is claimed.
+
+
+Review follow-up on #229: the Kit cache-builder fixture reproduced its missing
+fifth-patch ENOENT, then passed after the fixture was updated (one test). The diff
+cache now associates identical patches with their head SHA so previously hidden
+files are filtered again when their marks become stale. An unchanged source/head
+keeps the existing viewport. Final Native library regression remains 134 contracts
+and 80 UI tests; the existing viewed-mark table pins head-bound marks. This cache
+correction was reviewed from current source and compiled; an actual rebased-PR
+refresh is not included in the Native captures above.

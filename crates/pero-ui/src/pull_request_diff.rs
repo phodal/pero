@@ -9,6 +9,7 @@ pub(super) struct PullRequestDiff {
     pub state: Entity<DiffState>,
     files: Vec<DiffFile>,
     source: Vec<pero_contracts::pull_request::PullRequestFile>,
+    head_sha: String,
     pub notices: Vec<(String, &'static str)>,
 }
 
@@ -18,6 +19,7 @@ impl PullRequestDiff {
             state: cx.new(|cx| DiffState::new([], cx)),
             files: vec![],
             source: vec![],
+            head_sha: String::new(),
             notices: vec![],
         }
     }
@@ -27,8 +29,13 @@ impl PullRequestDiff {
             return;
         };
         if self.source == snapshot.files.items {
+            if self.head_sha != snapshot.head_sha {
+                self.head_sha = snapshot.head_sha.clone();
+                self.filter(view, cx);
+            }
             return;
         }
+        self.head_sha = snapshot.head_sha.clone();
         self.source = snapshot.files.items.clone();
         self.files.clear();
         self.notices.clear();

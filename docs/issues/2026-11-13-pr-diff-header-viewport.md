@@ -25,3 +25,21 @@ lines stay inside the reading area. Top and right boundaries are single hairline
 
 Verification and final observed scope are recorded in
 [PR view verification](../fitness/pull-request-view.md).
+
+
+## PR #229 review follow-up
+
+A retained diff could omit a previously viewed file after a new head SHA arrived
+with identical API patches. The domain correctly made its mark stale, but the
+presentation cache returned before applying visibility again. The cache now
+records the head along with its source and reapplies the existing domain filter
+when only the head changes. Identical source/head refreshes preserve the viewport.
+
+The new viewport patch also exposed a stale Kit builder test fixture: its
+isolated repository created four patches while the production manifest read
+five, causing ENOENT before the test assertions. The fixture now creates the
+fifth applicable patch; the reproduced failure becomes a passing test.
+
+Both corrections are included in [PR #229](https://github.com/phodal/pero/pull/229).
+The existing viewed-mark domain table and the Native library tests cover the
+underlying state rule; a real rebased-PR refresh was not replayed in the window.
