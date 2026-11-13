@@ -366,13 +366,13 @@ test('remote controls consume Host observations, frozen approval and fixed colle
   const digest = 'ab'.repeat(32), resultBytes = Buffer.from('{"integral":3.14159265}\n');
   const outputDigest = createHash('sha256').update(resultBytes).digest('hex'), reference = `compute:remote-1:${outputDigest}`;
   const state = { available: true, attempts: [] };
-  let count = 0, failObservation = false, unknownSubmission = false;
+  let count = 0, failObservation = false, unknownSubmission = false, failPreparation = false;
   const owner = input => {
     if (!input) return { value: state };
     if (input.operation === 'probe') state.probe = { clusterId: cluster.id, endpoint: cluster.host, host: cluster.host, platform: 'Linux fixture', python: '3.12.8' };
     if (input.operation === 'prepare') state.attempts.unshift({ id: `remote-${++count}`, clusterId: cluster.id, host: cluster.host,
       scheduler: 'ssh', directory: `/tmp/research/remote-${count}`, digest, samples: input.samples, repetitions: input.repetitions,
-      state: 'prepared', useState: '', logs: { stdout: '', stderr: '' }, outputs: [], collected: false });
+      state: failPreparation ? 'preparation_failed' : 'prepared', error: failPreparation ? 'Input staging was interrupted before readiness was recorded' : undefined, useState: '', logs: { stdout: '', stderr: '' }, outputs: [], collected: false });
     const attempt = state.attempts.find(item => item.id === input.id);
     if (input.operation === 'artifact') {
       assert.equal(input.digest, outputDigest);
@@ -449,6 +449,22 @@ test('remote controls consume Host observations, frozen approval and fixed colle
   await frame.getByRole('button', { name: 'Observe original execution', exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(captures, 'remote-unknown-narrow-dark-24px.png'), fullPage: true });
   assert.equal(requests.filter(item => item.value?.operation === 'submit').length, 3);
+  failPreparation = true;
+  await frame.getByRole('button', { name: 'Prepare fixed inputs', exact: true }).click();
+  const failedAttempt = frame.locator('#compute-remote-attempt');
+  await expect(failedAttempt.getByText('Preparation incomplete; prepare a new attempt', { exact: true })).toBeVisible();
+  await expect(failedAttempt.getByRole('alert')).toContainText('Input staging was interrupted');
+  for (const name of ['Approve and submit', 'Observe original execution', 'Request cancellation', 'Collect and save evidence']) {
+    await expect(failedAttempt.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+  await expect(failedAttempt.locator('#compute-remote-logs')).toHaveCount(0);
+  await expect(failedAttempt.locator('#compute-remote-outputs')).toHaveCount(0);
+  await expect(failedAttempt.getByText('/tmp/research/remote-4', { exact: true })).toBeVisible();
+  await expect(failedAttempt.getByText(digest, { exact: true })).toBeVisible();
+  await expect(frame.getByRole('spinbutton', { name: 'Samples per repetition', exact: true })).toHaveValue('2000');
+  await failedAttempt.getByText('Preparation incomplete; prepare a new attempt', { exact: true }).scrollIntoViewIfNeeded();
+  await expect(failedAttempt.getByRole('alert')).toBeInViewport();
+  await page.screenshot({ path: resolve(captures, 'remote-preparation-failed-narrow-dark-24px.png'), fullPage: true });
 });
 
 test('opt-in real Host remote calculation is collected and cancelled through the UI', {

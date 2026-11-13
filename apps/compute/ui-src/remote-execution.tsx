@@ -63,6 +63,7 @@ const messages: AppMessages = {
   unknownHelp: { en: 'The original external effect needs reconciliation. Observe or cancel the original identity; this page will not replay submission.', zh: '原始外部效果需要核对。请读取或取消原始身份；此页面不会重放提交。' },
   cancelHelp: { en: 'Cancellation has been requested. A stopped state is shown only after the owner confirms the original process or job stopped.', zh: '已请求取消。只有执行方确认原进程或作业已停止，才会显示“已停止”。' },
   prepared: { en: 'Prepared, awaiting approval', zh: '已准备，等待批准' },
+  preparation_failed: { en: 'Preparation incomplete; prepare a new attempt', zh: '准备未完成，请新建一次尝试' },
   running: { en: 'Running', zh: '运行中' }, queued: { en: 'Queued', zh: '排队中' },
   completed: { en: 'Execution completed', zh: '执行完成' }, failed: { en: 'Execution failed', zh: '执行失败' },
   cancel_requested: { en: 'Cancellation requested', zh: '已请求取消' }, stopped: { en: 'Stop confirmed', zh: '已确认停止' },
@@ -72,7 +73,7 @@ const messages: AppMessages = {
 export type RemoteAttempt = {
   id: string; clusterId: string; host: string; scheduler: 'ssh' | 'slurm'; directory: string; digest: string;
   samples: number; repetitions: number; useState: string;
-  state: 'prepared' | 'running' | 'queued' | 'completed' | 'failed' | 'cancel_requested' | 'stopped' | 'unknown';
+  state: 'prepared' | 'preparation_failed' | 'running' | 'queued' | 'completed' | 'failed' | 'cancel_requested' | 'stopped' | 'unknown';
   logs: { stdout: string; stderr: string }; outputs: { path: string; sha256: string; reference: string }[];
   error?: string; exitCode?: number; jobId?: number; collected: boolean; account?: string; partition?: string;
 };
@@ -88,9 +89,10 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
   const [clusterId, setClusterId] = useState(selectedClusterId ?? ''), [opened, setOpened] = useState('');
   const [samples, setSamples] = useState('10000'), [repetitions, setRepetitions] = useState('1');
   const [uncertainSubmission, setUncertainSubmission] = useState('');
-  const pending = useRef(false), form = useRef<HTMLFormElement>(null);
+  const pending = useRef(false), form = useRef<HTMLFormElement>(null), attemptBody = useRef<HTMLDivElement>(null);
   const cluster = clusters.find(item => item.id === clusterId) ?? clusters.find(item => item.id === selectedClusterId) ?? clusters[0];
   const attempt = state?.attempts.find(item => item.id === opened) ?? state?.attempts[0];
+  useEffect(() => { if (attemptBody.current) attemptBody.current.scrollTop = 0; }, [attempt?.id]);
   const probe = state?.probe?.clusterId === cluster?.id && (!state?.probe?.endpoint || state.probe.endpoint === cluster?.host) ? state.probe : null;
   const refresh = useCallback(async () => {
     if (pending.current) return;
@@ -150,6 +152,7 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
     ...(attempt.exitCode != null ? [{ id: 'exit', label: t('exit'), value: attempt.exitCode }] : []),
     ...(attempt.useState ? [{ id: 'use', label: t('use'), value: attempt.useState, format: 'code' as const }] : []),
   ] : [];
+  const executionStarted = attempt && !['prepared', 'preparation_failed'].includes(attempt.state);
   const cancellable = attempt && ['running', 'queued', 'unknown'].includes(attempt.state);
   const collectable = attempt && ['completed', 'failed', 'stopped'].includes(attempt.state) && !attempt.collected;
 
@@ -191,10 +194,10 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
             <ListRow title={item.id} meta={`${item.host} · ${t(item.state)}`} current={item.id === attempt.id} onOpen={() => setOpened(item.id)} /></li>)}</ul></ContentPane>
         </SplitPane>
         <SplitPane id="compute-remote-attempt-detail" min={contentLayout.inspectorMin} as="section" className="compute-detail">
-          <ContentPane id="compute-remote-attempt" label={attempt.id} as="div" surface="reading" inset="compact" scroll="pane"
-            header={<InspectorHeader title={attempt.id} status={<Badge tone={attempt.state === 'failed' ? 'error' : attempt.state === 'unknown' ? 'warning' : 'neutral'}>{t(attempt.state)}</Badge>} actions={<div className="compute-report-actions">
+          <ContentPane id="compute-remote-attempt" label={attempt.id} as="div" bodyRef={attemptBody} surface="reading" inset="compact" scroll="pane"
+            header={<InspectorHeader title={attempt.id} status={<Badge tone={attempt.state === 'failed' || attempt.state === 'preparation_failed' ? 'error' : attempt.state === 'unknown' ? 'warning' : 'neutral'}>{t(attempt.state)}</Badge>} actions={<div className="compute-report-actions">
               {attempt.state === 'prepared' && uncertainSubmission !== attempt.id ? <Button variant="primary" disabled={disabled} onClick={() => void update('submit', { id: attempt.id, digest: attempt.digest })}>{t('approve')}</Button> : null}
-              {attempt.state !== 'prepared' || uncertainSubmission === attempt.id ? <Button disabled={disabled} onClick={() => void update('observe', { id: attempt.id })}>{t('observe')}</Button> : null}
+              {executionStarted || uncertainSubmission === attempt.id ? <Button disabled={disabled} onClick={() => void update('observe', { id: attempt.id })}>{t('observe')}</Button> : null}
               {cancellable ? <Button disabled={disabled} onClick={() => void update('cancel', { id: attempt.id })}>{t('cancel')}</Button> : null}
               {collectable ? <Button variant="primary" disabled={disabled} onClick={() => void update('collect', { id: attempt.id })}>{t('collect')}</Button> : null}
             </div>} />}>
@@ -204,11 +207,11 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
             {attempt.state === 'unknown' ? <Feedback kind="warning" variant="block">{t('unknownHelp')}</Feedback> : null}
             {attempt.state === 'cancel_requested' ? <Feedback kind="info" variant="block">{t('cancelHelp')}</Feedback> : null}
             <ContentSection id="compute-remote-inputs" title={t('inputs')}><MetadataList layout="stacked" items={facts} /></ContentSection>
-            {attempt.state !== 'prepared' ? <ContentSection id="compute-remote-logs" title={t('logs')}>
+            {executionStarted ? <ContentSection id="compute-remote-logs" title={t('logs')}>
               {attempt.logs.stdout || attempt.logs.stderr ? <>{attempt.logs.stdout ? <pre className="compute-remote-log" aria-label="stdout">{attempt.logs.stdout}</pre> : null}
                 {attempt.logs.stderr ? <pre className="compute-remote-log" aria-label="stderr">{attempt.logs.stderr}</pre> : null}</> : <p className="compute-help">{t('noLogs')}</p>}
             </ContentSection> : null}
-            <ContentSection id="compute-remote-outputs" title={t('outputs')}>
+            {attempt.state !== 'preparation_failed' ? <ContentSection id="compute-remote-outputs" title={t('outputs')}>
               {!attempt.collected ? <p className="compute-help">{t('outputPending')}</p> : !attempt.outputs.length ? <p className="compute-help">{t('outputMissing')}</p> : <>
                 <p className="compute-help">{t('outputHelp')}</p><ul className="compute-remote-outputs">{attempt.outputs.map(output => <li key={output.reference}>
                   <MetadataList layout="stacked" items={[{ id: 'path', label: 'Path', value: output.path, format: 'code' },
@@ -216,7 +219,7 @@ export function RemoteExecution({ active, clusters, selectedClusterId, onManage 
                   <div className="compute-report-actions"><Button disabled={disabled} onClick={() => void download(output)}>{t('download')}</Button>
                   <Button onClick={() => void navigator.clipboard.writeText(output.reference).then(() => setNotice(t('copied')), () => setNotice(t('copyFailed')))}>{t('copy')}</Button></div>
                 </li>)}</ul></>}
-            </ContentSection>
+            </ContentSection> : null}
           </ContentPane>
         </SplitPane>
       </Split> : null}
