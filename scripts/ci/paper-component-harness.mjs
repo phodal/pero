@@ -73,9 +73,11 @@ export function paperComponents(api, environment = {}) {
     PaperAgent: load('index.tsx').default, mount, storage };
 }
 
+const paneSlots = ['children', 'header', 'toolbar', 'feedback', 'footer'];
 export function elements(tree, predicate) {
   if (Array.isArray(tree)) return tree.flatMap(child => elements(child, predicate));
   if (!tree || typeof tree !== 'object') return [];
-  return [...(predicate(tree) ? [tree] : []), ...elements(tree.props?.children, predicate)];
+  const nested = paneSlots.flatMap(slot => elements(tree.props?.[slot], predicate));
+  return [...(predicate(tree) ? [tree] : []), ...nested];
 }
 export const drain = () => new Promise(resolve => setImmediate(resolve));
