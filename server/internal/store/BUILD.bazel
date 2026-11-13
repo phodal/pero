@@ -21,6 +21,7 @@ go_library(
         "worker_devices.go",
         "tasks.go",
         "task_creation.go",
+        "worker_presence.go",
     ],
     importpath = "github.com/phodal/pero/server/internal/store",
     visibility = ["//server:__subpackages__"],
@@ -38,6 +39,7 @@ go_test(
     name = "store_test",
     srcs = [
         "clients_test.go",
+        "worker_presence_test.go",
         "artifacts_test.go",
         "worker_devices_test.go",
         "contribution_test.go",
