@@ -28,6 +28,7 @@ impl Provider {
         }
         let node = std::env::var_os("PERO_NODE_BINARY").unwrap_or_else(|| "node".into());
         let child = Command::new(node)
+            .env("ELECTRON_RUN_AS_NODE", "1")
             .arg(script)
             .args(["--stdio", "--config"])
             .arg(config)
@@ -216,7 +217,7 @@ impl Mcp {
                             }
                         }
                     }
-                    Some("mcp_sources") | Some("mcp_error") => {
+                    Some("mcp_sources") | Some("mcp_app_view") | Some("mcp_error") => {
                         events.push(serde_json::from_value(message).map_err(|e| e.to_string())?)
                     }
                     _ => return Err("Invalid MCP provider response".into()),
@@ -242,7 +243,7 @@ impl Mcp {
         locale: &str,
     ) -> Option<HostEvent> {
         let request = match serde_json::from_value::<McpSourceRequest>(value) {
-            Ok(request) if !request.request_id.is_empty() && request.request_id.len() <= 128 => {
+            Ok(request) if request.validate().is_ok() => {
                 request
             }
             _ => {
@@ -284,6 +285,9 @@ impl Mcp {
             event.kind = "mcp_permitted".into();
             event.thread_id = request.thread_id;
             event.data = serde_json::json!({"locale":locale,"mode":request.mode,"session":session});
+            if matches!(request.action,pero_contracts::mcp_source::McpAction::Adopt){
+                event.data["action"]=serde_json::json!("adopt");event.data["server"]=serde_json::json!(request.server);event.data["generation"]=serde_json::json!(request.generation);event.data["tool_call"]=serde_json::json!(request.tool_call);
+            }
             return Some(event);
         }
         let result = (|| {
@@ -291,7 +295,7 @@ impl Mcp {
                 self.provider = Some(Provider::start(&self.config)?);
             }
             self.provider.as_mut().expect("provider started").send(&serde_json::json!({
-                "action":"open","thread_id":request.thread_id,"request_id":request.request_id,"locale":locale,"mode":request.mode,"session":session
+                "action":request.action,"thread_id":request.thread_id,"request_id":request.request_id,"locale":locale,"mode":request.mode,"session":session,"server":request.server,"generation":request.generation,"tool_call":request.tool_call
             }))
         })();
         match result {

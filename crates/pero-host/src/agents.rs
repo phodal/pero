@@ -323,10 +323,10 @@ impl Manager {
         self.command(command);
     }
 
-    fn command(&mut self, command: HostCommand) {
+    fn command(&mut self, command: HostCommand) -> bool {
         if self.automation_owns_command(&command) {
             self.send("error", "Automation executions are controlled through Automation", serde_json::Value::Null);
-            return;
+            return false;
         }
         match command {
             HostCommand::LoadRoadmap => self.publish_roadmap(),
@@ -508,7 +508,7 @@ impl Manager {
                     let _ = self
                         .tx
                         .send(HostEvent::message("error", None, "error.invalid_session"));
-                    return;
+                    return false;
                 }
                 if let Some(session) = self.sessions.remove(&thread_id) {
                     session.user_questions.clear();
@@ -537,7 +537,7 @@ impl Manager {
                             let mut event = HostEvent::new("session_error", None, error.into());
                             event.thread_id = Some(thread_id);
                             let _ = self.tx.send(event);
-                            return;
+                            return false;
                         }
                         (
                             thread_id,
@@ -578,7 +578,7 @@ impl Manager {
                             session.permissions.lock().unwrap().clear();
                             let _ = session.tx.send(SessionCommand::Close);
                         }
-                        return;
+                        return true;
                     }
                     _ => {
                         self.send(
@@ -586,7 +586,7 @@ impl Manager {
                             "Message is empty or too long",
                             serde_json::Value::Null,
                         );
-                        return;
+                        return false;
                     }
                 };
                 if let Some(session) = self.sessions.get(&thread_id) {
@@ -606,7 +606,7 @@ impl Manager {
                         session.permissions.lock().unwrap().clear();
                     }
                     if session.tx.send(command).is_ok() {
-                        return;
+                        return true;
                     }
                 }
                 let mut event = HostEvent::new(
@@ -616,8 +616,10 @@ impl Manager {
                 );
                 event.thread_id = Some(thread_id);
                 let _ = self.tx.send(event);
+                return false;
             }
         }
+        true
     }
 }
 impl Drop for Manager {

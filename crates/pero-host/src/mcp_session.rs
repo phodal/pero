@@ -23,6 +23,7 @@ impl Manager {
         value: serde_json::Value,
         reply_tx: std::sync::mpsc::Sender<HostEvent>,
     ) {
+        if value["method"]=="mcp.message" {self.dispatch_mcp_message_to(value,reply_tx);return;}
         let request: McpSessionRequest = match serde_json::from_value(value.clone()) {
             Ok(request) => request,
             Err(_) => {
@@ -84,5 +85,47 @@ impl Manager {
         {
             mcp_session_reply(&reply_tx, &request, Err(McpSessionError::Unavailable));
         }
+    }
+}
+impl Manager {
+    fn dispatch_mcp_message_to(
+        &mut self,
+        value: serde_json::Value,
+        reply: std::sync::mpsc::Sender<HostEvent>,
+    ) {
+        use pero_contracts::mcp_session::McpMessageRequest;
+        let parsed = serde_json::from_value::<McpMessageRequest>(value.clone())
+            .map_err(|_| McpSessionError::Invalid);
+        let result = parsed.and_then(|request| {
+            let target = request.validate()?;
+            let snapshot = self
+                .mcp_session_snapshot(&request.thread_id)
+                .ok_or(McpSessionError::Unavailable)?;
+            target.admit(&snapshot, true)?;
+            self.command(pero_contracts::HostCommand::Prompt {
+                thread_id: request.thread_id,
+                text: request.text,
+                contexts: vec![],
+            }).then_some(()).ok_or(McpSessionError::Denied)
+        });
+        let mut event = HostEvent::new(
+            if result.is_ok() {
+                "mcp_session"
+            } else {
+                "mcp_session_error"
+            },
+            value["request_id"].as_str().map(str::to_owned),
+            String::new(),
+        );
+        event.thread_id = value["thread_id"].as_str().map(str::to_owned);
+        event.data = match result {
+            Ok(()) => {
+                serde_json::json!({"incarnation":value["incarnation"],"revision":value["revision"],"result":{}})
+            }
+            Err(reason) => {
+                serde_json::json!({"incarnation":value["incarnation"],"revision":value["revision"],"reason":reason})
+            }
+        };
+        let _ = reply.send(event);
     }
 }
