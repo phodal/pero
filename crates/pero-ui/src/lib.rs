@@ -165,6 +165,8 @@ mod mcp_app;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_artifact_preview;
 #[cfg(all(feature="native",not(target_family="wasm")))]
+mod native_mcp_view;
+#[cfg(all(feature="native",not(target_family="wasm")))]
 mod native_artifact_transport;
 #[cfg(target_family="wasm")]
 mod artifact_preview;

@@ -63,6 +63,8 @@ pub(crate) struct Workbench {
     #[cfg(not(target_family="wasm"))]
     pub artifact_preview:Option<crate::native_artifact_preview::RetainedArtifactPreview>,
     #[cfg(not(target_family="wasm"))]
+    pub(crate) native_mcp_views:std::collections::BTreeMap<(String,String),crate::native_mcp_view::NativeMcpView>,
+    #[cfg(not(target_family="wasm"))]
     pub native_web_pages:std::collections::BTreeMap<String,crate::web_documents::WorkspaceNativeWeb>,
     pub(crate) discovered_pull_requests: std::collections::BTreeSet<pero_contracts::pull_request::PullRequestRef>,
     pub(crate) pull_requests:Vec<crate::pull_requests::PullRequestContent>,
@@ -209,6 +211,7 @@ impl Workbench {
                     }
                     this.command(command, cx)
                 },
+                ChatAction::Mcp(request)=>this.command(serde_json::to_value(request).expect("typed MCP surface request"),cx),
                 ChatAction::AppLink(href)=>this.open_workspace_link(href,window,cx),
                 ChatAction::FollowLink { href, middle, primary_modifier } => this.follow_link(href, pero_contracts::workbench::LinkClick { middle: *middle, primary_modifier: *primary_modifier }, window, cx),
                 ChatAction::OpenSource { target, middle, primary_modifier } => this.open_source(target.clone().resolve_remote(false), pero_contracts::workbench::LinkClick { middle: *middle, primary_modifier: *primary_modifier }, window, cx),
@@ -336,6 +339,8 @@ impl Workbench {
             mcp_app_wait: None,
             #[cfg(not(target_family="wasm"))]
             artifact_preview:None,
+            #[cfg(not(target_family="wasm"))]
+            native_mcp_views:Default::default(),
             discovered_pull_requests:Default::default(), pull_requests:vec![],
             pull_request_index: Default::default(), pull_request_poll: 0, pull_request_poll_armed: false,
             restored_pull_requests: Vec::new(), pending_citations: Vec::new(), plan_sessions: Vec::new(),
@@ -567,6 +572,8 @@ impl Workbench {
                 self.command(json!({"method":"pull_requests","action":"discover","request_id":format!("pr-discover-{}",self.next_request),"thread_id":thread_id}),cx);
             }
         }
+        #[cfg(not(target_family="wasm"))]
+        self.receive_inline_mcp(&event,window,cx);
         let event_kind = event.kind.clone();
         let feature_handled = self.receive_terminal(&event,cx) || self.receive_mcp(&event, cx) || self.receive_icon_themes(&event,cx) || self.receive_workspace(&event,window,cx) || self.receive_pull_request(&event,window,cx) || self.receive_web(&event,window,cx) || self.receive_document(&event,window,cx)
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_engram(&event, window, cx) || self.receive_roadmap(&event, cx)

@@ -81,6 +81,7 @@ impl Workbench {
                     self.web_command(json!({"action":"web_open","url":url}), window, cx);
                 }
             }
+            "mcp_error" if event.request_id.as_deref().is_some_and(|id|id.starts_with("mcp-inline-")) => return false,
             "mcp_error" => self.error = Some(event.text.clone()),
             "web_choose" => self.choose_web(window, cx),
             "web_opened" | "web_state" => {

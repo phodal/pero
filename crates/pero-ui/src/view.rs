@@ -370,6 +370,8 @@ impl Render for Workbench {
             if chat.docked != docked { chat.docked = docked; cx.notify(); }
         });
         self.sync_artifact_preview(cx);
+        #[cfg(not(target_family="wasm"))]
+        self.sync_inline_mcp(cx);
         let sidebar_width = layout.sidebar_width;
         let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
             .then(|| self.preferences.layout.visible_sessions_width(width - sidebar_width))
