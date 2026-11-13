@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppI18n, useAppInfo, useAppChat, useAppObject, useAppDataChanged, useAppContext, useAppEvents, appObjectProps } from '@pero/app-sdk';
-import { Disclosure, Button, Feedback, Icon, PageHeader, Split, SplitPane } from '@pero/app-sdk/ui';
+import { Disclosure, Button, ContentPane, Feedback, Icon, InspectorHeader, PageHeader, Split, SplitPane } from '@pero/app-sdk/ui';
 import { messages } from './i18n';
 import { ImportPanel } from './library';
 import { LibraryPapers } from './library-papers';
@@ -446,7 +446,8 @@ export default function PaperAgent() {
     </section>
     <Split className="pa-reading-screen" storageKey="paper-agent.research-records" collapseBelow={760} hidden={screen !== 'reading'} data-agent={showResearch}>
       <SplitPane id="paper-reading-main" className="pa-reading-main" min={320}>
-        <header className="pa-reading-bar pero-reader-header">
+        <ContentPane id="paper-reader" label={reading?.title || t('loading')} as="div" surface="reading" inset="none" scroll="content"
+          toolbar={<header className="pa-reading-bar pero-reader-header">
           <Button variant="ghost" aria-label={t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'backToLibrary')} onClick={back}><Icon family="shell" name="back" size={16}/>{t(libraryScreen === 'results' ? 'researchResults' : libraryScreen === 'compare' ? 'comparePapers' : 'library')}</Button>
           <div className="pa-reader-crumb"><span className="pa-reader-title" title={reading?.title}>{reading?.title ?? t('loading')}</span></div>
           <div className="pa-reader-tools" ref={setPdfToolbar}/>
@@ -457,15 +458,19 @@ export default function PaperAgent() {
             </Button>
             <div><Button variant="ghost" className="pa-ask" aria-label={t('ask')} disabled={!reading || readingBusy || !!chatRequest} onMouseDown={event => event.preventDefault()} onClick={() => void ask()} aria-keyshortcuts="Control+j Meta+j"><Icon name="ai-sparkles" size={14}/>{t('ask')}</Button></div>
           </>}
-        </header>
+        </header>}
+        >
         <main className="pa-reading-canvas" aria-busy={readingBusy}>{reading ? <Reader key={reading.id} openToken={readerOpenToken.current} pdfReloadToken={saveRevision} chrome={{ figure: figureTarget, onLocation: setReaderLocation, onSave: (format = 'pdf') => { if (reading) { setSaveFormat(format); setSavingPaper(reading); } }, toolbar: pdfToolbar, preserveView, onNavigate: () => { focusVersion.current++; setPdfFocus(null); } }} api={api} paper={reading} busy={readingBusy} pdfFocus={textFocus ? null : pdfFocus} textFocus={textFocus} onFull={() => void full()} onReview={openImport} onDiscuss={selectedText} onMatrixAdded={async () => { await refresh(); setMatrixOpen(true); setShowResearch(true); }} t={t}/> : <p role="status">{t('loading')}</p>}</main>
+        </ContentPane>
       </SplitPane>
       {screen === 'reading' && showResearch && <SplitPane as="aside" id="paper-research-records" className="pa-records" size={384} min={300} stackedBasis="55%" resizeLabel={t('resizeResearchRecords')} aria-label={t('researchProgress')} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (citation) closeEvidence(); else closeRecords(); } }}>
-        <header className="pa-records-header"><h2>{t('researchProgress')}</h2><Button variant="ghost" aria-label={t('closeRecords')} onClick={closeRecords}><Icon name="x" size={14}/></Button></header>
-        <div className="pa-records-panel">
-          <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} opening={recordOpening} t={t}/>
-          {evidencePanel}
-        </div>
+        <ContentPane id="paper-research-records-content" label={t('researchProgress')} as="div" surface="reading" inset="none" scroll="content"
+          header={<div className="pa-records-header"><InspectorHeader title={t('researchProgress')} dismiss={{ label: t('closeRecords'), onDismiss: closeRecords }} /></div>}>
+          <div className="pa-records-panel">
+            <ResearchRecords api={api} library={library} paper={reading} onFollowUp={followUp} onContinue={continueStudy} onCite={(value, intent) => void cite(value, intent)} matrixOpen={matrixOpen} onMatrixOpen={setMatrixOpen} onAnnotation={annotation} onRead={reread} onAttempt={openAttempt} opening={recordOpening} t={t}/>
+            {evidencePanel}
+          </div>
+        </ContentPane>
       </SplitPane>}
     </Split>
     </SearchFrame>

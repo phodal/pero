@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import {
-  Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-  EmptyState, Feedback, Icon, IconButton, Input, OutlineBadge, Select, Tabs, TabsContent, TabsList, TabsTrigger,
+  Badge, Button, ContentPane, ContentSection, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, MetadataList, OutlineBadge, Select, Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@pero/app-sdk/ui';
 import { addedText, contentKind, paperSource } from './library';
 import { isShelfStatus, statusOf, type Shelf, type ShelfStatus } from './shelf';
@@ -40,33 +40,32 @@ export function PaperInspectorHeader({ paper, status, savingId, locked, t, onSta
   const [authorsOpen, setAuthorsOpen] = useState(false);
   const canPdf = !!(paper.pdfUrl || paper.pdfCandidateUrl || paper.hasCachedPdf);
   useEffect(() => { setAuthorsOpen(false); }, [paper.id]);
-  return <header className="pa-inspector-header">
-    <div className="pa-inspector-kicker">
-      <p>{t('paperDetails')}</p>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton label={t('moreActions')} variant="ghost"><Icon name="dots" size={16}/></IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {paper.source !== 'local-pdf' && <DropdownMenuItem onSelect={() => window.open(paper.url, '_blank', 'noopener,noreferrer')}>{t('openOriginal')}</DropdownMenuItem>}
-          <DropdownMenuItem disabled={!!savingId || !canPdf} onSelect={() => onDownload(paper, 'pdf')}>{t('downloadPdf')}</DropdownMenuItem>
-          {paper.arxivUrl && <DropdownMenuItem disabled={!!savingId} onSelect={() => onDownload(paper, 'tex')}>{t('downloadTex')}</DropdownMenuItem>}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={locked} onSelect={() => onStatus(paper.id, status === 'to-read' ? 'reading' : status === 'reading' ? 'reviewed' : 'to-read')}>{t('cycleReadingStatus')}</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-    <h2 className="pa-inspector-title">{paper.title}</h2>
-    {!!paper.authors.length && <p className="pa-inspector-authors">
-      <span>{authorLine(paper.authors, authorsOpen)}</span>
-      {paper.authors.length > 2 && <Button variant="ghost" className="pa-inspector-authors-toggle" onClick={() => setAuthorsOpen(value => !value)}>{t(authorsOpen ? 'showFewerAuthors' : 'showAllAuthors')}</Button>}
-    </p>}
-    <p className="pa-inspector-byline">{byline(paper, t)}</p>
-    <div className="pa-inspector-tags">
+  return <InspectorHeader
+    title={paper.title}
+    identity={t('paperDetails')}
+    subtitle={<>
+      {!!paper.authors.length && <span className="pa-inspector-authors">{authorLine(paper.authors, authorsOpen)}{' '}
+        {paper.authors.length > 2 && <Button variant="ghost" className="pa-inspector-authors-toggle" onClick={() => setAuthorsOpen(value => !value)}>{t(authorsOpen ? 'showFewerAuthors' : 'showAllAuthors')}</Button>}
+      </span>}
+      <span className="pa-inspector-byline">{byline(paper, t)}</span>
+    </>}
+    status={<div className="pa-inspector-tags">
       <Badge tone={statusTone[status]}>{t(status === 'reading' ? 'statusReading' : status === 'to-read' ? 'statusToRead' : 'statusReviewed')}</Badge>
       <OutlineBadge>{contentKind(paper, t)}</OutlineBadge>
-    </div>
-  </header>;
+    </div>}
+    actions={<DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton label={t('moreActions')} variant="ghost"><Icon name="dots" size={16}/></IconButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {paper.source !== 'local-pdf' && <DropdownMenuItem onSelect={() => window.open(paper.url, '_blank', 'noopener,noreferrer')}>{t('openOriginal')}</DropdownMenuItem>}
+        <DropdownMenuItem disabled={!!savingId || !canPdf} onSelect={() => onDownload(paper, 'pdf')}>{t('downloadPdf')}</DropdownMenuItem>
+        {paper.arxivUrl && <DropdownMenuItem disabled={!!savingId} onSelect={() => onDownload(paper, 'tex')}>{t('downloadTex')}</DropdownMenuItem>}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={locked} onSelect={() => onStatus(paper.id, status === 'to-read' ? 'reading' : status === 'reading' ? 'reviewed' : 'to-read')}>{t('cycleReadingStatus')}</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>}
+  />;
 }
 
 export function PaperResearchBrief({ t }: { t: Translator }) {
@@ -103,8 +102,7 @@ export function PaperOverview({ api, paper, t, onRead }: {
   }, [api, paper.id, paper.content, retry]);
   const preview = abstract.text.length > 420 && !expanded ? `${abstract.text.slice(0, 420).trim()}…` : abstract.text;
   return <div className="pa-inspector-overview">
-    <section className="pa-inspector-abstract" aria-label={t('abstract')}>
-      <h3>{t('abstract')}</h3>
+    <ContentSection id={`paper-abstract-${paper.id}`} title={t('abstract')}>
       {abstract.status === 'loading' && <p role="status" className="pa-inspector-muted">{t('loading')}</p>}
       {abstract.status === 'error' && <Feedback kind="error">{abstract.error}<Button onClick={() => setRetry(value => value + 1)}>{t('retry')}</Button></Feedback>}
       {abstract.status === 'empty' && <EmptyState description={t('noAbstractPreview')} actions={<Button variant="ghost" onClick={() => onRead(paper)}>{t('openReader')}</Button>}/>}
@@ -115,7 +113,7 @@ export function PaperOverview({ api, paper, t, onRead }: {
           <Button variant="ghost" onClick={() => onRead(paper)}>{t('abstractOpenReader')}</Button>
         </div>
       </>}
-    </section>
+    </ContentSection>
     <PaperResearchBrief t={t}/>
   </div>;
 }
@@ -186,31 +184,17 @@ export function PaperResearchContext({ paper, status, studyCount, t, onStatus }:
   paper: Paper; status: ShelfStatus; studyCount: number; t: Translator;
   onStatus(id: string, value: ShelfStatus): void;
 }) {
-  return <section className="pa-inspector-context" aria-label={t('researchWorkspace')}>
-    <div className="pa-inspector-context-head">
-      <h3><Icon name="file-text" size={14}/>{t('researchWorkspace')}</h3>
-    </div>
-    <dl className="pa-inspector-context-rows">
-      <div>
-        <dt>{t('readingStatus')}</dt>
-        <dd>
-          <Select label={t('readingStatus')} value={status} onChange={value => { if (isShelfStatus(value)) onStatus(paper.id, value); }} options={[
-            { value: 'to-read', label: t('statusToRead') },
-            { value: 'reading', label: t('statusReading') },
-            { value: 'reviewed', label: t('statusReviewed') },
-          ]}/>
-        </dd>
-      </div>
-      <div>
-        <dt>{t('linkedProject')}</dt>
-        <dd className="pa-inspector-muted">{t('projectUnlinked')}</dd>
-      </div>
-      {studyCount > 0 && <div>
-        <dt>{t('researchProgress')}</dt>
-        <dd>{studyCount}</dd>
-      </div>}
-    </dl>
-  </section>;
+  return <ContentSection id={`paper-context-${paper.id}`} title={t('researchWorkspace')}>
+    <MetadataList items={[
+      { id: 'status', label: t('readingStatus'), value: <Select label={t('readingStatus')} value={status} onChange={value => { if (isShelfStatus(value)) onStatus(paper.id, value); }} options={[
+        { value: 'to-read', label: t('statusToRead') },
+        { value: 'reading', label: t('statusReading') },
+        { value: 'reviewed', label: t('statusReviewed') },
+      ]} /> },
+      { id: 'project', label: t('linkedProject'), value: t('projectUnlinked') },
+      ...(studyCount > 0 ? [{ id: 'studies', label: t('researchProgress'), value: studyCount }] : []),
+    ]} />
+  </ContentSection>;
 }
 
 export function PaperAskAgent({ paper, locked, t, onAsk }: {
@@ -257,19 +241,20 @@ export const PaperInspector = React.forwardRef<HTMLElement, {
     + (library?.intents ?? []).filter(intent => (intent.paperIds ?? intent.papers.map(item => item.id)).includes(paper.id)).length;
   useEffect(() => { setTab('overview'); }, [paper.id]);
   return <section ref={ref} className="pa-paper-inspector" tabIndex={-1} aria-label={t('paperDetails')}>
-    <PaperInspectorHeader paper={paper} status={status} savingId={savingId} locked={locked} t={t}
-      onStatus={onStatus} onDownload={onDownload}/>
     <Tabs value={tab} onValueChange={value => setTab(value as InspectorTab)} className="pa-inspector-tabs">
-      <TabsList aria-label={t('paperDetails')} variant="navigation">
-        <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
-        <TabsTrigger value="notes">{t('notesTab')}</TabsTrigger>
-        <TabsTrigger value="related">{t('relatedTab')}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="overview" forceMount hidden={tab !== 'overview'}><PaperOverview api={api} paper={paper} t={t} onRead={onRead}/></TabsContent>
-      <TabsContent value="notes" forceMount hidden={tab !== 'notes'}><PaperNotes api={api} paper={paper} t={t} onRead={onRead} onRecords={onRecords}/></TabsContent>
-      <TabsContent value="related" forceMount hidden={tab !== 'related'}><PaperRelated paper={paper} library={library} t={t} onDiscover={onDiscover} onRead={onRead}/></TabsContent>
+      <ContentPane id={`paper-inspector-${paper.id}`} label={t('paperDetails')} as="div" surface="reading" inset="compact" scroll="pane"
+        header={<PaperInspectorHeader paper={paper} status={status} savingId={savingId} locked={locked} t={t} onStatus={onStatus} onDownload={onDownload}/>}
+        toolbar={<TabsList aria-label={t('paperDetails')} variant="navigation">
+          <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
+          <TabsTrigger value="notes">{t('notesTab')}</TabsTrigger>
+          <TabsTrigger value="related">{t('relatedTab')}</TabsTrigger>
+        </TabsList>}>
+        <TabsContent value="overview" forceMount hidden={tab !== 'overview'}><PaperOverview api={api} paper={paper} t={t} onRead={onRead}/></TabsContent>
+        <TabsContent value="notes" forceMount hidden={tab !== 'notes'}><PaperNotes api={api} paper={paper} t={t} onRead={onRead} onRecords={onRecords}/></TabsContent>
+        <TabsContent value="related" forceMount hidden={tab !== 'related'}><PaperRelated paper={paper} library={library} t={t} onDiscover={onDiscover} onRead={onRead}/></TabsContent>
+        <PaperResearchContext paper={paper} status={status} studyCount={studyCount} t={t} onStatus={onStatus}/>
+        <PaperAskAgent paper={paper} locked={locked} t={t} onAsk={onAsk}/>
+      </ContentPane>
     </Tabs>
-    <PaperResearchContext paper={paper} status={status} studyCount={studyCount} t={t} onStatus={onStatus}/>
-    <PaperAskAgent paper={paper} locked={locked} t={t} onAsk={onAsk}/>
   </section>;
 });
