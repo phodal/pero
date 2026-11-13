@@ -6,6 +6,7 @@ github_issue: 223
 github_state: open
 github_url: https://github.com/phodal/pero/issues/223
 related: https://github.com/phodal/pero/issues/219
+pull_request: https://github.com/phodal/pero/pull/224
 ---
 
 # Self-hosted machines: scoped task creation and observed execution targets
@@ -61,3 +62,5 @@ new Worker response fields, since older clients have a closed response schema.
 The user requested that screenshots remain local; no PNGs are committed or
 uploaded. Keep #223 open for integration/release acceptance; #219 remains the
 architecture/reference issue and #222 remains the independent P0 recovery fix.
+
+Draft PR: [#224](https://github.com/phodal/pero/pull/224), awaiting integration/release acceptance.
