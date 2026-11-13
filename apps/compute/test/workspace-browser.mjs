@@ -172,17 +172,22 @@ test('loading and navigation failures recover while keyboard, locale and appeara
   await expect(frame.getByRole('heading', { name: '尚未连接，无法读取作业', exact: true })).toBeVisible();
   await frame.getByRole('button', { name: '重试', exact: true }).click();
   await expect(frame.getByRole('alert')).toHaveCount(0);
+  // Workers and software environments live in the related-settings menu, not as bar buttons.
+  const openRelated = async name => {
+    await frame.getByRole('button', { name: '相关设置', exact: true }).click();
+    await frame.getByRole('menuitem', { name, exact: true }).click();
+  };
   await page.evaluate(() => { window.failNavigation = true; });
-  await frame.getByRole('button', { name: '管理执行节点', exact: true }).click();
+  await openRelated('管理执行节点');
   await expect(frame.getByRole('alert')).toContainText('暂时无法打开该页面');
   await page.evaluate(() => { window.failNavigation = false; });
-  await frame.getByRole('button', { name: '管理执行节点', exact: true }).click();
+  await openRelated('管理执行节点');
   await page.evaluate(() => { window.failNavigation = true; });
-  await frame.getByRole('button', { name: '软件环境', exact: true }).click();
+  await openRelated('软件环境');
   await expect(frame.getByRole('alert')).toContainText('请在应用目录检查是否已启用');
   await page.evaluate(() => { window.failNavigation = false; });
   await frame.getByRole('button', { name: '打开应用目录', exact: true }).click();
-  await frame.getByRole('button', { name: '软件环境', exact: true }).click();
+  await openRelated('软件环境');
   await expect.poll(() => page.evaluate(() => window.hostNavigations)).toEqual(['/workers', '/workers', '/apps/environments', '/apps', '/apps/environments']);
   await frame.getByRole('tab', { name: '作业', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
