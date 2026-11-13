@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppChat, useAppContext, openPaperApp } from '@pero/app-sdk';
-import { Disclosure, AppBar, Button, Feedback, FilePicker, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
+import { Disclosure, AppBar, Button, ContentPane, Feedback, FilePicker, MetadataList, Select, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@pero/app-sdk/ui';
 import { assetFrom, inspect, type Asset } from './files';
 import { files, saveFile, removeFile } from './store';
 import { ResearchLab, researchLabAsset, type ResearchLabEntry } from './research-lab';
@@ -78,7 +78,12 @@ export default function ScientificViewer() {
     <AppBar className="viewer-toolbar" aria-label="File actions" scope={<Select id="viewer-file" className="file-select" label={t.file} value={selected} disabled={loading || importing} onChange={value => { setPendingRemoval(null); setSelected(value); }} options={[{ value: '', label: t.molecules }, { value: 'research-lab', label: 'Research Lab' }, ...assets.map(item => ({ value: item.id, label: item.name }))]} />} tools={<>
       {asset && <Disclosure variant="inline" className="source-details" key={asset.id} summaryProps={{ 'aria-label': t.source, 'aria-describedby': 'source-status' }} summary={<><span id="source-status">{asset.synthetic ? t.synthetic : t.unverified}</span></>}>
         <div className="source-panel">
-          <h2>{t.source}</h2><dl><dt>{t.size}</dt><dd>{asset.size.toLocaleString('en-US')} bytes</dd><dt>{t.origin}</dt><dd>{asset.source}</dd><dt>{t.license}</dt><dd>{asset.license}</dd><dt>SHA-256</dt><dd className="hash">{asset.sha256}</dd></dl>
+          <h2>{t.source}</h2><MetadataList layout="stacked" items={[
+            { id: 'size', label: t.size, value: `${asset.size.toLocaleString('en-US')} bytes` },
+            { id: 'origin', label: t.origin, value: asset.source },
+            { id: 'license', label: t.license, value: asset.license },
+            { id: 'sha', label: 'SHA-256', value: asset.sha256, format: 'code' },
+          ]} />
           <div className="source-actions"><Button onClick={() => void chat.compose(`Inspect metadata for ${asset.name}. SHA-256 ${asset.sha256}; source: ${asset.source}; license: ${asset.license}. Unverified. File contents have not been shared.`).catch(error => setError(String(error)))}>{t.discuss}</Button>
             <Button ref={removeButton} disabled={removing} onClick={() => setPendingRemoval({ id: asset.id, name: asset.name })}>{t.remove}</Button></div>
           {pendingRemoval && <div className="removal-confirmation" role="group" aria-label="Confirm local copy removal" onKeyDown={event => { if (event.key === 'Escape' && !removing) { event.preventDefault(); setPendingRemoval(null); removeButton.current?.focus(); } }}>
@@ -101,6 +106,6 @@ export default function ScientificViewer() {
     {loading && <p role="status">{t.loading}</p>}
     {loadError && <div className="viewer-error"><Feedback kind="error">{loadError}</Feedback><Button disabled={loading} onClick={() => void loadFiles()}>{t.retry}</Button></div>}
     {error && <div className="viewer-error"><Feedback kind="error">{error}</Feedback><Button onClick={() => setError('')}>Dismiss</Button></div>}
-    <article className="viewer-content">{!loading && !loadError && (selected === 'research-lab' ? <ResearchLab busy={importing} onOpen={entry => void openResearchModel(entry)} /> : asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</article>
+    <article className="viewer-content"><ContentPane id="scientific-viewer-preview" label={asset?.name || 'Scientific Viewer'} as="div" surface="reading" inset="none" scroll="content">{!loading && !loadError && (selected === 'research-lab' ? <ResearchLab busy={importing} onOpen={entry => void openResearchModel(entry)} /> : asset ? <PreviewBoundary key={asset.id}><Preview asset={asset} /></PreviewBoundary> : <MolecularExplorer />)}</ContentPane></article>
   </main>;
 }

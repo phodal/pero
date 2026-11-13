@@ -45,7 +45,7 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 .row-actions { display: flex; gap: var(--pero-spacing-1); justify-content: flex-end; }
 .scope { margin: 0; padding: var(--pero-spacing-3) var(--pero-spacing-5) var(--pero-spacing-4); }
 .task-list .pero-ui-empty-state { padding: var(--pero-spacing-6); }
-.details { width: min(100%, 400px); min-width: 0; flex-shrink: 0; border-inline-start: var(--pero-hairline); padding-inline-start: var(--pero-spacing-5); overflow-wrap: anywhere; }
+.details, .workspace > .pero-content-pane { width: min(100%, 400px); min-width: 0; flex-shrink: 0; border-inline-start: var(--pero-hairline); overflow-wrap: anywhere; }
 .details > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pero-spacing-3); margin-bottom: var(--pero-spacing-3); }
 .detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-4); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .detail-note { margin: 0 0 var(--pero-spacing-3); color: var(--pero-error); font-size: var(--pero-font-caption); }
@@ -58,8 +58,8 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 .history { padding: 0; margin: 0; list-style: none; }
 .history li { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-2); justify-content: space-between; align-items: flex-start; padding: var(--pero-spacing-3) 0; border-bottom: var(--pero-hairline); }
 .history p, .latest p { margin: var(--pero-spacing-1) 0 0; overflow-wrap: anywhere; }
-.details > label, .time-fields label { display: flex; flex-direction: column; gap: var(--pero-spacing-1); margin-bottom: var(--pero-spacing-3); }
-.details > label.check { flex-direction: row; align-items: center; }
+.editor-fields > label, .time-fields label { display: flex; flex-direction: column; gap: var(--pero-spacing-1); margin-bottom: var(--pero-spacing-3); }
+.editor-fields > label.check { flex-direction: row; align-items: center; }
 .editor-save { margin-top: var(--pero-spacing-4); }
 .time-fields { display: flex; gap: var(--pero-spacing-3); }
 .time-fields label { flex: 1; min-width: 0; }
@@ -80,7 +80,7 @@ button.template-card.pero-ui-button:not([data-variant=unstyled]) { display: flex
 @media (max-width: 980px) {
   .template-grid { grid-template-columns: 1fr 1fr; }
   .workspace { flex-direction: column; }
-  .details { width: 100%; border-inline-start: 0; border-top: var(--pero-hairline); padding: var(--pero-spacing-4) 0 0; }
+  .details, .workspace > .pero-content-pane { width: 100%; border-inline-start: 0; border-top: var(--pero-hairline); }
   .task-head { display: none; }
   .task-head, .task-row { grid-template-columns: 1fr; row-gap: var(--pero-spacing-2); }
   .row-actions { justify-content: flex-start; }

@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppProvider, useAppContext} from '@pero/app-sdk';
-import {Badge, Button, Checkbox, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, LibraryHeader, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
+import {AppFrame, Badge, Button, Checkbox, ContentPane, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
 import {automationRequest, openSession} from './transport';
 import {draftBody, editDraft, newDraft, templates, weekdays, type Automation, type Draft, type Run, type Schedule} from './model';
 import './frame.css';
@@ -323,8 +323,9 @@ function Calendar({items, locale, t, onOpen}: {items: Automation[]; locale: stri
 function Editor({draft, busy, t, onPatch, onClose, onSave}: {draft: Draft; busy: boolean; t: Copy; onPatch: (value: Partial<Draft>) => void; onClose: () => void; onSave: () => void}) {
   const unit = draft.schedule === 'hourly' ? t.hours : draft.schedule === 'daily' ? t.days : draft.schedule === 'weekly' ? t.weeks : t.months;
   const schedules: Schedule[] = ['manual', 'hourly', 'daily', 'weekly', 'monthly', 'custom'];
-  return <section className="details" aria-label={t.editor} onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); onSave(); } }}>
-    <header><h2>{draft.id ? t.editTitle : t.create}</h2><Button type="button" onClick={onClose}>{t.close}</Button></header>
+  return <ContentPane id="automation-editor" label={t.editor} as="section" surface="workspace" inset="compact" scroll="pane"
+    header={<InspectorHeader title={draft.id ? t.editTitle : t.create} identity={t.editor} actions={<Button type="button" onClick={onClose}>{t.close}</Button>} />}>
+    <div className="editor-fields" onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); onSave(); } }}>
     <label>{t.name}<Input value={draft.name} onChange={event => onPatch({name: event.target.value})} maxLength={200}/></label>
     <label>{t.instructions}<Textarea value={draft.prompt} onChange={event => onPatch({prompt: event.target.value})} rows={6} maxLength={16000}/></label>
     <label>{t.schedule}<Select label={t.schedule} value={draft.schedule} onChange={value => onPatch({schedule: value as Schedule})} options={schedules.map(value => ({value, label: t[value]}))}/></label>
@@ -338,7 +339,8 @@ function Editor({draft, busy, t, onPatch, onClose, onSave}: {draft: Draft; busy:
     <label className="check"><Checkbox checked={draft.enabled} onCheckedChange={checked => onPatch({enabled: checked === true})}/>{t.enableAfter}</label>
     <small className="muted">{t.hostNote}</small>
     <div className="actions editor-save"><Button variant="primary" disabled={busy} onClick={onSave}>{busy ? t.saving : t.save}</Button></div>
-  </section>;
+    </div>
+  </ContentPane>;
 }
 
 function Detail({record, t, when, zh, onEdit, onDismiss}: {record: Automation; t: Copy; when: (value?: string) => string; zh: boolean; onEdit: () => void; onDismiss: () => void}) {
@@ -346,9 +348,8 @@ function Detail({record, t, when, zh, onEdit, onDismiss}: {record: Automation; t
   const latest = record.runs[record.runs.length - 1];
   const session = newestSession(record.runs);
   const status = statusOf(record, t);
-  return <section className="details" aria-label={t.details}>
-    <header><h2>{record.name}</h2><div className="actions">{record.kind !== 'research_watch' && <Button type="button" disabled={!!record.event} onClick={onEdit}>{t.edit}</Button>}<IconButton label={t.dismiss} onClick={onDismiss}><Icon name="close" size={16}/></IconButton></div></header>
-    <div className="detail-meta"><Badge tone={status.tone}>{status.label}</Badge><span>{record.timezone} · {scheduleTitle(record, t)}</span></div>
+  return <ContentPane id={`automation-${record.id}`} label={t.details} as="section" surface="reading" inset="compact" scroll="pane"
+    header={<InspectorHeader title={record.name} identity={t.details} subtitle={`${record.timezone} · ${scheduleTitle(record, t)}`} status={<Badge tone={status.tone}>{status.label}</Badge>} actions={<>{record.kind !== 'research_watch' && <Button type="button" disabled={!!record.event} onClick={onEdit}>{t.edit}</Button>}<IconButton label={t.dismiss} onClick={onDismiss}><Icon name="close" size={16}/></IconButton></>} />}>
     {record.event && <p className="muted">{t.eventLocked}</p>}
     {record.error && <p className="detail-note">{record.error}</p>}
     <Tabs value={tab} onValueChange={setTab}>
@@ -366,7 +367,7 @@ function Detail({record, t, when, zh, onEdit, onDismiss}: {record: Automation; t
       </TabsContent>
       <TabsContent value="runs"><h3>{t.history}</h3><RunList runs={record.runs} t={t} when={when} zh={zh}/></TabsContent>
     </Tabs>
-  </section>;
+  </ContentPane>;
 }
 
 function Automations() {
@@ -406,18 +407,20 @@ function Automations() {
   const record = items.find(item => item.id === selected);
   const filtered = query.trim() !== '' || status !== 'all';
   const showCatalog = gallery || (!items.length && !filtered && !loading);
-  return <main className="automation-app">
+  return <AppFrame className="automation-app" label={t.title}
+    scope={<ToggleGroup className="view-switch" type="single" value={view} aria-label={t.view} onValueChange={value => { if (value === 'list' || value === 'calendar') setView(value); }}>
+      <ToggleGroupItem value="list"><Icon name="list" size={16}/>{t.list}</ToggleGroupItem>
+      <ToggleGroupItem value="calendar"><Icon name="calendar" size={16}/>{t.calendar}</ToggleGroupItem>
+    </ToggleGroup>}
+    commands={<Button type="button" variant="ghost" onClick={() => setGallery(value => !value)}>{t.templates}</Button>}
+    primary={draft ? undefined : <Button variant="primary" onClick={() => { setDraft(newDraft()); setGallery(false); }}><Icon name="plus" size={16}/>{t.create}</Button>}>
     <div className="automation-page">
-      <LibraryHeader density="compact" title={t.title} subtitle={t.subtitle} actions={<div className="actions">
-        <ToggleGroup className="view-switch" type="single" value={view} aria-label={t.view} onValueChange={value => { if (value === 'list' || value === 'calendar') setView(value); }}>
-          <ToggleGroupItem value="list"><Icon name="list" size={16}/>{t.list}</ToggleGroupItem>
-          <ToggleGroupItem value="calendar"><Icon name="calendar" size={16}/>{t.calendar}</ToggleGroupItem>
-        </ToggleGroup>
-        <Button type="button" onClick={() => setGallery(value => !value)}>{t.templates}</Button>
-        <Button variant="primary" onClick={() => { setDraft(newDraft()); setGallery(false); }}><Icon name="plus" size={16}/>{t.create}</Button>
-      </div>}/>
-      {error && <Feedback kind="error" variant="block" className="feedback">{error}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
-      {notice && <Feedback>{notice}</Feedback>}
+      <ContentPane id="automation-catalog" label={t.listLabel} as="div" surface="list" inset="regular" scroll="pane"
+        header={<LibraryHeader density="compact" title={t.title} subtitle={t.subtitle} />}
+        feedback={<>
+          {error && <Feedback kind="error" variant="block" className="feedback">{error}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
+          {notice && <Feedback>{notice}</Feedback>}
+        </>}>
       {showCatalog && <TemplateCatalog zh={zh} t={t} onPick={pickTemplate}/>}
       <div className="workspace">
         <section className="catalog" aria-label={t.listLabel}>
@@ -459,8 +462,9 @@ function Automations() {
         </section>
         {draft ? <Editor draft={draft} busy={busy} t={t} onPatch={patch} onClose={() => setDraft(undefined)} onSave={() => void save()}/> : record && <Detail key={record.id} record={record} t={t} when={when} zh={zh} onEdit={() => setDraft(editDraft(record))} onDismiss={() => select(undefined)}/>}
       </div>
+      </ContentPane>
     </div>
-  </main>;
+  </AppFrame>;
 }
 
 createRoot(document.getElementById('app')!).render(<AppProvider><Automations/></AppProvider>);

@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
-import {AppBar, Button, Checkbox, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, LibraryHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
+import {AppBar, Button, Checkbox, ContentPane, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
@@ -140,24 +140,23 @@ export function SkillsMarket() {
   const missingEvidence=item ? <>{text('未明确列出，请查看','Not explicitly listed; review the')} <a href={item.source.url} target="_blank" rel="noreferrer">{text('技能原文','original skill')}</a>。</> : null;
 
   return <main className="skills-market">
-    <div className="skills-scroll" ref={scroller}>
-      <div className="skills-page">
-        <Tabs value={view} onValueChange={next=>filter(()=>setView(next))}>
+        <Tabs className="skills-frame" value={view} onValueChange={next=>filter(()=>setView(next))}>
           <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
             <TabsTrigger value="discover">{text('发现技能','Discover')}</TabsTrigger>
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
           </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={loading} disabled={!capability} onClick={() => void load()}><Icon name="sync" size={14}/></IconButton>} />
-          <LibraryHeader density="compact" title={text('Skills 市场','Skills')} subtitle={catalog ? text(`${catalog.skills.length.toLocaleString(locale)} 项 · ${catalog.sources.length} 个来源`, `${catalog.skills.length.toLocaleString(locale)} skills · ${catalog.sources.length} sources`) : text('找到合适的技能，把下一步研究做得更清楚。','Find the right skill for the next step in your research.')} />
-          <div className="skills-tools">
+          <ContentPane id="skills-catalog" label={text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
+            header={<LibraryHeader density="compact" title={text('Skills 市场','Skills')} subtitle={catalog ? text(`${catalog.skills.length.toLocaleString(locale)} 项 · ${catalog.sources.length} 个来源`, `${catalog.skills.length.toLocaleString(locale)} skills · ${catalog.sources.length} sources`) : text('找到合适的技能，把下一步研究做得更清楚。','Find the right skill for the next step in your research.')} />}
+            toolbar={<div className="skills-tools">
             <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索技能','Search skills')} placeholder={text('搜索用途、技能名称或来源…','Search tasks, skill names or sources…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>
             <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>filter(()=>setCategory(value))}/>
-          </div>
-          <div className="skills-status">
+          </div>}
+            feedback={<div className="skills-status">
             {loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
             {error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
-          </div>
+          </div>}>
           <TabsContent value={view}>
             {!catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
@@ -179,14 +178,13 @@ export function SkillsMarket() {
               </aside>
             </div>}
           </TabsContent>
+          </ContentPane>
         </Tabs>
-      </div>
-    </div>
     {taskIds.length>0&&<section className="skills-task-queue" aria-label={text('安装任务','Installation tasks')}><header><Button variant="ghost" aria-expanded={queueOpen} onClick={()=>setQueueOpen(!queueOpen)}><Icon name={running?'sync':'export'} size={16}/><strong>{running?text(`${running} 项正在处理`,`${running} running`):text('最近操作','Recent actions')}</strong><span>{taskIds.length}</span><Icon name={queueOpen?'chevron-down':'up'} size={14}/></Button>{!running&&<Button variant="ghost" aria-label={text('清除已完成任务','Clear completed tasks')} onClick={()=>setOutcomes({})}><Icon name="close" size={15}/></Button>}</header>{queueOpen&&<div className="skills-queue-items">{taskIds.map(id=>{const target=entries.find(value=>value.id===id);if(!target)return null;const pending=busy[id],outcome=outcomes[id];return <div className="skills-queue-item" key={id}><Icon name={pending?'sync':outcome?.error?'alert':'check'} size={16}/><div><Button variant="link" onClick={()=>open(target)}>{title(target)}</Button><p role={pending?'status':outcome?.error?'alert':'status'}>{pending?(pending.notice||text(pending.cancelling?'正在等待取消完成。':'正在获取或核对所选技能，请稍候。',pending.cancelling?'Waiting for cancellation.':'Fetching or checking the selected skill.')):outcome?.message}</p></div>{pending&&['install','update'].includes(pending.operation)?<Button variant="ghost" aria-label={text(`取消 ${target.name}`,`Cancel ${target.name}`)} busy={pending.cancelling} onClick={()=>void cancel(id)}><Icon name="close" size={14}/></Button>:!pending&&outcome?.error?<Button variant="link" onClick={()=>retry(target)}>{text('重试','Retry')}</Button>:!pending&&records.some(value=>value.id===id)?<Button variant="link" onClick={()=>void useSkill(target)}>{text('去使用','Use skill')}</Button>:null}</div>;})}</div>}</section>}
 
     {item&&<Dialog presentation="drawer" className="skills-detail" title={text('技能详情','Skill details')} closeLabel={text('关闭详情','Close details')} onClose={()=>setSelected('')} footerStart={<span className="skills-footer-note"><Icon name={record?'check':'local'} size={14}/>{record?text('已安装在本地','Installed locally'):text('安装到当前 Pero','Install in this Pero')}</span>} footer={primary(item)}>
       <div className="skills-detail-content">
-        <div className="skills-detail-identity"><SkillGlyph skill={item}/><div><span className={`skills-category tone-${item.category}`}>{categoryLabel(item)}</span><h2>{title(item)}</h2><code>{item.name}</code></div></div><p className="skills-description">{description(item)}</p>
+        <InspectorHeader title={title(item)} identity={<span className="skills-detail-identity"><SkillGlyph skill={item}/><span className={`skills-category tone-${item.category}`}>{categoryLabel(item)}</span></span>} subtitle={<code>{item.name}</code>} status={record ? text('已安装','Installed') : text('未安装','Not installed')} /><p className="skills-description">{description(item)}</p>
         {!record&&installationBlock(item)&&<Feedback>{installationBlock(item)} <a href={item.license.evidence_url||item.source.url} target="_blank" rel="noreferrer">{text('查看许可依据','License evidence')}</a></Feedback>}
         {itemBusy&&<Feedback>{itemBusy.notice||text('正在处理，可关闭详情继续浏览。','Working; close details to keep browsing.')} {['install','update'].includes(itemBusy.operation)&&<Button variant="link" disabled={itemBusy.cancelling} onClick={()=>void cancel(item.id)}>{text('取消','Cancel')}</Button>}</Feedback>}
         {!itemBusy&&outcomes[item.id]?.error&&<Feedback kind="error">{outcomes[item.id].message}<Button variant="link" onClick={()=>retry(item)}>{text('重试','Retry')}</Button></Feedback>}

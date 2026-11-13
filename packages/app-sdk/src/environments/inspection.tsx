@@ -11,6 +11,7 @@ import { EmptyIllustration } from '../components/empty-illustration';
 import { Card } from '../components/card';
 import { Dialog } from '../components/dialog';
 import { Badge } from '../../../pero-design/src/components';
+import { ContentPane, ContentSection, InspectorHeader, MetadataList } from '../../../pero-design/src/content';
 import { METHODS, METHOD_IDS, OBSERVATION_MAX_AGE_MS, observationState, requirementText, filterMethods } from './model.mjs';
 import { createInspectionSession, type InspectEnvironment } from './client.mjs';
 import type { InspectionRecord, EnvironmentObservation } from './model.mjs';
@@ -77,15 +78,16 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
     ...Object.entries(observed.native).map(([name, value]) => ({ name, version: value.status === 'observed' ? value.version ?? t.missing : t[value.status] || value.status, missing: value.status !== 'observed' })),
   ] : [];
   return <section className="pero-env env-inspection">
-    {!method ? <>
-      <header className="env-heading">{!embedded && <h1>{t.title}</h1>}<Button variant="primary" busy={allBusy} onClick={() => void checkAll()}>{t.checkAll}</Button></header>
-      <div className="env-toolbar">
+    {!method ? <ContentPane id="env-checks" label={t.title} as="div" surface="list" inset="compact" scroll="pane"
+      header={!embedded ? <h1>{t.title}</h1> : undefined}
+      toolbar={<div className="env-toolbar">
         <Input type="search" aria-label={t.search} placeholder={t.search} value={query} onChange={event => setQuery(event.target.value)} />
         <Select label={t.filter} value={filter} onChange={setFilter} options={['all', 'unchecked', 'matched', 'blocked', 'stale', 'error'].map(value => ({ value, label: t[value] }))} />
         <ToggleGroup type="single" value={layout} onValueChange={next => { if (next) setLayout(next); }} aria-label={t.view}>
           <ToggleGroupItem value="table">{t.table}</ToggleGroupItem><ToggleGroupItem value="grid">{t.grid}</ToggleGroupItem>
         </ToggleGroup>
-      </div>
+      </div>}
+      footer={<Button variant="primary" busy={allBusy} onClick={() => void checkAll()}>{t.checkAll}</Button>}>
       {!methods.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} description={t.empty} actions={<Button onClick={() => { setQuery(''); setFilter('all'); }}>{t.clear}</Button>} />
         : layout === 'table' ? <Table label={t.title} density="compact" rows={methods} rowId={item => item.id} columns={[
           { id: 'method', header: t.method, size: 210, cell: item => <><Button variant="ghost" onClick={() => { setSelected(item.id); setTab('software'); }}>{item.name}</Button><small className="env-muted">{item.software}</small></> },
@@ -97,13 +99,18 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
         </Card>)}</div>}
       <p className="env-note">{t.noChanges}</p>
       {targets.filter(id => records[id]?.state === 'error').map(id => <Feedback key={id} kind="error" variant="block">{METHODS.find(item => item.id === id)!.name}: {records[id].error}{records[id].report && ` ${t.retained}`}</Feedback>)}
-    </> : <>
-      <header className="env-heading"><div className="env-heading-start">{!single && <Button onClick={() => setSelected('')}>{t.back}</Button>}<h2 ref={heading} tabIndex={-1}>{method.name}</h2>{badge(selected)}</div>{check(method.id)}</header>
-      <p className="env-subtitle">{method.app} / {t.local}</p>
-      {record?.state === 'loading' && <Feedback>{report ? t.refreshing : t.checking}</Feedback>}
-      {record?.state === 'error' && <Feedback kind="error" variant="block">{record.error}{report && ` ${t.retained}`}</Feedback>}
+    </ContentPane> : <ContentPane id={`env-check-${method.id}`} label={method.name} as="div" surface="reading" inset="compact" scroll="pane"
+      header={<InspectorHeader titleRef={heading} title={method.name} identity={`${method.app} / ${t.local}`} status={badge(selected)} actions={<>{!single && <Button onClick={() => setSelected('')}>{t.back}</Button>}{check(method.id)}</>} />}
+      feedback={<>
+        {record?.state === 'loading' && <Feedback>{report ? t.refreshing : t.checking}</Feedback>}
+        {record?.state === 'error' && <Feedback kind="error" variant="block">{record.error}{report && ` ${t.retained}`}</Feedback>}
+      </>}>
       {!report ? record?.state !== 'loading' && record?.state !== 'error' && <EmptyState heading={t.unknown} description={t.checkPrompt} /> : <>
-        <dl className="env-facts">{[[t.python, `${observed!.python.major}.${observed!.python.minor}.${observed!.python.patch}`], [t.platform, `${observed!.system} / ${observed!.machine}`], [t.observed, new Date(report.observed_at_ms).toLocaleString(locale)]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        <div className="env-facts"><MetadataList items={[
+          { id: 'python', label: t.python, value: `${observed!.python.major}.${observed!.python.minor}.${observed!.python.patch}` },
+          { id: 'platform', label: t.platform, value: `${observed!.system} / ${observed!.machine}` },
+          { id: 'observed', label: t.observed, value: new Date(report.observed_at_ms).toLocaleString(locale) },
+        ]} /></div>
         {observationState(report, now()) === 'stale' && <Feedback kind="warning" variant="block">{t.expired}</Feedback>}
         {!!report.missing.length && <section aria-label={t.blocked}><Feedback kind="warning" variant="block">{t.blocked}. {t.missingNote}</Feedback><ul className="env-requirements">{report.missing.map((item, index) => <li key={index}>{requirementText(item)}</li>)}</ul></section>}
         <Tabs value={tab} onValueChange={setTab}>
@@ -112,12 +119,12 @@ export function EnvironmentChecks({ targets = METHOD_IDS, locale = 'en', selecte
             { id: 'name', header: t.package, size: 220, cell: item => item.name },
             { id: 'version', header: t.version, size: 190, cell: item => <span className={item.missing ? 'env-missing' : undefined}>{item.version}</span> },
           ]} /></TabsContent>
-          <TabsContent value="requirements"><ul className="env-requirements">{report.requirements.required.map((item, index) => <li key={index}>{requirementText(item)}</li>)}</ul></TabsContent>
-          <TabsContent value="observation"><dl className="env-observation"><dt>{t.identity}</dt><dd>{report.profile.id}</dd><dt>{t.evidence}</dt><dd>{t.metadata}</dd></dl><details><summary>JSON</summary><pre className="env-json">{JSON.stringify(report, null, 2)}</pre></details></TabsContent>
+          <TabsContent value="requirements"><ContentSection id="env-requirements" title={t.requirements}><ul className="env-requirements">{report.requirements.required.map((item, index) => <li key={index}>{requirementText(item)}</li>)}</ul></ContentSection></TabsContent>
+          <TabsContent value="observation"><MetadataList layout="stacked" items={[{ id: 'identity', label: t.identity, value: report.profile.id, format: 'code' }, { id: 'evidence', label: t.evidence, value: t.metadata }]} /><details><summary>JSON</summary><pre className="env-json">{JSON.stringify(report, null, 2)}</pre></details></TabsContent>
         </Tabs>
         <footer className="env-footer"><p className="env-note">{t.scope}</p><Button onClick={() => exportReport(report)}>{t.export}</Button></footer>
       </>}
-    </>}
+    </ContentPane>}
   </section>;
 }
 

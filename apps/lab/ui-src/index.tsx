@@ -1,7 +1,7 @@
 import { Disclosure, Popover, Input, Textarea, Select } from '@pero/app-sdk/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { appObjectProps, downloadFile, useAppApi, useAppChat, useAppDataChanged, useAppObject } from '@pero/app-sdk';
-import { AppBar, Button, FilePicker, Icon, IconButton, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { AppBar, Button, ContentPane, FilePicker, Icon, IconButton, InspectorHeader, MetadataList, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { Comparison, Engine, Experiment, LabState, Protocol } from './types';
 import { bytesToBase64, exampleProtocol, trialLabel } from './presentation';
 import { Deck } from './deck';
@@ -151,22 +151,34 @@ export default function Lab() {
     {loading ? <p className="empty" role="status">Loading saved experiments…</p> : <>
       {!experiment ? <Split className="setup-layout" storageKey="lab.setup.workbench.panes" collapseBelow={820}>
         <SplitPane id="goal" className="goal-pane" min={300} size={320} resizeLabel="Resize experiment goal">
-          <section className="new-experiment"><h2><Icon name="target" />Experiment goal</h2>
+          <ContentPane id="lab-goal" label="Experiment goal" as="div" surface="workspace" inset="compact" scroll="pane"
+            header={<h2><Icon name="target" />Experiment goal</h2>}>
+          <section className="new-experiment">
             <label>Objective<Textarea className="objective-input" rows={2} value={objective} maxLength={500} disabled={busy} onChange={event => setObjective(event.target.value)} /></label>
             <div className="fields">
               <label>Target red fraction<Input type="number" min="0" max="1" step="0.01" value={target} disabled={busy} onChange={event => setTarget(event.target.value)} /></label>
               <label>Tolerance<Input type="number" min="0" max="1" step="0.01" value={tolerance} disabled={busy} onChange={event => setTolerance(event.target.value)} /></label>
             </div>
             <label>Maximum trials<Input type="number" min="1" max="8" value={budget} disabled={busy} onChange={event => setBudget(event.target.value)} /></label>
-            <dl className="facts goal-facts"><dt>Target well</dt><dd>B1</dd><dt>Final volume</dt><dd>100 ± 1 µL</dd><dt>Step limit</dt><dd>64 per trial</dd></dl>
+            <div className="facts goal-facts"><MetadataList items={[
+              { id: 'well', label: 'Target well', value: 'B1' },
+              { id: 'volume', label: 'Final volume', value: '100 ± 1 µL' },
+              { id: 'steps', label: 'Step limit', value: '64 per trial' },
+            ]} /></div>
           </section>
+          </ContentPane>
         </SplitPane>
-        <SplitPane id="initial-deck" className="initial-deck-pane" min={460}>{initialState ? <Deck state={initialState} preview compact title="Initial deck" /> : <p className="empty">Preview unavailable. Refresh to retry.</p>}</SplitPane>
+        <SplitPane id="initial-deck" className="initial-deck-pane" min={460}>
+          <ContentPane id="lab-initial-deck" label="Initial deck" as="div" surface="workspace" inset="none" scroll="content">
+            {initialState ? <Deck state={initialState} preview compact title="Initial deck" /> : <p className="empty">Preview unavailable. <Button onClick={() => void perform(refresh)}>Refresh</Button></p>}
+          </ContentPane>
+        </SplitPane>
       </Split> : <>
         <Tabs className="experiment-tabs" value={tab} onValueChange={setTab}><TabsList aria-label="Experiment views">{['deck', 'protocol', 'runs', 'results'].map(value => <TabsTrigger key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</TabsTrigger>)}</TabsList>
-          <TabsContent className="workbench-panel" value="deck"><Deck state={trial?.final_state ?? experiment.initial_state} /></TabsContent>
+          <TabsContent className="workbench-panel" value="deck"><ContentPane id="lab-deck" label="Deck" as="div" surface="workspace" inset="none" scroll="content"><Deck state={trial?.final_state ?? experiment.initial_state} /></ContentPane></TabsContent>
           <TabsContent className="workbench-panel" value="protocol"><Split className="protocol-layout" storageKey="lab.protocol.workbench.panes" collapseBelow={940}>
             <SplitPane id="draft" className="draft-pane" min={480}>
+              <ContentPane id="lab-draft" label={parentId ? 'Revision draft' : 'Candidate draft'} as="div" surface="workspace" inset="none" scroll="pane">
               <ProtocolEditor heading={parentId ? 'Revision draft' : 'Candidate draft'} value={draft} onChange={setDraft} disabled={busy || running} state={experiment.initial_state} maxSteps={experiment.max_steps} />
               <div className="draft-footer">
                 {parentId && <p className="muted">Revises {trialLabel(experiment.trials, parentId)}</p>}
@@ -174,28 +186,31 @@ export default function Lab() {
                 <div className="toolbar save-toolbar"><Button disabled={busy || running} onClick={() => { setDraft(JSON.stringify(exampleProtocol(50, experiment.initial_state.revision), null, 2)); }}>Load example protocol</Button><Button variant="primary" disabled={busy || running || experiment.trials.length >= experiment.max_trials || (!!parentId && !reason.trim())} onClick={() => void propose()}><Icon name="save" />Save candidate</Button></div>
                 {experiment.trials.length >= experiment.max_trials && <p className="notice">Trial limit reached. Start a new experiment.</p>}
               </div>
+              </ContentPane>
             </SplitPane>
             <SplitPane id="candidate" className="candidate-pane" min={380} size={440} resizeLabel="Resize saved candidate and deck">
-              <section className="saved-candidate"><div className="section-toolbar"><h2><Icon name="document" />Saved candidate</h2>{trial && <span className="candidate-status">{trial.status}</span>}</div>
-                {!trial ? <p className="muted">No candidate saved.</p> : <>
-                  <p className="candidate-title">{trialLabel(experiment.trials, trial.id)}</p>
+              <ContentPane id="lab-candidate" label="Saved candidate" as="div" surface="reading" inset="compact" scroll="pane"
+                header={<InspectorHeader title={trial ? trialLabel(experiment.trials, trial.id) : 'Saved candidate'} identity="Candidate" status={trial ? <span className="candidate-status">{trial.status}</span> : undefined} />}>
+              <section className="saved-candidate">
+                {!trial ? <p className="muted">No candidate saved. Save a candidate from the draft.</p> : <>
                   <Disclosure variant="inline" summary={<>{trial.protocol.steps.length} saved steps</>}><p className="muted">{trial.reason}</p><ol className="steps">{trial.protocol.steps.map((step, i) => <li key={i}>{describeStep(step)}</li>)}</ol></Disclosure>
                   {trial.error && <p className="error" role="alert">{trial.error}</p>}
                   <div className="toolbar"><Button disabled={busy || running || trial.status !== 'proposed'} onClick={() => void act('validate')}><Icon name="check" />Validate</Button><Button variant="primary" disabled={busy || running || trial.status !== 'validated' || !engine?.available} onClick={() => void act('simulate')}><Icon name="play" />Run simulation</Button><Button disabled={busy || running || !trial.verification} onClick={revise}>Revise candidate</Button></div>
                 </>}
               </section>
               <Deck compact state={experiment.initial_state} title="Initial deck" />
+              </ContentPane>
             </SplitPane>
           </Split></TabsContent>
-          <TabsContent value="runs">{running && <div className="toolbar"><p role="status">Simulation running…</p><Button onClick={() => { if (experiment) void api.post<Experiment>(`/api/experiments/${experiment.id}/cancel`, { trialId }).then(update).catch(fail); }}>Cancel simulation</Button></div>}<Timeline trial={trial} /></TabsContent>
-          <TabsContent value="results"><Results experiment={experiment} trial={trial} comparison={comparison} />
+          <TabsContent value="runs"><ContentPane id="lab-runs" label="Runs" as="div" surface="workspace" inset="compact" scroll="pane">{running && <div className="toolbar"><p role="status">Simulation running…</p><Button onClick={() => { if (experiment) void api.post<Experiment>(`/api/experiments/${experiment.id}/cancel`, { trialId }).then(update).catch(fail); }}>Cancel simulation</Button></div>}<Timeline trial={trial} /></ContentPane></TabsContent>
+          <TabsContent value="results"><ContentPane id="lab-results" label="Results" as="div" surface="workspace" inset="compact" scroll="pane"><Results experiment={experiment} trial={trial} comparison={comparison} />
             <section className="result-actions"><h2>Evidence</h2><p className="muted">Synthetic fixture: +0.1 fraction bias, not a measurement.</p><div className="toolbar"><Button disabled={busy || trial?.status !== 'completed' || !!trial?.observations.length || !!trial?.verification} onClick={() => void act('observe')}>Attach synthetic fixture</Button><Button variant="primary" disabled={busy || !trial || ['proposed', 'validated', 'running'].includes(trial.status) || !!trial.verification} onClick={() => void act('evaluate')}>Evaluate</Button><Button disabled={busy || experiment.trials.length < 2} onClick={() => void perform(async () => { setComparison(await api.post<Comparison>(`/api/experiments/${experiment.id}/compare`, {})); })}>Compare trials</Button><Button disabled={busy || !trial?.verification || running} onClick={revise}>Revise from feedback</Button></div>
               <label>Measurement source<Input value={source} placeholder="Instrument, dataset or laboratory record" onChange={event => setSource(event.target.value)} /></label><FilePicker label="Import CSV or JSON" emptyLabel="No file selected" accept=".csv,.json" disabled={busy || trial?.status !== 'completed' || !source.trim() || !!trial?.observations.length || !!trial?.verification} onFile={file => void importFile(file)}/>
               <p className="muted">Fraction units; up to 64 KiB.</p>
               <Disclosure variant="inline" summary={<>Import format</>}><pre>{'well,value,unit\nB1,0.5,fraction\n'}</pre><p className="muted">Original bytes and SHA-256 are retained.</p></Disclosure>
             </section>
             <section><h2>Review decision</h2><label>Review rationale<Input value={rationale} onChange={event => setRationale(event.target.value)} /></label><div className="toolbar"><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('accepted'); }}>Accept trial</Button><Button disabled={busy || !trial?.verification || !rationale.trim() || running} onClick={event => { if (!event.nativeEvent.isTrusted) { setError('Review requires a direct UI interaction.'); return; } void review('rejected'); }}>Reject trial</Button></div></section>
-          </TabsContent>
+          </ContentPane></TabsContent>
         </Tabs>
       </>}
     </>}

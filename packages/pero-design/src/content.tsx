@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 
 /** Shared pane widths. Callers use this preset instead of copying the numbers. */
 export const contentLayout = {
@@ -26,6 +26,8 @@ export type ContentPaneProps = {
   feedback?: ReactNode;
   footer?: ReactNode;
   busy?: boolean;
+  /** The scrolling body, so the owner can restore position. */
+  bodyRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 };
 
@@ -35,6 +37,8 @@ export type InspectorHeaderProps = {
   subtitle?: ReactNode;
   status?: ReactNode;
   actions?: ReactNode;
+  /** Focus the title after the owner opens this object. Not in the tab order. */
+  titleRef?: Ref<HTMLHeadingElement>;
   dismiss?: { label: string; onDismiss(): void };
 };
 
@@ -69,23 +73,23 @@ function CloseGlyph() {
 }
 
 /** Pane structure, surface, inset, and which region scrolls. It does not fetch or decide emptiness. */
-export function ContentPane({ id, label, as = 'section', surface = 'workspace', inset = 'compact', scroll = 'pane', header, toolbar, feedback, footer, busy = false, children }: ContentPaneProps) {
+export function ContentPane({ id, label, as = 'section', surface = 'workspace', inset = 'compact', scroll = 'pane', header, toolbar, feedback, footer, busy = false, bodyRef, children }: ContentPaneProps) {
   const Tag = as;
   return <Tag id={id} aria-label={label} aria-busy={busy ? true : undefined} className="pero-content-pane" data-surface={surface} data-inset={inset} data-scroll={scroll}>
     {present(header) ? <div className="pero-content-header" data-slot="header">{header}</div> : null}
     {present(toolbar) ? <div className="pero-content-toolbar" data-slot="toolbar">{toolbar}</div> : null}
     {present(feedback) ? <div className="pero-content-feedback" data-slot="feedback">{feedback}</div> : null}
-    <div className="pero-content-body" data-slot="body">{children}</div>
+    <div className="pero-content-body" data-slot="body" ref={bodyRef}>{children}</div>
     {present(footer) ? <div className="pero-content-footer" data-slot="footer">{footer}</div> : null}
   </Tag>;
 }
 
 /** Object title, identity, status, and actions. It does not look up the object or persist width. */
-export function InspectorHeader({ title, identity, subtitle, status, actions, dismiss }: InspectorHeaderProps) {
+export function InspectorHeader({ title, identity, subtitle, status, actions, titleRef, dismiss }: InspectorHeaderProps) {
   return <div className="pero-inspector-header">
     <div className="pero-inspector-main">
       {present(identity) ? <div className="pero-inspector-identity">{identity}</div> : null}
-      <h2 className="pero-inspector-title">{title}</h2>
+      <h2 ref={titleRef} tabIndex={-1} className="pero-inspector-title">{title}</h2>
       {present(subtitle) ? <p className="pero-inspector-subtitle">{subtitle}</p> : null}
       {present(status) ? <div className="pero-inspector-status">{status}</div> : null}
     </div>

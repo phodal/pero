@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
-import { AppBar, Button, FilePicker, Disclosure, EmptyState, Feedback, Icon, IconButton, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { AppBar, Button, ContentPane, FilePicker, Disclosure, EmptyState, Feedback, Icon, IconButton, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
 import { useWorkbench } from './use-workbench';
@@ -93,19 +93,20 @@ export default function VirtualCell() {
           : view === 'cells' && mode === 'perturbation' && !isComparison && lab.input
             ? <Button variant="primary" disabled={lab.busy} onClick={() => lab.run('evaluate')}>{t('evaluate')}</Button>
             : <FilePicker compact multiple variant="primary" accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>} />
-      <TabsContent value="cells" forceMount><div className="vc-data-toolbar"><Select label={t('dataMode')} value={mode} onChange={setMode} options={[{ value: 'atlas', label: t('atlasMode') }, { value: 'perturbation', label: t('perturbationMode') }, { value: 'comparison', label: t('comparisonMode') }]}/>{mode === 'atlas' ? <Button onClick={() => downloadFile('virtual-cell-atlas.json', JSON.stringify(atlas), 'application/json')}>{t('exportView')}</Button> : <>{!!lab.items.length && <Select label={t('inputs')} disabled={lab.busy} value={lab.selected} options={lab.items.map(i => ({ value: i.id, label: `${i.source.id} — ${i.source.revision} (${i.id.slice(0, 8)})` }))} onChange={lab.choose}/>}{mode !== 'comparison' && <Button disabled={lab.busy || !lab.input} onClick={lab.exportInputs}>{t('template')}</Button>}</>}</div>
-        {mode === 'atlas' ? <CellView key={identity(atlas, 'cells')} atlas={atlas} t={t}/> : mode === 'comparison' ? <ComparisonView key={comparison.selected || 'new'} comparison={comparison} download={download} input={lab.input} inputs={lab.items} t={t}/> : <>
+      <TabsContent value="cells" forceMount><ContentPane id="virtual-cell-cells" label={t('cellsView')} as="div" surface="workspace" inset="none" scroll="content"
+        toolbar={<div className="vc-data-toolbar"><Select label={t('dataMode')} value={mode} onChange={setMode} options={[{ value: 'atlas', label: t('atlasMode') }, { value: 'perturbation', label: t('perturbationMode') }, { value: 'comparison', label: t('comparisonMode') }]}/>{mode === 'atlas' ? <Button onClick={() => downloadFile('virtual-cell-atlas.json', JSON.stringify(atlas), 'application/json')}>{t('exportView')}</Button> : <>{!!lab.items.length && <Select label={t('inputs')} disabled={lab.busy} value={lab.selected} options={lab.items.map(i => ({ value: i.id, label: `${i.source.id} — ${i.source.revision} (${i.id.slice(0, 8)})` }))} onChange={lab.choose}/>}{mode !== 'comparison' && <Button disabled={lab.busy || !lab.input} onClick={lab.exportInputs}>{t('template')}</Button>}</>}</div>}>
+        <div className="vc-view-body">{mode === 'atlas' ? <CellView key={identity(atlas, 'cells')} atlas={atlas} t={t}/> : mode === 'comparison' ? <ComparisonView key={comparison.selected || 'new'} comparison={comparison} download={download} input={lab.input} inputs={lab.items} t={t}/> : <>
           {lab.input?.source.id.startsWith('synthetic') && <Feedback>{t('sample')}</Feedback>}
           {lab.input && lab.bundle ? <PerturbationView key={lab.input.id} input={lab.input} bundle={lab.bundle} output={lab.output} t={t}/> : <EmptyState heading={lab.input ? t('busy') : t('empty')} description={t('format')}/>}
           {lab.input && !lab.input.hasPlan && <p className="vc-muted">{t('needPlan')}</p>}
-        </>}
-      </TabsContent>
-      <TabsContent value="mechanism" forceMount><div className="vc-data-toolbar"><span>{t('firstOrder')}</span></div><MechanismView key={identity(mechanism, 'mechanism')} document={mechanism} t={t}/></TabsContent>
-      <TabsContent value="volume" forceMount><div className="vc-data-toolbar"><span>{t('localVolume')}</span><Button onClick={() => downloadFile('virtual-cell-volume.json', JSON.stringify(volume), 'application/json')}>{t('exportView')}</Button></div><VolumeView key={identity(volume, 'volume')} document={volume} isExample={volumeIsExample} t={t}/></TabsContent>
+        </>}</div>
+      </ContentPane></TabsContent>
+      <TabsContent value="mechanism" forceMount><ContentPane id="virtual-cell-mechanism" label={t('mechanismView')} as="div" surface="workspace" inset="none" scroll="content" toolbar={<div className="vc-data-toolbar"><span>{t('firstOrder')}</span></div>}><MechanismView key={identity(mechanism, 'mechanism')} document={mechanism} t={t}/></ContentPane></TabsContent>
+      <TabsContent value="volume" forceMount><ContentPane id="virtual-cell-volume" label={t('volumeView')} as="div" surface="workspace" inset="none" scroll="content" toolbar={<div className="vc-data-toolbar"><span>{t('localVolume')}</span><Button onClick={() => downloadFile('virtual-cell-volume.json', JSON.stringify(volume), 'application/json')}>{t('exportView')}</Button></div>}><VolumeView key={identity(volume, 'volume')} document={volume} isExample={volumeIsExample} t={t}/></ContentPane></TabsContent>
     </Tabs>
     {!isComparison && <div className="vc-evidence"><span className="vc-tag">{t('local')}</span><Disclosure summary={t('method')}>
       <p>{t('displayImport')}</p><p>{t('methodBody')}</p><p>{t('format')}</p><p>{t('limits')}</p>
-      {lab.input && <dl className="vc-properties"><dt>{t('inputs')}</dt><dd>{lab.input.id}</dd><dt>SHA-256</dt><dd>{lab.input.datasetDigest}</dd></dl>}
+      {lab.input && <MetadataList layout="stacked" items={[{ id: 'input', label: t('inputs'), value: lab.input.id, format: 'code' }, { id: 'digest', label: 'SHA-256', value: lab.input.datasetDigest, format: 'code' }]} />}
       <Toolbar><Button disabled={lab.busy} onClick={() => lab.evidence()}>{t('evidence')}</Button><Button disabled={lab.busy} onClick={() => lab.evidence(true)}>{t('qc')}</Button></Toolbar>
     </Disclosure></div>}
     {!isComparison && lab.output && <><div className="vc-results-heading"><h2>{t('result')}</h2><Button disabled={lab.busy} onClick={lab.exportOutput}>{t('export')}</Button></div>{lab.output.operation === 'evidence' && <Feedback>{t('reference')}</Feedback>}<Results output={lab.output} t={t}/><p className="vc-muted">{t('gaps')}</p></>}

@@ -85,14 +85,15 @@ html, body, #app { height: 100%; }
 .yield-input {
   display: flex;
   flex-direction: column;
-  gap: var(--pero-spacing-3);
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  padding: var(--pero-spacing-4);
+  overflow: hidden;
+  padding: 0;
   border-right: var(--pero-hairline);
   background: var(--pero-surface-muted);
 }
+.yield-input > .pero-content-pane { flex: 1; min-height: 0; }
+.yield-input .pero-content-body { display: flex; flex-direction: column; gap: var(--pero-spacing-3); }
 .yield-input .pero-ui-file-picker { flex-wrap: wrap; }
 .yield-run { width: 100%; }
 .yield-help { margin: 0; color: var(--pero-text-muted); font-size: var(--pero-font-caption); overflow-wrap: anywhere; }
@@ -120,8 +121,9 @@ html, body, #app { height: 100%; }
 .yield-panel:not([hidden]) {
   display: flex;
   flex-direction: column;
-  gap: var(--pero-spacing-3);
   min-width: 0;
+  overflow: hidden;
+  padding: 0;
   min-height: 0;
 }
 
@@ -178,7 +180,7 @@ html, body, #app { height: 100%; }
   border-radius: 99px;
   vertical-align: middle;
 }
-.yield-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pero-spacing-2); margin: 0; }
+.yield-metrics .pero-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pero-spacing-2); margin: 0; }
 .yield-metrics dt { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .yield-metrics dd { margin: 0; font-variant-numeric: tabular-nums; }
 
