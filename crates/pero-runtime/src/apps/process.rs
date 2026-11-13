@@ -46,6 +46,7 @@ pub(super) struct AppProcess {
     child: OwnedProcess,
     access: BackendAccess,
     _scientific_uses: Option<super::scientific_uses::ScientificUses>,
+    _remote_compute: Option<super::remote_compute::RemoteCompute>,
 }
 
 impl AppProcess {
@@ -136,6 +137,8 @@ impl AppProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
+        let remote_compute = super::remote_compute::RemoteCompute::start(definition.name.as_str(), data)?;
+        if let Some(remote) = &remote_compute { remote.configure(&mut command); }
         let scientific_uses = super::scientific_uses::ScientificUses::start(definition.name.as_str(), data)?;
         if let Some(uses) = &scientific_uses { uses.configure(&mut command); }
         let mut child = OwnedProcess::spawn(&mut command)
@@ -144,6 +147,7 @@ impl AppProcess {
         let mut process = Self {
             child,
             _scientific_uses: scientific_uses,
+            _remote_compute: remote_compute,
             access: BackendAccess {
                 url: String::new(),
                 token,

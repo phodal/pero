@@ -12,6 +12,7 @@ use builtins::BuiltinDiscovery;
 mod definition;
 mod process;
 mod scientific_uses;
+mod remote_compute;
 pub mod project_proposal;
 mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};

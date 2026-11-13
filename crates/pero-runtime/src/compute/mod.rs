@@ -3,6 +3,8 @@
 mod compose;
 mod docker;
 mod receipt;
+mod remote_method;
+pub use remote_method::{QUADRATURE, Quadrature};
 mod slurm;
 mod ssh;
 pub use compose::{ComposeDeployment, ComposeEvidence, ComposeMember};
