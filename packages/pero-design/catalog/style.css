@@ -21,6 +21,11 @@ body { margin:0; background:var(--pero-bg); font:var(--pero-font-body)/1.5 var(-
 .catalog-muted { color:var(--pero-text-muted); }
 .catalog-caption { font-size:var(--pero-font-caption); }
 .catalog-footnote { font-size:var(--pero-font-caption); color:var(--pero-text-muted); margin:12px 0 0; }
+.catalog-pane-frame { height: 420px; min-height: 0; display: flex; border: var(--pero-hairline); border-radius: var(--pero-radius-panel); overflow: hidden; }
+.catalog-pane-frame > .pero-ui-split,
+.catalog-pane-frame > .pero-ui-tabs,
+.catalog-pane-frame > .pero-content-pane { flex: 1; min-width: 0; min-height: 0; }
+.catalog-scroll-owner, .catalog-editor { height: 100%; min-height: 0; overflow: auto; padding: var(--pero-spacing-4); }
 @media(max-width:620px) { .catalog{padding:12px;} .catalog-controls{gap:12px;} .catalog-split{min-height:0;} .catalog-content{padding:12px;} .catalog-nav-bottom{margin-top:0;} }
 
 .catalog-workbench { border:var(--pero-hairline); border-radius:var(--pero-radius-button); min-width:0; }

@@ -35,6 +35,10 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 | ToggleGroup | 同一内容的互斥表示方式或一组可切换选项 | 复制普通按钮的选中皮肤、代替关联面板的 Tabs |
 | AppBar | 二级操作栏。`scope`、`utilities`、`commands`、`primary` 按此顺序；`tools` / `actions` / `title` 仍可用，`title` 只作上下文标签 | 第二个页面标题、outline secondary、与检查器重复的填充主按钮 |
 | Toolbar | 光标或选区工具 | 保存、导入、新建、运行、全局导航 |
+| ContentPane | 一块区域的表面、缩进和滚动归属（`pane` 或 `content`）。放在 SplitPane 里面 | 拉数据、判断空态、推断权限、包住整个页面的 status |
+| InspectorHeader | 对象全名（换行）、身份、状态、操作和可选关闭。对象级标题，不是页面 h1 | 查找对象、记住分栏宽度 |
+| ContentSection | 一个标题和它的相关内容 | 决定有哪些业务分组 |
+| MetadataList | 标签 / 值、换行、代码格式、可选操作。语义是 dl | 推断格式、校验科学结论、请求数据 |
 | IconButton / ghost_icon_button | 统一点击区域、可访问名称、提示 | 无标签的图标、第二个下拉箭头 |
 | DropdownMenu | 操作菜单，使用已有 Radix / GPUI 菜单行为 | 把操作伪装成当前选中值 |
 | Select / NativeSelect | Select 统一短列表、搜索与分组长列表；NativeSelect 仅用于必须保留系统弹层的兼容场景 | 无意混用系统弹层和共享弹层、替换表单校验 |
