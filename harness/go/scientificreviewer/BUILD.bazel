@@ -10,7 +10,7 @@ go_library(
 
 go_test(
     name = "scientificreviewer_test",
-    srcs = ["app_test.go"],
+    srcs = ["app_test.go", "live_test.go"],
     embed = [":scientificreviewer"],
-    deps = ["//harness", "//runtime", "//scientificreview"],
+    deps = ["//harness", "//llm", "//nativetools", "//providers/openai", "//runtime", "//scientificreview"],
 )

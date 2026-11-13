@@ -225,3 +225,6 @@ Shared command catalog, Host keymap overrides and actual Native/Electron scope:
 
 GitHub PR content, shared typed link routing, real Electron/public GitHub
 receipts and actual macOS Native Reviews acceptance: [Pull request views](pull-request-view.md).
+
+Bounded independent model review, exact session evidence, reasoned correction
+states and actual Electron/real-provider scope: [Scientific Reviewer](scientific-reviewer.md).

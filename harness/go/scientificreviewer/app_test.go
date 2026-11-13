@@ -279,11 +279,6 @@ func TestFindingsReachNextUserTurnAndRetainDispositionAfterResume(t *testing.T) 
 	if _, err := app.Command(ctx, agent, "/review auto off"); err != nil {
 		t.Fatal(err)
 	}
-	prompt(t, ctx, app, agent)
-	parents, children := adapter.observed()
-	if len(parents) != 2 || len(children) != 1 || !strings.Contains(parents[1].System, "Supply the run receipt") {
-		t.Fatal("later user turn did not receive unresolved correction guidance")
-	}
 	reports, err := readReports(agent)
 	if err != nil || len(reports) != 1 || len(reports[0].Findings) != 1 {
 		t.Fatalf("reports=%#v error=%v", reports, err)
@@ -293,8 +288,50 @@ func TestFindingsReachNextUserTurnAndRetainDispositionAfterResume(t *testing.T) 
 		t.Fatal("accepted a resolution without a reason")
 	}
 	reason := "The follow-up answer labels the saved yield as unverified pending an execution receipt."
-	if _, err := app.Command(ctx, agent, "/review resolve "+finding.ID+" "+reason); err != nil {
+	correction := "Correction: the reported 90% yield is unverified until an execution receipt is supplied."
+	arguments, err := json.Marshal(disposition{SnapshotHash: reports[0].SnapshotHash, FindingID: finding.ID, State: "resolved", Reason: reason})
+	if err != nil {
 		t.Fatal(err)
+	}
+	adapter.parent = func(request harness.GenerateRequest) (harness.Completion, error) {
+		if request.Step == 1 {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, ToolCallID: "correct-yield", Name: "scientific_review_disposition", Arguments: arguments}}}}, nil
+		}
+		return answer(request, correction), nil
+	}
+	prompt(t, ctx, app, agent)
+	parents, children := adapter.observed()
+	if len(parents) != 3 || len(children) != 1 || !strings.Contains(parents[1].System, "Supply the run receipt") {
+		t.Fatal("the user-requested correction did not receive findings or started an extra review")
+	}
+	corrected, toolSucceeded := false, false
+	for _, event := range agent.Session().Events() {
+		switch event.Type {
+		case "assistant/message":
+			var payload struct {
+				Message harness.Message `json:"message"`
+			}
+			if err := json.Unmarshal(event.Data, &payload); err != nil {
+				t.Fatal(err)
+			}
+			for _, block := range payload.Message.Content {
+				corrected = corrected || block.Type == harness.BlockText && block.Text == correction
+			}
+		case "tool/result":
+			var result harness.ContentBlock
+			if err := json.Unmarshal(event.Data, &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.ToolCallID != "correct-yield" || result.IsError {
+				continue
+			}
+			for _, block := range result.Content {
+				toolSucceeded = toolSucceeded || strings.Contains(block.Text, "Recorded resolved with reason")
+			}
+		}
+	}
+	if !corrected || !toolSucceeded {
+		t.Fatal("the model's disposition tool failed or its corrected assistant response was not retained")
 	}
 	if err := detach(); err != nil {
 		t.Fatal(err)
@@ -320,7 +357,7 @@ func TestFindingsReachNextUserTurnAndRetainDispositionAfterResume(t *testing.T) 
 		t.Fatalf("resume lost review state: %s (%v)", status, err)
 	}
 	retained, err := readReports(resumed)
-	if err != nil || retained[0].SnapshotHash != reports[0].SnapshotHash || retained[0].Findings[0].Quote != finding.Quote || retained[0].Findings[0].State != scientificreview.Resolved {
+	if err != nil || retained[0].SnapshotHash != reports[0].SnapshotHash || retained[0].Snapshot.Hash() != reports[0].Snapshot.Hash() || retained[0].Findings[0].Quote != finding.Quote || retained[0].Findings[0].State != scientificreview.Resolved {
 		t.Fatal("disposition rewrote original assessment provenance")
 	}
 }
