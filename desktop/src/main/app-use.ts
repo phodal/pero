@@ -17,7 +17,7 @@ import {
 export type AppUseEvent = { kind: string; thread_id?: string; data?: unknown; text?: string };
 // Research Apps expose only their bounded domain tools, not general UI automation.
 const boundedResearchApp = (app: string | undefined) => app === 'control-lab' || app === 'lab';
-type SessionAccess = 'selected' | 'app-data';
+type SessionAccess = 'selected' | 'app-data' | 'saved-read';
 type AppUseCall = { controller: AbortController; scope?: AppScope; access: SessionAccess };
 type Session = {
   scope?: AppScope;
@@ -26,6 +26,7 @@ type Session = {
   title: string;
   epoch: number;
   running: boolean;
+  closed: boolean;
 };
 type Evidence = {
   id: string;
@@ -124,7 +125,7 @@ export class AppUse {
       for (const id of restored)
         if (!data.active?.includes(id)) {
           const session = this.sessions.get(id);
-          if (session) session.running = false;
+          if (session) { session.running = false; session.closed = true; }
           this.pendingTurns.delete(id);
         }
       return;
@@ -139,6 +140,7 @@ export class AppUse {
         title: data?.agent || 'Agent',
         epoch: 0,
         running: false,
+        closed: false,
       });
       // Host-created App runs submit their first prompt internally, without a
       // renderer command. Wait for its real turn_started event as Chat does.
@@ -160,6 +162,10 @@ export class AppUse {
   command(value: { action?: string; thread_id?: string }) {
     if (!value.thread_id) return;
     if (value.action === 'prompt') this.pendingTurns.add(value.thread_id);
+    if (['close', 'delete'].includes(value.action || '')) {
+      const session=this.sessions.get(value.thread_id);
+      if(session)session.closed=true;
+    }
     if (['cancel', 'close', 'delete'].includes(value.action || '')) {
       this.endTurn(value.thread_id);
       this.revoke(value.thread_id);
@@ -263,6 +269,12 @@ export class AppUse {
     const appData = access === 'app-data' && this.sessions.get(thread)?.appOwned;
     const selected = appData ? undefined : await this.ports.selectedThread();
     if (!appData) this.select(selected);
+    if (access === 'saved-read') {
+      const session=this.sessions.get(thread);
+      if(!session || session.closed || selected!==thread)
+        fail('APP_SESSION_INACTIVE', 'Select an open Host conversation to inspect saved content.');
+      return session;
+    }
     if (this.pendingTurns.has(thread) && !this.sessions.get(thread)?.running) {
       const ready = await new Promise<boolean>((resolve) => {
         const waiters = this.turnWaiters.get(thread) || new Set<(ready: boolean) => void>();
