@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { downloadFile, openDocument } from '@pero/app-sdk';
-import { Progress, Button, Disclosure, EmptyState, Feedback, Input, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Progress, Button, ContentSection, Disclosure, EmptyState, Feedback, Input, InspectorHeader, LibraryHeader, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
 import { comparisonActive, conditionRows, datasetAction, datasetActive, type ComparisonStatus } from '../comparison';
 import type { Translate } from '../messages';
 import type { InputRevision } from '../use-workbench';
@@ -16,14 +16,14 @@ function DatasetPanel({ download: d, t }: { download: Download; t: Translate }) 
   const active = !!dataset && datasetActive(dataset.status);
   const verifying = dataset?.status === 'verifying';
   return <section className="vc-dataset" aria-label={t('datasetTitle')} aria-busy={active}>
-    <Toolbar actions={dataset && <>
-      {action && <Button variant="primary" disabled={d.disabled} onClick={() => void d.request(action === 'verify' ? 'verify' : 'download')}>
+    <InspectorHeader title={t('datasetTitle')} status={dataset ? <span role="status">{t(`dataset_${dataset.status}`)}</span> : undefined} actions={dataset ? <>
+      {action && <Button disabled={d.disabled} onClick={() => void d.request(action === 'verify' ? 'verify' : 'download')}>
         {d.pending === 'download' || d.pending === 'verify' ? t('datasetRequesting') : t(action === 'verify' ? 'datasetVerify' : action === 'retry' ? 'datasetRetry' : 'datasetDownload')}
       </Button>}
       {active && <Button disabled={d.disabled || dataset.status === 'cancelling'} onClick={() => void d.request('cancel')}>
         {d.pending === 'cancel' || dataset.status === 'cancelling' ? t('dataset_cancelling') : t('datasetCancel')}
       </Button>}
-    </>}><h2>{t('datasetTitle')}</h2>{dataset && <span role="status">{t(`dataset_${dataset.status}`)}</span>}</Toolbar>
+    </> : undefined} />
     {d.error && <Feedback kind="error">{d.error} <Button onClick={d.refresh}>{t('refresh')}</Button></Feedback>}
     {!dataset && !d.error && <p role="status">{t('busy')}</p>}
     {dataset && <>
@@ -86,7 +86,7 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
     <p className="vc-muted">{t('comparisonBoundary')}</p>
     {sample && <Feedback>{t('comparisonSample')}</Feedback>}
     {!c.loaded ? <p role="status">{t('busy')}</p> : !input && !c.items.length ? null : <div className="vc-comparison-layout">
-      <aside className="vc-comparison-history" aria-label={t('comparisonHistory')}><h2>{t('comparisonHistory')}</h2>
+      <aside className="vc-comparison-history" aria-label={t('comparisonHistory')}><LibraryHeader density="compact" title={t('comparisonHistory')} />
         {c.items.length ? <ul className="vc-comparison-runs">{c.items.map(item => <li key={item.id} aria-current={item.id === c.selected ? 'true' : undefined}><ListRow title={`${date(item.createdAt)} (${item.id.slice(0, 8)})`}
           meta={`${status(item.status)} — ${inputs.find(value => value.id === item.inputId)?.source.id ?? item.inputId.slice(0, 12)}`}
           current={item.id === c.selected} onOpen={() => c.choose(item.id)}/></li>)}</ul> : <p className="vc-muted">{t('comparisonNoRuns')}</p>}
@@ -94,11 +94,11 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
       <main className="vc-comparison-detail">
         {c.selected && !run && <p role="status">{t('busy')}</p>}
         {run && <>
-          <Toolbar actions={<>
+          <InspectorHeader title={`${t('comparisonRun')} ${run.id.slice(0, 8)}`} status={<span role="status">{status(run.status)}</span>} actions={<>
             {active ? <Button disabled={!!c.pending || run.status === 'cancelling'} onClick={() => void c.cancel()}>{run.status === 'cancelling' || c.pending === 'cancel' ? t('comparison_cancelling') : t('comparisonCancel')}</Button>
               : <Button disabled={!c.canStart} onClick={() => void c.start(run.inputId)}>{t('comparisonRerun')}</Button>}
             <Button disabled={!!c.pending} onClick={() => void c.exportRun()}>{t('comparisonExport')}</Button>
-          </>}><h2>{t('comparisonRun')} {run.id.slice(0, 8)}</h2><span role="status">{status(run.status)}</span></Toolbar>
+          </>} />
           {(run.error || run.status === 'interrupted') && <Feedback kind="error">
             {run.error}{run.status === 'interrupted' && <p>{t('comparisonInterrupted')}</p>}
           </Feedback>}
@@ -130,7 +130,7 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
               <span>{currentPage * 100 + 1}–{Math.min((currentPage + 1) * 100, rows.length)} / {rows.length}</span>
             </Toolbar>}
           </>}
-          <section className="vc-comparison-files"><h3>{t('comparisonSourceFiles')}</h3>
+          <ContentSection id="virtual-cell-comparison-files" title={t('comparisonSourceFiles')}><div className="vc-comparison-files">
             <dl className="vc-properties">
               <dt>{t('inputs')}</dt><dd>{run.inputId}</dd>
               {source && <><dt>{t('sourceLink')}</dt><dd>{source.dataset.source.id}</dd><dt>{t('comparisonRevision')}</dt><dd>{source.dataset.source.revision}</dd>
@@ -155,11 +155,11 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
               {c.input && <Button onClick={() => downloadFile(`virtual-cell-inputs-${run.inputId}.json`, c.input!.content, 'application/json')}>{t('comparisonExportInputs')}</Button>}
             </Toolbar>
             <Disclosure summary={t('receipt')}><pre>{JSON.stringify({ id: run.id, inputId: run.inputId, outputId: run.outputId, process: run.process, sourceHashes: run.sourceHashes, environment: run.environment, scope: run.scope, isolation: run.isolation, acceptance: run.acceptance }, null, 2)}</pre></Disclosure>
-          </section>
-          <section className="vc-comparison-log"><h3>{t('comparisonLogs')}</h3>
+          </div></ContentSection>
+          <ContentSection id="virtual-cell-comparison-log" title={t('comparisonLogs')}><div className="vc-comparison-log">
             {run.logs ? <pre aria-label={t('comparisonLogs')}>{run.logs}</pre> : <p className="vc-muted">{t('comparisonNoLogs')}</p>}
             {run.logsTruncated && <p>{t('comparisonLogsTruncated')}</p>}
-          </section>
+          </div></ContentSection>
         </>}
       </main>
     </div>}

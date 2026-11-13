@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { downloadFile } from '@pero/app-sdk';
-import { Button, Feedback, Field, Icon, Input, Select } from '@pero/app-sdk/ui';
+import { Button, Feedback, Field, Icon, Input, ListRow, Select } from '@pero/app-sdk/ui';
 import type { Mechanism } from '../science';
 import { simulate } from '../science';
 import { color, Lines, num, Pane } from '../components/plots';
@@ -14,9 +14,9 @@ export function MechanismView({ document, t }: { document: Mechanism; t: Transla
   const position = (i: number) => model.species.length <= 4 ? [100 + i * 205, 170] : [85 + i % 4 * 190, 65 + Math.floor(i / 4) * 105];
   const node = (id: string) => position(model.species.findIndex(s => s.id === id));
   return <><SourceStamp source={model.source} t={t}/><div className="vc-workspace">
-    <aside className="vc-sidebar"><Pane title={t('species')}><div className="vc-object-list">{model.species.map((s, i) => <Button key={s.id} variant="ghost" aria-pressed={selected === s.id} onClick={() => setSelected(s.id)}><i style={{ background: color(i) }}/>{s.id}</Button>)}</div></Pane><Pane title={t('simulation')}>
+    <aside className="vc-sidebar"><Pane title={t('species')}><div className="vc-object-list">{model.species.map((s, i) => <ListRow key={s.id} title={<><i style={{ background: color(i) }}/>{s.id}</>} current={selected === s.id} onOpen={() => setSelected(s.id)} />)}</div></Pane><Pane title={t('simulation')}>
       <Field label={`${t('duration')} (${model.timeUnit})`}>{control => <Input {...control} type="number" min=".1" max="100" step=".1" value={model.duration} onChange={e => setModel({ ...model, duration: Number(e.target.value) })}/>}</Field>
-      <Button variant="primary" onClick={() => { try { simulate(model); setComputed(model); setError(''); } catch { setError(t('modelInvalid')); } }}><Icon name="play"/>{t('simulate')}</Button>
+      <Button onClick={() => { try { simulate(model); setComputed(model); setError(''); } catch { setError(t('modelInvalid')); } }}><Icon name="play"/>{t('simulate')}</Button>
       {model !== computed && <Feedback>{t('parametersChanged')}</Feedback>}{error && <Feedback kind="error">{error}</Feedback>}
       <Button onClick={() => downloadFile('virtual-cell-mechanism.json', JSON.stringify({ ...computed, simulation: result }, null, 2), 'application/json')}>{t('exportSimulation')}</Button>
     </Pane></aside>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { appObjectProps, downloadFile, useAppI18n, useAppObject, useAppChat, useAppDataChanged, useTheme } from '@pero/app-sdk';
-import { AppBar, Button, ContentPane, FilePicker, Disclosure, EmptyState, Feedback, Icon, IconButton, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
+import { AppBar, Button, ContentPane, ContentSection, FilePicker, Disclosure, EmptyState, Feedback, Icon, IconButton, MetadataList, Select, Tabs, TabsContent, TabsList, TabsTrigger, Toolbar } from '@pero/app-sdk/ui';
 import { Results } from './components';
 import { messages } from './messages';
 import { useWorkbench } from './use-workbench';
@@ -74,7 +74,7 @@ export default function VirtualCell() {
     {(lab.error || displayError) && <Feedback kind="error">{lab.error || displayError} <Button disabled={lab.busy} onClick={() => { setDisplayError(''); void lab.refresh(); }}>{t('retry')}</Button></Feedback>}
     {lab.busy && <Feedback>{t('busy')}</Feedback>}
     <Tabs value={view} onValueChange={setView} className="vc-view-tabs">
-      <AppBar className="vc-navigation" scope={<TabsList aria-label={t('scienceViews')}>
+      <AppBar className="vc-navigation" scope={<TabsList variant="navigation" aria-label={t('scienceViews')}>
           <TabsTrigger value="cells"><Icon name="app"/>{t('cellsView')}</TabsTrigger>
           <TabsTrigger value="mechanism"><Icon name="nodes"/>{t('mechanismView')}</TabsTrigger>
           <TabsTrigger value="volume"><Icon name="models"/>{t('volumeView')}</TabsTrigger>
@@ -109,6 +109,6 @@ export default function VirtualCell() {
       {lab.input && <MetadataList layout="stacked" items={[{ id: 'input', label: t('inputs'), value: lab.input.id, format: 'code' }, { id: 'digest', label: 'SHA-256', value: lab.input.datasetDigest, format: 'code' }]} />}
       <Toolbar><Button disabled={lab.busy} onClick={() => lab.evidence()}>{t('evidence')}</Button><Button disabled={lab.busy} onClick={() => lab.evidence(true)}>{t('qc')}</Button></Toolbar>
     </Disclosure></div>}
-    {!isComparison && lab.output && <><div className="vc-results-heading"><h2>{t('result')}</h2><Button disabled={lab.busy} onClick={lab.exportOutput}>{t('export')}</Button></div>{lab.output.operation === 'evidence' && <Feedback>{t('reference')}</Feedback>}<Results output={lab.output} t={t}/><p className="vc-muted">{t('gaps')}</p></>}
+    {!isComparison && lab.output && <ContentSection id="virtual-cell-result" title={t('result')} actions={<Button disabled={lab.busy} onClick={lab.exportOutput}>{t('export')}</Button>}>{lab.output.operation === 'evidence' && <Feedback>{t('reference')}</Feedback>}<Results output={lab.output} t={t}/><p className="vc-muted">{t('gaps')}</p></ContentSection>}
   </section>;
 }
