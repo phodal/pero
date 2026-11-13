@@ -230,6 +230,7 @@ model LayoutPreferences {
   artifact_view?: ArtifactView = "icons";
   resource_tab?: "files" | "artifacts" = "artifacts";
   link_surface?: "in_app" | "external_browser" = "in_app";
+  diff_soft_wrap?: boolean = true;
   ...Closed;
 }
 model TypographyPreferences {
