@@ -404,14 +404,42 @@ format is versioned. Evidence paths are relative to the session workspace.
 }
 ```
 
-For local commands, `scripts/record-external-run.mjs` generates the sidecars
-for changed outputs. For example, from the workspace, run
-`node /path/to/pero/scripts/record-external-run.mjs solver run-1 report.csv -- python3 simulate.py`
-then deliver `report.csv`. The wrapper records stdout, stderr, and its observed
-platform, architecture and Node version. Its run ID is unique within its
-workspace and system. The external system remains the owner of the reported
-outcome. Native providers with their own exporters may write the same
-sidecar without using the wrapper.
+For local commands, `scripts/record-external-run.mjs` generates v2 sidecars
+for changed outputs; Host continues accepting existing v1 receipts. From the
+workspace, run:
+
+```sh
+node /path/to/pero/scripts/record-external-run.mjs solver run-1 report.csv \
+  --input parameters.json -- python3 simulate.py parameters.json report.csv
+```
+
+Then deliver `report.csv`. The v2 receipt records the exact command and argument
+array, workspace-relative output path, start/finish times, exit code, terminating
+signal and cancellation request. It retains stdout/stderr and pre-run copies of
+explicit `--input` / `--code` files with their hashes and original `source_path`.
+A direct Python or Node script in the first argument is captured as code
+automatically; flags, imported modules and implicit data require explicit file
+selection. Unchanged outputs keep their earlier producing receipt.
+
+`environment.json` records the observed platform, architecture and wrapper Node
+version. A direct Python command is probed using that interpreter for its actual
+executable, version, implementation and installed distribution names/versions.
+Other commands report Python as unobserved unless `--python <executable>` selects
+a related interpreter; that observation is labeled separately from the command
+interpreter. Failed probes remain unavailable. This metadata is an observation,
+not a dependency lock or proof that every installed package was used. Environment
+variables, package index credentials and account state are not captured.
+
+Every invocation also writes `.pero/run-records/<system>/<run-id>/run.json` and
+its own sidecar, marked `output_kind: "run_report"`. This wrapper report exports
+evidence; replaying the child command does not recreate the report. Deliver it to retain linked logs even when failure,
+cancellation or a missing executable produced no output file. A child that exits
+zero after receiving cancellation remains cancelled. A successful process with
+no changed output retains a successful process outcome in its report, while the
+wrapper exits nonzero because there is no requested output to deliver. Run IDs
+are unique within the workspace and system. Native providers with their own
+exporters may write the compatible sidecar without using this wrapper; they
+remain responsible for the reported execution facts.
 
 Acceptance on macOS arm64:
 
@@ -616,3 +644,12 @@ tool; compact multiline/wrapped drafts, cancellation, scope restoration and the
 embedded permission card retain their prior assertions. Its existing CJS
 `import.meta` build warning remains. Native capture of that Product shell was not
 part of this run.
+
+## Observed invocation and fixed-version export — 2026-11-13
+
+The existing receipt/store now accepts compatible v2 execution observations,
+retained pre-run sources and deliverable no-output reports. The production
+Inspector displays recorded outcomes and missing observations and exports exact
+selected-version reproduction material. Real local Python, Host restart/history,
+Chromium presentation and downloaded ZIP replay evidence, including limitations,
+are recorded in [artifact provenance verification](artifact-provenance.md).

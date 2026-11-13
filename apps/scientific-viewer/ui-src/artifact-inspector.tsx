@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChatMarkdown, ContentIcon, Icon, IconButton, ListRow, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Button, ChatMarkdown, ContentIcon, Feedback, Icon, IconButton, ListRow, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
 import type { ArtifactRelationRole, SessionArtifact, SessionArtifactVersion } from '../../../protocol/generated/host';
 import type { ArtifactTarget } from '../../../protocol/artifact-browser';
 import { ArtifactDocument } from './artifact-document';
 import { checkpointCompanions, type ArtifactBrowserContext } from './artifact-browser-model';
+import { exportArtifactReproduction, provenanceGaps, readArtifactEnvironment, readArtifactProvenance, type ArtifactEnvironmentObservation, type ArtifactProvenance, type ArtifactSelection } from './artifact-provenance';
 import './artifact-inspector.css';
 
 type EvidenceFile = { artifact: SessionArtifact; version: SessionArtifactVersion; role: ArtifactRelationRole };
@@ -42,6 +43,7 @@ export function ArtifactInspector({ context, selected, zh, preview, open }: {
   if (context.inline) return <>{preview}</>;
   const visible = sections.some(section => section.id === tab) ? tab : 'preview';
   return <Tabs className="artifact-inspector" value={visible} onValueChange={setTab}>
+    <ProvenanceSummary key={`${selected.artifact.id}/${selected.version.version}`} threadId={context.thread_id} selected={selected} files={files} zh={zh} />
     {sections.length > 0 && <TabsList className="artifact-inspector-tabs" variant="navigation" aria-label={zh ? '产物检查器' : 'Artifact inspector'}>
       <TabsTrigger value="preview"><Icon name="eye" size={14} />{zh ? '预览' : 'Preview'}</TabsTrigger>
       {sections.map(section => <TabsTrigger key={section.id} value={section.id}><Icon name={section.icon} size={14} />{section.label[zh ? 0 : 1]}</TabsTrigger>)}
@@ -54,6 +56,61 @@ export function ArtifactInspector({ context, selected, zh, preview, open }: {
         : <EvidenceFiles files={section.files} threadId={context.thread_id} zh={zh} open={open} />}
     </TabsContent>)}
   </Tabs>;
+}
+
+function ProvenanceSummary({ threadId, selected, files, zh }: {
+  threadId: string; selected: ArtifactSelection; files: EvidenceFile[]; zh: boolean;
+}) {
+  const [receipt, setReceipt] = useState<ArtifactProvenance | null>(null), [loading, setLoading] = useState(true);
+  const [environment, setEnvironment] = useState<ArtifactEnvironmentObservation>();
+  const [error, setError] = useState(''), [exportError, setExportError] = useState('');
+  const [exporting, setExporting] = useState(false), [attempt, retry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError('');
+    Promise.all([readArtifactProvenance(threadId, selected, files), readArtifactEnvironment(threadId, files)]).then(([value, observed]) => {
+      if (active) { setReceipt(value); setEnvironment(observed); setLoading(false); }
+    }, reason => {
+      if (active) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
+    });
+    return () => { active = false; };
+  }, [threadId, selected.artifact.id, selected.version.version, attempt]);
+  const download = async () => {
+    setExporting(true); setExportError('');
+    try {
+      const bytes = await exportArtifactReproduction(threadId, selected, files);
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/zip' }));
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = `artifact-${encodeURIComponent(selected.artifact.id)}-v${selected.version.version}-reproduction.zip`;
+      anchor.click(); URL.revokeObjectURL(url);
+    } catch (reason) { setExportError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setExporting(false); }
+  };
+  const outcome = receipt?.outcome;
+  const status = loading ? (zh ? '读取执行记录…' : 'Reading execution receipt…')
+    : error && !receipt ? (zh ? '执行记录不可用' : 'Execution receipt unavailable')
+    : outcome === 'succeeded' ? (zh ? '记录的执行：成功' : 'Recorded execution: succeeded')
+    : outcome === 'failed' ? (zh ? '记录的执行：失败' : 'Recorded execution: failed')
+    : outcome === 'cancelled' ? (zh ? '记录的执行：已取消' : 'Recorded execution: cancelled')
+    : (zh ? '未观察执行' : 'Execution not observed');
+  const labels: Record<string, string> = { 'execution receipt': '执行记录', 'command and arguments': '命令与参数', code: '代码', 'input files': '输入文件', 'environment observation': '环境观察', 'execution log': '执行日志', 'interpreter observation': '解释器观察', 'dependency inventory': '依赖清单' };
+  const gaps = provenanceGaps(receipt, files, environment);
+  return <section className="artifact-provenance" aria-label={zh ? '产物溯源' : 'Artifact provenance'}>
+    <div className="artifact-provenance-row">
+      <span className="artifact-provenance-status" data-outcome={loading ? 'loading' : outcome ?? 'unknown'} role="status">{status}</span>
+      <Button variant="ghost" disabled={exporting || loading} onClick={download}>
+        <Icon name="export" size={14} />{exporting ? (zh ? '正在导出…' : 'Exporting…') : (zh ? '导出复现材料' : 'Export reproduction')}
+      </Button>
+    </div>
+    {!loading && <>
+      {receipt?.invocation && <code className="artifact-provenance-command">{JSON.stringify([receipt.invocation.command, ...receipt.invocation.args])}</code>}
+      {environment?.interpreter && <p>{environment.interpreter}{environment.dependencies !== undefined && (zh ? ` · 已观察 ${environment.dependencies} 个已安装包` : ` · ${environment.dependencies} installed distributions observed`)}</p>}
+      {gaps.length > 0 && <p>{zh ? '未观察：' : 'Not observed: '}{gaps.map(value => zh ? labels[value] : value).join(zh ? '、' : ', ')}{zh ? '。' : '.'}</p>}
+      <p>{zh ? '执行记录不代表科学结论已通过复核。' : 'An execution receipt does not establish scientific acceptance.'}</p>
+    </>}
+    {error && <Feedback kind="error">{error} <Button variant="link" onClick={() => retry(value => value + 1)}>{zh ? '重试' : 'Retry'}</Button></Feedback>}
+    {exportError && <Feedback kind="error">{exportError} <Button variant="link" disabled={exporting} onClick={download}>{zh ? '重试导出' : 'Retry export'}</Button></Feedback>}
+  </section>;
 }
 
 function EvidenceFiles({ files, threadId, zh, open }: {
