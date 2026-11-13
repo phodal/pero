@@ -399,6 +399,8 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await expect(views.locator('[data-notebook-menu=file]')).toHaveCount(1);
   await page.locator('[data-notebook-menu=file] .pero-ui-popover-trigger').click();
   await expect(page.locator('.notebook-statusbar [data-notebook-menu=view]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'File', exact: true })).toHaveCount(0);
   await page.screenshot({ path: resolve(output, 'copied-notebook.png'), fullPage: true });
   await finding.scrollIntoViewIfNeeded();
   await expect(page.getByRole('button', { name: 'Save revision' })).toBeVisible();
