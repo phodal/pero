@@ -1,3 +1,4 @@
+import { NotebookInspector } from './notebook-inspector.ts';
 import { harnessEnvironment } from './harness-environment';
 import {ConversationContentRead} from '../../../packages/content-source/index.ts';
 import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, globalShortcut, shell } from 'electron';
@@ -113,7 +114,7 @@ app.whenReady().then(async () => {
     });
     globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
   }
-  appUse = product.chat ? new DesktopAppUse(() => window, event => send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver) : undefined;
+  appUse = product.chat ? new DesktopAppUse(() => window, event => send('product:event', event), resolve(profile, 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname)) : undefined;
   const appUseEnvironment = await appUse?.start();
   host = spawn(resolve(root, 'bin', process.platform === 'win32' ? 'pero-host.exe' : 'pero-host'), ['--stdio'], { cwd: app.getPath('home'), env: {
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_'))),

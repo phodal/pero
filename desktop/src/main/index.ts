@@ -1,3 +1,4 @@
+import { NotebookInspector } from './notebook-inspector.ts';
 import type { ShortcutMenu } from '../../../protocol/generated/shortcuts';
 import { embeddedShortcut } from './shortcuts';
 import { HarnessPreferences } from './harness-settings';
@@ -207,7 +208,7 @@ app.whenReady().then(async () => {
     permissions: computerPermissions,
   });
   globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver);
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
   if (process.platform === 'darwin' || process.platform === 'linux') {
