@@ -3,3 +3,7 @@
 .notebook-myst-preview { display: block; width: 100%; min-height: 26rem; border: var(--pero-hairline); background: var(--pero-surface); }
 .notebook-myst-actions { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-2); margin-block: var(--pero-spacing-3); }
 .notebook-myst-diagnostics { overflow-wrap: anywhere; }
+.notebook-publication-builds { margin-block: var(--pero-spacing-4); overflow-wrap: anywhere; }
+.notebook-publication-builds pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notebook-publication-panel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); margin-block: var(--pero-spacing-2); }
+.notebook-publication-page { display: block; width: 100%; max-width: 900px; height: auto; border: var(--pero-hairline); }
