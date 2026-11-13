@@ -7,10 +7,13 @@ export type ComparisonRun = {
   process: { pid: number | null; exitCode: number | null; exitObserved: boolean; terminationRequested: string | null };
   methods: { id: string; version: string }[]; evaluator: string;
   scope: string; isolation: string; acceptance: string;
+  taskPackage?: TaskPackage | null;
+  modelEndpoint?: { source: string; model: { id: string; version: string }; inputId: string; predictionDigest: string } | null;
 };
 export type ComparisonDetail = ComparisonRun & {
   logs: string; logsTruncated: boolean;
   sourceHashes: Record<string, string>; environment: Record<string, string>;
+  check?: ComparisonCheck | null;
 };
 export type ConditionResult = {
   id: string; status: string; reason?: string;
@@ -85,3 +88,19 @@ export function conditionRows(models: ModelResult[], search: string, method: str
     }));
   });
 }
+
+/** Fixed method declaration; availability and execution are separate observations. */
+export type TaskPackage = {
+  schema: string; id: string; version: string; digest: string; name: string;
+  methods: { id: string; version: string }[];
+  model: { id: string; version: string; weights: string };
+  environment: { python: string; dependencies: string[]; execution: string };
+  inputs: Record<string, string>; outputs: string[]; checks: string[];
+  skill: { id: string; version: string; entry: string };
+};
+export type ModelEndpoint = {
+  status: 'stopped' | 'starting' | 'ready' | 'in_use' | 'stopping' | 'failed';
+  inputId: string | null; model: { id: string; version: string };
+  source: 'local' | 'remote'; error: string | null; uses: number;
+};
+export type ComparisonCheck = { status: 'PASS' | 'FAIL'; digest?: string; checks?: { id: string; status: string; detail?: string }[]; [key: string]: unknown };

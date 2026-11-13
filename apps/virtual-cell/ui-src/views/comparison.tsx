@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { downloadFile, openDocument } from '@pero/app-sdk';
-import { Progress, Button, Disclosure, EmptyState, Feedback, Input, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
+import { Progress, Button, Disclosure, EmptyState, Feedback, Input, InspectorHeader, ListRow, ResultView, Select, Toolbar } from '@pero/app-sdk/ui';
 import { comparisonActive, conditionRows, datasetAction, datasetActive, type ComparisonStatus } from '../comparison';
 import type { Translate } from '../messages';
+import { TaskPackagePanel } from '../components/task-package';
 import type { InputRevision } from '../use-workbench';
 import type { useComparison, useDatasetDownload } from '../use-comparison';
 
@@ -72,6 +73,7 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
     finally { documentGate.current = false; setOpening(false); }
   }
   return <section className="vc-comparison" aria-label={t('comparisonMode')}>
+    <TaskPackagePanel task={c.task} inputId={input?.id} running={!!c.running} t={t}/>
     <DatasetPanel download={download} t={t}/>
     {c.error && <Feedback kind="error">{c.error} <Button onClick={c.refresh}>{t('refresh')}</Button></Feedback>}
     {c.availability && !c.availability.available && <Feedback kind="error">{c.availability.reason === 'comparison_platform_unsupported' ? t('comparisonPlatform') : c.availability.reason}</Feedback>}
@@ -94,11 +96,18 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
       <main className="vc-comparison-detail">
         {c.selected && !run && <p role="status">{t('busy')}</p>}
         {run && <>
-          <Toolbar actions={<>
-            {active ? <Button disabled={!!c.pending || run.status === 'cancelling'} onClick={() => void c.cancel()}>{run.status === 'cancelling' || c.pending === 'cancel' ? t('comparison_cancelling') : t('comparisonCancel')}</Button>
-              : <Button disabled={!c.canStart} onClick={() => void c.start(run.inputId)}>{t('comparisonRerun')}</Button>}
-            <Button disabled={!!c.pending} onClick={() => void c.exportRun()}>{t('comparisonExport')}</Button>
-          </>}><h2>{t('comparisonRun')} {run.id.slice(0, 8)}</h2><span role="status">{status(run.status)}</span></Toolbar>
+          <InspectorHeader title={`${t('comparisonRun')} ${run.id.slice(0, 8)}`} status={<span role="status">{status(run.status)}</span>} actions={<>
+            {active ? <Button variant="ghost" disabled={!!c.pending || run.status === 'cancelling'} onClick={() => void c.cancel()}>{run.status === 'cancelling' || c.pending === 'cancel' ? t('comparison_cancelling') : t('comparisonCancel')}</Button>
+              : <Button variant="ghost" disabled={!c.canStartInput(run.inputId)} onClick={() => void c.start(run.inputId)}>{t('comparisonRerun')}</Button>}
+            {run.status === 'succeeded' && <Button variant="ghost" disabled={!!c.pending} onClick={() => void c.checkRun()}>{t(c.pending === 'check' ? 'comparisonChecking' : 'comparisonCheck')}</Button>}
+            <Button variant="ghost" disabled={!!c.pending} onClick={() => void c.exportRun()}>{t('comparisonExport')}</Button>
+          </>}/>
+          {run.status === 'succeeded' && <section aria-label={t('comparisonCheck')}>
+            {run.check ? <Feedback kind={run.check.status === 'PASS' ? 'success' : 'error'}>{t(run.check.status === 'PASS' ? 'comparisonCheckPass' : 'comparisonCheckFail')}</Feedback> : <p>{t('comparisonCheckUnrun')}</p>}
+            {run.check?.checks?.filter(check => check.status === 'FAIL').map(check => <p key={check.id}>{check.detail ?? check.id}</p>)}
+            <p className="vc-muted">{t('comparisonCheckBoundary')}</p>
+            {run.check && <Disclosure summary={t('comparisonCheckReceipt')}><pre>{JSON.stringify(run.check, null, 2)}</pre></Disclosure>}
+          </section>}
           {(run.error || run.status === 'interrupted') && <Feedback kind="error">
             {run.error}{run.status === 'interrupted' && <p>{t('comparisonInterrupted')}</p>}
           </Feedback>}
@@ -139,6 +148,8 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
                 <dt>{t('comparisonDatasetDigest')}</dt><dd>{source.spec.dataset.digest}</dd><dt>{t('comparisonSpecDigest')}</dt><dd>{source.split.spec_digest}</dd><dt>{t('comparisonSplitDigest')}</dt><dd>{source.split.digest}</dd></>}
               <dt>{t('comparisonMethods')}</dt><dd>{(models.length ? models.map(value => value.model) : run.methods).map(value => `${value.id} (${value.version})`).join(', ')}</dd>
               <dt>{t('comparisonEvaluator')}</dt><dd>{run.evaluator}</dd>
+              {run.taskPackage && <><dt>{t('taskPackageVersion')}</dt><dd>{run.taskPackage.id} ({run.taskPackage.version})</dd></>}
+              <dt>{t('endpointTitle')}</dt><dd>{run.modelEndpoint ? `${run.modelEndpoint.model.id} (${run.modelEndpoint.model.version}) · ${run.modelEndpoint.source}` : t('comparisonNoEndpoint')}</dd>
               {run.outputId && <><dt>{t('result')}</dt><dd>{run.outputId}</dd></>}
             </dl>
             {source && <>
@@ -154,7 +165,7 @@ export function ComparisonView({ comparison: c, download, input, inputs, t }: { 
               <Button disabled={!c.output || opening} onClick={() => void viewDocument('output')}>{t('comparisonViewOutputs')}</Button>
               {c.input && <Button onClick={() => downloadFile(`virtual-cell-inputs-${run.inputId}.json`, c.input!.content, 'application/json')}>{t('comparisonExportInputs')}</Button>}
             </Toolbar>
-            <Disclosure summary={t('receipt')}><pre>{JSON.stringify({ id: run.id, inputId: run.inputId, outputId: run.outputId, process: run.process, sourceHashes: run.sourceHashes, environment: run.environment, scope: run.scope, isolation: run.isolation, acceptance: run.acceptance }, null, 2)}</pre></Disclosure>
+            <Disclosure summary={t('receipt')}><pre>{JSON.stringify({ id: run.id, inputId: run.inputId, outputId: run.outputId, process: run.process, sourceHashes: run.sourceHashes, environment: run.environment, scope: run.scope, isolation: run.isolation, acceptance: run.acceptance, taskPackage: run.taskPackage, modelEndpoint: run.modelEndpoint }, null, 2)}</pre></Disclosure>
           </section>
           <section className="vc-comparison-log"><h3>{t('comparisonLogs')}</h3>
             {run.logs ? <pre aria-label={t('comparisonLogs')}>{run.logs}</pre> : <p className="vc-muted">{t('comparisonNoLogs')}</p>}
