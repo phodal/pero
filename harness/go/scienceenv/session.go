@@ -189,13 +189,17 @@ func (c *computation) start(restart bool) error {
 		interpreter, err = resolveInterpreter(c.env.rscript)
 		if err != nil {
 			c.journal.Status = "unavailable"
-			c.journal.Error = "Rscript is unavailable. Install R or configure --science-r, then retry Start: " + err.Error()
+			c.journal.Error = "Rscript is unavailable. Install R or configure --science-rscript, then retry Start: " + err.Error()
 			return nil
 		}
 	}
 	kernel, err := Start(Config{Language: c.language, Interpreter: interpreter, Workspace: c.env.workspace})
 	if err != nil {
-		c.journal.Status, c.journal.Error = "unavailable", fmt.Sprintf("%s could not start; check the configured interpreter and retry Start: %v", c.language, err)
+		option := "--science-python"
+		if c.language == R {
+			option = "--science-rscript"
+		}
+		c.journal.Status, c.journal.Error = "unavailable", fmt.Sprintf("%s could not start; check %s and retry Start: %v", c.language, option, err)
 		return nil
 	}
 	c.kernel = kernel

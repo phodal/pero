@@ -143,7 +143,7 @@ func TestSharedComputationLifecycle(t *testing.T) {
 		t.Fatal("closing first session killed second")
 	}
 	r := command(agent, "start", "", R)
-	if r.Status != "unavailable" || !strings.Contains(r.Error, "retry Start") {
+	if r.Status != "unavailable" || !strings.Contains(r.Error, "retry Start") || !strings.Contains(r.Error, "--science-rscript") {
 		t.Fatalf("missing R must be recoverable: %+v", r)
 	}
 	current, _ := env.computation(other, Python)
