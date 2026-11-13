@@ -54,8 +54,7 @@ was inspected in a separate probe. See the dated section of
 
 Native library tests passed (79); a real Native window and Native client's HTTP
 creation have not been accepted. This is deterministic ACP fixture execution,
-not a real-model/scientific or packaged-release acceptance. P1 has not been
-merged or deployed. General writable-agent approvals and persistent follow-up
+not a real-model/scientific or packaged-release acceptance. P1 does not deploy automatically on merge. General writable-agent approvals and persistent follow-up
 remain outside this slice. Release updated Desktop clients before enabling the
 new Worker response fields, since older clients have a closed response schema.
 
@@ -63,4 +62,16 @@ The user requested that screenshots remain local; no PNGs are committed or
 uploaded. Keep #223 open for integration/release acceptance; #219 remains the
 architecture/reference issue and #222 remains the independent P0 recovery fix.
 
-Draft PR: [#224](https://github.com/phodal/pero/pull/224), awaiting integration/release acceptance.
+Implementation PR: [#224](https://github.com/phodal/pero/pull/224), merge requested by the user; Native/release acceptance remains open.
+
+
+### CI baseline comparison before merge
+
+PR CI job `131798570034` reports ten failures: one stale Desktop CI matrix
+assertion and nine Paper source-navigation fixture failures (`undefined.props`).
+Running those same two test files on PR head and clean `master d41f19b56`
+reproduces the identical ten named failures (13 pass, one platform skip on macOS).
+The workflow/test/Paper sources are unchanged by this PR. Server Bazel and Go
+jobs pass. This records a baseline CI failure, not an all-green CI claim.
+Evidence is retained at `test-results/self-hosted-machines/ci/` in the main
+workspace. The temporary baseline worktree was removed after comparison.
