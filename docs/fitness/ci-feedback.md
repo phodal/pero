@@ -72,13 +72,12 @@ Both cold and warm latency require actual exact-head Actions measurements.
 - Generated contracts and CI runner tests provide early, cheap failure evidence.
 - Ordinary PR/push runs Linux only, as explicitly requested. Daily at 20:00 UTC
   (04:00 UTC+08) and manual `workflow_dispatch` run Linux/macOS/Windows builds,
-  Go/Bazel/Harness and Windows positive ACL tests. Native Computer Use follows
-  the same split. Scheduled runs use the default branch. On a PR, an operator can
+  Go/Bazel/Harness and Windows positive ACL tests. Computer Use is manual-only through `workflow_dispatch`; PR, push and
+  scheduled events do not run that workflow. Scheduled runs use the default branch. On a PR, an operator can
   add the `ci:full` label to run the full matrix at that exact head and remove it
   to return to the ordinary tier. GitHub cannot filter label names in the trigger:
   other label changes rerun the currently selected tier, rather than emitting a
   misleading skipped required gate; they cannot cancel an active main CI run.
-  Native Computer Use has no PR path filter, so manual full works for every PR.
 - Daily/manual selected OS jobs retain complete build, typechecks, generated
   checks, Rust tests, Host contracts and transport tests. Ordinary core jobs
   do not depend on a Desktop build or runtime artifact.

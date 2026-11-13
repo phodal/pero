@@ -5,7 +5,7 @@ import test from 'node:test';
 const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const workflow = read('.github/workflows/computer-use.yml');
 const entry = read('tests/e2e/paper-native-diagnostic.mjs');
-const gate = "runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))";
+const gate = "runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic)";
 const step = name => {
   const text = workflow.split(`      - name: ${name}\n`)[1];
   assert.ok(text, `Missing step: ${name}`);

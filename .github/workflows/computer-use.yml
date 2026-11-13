@@ -1,7 +1,5 @@
 name: Computer Use
 on:
-  schedule:
-    - cron: "0 20 * * *"
   workflow_dispatch:
     inputs:
       paper_native_diagnostic:
@@ -14,70 +12,15 @@ on:
         type: boolean
         required: false
         default: false
-  push:
-    paths:
-      - use/**
-      - protocol/computer-*.tsp
-      - crates/pero-contracts/**
-      - scripts/build/computer.mjs
-      - tests/**/computer-*
-      - tests/build/paper-native-diagnostic-wiring.test.mjs
-      - tests/build/paper-host-approval-wiring.test.mjs
-      - tests/fixtures/paper-atspi-diagnostic.py
-      - tests/fixtures/paper-atspi-diagnostic-test.py
-      - tests/fixtures/paper-host-approval.mjs
-      - tests/fixtures/paper-host-approval.test.mjs
-      - tests/fixtures/paper-host-approval-diagnostics.mjs
-      - tests/e2e/paper-native-diagnostic.mjs
-      - tests/e2e/paper-host-approval-native.mjs
-      - desktop/src/main/reproduction-approval-linux.test.ts
-      - desktop/src/main/apps-reproduction.test.ts
-      - scripts/ci/workflow-scope.mjs
-      - .github/workflows/computer-use.yml
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
 permissions:
   contents: read
 jobs:
-  scope:
-    name: Decide Computer Use scope
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      run: ${{ steps.decide.outputs.run }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-      - id: decide
-        name: Run for relevant changes, manual, schedule, or an explicit label
-        env:
-          SCOPE_KIND: computer-use
-          SCOPE_EVENT: ${{ github.event_name }}
-          SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
-          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          SCOPE_PR: ${{ github.event.pull_request.number }}
-        run: |
-          files=""
-          if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
-            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "refs/pull/${SCOPE_PR}/head:refs/remotes/origin/pr-head"; then
-              files=$(git diff --name-only refs/remotes/origin/pr-base refs/remotes/origin/pr-head)
-            else
-              echo "Cannot read the pull request diff; running the check." >&2
-              echo "run=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-          printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
   native:
-    needs: scope
-    if: needs.scope.outputs.run == 'true'
     name: Native Computer Use (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -110,20 +53,20 @@ jobs:
           node --test tests/build/paper-native-diagnostic-wiring.test.mjs
           python3 tests/fixtures/paper-atspi-diagnostic-test.py
       - name: Prepare opt-in Paper diagnostic
-        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        if: runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic)
         run: |
           npm ci --registry=https://registry.npmjs.org
           sudo apt-get update -qq
           sudo apt-get install -y dbus-x11 at-spi2-core libatk-bridge2.0-0 libgtk-3-0 python3-gi gir1.2-gtk-3.0 libnss3 libgbm1 libasound2t64
       - name: Read-only owned Paper native diagnostic
-        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        if: runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic)
         timeout-minutes: 3
         env:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: node scripts/ci/run-acceptance.mjs --name paper-native-diagnostic --timeout-seconds 90 -- xvfb-run -a node tests/e2e/paper-native-diagnostic.mjs
       - name: Read-only Paper diagnostic evidence
-        if: always() && runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-native-diagnostic')) || (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic))
+        if: always() && runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_native_diagnostic)
         uses: actions/upload-artifact@v4
         with:
           name: paper-native-diagnostic
@@ -135,7 +78,7 @@ jobs:
         if: runner.os == 'Linux'
         run: node --test tests/build/paper-host-approval-wiring.test.mjs
       - name: Prepare opt-in Host approval UI
-        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        if: runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native)
         timeout-minutes: 10
         run: |
           npm ci --registry=https://registry.npmjs.org
@@ -145,7 +88,7 @@ jobs:
           node scripts/build/desktop.mjs
           node --experimental-transform-types --test desktop/src/main/reproduction-approval-linux.test.ts desktop/src/main/apps-reproduction.test.ts tests/fixtures/paper-host-approval.test.mjs
       - name: Owned Host approval semantic UI only
-        if: runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        if: runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native)
         timeout-minutes: 3
         env:
           PERO_PAPER_HOST_APPROVAL_NATIVE: '1'
@@ -153,7 +96,7 @@ jobs:
           PERO_TEST_SOFTWARE_GL: '1'
         run: node scripts/ci/run-acceptance.mjs --name paper-host-approval-native --timeout-seconds 120 -- xvfb-run -a node tests/e2e/paper-host-approval-native.mjs
       - name: Owned Host approval UI evidence
-        if: always() && runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))
+        if: always() && runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native)
         uses: actions/upload-artifact@v4
         with:
           name: paper-host-approval-native

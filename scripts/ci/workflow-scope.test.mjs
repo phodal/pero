@@ -74,23 +74,14 @@ test('a two-ref fetch names the pull request head, so FETCH_HEAD cannot hide the
   }
 });
 
-test('Computer Use and Release triggers keep synchronize and do not limit themselves to labeled', () => {
+test('Computer Use is manual only while Release retains its PR triggers', () => {
   const computer = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
-  assert.deepEqual(computer.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.equal(computer.on.pull_request.paths, undefined);
-  assert.deepEqual(computer.on.push.paths, [...computerUseGlobs]);
-  assert.equal(computer.on.schedule[0].cron, '0 20 * * *');
-  assert.equal(computer.jobs.scope.steps[0].uses, 'actions/checkout@v7');
-  assert.match(computer.jobs.scope.steps.at(-1).run, /refs\/pull\/\$\{SCOPE_PR\}\/head:refs\/remotes\/origin\/pr-head/);
-  assert.match(computer.jobs.scope.steps.at(-1).run, /git diff --name-only refs\/remotes\/origin\/pr-base refs\/remotes\/origin\/pr-head/);
-  assert.doesNotMatch(computer.jobs.scope.steps.at(-1).run, /FETCH_HEAD/);
-  assert.match(computer.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
-  assert.equal(computer.jobs.native.needs, 'scope');
-  assert.equal(computer.jobs.native.if, "needs.scope.outputs.run == 'true'");
-  assert.equal(computer.jobs.native['continue-on-error'], undefined);
-  assert.equal(computer.jobs.native.name, 'Native Computer Use (${{ matrix.os }})');
-  assert.match(computer.jobs.native.strategy.matrix.os, /schedule.*workflow_dispatch/);
-  assert.match(computer.jobs.native.strategy.matrix.os, /ci:full/);
+  assert.deepEqual(Object.keys(computer.on), ['workflow_dispatch']);
+  assert.equal(computer.on.workflow_dispatch.inputs.paper_native_diagnostic.default, false);
+  assert.equal(computer.on.workflow_dispatch.inputs.paper_host_approval_native.default, false);
+  assert.equal(computer.jobs.scope, undefined);
+  assert.equal(computer.jobs.native.needs, undefined);
+  assert.deepEqual(computer.jobs.native.strategy.matrix.os, ['ubuntu-latest', 'windows-latest', 'macos-latest']);
 
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
   assert.equal(release.on.push.branches, undefined);

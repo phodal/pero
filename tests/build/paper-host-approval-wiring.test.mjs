@@ -11,7 +11,7 @@ const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'ut
 const workflow = read('.github/workflows/computer-use.yml');
 const fixture = read('tests/e2e/paper-host-approval-native.mjs');
 const helper = read('tests/fixtures/paper-host-approval.mjs');
-const gate = "runner.os == 'Linux' && ((github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-host-approval-native')) || (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native))";
+const gate = "runner.os == 'Linux' && (github.event_name == 'workflow_dispatch' && inputs.paper_host_approval_native)";
 const step = name => {
   const text = workflow.split(`      - name: ${name}\n`)[1];
   assert.ok(text, `Missing ${name}`);
