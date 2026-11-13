@@ -17,9 +17,12 @@ export function exportMystLatex(input: MystPublicationInput): string {
   const projection = projectMystPublication(input, 'latex'), file = new VFile();
   unified().use(texPlugin).stringify(projection.ast as Root, file);
   const result = file.result as LatexResult;
-  const imports = [...new Set(['amsmath', 'amssymb', 'graphicx', 'booktabs', 'longtable', ...result.imports])];
+  const imports = [...new Set(['amsmath', 'amssymb', 'graphicx', 'booktabs', ...result.imports])];
   if (imports.some(name => !/^[a-zA-Z0-9-]+$/.test(name))) throw new Error('Unsupported LaTeX package name');
-  return `\\documentclass{article}\n${imports.map(name => `\\usepackage{${name}}`).join('\n')}\n\\begin{document}\n${result.value}\n\\end{document}\n${texComment('PERO PUBLICATION LOSSES\n' + projection.losses.join('\n'))}\n% PERO ORIGINAL SOURCE JSON\n${texComment(mystPublicationRecovery(input).record)}\n`;
+  // A standalone image starts a paragraph in the SDK output. Its normal TeX
+  // indent would push a 100%-width figure beyond the manuscript's text block.
+  const body = result.value.replace(/^\\includegraphics\[/gm, '\\noindent\\includegraphics[');
+  return `\\documentclass{article}\n${imports.map(name => `\\usepackage{${name}}`).join('\n')}\n\\begin{document}\n${body}\n\\end{document}\n${texComment('PERO PUBLICATION LOSSES\n' + projection.losses.join('\n'))}\n% PERO ORIGINAL SOURCE JSON\n${texComment(mystPublicationRecovery(input).record)}\n`;
 }
 export function exportMystTypst(input: MystPublicationInput): string {
   const projection = projectMystPublication(input, 'typst'), file = new VFile();

@@ -87,7 +87,9 @@ export function projectMystPublication(input: MystPublicationInput, kind: MystPu
       case 'admonition': losses.add('Admonition presentation converted to a quotation.'); return { type: 'blockquote', children: children() };
       case 'image': {
         const url = read(node, 'url'), asset = assets.get(url);
-        if (asset && ['image/png', 'image/jpeg'].includes(asset.mediaType) && (kind === 'docx' || (input.assetMode === 'archive' && /^assets\/image-[0-9]+\.(png|jpg)$/.test(url)))) return { type: 'image', url, alt: read(node, 'alt') };
+        const width = read(node, 'width');
+        const percentWidth = /^(?:\d+(?:\.\d+)?|\.\d+)%$/.test(width) && Number(width.slice(0, -1)) > 0 && Number(width.slice(0, -1)) <= 100;
+        if (asset && ['image/png', 'image/jpeg'].includes(asset.mediaType) && (kind === 'docx' || (input.assetMode === 'archive' && /^assets\/image-[0-9]+\.(png|jpg)$/.test(url)))) return { type: 'image', url, alt: read(node, 'alt'), ...(kind === 'latex' && percentWidth ? { width } : {}) };
         return fallback(`Image not embedded in ${kind}: ${url}`, `[Image: ${read(node, 'alt') || url}]`);
       }
       case 'link': losses.add('Hyperlinks exported as visible text and URL, not active links.'); return { type: 'strong', children: [...children(), plain(` (${read(node, 'url')})`)] };
