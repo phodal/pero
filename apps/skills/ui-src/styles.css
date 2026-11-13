@@ -1,8 +1,8 @@
 html,body,#app{height:100%;min-height:0}
 .skills-market{height:100%;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;background:var(--pero-bg);color:var(--pero-text)}
 .skills-frame{flex:1;min-height:0;display:flex;flex-direction:column}
-.skills-frame>.pero-content-pane{flex:1;min-height:0}
-.skills-frame .pero-content-body{width:100%;min-width:0}
+.skills-frame>.pero-content-pane{flex:1;min-height:0;min-width:0;overflow:hidden}
+.skills-frame>.pero-content-pane>.pero-content-body{box-sizing:border-box;width:auto;max-width:100%;min-width:0;overflow-x:clip;scrollbar-gutter:stable}
 .skills-market a{color:var(--pero-link);text-underline-offset:3px}
 .skills-market code{font-family:var(--pero-font-code,monospace);font-size:var(--pero-font-caption,12px);overflow-wrap:anywhere}
 .skills-scroll{height:100%;min-height:0;overflow:auto;scrollbar-gutter:stable}
@@ -24,7 +24,7 @@ html,body,#app{height:100%;min-height:0}
 .skills-status:empty{display:none}
 .skills-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pero-spacing-4);margin-top:28px;align-items:start}
 .skills-results,.skills-results>article{min-width:0;max-width:100%}
-.skills-row{width:100%;max-width:100%}
+.skills-row{width:100%;max-width:100%;min-width:0}
 .skills-list-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pero-spacing-3);padding-bottom:var(--pero-spacing-3);border-bottom:var(--pero-hairline)}
 .skills-list-heading>div{display:flex;align-items:center;gap:var(--pero-spacing-2);min-width:0}
 .skills-list-heading h2{font-size:var(--pero-font-body);font-weight:600;margin:0}
@@ -43,6 +43,7 @@ html,body,#app{height:100%;min-height:0}
 .skills-category{font-size:var(--pero-font-caption);line-height:1.4;border-radius:3px;padding:2px 6px;display:inline-block;background:var(--pero-surface-muted);color:var(--pero-text-muted)}
 .skills-row-meta .skills-category{white-space:nowrap;flex:none}
 .skills-row-action{flex:none}
+.skills-row-action .pero-ui-button{flex:none;max-width:none}
 .skills-installed-label{display:inline-flex;align-items:center;gap:3px;font-size:var(--pero-font-caption);color:var(--pero-link)}
 .skills-pending-label{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
 .skills-failed-label{font-size:var(--pero-font-caption);color:var(--pero-error)}
