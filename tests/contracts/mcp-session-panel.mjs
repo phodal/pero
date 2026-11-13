@@ -10,7 +10,7 @@ import {resolve,join} from 'node:path';
 import {App} from '@modelcontextprotocol/ext-apps';
 import {AppBridge} from '@modelcontextprotocol/ext-apps/app-bridge';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {closeMcpView} from '../../web/src/mcp/lifecycle.ts';
+import {closeMcpView} from '../../packages/mcp-apps/src/lifecycle.ts';
 import {startMcpFixture} from '../fixtures/mcp-app/server.ts';
 import {McpSessionRpc} from '../../desktop/src/main/mcp-session-rpc.ts';
 import {McpSessionPanels} from '../../desktop/src/main/mcp-session-panels.ts';

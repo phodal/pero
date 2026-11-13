@@ -6,7 +6,8 @@
     "desktop",
     "web",
     "packages/app-sdk",
-    "packages/notebook"
+    "packages/notebook",
+    "packages/mcp-apps"
   ],
   "scripts": {
     "dev": "npm run build && npm run start --workspace @pero/desktop",
