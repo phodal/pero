@@ -7,6 +7,22 @@ github_state: open
 github_url: https://github.com/phodal/pero/issues/218
 ---
 
+## Merge review: inline error correlation — 2026-11-13
+
+The Electron shell assigns transport UUIDs to MCP panel requests, but its error
+forwarding did not restore the caller's `mcp-inline-*` identity. Rust matches
+local tool-row failures against that original ID, so a denied session or panel
+startup failure could leave the row loading without its retry action. Preserve
+the existing unique transport identity and map every result/error back to the
+caller at this boundary. Verify through the actual Electron session ingress;
+this must not execute another tool or model turn.
+
+Verified after the fix through the real Electron Workbench/Host/ACP acceptance:
+a missing conversation returns `mcp_error` with the original
+`mcp-inline-unavailable` ID. The official demo's successful conversation flow
+still passes with three fixture model requests and two actual tool calls;
+the rejected adoption adds neither. Core TypeScript and Desktop build pass.
+
 # feat(mcp-apps): 将真实工具结果接入会话流，并安全恢复历史视图
 
 ## 目标与范围

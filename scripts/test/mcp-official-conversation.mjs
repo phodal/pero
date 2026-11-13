@@ -124,6 +124,16 @@ try{
   assert.equal((await businessCalls()).length,2,'ui/message must not rerun the original MCP tool');
   await page.screenshot({path:join(evidence,'official-conversation-followup.png'),scale:'css'});
   assert.deepEqual(provider.errors,[]);assert.deepEqual(errors,[]);
+  // Exercise Electron's real ingress: a Host rejection must reach the requesting inline row.
+  const originalCall=new URL(originalUrl).searchParams;
+  const beforeUnavailable=await page.evaluate(()=>window.officialMcpEvents.length);
+  await page.evaluate(call=>window.pero.sessionCommand({method:'mcp',action:'adopt',request_id:'mcp-inline-unavailable',
+    thread_id:'mcp-app-missing-conversation',...call}),{server:originalCall.get('server'),generation:Number(originalCall.get('generation')),tool_call:originalCall.get('tool_call')});
+  await expect.poll(()=>page.evaluate(start=>window.officialMcpEvents.slice(start).filter(event=>event.kind==='mcp_error').length,beforeUnavailable)).toBe(1);
+  const unavailable=await page.evaluate(start=>window.officialMcpEvents.slice(start).find(event=>event.kind==='mcp_error'),beforeUnavailable);
+  assert.equal(unavailable.request_id,'mcp-inline-unavailable','Electron must retain the inline caller request ID on Host errors');
+  assert.equal((await businessCalls()).length,2,'failed adoption must not invoke the MCP tool');
+  assert.equal(provider.calls.length,3,'failed adoption must not invoke the model');
   await page.evaluate(thread_id=>window.pero.sessionCommand({action:'close',thread_id}),thread);
   await expect(outer).toHaveCount(0);
   assert.equal((await businessCalls()).length,2);
@@ -134,7 +144,7 @@ try{
     actualWorkbench:true,actualElectron:true,actualRustHost:true,actualGoACP:true,realModel:false,model:'deterministic loopback fixture',
     modelRequests:provider.calls.length,expectedBusinessCalls:2,businessCalls:await businessCalls(),permissions:events.filter(event=>event.kind==='permission').length,
     checks:['initial Agent tool call','automatic conversation View mounting without picker','tool collapse/expand retains the same iframe and result','explicit official UI tool interaction','two mandatory ask approvals','close/reopen never repeat tools/call',
-      'live dark theme and narrower Workbench','official ui/message becomes a subsequent user prompt','actual subsequent model reply','session close removes the View'],errors},null,2));
+      'live dark theme and narrower Workbench','official ui/message becomes a subsequent user prompt','actual subsequent model reply','failed adoption retains the inline caller request ID without tool or model calls','session close removes the View'],errors},null,2));
   console.log('Official MCP App: actual conversation mounting and ui/message follow-up passed (local model fixture).');
 }catch(error){
   if(page){await page.screenshot({path:join(evidence,'failure.png'),scale:'css'}).catch(()=>{});

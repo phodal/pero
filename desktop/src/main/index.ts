@@ -65,7 +65,7 @@ let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
 let mcpSessions:McpSessionPanels|undefined;
 let connectorMcp: ConnectorMcp | undefined;
-const mcpRequests=new Map<string,{thread:string|undefined;mode:'session'|'standalone';call?:{server:string;generation:number;tool_call:string}}>();
+const mcpRequests=new Map<string,{request_id:string;thread:string|undefined;mode:'session'|'standalone';call?:{server:string;generation:number;tool_call:string}}>();
 const mcpSessionScope=z.object({thread_id:z.string().min(1),incarnation:z.number().int().nonnegative(),revision:z.number().int().nonnegative()}).strict();
 const mcpOriginalCall=z.object({server:z.string().min(1),generation:z.number().int().nonnegative(),tool_call:z.string().min(1)});
 const mcpRpc=new McpSessionRpc(request=>{
@@ -272,10 +272,10 @@ app.whenReady().then(async () => {
       mcpSessions?.observe(message);
       if(message.kind==='mcp_permitted'||message.kind==='mcp_error'){
         const request=mcpRequests.get(message.request_id);
-        if(!mcpRequests.has(message.request_id))return;
+        if(!request)return;
         mcpRequests.delete(message.request_id);
-        if(message.kind==='mcp_error'){send(message);return;}
-        if(!request||(message.thread_id||undefined)!==request.thread)return;
+        if(message.kind==='mcp_error'){send({...message,request_id:request.request_id});return;}
+        if((message.thread_id||undefined)!==request.thread)return;
         void (async()=>{
           let url:string;
           if(request.mode==='session'){
@@ -287,8 +287,8 @@ app.whenReady().then(async () => {
             if(!mcpHost)throw new Error('MCP Apps provider is unavailable');
             mcpReady ||= mcpHost.start();await mcpReady;url=mcpHost.open(request.thread,locale);
           }
-          send({version:1,kind:request.call?'mcp_app_view':'mcp_sources',request_id:message.request_id,thread_id:request.thread,text:'',data:{url,...(request.call?{tool_call:request.call.tool_call}:{})}});
-        })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:message.request_id,text:error instanceof Error?error.message:String(error)});});return;
+          send({version:1,kind:request.call?'mcp_app_view':'mcp_sources',request_id:request.request_id,thread_id:request.thread,text:'',data:{url,...(request.call?{tool_call:request.call.tool_call}:{})}});
+        })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:request.request_id,thread_id:request.thread,text:error instanceof Error?error.message:String(error)});});return;
       }
       if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
       if (message.kind === 'harness_settings_saved' || message.kind === 'harness_settings_error') {
@@ -394,14 +394,15 @@ app.whenReady().then(async () => {
     const action = (command as { action?: string }).action;
     const method = (command as { method?: string }).method;
     if(method==='mcp'){
-      const request=command as {action?:unknown;thread_id?:unknown;mode?:unknown};
+      const request=command as {action?:unknown;thread_id?:unknown;mode?:unknown;request_id?:unknown};
       if(request.mode!==undefined&&request.mode!=='session'&&request.mode!=='standalone')throw new Error('Invalid MCP source mode');
       if(!['open','adopt'].includes(String(request.action))||request.thread_id!==null&&request.thread_id!==undefined&&typeof request.thread_id!=='string')throw new Error('Invalid MCP source intent');
       const id=randomUUID(),thread=typeof request.thread_id==='string'?request.thread_id:undefined;
       const call=request.action==='adopt'?mcpOriginalCall.parse(command):undefined;
       if(call&&!thread)throw new Error('A tool result requires its original conversation');
       const mode=call||request.mode==='session'?'session':'standalone';
-      mcpRequests.set(id,{thread,mode,call});
+      const callerId=request.request_id===undefined?id:z.string().min(1).max(128).parse(request.request_id);
+      mcpRequests.set(id,{request_id:callerId,thread,mode,call});
       host.stdin.write(JSON.stringify({method:'mcp',action:call?'adopt':'open',request_id:id,thread_id:thread,mode,...call})+'\n');return;
     }
     if (action === 'harness_get' || action === 'harness_save') return harness.command(command);
