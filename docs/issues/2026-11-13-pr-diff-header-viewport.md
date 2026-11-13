@@ -43,3 +43,8 @@ fifth applicable patch; the reproduced failure becomes a passing test.
 Both corrections are included in [PR #229](https://github.com/phodal/pero/pull/229).
 The existing viewed-mark domain table and the Native library tests cover the
 underlying state rule; a real rebased-PR refresh was not replayed in the window.
+
+A follow-up review found that the Checks module declaration lost its wasm/native
+condition during integration. Default-feature `pero-ui` compilation reproduced
+unresolved imports. The declaration now uses the same condition as the other PR
+views; both default-feature and Native library suites are checked.

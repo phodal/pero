@@ -35,6 +35,7 @@ mod pull_requests;
 mod pull_request_changes;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_diff;
+#[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_checks;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_commits;
