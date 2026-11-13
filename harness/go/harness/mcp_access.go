@@ -22,6 +22,7 @@ type MCPSessionRequest struct {
 	Cursor     string          `json:"cursor,omitempty"`
 	Arguments  json.RawMessage `json:"arguments,omitempty"`
 	Binding    string          `json:"binding,omitempty"`
+	ToolCall   ToolCallID      `json:"tool_call,omitempty"`
 }
 type mcpAppBinding struct {
 	server     string
@@ -40,12 +41,13 @@ type MCPAccess struct {
 	mu          sync.Mutex
 	closed      bool
 	bindings    map[string]mcpAppBinding
+	originals   map[ToolCallID]mcpAppCall
 	calls       map[*context.CancelFunc]string
 }
 
 func (a *Agent) MCPAccess() *MCPAccess { return a.mcpAccess }
 func MountAgentMCPServers(ctx context.Context, run *point.Run, registry *ToolRegistry, prompts *PromptRegistry, agent *Agent, servers []MCPServerConfig) error {
-	access := &MCPAccess{agent: agent, run: run, registry: registry, connections: harnessmcp.NewSessionAccess(), policies: make(map[string]*harnessmcp.ToolPolicy), names: make(map[string]string), bindings: make(map[string]mcpAppBinding), calls: make(map[*context.CancelFunc]string)}
+	access := &MCPAccess{agent: agent, run: run, registry: registry, connections: harnessmcp.NewSessionAccess(), policies: make(map[string]*harnessmcp.ToolPolicy), names: make(map[string]string), bindings: make(map[string]mcpAppBinding), originals: make(map[ToolCallID]mcpAppCall), calls: make(map[*context.CancelFunc]string)}
 	for _, server := range servers {
 		access.names[normalizeMCPServerName(server.Name)] = server.Name
 	}
@@ -91,6 +93,7 @@ func (a *MCPAccess) Close() {
 	defer a.mu.Unlock()
 	a.closed = true
 	clear(a.bindings)
+	clear(a.originals)
 	for cancel := range a.calls {
 		(*cancel)()
 	}
@@ -156,45 +159,19 @@ func (a *MCPAccess) Request(ctx context.Context, request MCPSessionRequest) (jso
 		if err != nil {
 			return nil, err
 		}
-		_, uri, err := a.connections.AppTool(server, request.Generation, request.Name, "", true)
+		return a.prepareApp(ctx, server, request.Generation, request.Name, nil)
+	case "adopt":
+		if len(request.Arguments) != 0 || request.Name != "" || request.URI != "" {
+			return nil, errors.New("MCP App adopt accepts original call identity only")
+		}
+		original, err := a.originalAppCall(request.ToolCall)
 		if err != nil {
 			return nil, err
 		}
-		resource, err := a.connections.Request(ctx, server, request.Generation, "read", "", uri)
-		if err != nil {
-			return nil, err
+		if request.Server != original.descriptor.Server || request.Generation != original.descriptor.Generation {
+			return nil, errors.New("MCP App original call identity does not match this request")
 		}
-		var document struct {
-			Contents []struct {
-				MIMEType string `json:"mimeType"`
-			} `json:"contents"`
-		}
-		if json.Unmarshal(resource, &document) != nil || len(document.Contents) != 1 || document.Contents[0].MIMEType != "text/html;profile=mcp-app" {
-			return nil, errors.New("MCP App requires one text/html;profile=mcp-app document")
-		}
-		if err = a.connections.Check(server, request.Generation); err != nil {
-			return nil, err
-		}
-		var token [32]byte
-		if _, err = rand.Read(token[:]); err != nil {
-			return nil, err
-		}
-		id := hex.EncodeToString(token[:])
-		response, err := harnessmcp.BoundedAccessResult(struct {
-			Binding  string          `json:"binding"`
-			Resource json.RawMessage `json:"resource"`
-		}{id, resource})
-		if err != nil {
-			return nil, err
-		}
-		a.mu.Lock()
-		if a.closed || ctx.Err() != nil {
-			a.mu.Unlock()
-			return nil, errors.New("MCP App prepare was cancelled or closed")
-		}
-		a.bindings[id] = mcpAppBinding{server, request.Generation, uri}
-		a.mu.Unlock()
-		return response, nil
+		return a.prepareApp(ctx, original.server, original.descriptor.Generation, original.tool, &original)
 	case "tool", "resource":
 		binding, err := a.binding(request.Binding)
 		if err != nil {

@@ -142,6 +142,17 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
 			tools[i] = mcpTool(definition, config.ToolPolicy)
+			if access != nil && definition.ResourceURI != "" {
+				tools[i].Execute = nil
+				tools[i].ExecuteRequest = func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+					var capture harnessmcp.AppResultCapture
+					result, err := definition.Execute(capture.Context(ctx), request.Arguments)
+					if err == nil && ctx.Err() == nil {
+						access.recordAppCall(request, config.Name, definition, capture)
+					}
+					return result, err
+				}
+			}
 		}
 		return registry.replaceGeneration(owner, generation, tools)
 	})

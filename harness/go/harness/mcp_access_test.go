@@ -262,3 +262,135 @@ func TestMCPSessionAppPolicyAndBinding(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPOriginalAppCall(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	var calls atomic.Int32
+	changed := make(chan struct{}, 4)
+	server := sdk.NewServer(&sdk.Implementation{Name: "original-call", Version: "1"}, nil)
+	handler := func(_ context.Context, request *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		var input struct {
+			Label string `json:"label"`
+		}
+		if err := json.Unmarshal(request.Params.Arguments, &input); err != nil {
+			return nil, err
+		}
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: input.Label}},
+			StructuredContent: map[string]any{"sequence": calls.Add(1)},
+			Meta:              sdk.Meta{"private": input.Label, "pero.mcpApp": map[string]any{"server": "forged"}}}, nil
+	}
+	definition := &sdk.Tool{Name: "inspect", InputSchema: map[string]any{"type": "object"},
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true}, Meta: sdk.Meta{"ui": map[string]any{"resourceUri": "ui://fixture/original", "visibility": []string{"model"}}}}
+	server.AddTool(definition, handler)
+	server.AddResource(&sdk.Resource{URI: "ui://fixture/original", Name: "view", MIMEType: "text/html;profile=mcp-app"}, func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+		return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: "ui://fixture/original", MIMEType: "text/html;profile=mcp-app", Text: "<p>Original</p>"}}}, nil
+	})
+	ct, st := sdk.NewInMemoryTransports()
+	connection, err := server.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connection.Close() })
+	h := retirementHarness(t)
+	agent, err := h.Agents().Create(ctx, AgentOptions{ID: "original", Configure: func(ctx context.Context, run *point.Run, owner *Agent) error {
+		return MountAgentMCPServers(ctx, run, h.Tools(), h.Prompts(), owner, []MCPServerConfig{{Name: "Original server", TestTransport: ct, FailOnStartupError: true,
+			Observe: func(value MCPConnectionObservation) {
+				if value.Status == "connected" {
+					changed <- struct{}{}
+				}
+			}}})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-changed
+	for _, call := range []struct {
+		id    ToolCallID
+		input string
+	}{{"first-call", `{"label":"first"}`}, {"later-call", `{"label":"later"}`}} {
+		outcome, err := h.Tools().Execute(ctx, ToolRequest{Agent: agent, CallID: call.id, Name: PublicMCPToolName(normalizeMCPServerName("Original server"), "inspect"), Arguments: json.RawMessage(call.input)})
+		if err != nil || outcome.Result.IsError {
+			t.Fatalf("actual call: %v %+v", err, outcome.Result)
+		}
+	}
+	access := agent.MCPAccess()
+	descriptor := access.AppDescriptor("first-call")
+	if descriptor == nil || descriptor.Server != "Original server" || descriptor.ToolCall != "first-call" || descriptor.ResourceURI != "ui://fixture/original" || descriptor.Generation != 1 {
+		t.Fatalf("wrong owned descriptor: %+v", descriptor)
+	}
+	request := MCPSessionRequest{Action: "adopt", Server: "Original server", Generation: 1, ToolCall: "first-call"}
+	for range 2 {
+		raw, err := access.Request(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var adopted struct {
+			Binding string `json:"binding"`
+			Input   struct {
+				Label string `json:"label"`
+			} `json:"input"`
+			Result struct {
+				StructuredContent struct {
+					Sequence int `json:"sequence"`
+				} `json:"structuredContent"`
+				Meta struct {
+					Private string `json:"private"`
+				} `json:"_meta"`
+			} `json:"result"`
+		}
+		if json.Unmarshal(raw, &adopted) != nil || adopted.Binding == "" || adopted.Input.Label != "first" || adopted.Result.StructuredContent.Sequence != 1 || adopted.Result.Meta.Private != "first" {
+			t.Fatalf("original result was lost or replaced: %s", raw)
+		}
+		if calls.Load() != 2 {
+			t.Fatal("adopting or reopening repeated the business tool")
+		}
+		if _, err = access.Request(ctx, MCPSessionRequest{Action: "tool", Binding: adopted.Binding, Name: "inspect"}); err == nil {
+			t.Fatal("view called its model-only initial tool")
+		}
+	}
+	for _, row := range []struct {
+		name    string
+		request MCPSessionRequest
+	}{
+		{"unknown call", MCPSessionRequest{Action: "adopt", Server: "Original server", Generation: 1, ToolCall: "missing"}},
+		{"different server", MCPSessionRequest{Action: "adopt", Server: "foreign", Generation: 1, ToolCall: "first-call"}},
+		{"different generation", MCPSessionRequest{Action: "adopt", Server: "Original server", Generation: 2, ToolCall: "first-call"}},
+		{"new arguments", MCPSessionRequest{Action: "adopt", Server: "Original server", Generation: 1, ToolCall: "first-call", Arguments: json.RawMessage(`{}`)}},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			if _, err := access.Request(ctx, row.request); err == nil {
+				t.Fatal("unrelated original-call request admitted")
+			}
+		})
+	}
+	other, err := h.Agents().Create(ctx, AgentOptions{ID: "other", Configure: func(ctx context.Context, run *point.Run, owner *Agent) error {
+		return MountAgentMCPServers(ctx, run, h.Tools(), h.Prompts(), owner, nil)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = other.MCPAccess().Request(ctx, request); err == nil {
+		t.Fatal("another incarnation adopted this Agent's call")
+	}
+	definition.Meta = sdk.Meta{"ui": map[string]any{"resourceUri": "ui://changed/view"}}
+	server.AddTool(definition, handler)
+	select {
+	case <-changed:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if _, err = access.Request(ctx, request); err == nil {
+		t.Fatal("changed resource admitted")
+	}
+	access.Close()
+	if access.AppDescriptor("first-call") != nil {
+		t.Fatal("closed incarnation retained a live descriptor")
+	}
+	if _, err = access.Request(ctx, request); err == nil {
+		t.Fatal("closed incarnation adopted a historical call")
+	}
+	if calls.Load() != 2 {
+		t.Fatal("rejected adoption executed a tool")
+	}
+}
