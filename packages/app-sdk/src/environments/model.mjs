@@ -3,6 +3,7 @@ export const METHODS = Object.freeze([
   Object.freeze({ id: 'paper-agent.pcgym', name: 'PC-Gym', icon: 'skill', tone: 'blue', app: 'Paper', software: 'PC-Gym, SB3, CasADi' }),
   Object.freeze({ id: 'control-lab.python-control', name: 'Control', icon: 'activity', tone: 'neutral', app: 'Control Lab', software: 'python-control, SciPy' }),
   Object.freeze({ id: 'control-lab.ngspice', name: 'Circuit', icon: 'circuit', tone: 'apricot', app: 'Control Lab', software: 'ngspice' }),
+  Object.freeze({ id: 'virtual-cell.comparison', name: 'Virtual Cell', icon: 'dna', tone: 'apricot', app: 'Virtual Cell', software: 'Python standard library (CPU)' }),
   Object.freeze({ id: 'lcms2yield.inference', name: 'LCMS2Yield', icon: 'flask-conical', tone: 'blue', app: 'LCMS2Yield', software: 'PyTorch 2.3, PyG, RDKit' }),
 ]);
 const METHOD_APP = Object.freeze({
@@ -10,6 +11,7 @@ const METHOD_APP = Object.freeze({
   'control-lab.python-control': 'control-lab',
   'control-lab.ngspice': 'control-lab',
   'lcms2yield.inference': 'lcms2yield',
+  'virtual-cell.comparison': 'virtual-cell',
 });
 export const METHOD_IDS = Object.freeze(METHODS.map(method => method.id));
 export const OBSERVATION_MAX_AGE_MS = 300_000;

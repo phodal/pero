@@ -1,5 +1,9 @@
 # Quality gates
 
+Versioned Virtual Cell CPU task packages, reusable model endpoint state,
+independent arithmetic checks and real browser scope:
+[Domain task workflows](domain-workflows.md).
+
 Current design principles, 15-App inventory, Native/browser observations and
 remaining gaps: [Design principles audit — 2026-11-11](2026-11-11-design-principles-audit.md).
 

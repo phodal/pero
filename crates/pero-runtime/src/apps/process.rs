@@ -120,6 +120,15 @@ impl AppProcess {
         if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
             environment.configure_command(&mut command)?;
         }
+        // Remote method deployment belongs to trusted Host configuration. Keep
+        // model credentials out of every other App's environment and manifests.
+        if definition.name.as_str() == "virtual-cell" {
+            for key in ["PERO_VIRTUAL_CELL_MODEL_URL", "PERO_VIRTUAL_CELL_MODEL_TOKEN"] {
+                if let Some(value) = std::env::var_os(key) {
+                    command.env(key, value);
+                }
+            }
+        }
         if let Some(deployment) = reproduction {
             if let Some(scientific_python) = std::env::var_os("PERO_PAPER_SCIENTIFIC_PYTHON") {
                 command.env("PERO_PAPER_SCIENTIFIC_PYTHON", scientific_python);

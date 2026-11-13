@@ -109,7 +109,7 @@ async function completed(id, status = 'succeeded') {
   }, { timeout: 30000, intervals: [100, 200, 500] }).toBe(status);
   expect(run.process.exitObserved).toBe(true);
   expect(run.process.exitCode).toBe(status === 'succeeded' ? 0 : 2);
-  await expect(frame.locator('.vc-comparison-detail > .pero-ui-toolbar > [role="status"]')).toHaveText(status === 'succeeded' ? 'Calculation completed' : 'Failed');
+  await expect(frame.locator('.vc-comparison-detail > .pero-inspector-header [role="status"]')).toHaveText(status === 'succeeded' ? 'Calculation completed' : 'Failed');
   expect(alive(run.process.pid)).toBe(false);
   return run;
 }
@@ -215,6 +215,8 @@ try {
     PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl') };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.PERO_APPS_ROOT;
+  delete env.PERO_VIRTUAL_CELL_MODEL_URL;
+  delete env.PERO_VIRTUAL_CELL_MODEL_TOKEN;
   const launch = async () => {
     app = await electron.launch({ args: [...(process.platform === 'darwin' ? ['--use-mock-keychain'] : []), resolve(root, 'desktop')], cwd: root, env });
     page = await app.firstWindow();
@@ -344,14 +346,41 @@ try {
   expect(cancelled.process.exitCode).toBeLessThan(0);
   expect(cancelled.outputId).toBeNull();
   expect(alive(beforeCancel.process.pid)).toBe(false);
-  await expect(frame.locator('.vc-comparison-detail > .pero-ui-toolbar > [role="status"]')).toHaveText('Cancelled');
+  await expect(frame.locator('.vc-comparison-detail > .pero-inspector-header [role="status"]')).toHaveText('Cancelled');
   await screenshot('sample-cancelled.png');
   await writeFile(resolve(out, 'sample-cancellation.json'), JSON.stringify({ beforeCancel, cancelled, processAbsentBeforeTerminalUiAssertion: true }, null, 2));
   await assertFrozen(first, output);
   checks.push('Actual running child -> visible Cancel request -> observed nonzero process exit/PID absence -> terminal Cancelled; old results unchanged');
 
+  // A method endpoint retains only admitted training/query values. The
+  // existing comparison owner still launches and reaps every calculation.
+  await importSample('prepared');
+  await expect(frame.getByRole('heading', { name: 'CPU perturbation comparison package', exact: true })).toBeVisible();
+  const prepareReply = page.waitForResponse(response => response.url().endsWith('/api/model/start') && response.request().method() === 'POST');
+  await frame.getByRole('button', { name: 'Prepare selected input', exact: true }).click();
+  expect((await (await prepareReply).json()).status).toBe('ready');
+  const endpointRun = await completed((await start()).id);
+  expect(endpointRun.modelEndpoint.model.id).toBe('additive-endpoint');
+  expect(endpointRun.taskPackage.id).toBe('virtual-cell.comparison');
+  const endpointOutput = await read(`/api/artifacts/${endpointRun.outputId}`);
+  expect(endpointOutput.predictions.map(item => item.model.id)).toEqual(['control', 'train_mean', 'additive', 'additive-endpoint']);
+  await expect(frame.locator('.vc-comparison-models tbody tr')).toHaveCount(4);
+  const checkReply = page.waitForResponse(response => response.url().endsWith(`${runPath(endpointRun.id)}/check`) && response.request().method() === 'POST');
+  await frame.getByRole('button', { name: 'Check artifacts independently', exact: true }).click();
+  const checked = record(await (await checkReply).json());
+  expect(checked.check.status).toBe('PASS');
+  await expect(frame.getByText('Independent arithmetic checks passed', { exact: true })).toBeVisible();
+  const checkedExport = await exportRun(endpointRun.id, 'endpoint-run-export.json');
+  const standaloneCheck = resolve(out, 'endpoint-standalone-check.json');
+  await rm(standaloneCheck, { force: true });
+  await execute(python, ['-E', '-s', resolve(root, 'apps/virtual-cell/backend/check_comparison.py'), '--export', checkedExport.path, '--out', standaloneCheck], { encoding: 'utf8', timeout: 30000 });
+  expect(JSON.parse(await readFile(standaloneCheck, 'utf8')).status).toBe('PASS');
+  const stopReply = page.waitForResponse(response => response.url().endsWith('/api/model/stop') && response.request().method() === 'POST');
+  await frame.getByRole('button', { name: 'Stop endpoint', exact: true }).click();
+  expect((await (await stopReply).json()).status).toBe('stopped');
+  checks.push('Visible endpoint prepare -> ready -> existing comparison CPU execution -> independent artifact/standalone check -> explicit endpoint stop');
   const saved = (await read('/api/comparisons')).items;
-  expect(saved).toHaveLength(5);
+  expect(saved).toHaveLength(6);
   const postCount = comparisonPosts().length;
   const allPostCount = requests.filter(item => item.method === 'POST').length;
   await page.reload();
@@ -373,10 +402,10 @@ try {
   expect(requests.filter(item => item.method === 'POST')).toHaveLength(allPostCount);
   await assertFrozen(first, output);
   await screenshot('sample-reopened-history.png');
-  checks.push('Frontend reload and full Desktop/backend restart retain all five attempts; history/refresh issue no comparison POST or automatic replay');
+  checks.push('Frontend reload and full Desktop/backend restart retain all six attempts; history/refresh issue no comparison POST or automatic replay');
   expect(errors).toEqual([]);
-  // Only five explicit starts and one explicit cancellation are authorized.
-  expect(comparisonPosts().filter(item => item.path === '/api/comparisons')).toHaveLength(5);
+  // Only six explicit starts, one check and one cancellation are authorized.
+  expect(comparisonPosts().filter(item => item.path === '/api/comparisons')).toHaveLength(6);
   expect(comparisonPosts().filter(item => item.path.endsWith('/cancel'))).toHaveLength(1);
 } catch (error) {
   failure = error;
