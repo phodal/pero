@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { downloadFile, useAppApi, useAppI18n, type AppMessages } from '@pero/app-sdk';
-import { Badge, Button, Card, Disclosure, EmptyState, Feedback, FilePicker } from '@pero/app-sdk/ui';
+import { Badge, Button, Card, ContentPane, Disclosure, EmptyState, Feedback, FilePicker, InspectorHeader, MetadataList } from '@pero/app-sdk/ui';
 
 const messages: AppMessages = {
   import: { en: 'Import experiment report', zh: '导入实验报告' },
@@ -54,15 +54,16 @@ export function TaskReport() {
     } catch (cause) { setError(String(cause)); }
     finally { setBusy(false); }
   }
-  return <section className="compute-report" aria-label={t('empty')}>
-    <div className="compute-report-actions"><FilePicker label={t('import')} emptyLabel={t('choose')} accept=".json,application/json" busy={busy} onFile={file => void importReport(file)} />
-      <Button disabled={busy} onClick={() => void load()}>{t('retry')}</Button></div>
-    {error ? <Feedback kind="error">{error} {report ? t('retained') : ''}</Feedback> : null}
-    {notice ? <p role="status">{notice}</p> : null}
+  return <ContentPane id="compute-task-report" label={t('empty')} as="section" surface="workspace" inset="compact" scroll="pane"
+    toolbar={<div className="compute-report-actions"><FilePicker label={t('import')} emptyLabel={t('choose')} accept=".json,application/json" busy={busy} onFile={file => void importReport(file)} />
+      <Button disabled={busy} onClick={() => void load()}>{t('retry')}</Button></div>}
+    feedback={<>
+      {error ? <Feedback kind="error">{error} {report ? t('retained') : ''}</Feedback> : null}
+      {notice ? <p role="status">{notice}</p> : null}
+    </>}
+    header={report ? <InspectorHeader title={report.name} subtitle={t('count', { count: report.consistent })} status={<span>{t('snapshot', { time: report.observed_at })}</span>} actions={<Button onClick={() => downloadFile(`${report.batch}.json`, report.raw, 'application/json')}>{t('all')}</Button>} /> : undefined}>
     {!report ? !busy && <EmptyState heading={<h2>{t('empty')}</h2>} description={t('help')} /> : <>
-      <header><h2>{report.name}</h2><p>{t('count', { count: report.consistent })}</p>
-        <p className="compute-help">{t('snapshot', { time: report.observed_at })}</p><p className="compute-help">{t('scope')}</p>
-        <Button onClick={() => downloadFile(`${report.batch}.json`, report.raw, 'application/json')}>{t('all')}</Button></header>
+      <p className="compute-help">{t('scope')}</p>
       <div className="compute-report-grid">{report.rows.map(row => <Card key={row.experiment} tone="blue" variant="soft" className="compute-report-row">
         <h3>{row.c_rate} C · {row.temperature_k} K</h3><div className="compute-report-actions"><Badge>{t(row.state)}</Badge><Badge>{t(row.verification)}</Badge></div>
         <p>{row.hostname || row.worker || '—'}</p>{row.reason ? <p>{row.reason}</p> : null}
@@ -70,10 +71,16 @@ export function TaskReport() {
         <div className="compute-report-actions">{row.content != null ? <Button onClick={() => downloadFile(`${row.experiment}.jsonl`, row.content!, 'application/x-ndjson')}>{t('result')}</Button> : null}
           <Button onClick={() => downloadFile(`${row.experiment}-run.json`, row.record, 'application/json')}>{t('record')}</Button>
           {row.task ? <Button onClick={() => void navigator.clipboard.writeText(`pero://tasks/${encodeURIComponent(row.task)}`).then(() => setNotice(t('copied')), () => setNotice(t('copyFailed')))}>{t('copy')}</Button> : null}</div>
-        <Disclosure summary={t('trace')}><dl className="compute-facts">
-          {Object.entries({ Experiment: row.experiment, Task: row.task, Run: row.run, Worker: row.worker, [t('method')]: report.method_sha256, 'Result SHA-256': row.result_sha256, Path: row.result_path }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '—'}</dd></div>)}
-        </dl></Disclosure>
+        <Disclosure summary={t('trace')}><MetadataList layout="stacked" items={[
+            { id: 'experiment', label: 'Experiment', value: row.experiment || '—', format: 'code' },
+            { id: 'task', label: 'Task', value: row.task || '—', format: 'code' },
+            { id: 'run', label: 'Run', value: row.run || '—', format: 'code' },
+            { id: 'worker', label: 'Worker', value: row.worker || '—' },
+            { id: 'method', label: t('method'), value: report.method_sha256 || '—', format: 'code' },
+            { id: 'result', label: 'Result SHA-256', value: row.result_sha256 || '—', format: 'code' },
+            { id: 'path', label: 'Path', value: row.result_path || '—', format: 'code' },
+          ]} /></Disclosure>
       </Card>)}</div>
     </>}
-  </section>;
+  </ContentPane>;
 }

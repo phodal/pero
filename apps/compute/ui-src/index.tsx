@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppApi, useAppContext, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
-import { Disclosure, AppFrame, Badge, Button, Card, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, ListRow, LoadingSkeleton, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger } from '@pero/app-sdk/ui';
+import { Disclosure, AppFrame, Badge, Button, ContentPane, ContentSection, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, ListRow, LoadingSkeleton, MetadataList, SkeletonText, Split, SplitPane, Tabs, TabsContent, TabsList, TabsTrigger, contentLayout, type MetadataItem } from '@pero/app-sdk/ui';
 import { ClusterDialog } from './cluster-dialog';
 import { TaskReport } from './task-report';
 import { messages, type Cluster, type ClusterInput, type ClusterState, type ExecutionReceipt } from './messages';
@@ -76,56 +76,49 @@ export default function Compute() {
         {state.executionsStatus === 'unreadable' ? <div className="compute-recovery"><Feedback kind="error" variant="block">{t('executionsUnreadable')}</Feedback>
           <Button disabled={loading || busy} onClick={() => void refresh()}>{t('retry')}</Button>
           {state.executionsError ? <Disclosure variant="inline" className="compute-error-details" summary={<>{t('details')}</>}><p>{state.executionsError}</p></Disclosure> : null}</div> : null}
-        {openedExecution ? <Split storageKey="pero.compute.execution-width" collapseBelow={760} className="compute-split">
-          <SplitPane id="compute-executions" as="section" size={320} min={240} aria-label={t('jobs')} className="compute-list">
-            <p className="compute-help compute-queue-note">{selected ? t('selectedJobsHelp', { name: selected.name }) : t('recordedHelp')}</p>
-            <ul>{executions.map(item => <li key={executionKey(item)}><ListRow title={item.entry || item.operation}
-              meta={item.jobId != null ? <>{item.cluster} · {t('externalJob')} {item.jobId}</> : <>{item.host}</>} time={item.submitTime} current={item === openedExecution}
-              onOpen={() => setOpened(executionKey(item))} /></li>)}</ul>
+        {openedExecution ? <Split storageKey="pero.compute.execution-width" collapseBelow={contentLayout.collapseBelow} className="compute-split">
+          <SplitPane id="compute-executions" as="section" size={contentLayout.listSize} min={contentLayout.listMin} aria-label={t('jobs')} className="compute-list">
+            <ContentPane id="compute-execution-list" label={t('jobs')} as="div" surface="list" inset="compact" scroll="pane">
+              <p className="compute-help compute-queue-note">{selected ? t('selectedJobsHelp', { name: selected.name }) : t('recordedHelp')}</p>
+              <ul>{executions.map(item => <li key={executionKey(item)}><ListRow title={item.entry || item.operation}
+                meta={item.jobId != null ? <>{item.cluster} · {t('externalJob')} {item.jobId}</> : <>{item.host}</>} time={item.submitTime} current={item === openedExecution}
+                onOpen={() => setOpened(executionKey(item))} /></li>)}</ul>
+            </ContentPane>
           </SplitPane>
-          <SplitPane id="compute-execution" as="section" min={320} className="compute-detail">
-            <Card tone="blue" variant="soft"><header className="compute-detail-header"><h2>{openedExecution.operation}</h2>
-              <Badge>{openedExecution.scheduler ? openedExecution.scheduler.states.join(', ') : openedExecution.jobId != null ? t('submittedOnly') : processStatus(openedExecution, t)}</Badge></header>
-              <dl className="compute-facts">
-                {openedExecution.jobId != null ? <div><dt>{t('externalJob')}</dt><dd>{openedExecution.jobId}</dd></div> : null}
-                {openedExecution.cluster ? <div><dt>{t('receiptCluster')}</dt><dd>{openedExecution.cluster}</dd></div> : null}
-                {openedExecution.host ? <div><dt>{t('processHost')}</dt><dd>{openedExecution.host}</dd></div> : null}
-                <div><dt>{t('payload')}</dt><dd>{openedExecution.payloadSha256}</dd></div>
-                {openedExecution.constraints ? <div><dt>{t('requested')}</dt><dd>{t('requestedValue', { partition: openedExecution.constraints.partition, cpus: openedExecution.constraints.cpus, memory: openedExecution.constraints.memoryMib, wall: openedExecution.constraints.walltimeSeconds })}</dd></div> : null}
-                {openedExecution.entry ? <div><dt>{t('entryLabel')}</dt><dd>{openedExecution.entry}</dd></div> : null}
-                {openedExecution.snapshotSha256 ? <div><dt>{t('snapshot')}</dt><dd>{openedExecution.snapshotSha256}</dd></div> : null}
-                {openedExecution.scheduler?.nodes ? <div><dt>{t('recordedNodes')}</dt><dd>{openedExecution.scheduler.nodes}</dd></div> : null}
-                {openedExecution.scheduler?.startTime != null ? <div><dt>{t('recordedStart')}</dt><dd>{openedExecution.scheduler.startTime}</dd></div> : null}
-                {openedExecution.scheduler?.endTime != null ? <div><dt>{t('recordedEnd')}</dt><dd>{openedExecution.scheduler.endTime}</dd></div> : null}
-                {openedExecution.scheduler?.wallSeconds != null ? <div><dt>{t('recordedSpan')}</dt><dd>{t('recordedSeconds', { seconds: openedExecution.scheduler.wallSeconds })}</dd></div> : null}
-                {openedExecution.exitCode != null ? <div><dt>{t('processExit')}</dt><dd>{openedExecution.exitCode}</dd></div> : null}
-                {openedExecution.wallMilliseconds != null ? <div><dt>{t('recordedSpan')}</dt><dd>{openedExecution.wallMilliseconds}</dd></div> : null}
-                {openedExecution.logs.length ? <div><dt>{t('logsLabel')}</dt><dd>{openedExecution.logs.join(', ')}</dd></div> : null}
-                {openedExecution.outputs.length ? <div><dt>{t('outputsLabel')}</dt><dd>{openedExecution.outputs.map(item => item.path).join(', ')}</dd></div> : null}
-              </dl>
-              <h3 className="compute-draft-title">{t('reproduce')}</h3>
-              <p className="compute-help">{t('reproduceHelp')}</p>
-              <pre className="compute-draft">{reproduceDraft(openedExecution, t)}</pre>
-              <Button onClick={() => void navigator.clipboard.writeText(reproduceDraft(openedExecution, t)).then(() => setNotice(t('draftCopied')), () => setNotice(t('draftCopyFailed')))}>{t('reproduce')}</Button>
-            </Card>
+          <SplitPane id="compute-execution" as="section" min={contentLayout.mainMin} className="compute-detail">
+            <ContentPane id="compute-execution-detail" label={openedExecution.operation} as="div" surface="reading" inset="compact" scroll="pane"
+              header={<InspectorHeader title={openedExecution.operation} status={<Badge>{openedExecution.scheduler ? openedExecution.scheduler.states.join(', ') : openedExecution.jobId != null ? t('submittedOnly') : processStatus(openedExecution, t)}</Badge>} />}>
+              <ContentSection id="compute-execution-facts" title={t('jobs')}>
+                <MetadataList items={executionFacts(openedExecution, t)} />
+              </ContentSection>
+              <ContentSection id="compute-reproduce" title={t('reproduce')} actions={<Button onClick={() => void navigator.clipboard.writeText(reproduceDraft(openedExecution, t)).then(() => setNotice(t('draftCopied')), () => setNotice(t('draftCopyFailed')))}>{t('reproduce')}</Button>}>
+                <p className="compute-help">{t('reproduceHelp')}</p>
+                <pre className="compute-draft">{reproduceDraft(openedExecution, t)}</pre>
+              </ContentSection>
+            </ContentPane>
           </SplitPane>
         </Split> : state.executionsStatus === 'unreadable' ? null : <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('jobsUnavailable')}</h2>}
           description={selected ? t('selectedJobsHelp', { name: selected.name }) : t('jobsHelp')}
-          actions={<Button variant="primary" onClick={() => setTab('clusters')}>{t('manage')}</Button>} />}
+          actions={<Button onClick={() => setTab('clusters')}>{t('manage')}</Button>} />}
       </TabsContent>
       <TabsContent value="clusters" className="compute-panel">
         <p className="compute-help">{t('settingsHelp')}</p>
         {!state.clusters.length ? <EmptyState className="compute-empty" icon={<EmptyIllustration kind="compute" size="compact" />} heading={<h2>{t('noClusters')}</h2>} description={t('noClustersHelp')} />
-          : <Split storageKey="pero.compute.cluster-width" collapseBelow={760} className="compute-split">
-            <SplitPane id="compute-clusters" as="section" size={300} min={240} aria-label={t('clusters')} className="compute-list">
-              <fieldset className="compute-cluster-choices" disabled={busy} aria-label={t('clusters')}><ul>{state.clusters.map(cluster => <li key={cluster.id}><ListRow title={cluster.name} meta={<>{cluster.host} · {t('notConnected')}</>}
-                current={cluster.id === selected?.id} onOpen={() => { if (cluster.id !== selected?.id) void update('/api/selection', { clusterId: cluster.id }); }} /></li>)}</ul></fieldset>
+          : <Split storageKey="pero.compute.cluster-width" collapseBelow={contentLayout.collapseBelow} className="compute-split">
+            <SplitPane id="compute-clusters" as="section" size={contentLayout.listSize} min={contentLayout.listMin} aria-label={t('clusters')} className="compute-list">
+              <ContentPane id="compute-cluster-list" label={t('clusters')} as="div" surface="list" inset="none" scroll="pane">
+                <fieldset className="compute-cluster-choices" disabled={busy} aria-label={t('clusters')}><ul>{state.clusters.map(cluster => <li key={cluster.id}><ListRow title={cluster.name} meta={<>{cluster.host} · {t('notConnected')}</>}
+                  current={cluster.id === selected?.id} onOpen={() => { if (cluster.id !== selected?.id) void update('/api/selection', { clusterId: cluster.id }); }} /></li>)}</ul></fieldset>
+              </ContentPane>
             </SplitPane>
-            <SplitPane id="compute-cluster-detail" as="section" min={320} className="compute-detail">
-              {selected ? <Card tone="blue" variant="soft"><header className="compute-detail-header"><h2>{selected.name}</h2><Badge>{t('notConnected')}</Badge>
-                <Button disabled={busy} onClick={() => edit(selected)}>{t('edit')}</Button></header>
-                <dl className="compute-facts">{(['host', 'account', 'partition', 'workdir'] as const).map(name => <div key={name}><dt>{t(name)}</dt><dd>{selected[name] || t('notSet')}</dd></div>)}</dl>
-                <p className="compute-help">{t('draftHelp')}</p></Card> : null}
+            <SplitPane id="compute-cluster-detail" as="section" min={contentLayout.inspectorMin} className="compute-detail">
+              {selected ? <ContentPane id="compute-cluster-inspector" label={selected.name} as="div" surface="reading" inset="compact" scroll="pane"
+                header={<InspectorHeader title={selected.name} status={<Badge>{t('notConnected')}</Badge>} actions={<Button disabled={busy} onClick={() => edit(selected)}>{t('edit')}</Button>} />}>
+                <ContentSection id="compute-cluster-facts" title={t('clusters')}>
+                  <MetadataList items={(['host', 'account', 'partition', 'workdir'] as const).map(name => ({ id: name, label: t(name), value: selected[name] || t('notSet'), format: name === 'host' || name === 'workdir' ? 'code' as const : 'text' as const }))} />
+                </ContentSection>
+                <p className="compute-help">{t('draftHelp')}</p>
+              </ContentPane> : null}
             </SplitPane>
           </Split>}
       </TabsContent>
@@ -133,6 +126,26 @@ export default function Compute() {
     {editing !== undefined ? <ClusterDialog cluster={editing} busy={busy} error={error} onClose={() => { if (!pending.current) { setEditing(undefined); setError(''); } }}
       onSave={(value: ClusterInput) => void update('/api/clusters', value, true)} /> : null}
   </AppFrame></Tabs>;
+}
+
+function executionFacts(item: ExecutionReceipt, t: (key: string, values?: Record<string, string | number>) => string): MetadataItem[] {
+  const facts: MetadataItem[] = [];
+  if (item.jobId != null) facts.push({ id: 'job', label: t('externalJob'), value: item.jobId, format: 'code' });
+  if (item.cluster) facts.push({ id: 'cluster', label: t('receiptCluster'), value: item.cluster });
+  if (item.host) facts.push({ id: 'host', label: t('processHost'), value: item.host, format: 'code' });
+  facts.push({ id: 'payload', label: t('payload'), value: item.payloadSha256, format: 'code' });
+  if (item.constraints) facts.push({ id: 'requested', label: t('requested'), value: t('requestedValue', { partition: item.constraints.partition, cpus: item.constraints.cpus, memory: item.constraints.memoryMib, wall: item.constraints.walltimeSeconds }) });
+  if (item.entry) facts.push({ id: 'entry', label: t('entryLabel'), value: item.entry, format: 'code' });
+  if (item.snapshotSha256) facts.push({ id: 'snapshot', label: t('snapshot'), value: item.snapshotSha256, format: 'code' });
+  if (item.scheduler?.nodes) facts.push({ id: 'nodes', label: t('recordedNodes'), value: item.scheduler.nodes });
+  if (item.scheduler?.startTime != null) facts.push({ id: 'start', label: t('recordedStart'), value: item.scheduler.startTime });
+  if (item.scheduler?.endTime != null) facts.push({ id: 'end', label: t('recordedEnd'), value: item.scheduler.endTime });
+  if (item.scheduler?.wallSeconds != null) facts.push({ id: 'span', label: t('recordedSpan'), value: t('recordedSeconds', { seconds: item.scheduler.wallSeconds }) });
+  if (item.exitCode != null) facts.push({ id: 'exit', label: t('processExit'), value: item.exitCode });
+  if (item.wallMilliseconds != null) facts.push({ id: 'wall', label: t('recordedSpan'), value: item.wallMilliseconds });
+  if (item.logs.length) facts.push({ id: 'logs', label: t('logsLabel'), value: item.logs.join(', '), format: 'code' });
+  if (item.outputs.length) facts.push({ id: 'outputs', label: t('outputsLabel'), value: item.outputs.map(output => output.path).join(', '), format: 'code' });
+  return facts;
 }
 
 function processStatus(item: ExecutionReceipt, t: (key: string, values?: Record<string, string | number>) => string) {

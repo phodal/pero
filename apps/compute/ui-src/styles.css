@@ -34,7 +34,6 @@ html, body, #app { height: 100%; }
 .compute-settings > span { flex: 1 1 240px; color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .compute-settings nav { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-1); }
 @media (max-width: 760px) { .compute-facts > div { grid-template-columns: minmax(0, 1fr); } }
-.compute-report { padding: var(--pero-spacing-4); display: grid; gap: var(--pero-spacing-4); }
 .compute-report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); }
 .compute-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--pero-spacing-3); }
 .compute-report-row { min-width: 0; overflow-wrap: anywhere; }
