@@ -16,15 +16,16 @@ class ClusterDraft:
     partition: str = ''
     workdir: str = ''
     id: str = ''
+    scheduler: str = 'slurm'
 
     @classmethod
     def parse(cls, value):
-        limits = {'name': 120, 'host': 255, 'account': 120, 'partition': 120, 'workdir': 1024, 'id': 40}
+        limits = {'name': 120, 'host': 255, 'account': 120, 'partition': 120, 'workdir': 1024, 'id': 40, 'scheduler': 8}
         if not isinstance(value, dict) or set(value) - limits.keys():
-            raise ValueError('Only cluster name, host, account, partition and work directory may be saved')
+            raise ValueError('Only cluster name, host, account, partition, work directory and scheduler may be saved')
         fields = {}
         for name, maximum in limits.items():
-            text = value.get(name, '')
+            text = value.get(name, 'slurm' if name == 'scheduler' else '')
             if not isinstance(text, str) or len(text) > maximum or any(ord(char) < 32 for char in text):
                 raise ValueError(f'Invalid {name}')
             fields[name] = text.strip()
@@ -32,6 +33,8 @@ class ClusterDraft:
             raise ValueError('Cluster name and host are required')
         if fields['id'] and not re.fullmatch(r'cluster-[0-9a-f]{32}', fields['id']):
             raise ValueError('Invalid cluster identity')
+        if fields['scheduler'] not in ('ssh', 'slurm'):
+            raise ValueError('Choose SSH workstation or Slurm')
         return cls(**fields)
 
 
