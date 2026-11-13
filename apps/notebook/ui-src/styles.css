@@ -1,17 +1,18 @@
 html, body, #app { height: 100%; }
 #app { display: flex; flex-direction: column; min-height: 0; }
-.notebook-app { min-width: 0; height: 100%; background: var(--pero-bg); font-family: var(--pero-font-family-sans, system-ui, sans-serif); --notebook-chip: color-mix(in srgb, var(--pero-text) 12%, var(--pero-surface)); --notebook-chip-hover: color-mix(in srgb, var(--pero-text) 18%, var(--pero-surface)); --notebook-rule: color-mix(in srgb, var(--pero-text) 12%, var(--pero-surface)); --notebook-rule-strong: color-mix(in srgb, var(--pero-text) 16%, var(--pero-surface)); --notebook-frame: color-mix(in srgb, var(--pero-text) 20%, var(--pero-surface)); --notebook-grid-line: var(--notebook-chip); }
+.notebook-app.pero-app { height: 100%; min-height: 0; }
+.notebook-app { min-width: 0; background: var(--pero-bg); font-family: var(--pero-font-family-sans, system-ui, sans-serif); --notebook-chip: color-mix(in srgb, var(--pero-text) 12%, var(--pero-surface)); --notebook-chip-hover: color-mix(in srgb, var(--pero-text) 18%, var(--pero-surface)); --notebook-rule: color-mix(in srgb, var(--pero-text) 12%, var(--pero-surface)); --notebook-rule-strong: color-mix(in srgb, var(--pero-text) 16%, var(--pero-surface)); --notebook-frame: color-mix(in srgb, var(--pero-text) 20%, var(--pero-surface)); --notebook-grid-line: var(--notebook-chip); }
+.notebook-app-bar { flex: 0 0 auto; min-width: 0; }
+.notebook-app-bar:empty { display: none; }
 .notebook-app > .pero-ui-feedback { flex: 0 0 auto; }
 .notebook-split { flex: 1 1 0; min-height: 0; }
 .notebook-nav { background: var(--pero-surface-muted); min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-.notebook-nav > .pero-content-pane, .notebook-page > .pero-content-pane { flex: 1; min-height: 0; }
+.notebook-nav > .pero-content-pane, .notebook-page > .pero-content-pane { flex: 1; min-height: 0; height: auto; }
 .notebook-nav-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-1); padding: var(--pero-spacing-2); }
 .notebook-nav-tools .pero-ui-file-picker { position: relative; }
 .notebook-nav-tools .pero-ui-file-name { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .notebook-list { list-style: none; margin: 0; padding: var(--pero-spacing-1); }
 .notebook-list .pero-list-title { white-space: normal; overflow-wrap: anywhere; }
-.notebook-list .pero-list-row .pero-ui-icon-button:not([data-variant=unstyled]) { width: var(--pero-control-height); height: var(--pero-control-height); min-height: var(--pero-control-height); padding: 0; color: var(--pero-text-muted); }
-.notebook-list .pero-list-row .pero-ui-icon-button svg { width: 14px; height: 14px; }
 .notebook-page { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--pero-bg); }
 .notebook-empty { flex: 1; align-content: center; color: var(--pero-text); }
 .notebook-empty .pero-ui-empty-description { max-width: 26rem; }
@@ -510,7 +511,7 @@ form.notebook-workspace-actions { align-items: end; }
   .notebook-materials li > :first-child { grid-column: 1 / -1; }
 }
 @media print {
-  .notebook-jupyter, .notebook-statusbar, .notebook-workspace-navigation, .notebook-toolbar, .notebook-document-controls, .notebook-document-actions, .notebook-notes-utilities, .notebook-nav, .notebook-revisions, .notebook-workspace button, .notebook-science-json, .notebook-science-raw { display: none !important; }
+  .notebook-app-bar, .notebook-jupyter, .notebook-statusbar, .notebook-workspace-navigation, .notebook-toolbar, .notebook-document-controls, .notebook-document-actions, .notebook-notes-utilities, .notebook-nav, .notebook-revisions, .notebook-workspace button, .notebook-science-json, .notebook-science-raw { display: none !important; }
   .notebook-app, .notebook-page, .notebook-document, .notebook-workspace, .notebook-notes-panel:not([hidden]), .notebook-workspace-panel:not([hidden]), .notebook-paper, .notebook-sticky-header { height: auto; max-height: none; overflow: visible; display: block; }
   .notebook-paper, .notebook-workspace-panel:not([hidden]) { border: 0; margin: 0; padding: 0; }
   .notebook-sticky-header { border: 0; margin: 0; padding: 0 0 var(--pero-spacing-2); }
@@ -632,9 +633,6 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-block-content[hidden] { display: none; }
 
 /* Document actions stay visible independently of editing focus and scroll. */
-.notebook-documentbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); padding: var(--pero-spacing-2); border-bottom: var(--pero-hairline); }
-.notebook-documentbar.pero-app-bar { border-bottom: var(--pero-hairline); min-height: var(--pero-control-height); }
-.notebook-nav-tools .pero-library-header { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 0; background: transparent; }
 .notebook-documentbar .notebook-status { flex: 1 1 14rem; min-width: 0; white-space: normal; }
 .notebook-documentbar .notebook-save { flex-shrink: 0; }
 .notebook-workspace-navigation { display: flex; align-items: center; min-width: 0; border-top: var(--pero-hairline); }
@@ -668,6 +666,10 @@ form.notebook-workspace-actions { align-items: end; }
 .notebook-entry-title { gap: var(--pero-spacing-2); }
 .notebook-work-area { flex: 1 1 0; min-height: 0; min-width: 0; }
 .notebook-primary { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.notebook-primary > .notebook-notes-panel:not([hidden]):not([data-split]),
+.notebook-primary > .notebook-workspace-panel:not([hidden]) { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.notebook-primary > .notebook-notes-panel[data-split]:not([hidden]) { flex: 1 1 auto; min-height: 0; }
+.notebook-notes-panel:not([hidden]) > .notebook-notes-main { flex: 1 1 auto; min-height: 0; }
 .notebook-notes-main { min-width: 0; }
 .notebook-inspector { padding: var(--pero-spacing-4); overflow: auto; background: var(--pero-surface); min-height: 0; }
 .notebook-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: var(--pero-spacing-2); margin-bottom: var(--pero-spacing-3); }
