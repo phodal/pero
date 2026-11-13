@@ -12,6 +12,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/model"
+	"github.com/phodal/pero/harness/go/scientificreview"
 )
 
 func (s *Server) listSessions(ctx context.Context, params ListSessionParams) (map[string]any, error) {
@@ -146,6 +147,20 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 	params := map[string]any{"sessionId": record.agent.ID()}
 	var update any
 	switch event.Type {
+	case "scientific/review":
+		var report scientificreview.Report
+		if json.Unmarshal(event.Data, &report) != nil {
+			return
+		}
+		update = map[string]any{"sessionUpdate": "agent_message_chunk", "messageId": fmt.Sprintf("review-%d", event.Seq), "content": map[string]any{"type": "text", "text": "\n\n" + report.Markdown()}}
+	case "scientific-review/display":
+		var notice struct {
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(event.Data, &notice) != nil || notice.Text == "" {
+			return
+		}
+		update = map[string]any{"sessionUpdate": "agent_message_chunk", "messageId": fmt.Sprintf("review-notice-%d", event.Seq), "content": map[string]any{"type": "text", "text": "\n\n" + notice.Text}}
 	case "session/title":
 		var title harness.SessionTitle
 		if json.Unmarshal(event.Data, &title) != nil || title.Title == "" {

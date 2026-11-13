@@ -117,13 +117,16 @@ mod tests {
             (ScientificMethod::Control, "control-lab", true),
             (ScientificMethod::Circuit, "control-lab", true),
             (ScientificMethod::Lcms2Yield, "lcms2yield", true),
+            (ScientificMethod::VirtualCell, "virtual-cell", true),
             (ScientificMethod::Pcgym, "environments", true),
             (ScientificMethod::Control, "environments", true),
             (ScientificMethod::Circuit, "environments", true),
             (ScientificMethod::Lcms2Yield, "environments", true),
+            (ScientificMethod::VirtualCell, "environments", true),
             (ScientificMethod::Control, "paper-agent", false),
             (ScientificMethod::Pcgym, "control-lab", false),
             (ScientificMethod::Lcms2Yield, "control-lab", false),
+            (ScientificMethod::VirtualCell, "control-lab", false),
             (ScientificMethod::Control, "other", false),
         ] {
             assert_eq!(
@@ -159,6 +162,7 @@ mod tests {
             "control-lab.python-control",
             "control-lab.ngspice",
             "lcms2yield.inference",
+            "virtual-cell.comparison",
         ] {
             let method: ScientificMethod = serde_json::from_value(serde_json::json!(name)).unwrap();
             assert_eq!(serde_json::to_value(method).unwrap(), name);

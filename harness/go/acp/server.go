@@ -19,6 +19,7 @@ import (
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
+	"github.com/phodal/pero/harness/go/scientificreviewer"
 )
 
 type Options struct {
@@ -58,6 +59,10 @@ type Options struct {
 	// with a fresh message ID before human prompt admission. The returned cleanup
 	// runs after settlement, including rejection and cancellation.
 	PreparePrompt func(context.Context, *harness.Agent, *harness.Message) (func(), error)
+	// Science forwards UI commands to the existing session-owned computation.
+	Science func(context.Context, *harness.Agent, json.RawMessage) (any, error)
+	// ScientificReviewer shares the existing session and bounded subagent owner.
+	ScientificReviewer *scientificreviewer.App
 }
 
 type Server struct {
@@ -100,6 +105,8 @@ type Server struct {
 	holdAssistantText   func(*harness.Agent) bool
 	renderAssistantText func(context.Context, *harness.Agent, string) string
 	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
+	science             func(context.Context, *harness.Agent, json.RawMessage) (any, error)
+	scientificReviewer  *scientificreviewer.App
 }
 
 type clientResponse struct {
@@ -168,7 +175,9 @@ func NewServer(options Options) (*Server, error) {
 		outputLimitRecoveries: options.OutputLimitRecoveries,
 		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
-		sessions: make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		science:            options.Science,
+		scientificReviewer: options.ScientificReviewer,
+		sessions:           make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }
@@ -321,6 +330,8 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		return map[string]any{}, nil
 	case MCPSessionMethod:
 		return s.mcpSessionRequest(ctx, message.Params)
+	case ScienceSessionMethod:
+		return s.scienceSessionRequest(ctx, message.Params)
 	case "session/new":
 		var params NewSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {
@@ -564,6 +575,9 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 		}
 	}
 	committed = true
+	if s.scientificReviewer != nil && s.writer != nil {
+		return s.advertiseScientificReview(agent.ID())
+	}
 	return nil
 }
 

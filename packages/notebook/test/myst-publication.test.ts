@@ -24,6 +24,24 @@ test('official adapters produce deterministic genuine artifacts and never mutate
   for (const render of [exportMystLatex, exportMystTypst]) { assert.equal(render(input), render(input)); assert.ok(render(input).includes('42')); }
   assert.equal(JSON.stringify(input), before);
 });
+test('ordinary LaTeX projections do not require the unused longtable package offline', () => {
+  const tex = exportMystLatex(input);
+  assert.match(tex, /\\usepackage\{amsmath\}/);
+  assert.match(tex, /\\usepackage\{amssymb\}/);
+  assert.match(tex, /\\begin\{tabular\}/);
+  assert.doesNotMatch(tex, /\\usepackage\{longtable\}/);
+});
+test('LaTeX archives preserve bounded authored percentage widths for multi-panel figures', async () => {
+  for (const [width, expected] of [['100%', '1'], ['50%', '0.5'], ['101%', '0.7'], ['0%', '0.7'], ['1\\input{bad}', '0.7']]) {
+    const document = parseMystDocument('```{figure} figure.png\n:name: multi\n\nTwo panels.\n```');
+    const visit = (node: typeof document.ast) => { if (node.type === 'image') node.width = width; node.children?.forEach(visit); };
+    visit(document.ast);
+    const zip = await JSZip.loadAsync(await exportMystPublicationArchive({ document, assets }, 'latex'));
+    const tex = (await zip.file('article.tex')!.async('string')).split('% PERO ORIGINAL SOURCE JSON')[0];
+    assert.ok(tex.includes(`\\noindent\\includegraphics[width=${expected}\\linewidth]`), width);
+    assert.doesNotMatch(tex, /\\input\{bad\}/);
+  }
+});
 test('JATS is parsed XML with metadata, tables, formulas and exact source recovery', () => {
   const xml = exportMystJats(input.document);
   const result = spawnSync('python3', ['-c', 'import sys,xml.etree.ElementTree as E,json; r=E.fromstring(sys.stdin.read()); assert r.find(".//article-title").text=="Scientific publication"; assert r.find(".//tex-math") is not None; assert r.find(".//table") is not None; print(json.loads(r.find(".//custom-meta/meta-value").text)["source"])'], { input: xml, encoding: 'utf8' });

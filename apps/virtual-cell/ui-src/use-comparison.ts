@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { downloadFile, useAppApi, useAppInfo } from '@pero/app-sdk';
 import { comparisonActive, datasetAction, datasetActive, type ComparisonDetail, type ComparisonInput, type ComparisonOutput, type ComparisonRun, type DatasetDownload } from './comparison';
 import type { Translate } from './messages';
+import { useTaskPackage } from './use-task-package';
 
 const ROOT = '/api/comparisons';
 
@@ -10,7 +11,7 @@ export function useComparison(visible: boolean, t: Translate) {
   const [items, setItems] = useState<ComparisonRun[]>([]), [selected, setSelected] = useState('');
   const [run, setRun] = useState<ComparisonDetail | null>(null), [loaded, setLoaded] = useState(false);
   const [availability, setAvailability] = useState<{ available: boolean; reason: string | null } | null>(null);
-  const [pending, setPending] = useState<'start' | 'cancel' | 'export' | null>(null);
+  const [pending, setPending] = useState<'start' | 'cancel' | 'export' | 'check' | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [readError, setReadError] = useState(''), [actionError, setActionError] = useState('');
   const [artifactError, setArtifactError] = useState(''), [refreshKey, setRefreshKey] = useState(0);
@@ -18,6 +19,7 @@ export function useComparison(visible: boolean, t: Translate) {
   const [input, setInput] = useState<{ id: string; value: ComparisonInput; content: string } | null>(null);
   const [output, setOutput] = useState<{ id: string; value: ComparisonOutput; content: string } | null>(null);
   const generation = useRef(0), selectedRef = useRef(''), gate = useRef(false);
+  const task = useTaskPackage(visible, `${refreshKey}:${run?.status ?? ''}`);
 
   function choose(id: string) {
     if (id === selectedRef.current) return;
@@ -80,7 +82,7 @@ export function useComparison(visible: boolean, t: Translate) {
   }, [run?.inputId, run?.outputId, run?.status, refreshKey, api]);
 
   async function start(inputId: string) {
-    if (gate.current || reconciling || !availability?.available || readError || items.some(item => comparisonActive(item.status))) return;
+    if (gate.current || !canStartInput(inputId)) return;
     gate.current = true; generation.current++; setPending('start'); setActionError('');
     const selectionRevision = generation.current;
     try {
@@ -111,6 +113,17 @@ export function useComparison(visible: boolean, t: Translate) {
     } catch (error) { setActionError(error instanceof Error ? error.message : String(error)); }
     finally { gate.current = false; setPending(null); setRefreshKey(key => key + 1); }
   }
+  async function checkRun() {
+    if (gate.current || !run || run.status !== 'succeeded') return;
+    const id = run.id;
+    gate.current = true; generation.current++; setPending('check'); setActionError('');
+    try {
+      const detail = await api.post<ComparisonDetail>(`${ROOT}/${id}/check`, {});
+      generation.current++;
+      if (selectedRef.current === id) setRun(detail);
+    } catch (error) { setActionError(error instanceof Error ? error.message : String(error)); }
+    finally { gate.current = false; setPending(null); }
+  }
   async function exportRun() {
     if (gate.current || !run) return;
     gate.current = true; setPending('export'); setActionError('');
@@ -120,9 +133,13 @@ export function useComparison(visible: boolean, t: Translate) {
     } catch (error) { setActionError(error instanceof Error ? error.message : String(error)); }
     finally { gate.current = false; setPending(null); }
   }
+  const canStart = loaded && !!availability?.available && !readError && !pending && !reconciling && !task.disabled && !items.some(item => comparisonActive(item.status));
+  function canStartInput(inputId: string) {
+    return canStart && !!task.model && (task.model.status === 'stopped' || task.model.status === 'ready' && task.model.inputId === inputId);
+  }
   return {
-    items, selected, choose, run, loaded, pending, refresh, start, cancel, exportRun, availability, loadingArtifacts,
-    canStart: loaded && !!availability?.available && !readError && !pending && !reconciling && !items.some(item => comparisonActive(item.status)),
+    items, selected, choose, run, loaded, pending, refresh, start, cancel, exportRun, checkRun, task, availability, loadingArtifacts,
+    canStart, canStartInput,
     error: [actionError, readError, artifactError].filter(Boolean).join('; '),
     running: items.find(item => comparisonActive(item.status)),
     input: input?.id === run?.inputId ? input : null,

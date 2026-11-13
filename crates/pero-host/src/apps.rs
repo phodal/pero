@@ -244,6 +244,19 @@ impl Apps {
             }
             return;
         }
+        if action == "agent" && value["request"]["operation"] == "science" {
+            let id = value["id"].as_str().filter(|id| !id.is_empty() && id.len() <= 128).map(str::to_owned);
+            let result = (|| {
+                let Request::Agent { name, request, .. } = serde_json::from_value(value).map_err(|error|error.to_string())? else { return Err("Invalid science request".to_owned()); };
+                self.require_grant(&name, "agent")?;
+                agents.app_science_request(name, id.clone().ok_or("App request needs an id of 1–128 bytes")?, request)
+            })();
+            if let Err(error) = result {
+                let mut event = HostEvent::new("apps_result", id, String::new());
+                event.data=serde_json::json!({"ok":false,"error":error}); let _=crate::emit(event);
+            }
+            return;
+        }
         if matches!(action, "agentrun" | "agentcatalog" | "agent" | "insights" | "connectors" | "disable" | "uninstall" | "pluginenable") {
             let mut this = self.clone();
             let event = this.dispatch(value, Some(agents));

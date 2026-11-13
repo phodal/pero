@@ -15,6 +15,8 @@ pub enum ScientificMethod {
     Pcgym,
     #[serde(rename = "lcms2yield.inference")]
     Lcms2Yield,
+    #[serde(rename = "virtual-cell.comparison")]
+    VirtualCell,
 }
 impl ScientificMethod {
     /// This trial runs every method, including LCMS2Yield, on the bundled 3.12 minor.
@@ -49,6 +51,12 @@ impl ScientificMethod {
                 "paper-agent",
                 "paper-agent.pcgym",
                 "paper_agent.environment",
+                None,
+            ),
+            Self::VirtualCell => (
+                "virtual-cell",
+                "virtual-cell.comparison",
+                "environment",
                 None,
             ),
             Self::Lcms2Yield => (
@@ -177,7 +185,7 @@ impl AppStore {
             .definition
             .backend
             .as_ref()
-            .is_some_and(|b| !b.dependencies.is_empty())
+            .is_some_and(|backend| backend.uses_python_environment(false))
         {
             return Ok(Some(PythonEnvironment::try_from(
                 self.managed_python_directory(name)?,
@@ -271,6 +279,7 @@ mod tests {
             ("control-lab", ScientificMethod::Circuit),
             ("paper-agent", ScientificMethod::Pcgym),
             ("lcms2yield", ScientificMethod::Lcms2Yield),
+            ("virtual-cell", ScientificMethod::VirtualCell),
         ] {
             let inspection = EnvironmentInspection::inspect(&root.join(app), None, method).unwrap();
             let crate::environments::SoftwareObservation::Legacy(observed) = inspection.profile.observation() else {

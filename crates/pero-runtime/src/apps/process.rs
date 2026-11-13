@@ -46,6 +46,7 @@ pub(super) struct AppProcess {
     child: OwnedProcess,
     access: BackendAccess,
     _scientific_uses: Option<super::scientific_uses::ScientificUses>,
+    _remote_compute: Option<super::remote_compute::RemoteCompute>,
 }
 
 impl AppProcess {
@@ -119,6 +120,20 @@ impl AppProcess {
         if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
             environment.configure_command(&mut command)?;
         }
+        // Remote method deployment belongs to trusted Host configuration. Keep
+        // model credentials out of every other App's environment and manifests.
+        if definition.name.as_str() == "virtual-cell" {
+            for key in ["PERO_VIRTUAL_CELL_MODEL_URL", "PERO_VIRTUAL_CELL_MODEL_TOKEN"] {
+                if let Some(value) = std::env::var_os(key) {
+                    command.env(key, value);
+                }
+            }
+        }
+        if definition.name.as_str() == "notebook" {
+            if let Some(cache) = std::env::var_os("PERO_NOTEBOOK_TEX_CACHE") {
+                command.env("PERO_NOTEBOOK_TEX_CACHE", cache);
+            }
+        }
         if let Some(deployment) = reproduction {
             if let Some(scientific_python) = std::env::var_os("PERO_PAPER_SCIENTIFIC_PYTHON") {
                 command.env("PERO_PAPER_SCIENTIFIC_PYTHON", scientific_python);
@@ -136,6 +151,8 @@ impl AppProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
+        let remote_compute = super::remote_compute::RemoteCompute::start(definition.name.as_str(), data)?;
+        if let Some(remote) = &remote_compute { remote.configure(&mut command); }
         let scientific_uses = super::scientific_uses::ScientificUses::start(definition.name.as_str(), data)?;
         if let Some(uses) = &scientific_uses { uses.configure(&mut command); }
         let mut child = OwnedProcess::spawn(&mut command)
@@ -144,6 +161,7 @@ impl AppProcess {
         let mut process = Self {
             child,
             _scientific_uses: scientific_uses,
+            _remote_compute: remote_compute,
             access: BackendAccess {
                 url: String::new(),
                 token,

@@ -100,7 +100,7 @@ test('MyST project imports, resolves, edits, persists and roundtrips explicit re
     { path: 'experiment.ipynb', text: JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [{ id: 'result', cell_type: 'code', metadata: {}, source: 'print(42)', execution_count: 1, outputs: [{ output_type: 'stream', name: 'stdout', text: 'Recorded project result: 42' }] }] }) },
     { path: 'styles/custom.csl', text: style },
   ], assets: [{ path: 'images/figure.png', mediaType: 'image/png', base64: png }] };
-  const picker = page.locator('input[type="file"][accept*=".myst-project.json"]');
+  const picker = page.locator('input[type="file"][aria-label="Import MyST document"]');
   await picker.setInputFiles({ name: 'research.myst-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
   const editor = page.getByRole('textbox', { name: 'MyST resource source', exact: true });
   await expect(editor).toHaveValue(project.files[1].text);

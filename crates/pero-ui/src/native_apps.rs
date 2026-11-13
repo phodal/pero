@@ -429,6 +429,7 @@ impl NativeApps {
             anyhow::ensure!(method == "POST" && body.len() <= 256000, "Invalid Host request");
             let call: Value = serde_json::from_slice(body)?;
             let target = match call["capability"].as_str() {
+                Some("agent") if matches!(call["operation"].as_str(), Some("science" | "science_sessions")) => "agent",
                 Some("agent") => "app-agent", Some("insights") => "insights", Some("connectors") => "connectors",
                 Some("automation") => "automation", Some("research-assets") => "research-assets", Some("skills") => "skills", _ => anyhow::bail!("Host capability unavailable"),
             };

@@ -114,7 +114,7 @@ for (const stage of [1, 2]) for (const navigation of ['back', 'bundle']) test(`s
   await drain(); app.render();
   if (stage === 1 && navigation === 'bundle') byType(app, 'WorkspaceNav').props.onBundle('new-bundle');
   else {
-    if (stage === 1) byType(app, 'ResearchBundleView').props.onBack();
+    if (stage === 1) byType(app, 'AppBar').props.commands.props.onClick();
     else find(app, node => node.type === 'Button' && node.props['aria-label'] === 'backToLibrary').props.onClick();
     app.render();
     if (navigation === 'bundle') byType(app, 'WorkspaceNav').props.onBundle('new-bundle');

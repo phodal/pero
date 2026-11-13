@@ -12,6 +12,7 @@ use builtins::BuiltinDiscovery;
 mod definition;
 mod process;
 mod scientific_uses;
+mod remote_compute;
 pub mod project_proposal;
 mod tenure;
 use tenure::{StoreError, Tenure, TenureAsk, permit};
@@ -478,7 +479,7 @@ impl AppStore {
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if self.processes.contains_key(name) { return Ok(()); }
         let Some(backend) = &app.definition.backend else { return Ok(()); };
-        if !matches!(backend.kind, definition::BackendKind::Python) || backend.dependencies.is_empty() && self.python.select(name).is_none() { return Ok(()); }
+        if !backend.uses_python_environment(self.python.select(name).is_some()) { return Ok(()); }
         let managed = self.managed_python_directory(name)?;
         let dependencies = backend.dependencies.clone();
         let required_minor = backend.python.as_ref().map(|minor| minor.as_str());
@@ -541,8 +542,7 @@ impl AppStore {
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
             let mut python = self.selected_python(name)?;
             let backend = app.definition.backend.as_ref().expect("App backend");
-            if matches!(backend.kind, definition::BackendKind::Python)
-                && (!backend.dependencies.is_empty() || python.is_some())
+            if backend.uses_python_environment(python.is_some())
             {
                 let managed = PythonEnvironment::try_from(self.managed_python_directory(name)?)?;
                 let required_minor = backend.python.as_ref().map(|minor| minor.as_str());

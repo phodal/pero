@@ -3,7 +3,7 @@
   "name": "scientific-viewer",
   "version": "0.4.0",
   "displayName": "Scientific Viewer",
-    "description": "Preview local scientific files and run Python notebooks in a local kernel.",
+  "description": "Preview scientific files and run notebooks with shared Agent Python/R sessions or a separate Python kernel.",
   "permissions": {
     "host": [
       "agent"

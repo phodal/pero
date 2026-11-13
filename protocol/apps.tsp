@@ -176,12 +176,12 @@ model AutomationApiReply {status:uint16;body:unknown;...AppClosed}
 model EnvironmentInspectionApp {
   action: "environment";
   name: AppName;
-  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  target: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference" | "virtual-cell.comparison";
   ...RequestBase;
 }
 model EnvironmentInspectionReport {
   schema: "pero.environment.inspection.v1";
-  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference";
+  method: "paper-agent.pcgym" | "control-lab.python-control" | "control-lab.ngspice" | "lcms2yield.inference" | "virtual-cell.comparison";
   scope: "configured-interpreter";
   evidence: "metadata_only";
   observed_at_ms: uint64;
@@ -191,7 +191,7 @@ model EnvironmentInspectionReport {
   missing: AppDocumentSchema[];
   ...AppClosed;
 }
-model LocalEnvironmentCreate { operation:"create";target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";label:string;...AppClosed; }
+model LocalEnvironmentCreate { operation:"create";target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference" | "virtual-cell.comparison";label:string;...AppClosed; }
 model LocalEnvironmentList { operation:"list";compute?:boolean;...AppClosed; }
 model LocalEnvironmentPrepare { operation:"prepare";id:AppName;...AppClosed; }
 model LocalEnvironmentCancel { operation:"cancel";id:AppName;...AppClosed; }
@@ -210,7 +210,7 @@ model PythonComputeObservation { version:string;build:string;platform:string;mac
 model LockedPythonProfile { root:string;project_sha256:string;lock_sha256:string;python_request:string;python_archive_url:string;python_archive_sha256:string;uv_version:string;uv_sha256:string;observation:PythonComputeObservation;...AppClosed; }
 model LocalEnvironmentApp {action:"localenvironment";name:AppName;request:LocalEnvironmentOperation;...RequestBase;}
 model PreparationFailure {stage:"bootstrap"|"resolve"|"install"|"observe"|"cancelled"|"interrupted";detail:string;...AppClosed;}
-model LocalEnvironmentRecord {failure?:PreparationFailure|null;locked_compute?:boolean;prepared?:LockedPythonProfile|null;id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
+model LocalEnvironmentRecord {failure?:PreparationFailure|null;locked_compute?:boolean;prepared?:LockedPythonProfile|null;id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference" | "virtual-cell.comparison";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
 @oneOf union AppRequest { NotebookProjectsApp, AppCanvasRequest, SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
 model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentProposal | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }

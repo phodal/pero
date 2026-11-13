@@ -4,6 +4,8 @@ export function createAppAgent(capability) {
   if (!capability) return null;
   const requestId = () => globalThis.crypto.randomUUID();
   return Object.freeze({
+    scienceSessions: () => capability.call('science_sessions', {}),
+    science: input => capability.call('science', input),
     prepare: input => capability.call('prepare', input),
     start: input => capability.call('start', { ...input, requestId: input.requestId ?? requestId() }),
     // Recover a lost start response without preparing, starting or resuming work.

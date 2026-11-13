@@ -24,6 +24,7 @@ class ClustersTest(unittest.TestCase):
             self.assertEqual(len(restored['clusters']), 2)
             self.assertEqual(restored['clusters'][0]['name'], 'Updated site')
             self.assertEqual(restored['clusters'][0]['partition'], 'gpu')
+            self.assertEqual(restored['clusters'][0]['scheduler'], 'slurm')
             self.assertEqual(restored['selectedClusterId'], identity)
             self.assertTrue(all(item['connectionStatus'] == 'not_connected' for item in restored['clusters']))
             self.assertIsNone(restored['jobs'])
@@ -36,10 +37,22 @@ class ClustersTest(unittest.TestCase):
         valid = {'name': 'Cluster', 'host': 'login.example'}
         for invalid in [None, [], {}, {**valid, 'password': 'no'}, {**valid, 'privateKey': 'no'},
                         {**valid, 'host': 'x' * 256}, {**valid, 'name': ''}, {**valid, 'account': 10},
-                        {**valid, 'workdir': '/scratch\ncommand'}, {**valid, 'id': '../other'}]:
+                        {**valid, 'workdir': '/scratch\ncommand'}, {**valid, 'id': '../other'},
+                        {**valid, 'scheduler': 'shell'}]:
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 ClusterDraft.parse(invalid)
         self.assertEqual(ClusterDraft.parse({**valid, 'name': ' Cluster '}).name, 'Cluster')
+
+    def test_legacy_drafts_default_to_slurm_and_workstation_selection_persists(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'clusters.json'
+            identity = 'cluster-' + '1' * 32
+            path.write_text(json.dumps({'schemaVersion': 1, 'clusters': [
+                {'id': identity, 'name': 'Existing site', 'host': 'login.example'}], 'selectedClusterId': identity}))
+            store = ClusterStore(directory)
+            self.assertEqual(store.clusters[0].scheduler, 'slurm')
+            store.save(ClusterDraft.parse({'id': identity, 'name': 'Workstation', 'host': 'lab', 'scheduler': 'ssh'}))
+            self.assertEqual(ClusterStore(directory).clusters[0].scheduler, 'ssh')
 
     def test_unknown_updates_and_failed_persistence_keep_existing_configuration(self):
         with TemporaryDirectory() as directory:

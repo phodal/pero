@@ -141,6 +141,14 @@ pub struct AppBackend {
     pub dependencies: Vec<PythonDependency>,
 }
 
+impl AppBackend {
+    /// A declared interpreter is a preparation requirement even without packages.
+    pub(super) fn uses_python_environment(&self, selected: bool) -> bool {
+        matches!(self.kind, BackendKind::Python)
+            && (self.python.is_some() || !self.dependencies.is_empty() || selected)
+    }
+}
+
 /// A CPython minor. The Host can install the bundled minor and can ask uv for another.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(try_from = "String", into = "String")]

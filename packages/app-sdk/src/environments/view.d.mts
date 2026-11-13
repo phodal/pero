@@ -1,4 +1,4 @@
-export type ScientificMethod = 'paper-agent.pcgym' | 'control-lab.python-control' | 'control-lab.ngspice' | 'lcms2yield.inference';
+export type ScientificMethod = 'paper-agent.pcgym' | 'control-lab.python-control' | 'control-lab.ngspice' | 'lcms2yield.inference' | 'virtual-cell.comparison';
 export interface EnvironmentViewOptions {
   targets?: readonly ScientificMethod[];
   locale?: string;
