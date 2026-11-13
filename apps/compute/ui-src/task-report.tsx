@@ -65,7 +65,7 @@ export function TaskReport() {
     {!report ? !busy && <EmptyState heading={<h2>{t('empty')}</h2>} description={t('help')} /> : <>
       <p className="compute-help">{t('scope')}</p>
       <div className="compute-report-grid">{report.rows.map(row => <Card key={row.experiment} tone="blue" variant="soft" className="compute-report-row">
-        <h3>{row.c_rate} C · {row.temperature_k} K</h3><div className="compute-report-actions"><Badge>{t(row.state)}</Badge><Badge>{t(row.verification)}</Badge></div>
+        <InspectorHeader title={`${row.c_rate} C · ${row.temperature_k} K`} status={<span className="compute-report-actions"><Badge>{t(row.state)}</Badge><Badge>{t(row.verification)}</Badge></span>} />
         <p>{row.hostname || row.worker || '—'}</p>{row.reason ? <p>{row.reason}</p> : null}
         {row.elapsed_s != null ? <p>{t('elapsed', { time: row.elapsed_s.toFixed(3) })}</p> : null}
         <div className="compute-report-actions">{row.content != null ? <Button onClick={() => downloadFile(`${row.experiment}.jsonl`, row.content!, 'application/x-ndjson')}>{t('result')}</Button> : null}

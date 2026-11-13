@@ -53,7 +53,7 @@ export default function Compute() {
       jobs: null, jobsStatus: 'not_connected', executionsStatus: state?.executionsStatus ?? null } });
 
   return <Tabs value={tab} onValueChange={setTab} className="compute-root"><AppFrame label="Compute" scope={
-    <TabsList aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
+    <TabsList variant="navigation" aria-label={t('navigation')}><TabsTrigger value="jobs">{t('jobs')}</TabsTrigger><TabsTrigger value="reports">{t('reports')}</TabsTrigger><TabsTrigger value="clusters">{t('clusters')}</TabsTrigger></TabsList>
   } utilities={<IconButton label={t('refresh')} disabled={busy || loading} onClick={() => void refresh()}><Icon name="refresh" /></IconButton>}
     commands={<DropdownMenu>
       <DropdownMenuTrigger aria-label={t('settings')}><Icon name="dots" /></DropdownMenuTrigger>
