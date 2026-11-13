@@ -4,14 +4,15 @@
 .point-custom-mcps{display:flex;flex-direction:column;gap:var(--pero-space-8,16px)}
 .point-custom-mcps-form{display:flex;flex-direction:column;gap:var(--pero-space-6,12px)}
 .point-connectors-toolbar .point-page-actions{display:flex;align-items:center;gap:var(--pero-space-4)}
-.point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-space-6);flex-wrap:wrap;margin-bottom:var(--pero-space-6,12px)}
+.point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-space-6);flex-wrap:wrap}
+.pero-content-toolbar .point-connectors-search-tools{margin:0}
 .point-connectors-search-tools .pero-search-field{flex:1;min-width:min(100%,16rem);max-width:none}
 .point-connectors-filter-count{margin-inline-start:6px;font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
 .pero-ui-toggle-item[data-state=on] .point-connectors-filter-count{color:var(--pero-accent-text)}
-.point-connectors-capabilities{margin-bottom:var(--pero-space-8,16px)}
+#connectors-capabilities{margin-bottom:var(--pero-space-8,16px)}
 .point-connectors-guides{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
-.point-connectors-page .point-connectors-guide.pero-ui-button{display:flex;align-items:center;justify-content:flex-start;gap:10px;height:auto;min-height:0;padding:10px 12px;text-align:left;white-space:normal;border:var(--pero-border-width-thin,1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl,12px);background:var(--pero-surface)}
-.point-connectors-page .point-connectors-guide.pero-ui-button:hover{background:var(--pero-surface-hover)}
+.point-connectors-guide{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:0;padding:10px 12px;text-align:left;white-space:normal;border:var(--pero-border-width-thin,1px) solid var(--pero-border-subtle);border-radius:var(--pero-radius-xl,12px);background:var(--pero-surface);color:inherit;font:inherit;cursor:pointer}
+.point-connectors-guide:hover{background:var(--pero-surface-hover)}
 .point-connectors-guide>svg{flex:none;color:var(--pero-text-muted)}
 .point-connectors-guide-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .point-connectors-guide-title,.point-connectors-guide-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -30,8 +31,7 @@
 .point-connectors-categories{margin-bottom:var(--pero-space-8, 16px)}
 .point-connectors-hint{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);margin:0 0 var(--pero-space-4, 8px)}
 .point-connectors-section{margin-bottom:16px}
-.point-connectors-page .point-connectors-section-title{display:flex;align-items:baseline;gap:var(--pero-space-3, 6px);font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0 0 var(--pero-space-5, 10px)}
-.point-connectors-section-title span{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
+.point-connectors-section-count{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
 .point-connectors-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @container connectors (max-width:860px){.point-connectors-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container connectors (max-width:520px){.point-connectors-guides,.point-connectors-grid{grid-template-columns:1fr}}
@@ -91,7 +91,6 @@
 .point-connectors-json-status span[data-state=error]{color:var(--pero-danger)}
 .point-connectors-json-status span[data-state=empty]{color:var(--pero-text-secondary)}
 .point-connectors-discovery{margin:0;display:flex;flex-direction:column;gap:var(--pero-space-4, 8px)}
-.point-connectors-discovery h3{font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600);margin:0}
 .point-connectors-discovery ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--pero-space-3, 6px)}
 .point-connectors-discovery li{display:grid;grid-template-columns:18px 96px 1fr;align-items:baseline;gap:var(--pero-space-4, 8px);font-size:var(--pero-font-size-sm-plus, 12.5px)}
 .point-connectors-discovery-mark{font-weight:var(--pero-font-weight-bold, 700);color:var(--pero-success)}

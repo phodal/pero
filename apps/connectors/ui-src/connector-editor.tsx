@@ -4,7 +4,7 @@ import { ActionPortal } from './components.tsx';
 import type { DirectoryEntry, Discovery } from './connector-types.ts';
 import { EFFECT_LABELS, EFFECT_LABELS_EN } from './shared/connection-copy.mjs';
 import { errorMessage } from './error-message.ts';
-import { Button, Feedback, Select, Textarea } from './ui';
+import { Button, ContentSection, Feedback, Select, Textarea } from './ui';
 
 const withArg = (args: string[] | undefined, flag: string, value: string) => (args ?? []).map(arg => arg.startsWith(`${flag}=`) ? `${flag}=${value}` : arg);
 
@@ -82,7 +82,7 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
     if (ready && !busy && !installing && !continued.current) { continued.current = true; onInstall(); }
   }, [discovery.continueAfterInstall, ready, busy, installing, onInstall]);
   return <section className="point-connectors-discovery" aria-busy={running}>
-    <h3>{running ? copy('正在检测本机环境…', 'Checking this computer…') : ready ? copy('已在本机找到所需组件', 'Required components found') : copy('还缺少以下组件', 'Missing components')}</h3>
+    <ContentSection id="connector-discovery-status" title={running ? copy('正在检测本机环境…', 'Checking this computer…') : ready ? copy('已在本机找到所需组件', 'Required components found') : copy('还缺少以下组件', 'Missing components')}>
     {discovery.state === 'failed' && <Feedback kind="error">{isFeishu ? copy('检测失败，请重试。', 'Detection failed. Please retry.') : copy('检测失败，可以重试或改为手动配置。', 'Detection failed. Retry or configure manually.')}</Feedback>}
     {discovery.installError && <Feedback kind="error">{discovery.installError}</Feedback>}
     {!running && <ul>
@@ -92,18 +92,20 @@ export function DiscoveryPanel({ actionsTarget, locale, provider, discovery, def
         <span className="point-connectors-discovery-value">{row.ok ? row.value : row.missing}</span>
       </li>)}
     </ul>}
+    </ContentSection>
     <ActionPortal target={actionsTarget}><div className="point-connectors-actions">
       <Button variant="primary" type="button" disabled={busy || (ready ? false : !installServerFirst || running || discovery.state === 'preparing' || job?.state === 'running')} onClick={ready ? onInstall : onInstallServer}>{installing || job?.state === 'running' || discovery.state === 'preparing' ? copy('正在安装…', 'Installing…') : job?.state === 'failed' && !ready ? copy('重试安装', 'Retry install') : copy('安装', 'Install')}</Button>
       <Button type="button" disabled={running || busy} onClick={onRetry}>{copy('重新检测', 'Check again')}</Button>
       {!isFeishu && <Button type="button" variant="link" className="point-connectors-link" disabled={busy} onClick={onManual}>{copy('手动配置', 'Configure manually')}</Button>}
     </div></ActionPortal>
-    <section className="point-connector-install-scope" aria-label={copy('安装后的工具权限', 'Tool access after installation')}>
-      <h3>{copy('安装后的工具权限', 'Tool access after installation')}</h3>
+    <div className="point-connector-install-scope">
+      <ContentSection id="connector-install-scope" title={copy('安装后的工具权限', 'Tool access after installation')}>
       <p className="point-connectors-hint">{allowedTools.length ? Object.entries(toolEffects).map(([effect, tools]) => `${effectLabels[effect] ?? copy('未分类（请检查工具）', 'Unclassified (review tools)')} ${tools.length}`).join(' · ') : copy('未允许任何工具。', 'No tools allowed.')}</p>
       {allowedTools.length > 0 && <Disclosure variant="inline" summary={<>{copy(`查看 ${allowedTools.length} 个工具`, `Review ${allowedTools.length} tools`)}</>}>
         {Object.entries(toolEffects).map(([effect, tools]) => <div key={effect} className="point-connector-tool-group"><span className="point-connector-tool-effect">{effectLabels[effect] ?? copy('未分类', 'Unclassified')}</span><div className="point-connector-tool-list">{tools.map(tool => <code key={tool} className="point-connector-tool">{tool}</code>)}</div></div>)}
       </Disclosure>}
-    </section>
+      </ContentSection>
+    </div>
   </section>;
 }
 /** Locates a JSON.parse failure so the editor can point at the line instead of repeating V8's message. */

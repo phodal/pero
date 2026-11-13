@@ -1,7 +1,7 @@
 import { Disclosure } from '@pero/app-sdk/ui';
 import { connectorRequest } from './bridge';
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Button, Checkbox, Feedback } from './ui';
+import { Button, Checkbox, ContentSection, Feedback } from './ui';
 import { FEISHU_CAPABILITY_SCOPES } from '../../../packages/connectors/src/connectors/feishu-workspace/capabilities.mjs';
 import { STATE_LABELS, STATE_LABELS_EN } from './shared/connection-copy.mjs';
 import { feishuMessage } from './feishu-recovery.mjs';
@@ -78,9 +78,9 @@ function AuthorizationPanel({ connectionId, locale, onAuthorized, actionsTarget,
   const connectionLabel = (locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[connectionState ?? ''] ?? connectionState;
   return <section className="point-feishu-authorization" aria-labelledby={`${id}-title`}>
     <div className="point-feishu-account">
-      <h3 id={`${id}-title`}>{copy('账号', 'Account')}</h3>
-      <span role="status">{checking ? copy('正在核验…', 'Checking…') : account ? account.userName || account.openId : copy('未核验', 'Not verified')}{connectionState && <> · {connectionLabel}</>}</span>
-      {actionError && <span role="alert">{feishuMessage(actionError, locale)}</span>}
+      <ContentSection id={id} title={copy('账号', 'Account')} actions={<span role="status">{checking ? copy('正在核验…', 'Checking…') : account ? account.userName || account.openId : copy('未核验', 'Not verified')}{connectionState && <> · {connectionLabel}</>}</span>}>
+        {actionError && <span role="alert">{feishuMessage(actionError, locale)}</span>}
+      </ContentSection>
     </div>
     {(error || connectionSummary) && <Disclosure variant="inline" className="point-feishu-diagnostics" summary={<>{copy('诊断详情', 'Diagnostics')}</>}>
       {connectionSummary && <p>{connectionSummary}</p>}

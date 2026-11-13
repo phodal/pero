@@ -1,7 +1,6 @@
 .point-feishu-authorization{display:flex;flex-direction:column;gap:var(--pero-space-7, 14px);min-width:0;font-size:var(--pero-font-size-md, 13px);line-height:var(--pero-line-height-normal, 1.5)}
-.point-feishu-account{display:flex;align-items:center;justify-content:flex-start;gap:var(--pero-space-5, 10px);flex-wrap:wrap}
-.point-feishu-account h3{margin:0;font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600)}
-.point-feishu-account>span{overflow-wrap:anywhere;color:var(--pero-text-secondary)}
+.point-feishu-account{min-width:0}
+.point-feishu-account [role=status]{overflow-wrap:anywhere;color:var(--pero-text-secondary)}
 .point-feishu-permissions{border:0;padding:0;margin:0;min-width:0}
 .point-feishu-permissions legend{padding:0;font-size:var(--pero-font-size-md, 13px);font-weight:var(--pero-font-weight-semibold, 600)}
 .point-feishu-permissions p{margin:var(--pero-space-2, 4px) 0 var(--pero-space-4, 8px);color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px)}

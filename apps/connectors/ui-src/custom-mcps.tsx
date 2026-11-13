@@ -5,7 +5,7 @@ import {
 } from './custom-mcp-model.mjs';
 import { loadCustomMcps, saveCustomMcps, type McpAgent, type McpServer, type McpSession, type McpSettingsView } from './custom-mcp-client';
 import {
-  Button, Dialog, EmptyIllustration, EmptyState, Feedback, Field, Icon, IconButton, Input, LoadingSkeleton,
+  Button, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Field, Input, ListRow, LoadingSkeleton,
   Select, SkeletonText, Textarea, ToggleGroup, ToggleGroupItem,
 } from './ui';
 
@@ -42,7 +42,8 @@ function runtimeText(server: McpServer, sessions: McpSession[], copy: (zh: strin
   return copy('连接失败；启动新会话以重试', 'Connection failed; start a new session to retry');
 }
 
-export function CustomMcps({ locale, query }: { locale: 'zh' | 'en'; query: string }) {
+export type CustomMcpBar = { locked: boolean; busy: boolean; loading: boolean; add: () => void; importJson: () => void; refresh: () => void };
+export function CustomMcps({ locale, query, onBar }: { locale: 'zh' | 'en'; query: string; onBar?: (bar: CustomMcpBar | null) => void }) {
   const copy = (zh: string, en: string) => locale === 'zh' ? zh : en;
   const [agents, setAgents] = useState<McpAgent[]>([]);
   const [agentId, setAgentId] = useState('');
@@ -99,6 +100,16 @@ export function CustomMcps({ locale, query }: { locale: 'zh' | 'en'; query: stri
     }).finally(() => setBusy(false));
   };
   const locked = busy || needsReload || !agentId;
+  const actions = useRef<Pick<CustomMcpBar, 'add' | 'importJson' | 'refresh'>>({ add() {}, importJson() {}, refresh() {} });
+  actions.current = {
+    add: () => openEditor(null),
+    importJson: () => { setImportText(''); setImportOpen(true); setError(''); },
+    refresh: () => { void reload(); },
+  };
+  useEffect(() => {
+    onBar?.({ locked, busy, loading, add: () => actions.current.add(), importJson: () => actions.current.importJson(), refresh: () => actions.current.refresh() });
+  }, [locked, busy, loading, onBar]);
+  useEffect(() => () => onBar?.(null), [onBar]);
   const visible = matchingServers(servers, query) as McpServer[];
   const attention = visible.filter(server => needsAttention(server, sessions));
   const enabled = visible.filter(server => !needsAttention(server, sessions));
@@ -120,38 +131,26 @@ export function CustomMcps({ locale, query }: { locale: 'zh' | 'en'; query: stri
   const row = (server: McpServer) => {
     const index = servers.findIndex(item => item.name === server.name);
     const dot = !server.enabled ? 'needs-attention' : runtimeOf(server.name, sessions)?.status === 'connected' ? 'connected' : runtimeOf(server.name, sessions)?.status === 'connecting' ? 'connecting' : runtimeOf(server.name, sessions)?.status === 'error' ? 'needs-attention' : '';
-    return <article key={`${server.name}-${index}`} className="point-page-row point-connectors-row-card">
-      <span className="point-connectors-symbol"><span className="point-connectors-dot" data-state={dot} /></span>
-      <div className="point-connectors-row-copy">
-        <div className="point-connectors-row-title">
-          <strong>{server.name}</strong>
-          <span className="point-connectors-pill">{server.enabled ? copy('已启用', 'Enabled') : copy('已停用', 'Disabled')}</span>
-          <span className="point-connectors-badge">{server.transport.type === 'http' ? 'HTTP' : 'stdio'}</span>
-        </div>
-        <div className="point-connectors-row-meta">{endpoint(server)}</div>
-        <div className="point-connectors-row-meta">{runtimeText(server, sessions, copy)}</div>
-      </div>
-      <div className="point-page-row-actions">
+    return <ListRow key={`${server.name}-${index}`} className="point-connectors-row" icon={<span className="point-connectors-dot" data-state={dot} />} title={server.name}
+      badge={<><span className="point-connectors-pill">{server.enabled ? copy('已启用', 'Enabled') : copy('已停用', 'Disabled')}</span><span className="point-connectors-badge">{server.transport.type === 'http' ? 'HTTP' : 'stdio'}</span></>}
+      meta={<>{endpoint(server)} · {runtimeText(server, sessions, copy)}</>}
+      onOpen={locked ? undefined : () => openEditor(index)}
+      trailing={<div className="point-page-row-actions">
         <Button disabled={locked} onClick={() => openEditor(index)}>{copy('编辑', 'Edit')}</Button>
         <Button disabled={locked} onClick={() => server.enabled ? void commit(withEnabled(servers, index, false)) : setConfirm({ index, enable: true })}>{server.enabled ? copy('停用', 'Disable') : copy('启用…', 'Enable…')}</Button>
         <Button variant="danger" disabled={locked} onClick={() => setConfirm({ index, enable: false })}>{copy('移除', 'Remove')}</Button>
-      </div>
-    </article>;
+      </div>} />;
   };
-  const section = (title: string, items: McpServer[]) => items.length ? <section className="point-connectors-section" aria-label={title}>
-    <h2 className="point-connectors-section-title">{title}<span>{items.length}</span></h2>
+  const section = (id: string, title: string, items: McpServer[]) => items.length ? <ContentSection id={`custom-mcp-${id}`} title={title} actions={<span className="point-connectors-section-count">{items.length}</span>}>
     <div className="point-page-list">{items.map(row)}</div>
-  </section> : null;
+  </ContentSection> : null;
   const policyServer = confirm?.enable ? servers[confirm.index] : undefined;
 
   return <div className="point-custom-mcps">
-    <div className="point-connectors-actions">
-      {agents.length > 0 && <Select label={copy('本地 Agent', 'Local Agent')} value={agentId} disabled={busy || loading} onChange={id => { setAgentId(id); void reload(id); }}
-        options={agents.map(agent => ({ value: agent.id, label: agent.name }))} />}
-      <IconButton label={copy('刷新', 'Refresh')} disabled={busy || loading} onClick={() => void reload()}><Icon name="refresh" /></IconButton>
-      <Button disabled={locked} onClick={() => openEditor(null)}>{copy('添加服务器', 'Add server')}</Button>
-      <Button disabled={locked} onClick={() => { setImportText(''); setImportOpen(true); setError(''); }}>{copy('导入 JSON', 'Import JSON')}</Button>
-    </div>
+    {agents.length > 0 && <div className="point-connectors-actions">
+      <Select label={copy('本地 Agent', 'Local Agent')} value={agentId} disabled={busy || loading} onChange={id => { setAgentId(id); void reload(id); }}
+        options={agents.map(agent => ({ value: agent.id, label: agent.name }))} />
+    </div>}
     {error && <Feedback kind="error" variant="block">{reasonText(error, locale)}</Feedback>}
     {saved && <Feedback kind="success" variant="block">{copy('已保存。新建会话后生效。', 'Saved. Start a new session to apply.')}</Feedback>}
     {loading && !servers.length ? <LoadingSkeleton label={copy('正在加载连接器…', 'Loading connectors…')}><SkeletonText /></LoadingSkeleton>
@@ -159,11 +158,10 @@ export function CustomMcps({ locale, query }: { locale: 'zh' | 'en'; query: stri
       : !agentId ? <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('没有本地 Agent', 'No local Agents')} description={copy('安装本地 Agent 后即可添加 MCP 连接器。', 'Install a local Agent before adding MCP connectors.')} />
       : !visible.length && !error ? (servers.length
         ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />} heading={copy('没有匹配的连接器', 'No matching connectors')} description={copy('换个关键词。', 'Try another search.')} />
-        : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('尚未配置连接器', 'No connectors configured')} description={copy('添加服务器，或导入 JSON 数组。新服务器会先停用，启用前需要确认授权。', 'Add a server, or import a JSON array. New servers stay disabled until you confirm access.')}
-          actions={<Button disabled={locked} onClick={() => openEditor(null)}>{copy('添加服务器', 'Add server')}</Button>} />)
+        : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('尚未配置连接器', 'No connectors configured')} description={copy('使用页面上的添加服务器，或导入 JSON 数组。新服务器会先停用，启用前需要确认授权。', 'Use Add server on this page, or import a JSON array. New servers stay disabled until you confirm access.')} />)
       : <>
-        {section(copy('需要处理', 'Needs attention'), attention)}
-        {section(copy('已启用', 'Enabled'), enabled)}
+        {section('attention', copy('需要处理', 'Needs attention'), attention)}
+        {section('enabled', copy('已启用', 'Enabled'), enabled)}
       </>}
     {editor && <Dialog title={editor.index == null ? copy('添加服务器', 'Add server') : copy('编辑服务器', 'Edit server')} size="md" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop onClose={() => { if (!busy) setEditor(null); }}
       footer={<><Button disabled={busy} onClick={() => setEditor(null)}>{copy('取消', 'Cancel')}</Button><Button variant="primary" disabled={busy} onClick={saveEditor}>{copy('保存为停用', 'Save disabled')}</Button></>}>

@@ -153,7 +153,9 @@ test('initial connection loading and failure stay distinct from first-use action
   await f.click([...firstUse.querySelectorAll('button')].find(node => node.textContent === 'Browse service catalog'));
   assert.match(document.querySelector('.point-connectors-catalog').textContent, /Test service/);
   await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Installed connections'));
-  await f.click([...document.querySelector('.point-connectors-manage .pero-ui-empty-state').querySelectorAll('button')].find(node => node.textContent === 'Add custom MCP'));
+  const addCustom = document.querySelector('[data-slot=primary] button');
+  assert.equal(addCustom?.textContent, 'Custom MCP');
+  await f.click(addCustom);
   assert.ok(document.querySelector('#connector-import-json'));
   assert.equal(document.querySelector('dialog').open, true);
 });
@@ -259,6 +261,11 @@ test('custom MCPs is a view beside the service catalog', async t => {
   const tab = [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '自定义 MCPs');
   assert.ok(tab);
   assert.equal([...document.querySelectorAll('button')].some(node => node.textContent.includes('自定义 MCP') && !node.textContent.includes('MCPs')), true);
+  t.mock.method(globalThis, 'setTimeout', () => 0);
+  await f.click(tab);
+  assert.equal(document.querySelector('[data-slot=primary] button')?.textContent, '添加服务器');
+  assert.equal([...document.querySelectorAll('.point-custom-mcps button')].some(node => node.textContent === '添加服务器'), false);
+  assert.equal(document.querySelector('[data-slot=commands] button')?.textContent, '导入 JSON');
 });
 
 test('state filter counts match results and unverified connections never appear ready', async t => {
@@ -273,6 +280,6 @@ test('state filter counts match results and unverified connections never appear 
   await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
   for (const [filter, ids] of [['Paused 1', ['paused']], ['Ready 1', ['ready']], ['Needs attention 3', ['draft', 'unchecked', 'paused']]]) {
     await f.click([...document.querySelectorAll('button')].find(node => node.textContent === filter));
-    assert.deepEqual([...document.querySelectorAll('.point-connectors-row-title .point-connectors-link')].map(node => node.textContent), ids);
+    assert.deepEqual([...document.querySelectorAll('.point-connectors-row .pero-list-title')].map(node => node.textContent), ids);
   }
 });
