@@ -127,9 +127,7 @@ impl ChatPanel {
                         el.w_full()
                             .px(px(pero_theme::SPACE_12))
                             .py(px(pero_theme::SPACE_8))
-                            .bg(p.surface)
-                            .border_1()
-                            .border_color(p.border)
+                            .bg(p.surface_muted)
                             .rounded(px(pero_theme::RADIUS_PANEL))
                     })
                     .child(message.view.clone()),
