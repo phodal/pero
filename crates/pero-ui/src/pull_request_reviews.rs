@@ -17,7 +17,7 @@ impl Workbench {
         let Some(snapshot) = &view.state.snapshot else {
             return div().into_any_element();
         };
-        if snapshot.reviews.items.is_empty() {
+        if snapshot.reviews.items.is_empty() && snapshot.discussions.items.is_empty() {
             return div()
                 .px(chrome.geo(pero_theme::SPACE_24))
                 .py(chrome.geo(pero_theme::SPACE_20))

@@ -42,6 +42,8 @@ mod pull_request_commits;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_reviews;
 #[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_discussions;
+#[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_index;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod source_navigation;

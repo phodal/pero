@@ -246,13 +246,18 @@ impl ChatPanel {
     }
 
     pub fn compose(&mut self, text: String, cx: &mut Context<Self>) {
+        self.compose_with_context(text, vec![], cx);
+    }
+
+    /// Append a frozen source to the editable draft without submitting it.
+    pub fn compose_with_context(&mut self, text: String, contexts: Vec<ContextReference>, cx: &mut Context<Self>) {
         if self.active_chat.is_none() {
             self.new_draft(cx);
         }
         if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
             self.pending_prompts.push(ComposerInsertion {
                 thread_id: chat.id.clone(),
-                text,contexts:vec![],replace:false,surface_request:None,
+                text,contexts,replace:false,surface_request:None,
             });
         }
         cx.notify();

@@ -317,7 +317,7 @@ impl ChatPanel {
 
     fn opened_phrase(&self, opened_at: &str) -> Option<String> {
         use pero_contracts::pull_request::{opened_ago, opened_day};
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
+        let now = crate::clock::unix_seconds()?;
         if let Some(age) = opened_ago(opened_at, now) {
             if age.count == 0 {
                 return Some(self.t("pr.just_now").to_owned());
