@@ -269,6 +269,7 @@ pub struct Conversation {
     pub(crate) images: crate::inline_images::ConversationImages,
     pub workspace: String,
     pub scope: Option<pero_contracts::AppChatScope>,
+    pub project_agent: Option<pero_contracts::project_agent::ProjectSessionBinding>,
     pub brief: Option<crate::brief_conversation::BriefConversation>,
     pub usage: Option<pero_contracts::usage::SessionUsage>,
     pub mcp: Option<pero_contracts::mcp_runtime::McpRuntimeSession>,
@@ -323,6 +324,7 @@ impl Conversation {
             images: Default::default(),
             workspace: String::new(),
             scope: None,
+            project_agent: None,
             brief: None,
             usage: None,
             mcp: None,
@@ -359,7 +361,7 @@ impl Conversation {
     }
 
     pub fn can_retarget(&self) -> bool {
-        self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
+        self.project_agent.is_none() && self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
     }
 
     pub fn can_retry(&self) -> bool {
@@ -368,7 +370,9 @@ impl Conversation {
     }
 
     pub fn can_submit(&self) -> bool {
-        self.state.can_submit() && self.queued.is_none()
+        (self.state.can_submit()
+            || (self.state == SessionState::Closed && self.project_agent.is_some() && !self.session_id.is_empty()))
+            && self.queued.is_none()
             && self.pending_model.is_none() && self.pending_setting.is_none()
     }
 
@@ -707,6 +711,27 @@ mod composer_draft_tests {
     use super::*;
     use pero_contracts::context::{ContextContent, ContextKind, ContextReference};
     use gpui_kit::component::input::InputContent;
+
+    #[test]
+    fn project_conversations_continue_without_replacing_the_original() {
+        use crate::session_state::SessionState::{Closed, Idle, Running};
+        for (state, project, acknowledged, queued, allowed, retarget) in [
+            (Closed, false, true, false, false, true),
+            (Closed, true, false, false, false, false),
+            (Closed, true, true, false, true, false),
+            (Closed, true, true, true, false, false),
+            (Running, true, true, false, false, false),
+            (Idle, false, true, false, true, true),
+        ] {
+            let mut chat = super::Conversation::new("original".into(), "agent".into(), "Work".into());
+            chat.state = state;
+            chat.project_agent = project.then(|| pero_contracts::project_agent::ProjectSessionBinding::primary("project".into(), "Work".into()).unwrap());
+            chat.session_id = if acknowledged { "original-acp".into() } else { String::new() };
+            chat.queued = queued.then(|| "Continue".into());
+            assert_eq!(chat.can_retarget(), retarget);
+            assert_eq!(chat.can_submit(), allowed, "{state:?}, project={project}, acknowledged={acknowledged}, queued={queued}");
+        }
+    }
 
     fn file(id: &str, size: usize) -> ContextReference {
         ContextReference {

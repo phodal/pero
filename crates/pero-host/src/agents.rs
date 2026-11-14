@@ -534,6 +534,14 @@ impl Manager {
                     } if (!text.trim().is_empty() || !contexts.is_empty())
                         && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
+                        if self.sessions.get(&thread_id).is_none_or(|session| session.tx.is_closed()) {
+                            if let Err(error) = self.resume_project_prompt(&thread_id) {
+                                let mut event = HostEvent::new("session_error", None, error);
+                                event.thread_id = Some(thread_id);
+                                let _ = self.tx.send(event);
+                                return false;
+                            }
+                        }
                         let snapshot = self.mcp_session_snapshot(&thread_id);
                         let admission = ContextReference::validate_all(&contexts).and_then(|_| {
                             contexts.iter().try_for_each(|reference|

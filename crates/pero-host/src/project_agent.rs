@@ -202,6 +202,12 @@ impl Manager {
         self.create_session_with_origin(session.thread_id.clone(), &session.agent_id, None, None, Some(remote), Some(launch))
     }
 
+    pub(super) fn resume_project_prompt(&mut self, thread: &str) -> Result<(), String> {
+        let Ok(session) = self.project_session(thread) else { return Ok(()); };
+        let project = self.saved_agent_project(&session.binding.project_id)?;
+        self.resume_project_session(&session, &project)
+    }
+
     pub(crate) fn project_agent_request(&mut self, request: &str, command: ProjectAgentAction) -> Result<ProjectAgentSnapshot, String> {
         request_key(request)?;
         let (project, selected) = match command {
