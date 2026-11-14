@@ -120,6 +120,7 @@ impl Manager {
                             | "session_closed"
                             | "session_deleted"
                             | "permission"
+                            | "permission_resolved"
                             | "user_questions"
                             | "user_questions_resolved"
                             | "user_questions_error"
@@ -133,6 +134,7 @@ impl Manager {
                     if !matches!(
                         event.kind.as_str(),
                         "permission"
+                            | "permission_resolved"
                             | "user_questions"
                             | "user_questions_resolved"
                             | "user_questions_error"

@@ -96,10 +96,19 @@ impl Transcript {
                 "turn_started" => { run.status="running".into();text.clear();Some("app-agent/state") }
                 "app_agent_cancel" => { if run.active() { run.status="cancelling".into(); } Some("app-agent/state") }
                 "session_update" if event.data["sessionUpdate"] == "agent_message_chunk" => {
-                    if run.status!="cancelling" {run.status="running".into();}
+                    if !matches!(run.status.as_str(), "cancelling" | "needs_input") {run.status="running".into();}
                     text.push_str(event.data["content"]["text"].as_str().unwrap_or_default());None
                 }
-                "permission" | "session_auth_required" | "session_auth_error" => {run.status="needs_input".into();Some("app-agent/state")}
+                "permission" => {if run.active() && run.status!="cancelling" {run.status="needs_input".into();}Some("app-agent/state")}
+                "permission_resolved" => {
+                    if run.active() && run.status!="cancelling" {
+                        if let Some(pending) = event.data["pending"].as_u64() {
+                            run.status=if pending==0 {"running"} else {"needs_input"}.into();
+                        }
+                    }
+                    Some("app-agent/state")
+                }
+                "session_auth_required" | "session_auth_error" => {run.status="needs_input".into();Some("app-agent/state")}
                 "session_error" => {run.status="failed".into();run.error=Some(event.text.clone());Some("agent/finished")}
                 "session_closed" => {if run.active(){run.status="interrupted".into();}Some("app-agent/state")}
                 "turn_finished" => {

@@ -387,13 +387,19 @@ async fn run(
                 data["permission_id"] = json!(id);
                 event(&perm_tx, &perm_thread, "permission", "需要授权", data);
                 let selected = reply.await.ok().flatten();
-                permission_requests.lock().unwrap().remove(&id);
+                let pending = {
+                    let mut requests = permission_requests.lock().unwrap();
+                    requests.remove(&id);
+                    requests.len()
+                };
                 permission_scopes.lock().unwrap().complete(binding.as_deref(), &id);
                 let outcome = selected
                     .filter(|id| request.options.iter().any(|o| o.option_id.to_string() == *id))
                     .map(|id| RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(id)))
                     .unwrap_or(RequestPermissionOutcome::Cancelled);
-                responder.respond(RequestPermissionResponse::new(outcome))
+                let result = responder.respond(RequestPermissionResponse::new(outcome));
+                event(&perm_tx, &perm_thread, "permission_resolved", "", json!({"permission_id":id,"pending":pending}));
+                result
             },
             agent_client_protocol::on_receive_request!(),
         )
