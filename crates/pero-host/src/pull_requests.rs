@@ -1,8 +1,10 @@
-//! Read-only GitHub shell, shared by Electron and Native through Host JSONL.
+//! GitHub PR shell, shared by Electron and Native through Host JSONL.
 use pero_contracts::{HostEvent, pull_request::*};
 use pero_runtime::contribution_git::{GitHub, GitHubCli};
 use serde::Deserialize;
 use std::path::Path;
+#[path = "pull_request_discussions.rs"]
+mod discussions;
 
 pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
     let request_id = value["request_id"].as_str().map(str::to_owned);
@@ -18,7 +20,9 @@ pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
         }
     };
     let workspace = match &request.action {
-        PullRequestAction::Load { .. } | PullRequestAction::List { .. } => {
+        PullRequestAction::Load { .. } | PullRequestAction::List { .. }
+        | PullRequestAction::Reply { .. } | PullRequestAction::SetResolved { .. }
+        | PullRequestAction::AddDiscussion { .. } => {
             Some(agents.workspace().to_owned())
         }
         PullRequestAction::Discover { thread_id } => agents.artifact_workspace(thread_id),
@@ -60,6 +64,18 @@ pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
                     event.kind = "pull_request_discovered".into();
                     event.data = serde_json::json!({"reference":found.url});
                 }
+                PullRequestAction::Reply { reference, discussion_id, body } => {
+                    let discussion = discussions::update(&GitHubCli, &workspace, &reference, &discussion_id, discussions::Mutation::Reply(body))?;
+                    discussion_event(&mut event, reference, discussion);
+                }
+                PullRequestAction::SetResolved { reference, discussion_id, resolved } => {
+                    let discussion = discussions::update(&GitHubCli, &workspace, &reference, &discussion_id, discussions::Mutation::SetResolved(resolved))?;
+                    discussion_event(&mut event, reference, discussion);
+                }
+                PullRequestAction::AddDiscussion { reference, discussion } => {
+                    let discussion = discussions::add(&GitHubCli, &workspace, &reference, discussion)?;
+                    discussion_event(&mut event, reference, discussion);
+                }
             }
             Ok::<_, String>(())
         })();
@@ -68,6 +84,16 @@ pub fn dispatch(value: serde_json::Value, agents: &crate::agents::Manager) {
         }
         let _ = crate::emit(event);
     });
+}
+
+fn discussion_event(event: &mut HostEvent, reference: PullRequestRef, discussion: Option<PullRequestDiscussion>) {
+    if let Some(discussion) = discussion {
+        event.kind = "pull_request_discussion_updated".into();
+        event.data = serde_json::to_value(PullRequestDiscussionUpdated { reference, discussion }).expect("discussion update");
+    } else {
+        event.kind = "pull_request_discussion_published".into();
+        event.data = serde_json::json!({"reference":reference});
+    }
 }
 
 #[derive(Deserialize)]
@@ -276,6 +302,10 @@ fn load(
     if let Some(error) = comments.error {
         reviews.error = Some(error);
     }
+    let discussions = match discussions::read(github, workspace, &reference) {
+        Ok(items) => PullRequestSection { items, error: None },
+        Err(error) => PullRequestSection { items: vec![], error: Some(error) },
+    };
     Ok(PullRequestSnapshot {
         reference,
         title: pull.title,
@@ -285,6 +315,7 @@ fn load(
         base: pull.base.name,
         head: pull.head.name,
         head_sha: pull.head.sha,
+        base_sha: pull.base.sha,
         additions: pull.additions,
         deletions: pull.deletions,
         changed_files: pull.changed_files,
@@ -294,5 +325,6 @@ fn load(
         commits,
         checks,
         reviews,
+        discussions,
     })
 }

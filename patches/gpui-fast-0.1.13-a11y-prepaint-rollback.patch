@@ -1,0 +1,147 @@
+--- a/src/fast/a11y.rs
++++ b/src/fast/a11y.rs
+@@ -90,6 +90,16 @@
+ }
+ 
+ impl A11yLog {
++    pub(crate) fn prepaint_checkpoint(&self) -> PrepaintCheckpoint {
++        PrepaintCheckpoint { ops: self.ops.len(), replay_open: self.replay_open.clone(), diverged: self.diverged }
++    }
++
++    pub(crate) fn rollback_prepaint(&mut self, checkpoint: PrepaintCheckpoint) {
++        self.ops.truncate(checkpoint.ops);
++        self.replay_open = checkpoint.replay_open;
++        self.diverged = checkpoint.diverged;
++    }
++
+     #[inline]
+     pub(crate) fn push(log: &mut Self, id: NodeId) {
+         if log.recording {
+@@ -143,6 +153,13 @@
+         log.previous_recorded = log.recording && !mem::take(&mut log.diverged);
+         log.recording = false;
+     }
++}
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub(crate) struct PrepaintCheckpoint {
++    ops: usize,
++    replay_open: Vec<bool>,
++    diverged: bool,
+ }
+ 
+ /// Starts logging a frame in which accessibility is active, keeping what
+--- a/src/window/a11y.rs
++++ b/src/window/a11y.rs
+@@ -164,7 +164,53 @@
+     pub(crate) view_type_names: FxHashMap<EntityId, &'static str>,
+ }
+ 
++/// State changed while prepainting a subtree that may request a scroll retry.
++pub(crate) struct PrepaintCheckpoint {
++    all_nodes: usize,
++    ids_stack: SmallVec<[NodeId; 16]>,
++    nodes_stack: SmallVec<[accesskit::Node; 16]>,
++    seen_ids: FxHashSet<NodeId>,
++    focus: Option<NodeId>,
++    active_descendant: Option<NodeId>,
++    focus_ids: FxHashMap<NodeId, FocusId>,
++    node_bounds: FxHashMap<NodeId, Bounds<Pixels>>,
++    #[cfg(debug_assertions)]
++    node_info: FxHashMap<NodeId, debug::NodeDebugInfo>,
++    log: crate::fast::a11y::PrepaintCheckpoint,
++}
++
+ impl A11y {
++    pub(crate) fn prepaint_checkpoint(&self) -> Option<PrepaintCheckpoint> {
++        self.is_active().then(|| PrepaintCheckpoint {
++            all_nodes: self.nodes.all_nodes.len(),
++            ids_stack: self.nodes.ids_stack.clone(),
++            nodes_stack: self.nodes.nodes_stack.clone(),
++            seen_ids: self.nodes.seen_ids.clone(),
++            focus: self.nodes.focus,
++            active_descendant: self.nodes.active_descendant,
++            focus_ids: self.focus_ids.clone(),
++            node_bounds: self.node_bounds.clone(),
++            #[cfg(debug_assertions)]
++            node_info: self.nodes.node_info.clone(),
++            log: self.nodes.fast.prepaint_checkpoint(),
++        })
++    }
++
++    pub(crate) fn rollback_prepaint(&mut self, checkpoint: Option<PrepaintCheckpoint>) {
++        let Some(checkpoint) = checkpoint else { return; };
++        self.nodes.all_nodes.truncate(checkpoint.all_nodes);
++        self.nodes.ids_stack = checkpoint.ids_stack;
++        self.nodes.nodes_stack = checkpoint.nodes_stack;
++        self.nodes.seen_ids = checkpoint.seen_ids;
++        self.nodes.focus = checkpoint.focus;
++        self.nodes.active_descendant = checkpoint.active_descendant;
++        self.focus_ids = checkpoint.focus_ids;
++        self.node_bounds = checkpoint.node_bounds;
++        #[cfg(debug_assertions)]
++        { self.nodes.node_info = checkpoint.node_info; }
++        self.nodes.fast.rollback_prepaint(checkpoint.log);
++    }
++
+     pub(crate) fn new(
+         active_flag: Arc<AtomicBool>,
+         force_disabled: bool,
+@@ -682,6 +728,44 @@
+     }
+ 
+     #[test]
++    fn prepaint_retry_rolls_back_nodes_focus_and_replay_log() {
++        let mut a11y = new_a11y();
++        a11y.sync_active_flag();
++        let parent = NodeId(1);
++        let child = NodeId(2);
++        let leaf = NodeId(3);
++        assert!(a11y.nodes.push(parent, test_node()));
++        let log = a11y.nodes.fast.prepaint_checkpoint();
++        let checkpoint = a11y.prepaint_checkpoint();
++        assert!(a11y.nodes.push(child, test_node()));
++        assert!(a11y.nodes.push(leaf, test_node()));
++        a11y.set_focusable(child, FocusId::default());
++        a11y.set_focus(child);
++        a11y.set_active_descendant(leaf);
++        a11y.node_bounds.insert(child, Default::default());
++        a11y.nodes.pop();
++        a11y.nodes.pop();
++
++        a11y.rollback_prepaint(checkpoint);
++        assert_eq!(a11y.nodes.fast.prepaint_checkpoint(), log);
++        assert!(!a11y.focus_ids.contains_key(&child));
++        assert!(!a11y.node_bounds.contains_key(&child));
++        assert!(a11y.nodes.push(child, test_node()));
++        assert!(a11y.nodes.push(leaf, test_node()));
++        a11y.set_focusable(child, FocusId::default());
++        a11y.set_focus(child);
++        a11y.set_active_descendant(leaf);
++        a11y.nodes.pop();
++        a11y.nodes.pop();
++        a11y.nodes.pop();
++        let update = a11y.end_frame(Default::default());
++        assert_eq!(update.focus, leaf);
++        assert_eq!(update.nodes.iter().find(|(id, _)| *id == parent).unwrap().1.children(), &[child]);
++        assert_eq!(update.nodes.iter().filter(|(id, _)| *id == child).count(), 1);
++        assert_eq!(update.nodes.iter().filter(|(id, _)| *id == leaf).count(), 1);
++    }
++
++    #[test]
+     fn active_descendant_honored_when_container_focused() {
+         let mut builder = new_builder();
+         let container = NodeId(1);
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -4541,8 +4541,10 @@
+     pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
+         self.invalidator.debug_assert_prepaint();
+         let index = self.prepaint_index();
++        let a11y = self.a11y.prepaint_checkpoint();
+         let result = f(self);
+         if result.is_err() {
++            self.a11y.rollback_prepaint(a11y);
+             self.next_frame.hitboxes.truncate(index.hitboxes_index);
+             self.next_frame
+                 .tooltip_requests

@@ -277,3 +277,75 @@ keeps the existing viewport. Final Native library regression remains 134 contrac
 and 80 UI tests; the existing viewed-mark table pins head-bound marks. This cache
 correction was reviewed from current source and compiled; an actual rebased-PR
 refresh is not included in the Native captures above.
+
+## Inline discussions and Agent repair — 2026-11-14
+
+Base checkout `8a0c5d445`, with uncommitted PR changes and separate concurrent
+Project Agent work. This increment supersedes the earlier read-only discussion
+scope: Changes and Reviews now share typed GitHub review threads, original
+review context, reply and resolve/reopen controls. Kit Diff line/range annotations
+create a discussion against the displayed head. A changed head is rejected
+before publication. Outdated, file-level and missing-patch anchors retain the
+original review context instead of appearing on an unrelated current line.
+
+Host uses the existing GitHub CLI seam. GraphQL reads paginate both threads and
+their comments; REST publishes a single comment without publishing an existing
+pending review. Resolution uses the existing thread identity and permissions.
+Confirmed publication followed by a failed readback clears the published draft
+and refreshes, so retry does not duplicate the comment. Normal mutation failures
+keep the draft and offer the same action again.
+
+Fix with Agent uses the existing Composer/context admission and Agent execution
+owners. It appends repair instructions and a frozen evidence chip while retaining
+the existing input. The evidence includes the PR URL, base/head SHAs, file/side,
+original/current line range, comments and original diff hunks. It verifies the
+acknowledged repository/workspace binding and does not auto-send, switch branches,
+publish a response or resolve a discussion. Context revisions have distinct IDs.
+
+Observed development verification:
+
+- PR core tests: 12 passed; Native-feature UI PR tests: 2 passed; existing
+  Composer draft behavior tests: 4 passed. Host and Native builds pass.
+- Host process/schema fixture passes thread/comment pagination, creation, reply,
+  resolution, permissions, wrong-PR rejection, changed-head rejection and partial
+  publication receipts. `--live` passes real public #164 reads, with no writes.
+- Actual Electron window completes reply failure/draft retention and retry,
+  resolve/reopen, preserves an existing Composer note, submits the frozen context
+  to the ACP fixture and leaves the GitHub discussion open. The full suite also
+  passes Web-link reuse/isolation, refresh failure/recovery, both themes,
+  minimum-window geometry and restart. The 920px resize request reaches the
+  current 1000px app minimum. Discussion bounds must fit and settle before the
+  capture; `changes-narrow.png` shows cards and Viewed controls fully visible.
+  Returning via a chat PR reference waits for its requested
+  snapshot refresh before clicking the replacement Markdown. Its captures include
+  `discussion-reply-failed.png`, `discussion-reply-and-resolve.png` and
+  `discussion-fix-composer.png` under `test-results/pull-requests/`.
+- Actual macOS Native window creates a line-3 discussion, retains the draft after
+  a fixture publication failure, retries successfully, replies, resolves/reopens,
+  and prepares a repair draft without replacing the existing input. A new Native
+  fixture Agent session receives the repair request and completes its turn.
+  The ACP capture contains the original discussion, reply, head SHA, file and
+  original diff. Discussion status remains open after Agent submission.
+- Native captures inspected: `native-discussion-publish-failed.png`,
+  `native-discussion-published.png`, `native-fix-composer.png` and
+  `native-agent-received.png`. These ignored local artifacts are fixture evidence,
+  not GitHub publications or packaged-release acceptance.
+- After the viewport correction, the final rebuilt Native window also passes
+  annotation creation, typing/cancel and repair-context append while retaining
+  existing input. `native-final-composer.png` records this final build.
+- The UI exercise exposed and resolved the Wasm
+  [PR relative-time panic](../issues/2026-11-14-pr-opened-time-wasm.md) and Native
+  [accessibility autoscroll rollback crash](../issues/2026-11-14-native-pr-discussion-a11y-rollback.md).
+  The shared platform clock and pinned dependency patch keep their existing owners.
+  The patch-builder test passes; the upstream Rust test target is not runnable
+  from the published crate because its test assets/dependencies are omitted.
+- The existing [Diff viewport incident](../issues/2026-11-13-pr-diff-header-viewport.md)
+  records a resize regression found by screenshot inspection. Deferred viewport
+  notification fixes the stale width; nested review Diffs retain their observers.
+  Both patch-builder checks and the stricter actual Electron geometry test pass.
+- `npm run check`, the Desktop CI contract and `git diff --check` pass.
+
+GitHub write acceptance uses the isolated CLI process fixture; no real GitHub
+comment or resolution was published. ACP submission receipts establish context
+delivery, not a real model applying a justified code fix. Signed packages,
+Windows/Linux and screen-reader behavior remain unverified.

@@ -28,6 +28,26 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   write('source/crates/base/src/lib.rs', '// original\n');
   write('source/crates/shared/Cargo.toml', '[package]\nname="shared"\nversion="0.1.0"\n');
   write('source/crates/shared/src/lib.rs', '');
+  // Exercise the actual viewport patch against its current source seams.
+  write('source/crates/component/src/diff/mod.rs', `
+                                let painted = state.geometry().borrow().painted_width();
+                                code_width(painted, gutter_width, lane_width, rem, mode)
+                            };
+                            if state.record_paint(bounds.size, painted) || rehinted {
+                                cx.notify();
+                            }
+                        });
+                    }
+    };
+    let state = code.state.clone();
+    let name = document.path().clone();
+    v_flex()
+        .id("file-header")
+        .w_full()
+        .when(file > 0, |this| this.border_t_1())
+        .border_b_1()
+        .border_color(border)
+`);
   // Keep this fixture cache unique without relying on mtimes.
   write('source/fixture-id', root);
   for (const [name, before, after] of [
@@ -37,7 +57,9 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
     ['gpui-component-0.9.0-menu-height', 'html patched', 'menu patched'],
     ['gpui-component-0.9.0-diff-header-viewport', 'menu patched', 'all patched'],
   ]) {
-    write(`patches/${name}.patch`, `diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
+    const actual = name === 'gpui-component-0.9.0-diff-header-viewport'
+      ? readFileSync(new URL(`../../patches/${name}.patch`, import.meta.url), 'utf8') : '';
+    write(`patches/${name}.patch`, `${actual}diff --git a/crates/base/src/lib.rs b/crates/base/src/lib.rs\n--- a/crates/base/src/lib.rs\n+++ b/crates/base/src/lib.rs\n@@ -1 +1 @@\n-// ${before}\n+// ${after}\n`);
   }
   write('prepare.mjs', 'import {patchedKit, prepareKit} from "./scripts/lib/gpui-kit.mjs"; await prepareKit(); console.log(patchedKit);');
   const prepare = () => execFileSync(process.execPath, ['prepare.mjs'], {
@@ -48,6 +70,9 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
   t.after(() => rmSync(patched, { recursive: true, force: true }));
   assert.equal(prepare(), patched, 'an unchanged source reuses the patched cache');
   assert.equal(readFileSync(join(patched, 'crates/base/src/lib.rs'), 'utf8'), '// all patched\n');
+  const diff = readFileSync(join(patched, 'crates/component/src/diff/mod.rs'), 'utf8');
+  assert.match(diff, /cx\.defer\(move \|cx\|/);
+  assert.match(diff, /\.id\("file-header"\)[\s\S]*\.w\(viewport\)/);
   assert.equal(readFileSync(join(root, 'source/crates/base/src/lib.rs'), 'utf8'), '// original\n');
   assert.equal(readFileSync(join(root, 'source/crates/base/Cargo.toml'), 'utf8'), base);
   const workspace = readFileSync(new URL('../../Cargo.toml', import.meta.url), 'utf8')

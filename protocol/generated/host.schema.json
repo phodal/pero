@@ -8792,6 +8792,12 @@
           "$ref": "#/$defs/PullRequestListedEvent"
         },
         {
+          "$ref": "#/$defs/PullRequestDiscussionUpdatedEvent"
+        },
+        {
+          "$ref": "#/$defs/PullRequestDiscussionPublishedEvent"
+        },
+        {
           "$ref": "#/$defs/WorkspaceChangesEvent"
         },
         {
@@ -13379,6 +13385,87 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestAddDiscussion": {
+      "title": "PullRequestAddDiscussion",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "add_discussion"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "left"
+            },
+            {
+              "type": "string",
+              "const": "right"
+            }
+          ]
+        },
+        "line": {
+          "type": "integer"
+        },
+        "start_line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_side": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "left"
+            },
+            {
+              "type": "string",
+              "const": "right"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "reference",
+        "head_sha",
+        "path",
+        "side",
+        "line",
+        "body"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestCheck": {
       "title": "PullRequestCheck",
       "type": "object",
@@ -13513,6 +13600,280 @@
         "request_id",
         "text",
         "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscussion": {
+      "title": "PullRequestDiscussion",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "original_line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "original_start_line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "side": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "left"
+            },
+            {
+              "type": "string",
+              "const": "right"
+            }
+          ]
+        },
+        "start_side": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "left"
+            },
+            {
+              "type": "string",
+              "const": "right"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outdated": {
+          "type": "boolean"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "can_reply": {
+          "type": "boolean"
+        },
+        "can_resolve": {
+          "type": "boolean"
+        },
+        "can_unresolve": {
+          "type": "boolean"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestDiscussionComment"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "line",
+        "original_line",
+        "start_line",
+        "original_start_line",
+        "side",
+        "start_side",
+        "outdated",
+        "resolved",
+        "can_reply",
+        "can_resolve",
+        "can_unresolve",
+        "comments"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscussionComment": {
+      "title": "PullRequestDiscussionComment",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "diff_hunk": {
+          "type": "string"
+        },
+        "commit_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "original_commit_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "author",
+        "body",
+        "url",
+        "created_at",
+        "updated_at",
+        "diff_hunk",
+        "commit_sha",
+        "original_commit_sha"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscussionPublishedEvent": {
+      "title": "PullRequestDiscussionPublishedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_discussion_published"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reference"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PullRequestDiscussionUpdatedEvent": {
+      "title": "PullRequestDiscussionUpdatedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pull_request_discussion_updated"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "reference": {
+              "type": "string"
+            },
+            "discussion": {
+              "$ref": "#/$defs/PullRequestDiscussion"
+            }
+          },
+          "required": [
+            "reference",
+            "discussion"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
         "data"
       ],
       "additionalProperties": false
@@ -13841,6 +14202,41 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestReply": {
+      "title": "PullRequestReply",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "reply"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "discussion_id": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "reference",
+        "discussion_id",
+        "body"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestRequest": {
       "title": "PullRequestRequest",
       "oneOf": [
@@ -13852,6 +14248,15 @@
         },
         {
           "$ref": "#/$defs/PullRequestListRequest"
+        },
+        {
+          "$ref": "#/$defs/PullRequestReply"
+        },
+        {
+          "$ref": "#/$defs/PullRequestSetResolved"
+        },
+        {
+          "$ref": "#/$defs/PullRequestAddDiscussion"
         }
       ]
     },
@@ -13930,6 +14335,33 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestSectionPullRequestDiscussion": {
+      "title": "PullRequestSectionPullRequestDiscussion",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PullRequestDiscussion"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "error"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestSectionPullRequestFile": {
       "title": "PullRequestSectionPullRequestFile",
       "type": "object",
@@ -13984,6 +14416,41 @@
       ],
       "additionalProperties": false
     },
+    "PullRequestSetResolved": {
+      "title": "PullRequestSetResolved",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "pull_requests"
+        },
+        "action": {
+          "type": "string",
+          "const": "set_resolved"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "discussion_id": {
+          "type": "string"
+        },
+        "resolved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "method",
+        "action",
+        "request_id",
+        "reference",
+        "discussion_id",
+        "resolved"
+      ],
+      "additionalProperties": false
+    },
     "PullRequestSnapshot": {
       "title": "PullRequestSnapshot",
       "type": "object",
@@ -14029,6 +14496,9 @@
         "head_sha": {
           "type": "string"
         },
+        "base_sha": {
+          "type": "string"
+        },
         "additions": {
           "type": "integer"
         },
@@ -14055,6 +14525,9 @@
         },
         "reviews": {
           "$ref": "#/$defs/PullRequestSectionPullRequestReview"
+        },
+        "discussions": {
+          "$ref": "#/$defs/PullRequestSectionPullRequestDiscussion"
         }
       },
       "required": [

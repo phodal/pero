@@ -166,11 +166,16 @@ impl Workbench {
             .filter(|(path, _)| state.shows_file(path))
             .map(|(path, key)| (path.clone(), self.t(key)))
             .collect();
-        let annotations: Vec<_> = notices
+        let mut annotations: Vec<_> = notices
             .iter()
             .enumerate()
             .map(|(index, (path, _))| DiffAnnotation::file(("pr-notice", index), path.clone()))
             .collect();
+        annotations.extend(self.pull_request_discussion_annotations(view));
+        let discussion_owner = owner.clone();
+        let discussion_reference = reference.clone();
+        let add_owner = owner.clone();
+        let add_reference = reference.clone();
         let diff = Diff::new(&view.diff.state)
             .border_0()
             .size_full()
@@ -179,6 +184,15 @@ impl Workbench {
             .soft_wrap(self.preferences.layout.diff_soft_wrap)
             .annotations(annotations)
             .render_annotation(move |annotation, _, cx| {
+                if let Ok(Some(content)) = discussion_owner.update(cx, |this, cx| {
+                    let view = this
+                        .pull_requests
+                        .iter()
+                        .find(|view| view.state.reference == discussion_reference)?;
+                    this.render_pull_request_annotation(view, annotation, cx)
+                }) {
+                    return content;
+                }
                 let chrome = pero_theme::Chrome::from_app(cx);
                 div()
                     .p(px(SPACE_16))
@@ -191,6 +205,12 @@ impl Workbench {
                             .map(|(_, text)| *text)
                             .unwrap_or_default(),
                     )
+                    .into_any_element()
+            })
+            .on_add_annotation(move |range, window, cx| {
+                let _ = add_owner.update(cx, |this, cx| {
+                    this.begin_pull_request_discussion(&add_reference, range.clone(), window, cx)
+                });
             })
             .render_header_suffix(move |file, _, cx| {
                 let chrome = pero_theme::Chrome::from_app(cx);
@@ -275,6 +295,15 @@ impl Workbench {
             .flex_1()
             .min_h_0()
             .min_w_0()
+            .when_some(snapshot.discussions.error.as_ref(), |el, error| {
+                el.child(pero_theme::feedback(
+                    "pr-discussions-error",
+                    self.t("pr.discussions_failed"),
+                    error.clone(),
+                    pero_theme::FeedbackKind::Warning,
+                    chrome,
+                ))
+            })
             .when(
                 snapshot.files.items.len() as u64 != snapshot.changed_files,
                 |el| {

@@ -5,9 +5,10 @@ import { root } from './paths.mjs';
 import { run } from './run.mjs';
 import { prepareWebBackend, webBackend } from './gpui-web.mjs';
 import {patchedKit,prepareKit} from './gpui-kit.mjs';
+import {fastBackend,prepareFastBackend} from './gpui-fast.mjs';
 export {kit} from './gpui-kit.mjs';
 
-const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-webview', 'gpui-pre-web'];
+const patchedCrates = ['gpui-kit', 'gpui-base', 'gpui-component', 'gpui-component-macros', 'gpui-kit-assets', 'gpui-webview', 'gpui-pre-web', 'gpui-fast'];
 
 export function cargoArgs(args) {
   const crates = { 'gpui-kit': 'kit', 'gpui-base': 'base', 'gpui-component': 'component',
@@ -15,7 +16,8 @@ export function cargoArgs(args) {
   const toolchain = args[0]?.startsWith('+') ? [args.shift()] : [];
   return [...toolchain, ...Object.entries(crates).flatMap(([name, path]) => [
     '--config', `patch.crates-io.${name}.path=${JSON.stringify(resolve(patchedKit, 'crates', path))}`,
-  ]), '--config', `patch.crates-io.gpui-pre-web.path=${JSON.stringify(webBackend)}`, ...args];
+  ]), '--config', `patch.crates-io.gpui-pre-web.path=${JSON.stringify(webBackend)}`,
+  '--config', `patch.crates-io.gpui-fast.path=${JSON.stringify(fastBackend)}`, ...args];
 }
 
 function lockUsesRegistryGpui() {
@@ -33,6 +35,7 @@ function lockUsesRegistryGpui() {
 export async function ensureGpuiLock() {
   await prepareKit();
   await prepareWebBackend();
+  await prepareFastBackend();
   if (!lockUsesRegistryGpui()) return;
   const lock = resolve(root, 'Cargo.lock');
   const backup = resolve(tmpdir(), `pero-Cargo.lock.${process.pid}`);

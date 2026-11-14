@@ -112,3 +112,35 @@ No timestamps, per-commit file statistics, unresolved discussion counts or
 chronological ordering are invented from fields absent in the current snapshot.
 Native inspection and verification receipts are recorded in the existing PR
 fitness record after the implementation is built.
+
+## Inline discussion and Agent repair — 2026-11-14
+
+The next increment adds GitHub review threads with their original file, side,
+line, commit and diff context to the existing Changes and Reviews views. Host
+uses the existing GitHub CLI seam to read threads, create a discussion from a
+selected diff line or range, explicitly reply or change their resolved state.
+New discussions bind the displayed head; changed heads require refresh before
+posting. Reviews remain distinct from line discussions; missing or
+outdated anchors retain their original context instead of moving to current code.
+
+Migration: review-body-only reading gains typed discussion snapshots and retained
+thread controls using shared Markdown, inputs, buttons and Diff annotations.
+"Fix with Agent" adds a frozen discussion reference and repair instructions to
+the existing Composer; the user submits through the existing Agent, workspace,
+permission and cancellation owners. It does not auto-send, mark a discussion
+resolved, or treat an Agent completion as a verified fix. Existing drafts and
+discussion input survive refresh and failures.
+
+Scope excludes approving or merging PRs and automatically publishing Agent
+replies. Verify pure discussion/context
+behavior, fixture-backed Host writes and errors, and the real UI from a loaded
+thread through Composer submission. Real GitHub verification is read-only;
+Native, Electron and real-model evidence are recorded separately in the existing
+PR fitness record.
+
+Implemented and exercised in both actual Electron and macOS Native development
+windows, with isolated GitHub/ACP process fixtures. Creation, error recovery,
+reply, resolve/reopen, retained Composer input and frozen-context Agent submission
+are verified. Public GitHub checks remain read-only. The platform-clock and Native
+accessibility rollback defects found during UI verification are fixed; detailed
+receipts and remaining acceptance limits are in the existing fitness record.

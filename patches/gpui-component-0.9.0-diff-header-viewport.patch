@@ -1,6 +1,19 @@
 --- a/crates/component/src/diff/mod.rs
 +++ b/crates/component/src/diff/mod.rs
-@@ -1260,9 +1260,13 @@
+@@ -769,7 +769,11 @@
+                                 code_width(painted, gutter_width, lane_width, rem, mode)
+                             };
+                             if state.record_paint(bounds.size, painted) || rehinted {
+-                                cx.notify();
++                                // Notify after this draw returns, so the owner renders the new viewport.
++                                let state = cx.weak_entity();
++                                cx.defer(move |cx| {
++                                    let _ = state.update(cx, |_, cx| cx.notify());
++                                });
+                             }
+                         });
+                     }
+@@ -1260,9 +1264,13 @@
      };
      let state = code.state.clone();
      let name = document.path().clone();

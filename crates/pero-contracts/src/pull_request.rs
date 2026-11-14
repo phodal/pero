@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 #[path = "pull_request_checks.rs"]
 mod checks;
 pub use checks::{CheckOutcome, CheckSummary};
+#[path = "pull_request_discussion.rs"]
+mod discussion;
+pub use discussion::*;
+#[path = "pull_request_repair.rs"]
+mod repair;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -308,6 +313,9 @@ pub struct PullRequestSection<T> {
     pub items: Vec<T>,
     pub error: Option<String>,
 }
+impl<T> Default for PullRequestSection<T> {
+    fn default() -> Self { Self { items: Vec::new(), error: None } }
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PullRequestFile {
@@ -351,6 +359,8 @@ pub struct PullRequestSnapshot {
     pub base: String,
     pub head: String,
     pub head_sha: String,
+    #[serde(default)]
+    pub base_sha: String,
     pub additions: u64,
     pub deletions: u64,
     pub changed_files: u64,
@@ -358,6 +368,8 @@ pub struct PullRequestSnapshot {
     pub commits: PullRequestSection<PullRequestCommit>,
     pub checks: PullRequestSection<PullRequestCheck>,
     pub reviews: PullRequestSection<PullRequestReview>,
+    #[serde(default)]
+    pub discussions: PullRequestSection<PullRequestDiscussion>,
     #[serde(default)]
     pub opened_at: String,
     #[serde(default)]
@@ -389,6 +401,7 @@ impl PullRequestSnapshot {
             files || check_fingerprint(&next.checks.items) != check_fingerprint(&self.checks.items);
         let reviews = next.reviews.items.len() != self.reviews.items.len()
             || ReviewDecision::from_reviews(&next.reviews.items) != ReviewDecision::from_reviews(&self.reviews.items);
+        let discussions = next.discussions != self.discussions;
         let body = next.body != self.body;
         let mut merged = self;
         merged.title = next.title;
@@ -396,12 +409,14 @@ impl PullRequestSnapshot {
         merged.author = next.author;
         merged.opened_at = next.opened_at;
         merged.mergeable_state = next.mergeable_state;
+        if discussions { merged.discussions = next.discussions; }
         if body {
             merged.body = next.body;
         }
         if files {
             merged.head = next.head;
             merged.head_sha = next.head_sha;
+            merged.base_sha = next.base_sha;
             merged.base = next.base;
             merged.additions = next.additions;
             merged.deletions = next.deletions;
@@ -422,6 +437,7 @@ impl PullRequestSnapshot {
                 commits: files,
                 checks,
                 reviews,
+                discussions,
                 body,
             },
         )
@@ -434,6 +450,7 @@ pub struct SectionRefresh {
     pub commits: bool,
     pub checks: bool,
     pub reviews: bool,
+    pub discussions: bool,
     pub body: bool,
 }
 impl SectionRefresh {
@@ -443,6 +460,7 @@ impl SectionRefresh {
             commits: true,
             checks: true,
             reviews: true,
+            discussions: true,
             body: true,
         }
     }
@@ -479,6 +497,9 @@ pub enum PullRequestAction {
         repository: RepositoryName,
         state: PullRequestListState,
     },
+    Reply { reference: PullRequestRef, discussion_id: String, body: DiscussionBody },
+    SetResolved { reference: PullRequestRef, discussion_id: String, resolved: bool },
+    AddDiscussion { reference: PullRequestRef, #[serde(flatten)] discussion: NewPullRequestDiscussion },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PullRequestMethod {
@@ -582,6 +603,7 @@ impl PullRequestView {
                     retain!(commits);
                     retain!(checks);
                     retain!(reviews);
+                    retain!(discussions);
                 }
                 if partial {
                     if let Some(previous) = self.snapshot.clone() {
@@ -738,11 +760,14 @@ mod tests {
         );
     }
     #[test]
-    fn read_requests_decode_at_the_boundary() {
+    fn pull_request_requests_decode_at_the_boundary() {
         for request in [
             serde_json::json!({"method":"pull_requests","action":"load","request_id":"a","reference":"https://github.com/phodal/pero/pull/164"}),
             serde_json::json!({"method":"pull_requests","action":"discover","request_id":"b","thread_id":"thread"}),
             serde_json::json!({"method":"pull_requests","action":"list","request_id":"c","repository":"Phodal/Pero","state":"open"}),
+            serde_json::json!({"method":"pull_requests","action":"reply","request_id":"d","reference":"https://github.com/phodal/pero/pull/164","discussion_id":"thread","body":"Reply"}),
+            serde_json::json!({"method":"pull_requests","action":"set_resolved","request_id":"e","reference":"https://github.com/phodal/pero/pull/164","discussion_id":"thread","resolved":true}),
+            serde_json::json!({"method":"pull_requests","action":"add_discussion","request_id":"f","reference":"https://github.com/phodal/pero/pull/164","head_sha":"head","path":"a.rs","side":"right","line":1,"body":"Comment"}),
         ] {
             let decoded: PullRequestRequest = serde_json::from_value(request).unwrap();
             assert!(!decoded.request_id.is_empty());

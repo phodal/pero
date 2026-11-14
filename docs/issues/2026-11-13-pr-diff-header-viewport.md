@@ -54,3 +54,26 @@ omitted the newly persisted `diff_soft_wrap` field. Exact object comparisons
 then reported nine cascading preference failures. The compatibility expectation
 now includes the default true value, and the saved preference explicitly uses
 false so acknowledgement, rejection retention and restart prove both cases.
+
+## Inline review resize follow-up — 2026-11-14
+
+The new discussion UI exposed another retained-width case during actual Electron
+resize. The PR reading viewport became 740px wide, while discussion cards kept
+their previous 785px width at x=271.5. The right edge and Viewed control were
+clipped. A bounded geometry assertion still failed after five seconds, so this
+was not accepted as a screenshot timing issue.
+
+Runtime observations showed that Diff recorded the correct 740px viewport, but
+no render followed its notification during prepaint. The shared patch now defers
+that notification until the current draw returns, using Kit's existing weak
+entity pattern. The renderer then consumes the new viewport without a second
+width cache or resetting selection and scroll.
+
+The nested original-context Diff also now retains its observer alongside the
+input observer, including when comment bodies are refreshed, so interactions
+notify their Workbench render owner.
+
+The rebuilt actual Electron suite passes the strict bounds-and-stability check
+and restart. The final minimum-window screenshot shows the discussion cards and
+Viewed controls inside the reading area. Detailed receipts are in the PR fitness
+record.

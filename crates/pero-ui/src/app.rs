@@ -877,7 +877,7 @@ pub fn snapshot() -> String {
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
         value["chatCloseButtonBounds"] = ui.view_bounds.chat_close.snapshot()["float-chat-close"].clone();
         value["chatVisible"] = serde_json::json!(ui.chat_visible());
-        value["pullRequests"]=json!(ui.pull_requests.iter().map(|view|json!({"reference":view.state.reference,"pending":view.state.pending,"error":view.state.error,"tab":view.state.tab,"selectedFile":view.state.selected_file,"snapshot":view.state.snapshot})).collect::<Vec<_>>());
+        value["pullRequests"]=json!(ui.pull_requests.iter().map(|view|json!({"reference":view.state.reference,"pending":view.state.pending,"error":view.state.error,"tab":view.state.tab,"selectedFile":view.state.selected_file,"snapshot":view.state.snapshot,"discussions":view.discussions.snapshot(cx)})).collect::<Vec<_>>());
         value["prControls"]=ui.view_bounds.pull_request.snapshot();
         value["webDocuments"]=json!(ui.web_documents);
         value["webAddress"]=json!(ui.web_address.read(cx).value().as_ref());
