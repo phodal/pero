@@ -610,7 +610,8 @@ impl Workbench {
                 },
             )
             .when(
-                !matches!(self.layout.chat, ChatPlacement::Slot | ChatPlacement::Float)
+                !self.project_agent_active()
+                    && !matches!(self.layout.chat, ChatPlacement::Slot | ChatPlacement::Float)
                     && (self.navigation.page() == WorkbenchPage::Tasks
                         || self.navigation.page() == WorkbenchPage::Web
                         || matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))),

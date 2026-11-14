@@ -117,7 +117,7 @@ impl Workbench {
             .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
-        self.project_tab = ProjectTab::Overview;
+        self.project_tab = if project.research_id().is_some() { ProjectTab::Agent } else { ProjectTab::Overview };
         self.cancel_research_editor();
         self.research.choosing = false;
         self.refresh_project_resources(cx);
@@ -144,6 +144,7 @@ impl Workbench {
             self.command(json!({"action":"workspace","path":workspace}), cx);
         }
         self.command(json!({"action":"remote_select","task_id":null}), cx);
+        if self.project_agent_active() { self.select_project_conversation(cx); }
         self.sync_follow(cx);
         cx.notify();
     }
@@ -438,6 +439,9 @@ impl Workbench {
         narrow: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        if self.project_agent_active() {
+            return self.project_agent_view(cx);
+        }
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self.current_project(cx);
         let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some());
@@ -496,7 +500,7 @@ impl Workbench {
                                     }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.project_tab = tab;
-                                        if tab == ProjectTab::Agent { this.refresh_project_agents(cx); }
+                                        if tab == ProjectTab::Agent { this.show_project_agents(cx); }
                                         if tab == ProjectTab::Sources {
                                             if let Some(repository) = this.listed_repositories(cx).into_iter().next() {
                                                 let state = this.pull_request_index.state;
@@ -527,6 +531,7 @@ impl Workbench {
             .when(self.project_tab == ProjectTab::Settings, |el| {
                 el.child(self.project_settings(cx))
             })
+            .into_any_element()
     }
 
     fn project_sources(&self, cx: &mut Context<Self>) -> impl IntoElement {

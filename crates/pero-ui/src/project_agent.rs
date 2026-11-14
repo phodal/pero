@@ -3,17 +3,13 @@ use crate::{app::Workbench, projects::ProjectTab};
 use gpui_kit::{
     component::{
         button::*,
-        input::{InputEvent, Textarea, TextareaState},
         menu::{DropdownMenu, PopupMenuItem},
         *,
     },
     prelude::*,
     *,
 };
-use pero_contracts::{
-    HostEvent,
-    project_agent::{ProjectAgentSession, ProjectAgentSnapshot},
-};
+use pero_contracts::{HostEvent, project_agent::ProjectAgentSnapshot};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -25,20 +21,17 @@ pub(crate) struct ProjectAgentsView {
     dirty: BTreeSet<String>,
     errors: BTreeMap<String, String>,
     selected_agent: Option<String>,
-    instruction: Option<ProjectInstruction>,
-}
-struct ProjectInstruction {
-    project_id: String,
-    thread_id: String,
-    label: String,
-    input: Entity<TextareaState>,
-    _subscription: Subscription,
+    selected_threads: BTreeMap<String, String>,
+    context_open: bool,
 }
 impl ProjectAgentsView {
+    pub(crate) fn snapshot_for(&self, project: &str) -> Option<&ProjectAgentSnapshot> {
+        self.snapshots.get(project)
+    }
     #[cfg(target_family = "wasm")]
-    pub fn snapshot(&self, cx: &App) -> Value {
+    pub fn snapshot(&self, _cx: &App) -> Value {
         json!({"snapshots":self.snapshots,"loading":self.loading,"errors":self.errors,
-            "instruction":self.instruction.as_ref().map(|item|json!({"project_id":item.project_id,"thread_id":item.thread_id,"text":item.input.read(cx).value().as_ref()}))})
+            "selected_threads":self.selected_threads,"context_open":self.context_open})
     }
 }
 
@@ -54,7 +47,9 @@ impl Workbench {
     }
     pub(crate) fn show_project_agents(&mut self, cx: &mut Context<Self>) {
         self.project_tab = ProjectTab::Agent;
+        self.select_project_conversation(cx);
         self.refresh_project_agents(cx);
+        self.refresh_project_resources(cx);
         cx.notify();
     }
     fn request_project_agents(
@@ -116,23 +111,15 @@ impl Workbench {
                             self.project_agents
                                 .snapshots
                                 .insert(project.clone(), snapshot);
-                            if pending
-                                .as_ref()
-                                .is_some_and(|(_, action)| action == "followup")
+                            if self.project_agent_active()
                                 && self
-                                    .project_agents
-                                    .instruction
-                                    .as_ref()
-                                    .is_some_and(|item| item.project_id == project)
-                            {
-                                self.project_agents.instruction = None;
-                            }
-                            if self
-                                .saved_research_project()
-                                .is_some_and(|current| current.id == project)
+                                    .saved_research_project()
+                                    .is_some_and(|current| current.id == project)
                             {
                                 if let Some(thread) = selected {
                                     self.open_project_agent_session(&thread, cx);
+                                } else if self.project_agent_active() {
+                                    self.select_project_conversation(cx);
                                 }
                             }
                         }
@@ -198,66 +185,93 @@ impl Workbench {
         }
         false
     }
-    fn open_project_agent_session(&mut self, thread: &str, cx: &mut Context<Self>) {
+    pub(crate) fn project_agent_active(&self) -> bool {
+        self.project_tab == ProjectTab::Agent
+            && self.navigation.page() == crate::workspace::WorkbenchPage::Tasks
+            && self.saved_research_project().is_some()
+            && matches!(self.navigation.current(), Some(crate::workspace::WorkspaceItem::Project(key)) if Some(key.as_str()) == self.selected_project.as_deref())
+    }
+
+    pub(crate) fn project_agent_thread(&self) -> Option<&str> {
+        let project = self.saved_research_project()?;
+        let snapshot = self.project_agents.snapshot_for(&project.id)?;
+        self.project_agents
+            .selected_threads
+            .get(&project.id)
+            .and_then(|id| {
+                snapshot
+                    .sessions
+                    .iter()
+                    .find(|session| &session.thread_id == id)
+            })
+            .or_else(|| {
+                snapshot
+                    .sessions
+                    .iter()
+                    .find(|session| session.binding.parent_thread.is_none())
+            })
+            .map(|session| session.thread_id.as_str())
+    }
+
+    pub(crate) fn select_project_conversation(&mut self, cx: &mut Context<Self>) {
+        if let Some(thread) = self.project_agent_thread().map(str::to_owned) {
+            self.open_project_agent_session(&thread, cx);
+        }
+    }
+
+    pub(crate) fn open_project_agent_session(&mut self, thread: &str, cx: &mut Context<Self>) {
         let index = self
             .chat
             .read(cx)
             .chats
             .iter()
             .position(|chat| chat.id == thread);
-        if let Some(index) = index {
-            self.chat.update(cx, |chat, cx| {
-                chat.set_scope(None, cx);
-                chat.focus_chat(Some(index), cx);
-            });
-            self.tab = crate::workspace::ConversationTab::Chat;
-            self.set_chat_dock(true, cx);
-        }
-    }
-    fn project_instruction(
-        &mut self,
-        session: &ProjectAgentSession,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let input = cx.new(|cx| TextareaState::new(window, cx));
-        let subscription = cx.subscribe(&input, |_, _, _: &InputEvent, cx| cx.notify());
-        self.project_agents.instruction = Some(ProjectInstruction {
-            project_id: session.binding.project_id.clone(),
-            thread_id: session.thread_id.clone(),
-            label: session.binding.label.clone(),
-            input: input.clone(),
-            _subscription: subscription,
-        });
-        input.update(cx, |input, cx| input.focus(window, cx));
-        cx.notify();
-    }
-    fn send_project_instruction(&mut self, cx: &mut Context<Self>) {
-        let Some(item) = self.project_agents.instruction.as_ref() else {
+        let Some(project) = index
+            .and_then(|index| self.chat.read(cx).chats[index].project_agent.as_ref())
+            .map(|binding| binding.project_id.clone())
+        else {
             return;
         };
-        let (project, thread, prompt) = (
-            item.project_id.clone(),
-            item.thread_id.clone(),
-            item.input.read(cx).value().to_string(),
-        );
-        if prompt.trim().is_empty() {
-            return;
+        if let Some(index) = index {
+            let key = format!("research:{project}");
+            self.selected_project = Some(key.clone());
+            self.navigation
+                .open(crate::workspace::WorkspaceItem::Project(key));
+            self.project_tab = ProjectTab::Agent;
+            self.project_agents
+                .selected_threads
+                .insert(project, thread.into());
+            self.chat.update(cx, |chat, cx| {
+                chat.set_scope(None, cx);
+                if chat.active_chat != Some(index) {
+                    chat.focus_chat(Some(index), cx);
+                }
+            });
+            self.tab = crate::workspace::ConversationTab::Chat;
+            if self
+                .project_agents
+                .snapshot_for(
+                    self.saved_research_project()
+                        .map(|project| project.id.as_str())
+                        .unwrap_or_default(),
+                )
+                .is_none()
+            {
+                self.refresh_project_agents(cx);
+                self.refresh_project_resources(cx);
+            }
+            self.sync_follow(cx);
+            cx.notify();
         }
-        self.request_project_agents(
-            &project,
-            "followup",
-            json!({"thread_id":thread,"prompt":prompt}),
-            cx,
-        );
     }
+
     pub(crate) fn project_agent_view(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let Some(project) = self.saved_research_project() else {
             return div().into_any_element();
         };
         let id = project.id.clone();
-        let snapshot = self.project_agents.snapshots.get(&id);
+        let snapshot = self.project_agents.snapshot_for(&id);
         let loading = self.project_agents.loading.contains(&id);
         let error = self.project_agents.errors.get(&id);
         let primary = snapshot.and_then(|snapshot| {
@@ -266,15 +280,217 @@ impl Workbench {
                 .iter()
                 .find(|session| session.binding.parent_thread.is_none())
         });
-        let children = snapshot
-            .map(|snapshot| {
-                snapshot
+        let selected = self
+            .chat
+            .read(cx)
+            .active_chat
+            .and_then(|index| self.chat.read(cx).chats.get(index))
+            .and_then(|chat| {
+                snapshot?
                     .sessions
                     .iter()
-                    .filter(|session| session.binding.parent_thread.is_some())
-                    .collect::<Vec<_>>()
+                    .find(|session| session.thread_id == chat.id)
+            });
+        let external_resources = self.chat.read(cx).resource_column.is_some();
+        let narrow_context =
+            !external_resources && self.layout.narrow && self.project_agents.context_open;
+        let context = !external_resources && (!self.layout.narrow || narrow_context);
+        let primary_thread = primary.map(|session| session.thread_id.clone());
+        let summarize_id = id.clone();
+        let can_summarize = primary
+            .is_some_and(|session| !matches!(session.status.as_str(), "running" | "cancelling"));
+        div()
+            .id("project-agent")
+            .size_full()
+            .min_w_0()
+            .min_h_0()
+            .flex()
+            .when(!narrow_context, |el| {
+                el.child(
+                    div()
+                        .id("project-agent-conversation")
+                        .flex_1()
+                        .min_w_0()
+                        .min_h_0()
+                        .h_full()
+                        .flex()
+                        .flex_col()
+                        .bg(p.surface)
+                        .relative()
+                        .child(self.view_bounds.projects.probe("agent:conversation".into()))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .flex()
+                                .items_center()
+                                .gap(px(pero_theme::SPACE_8))
+                                .px(px(pero_theme::SPACE_16))
+                                .py(px(pero_theme::SPACE_8))
+                                .child(
+                                    pero_theme::ghost_icon_button(
+                                        "project-agent-back",
+                                        pero_theme::Chrome::from_app(cx),
+                                        cx,
+                                    )
+                                    .icon(Icon::default().path("icons/arrow-left.svg"))
+                                    .accessibility_label(self.t("project.overview"))
+                                    .tooltip(self.t("project.overview"))
+                                    .on_click(cx.listener(
+                                        |this, _, _, cx| {
+                                            this.project_tab = ProjectTab::Overview;
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
+                                        .text_ellipsis()
+                                        .whitespace_nowrap()
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .child(
+                                            selected
+                                                .map(|session| {
+                                                    if session.binding.parent_thread.is_none() {
+                                                        self.t("project.agent.primary").to_owned()
+                                                    } else {
+                                                        session.binding.label.clone()
+                                                    }
+                                                })
+                                                .unwrap_or_else(|| project.title.clone()),
+                                        ),
+                                )
+                                .when_some(
+                                    selected
+                                        .filter(|session| session.binding.parent_thread.is_some()),
+                                    |el, _| {
+                                        let primary = primary_thread.clone();
+                                        el.child(
+                                            Button::new("project-agent-main")
+                                                .ghost()
+                                                .small()
+                                                .label(self.t("project.agent.primary"))
+                                                .on_click(cx.listener(move |this, _, _, cx| {
+                                                    if let Some(thread) = &primary {
+                                                        this.open_project_agent_session(thread, cx);
+                                                    }
+                                                })),
+                                        )
+                                    },
+                                )
+                                .when(primary.is_some(), |el| {
+                                    el.child(
+                                        Button::new("project-agent-summarize")
+                                            .ghost()
+                                            .small()
+                                            .label(self.t("project.agent.summarize"))
+                                            .disabled(loading || !can_summarize)
+                                            .relative()
+                                            .child(
+                                                self.view_bounds
+                                                    .projects
+                                                    .probe("agent:summarize".into()),
+                                            )
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                if let Some(thread) = &primary_thread {
+                                                    this.request_project_agents(
+                                                        &summarize_id,
+                                                        "summarize",
+                                                        json!({"thread_id":thread}),
+                                                        cx,
+                                                    );
+                                                }
+                                            })),
+                                    )
+                                })
+                                .child(
+                                    pero_theme::ghost_icon_button(
+                                        "project-agent-refresh",
+                                        pero_theme::Chrome::from_app(cx),
+                                        cx,
+                                    )
+                                    .icon(Icon::default().path("icons/refresh.svg"))
+                                    .accessibility_label(self.t("remote.refresh"))
+                                    .tooltip(self.t("remote.refresh"))
+                                    .disabled(loading)
+                                    .relative()
+                                    .child(self.view_bounds.projects.probe("agent:refresh".into()))
+                                    .on_click(
+                                        cx.listener(|this, _, _, cx| {
+                                            this.refresh_project_agents(cx)
+                                        }),
+                                    ),
+                                )
+                                .child(
+                                    pero_theme::ghost_icon_button(
+                                        "project-agent-context",
+                                        pero_theme::Chrome::from_app(cx),
+                                        cx,
+                                    )
+                                    .icon(Icon::default().path("icons/panel-right-open.svg"))
+                                    .accessibility_label(self.t("project.agent.materials"))
+                                    .tooltip(self.t("project.agent.materials"))
+                                    .relative()
+                                    .child(
+                                        self.view_bounds.projects.probe("agent:materials".into()),
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _, _, cx| {
+                                            this.chat.update(cx, |chat, cx| {
+                                                chat.close_resource_pane(cx)
+                                            });
+                                            this.project_agents.context_open = this.layout.narrow
+                                                && !this.project_agents.context_open;
+                                            cx.notify();
+                                        },
+                                    )),
+                                ),
+                        )
+                        .when_some(error, |el, error| {
+                            el.child(
+                                div()
+                                    .id("project-agent-error")
+                                    .role(Role::Alert)
+                                    .px(px(pero_theme::SPACE_16))
+                                    .py(px(pero_theme::SPACE_8))
+                                    .text_color(p.error)
+                                    .whitespace_normal()
+                                    .child(error.clone()),
+                            )
+                        })
+                        .when(loading, |el| {
+                            el.child(
+                                div()
+                                    .id("project-agent-loading")
+                                    .role(Role::Status)
+                                    .px(px(pero_theme::SPACE_16))
+                                    .text_size(px(pero_theme::TYPE_CAPTION))
+                                    .text_color(p.text_muted)
+                                    .child(self.t("project.agent.loading")),
+                            )
+                        })
+                        .when(selected.is_some(), |el| el.child(self.chat.clone()))
+                        .when(primary.is_none(), |el| {
+                            el.child(self.project_agent_start(snapshot.is_some(), loading, &id, cx))
+                        }),
+                )
             })
-            .unwrap_or_default();
+            .when(context, |el| {
+                el.child(self.project_agent_context(selected.is_some(), cx))
+            })
+            .into_any_element()
+    }
+
+    fn project_agent_start(
+        &self,
+        ready: bool,
+        loading: bool,
+        project: &str,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let agents = self
             .chat
             .read(cx)
@@ -292,464 +508,195 @@ impl Workbench {
             .or_else(|| agents.first());
         let agent_id = selected.map(|agent| agent.id.clone()).unwrap_or_default();
         let selected_id = agent_id.clone();
-        let owner = cx.entity().downgrade();
         let agent_label = selected
             .map(|agent| agent.name.clone())
             .unwrap_or_else(|| self.t("project.agent.no_agent").into());
+        let owner = cx.entity().downgrade();
+        let project = project.to_owned();
         div()
-            .id("project-agent")
             .flex_1()
             .min_h_0()
-            .overflow_y_scroll()
-            .p(px(pero_theme::WorkbenchStyle::PAGE))
             .flex()
             .flex_col()
-            .gap(px(16.))
+            .justify_center()
+            .items_center()
+            .p(px(pero_theme::SPACE_24))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .flex_wrap()
-                    .gap(px(8.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(self.t("project.agent")),
-                    )
-                    .child(
-                        Button::new("project-agent-refresh")
-                            .ghost()
-                            .label(self.t("remote.refresh"))
-                            .disabled(loading)
-                            .relative()
-                            .child(self.view_bounds.projects.probe("agent:refresh".into()))
-                            .on_click(
-                                cx.listener(|this, _, _, cx| this.refresh_project_agents(cx)),
-                            ),
-                    ),
-            )
-            .child(
-                div()
-                    .max_w(px(760.))
-                    .whitespace_normal()
-                    .text_color(p.text_muted)
-                    .child(self.t("project.agent.hint")),
-            )
-            .when_some(error, |el, error| {
-                el.child(
-                    div()
-                        .id("project-agent-error")
-                        .role(Role::Alert)
-                        .text_color(p.error)
-                        .whitespace_normal()
-                        .child(error.clone()),
-                )
-            })
-            .when(loading, |el| {
-                el.child(
-                    div()
-                        .id("project-agent-loading")
-                        .role(Role::Status)
-                        .text_color(p.text_muted)
-                        .child(self.t("project.agent.loading")),
-                )
-            })
-            .child(
-                div()
+                    .max_w(px(520.))
                     .flex()
                     .flex_col()
-                    .gap(px(4.))
+                    .gap(px(pero_theme::SPACE_16))
                     .child(
                         div()
+                            .text_size(px(pero_theme::TYPE_HEADING))
                             .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("research.goal")),
+                            .child(self.t("project.agent.start")),
                     )
-                    .child(div().whitespace_normal().child(if project.goal.is_empty() {
-                        self.t("research.goal_empty").into()
-                    } else {
-                        project.goal.clone()
-                    }))
                     .child(
                         div()
-                            .text_color(p.text_muted)
                             .whitespace_normal()
-                            .child(format!(
-                                "{}: {}",
-                                self.t("research.linked"),
-                                project.resources.len()
-                            )),
-                    ),
-            )
-            .when(primary.is_none() && snapshot.is_some(), |el| {
-                el.child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(8.))
-                        .items_center()
-                        .child(
-                            Button::new("project-agent-choice")
-                                .outline()
-                                .label(agent_label)
-                                .dropdown_caret(true)
-                                .disabled(loading || agents.is_empty())
-                                .dropdown_menu(move |mut menu, _, _| {
-                                    for agent in &agents {
-                                        let owner = owner.clone();
-                                        let id = agent.id.clone();
-                                        menu = menu.item(
-                                            PopupMenuItem::new(agent.name.clone())
-                                                .checked(agent.id == selected_id)
-                                                .on_click(move |_, _, cx| {
-                                                    let _ = owner.update(cx, |this, cx| {
-                                                        this.project_agents.selected_agent =
-                                                            Some(id.clone());
-                                                        cx.notify();
-                                                    });
-                                                }),
-                                        );
-                                    }
-                                    menu
-                                }),
-                        )
-                        .child(
-                            Button::new("project-agent-start")
-                                .primary()
-                                .label(self.t("project.agent.start"))
-                                .disabled(loading || agent_id.is_empty())
-                                .relative()
-                                .child(self.view_bounds.projects.probe("agent:start".into()))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.request_project_agents(
-                                        &id,
-                                        "start",
-                                        json!({"project_id":id,"agent_id":agent_id}),
-                                        cx,
-                                    )
-                                })),
-                        ),
-                )
-            })
-            .when_some(primary, |el, session| {
-                el.child(self.project_agent_row(session, true, loading, cx))
-            })
-            .when(!children.is_empty(), |el| {
-                el.child(
-                    div()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(self.t("project.agent.children")),
-                )
-            })
-            .children(
-                children
-                    .into_iter()
-                    .map(|session| self.project_agent_row(session, false, loading, cx)),
-            )
-            .when(
-                primary.is_some() && snapshot.is_some_and(|snapshot| snapshot.sessions.len() == 1),
-                |el| {
-                    el.child(
-                        div()
                             .text_color(p.text_muted)
-                            .whitespace_normal()
-                            .child(self.t("project.agent.empty")),
+                            .child(self.t("project.agent.hint")),
                     )
-                },
-            )
-            .when_some(
-                self.project_agents
-                    .instruction
-                    .as_ref()
-                    .filter(|item| item.project_id == project.id),
-                |el, item| {
-                    el.child(
+                    .child(
                         div()
                             .flex()
-                            .flex_col()
-                            .gap(px(8.))
-                            .max_w(px(760.))
+                            .flex_wrap()
+                            .gap(px(pero_theme::SPACE_8))
                             .child(
-                                div()
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .whitespace_normal()
-                                    .child(format!(
-                                        "{} · {}",
-                                        self.t("project.agent.followup"),
-                                        item.label
-                                    )),
+                                Button::new("project-agent-choice")
+                                    .ghost()
+                                    .label(agent_label)
+                                    .dropdown_caret(true)
+                                    .disabled(loading || agents.is_empty())
+                                    .dropdown_menu(move |mut menu, _, _| {
+                                        for agent in &agents {
+                                            let owner = owner.clone();
+                                            let id = agent.id.clone();
+                                            menu = menu.item(
+                                                PopupMenuItem::new(agent.name.clone())
+                                                    .checked(agent.id == selected_id)
+                                                    .on_click(move |_, _, cx| {
+                                                        let _ = owner.update(cx, |this, cx| {
+                                                            this.project_agents.selected_agent =
+                                                                Some(id.clone());
+                                                            cx.notify();
+                                                        });
+                                                    }),
+                                            );
+                                        }
+                                        menu
+                                    }),
                             )
                             .child(
-                                div()
+                                Button::new("project-agent-start")
+                                    .primary()
+                                    .label(self.t("project.agent.start"))
+                                    .disabled(!ready || loading || agent_id.is_empty())
                                     .relative()
-                                    .child(
-                                        Textarea::new(&item.input)
-                                            .aria_label(self.t("project.agent.instruction"))
-                                            .h(px(96.))
-                                            .disabled(loading),
-                                    )
-                                    .child(
-                                        self.view_bounds.projects.probe("agent:instruction".into()),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .gap(px(8.))
-                                    .child(
-                                        Button::new("project-agent-send")
-                                            .primary()
-                                            .label(self.t("project.agent.send"))
-                                            .disabled(
-                                                loading
-                                                    || item
-                                                        .input
-                                                        .read(cx)
-                                                        .value()
-                                                        .trim()
-                                                        .is_empty(),
-                                            )
-                                            .relative()
-                                            .child(
-                                                self.view_bounds
-                                                    .projects
-                                                    .probe("agent:send".into()),
-                                            )
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.send_project_instruction(cx)
-                                            })),
-                                    )
-                                    .child(
-                                        Button::new("project-agent-dismiss")
-                                            .ghost()
-                                            .label(self.t("worker.local.cancel"))
-                                            .disabled(loading)
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.project_agents.instruction = None;
-                                                cx.notify();
-                                            })),
-                                    ),
+                                    .child(self.view_bounds.projects.probe("agent:start".into()))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.request_project_agents(
+                                            &project,
+                                            "start",
+                                            json!({"project_id":project,"agent_id":agent_id}),
+                                            cx,
+                                        )
+                                    })),
                             ),
-                    )
-                },
+                    ),
             )
             .into_any_element()
     }
-    fn project_agent_row(
-        &self,
-        session: &ProjectAgentSession,
-        primary: bool,
-        loading: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+
+    fn project_agent_context(&self, has_session: bool, cx: &mut Context<Self>) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let thread = session.thread_id.clone();
-        let followup = session.clone();
-        let cancel_thread = thread.clone();
-        let project = session.binding.project_id.clone();
-        let summary_thread = thread.clone();
-        let summary_project = project.clone();
-        let mut preview = session.result.chars().take(600).collect::<String>();
-        let excerpt = session.result.chars().count() > 600;
-        if excerpt {
-            preview.push('…');
-        }
-        let status_key = match session.status.as_str() {
-            "running" => "filter.running",
-            "completed" => "research.completed",
-            "failed" => "research.failed",
-            "cancelled" => "project.agent.cancelled",
-            "cancelling" => "project.agent.cancelling",
-            "needs_input" => "project.agent.needs_input",
-            "interrupted" => "project.agent.interrupted",
-            _ => "research.idle",
-        };
+        let project = self
+            .saved_research_project()
+            .expect("active project context");
         div()
-            .id(SharedString::from(format!(
-                "project-agent-session:{thread}"
-            )))
-            .py(px(12.))
-            .border_b(px(0.5))
-            .border_color(p.border)
+            .id("project-agent-context")
+            .h_full()
+            .min_h_0()
+            .flex_shrink_0()
             .flex()
             .flex_col()
-            .gap(px(8.))
+            .bg(p.bg)
+            .when(!self.layout.narrow, |el| {
+                el.w(px(self
+                    .chat
+                    .read(cx)
+                    .artifact_pane_width()
+                    .clamp(280., 360.)))
+                    .border_l(px(0.5))
+                    .border_color(p.border)
+            })
+            .when(self.layout.narrow, |el| el.flex_1().min_w_0())
+            .relative()
+            .child(self.view_bounds.projects.probe("agent:context".into()))
             .child(
                 div()
+                    .px(px(pero_theme::SPACE_16))
+                    .py(px(pero_theme::SPACE_8))
                     .flex()
                     .items_center()
-                    .flex_wrap()
-                    .gap(px(8.))
+                    .gap(px(pero_theme::SPACE_8))
                     .child(
                         div()
                             .flex_1()
-                            .min_w_0()
-                            .whitespace_normal()
                             .font_weight(FontWeight::MEDIUM)
-                            .child(if primary {
-                                self.t("project.agent.primary").into()
-                            } else {
-                                session.binding.label.clone()
-                            }),
+                            .child(self.t("project.agent.materials")),
                     )
-                    .child(
-                        div()
-                            .text_color(
-                                if matches!(session.status.as_str(), "failed" | "interrupted") {
-                                    p.error
-                                } else if session.status == "needs_input" {
-                                    p.warning
-                                } else {
-                                    p.text_muted
-                                },
+                    .when(has_session, |el| {
+                        el.child(
+                            Button::new("project-agent-artifacts")
+                                .ghost()
+                                .small()
+                                .label(self.t("artifacts.title"))
+                                .relative()
+                                .child(self.view_bounds.projects.probe("agent:artifacts".into()))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.project_agents.context_open = false;
+                                    this.chat.update(cx, |chat, cx| {
+                                        chat.open_resource_tab(
+                                            pero_contracts::workbench::ResourceTab::Artifacts,
+                                            cx,
+                                        )
+                                    });
+                                    cx.notify();
+                                })),
+                        )
+                    })
+                    .when(self.layout.narrow, |el| {
+                        el.child(
+                            pero_theme::ghost_icon_button(
+                                "project-agent-context-back",
+                                pero_theme::Chrome::from_app(cx),
+                                cx,
                             )
-                            .child(self.t(status_key)),
-                    ),
-            )
-            .child(
-                div()
-                    .text_color(p.text_muted)
-                    .text_size(px(12.))
-                    .whitespace_normal()
-                    .child(format!("{} · {}", session.agent_id, session.workspace)),
-            )
-            .when_some(session.error.as_ref(), |el, error| {
-                el.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "project-agent-error:{}",
-                            session.thread_id
-                        )))
-                        .role(Role::Alert)
-                        .text_color(p.error)
-                        .whitespace_normal()
-                        .child(error.clone()),
-                )
-            })
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(8.))
-                    .child(
-                        Button::new(SharedString::from(format!("agent-open:{thread}")))
-                            .outline()
-                            .label(self.t("project.agent.open"))
+                            .icon(Icon::default().path("icons/x.svg"))
+                            .accessibility_label(self.t("chat.panel_title"))
+                            .tooltip(self.t("chat.panel_title"))
                             .relative()
                             .child(
                                 self.view_bounds
                                     .projects
-                                    .probe(format!("agent:open:{thread}")),
+                                    .probe("agent:context-close".into()),
                             )
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.open_project_agent_session(&thread, cx)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.project_agents.context_open = false;
+                                cx.notify();
                             })),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!(
-                            "agent-followup:{}",
-                            session.thread_id
-                        )))
-                        .ghost()
-                        .label(self.t("project.agent.followup"))
-                        .disabled(loading || session.status == "cancelling")
-                        .relative()
-                        .child(
-                            self.view_bounds
-                                .projects
-                                .probe(format!("agent:followup:{}", session.thread_id)),
-                        )
-                        .on_click(cx.listener(
-                            move |this, _, window, cx| {
-                                this.project_instruction(&followup, window, cx)
-                            },
-                        )),
-                    )
-                    .when(
-                        session.active
-                            && matches!(
-                                session.status.as_str(),
-                                "running" | "needs_input" | "cancelling"
-                            ),
-                        |el| {
-                            el.child(
-                                Button::new(SharedString::from(format!(
-                                    "agent-cancel:{}",
-                                    session.thread_id
-                                )))
-                                .ghost()
-                                .label(self.t("worker.local.cancel"))
-                                .disabled(loading || session.status == "cancelling")
-                                .relative()
-                                .child(
-                                    self.view_bounds
-                                        .projects
-                                        .probe(format!("agent:cancel:{}", session.thread_id)),
-                                )
-                                .on_click(cx.listener(
-                                    move |this, _, _, cx| {
-                                        this.request_project_agents(
-                                            &project,
-                                            "cancel",
-                                            json!({"thread_id":cancel_thread}),
-                                            cx,
-                                        )
-                                    },
-                                )),
-                            )
-                        },
-                    )
-                    .when(primary, |el| {
-                        el.child(
-                            Button::new("project-agent-summarize")
-                                .ghost()
-                                .label(self.t("project.agent.summarize"))
-                                .disabled(
-                                    loading
-                                        || matches!(
-                                            session.status.as_str(),
-                                            "running" | "cancelling"
-                                        ),
-                                )
-                                .relative()
-                                .child(self.view_bounds.projects.probe("agent:summarize".into()))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.request_project_agents(
-                                        &summary_project,
-                                        "summarize",
-                                        json!({"thread_id":summary_thread}),
-                                        cx,
-                                    )
-                                })),
                         )
                     }),
             )
-            .when(!session.evidence.is_empty(), |el| {
-                el.child(
-                    div()
-                        .text_color(p.text_muted)
-                        .text_size(px(12.))
-                        .whitespace_normal()
-                        .child(format!(
-                            "{}: {} · {}",
-                            self.t("project.agent.tool_evidence"),
-                            session.evidence.len(),
-                            self.t("project.agent.open_evidence")
-                        )),
-                )
-            })
-            .when(!preview.is_empty(), |el| {
-                el.child(div().max_w(px(900.)).whitespace_normal().child(preview))
-                    .when(excerpt, |el| {
-                        el.child(
-                            div()
-                                .text_color(p.text_muted)
-                                .text_size(px(12.))
-                                .whitespace_normal()
-                                .child(self.t("project.agent.excerpt")),
-                        )
-                    })
-            })
+            .child(
+                div()
+                    .px(px(pero_theme::SPACE_16))
+                    .pt(px(pero_theme::SPACE_16))
+                    .flex()
+                    .flex_col()
+                    .gap(px(pero_theme::SPACE_8))
+                    .child(
+                        div()
+                            .whitespace_normal()
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(project.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(pero_theme::TYPE_CAPTION))
+                            .text_color(p.text_muted)
+                            .child(self.t("research.goal")),
+                    )
+                    .child(div().whitespace_normal().child(if project.goal.is_empty() {
+                        self.t("research.goal_empty").to_owned()
+                    } else {
+                        project.goal.clone()
+                    })),
+            )
+            .child(self.research_resources(cx))
             .into_any_element()
     }
 }

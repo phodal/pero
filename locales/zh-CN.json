@@ -1236,16 +1236,11 @@
   "cloud.worker.offline": "离线",
   "cloud.worker.disabled": "已停用",
   "cloud.worker.attention": "需要复核",
+  "project.agent.materials": "项目资料",
   "project.agent": "项目 Agent",
   "project.agent.hint": "通过主 Agent 对话拆分和分派工作，并汇总带证据的结果。子会话保留各自的审批和执行记录。",
   "project.agent.start": "开始项目对话",
   "project.agent.primary": "主 Agent",
-  "project.agent.children": "已分派的工作",
-  "project.agent.empty": "尚未分派工作。在主 Agent 对话中提出要分派的具体任务。",
-  "project.agent.open": "打开原会话",
-  "project.agent.followup": "追加指令",
-  "project.agent.instruction": "给此 Agent 的指令",
-  "project.agent.send": "发送指令",
   "project.agent.summarize": "汇总证据与结果",
   "project.agent.loading": "正在更新项目会话…",
   "project.agent.no_agent": "尚未安装 Agent",
@@ -1253,8 +1248,5 @@
   "project.agent.cancelled": "已取消",
   "project.agent.cancelling": "正在停止…",
   "project.agent.needs_input": "需要处理",
-  "project.agent.interrupted": "已中断",
-  "project.agent.tool_evidence": "已观察的工具回执",
-  "project.agent.open_evidence": "在原会话中查看证据",
-  "project.agent.excerpt": "结果节选，打开原会话可阅读全文。"
+  "project.agent.interrupted": "已中断"
 }

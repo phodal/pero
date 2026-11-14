@@ -192,7 +192,7 @@ impl Workbench {
         }
         self.navigation.open(WorkspaceItem::Project(key.clone()));
         if close_editor || self.selected_project.as_deref() != Some(key.as_str()) {
-            self.project_tab = ProjectTab::Overview;
+            self.project_tab = ProjectTab::Agent;
         }
         self.selected_project = Some(key);
         if close_editor {
@@ -205,6 +205,7 @@ impl Workbench {
             }
         }
         self.refresh_project_resources(cx);
+        self.refresh_project_agents(cx);
         self.sync_follow(cx);
         let _ = window;
     }

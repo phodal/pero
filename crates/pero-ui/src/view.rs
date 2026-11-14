@@ -334,6 +334,11 @@ impl Render for Workbench {
             covered,
             pane_layout,
         );
+        if self.project_agent_active() {
+            layout.chat = ChatPlacement::Main;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+        }
         let single_pane = self
             .navigation
             .pane_layout()
