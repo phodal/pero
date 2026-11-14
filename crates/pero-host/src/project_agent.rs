@@ -217,11 +217,23 @@ impl Manager {
                 if let Some(text) = &prompt {prompt_valid(text)?;}
                 let thread = format!("project-{}-primary-{}", digest(&project_id), &digest(request)[..12]);
                 if let Some(existing) = self.project_sessions(&project_id).into_iter().find(|session| session.binding.parent_thread.is_none()) {
+                    if prompt.is_some() && existing.thread_id != thread {
+                        return Err("Project Agent already exists; send these instructions with Followup".into());
+                    }
+                    if let Some(text) = &prompt {
+                        let history = self.visible_history();
+                        let original = history.iter().find(|event| event.kind == "session_created"
+                            && event.thread_id.as_deref() == Some(&thread));
+                        if original.and_then(|event| event.data["projectPrompt"].as_str()) != Some(text.as_str()) {
+                            return Err("This request already belongs to different Project instructions".into());
+                        }
+                    }
                     self.resume_project_session(&existing, &project)?;
                     (project_id, Some(existing.thread_id))
                 } else {
                     self.project_agent_available(&agent_id)?;
                     let binding = ProjectSessionBinding::primary(project_id.clone(), "Project Agent".into())?;
+                    self.admit_session(&thread)?;
                     let workspace = self.project_workspace(&project, &thread, false)?;
                     let launch = self.project_launch(&project, binding, &thread, workspace, prompt.clone())?;
                     self.create_session_with_origin(thread.clone(), &agent_id, None, None, None, Some(launch))?;
@@ -252,6 +264,7 @@ impl Manager {
                             _ => None,
                         }).unwrap_or_default();
                     let policy = ProjectDelegationPolicy::inherit(&primary.agent_id, &agent_id, &settings)?;
+                    self.admit_session(&thread)?;
                     let workspace = self.project_workspace(&project, &thread, true)?;
                     let mut launch = self.project_launch(&project, binding.clone(), &thread, workspace, Some(prompt.clone()))?;
                     launch.initial_settings = policy.initial_settings;

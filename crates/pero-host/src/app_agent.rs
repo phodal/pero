@@ -29,6 +29,18 @@ impl Manager {
         self.create_session_with_origin(thread_id,agent_id,binding,scope,resume_id,None)
     }
 
+    pub(super) fn admit_session(&mut self, thread_id: &str) -> Result<(), String> {
+        self.sessions.retain(|_, session| !session.tx.is_closed());
+        if thread_id.is_empty()
+            || thread_id.len() > 128
+            || self.sessions.len() >= 16
+            || self.sessions.contains_key(thread_id)
+        {
+            return Err("Session exists or limit reached".into());
+        }
+        Ok(())
+    }
+
     pub(super) fn create_session_with_origin(
         &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,project:Option<super::project_agent::Launch>,
     )->Result<(),String> {
@@ -36,14 +48,7 @@ impl Manager {
         if scope.as_ref().is_some_and(|scope| !scope.valid()) {
             return Err("Invalid App conversation scope".into());
         }
-        self.sessions.retain(|_, session| !session.tx.is_closed());
-        if thread_id.is_empty()
-            || thread_id.len() > 128
-            || self.sessions.len() >= 16
-            || self.sessions.contains_key(&thread_id)
-        {
-            return Err("Session exists or limit reached".into());
-        }
+        self.admit_session(&thread_id)?;
         let agent = self
             .agents
             .iter()

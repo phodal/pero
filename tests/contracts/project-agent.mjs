@@ -85,6 +85,8 @@ try {
   const primary = started.selected_thread;
   assert(primary, JSON.stringify(started));
   await host.next('session_ready', event => event.thread_id === primary);
+  await assert.rejects(host.request({ action: 'start', project_id: 'fixture-project', agent_id: 'project-fixture', prompt: 'Do not silently drop this instruction' }), /already exists.*Followup/);
+  checks.push('Existing primary rejects new Start input explicitly instead of silently dropping it');
   host.send({ action: 'configure', thread_id: primary, config_id: 'permission', value: 'read-only' });
   await host.next('configuration_changed', event => event.thread_id === primary
     && event.data.options.some(option => option.id === 'permission' && option.current === 'read-only'));
@@ -105,7 +107,7 @@ try {
   const child = completed.sessions.find(session => session.binding.label === 'Evidence check');
   assert.equal(child.binding.label, 'Evidence check');
   assert.notEqual(child.workspace, workspace);
-  assert.match(child.result, /PROJECT_CHILD_RESULT/);
+  assert.match(child.result, /The shell check wrote/);
   const shellReceipt = child.evidence.find(item => item.status === 'completed' && item.output.includes('observed fixture evidence'));
   assert(shellReceipt, 'Child must retain the actual completed shell receipt');
   assert(host.events.some(event => event.kind === 'session_update' && event.thread_id === child.thread_id
