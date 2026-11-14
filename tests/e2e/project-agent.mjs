@@ -46,9 +46,9 @@ async function click(read) {
   let bounds;
   await expect.poll(async () => { bounds = await read(); return !!bounds && bounds.width > 0 && bounds.height > 0; }).toBe(true);
   const height = await page.evaluate(() => innerHeight);
-  for (let attempt = 0; attempt < 12 && (bounds.y < 110 || bounds.y + bounds.height > height - 35); attempt++) {
+  for (let attempt = 0; attempt < 12 && (bounds.y < 0 || bounds.y + bounds.height > height - 35); attempt++) {
     await page.mouse.move(Math.max(300, Math.min(bounds.x + bounds.width / 2, 800)), height / 2);
-    await page.mouse.wheel(0, bounds.y < 110 ? -420 : 420);
+    await page.mouse.wheel(0, bounds.y < 0 ? -420 : 420);
     await paint(); bounds = await read();
   }
   await paint(); bounds = await read();
@@ -144,6 +144,13 @@ try {
   const main = (await sessions())[0].thread_id;
   await wideColumns(main);
   checks.push('research-project-opens-central-agent-chat-with-left-navigation-and-right-materials');
+  const singleLine = (await state()).composerBounds.input.height;
+  await draft('Inspect the evidence.\nKeep the original files.\nExplain what remains unverified.');
+  await expect.poll(async () => (await state()).composerBounds.input.height).toBeGreaterThan(singleLine * 2);
+  await capture('01-multiline-composer');
+  await draft('');
+  await expect.poll(async () => (await state()).composerBounds.input.height).toBe(singleLine);
+  checks.push('single-line-composer-expands-for-multiline-and-collapses-without-submission');
   await draft('Overview keeps the central draft');
   await control('edit');
   await expect.poll(async () => !!(await state()).researchProjects.editor).toBe(true);
@@ -295,6 +302,9 @@ try {
   expect(historyAfterResume.filter(event => event.kind === 'session_ready' && event.thread_id === child.thread_id).at(-1).data.sessionId).toBe(originalAcp);
   await capture('09-restored-original-conversations');
   checks.push('restart-restores-project-navigation-artifact-and-composer-resumes-exact-original-ACP-session');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1920, 1181));
+  await paint();
+  await capture('10-cursor-comparison-wide');
   expect(errors).toEqual([]);
   await writeFile(join(out, 'results.json'), JSON.stringify({ scope: 'Electron L1 / scripted model / actual shell and MCP',
     checks, errors, artifact, sessions: await sessions(), calls: provider.calls.length, temp,

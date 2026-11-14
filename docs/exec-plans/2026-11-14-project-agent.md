@@ -183,3 +183,34 @@ acceptance. The entry correction is implemented; the broader shared typography,
 message sizing, navigation and Composer changes above are recommendations, not
 claims that the present interface already matches Cursor. Full keyboard,
 contrast measurement and Cursor dark-theme review were not performed.
+
+## Authorized four-area implementation — 2026-11-14
+
+The user authorized implementing the analysis directly and updating PR #231.
+This revision changes shared presentation owners together:
+
+| Previous presentation | New owner/contract | Consumers and preserved behavior |
+| --- | --- | --- |
+| Full-width user turn | Shared transcript, right-aligned intrinsic width capped at 88%, generated 20px bubble radius | Ordinary Chat, Project Agent and App Chat retain selectable Markdown, links and attachments |
+| Accent outlined navigation and accent session fill | Shared Chrome neutral navigation wash from TypeSpec NavigationStyle; one fill per row | Native/Wasm sidebar/session rows and Web SidebarRow retain independent focus, selected semantics, notices and action disclosure |
+| Repeated Project toolbar below the titleband | Project header projection composed into the existing main titleband | Main/child title, summary, refresh, Overview, search, project-view and artifact controls keep their existing state/action owners |
+| Persistent multi-row Composer and reserved hint space | Shared Composer switches by current visual line count and attachments | One-line rounded input expands for multiline/attachments; model, stop, send remain in-frame; acknowledged permission, Agent, workspace, diff and usage stay directly accessible below |
+
+Completed sessions use the existing small filled-circle icon with their full
+accessible status. Failure, cancellation, waiting and running retain their
+own presentations. No navigation, execution, permissions, provider admission,
+settings persistence or project lifecycle was duplicated or moved into a view.
+Theme action colors and user typography preferences remain authoritative.
+
+Tokens are edited in TypeSpec and regenerated, including shared SDK CSS and
+Rust constants. Web SidebarRow uses the generated neutral token; its catalog is
+typechecked and token checks pass, but no separate Web App navigation visual
+acceptance is claimed. The actual Electron and Native renderers were inspected.
+An initial screenshot revealed double selection filling by the row and its
+inner button; it was corrected before final captures. The ordinary Chat suite
+also exposed its old fixed input coordinate; it now clicks the existing
+Composer bounds instead and passes the actual IME/stream/approval flow.
+
+The scoped visual comparison and iteration record is `design-qa.md`. It records
+expected product/content differences from Cursor rather than claiming an exact
+clone. Screenshots remain ignored local artifacts, not binary Git commits.

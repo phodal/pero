@@ -376,3 +376,47 @@ current broad user bubbles, prominent Projects selection and Composer density
 remain visible differences from Cursor. Detailed observations and proposed
 shared-component work are in the existing execution plan; matching Cursor's
 visual quality is not claimed by a passing behavior suite.
+
+## Cursor-style shared Chat and Project chrome — 2026-11-14
+
+Source: `a216c597f` and its three preceding style commits, plus this verification
+revision. User bubbles now fit content on the right, shared navigation selection
+uses a neutral fill without an accent outline, Project headers occupy the
+existing titleband and the Composer rests on one line with multiline expansion.
+
+Verification completed:
+
+- `npm run check`: TypeScript, theme/design/SDK generation, locales, contracts
+  and shared icon checks pass. Catalog typecheck and all three design-token
+  tests pass. Sources, not generated outputs, own the new radius/navigation role.
+- Native-feature Chat: 49 cases pass. UI: 33 cases pass. Wasm/Web development
+  builds and actual macOS Native binary build pass.
+- Actual Electron Project Agent: all 12 flows pass, 16 scripted loopback model
+  calls, actual Rust Host/Go Harness/MCP/shell and zero renderer errors. Added
+  one-line → multiline → one-line checks without submitting the draft. Existing
+  approval, cancellation, original ACP restart continuation, saved artifact
+  preview, failure recovery and dark/minimum-window paths pass.
+- Ordinary Electron Chat: stream, follow-up, stop, permission, long stream,
+  reading-position retention, reload, history/draft retention, locale, dark and
+  narrow flow pass with zero renderer/Host-event errors. Its fixed input click
+  was replaced by the shared Composer's actual bounds after the layout change.
+- Actual macOS Native development window: main/child selection, compact input,
+  three-line draft expansion and clearing, and light/dark switching were
+  observed using the real native controls. The isolated prior Native profile
+  was copied for this visual check; no fresh Native tool execution is claimed.
+
+Final inspected Electron captures are in `test-results/project-agent/`:
+`01-overview-editor-right.png`, `01-multiline-composer.png`,
+`09-restored-original-conversations.png`, `08-narrow-dark.png`,
+`06-saved-summary-artifact.png` and `10-cursor-comparison-wide.png`.
+The last uses 3840×2298 pixels / 1920×1149 logical pixels at 2× density, matching
+the captured Cursor child-conversation reference. Actual Native captures are
+`test-results/project-agent-cursor-native/02-multiline-dark.jpg` and
+`03-child-light.jpg` (2880×1922 pixels / 1440×961 logical pixels at 2×).
+
+`design-qa.md` records the paired-reference review, an initial double-fill
+finding and its correction. No overlap of persistent controls was observed in
+the inspected wide and minimum-window layouts. Native Viewer, Native minimum
+window, full keyboard/screen-reader, real model and signed package acceptance
+remain unverified in this iteration. Fixture markers and raw JSON belong to
+scripted replies, not a claim about real-model output or scientific validation.
