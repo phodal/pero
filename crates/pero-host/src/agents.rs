@@ -17,6 +17,8 @@ pub mod automation_agent;
 mod mcp_settings;
 #[path = "mcp_session.rs"]
 mod mcp_session;
+#[path = "project_agent.rs"]
+mod project_agent;
 use std::{
     collections::HashMap,
     io::{BufRead, Write},
@@ -42,6 +44,7 @@ pub struct Manager {
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
+    project_tools: Option<crate::project_tools::Broker>,
     automation_threads: std::collections::HashSet<String>,
     automation_tx: mpsc::SyncSender<automation_agent::AutomationReceipt>,
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
@@ -120,6 +123,7 @@ impl Manager {
                             | "session_closed"
                             | "session_deleted"
                             | "permission"
+                            | "permission_resolved"
                             | "user_questions"
                             | "user_questions_resolved"
                             | "user_questions_error"
@@ -133,6 +137,7 @@ impl Manager {
                     if !matches!(
                         event.kind.as_str(),
                         "permission"
+                            | "permission_resolved"
                             | "user_questions"
                             | "user_questions_resolved"
                             | "user_questions_error"
@@ -186,6 +191,7 @@ impl Manager {
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
             history_path,
+            project_tools: crate::project_tools::Broker::start().map_err(|error| eprintln!("Project tools: {error}")).ok(),
         }
     }
     pub fn configure_harness(
@@ -528,6 +534,14 @@ impl Manager {
                     } if (!text.trim().is_empty() || !contexts.is_empty())
                         && pero_contracts::context::validate_prompt_text(&text).is_ok() =>
                     {
+                        if self.sessions.get(&thread_id).is_none_or(|session| session.tx.is_closed()) {
+                            if let Err(error) = self.resume_project_prompt(&thread_id) {
+                                let mut event = HostEvent::new("session_error", None, error);
+                                event.thread_id = Some(thread_id);
+                                let _ = self.tx.send(event);
+                                return false;
+                            }
+                        }
                         let snapshot = self.mcp_session_snapshot(&thread_id);
                         let admission = ContextReference::validate_all(&contexts).and_then(|_| {
                             contexts.iter().try_for_each(|reference|

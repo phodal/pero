@@ -106,6 +106,8 @@ pub struct ChatPanel {
     pub docked: bool,
     /// The workbench titleband is drawing the side resources header.
     pub host_titleband: bool,
+    /// The shell already exposes the resource navigation beside this chat.
+    pub external_resource_navigation: bool,
     /// Side resources column measured by the last layout. Bottom stack is none.
     pub resource_column: Option<crate::artifact_panel::ResourceColumn>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
@@ -187,6 +189,7 @@ impl ChatPanel {
             compact: false,
             docked: false,
             host_titleband: false,
+            external_resource_navigation: false,
             resource_column: None,
             pending_prompts: vec![],
             scope: None,
@@ -483,6 +486,7 @@ impl ChatPanel {
             "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
+            "readableReplies":self.chats.iter().flat_map(|chat| chat.messages.iter().enumerate().filter_map(move |(index,_)| chat.reply_presentation(index).map(|reply| json!({"chat":chat.id,"index":index,"text":reply.summary})))).collect::<Vec<_>>(),
             "expandedTools":self.expanded_tools,"expandedReasoning":self.chats.iter().flat_map(|chat|chat.messages.iter().enumerate().filter(|(i,m)|m.role=="thought" && chat.thinking.open(*i)).map(|(i,_)|(&chat.id,i))).collect::<Vec<_>>(),
             "processBounds":self.chats.iter().flat_map(|chat| crate::chat::render_items(chat).into_iter().filter_map(move |row| {
                 if let crate::chat::RenderItem::Process(group) = row {

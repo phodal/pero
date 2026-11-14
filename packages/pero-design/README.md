@@ -73,8 +73,8 @@ App 从 `@pero/app-sdk/ui` 引用公开组件。GPUI 从 `pero_theme` 引用。
 - 新组件使用 `--pero-spacing-1` 至 `--pero-spacing-6`，对应间距 4 / 8 / 12 / 16 / 20 / 24，图标间距 6。侧栏外边距 10，分组间距 16。
 - 页内 Tabs 的 `navigation` 变体用于服务目录／已安装等同级视图：无外框和贯穿底线，保留共享 Tabs 的选中指示线，以共享间距、正文文字与中等字重区分当前页。`page` 保留内容分隔线，`content` 用于窗口内容标签。鼠标选择不显示键盘焦点框，方向键与 Tab 导航保留 2px 焦点。
 - ToggleGroup 用于正文 / PDF / TeX 等内容表示切换；`type="single"` 使用 radiogroup / radio 与 `aria-checked`，多选使用 `aria-pressed`。Tabs 和 ToggleGroup 共用鼠标与键盘焦点规则，2px 键盘焦点向内绘制，避免滚动工具栏裁切；必选状态由调用方忽略空值。
-- 选中导航使用主题的强调背景与文字配对，默认是青色；分类和内容强调按 DESIGN 的颜色用途选择，不能与选中或错误状态混淆。
-- GPUI 会话列表使用 `session_row`：28px 行高、13px 常规字重标题、14px 右侧状态槽，随界面字号增长。列表选中使用中性 `surface-muted`，与全局导航区分；状态与菜单靠近，菜单保留完整点击区域。菜单在 hover、选中、展开或键盘焦点进入时显示。项目文件夹使用稳定的主题分类色，错误、运行和待处理仍使用语义色。未读由 ChatPanel 管理，点开清除未读；待授权、问题和登录状态由原会话状态管理，不随阅读清除。
+- 选中导航使用 `--pero-navigation-selected` 中性底色与正文前景，不加常驻描边；键盘焦点独立显示。分类和内容强调按 DESIGN 的颜色用途选择，不能与选中或错误状态混淆。
+- GPUI 会话列表使用 `session_row`：28px 行高、13px 常规字重标题、14px 右侧状态槽，随界面字号增长。列表选中使用共享中性导航底色和正文前景，整行只绘制一次，避免与侧栏同色或重复叠色；状态与菜单靠近，菜单保留完整点击区域。菜单在 hover、选中、展开或键盘焦点进入时显示。项目文件夹使用稳定的主题分类色，错误、运行和待处理仍使用语义色。未读由 ChatPanel 管理，点开清除未读；待授权、问题和登录状态由原会话状态管理，不随阅读清除。
 - 只在内容确实需要分隔时使用 0.5px 分隔线。输入边界 1px；文本输入、Textarea 与搜索框的键盘焦点使用贴合边框的 1px 中性细线，其他控件的键盘焦点 2px。
 - 每个操作区有清晰的主要动作；“新聊天”使用会话行尾的独立 +，侧栏不重复品牌标题或大按钮。折叠后仍可达。
 - Insights / 论文、执行环境 / 应用商店之间用 `SidebarGroup separated` 明确划分任务域，避免每行加分隔。
@@ -216,3 +216,12 @@ GPUI 菜单继续使用 Kit 的语义、焦点与子菜单实现，以及 Pero �
 状态文案。科学图形、原文排版和领域执行流程不由通用壳组件改写。
 
 验证范围与已知限制见 [VERIFICATION.md](VERIFICATION.md)。
+
+GPUI 的项目 Agent 复用同一个 `ChatPanel`，中央对话与右侧资料不创建第二个 Composer。
+全局 Sidebar 的 `context_navigation` 插槽与应用入口共用滚动区域；项目行复用
+`session_row` 的状态槽，运行和待处理状态优先，记录的完成、取消、中断由调用方传入。
+`ChatPanel::open_resource_tab` / `close_resource_pane` 供宿主显式打开或收起现有
+文件／产物列，不改变会话身份。窄资源列将目的地和显示选项放进共享菜单，选中产物的
+名称和版本控件移至正文上方，避免与固定高度窗口栏重叠。
+
+Shared Chat uses content-width right-aligned user bubbles (up to 88% of the reading column). The Composer rests on one line, grows for multiline text or attachments, and keeps model/stop/send in the input frame. Agent, acknowledged permission, diff and workspace controls remain below it. Bubble radius and neutral navigation wash come from the generated design contract.

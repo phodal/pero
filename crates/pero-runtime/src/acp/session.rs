@@ -82,7 +82,7 @@ pub fn start(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, None, None, false)
+    start_with_workspace_access(config, cwd, thread, tx, true, None, None, false, vec![])
 }
 
 /// A scoped Desktop conversation may use the Host-selected App Use endpoint.
@@ -93,7 +93,7 @@ pub fn start_app(
     tx: Sender<HostEvent>,
     endpoint: super::AppUseEndpoint,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None, false)
+    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None, false, vec![])
 }
 
 /// The independent Worker supervisor already owns this checkout's write lease.
@@ -103,17 +103,23 @@ pub fn start_supervised(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false)
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, vec![])
 }
 
 /// Explicitly resume an existing ACP Session; never fall back to session/new.
 pub fn resume_app(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,session_id:String)->SessionHandle {
-    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id),false)
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id),false,vec![])
 }
 
 /// Only an interactive Host with a mounted question UI opts into human input.
 pub fn start_interactive(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>)->SessionHandle {
-    start_with_workspace_access(config,cwd,thread,tx,true,app_use,resume_id,true)
+    start_interactive_configured(config,cwd,thread,tx,app_use,resume_id,vec![])
+}
+
+/// Apply trusted inherited settings through the Agent's existing configuration
+/// acknowledgement before exposing readiness or admitting a queued prompt.
+pub fn start_interactive_configured(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>,initial_settings:Vec<pero_contracts::session_settings::SettingSelection>)->SessionHandle {
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,resume_id,true,initial_settings)
 }
 
 fn start_with_workspace_access(
@@ -125,6 +131,7 @@ fn start_with_workspace_access(
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
     interactive: bool,
+    initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
 ) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
     static NEXT_MCP_INCARNATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -160,6 +167,7 @@ fn start_with_workspace_access(
             runtime_snapshot.clone(),
             questions.clone(),
             interactive,
+            initial_settings,
         ));
         questions.clear();
         pending.lock().unwrap().clear();
@@ -268,6 +276,7 @@ async fn run(
     mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
     user_questions: Arc<super::QuestionInbox>,
     interactive: bool,
+    initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
 ) -> Result<(), String> {
     config.validate_mcp()?;
     event(
@@ -303,6 +312,8 @@ async fn run(
     let notification_models = model_api.clone();
     let configuration = Arc::new(Mutex::new(Configuration::default()));
     let notification_configuration = configuration.clone();
+    let loading_history = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let notification_loading = loading_history.clone();
     let notify_tx = tx.clone();
     let notify_thread = thread.clone();
     let perm_tx = tx.clone();
@@ -340,6 +351,12 @@ async fn run(
                     }
                     serde_json::to_value(parsed.update).unwrap_or_default()
                 };
+                // Host already restored the original conversation journal.
+                // ACP load replay is historical content, not another live turn.
+                if notification_loading.load(std::sync::atomic::Ordering::Acquire)
+                    && matches!(update["sessionUpdate"].as_str(), Some("user_message_chunk" | "agent_message_chunk" | "agent_thought_chunk" | "tool_call" | "tool_call_update" | "plan")) {
+                    return Ok(());
+                }
                 if update["sessionUpdate"] == "config_option_update" {
                     let advertised = ModelApi::from_session(&update);
                     *notification_models.lock().unwrap() = advertised;
@@ -370,13 +387,19 @@ async fn run(
                 data["permission_id"] = json!(id);
                 event(&perm_tx, &perm_thread, "permission", "需要授权", data);
                 let selected = reply.await.ok().flatten();
-                permission_requests.lock().unwrap().remove(&id);
+                let pending = {
+                    let mut requests = permission_requests.lock().unwrap();
+                    requests.remove(&id);
+                    requests.len()
+                };
                 permission_scopes.lock().unwrap().complete(binding.as_deref(), &id);
                 let outcome = selected
                     .filter(|id| request.options.iter().any(|o| o.option_id.to_string() == *id))
                     .map(|id| RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(id)))
                     .unwrap_or(RequestPermissionOutcome::Cancelled);
-                responder.respond(RequestPermissionResponse::new(outcome))
+                let result = responder.respond(RequestPermissionResponse::new(outcome));
+                event(&perm_tx, &perm_thread, "permission_resolved", "", json!({"permission_id":id,"pending":pending}));
+                result
             },
             agent_client_protocol::on_receive_request!(),
         )
@@ -438,10 +461,12 @@ async fn run(
                 if negotiated {
                     request["_meta"] = json!({"pero.mcpRuntime": {"revision": mcp_runtime.lock().unwrap().revision}});
                 }
+                loading_history.store(resume_id.is_some(), std::sync::atomic::Ordering::Release);
                 let result = setup_request(
                     connection.send_request(UntypedMessage::new(method, request)?).block_task(),
                     &mut commands, &mut deferred, &tx, &thread, "Session creation",
                 ).await;
+                loading_history.store(false, std::sync::atomic::Ordering::Release);
                 match result {
                     Ok(Some(session)) => break session,
                     Ok(None) => return Ok(()),
@@ -500,6 +525,17 @@ async fn run(
                 embedded_context: initialized.agent_capabilities.prompt_capabilities.embedded_context,
             }).map_err(agent_client_protocol::Error::into_internal_error)?;
             configuration.lock().unwrap().refresh(&session_data)?;
+            for inherited in initial_settings {
+                let selector = configuration.lock().unwrap().clone();
+                let (selection, request) = selector.request(&session_id, &inherited.id, &inherited.value)?;
+                let Some(response) = setup_request(connection.send_request(request).block_task(),
+                    &mut commands, &mut deferred, &tx, &thread, "Inherited session permission",
+                ).await? else {return Ok(());};
+                configuration.lock().unwrap().acknowledged(&mut session_data, response, &selection)?;
+                if !configuration.lock().unwrap().settings.options.iter().any(|option| option.id == inherited.id && option.current == inherited.value) {
+                    return Err(failure("Agent did not acknowledge the inherited permission; no prompt was started"));
+                }
+            }
             session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
             if let Some(model) = config.model.clone() {

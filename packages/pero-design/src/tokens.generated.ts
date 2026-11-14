@@ -24,6 +24,7 @@ export const designContract = {
     "body": "regular"
   },
   "radii": {
+    "bubble": 20,
     "panel": 12,
     "selection": 8,
     "button": 6,
@@ -54,6 +55,9 @@ export const designContract = {
     "composerMax": 800,
     "sidebarWidth": 224,
     "listColumn": 336
+  },
+  "navigation": {
+    "selectedOpacity": 0.1
   },
   "colors": {
     "page": {
@@ -141,4 +145,4 @@ export const designContract = {
     "h6Gap": "1/1"
   }
 } as const;
-export const { space, typePx, typeWeight, radii, metrics, colors: colorRoles, chatProse } = designContract;
+export const { space, typePx, typeWeight, radii, metrics, navigation, colors: colorRoles, chatProse } = designContract;

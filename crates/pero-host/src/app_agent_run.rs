@@ -22,7 +22,7 @@ impl Journal {
         if event.kind=="session_created" && event.data["appBinding"]["run"].is_object() {
             if let Some(id)=&event.thread_id {self.sessions.lock().unwrap().insert(id.clone());}
         }
-        if matches!(event.kind.as_str(),"session_update"|"turn_finished"|"turn_started"|"session_error"|"session_closed"|"app_agent_attempt"|"app_agent_cancel"|"permission") && event.thread_id.as_ref().is_some_and(|id|self.sessions.lock().unwrap().contains(id)) {
+        if matches!(event.kind.as_str(),"session_update"|"turn_finished"|"turn_started"|"session_error"|"session_closed"|"app_agent_attempt"|"app_agent_cancel"|"permission"|"permission_resolved") && event.thread_id.as_ref().is_some_and(|id|self.sessions.lock().unwrap().contains(id)) {
             if event.data.is_null(){event.data=json!({});}
             if let Some(data)=event.data.as_object_mut(){data.insert("runTime".into(),json!(now()));}
         }

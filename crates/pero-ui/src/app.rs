@@ -96,6 +96,7 @@ pub(crate) struct Workbench {
     pub recent_tasks: Vec<String>,
     pub selected_project: Option<String>,
     pub(crate) research: crate::research_projects::ResearchProjectsView,
+    pub(crate) project_agents: crate::project_agent::ProjectAgentsView,
     pub project_binding: Entity<InputState>,
     pub collapsed_projects: std::collections::HashSet<String>,
     pub revealed_sessions: std::collections::HashMap<String, usize>,
@@ -263,7 +264,7 @@ impl Workbench {
                     }
                 }
                 ChatAction::Activated => {
-                    if !this.chat_dock_visible() {
+                    if !this.chat_dock_visible() && !this.project_agent_active() {
                         let index = this.chat.read(cx).active_chat;
                         this.focus_chat(index, ConversationTab::Chat, cx);
                     }
@@ -384,7 +385,7 @@ impl Workbench {
             settings_subscriptions: Vec::new(),
             recent_tasks: Vec::new(),
             selected_project: None,
-            research: Default::default(),
+            research: Default::default(), project_agents: Default::default(),
             project_binding,
             collapsed_projects: Default::default(),
             revealed_sessions: Default::default(),
@@ -418,13 +419,14 @@ impl Workbench {
 
     pub fn sync_follow(&mut self, cx: &mut Context<Self>) {
         let pane_thread=self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).and_then(|layout|layout.conversation().map(str::to_owned));
-        let origin=pane_thread.as_ref().map(|id|pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}).or_else(||match self.navigation.current() {
+        let pinned_thread=pane_thread.or_else(||self.project_agent_active().then(||self.project_agent_thread()).flatten().map(str::to_owned));
+        let origin=pinned_thread.as_ref().map(|id|pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}).or_else(||match self.navigation.current() {
             Some(WorkspaceItem::App {name,panel})=>Some(pero_contracts::content_origin::ContentOrigin::App {app:name.clone(),panel:panel.clone()}),
             Some(WorkspaceItem::Conversation(id))=>Some(pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}),
             Some(WorkspaceItem::Document {origin,..})=>Some(origin.clone()),
             _=>None,
         });
-        let pinned=pane_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
+        let pinned=pinned_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
         let scope=origin.and_then(|origin|match origin {
             pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
@@ -502,6 +504,11 @@ impl Workbench {
             self.pending_project_workspace = false;
         }
         if session_command(&value.to_string()).is_err() {
+            if value["method"] == "project_agent" {
+                if let Some(id) = value["request_id"].as_str() {
+                    self.project_agents.request_failed(id, self.t("error.connection").into());
+                }
+            }
             self.chat.update(cx, |panel, cx| {
                 panel.fail_file_reads(cx);
                 if let Some(chat) = panel
@@ -579,7 +586,7 @@ impl Workbench {
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_engram(&event, window, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
-            || self.receive_research_resources(&event, cx)
+            || self.receive_project_agents(&event, cx) || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
         // App lifecycle notifications also reach Chat; scope admission stays with Apps.
@@ -865,7 +872,7 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
-        value["researchProjects"] = ui.research.snapshot(cx);
+        value["researchProjects"] = ui.research.snapshot(cx); value["projectAgent"] = ui.project_agents.snapshot(cx);
         value["projectControls"] = ui.view_bounds.projects.snapshot();
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();

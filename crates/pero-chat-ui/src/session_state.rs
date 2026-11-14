@@ -10,6 +10,9 @@ pub enum SessionListStatus {
     NeedsInput,
     Failed,
     Authentication,
+    Completed,
+    Cancelled,
+    Interrupted,
 }
 impl SessionListStatus {
     pub fn of(state: SessionState, pending_input: bool, error: bool) -> Self {

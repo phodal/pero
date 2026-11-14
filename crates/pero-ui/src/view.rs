@@ -69,11 +69,12 @@ impl Workbench {
                 active: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == &app.name),
             })
         }).collect();
+        let context_navigation = self.project_agent_navigation(cx);
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             new_chat_bounds: &self.view_bounds.new_chat,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
+            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps, context_navigation,
         }, settings, actions, cx)
     }
 
@@ -334,6 +335,11 @@ impl Render for Workbench {
             covered,
             pane_layout,
         );
+        if self.project_agent_active() {
+            layout.chat = ChatPlacement::Main;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+        }
         let single_pane = self
             .navigation
             .pane_layout()
@@ -364,8 +370,10 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
+        let project_conversation = self.project_agent_active();
         self.chat.update(cx,|chat,cx| {
             chat.set_artifact_surface_covered(covered,cx);
+            chat.external_resource_navigation = project_conversation;
             let docked = layout.chat == ChatPlacement::Dock;
             if chat.docked != docked { chat.docked = docked; cx.notify(); }
         });

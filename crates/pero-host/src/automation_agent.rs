@@ -250,6 +250,7 @@ mod tests {
             paper_worker: Default::default(),
             connectors: None,
             history_path: PathBuf::new(), automation_threads: Default::default(),
+            project_tools: None,
             automation_tx, automation_rx: Some(automation_rx),
         }
     }

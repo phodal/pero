@@ -16,5 +16,5 @@ pub use app_use::{AppUseEndpoint, APP_USE_SKILL};
 pub use connectors::ConnectorsEndpoint;
 pub use mcp::TOOL_POLICY_CAPABILITY;
 pub use registry::{registry, AgentConfig, CREDENTIAL_REQUIRED};
-pub use session::{resume_app,start, start_app, start_interactive, start_supervised, PromptRejection, SessionCommand, SessionHandle};
+pub use session::{resume_app,start, start_app, start_interactive, start_interactive_configured, start_supervised, PromptRejection, SessionCommand, SessionHandle};
 pub use user_questions::QuestionInbox;

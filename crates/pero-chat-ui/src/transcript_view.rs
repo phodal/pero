@@ -30,6 +30,11 @@ impl ChatPanel {
         let message = &conversation.messages[index];
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let user = message.role == "user";
+        let readable = conversation.reply_presentation(index)
+            .filter(|_| message.view.read(cx).source_reveal().is_none());
+        let body = if let Some(readable) = readable {
+            crate::reply_evidence::ReadableReply { original: message.view.clone(), summary: readable.summary }.into_any_element()
+        } else { message.view.clone().into_any_element() };
         if let Some(brief) = conversation.brief.as_ref().filter(|_| {
             !user
                 && conversation.messages[..index]
@@ -124,15 +129,15 @@ impl ChatPanel {
             .child(
                 div()
                     .when(user, |el| {
-                        el.w_full()
+                        el.self_end()
+                            .max_w(relative(0.88))
+                            .min_w_0()
                             .px(px(pero_theme::SPACE_12))
                             .py(px(pero_theme::SPACE_8))
-                            .bg(p.surface)
-                            .border_1()
-                            .border_color(p.border)
-                            .rounded(px(pero_theme::RADIUS_PANEL))
+                            .bg(p.surface_muted)
+                            .rounded(px(pero_theme::RADIUS_BUBBLE))
                     })
-                    .child(message.view.clone()),
+                    .child(body),
             )
             .when(!message.attached_files.is_empty(), |el| {
                 el.child(
@@ -364,8 +369,10 @@ impl ChatPanel {
     ) -> AnyElement {
         let thread = thread.to_owned();
         let text = text.to_owned();
+        let original_reply = matches!(&source, OutputSource::Reply(index) if self.chats.iter().find(|chat| chat.id == thread).and_then(|chat| chat.reply_presentation(*index)).is_some());
+        let copy_label = if original_reply { "chat.copy_original" } else { "menu.copy" };
         let (key, save_label) = match &source {
-            OutputSource::Reply(index) => (format!("save-reply:{index}"), "artifacts.save_reply"),
+            OutputSource::Reply(index) => (format!("save-reply:{index}"), if original_reply { "artifacts.save_original_reply" } else { "artifacts.save_reply" }),
             OutputSource::Tool(id) => (format!("save-tool:{id}"), "artifacts.save_result"),
         };
         let saving = self
@@ -384,8 +391,8 @@ impl ChatPanel {
                     .p_0()
                     .w(px(28.))
                     .h(px(28.))
-                    .accessibility_label(self.t("menu.copy"))
-                    .tooltip(self.t("menu.copy"))
+                    .accessibility_label(self.t(copy_label))
+                    .tooltip(self.t(copy_label))
                     .icon(Icon::default().path(crate::assets::UiIcon::named("copy").path()))
                     .on_click(move |_, _, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(text.clone()))

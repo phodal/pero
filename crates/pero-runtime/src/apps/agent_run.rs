@@ -80,6 +80,9 @@ impl Transcript {
         let mut events = Vec::new();
         let mut text = String::new();
         let mut cursor = 0;
+        let mut permissions = 0;
+        let mut questions = std::collections::BTreeSet::new();
+        let mut authentication = false;
         for (index, event) in history.iter().filter(|event| event.thread_id.as_deref() == Some(id)).enumerate() {
             let seq = (index as u64 + 1) * 2;
             cursor = seq;
@@ -90,16 +93,39 @@ impl Transcript {
                     if let Ok(attempt) = serde_json::from_value::<Attempt>(event.data["attempt"].clone()) {
                         run.request_id=attempt.request_id; run.attempt=attempt.attempt; run.updated_at=attempt.updated_at;
                         run.status="running".into();run.error=None;run.stop_reason=None;text.clear();
+                        permissions=0;questions.clear();authentication=false;
                     }
                     Some("app-agent/state")
                 }
-                "turn_started" => { run.status="running".into();text.clear();Some("app-agent/state") }
+                "turn_started" => { run.status="running".into();run.error=None;run.stop_reason=None;text.clear();
+                    permissions=0;questions.clear();authentication=false;Some("app-agent/state") }
                 "app_agent_cancel" => { if run.active() { run.status="cancelling".into(); } Some("app-agent/state") }
                 "session_update" if event.data["sessionUpdate"] == "agent_message_chunk" => {
-                    if run.status!="cancelling" {run.status="running".into();}
+                    if !matches!(run.status.as_str(), "cancelling" | "needs_input") {run.status="running".into();}
                     text.push_str(event.data["content"]["text"].as_str().unwrap_or_default());None
                 }
-                "permission" | "session_auth_required" | "session_auth_error" => {run.status="needs_input".into();Some("app-agent/state")}
+                "permission" | "permission_resolved" | "user_questions" | "user_questions_resolved"
+                | "session_auth_required" | "session_auth_error" | "session_authenticated" => {
+                    match event.kind.as_str() {
+                        "permission" => permissions += 1,
+                        "permission_resolved" => {
+                            if let Some(pending) = event.data["pending"].as_u64() {permissions=pending;}
+                        }
+                        "user_questions" => {
+                            if let Some(id) = event.data["request_id"].as_str() {questions.insert(id.to_owned());}
+                        }
+                        "user_questions_resolved" => {
+                            if let Some(id) = event.data["request_id"].as_str() {questions.remove(id);}
+                        }
+                        "session_auth_required" | "session_auth_error" => authentication=true,
+                        "session_authenticated" => authentication=false,
+                        _ => unreachable!(),
+                    }
+                    if run.active() && run.status!="cancelling" {
+                        run.status=if permissions>0 || !questions.is_empty() || authentication {"needs_input"} else {"running"}.into();
+                    }
+                    Some("app-agent/state")
+                }
                 "session_error" => {run.status="failed".into();run.error=Some(event.text.clone());Some("agent/finished")}
                 "session_closed" => {if run.active(){run.status="interrupted".into();}Some("app-agent/state")}
                 "turn_finished" => {

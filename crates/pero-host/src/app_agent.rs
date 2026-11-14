@@ -26,17 +26,29 @@ impl Manager {
     pub(super) fn create_session_with_resume(
         &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,
     )->Result<(),String> {
-        if scope.as_ref().is_some_and(|scope| !scope.valid()) {
-            return Err("Invalid App conversation scope".into());
-        }
+        self.create_session_with_origin(thread_id,agent_id,binding,scope,resume_id,None)
+    }
+
+    pub(super) fn admit_session(&mut self, thread_id: &str) -> Result<(), String> {
         self.sessions.retain(|_, session| !session.tx.is_closed());
         if thread_id.is_empty()
             || thread_id.len() > 128
             || self.sessions.len() >= 16
-            || self.sessions.contains_key(&thread_id)
+            || self.sessions.contains_key(thread_id)
         {
             return Err("Session exists or limit reached".into());
         }
+        Ok(())
+    }
+
+    pub(super) fn create_session_with_origin(
+        &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,project:Option<super::project_agent::Launch>,
+    )->Result<(),String> {
+        let workspace = project.as_ref().map(|project| project.workspace.clone()).unwrap_or_else(|| self.workspace.clone());
+        if scope.as_ref().is_some_and(|scope| !scope.valid()) {
+            return Err("Invalid App conversation scope".into());
+        }
+        self.admit_session(&thread_id)?;
         let agent = self
             .agents
             .iter()
@@ -96,12 +108,23 @@ impl Manager {
             agent.session_instructions = plugins.instructions.clone();
             if plugins.assembly.is_some() { agent.required_mcp_servers.insert("pero-app-use".into()); }
         }
+        if let Some(project) = &project {
+            if let Some(server) = &project.server {
+                if agent.mcp_server_names().iter().any(|name| name == "pero-project") {return Err("Project tool name conflicts with Agent configuration".into());}
+                agent.mcp_servers.push(server.clone());
+                agent.required_mcp_servers.insert("pero-project".into());
+            }
+            agent.session_instructions.push_str(&format!("\n{}", project.instructions));
+            if let Some(index) = agent.args.iter().position(|argument| argument == "--workspace") {
+                if let Some(argument) = agent.args.get_mut(index + 1) {*argument = workspace.to_string_lossy().into_owned();}
+            }
+        }
         if let Some(endpoint) = &self.connectors {
             endpoint.bind(&mut agent, &thread_id)?;
         }
         pero_runtime::engram::attach(&mut agent, pero_runtime::engram::Attach {
             settings: self.settings_path.as_deref().map(pero_runtime::settings::load_engram).unwrap_or_default(),
-            workspace: &self.workspace,
+            workspace: &workspace,
             data_home: self.settings_path.as_deref().and_then(|path| path.parent()),
             insights: scope.as_ref().is_some_and(|scope| scope.app == "insights")
                 || binding.is_some_and(|binding| binding.app.as_str() == "insights"),
@@ -117,7 +140,11 @@ impl Manager {
         }
         let mut event = HostEvent::new("session_created", None, String::new());
         event.thread_id = Some(thread_id.clone());
-        event.data = serde_json::json!({"agent":agent.id,"workspace":self.workspace});
+        event.data = serde_json::json!({"agent":agent.id,"workspace":workspace});
+        if let Some(project) = &project {
+            event.data["projectAgent"] = serde_json::json!(project.binding);
+            if let Some(prompt) = &project.initial_prompt {event.data["projectPrompt"] = serde_json::json!(prompt);}
+        }
         if !market_skills.is_empty() {
             event.data["skillSelections"] = serde_json::json!(market_skills.iter().map(|skill|serde_json::json!({"id":skill.id,"revision":skill.revision})).collect::<Vec<_>>());
         }
@@ -137,11 +164,12 @@ impl Manager {
             event.data["appBinding"] =
                 serde_json::to_value(binding).map_err(|error| error.to_string())?;
         }
-        if binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
+        if project.is_some() || binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
+        let initial_settings = project.map(|project| project.initial_settings).unwrap_or_default();
         self.sessions.insert(
             thread_id.clone(),
-            acp::start_interactive(agent.clone(),self.workspace.clone(),thread_id,self.tx.clone(),app_use,resume_id),
+            acp::start_interactive_configured(agent.clone(),workspace,thread_id,self.tx.clone(),app_use,resume_id,initial_settings),
         );
         Ok(())
     }
