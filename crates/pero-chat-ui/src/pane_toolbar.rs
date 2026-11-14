@@ -1,5 +1,6 @@
 //! One pane toolbar for workspace files, artifact deliveries and code changes.
 use crate::{
+    artifact_panel::ResourcePrimary,
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
     session_artifacts::ArtifactCollection,
@@ -35,6 +36,10 @@ impl ChatPanel {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
+        let narrow_band = band
+            && self
+                .resource_column
+                .is_some_and(|column| column.width < Self::RESOURCE_TOOLBAR_MIN);
         let files = self.files.selection.tab == ResourceTab::Files && !state.show_changes;
         let artifacts = self.files.selection.tab == ResourceTab::Artifacts && !state.show_changes;
         let picker_thread = thread.to_owned();
@@ -46,17 +51,6 @@ impl ChatPanel {
         let files_thread = thread.to_owned();
         let artifacts_thread = thread.to_owned();
         let changes_thread = thread.to_owned();
-        let identity = (artifacts
-            && (self.artifacts.view == ArtifactView::Gallery || state.chart.is_some()))
-        .then(|| state.selected.as_ref())
-        .flatten()
-        .and_then(|(id, version)| {
-            state
-                .items
-                .iter()
-                .find(|item| &item.id == id)
-                .map(|item| (item, *version))
-        });
         let destination = |id, label, selected, action: &str| {
             Button::new(id)
                 .relative()
@@ -68,70 +62,104 @@ impl ChatPanel {
                 .selected(selected)
                 .flex_shrink_0()
         };
-        let destinations = div()
-            .flex()
-            .items_center()
-            .gap(px(4.))
-            .child(
-                destination("files-tab", "files.title", files, "files-tab").on_click(cx.listener(
-                    move |this, _, _, cx| {
-                        this.choose_resource_tab(&files_thread, ResourceTab::Files, cx)
-                    },
-                )),
-            )
-            .child(
-                destination(
-                    "artifacts-tab",
-                    "artifacts.title",
-                    artifacts,
-                    "artifacts-tab",
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.choose_resource_tab(&artifacts_thread, ResourceTab::Artifacts, cx)
-                })),
-            )
-            .when(!state.items.is_empty(), |el| {
-                el.child(
-                    div()
-                        .flex_shrink_0()
-                        .text_sm()
-                        .text_color(p.text_muted)
-                        .child(state.items.len().to_string()),
-                )
-            })
-            .child(
-                destination(
-                    "outputs-changes",
-                    "changes.title",
-                    state.show_changes,
-                    "changes-tab",
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.artifacts
-                        .conversations
-                        .entry(changes_thread.clone())
-                        .or_default()
-                        .show_changes = true;
-                    let first = this
-                        .chats
-                        .iter()
-                        .find(|chat| chat.id == changes_thread)
-                        .filter(|chat| chat.changes.selected.is_none())
-                        .and_then(|chat| chat.changes.records.last())
-                        .map(|record| record.id.clone());
-                    if let Some(id) = first {
-                        this.read_changes(&changes_thread, &id, 0, cx);
+        let destinations = if narrow_band {
+            let thread = thread.to_owned();
+            let labels = [
+                self.t("files.title").to_owned(),
+                self.t("artifacts.title").to_owned(),
+                self.t("changes.title").to_owned(),
+            ];
+            let destination_owner = cx.entity().downgrade();
+            Button::new("resource-destination")
+                .ghost()
+                .small()
+                .label(self.t(if files {
+                    "files.title"
+                } else if artifacts {
+                    "artifacts.title"
+                } else {
+                    "changes.title"
+                }))
+                .dropdown_caret(true)
+                .dropdown_menu(move |mut menu, _, _| {
+                    for (destination, label, selected) in [
+                        (ResourcePrimary::Files, labels[0].clone(), files),
+                        (ResourcePrimary::Artifacts, labels[1].clone(), artifacts),
+                        (
+                            ResourcePrimary::Changes,
+                            labels[2].clone(),
+                            !files && !artifacts,
+                        ),
+                    ] {
+                        let thread = thread.clone();
+                        let owner = destination_owner.clone();
+                        menu = menu.item(PopupMenuItem::new(label).checked(selected).on_click(
+                            move |_, _, cx| {
+                                let _ = owner.update(cx, |this, cx| match destination {
+                                    ResourcePrimary::Files => {
+                                        this.choose_resource_tab(&thread, ResourceTab::Files, cx)
+                                    }
+                                    ResourcePrimary::Artifacts => this.choose_resource_tab(
+                                        &thread,
+                                        ResourceTab::Artifacts,
+                                        cx,
+                                    ),
+                                    ResourcePrimary::Changes => this.open_changes_pane(&thread, cx),
+                                });
+                            },
+                        ));
                     }
-                    this.artifacts
-                        .conversations
-                        .entry(changes_thread.clone())
-                        .or_default()
-                        .show_pane();
-                    cx.notify();
-                })),
-            );
-        let identity = identity
-            .map(|(artifact, version)| self.artifact_identity(thread, state, artifact, version, cx));
+                    menu
+                })
+                .into_any_element()
+        } else {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(4.))
+                .child(
+                    destination("files-tab", "files.title", files, "files-tab").on_click(
+                        cx.listener(move |this, _, _, cx| {
+                            this.choose_resource_tab(&files_thread, ResourceTab::Files, cx)
+                        }),
+                    ),
+                )
+                .child(
+                    destination(
+                        "artifacts-tab",
+                        "artifacts.title",
+                        artifacts,
+                        "artifacts-tab",
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.choose_resource_tab(&artifacts_thread, ResourceTab::Artifacts, cx)
+                    })),
+                )
+                .when(!state.items.is_empty(), |el| {
+                    el.child(
+                        div()
+                            .flex_shrink_0()
+                            .text_sm()
+                            .text_color(p.text_muted)
+                            .child(state.items.len().to_string()),
+                    )
+                })
+                .child(
+                    destination(
+                        "outputs-changes",
+                        "changes.title",
+                        state.show_changes,
+                        "changes-tab",
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.open_changes_pane(&changes_thread, cx);
+                    })),
+                )
+                .into_any_element()
+        };
+        let identity = (!narrow_band)
+            .then(|| self.pane_resource_identity(thread, state, cx))
+            .flatten();
         let actions = div()
             .flex()
             .when(identity.is_none() || compact, |el| el.flex_1())
@@ -150,6 +178,100 @@ impl ChatPanel {
                         .p(px(2.))
                         .rounded(px(7.))
                         .bg(p.surface_muted)
+                        .when(narrow_band, |el| {
+                            let owner = cx.entity().downgrade();
+                            let choices = [
+                                (ArtifactView::Icons, "artifacts.view_icons"),
+                                (ArtifactView::List, "artifacts.view_list"),
+                                (ArtifactView::Gallery, "artifacts.view_gallery"),
+                            ]
+                            .map(|(view, label)| (view, self.t(label).to_owned()));
+                            let selected = self.artifacts.view;
+                            let bottom = state.bottom;
+                            let maximized = state.maximized;
+                            let bottom_label = self.t("artifacts.bottom").to_owned();
+                            let expand_label = self
+                                .t(if maximized {
+                                    "artifacts.restore_split"
+                                } else {
+                                    "artifacts.expand"
+                                })
+                                .to_owned();
+                            let thread = thread.to_owned();
+                            el.child(
+                                Button::new("artifact-view-menu")
+                                    .ghost()
+                                    .small()
+                                    .w(px(28.))
+                                    .h(px(24.))
+                                    .p_0()
+                                    .icon(
+                                        Icon::default().path(
+                                            UiIcon::named(match selected {
+                                                ArtifactView::Icons => "layout-grid",
+                                                ArtifactView::List => "layout-list",
+                                                ArtifactView::Gallery => "gallery-horizontal",
+                                            })
+                                            .path(),
+                                        ),
+                                    )
+                                    .accessibility_label(self.t("artifacts.view_options"))
+                                    .tooltip(self.t("artifacts.view_options"))
+                                    .dropdown_caret(false)
+                                    .dropdown_menu_with_anchor(
+                                        Anchor::BottomRight,
+                                        move |mut menu, _, _| {
+                                            for (view, label) in &choices {
+                                                let view = *view;
+                                                let owner = owner.clone();
+                                                menu = menu.item(
+                                                    PopupMenuItem::new(label.clone())
+                                                        .checked(view == selected)
+                                                        .on_click(move |_, _, cx| {
+                                                            let _ = owner.update(cx, |this, cx| {
+                                                                this.set_artifact_view(view, cx);
+                                                                cx.emit(ChatAction::ArtifactView {
+                                                                    view,
+                                                                });
+                                                            });
+                                                        }),
+                                                );
+                                            }
+                                            for (is_bottom, label, checked) in [
+                                                (true, bottom_label.clone(), bottom),
+                                                (false, expand_label.clone(), maximized),
+                                            ] {
+                                                let owner = owner.clone();
+                                                let thread = thread.clone();
+                                                menu = menu.item(
+                                                    PopupMenuItem::new(label)
+                                                        .checked(checked)
+                                                        .on_click(move |_, _, cx| {
+                                                            let _ = owner.update(cx, |this, cx| {
+                                                                if let Some(state) = this
+                                                                    .artifacts
+                                                                    .conversations
+                                                                    .get_mut(&thread)
+                                                                {
+                                                                    if is_bottom {
+                                                                        state.bottom =
+                                                                            !state.bottom;
+                                                                        state.maximized = false;
+                                                                    } else {
+                                                                        state.maximized =
+                                                                            !state.maximized;
+                                                                    }
+                                                                }
+                                                                cx.notify();
+                                                            });
+                                                        }),
+                                                );
+                                            }
+                                            menu
+                                        },
+                                    ),
+                            )
+                        })
                         .children(
                             [
                                 (ArtifactView::Icons, "layout-grid", "artifacts.view_icons"),
@@ -161,6 +283,7 @@ impl ChatPanel {
                                 ),
                             ]
                             .into_iter()
+                            .filter(|_| !narrow_band)
                             .map(|(view, icon, label)| {
                                 let active = self.artifacts.view == view;
                                 Button::new(SharedString::from(format!("artifact-view-{icon}")))
@@ -263,7 +386,7 @@ impl ChatPanel {
                     })),
                 )
             })
-            .when(artifacts && !self.artifacts.narrow, |el| {
+            .when(artifacts && !self.artifacts.narrow && !narrow_band, |el| {
                 let toggle_thread = thread.to_owned();
                 let bottom_thread = thread.to_owned();
                 let (icon, label) = if state.maximized {
@@ -271,7 +394,14 @@ impl ChatPanel {
                 } else {
                     ("maximize", "artifacts.expand")
                 };
-                el.child(self.artifact_icon_button(thread, "artifact-bottom", "bottom", "chevrons-up-down", self.t("artifacts.bottom"))
+                el.child(
+                    self.artifact_icon_button(
+                        thread,
+                        "artifact-bottom",
+                        "bottom",
+                        "chevrons-up-down",
+                        self.t("artifacts.bottom"),
+                    )
                     .selected(state.bottom)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(state) = this.artifacts.conversations.get_mut(&bottom_thread) {
@@ -279,7 +409,8 @@ impl ChatPanel {
                             state.maximized = false;
                         }
                         cx.notify();
-                    })))
+                    })),
+                )
                 .child(
                     self.artifact_icon_button(
                         thread,
@@ -354,7 +485,9 @@ impl ChatPanel {
             .px(px(8.))
             .flex()
             .gap(px(4.))
-            .when(compact, |el| el.flex_col().items_stretch().justify_center().py(px(3.)))
+            .when(compact, |el| {
+                el.flex_col().items_stretch().justify_center().py(px(3.))
+            })
             .when(!compact, |el| el.items_center())
             .when(!band, |el| el.border_b(px(0.5)).border_color(p.border))
             .child(destinations)
@@ -362,6 +495,47 @@ impl ChatPanel {
             .child(actions)
             .children(trailing_identity)
             .into_any_element()
+    }
+
+    fn open_changes_pane(&mut self, thread: &str, cx: &mut Context<Self>) {
+        self.artifacts
+            .conversations
+            .entry(thread.to_owned())
+            .or_default()
+            .show_changes = true;
+        let first = self
+            .chats
+            .iter()
+            .find(|chat| chat.id == thread)
+            .filter(|chat| chat.changes.selected.is_none())
+            .and_then(|chat| chat.changes.records.last())
+            .map(|record| record.id.clone());
+        if let Some(id) = first {
+            self.read_changes(thread, &id, 0, cx);
+        }
+        self.artifacts
+            .conversations
+            .entry(thread.to_owned())
+            .or_default()
+            .show_pane();
+        cx.notify();
+    }
+
+    pub(crate) fn pane_resource_identity(
+        &self,
+        thread: &str,
+        state: &ArtifactCollection,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if state.show_changes
+            || self.files.selection.tab != ResourceTab::Artifacts
+            || (self.artifacts.view != ArtifactView::Gallery && state.chart.is_none())
+        {
+            return None;
+        }
+        let (id, version) = state.selected.as_ref()?;
+        let artifact = state.items.iter().find(|item| &item.id == id)?;
+        Some(self.artifact_identity(thread, state, artifact, *version, cx))
     }
 
     fn artifact_identity(
@@ -428,8 +602,7 @@ impl ChatPanel {
                     })
             });
             let available = matched.is_some();
-            let name = matched
-                .unwrap_or_else(|| self.t("artifacts.file_unavailable").to_owned());
+            let name = matched.unwrap_or_else(|| self.t("artifacts.file_unavailable").to_owned());
             (
                 link.artifact_id.clone(),
                 link.version,

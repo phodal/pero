@@ -31,6 +31,7 @@ pub enum ResourcePrimary {
 impl ChatPanel {
     /// Chat column keeps this much space before the artifact column replaces it.
     const CHAT_COLUMN_MIN: f32 = 320.;
+    pub(crate) const RESOURCE_TOOLBAR_MIN: f32 = 456.;
     /// The resize handle stays reachable. This is not a content-width limit.
     const PANE_DIVIDER: f32 = 12.;
     const BOTTOM_PANE_MIN: f32 = 120.;
@@ -66,6 +67,41 @@ impl ChatPanel {
             self.resource_column = next;
             cx.notify();
         }
+    }
+
+    /// Open resources for the selected conversation without changing selection.
+    /// Shells call this for an explicit user action; per-conversation pane layout
+    /// and reading state remain with the retained resources owner.
+    pub fn open_resource_tab(&mut self, tab: ResourceTab, cx: &mut Context<Self>) {
+        let Some(thread) = self
+            .active_chat
+            .and_then(|index| self.chats.get(index))
+            .map(|chat| chat.id.clone())
+        else {
+            return;
+        };
+        self.choose_resource_tab(&thread, tab, cx);
+        if tab == ResourceTab::Artifacts && !self.artifacts.conversations[&thread].requested {
+            self.refresh_artifacts(&thread, cx);
+        }
+        if self.compact {
+            cx.emit(ChatAction::CompactNeedsSpace);
+        }
+    }
+
+    /// Close the selected conversation's resources while preserving its contents.
+    pub fn close_resource_pane(&mut self, cx: &mut Context<Self>) {
+        if let Some(thread) = self
+            .active_chat
+            .and_then(|index| self.chats.get(index))
+            .map(|chat| chat.id.clone())
+        {
+            if let Some(state) = self.artifacts.conversations.get_mut(&thread) {
+                state.return_to_chat(true);
+            }
+        }
+        self.note_resource_column(None, cx);
+        cx.notify();
     }
 
     pub fn resource_column_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -107,13 +143,16 @@ impl ChatPanel {
             .map(|column| column.width)
             .unwrap_or_else(|| self.artifact_pane_width());
         let limit = self.artifacts.side_limit.max(shown);
+        let identity = (shown < Self::RESOURCE_TOOLBAR_MIN).then(|| self.pane_resource_identity(&thread,state,cx)).flatten();
         div()
             .size_full()
             .relative()
             .min_h_0()
             .min_w_0()
+            .flex().flex_col()
             .child(self.artifact_resize_capture(cx))
-            .child(pane)
+            .children(identity.map(|identity| div().h(px(32.)).flex_shrink_0().px(px(8.)).flex().items_center().child(identity)))
+            .child(div().flex_1().min_h_0().min_w_0().child(pane))
             .child(
                 div()
                     .id(SharedString::from(format!("artifact-column-resize-{thread}")))
@@ -382,7 +421,7 @@ impl ChatPanel {
                     side_width = Some(self.artifact_column_width(available));
                     side_width.expect("side column width")
                 };
-                let compact_toolbar = !bottom && shown < 456.;
+                let compact_toolbar = !bottom && shown < Self::RESOURCE_TOOLBAR_MIN;
                 let has_identity = !reviewing
                     && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
                     && collection.selected.is_some()
