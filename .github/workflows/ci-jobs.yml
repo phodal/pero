@@ -127,7 +127,7 @@ jobs:
           esac
 
       - name: Font-tool environment recovery tests
-        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs scripts/build/gpui-kit.test.mjs
+        run: node --test scripts/build/fonttools.test.mjs scripts/build/patch-checkout.test.mjs scripts/build/gpui-kit.test.mjs scripts/build/gpui-fast.test.mjs
       - name: Agent background process contracts
         run: node --test tests/runtime/agent-background.test.mjs
       - name: Resolve pinned local GPUI packages
