@@ -45,9 +45,9 @@ async function capture(name) { await paint(); await page.screenshot({ path: join
 async function click(read) {
   let bounds;
   await expect.poll(async () => { bounds = await read(); return !!bounds && bounds.width > 0 && bounds.height > 0; }).toBe(true);
-  const height = await page.evaluate(() => innerHeight);
+  const {height, width} = await page.evaluate(() => ({height:innerHeight,width:innerWidth}));
   for (let attempt = 0; attempt < 12 && (bounds.y < 0 || bounds.y + bounds.height > height - 35); attempt++) {
-    await page.mouse.move(Math.max(300, Math.min(bounds.x + bounds.width / 2, 800)), height / 2);
+    await page.mouse.move(Math.max(1, Math.min(bounds.x + bounds.width / 2, width - 1)), height / 2);
     await page.mouse.wheel(0, bounds.y < 0 ? -420 : 420);
     await paint(); bounds = await read();
   }
@@ -170,6 +170,29 @@ try {
   expect((await state()).composer).toBe('Overview keeps the central draft');
   await draft('');
   checks.push('overview-edits-in-right-context-with-central-conversation-and-draft-retained');
+
+  const originalGoal = (await state()).preferences.research_projects.find(project => project.id === projectId).goal;
+  const longGoal = Array.from({length:40}, (_, i) => `Evidence check ${i}: inspect the original record and keep linked materials reachable.`).join('\n');
+  async function saveGoal(goal) {
+    await control('edit'); await control('research-goal');
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+    await page.keyboard.insertText(goal); await control('save');
+    await expect.poll(async () => (await state()).researchProjects.editor).toBeNull();
+    await expect.poll(async () => (await state()).preferences.research_projects.find(project => project.id === projectId).goal).toBe(goal);
+  }
+  await saveGoal(longGoal);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 740));
+  await control('agent:materials');
+  await control('link');
+  const reachableLink = (await state()).projectControls.link;
+  expect(reachableLink.y).toBeGreaterThan(40);
+  expect(reachableLink.y + reachableLink.height).toBeLessThan(705);
+  await capture('01-long-goal-materials-reachable');
+  await control('link');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1500, 1020));
+  await saveGoal(originalGoal);
+  await wideColumns(main);
+  checks.push('long-project-goal-and-materials-share-scroll-at-minimum-window-height');
 
   await permissionMode(main, 'full-access');
   expect((await sessions()).find(session => session.thread_id === main)?.error).toBeNull();

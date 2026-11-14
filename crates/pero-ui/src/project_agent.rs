@@ -25,6 +25,19 @@ pub(crate) struct ProjectAgentsView {
     context_open: bool,
 }
 impl ProjectAgentsView {
+    pub(crate) fn finish_request(&mut self, id: &str) -> Option<(String, String)> {
+        let (project, action) = self.pending.remove(id)?;
+        if !self.pending.values().any(|(other, _)| other == &project) {
+            self.loading.remove(&project);
+        }
+        Some((project, action))
+    }
+    pub(crate) fn request_failed(&mut self, id: &str, error: String) {
+        if let Some((project, _)) = self.finish_request(id) {
+            self.dirty.remove(&project);
+            self.errors.insert(project, error);
+        }
+    }
     pub(crate) fn snapshot_for(&self, project: &str) -> Option<&ProjectAgentSnapshot> {
         self.snapshots.get(project)
     }
@@ -84,7 +97,7 @@ impl Workbench {
             let pending = event
                 .request_id
                 .as_ref()
-                .and_then(|id| self.project_agents.pending.remove(id));
+                .and_then(|id| self.project_agents.finish_request(id));
             let project = pending
                 .as_ref()
                 .map(|(project, _)| project.clone())
@@ -92,14 +105,6 @@ impl Workbench {
             if let Some(project) = project {
                 let refresh =
                     self.project_agents.dirty.remove(&project) && event.kind == "project_agent";
-                if !self
-                    .project_agents
-                    .pending
-                    .values()
-                    .any(|(id, _)| id == &project)
-                {
-                    self.project_agents.loading.remove(&project);
-                }
                 if event.kind == "project_agent_error" {
                     self.project_agents
                         .errors
@@ -165,6 +170,10 @@ impl Workbench {
                     | "permission"
                     | "permission_resolved"
                     | "user_questions"
+                    | "user_questions_resolved"
+                    | "session_auth_required"
+                    | "session_auth_error"
+                    | "session_authenticated"
             )
         {
             let relevant =
@@ -704,6 +713,7 @@ impl Workbench {
             .expect("active project context");
         div()
             .id("project-agent-context")
+            .when(self.research.editor.is_none(), |el| el.overflow_y_scroll())
             .h_full()
             .min_h_0()
             .flex_shrink_0()
@@ -727,6 +737,7 @@ impl Workbench {
                     div()
                         .px(px(pero_theme::SPACE_16))
                         .pt(px(pero_theme::SPACE_16))
+                        .flex_shrink_0()
                         .flex()
                         .flex_col()
                         .gap(px(pero_theme::SPACE_8))
@@ -780,5 +791,24 @@ impl Workbench {
                 )
             })
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::ProjectAgentsView;
+    #[test]
+    fn failed_transport_releases_only_the_finished_project_request() {
+        for remaining in [false, true] {
+            let mut view = ProjectAgentsView::default();
+            view.pending.insert("failed".into(), ("project".into(), "snapshot".into()));
+            view.loading.insert("project".into());
+            if remaining {view.pending.insert("other".into(), ("project".into(), "start".into()));}
+            view.request_failed("failed", "connection failed".into());
+            assert!(!view.pending.contains_key("failed"));
+            assert_eq!(view.loading.contains("project"), remaining);
+            assert_eq!(view.errors["project"], "connection failed");
+            if remaining {view.finish_request("other");assert!(!view.loading.contains("project"));}
+        }
     }
 }

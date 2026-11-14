@@ -465,9 +465,8 @@ impl Workbench {
         let compact = self.project_agent_active();
         div()
             .id("research-resources")
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
+            .when(!compact, |el| el.flex_1().min_h_0().overflow_y_scroll())
+            .when(compact, |el| el.flex_shrink_0())
             .p(px(pero_theme::WorkbenchStyle::PAGE))
             .flex()
             .flex_col()

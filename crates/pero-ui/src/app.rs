@@ -504,6 +504,11 @@ impl Workbench {
             self.pending_project_workspace = false;
         }
         if session_command(&value.to_string()).is_err() {
+            if value["method"] == "project_agent" {
+                if let Some(id) = value["request_id"].as_str() {
+                    self.project_agents.request_failed(id, self.t("error.connection").into());
+                }
+            }
             self.chat.update(cx, |panel, cx| {
                 panel.fail_file_reads(cx);
                 if let Some(chat) = panel
