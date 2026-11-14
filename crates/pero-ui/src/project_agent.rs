@@ -362,30 +362,14 @@ impl Workbench {
                                                 .unwrap_or_else(|| project.title.clone()),
                                         ),
                                 )
-                                .when_some(
-                                    selected
-                                        .filter(|session| session.binding.parent_thread.is_some()),
-                                    |el, _| {
-                                        let primary = primary_thread.clone();
-                                        el.child(
-                                            Button::new("project-agent-main")
-                                                .ghost()
-                                                .small()
-                                                .label(self.t("project.agent.primary"))
-                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                    if let Some(thread) = &primary {
-                                                        this.open_project_agent_session(thread, cx);
-                                                    }
-                                                })),
-                                        )
-                                    },
-                                )
                                 .when(primary.is_some(), |el| {
                                     el.child(
                                         Button::new("project-agent-summarize")
                                             .ghost()
                                             .small()
-                                            .label(self.t("project.agent.summarize"))
+                                            .label(self.t("project.agent.summary_short"))
+                                            .icon(Icon::default().path("icons/sparkles.svg"))
+                                            .tooltip(self.t("project.agent.summarize"))
                                             .disabled(loading || !can_summarize)
                                             .relative()
                                             .child(
@@ -608,7 +592,7 @@ impl Workbench {
                     .chat
                     .read(cx)
                     .artifact_pane_width()
-                    .clamp(280., 360.)))
+                    .clamp(320., 360.)))
                     .border_l(px(0.5))
                     .border_color(p.border)
             })

@@ -336,7 +336,8 @@ impl ChatPanel {
         let header_height = pero_theme::WorkbenchStyle::TAB
             .max(pero_theme::UiAppearance::global(cx).typography.row_height() + 4.)
             .max(36.);
-        let header = (!split && (!thread.is_empty() || self.docked)).then(|| {
+        let header = (!split && (!thread.is_empty() || self.docked)
+            && (!self.external_resource_navigation || open || self.docked)).then(|| {
             div()
                 .h(px(header_height))
                 .min_h(px(header_height))

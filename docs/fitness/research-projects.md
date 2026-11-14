@@ -316,3 +316,24 @@ separate from these unverified interactions. No lock-screen bypass was attempted
 The new UI was not tested with a real model or in a signed release package;
 these scripted flows do not establish scientific acceptance. Full keyboard-only
 and screen-reader acceptance remain outside this run.
+
+## PR #231 UI polish — 2026-11-14
+
+The branch was synchronized with current master (including PR discussions)
+before UI refinement. The central duplicate artifact header and redundant Main
+Agent shortcut are removed. The right materials inspector has a wider reading
+column and compact accessible link/refresh actions; the full resources page is
+unchanged. Shared user turns have a neutral tonal surface rather than an input
+outline, and selected sessions use the existing accent foreground/surface pair.
+
+Repository checks, Wasm/Host/Web development builds, 49 Native-feature Chat
+unit cases plus one image integration case, and Native UI compilation passed.
+Actual Electron Project Agent acceptance passed all 10 flows with zero page
+errors after the control/surface changes; final selection-color screenshots
+were also captured in the same `test-results/project-agent/` directory. The
+model remains scripted; actual shell, MCP, approvals, artifact preview and exact
+ACP restart continuation are exercised. These changes have no additional Native
+GUI acceptance beyond the earlier observed scope and final compilation.
+
+GitHub PR: https://github.com/phodal/pero/pull/231. Captures are local ignored
+artifacts; the connected GitHub API has no image-attachment upload operation.

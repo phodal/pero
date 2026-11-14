@@ -106,6 +106,8 @@ pub struct ChatPanel {
     pub docked: bool,
     /// The workbench titleband is drawing the side resources header.
     pub host_titleband: bool,
+    /// The shell already exposes the resource navigation beside this chat.
+    pub external_resource_navigation: bool,
     /// Side resources column measured by the last layout. Bottom stack is none.
     pub resource_column: Option<crate::artifact_panel::ResourceColumn>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
@@ -187,6 +189,7 @@ impl ChatPanel {
             compact: false,
             docked: false,
             host_titleband: false,
+            external_resource_navigation: false,
             resource_column: None,
             pending_prompts: vec![],
             scope: None,

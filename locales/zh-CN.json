@@ -1241,6 +1241,7 @@
   "project.agent.hint": "通过主 Agent 对话拆分和分派工作，并汇总带证据的结果。子会话保留各自的审批和执行记录。",
   "project.agent.start": "开始项目对话",
   "project.agent.primary": "主 Agent",
+  "project.agent.summary_short": "汇总进展",
   "project.agent.summarize": "汇总证据与结果",
   "project.agent.loading": "正在更新项目会话…",
   "project.agent.no_agent": "尚未安装 Agent",

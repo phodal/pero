@@ -1241,6 +1241,7 @@
   "project.agent.hint": "Keep one conversation for the project. Ask the main Agent to split work, delegate to Agents, and summarize results with evidence. Child sessions keep their own approvals and execution history.",
   "project.agent.start": "Start project conversation",
   "project.agent.primary": "Main Agent",
+  "project.agent.summary_short": "Summarize",
   "project.agent.summarize": "Summarize with evidence",
   "project.agent.loading": "Refreshing project sessions…",
   "project.agent.no_agent": "No installed Agent",

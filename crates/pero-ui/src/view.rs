@@ -370,8 +370,10 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
+        let project_conversation = self.project_agent_active();
         self.chat.update(cx,|chat,cx| {
             chat.set_artifact_surface_covered(covered,cx);
+            chat.external_resource_navigation = project_conversation;
             let docked = layout.chat == ChatPlacement::Dock;
             if chat.docked != docked { chat.docked = docked; cx.notify(); }
         });

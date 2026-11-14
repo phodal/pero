@@ -461,6 +461,7 @@ impl Workbench {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let references = self.saved_research_project().map(|project| project.resources.as_slice()).unwrap_or_default();
         let saving = self.research.pending.is_some() && self.error.is_none();
+        let compact = self.project_agent_active();
         div()
             .id("research-resources")
             .flex_1()
@@ -484,13 +485,14 @@ impl Workbench {
                     )
                     .child(
                         Button::new("research-link")
-                            .when(references.is_empty() && !self.research.choosing, |button| button.primary())
-                            .when(!references.is_empty() || self.research.choosing, |button| button.outline())
-                            .label(self.t(if self.research.choosing {
-                                "worker.local.cancel"
-                            } else {
-                                "research.link"
-                            }))
+                            .when(compact, |button| button.ghost().small()
+                                .icon(Icon::default().path(if self.research.choosing {"icons/x.svg"} else {"icons/plus.svg"}))
+                                .accessibility_label(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"}))
+                                .tooltip(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"})))
+                            .when(!compact, |button| button
+                                .when(references.is_empty() && !self.research.choosing, |button| button.primary())
+                                .when(!references.is_empty() || self.research.choosing, |button| button.outline())
+                                .label(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"})))
                             .disabled(saving)
                             .relative()
                             .child(self.view_bounds.projects.probe("link".into()))
@@ -502,7 +504,8 @@ impl Workbench {
                     .when(!references.is_empty(), |el| el.child(
                         Button::new("research-refresh")
                             .ghost()
-                            .label(self.t("remote.refresh"))
+                            .when(compact, |button| button.small().icon(Icon::default().path("icons/refresh.svg")).accessibility_label(self.t("remote.refresh")).tooltip(self.t("remote.refresh")))
+                            .when(!compact, |button| button.label(self.t("remote.refresh")))
                             .disabled(saving || !self.research.loading.is_empty())
                             .relative()
                             .child(self.view_bounds.projects.probe("refresh".into()))

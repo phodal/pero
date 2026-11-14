@@ -125,3 +125,19 @@ This preserves access to the existing file, artifact, change and layout actions
 without overlapping the fixed-height window header. Sidebar rows use recorded
 Project outcomes only when no live session status takes precedence. The project
 roster shares the sidebar scroll owner, including after expanding More.
+
+## UI polish after PR creation — 2026-11-14
+
+PR #231 publishes the Project Agent slice. The follow-up removes the duplicate
+Chat resource header when the Project shell already supplies that navigation,
+and removes the redundant Main Agent shortcut beside the sidebar. Summarize
+uses a concise visible label with the full evidence action in its tooltip.
+Project materials have a 320px minimum reading width; link/refresh commands use
+shared named icon controls in this inspector, while the full resource page keeps
+its existing labels. The same resource/composer owners and probes are retained.
+
+Shared component migration: session-row selection changes from surface-muted
+(which matched its sidebar background) to accent-soft/accent-text in both
+themes; user turns use surface-muted without the input-like outline. Consumers
+remain the ordinary and Project conversation/session surfaces. No new colors,
+artwork, execution state or preference store is introduced.
