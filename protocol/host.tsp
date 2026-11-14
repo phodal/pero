@@ -497,6 +497,8 @@ model SessionUsageEvent { kind: "session_usage"; ...ThreadEventBase; data: Sessi
 /** The ACP RequestPermissionRequest plus the Host-issued `permission_id`. */
 model PermissionData { ...Record<unknown>; permission_id: string }
 model PermissionEvent { kind: "permission"; ...ThreadEventBase; data: PermissionData }
+model PermissionResolvedData { permission_id: string; @minValue(0) pending: integer; ...Closed }
+model PermissionResolvedEvent { kind: "permission_resolved"; ...ThreadEventBase; data: PermissionResolvedData }
 model UserQuestionsData {
   request_id: string;
   sessionId: string;
@@ -629,6 +631,7 @@ union HostEvent {
   SessionAuthErrorEvent,
   SessionAuthenticatedEvent,
   PermissionEvent,
+  PermissionResolvedEvent,
   UserQuestionsEvent,
   QuestionsResolvedEvent,
   QuestionsErrorEvent,

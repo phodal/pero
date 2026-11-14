@@ -8960,6 +8960,9 @@
           "$ref": "#/$defs/PermissionEvent"
         },
         {
+          "$ref": "#/$defs/PermissionResolvedEvent"
+        },
+        {
           "$ref": "#/$defs/UserQuestionsEvent"
         },
         {
@@ -12617,6 +12620,66 @@
         },
         "data": {
           "$ref": "#/$defs/PermissionData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionResolvedData": {
+      "title": "PermissionResolvedData",
+      "type": "object",
+      "properties": {
+        "permission_id": {
+          "type": "string"
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "permission_id",
+        "pending"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionResolvedEvent": {
+      "title": "PermissionResolvedEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "permission_resolved"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PermissionResolvedData"
         }
       },
       "required": [

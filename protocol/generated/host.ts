@@ -286,6 +286,7 @@ export type HostEvent =
   | SessionAuthErrorEvent
   | SessionAuthenticatedEvent
   | PermissionEvent
+  | PermissionResolvedEvent
   | UserQuestionsEvent
   | QuestionsResolvedEvent
   | QuestionsErrorEvent
@@ -4401,6 +4402,18 @@ export interface PermissionEvent {
 export interface PermissionData {
   permission_id: string;
   [k: string]: unknown | undefined;
+}
+export interface PermissionResolvedEvent {
+  kind: "permission_resolved";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: PermissionResolvedData;
+}
+export interface PermissionResolvedData {
+  permission_id: string;
+  pending: number;
 }
 export interface UserQuestionsEvent {
   kind: "user_questions";
