@@ -6,6 +6,16 @@ date: 2026-11-02
 
 # Desktop release Reader build prerequisites
 
+## 2026-11-14 standalone preparation recurrence
+
+Virtual Cell release smoke in PR #231 run 43558147069 reached the packaged App
+gate but did not expose Cells & perturbations: the retained UI reported Could
+not open app / Prepare the App environment before opening it. The same failure
+is present in prior unrelated branch run 43545052870 (job 132294398899), before
+the Project Agent PR. Product packaging and that smoke test are unchanged by
+this PR. This is a separate unresolved release preparation failure; Project
+Agent merge validation does not establish successful packaged publication.
+
 The latest release run, 41216142898, failed its Virtual Cell job because the
 standalone product now builds Reader Wasm, but only the Pero job installed
 nightly-2026-10-28 with the wasm32-unknown-unknown target. Every release product

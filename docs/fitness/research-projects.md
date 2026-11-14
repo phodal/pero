@@ -457,3 +457,30 @@ ignored artifacts; no screenshot binaries are committed. Native inspection uses
 persisted scripted execution history, not a new Native tool run. Real-model,
 scientific acceptance, Native Viewer/minimum-window and signed-release scope
 remain unverified.
+
+## Merge review verification — 2026-11-14
+
+The core CI failure at d0405f936 was reproduced locally: Host emitted the
+undeclared permission_resolved kind. After editing host.tsp and regenerating,
+Host protocol conformance passes with 44/121 declared event kinds observed.
+Five Project domain cases, the runtime status projection table, 59 Host cases
+(one existing prepared-Docker case ignored), 50 shared Chat cases and 81
+Native-feature UI cases pass. The broker loopback test proves credentials
+resolve the original primary despite a different supplied client thread, and
+old credentials expire on rebind. Status cases cover mixed permissions/questions,
+question resolution and successful follow-up clearing prior failure information.
+
+Actual Host integration passes nine behaviors, including explicit rejection of
+new Start input against an existing primary. Actual Electron passes all 15
+Project flows with zero renderer errors; the added long-goal flow saves a valid
+40-line goal, reaches Materials at minimum window height, then restores the
+original goal and continues the original session checks. Inspected capture:
+`test-results/project-agent/01-long-goal-materials-reachable.png`. Existing
+receipt disclosure, original ACP restart, approval/cancel, failure, artifacts,
+and narrow/dark flows remain passing. Repository checks and Wasm/Web builds pass.
+
+These local results are distinct from remote CI on the pushed head. The known
+standalone Virtual Cell release preparation failure is recorded in the existing
+Desktop release issue and predates this PR on another branch. Signed package,
+real-model/scientific and fresh Native GUI acceptance are not added by these
+merge review repairs.

@@ -240,3 +240,23 @@ exercises the projection rather than avoiding the problematic content. The
 actual Native check also uses older persisted conversations containing the
 original JSON. This is presentation of observed evidence, not generated prose
 or a scientific result assessment.
+
+## Merge review repairs — 2026-11-14
+
+Before the user-authorized merge, verified review findings were repaired in
+their existing owners. Permission resolution is now declared in the generated
+Host contract. Shared transcript status tracks pending question IDs alongside
+permissions/authentication and resets old turn failures on follow-up. Project
+MCP credentials now resolve a single primary identity; the envelope carries no
+caller-supplied primary. Rebinding expires the prior credential.
+
+The serialized evidence batch measures its actual pretty JSON byte size and
+reports omitted sessions. Session admission precedes workspace allocation. A
+new Start prompt cannot silently succeed against an existing primary; it directs
+the caller to Followup, while an initial-request retry does not replay input.
+Project response and send-failure paths share request completion, so controls
+can recover. Long goals and materials share the right inspector's scroll owner.
+Receipt disclosure requires standalone boundaries and preserves assistant code
+and fences containing additional content. The existing Host and Electron flows
+exercise the changes. Incident scope and validation are recorded in
+`docs/issues/2026-11-14-project-agent-merge-gates.md`.
