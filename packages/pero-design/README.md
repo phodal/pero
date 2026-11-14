@@ -216,3 +216,10 @@ GPUI 菜单继续使用 Kit 的语义、焦点与子菜单实现，以及 Pero �
 状态文案。科学图形、原文排版和领域执行流程不由通用壳组件改写。
 
 验证范围与已知限制见 [VERIFICATION.md](VERIFICATION.md)。
+
+GPUI 的项目 Agent 复用同一个 `ChatPanel`，中央对话与右侧资料不创建第二个 Composer。
+全局 Sidebar 的 `context_navigation` 插槽与应用入口共用滚动区域；项目行复用
+`session_row` 的状态槽，运行和待处理状态优先，记录的完成、取消、中断由调用方传入。
+`ChatPanel::open_resource_tab` / `close_resource_pane` 供宿主显式打开或收起现有
+文件／产物列，不改变会话身份。窄资源列将目的地和显示选项放进共享菜单，选中产物的
+名称和版本控件移至正文上方，避免与固定高度窗口栏重叠。

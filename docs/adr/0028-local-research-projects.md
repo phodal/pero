@@ -110,9 +110,13 @@ Model-facing evidence contains bounded original tool receipts, including tool
 IDs, observed status and output excerpts. Child narrative remains reported
 evidence; it is not independent verification.
 
-The Project Agent page uses the existing ChatPanel for conversations and
-approvals, and exposes original-thread navigation, instructions, cancellation
-and an explicit evidence-summary request. After restart, journal replay
+Saved research projects open the Project Agent conversation centrally, using
+the existing ChatPanel and its single composer, approvals and cancellation.
+Primary and child conversations appear in the global sidebar. The right
+context uses existing Project resource links and the retained conversation
+artifact/Viewer owners. An explicit evidence-summary request returns to the
+primary conversation. Bound empty sessions cannot retarget or replace their
+original identity through ordinary new-conversation controls. After restart, journal replay
 restores membership. Continuing explicitly loads the acknowledged original ACP
 session; unsupported or unavailable loads fail visibly, without substituting a
 new session. Interrupted execution is not automatically retried.

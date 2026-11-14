@@ -45,12 +45,13 @@ acknowledged original ACP session, and fails visibly if loading is unsupported.
 
 ## Product surface
 
-Research projects gain an Agent entry in their existing navigation and overview.
-The surface presents the main conversation, delegated work, actual transcript
-status, result/error and actions to enter the original conversation, append
-instructions, cancel or request a primary-Agent summary. Existing ChatPanel
-continues to own composing, model selection and approvals. Refresh failures
-retain prior content and offer local recovery.
+Saved research projects open their main Agent conversation in the center.
+The global sidebar lists the primary and its delegated conversations with
+status and ordinary session menus. The right context presents the saved goal,
+linked App resources and access to original conversation artifacts. Existing
+ChatPanel owns the only composer, model selection, approvals and cancellation;
+existing resource and Viewer owners retain files and versioned outputs.
+Refresh failures retain prior content and the shared conversation draft.
 
 This adds consumers of public GPUI buttons, text inputs and Pero theme roles;
 there is no token or component migration and no new page-local control skin.
@@ -86,4 +87,41 @@ Project surface holds durable context and actual outputs rather than repeated
 assistant prose. Worktree paths, IDs and raw receipts move behind details;
 summaries stay in the primary conversation with source references. Existing
 permission cards, session ownership, evidence and execution rules stay in their
-current owners. This redesign is proposed and has not been implemented.
+current owners. This direction was subsequently authorized and implemented in the revision below.
+
+## Conversation-centered revision — 2026-11-14
+
+The user authorized this revision in the isolated worktree. Saved research
+projects now enter the central Agent conversation by default; Overview remains
+available through the back action. Directory-only projects keep their existing
+entry. The existing ChatPanel is mounted once, as the main content, with its
+original composer, model/permission controls, tools and approval cards.
+
+Migration: the old Project Agent report rows, copied result excerpts, workspace
+metadata and ProjectInstruction textarea are removed. Primary/child navigation
+uses the shared session row in the global sidebar, with the original notice,
+status and menu owners. Current project selection pins the original conversation
+so background child creation does not replace the primary conversation. The
+right context shows the saved goal and the existing linked-resource surface;
+artifacts/files use the existing retained ChatPanel resource column and Viewer.
+The new public resource open/close actions forward to those existing owners.
+No tokens, icon artwork or page-local control styles are introduced.
+
+Narrow windows show the conversation first and open Project materials through
+an explicit toolbar action, with a direct return to chat. Existing drafts and
+resource reading state remain with their original owners. Closing resources or
+switching layout does not cancel work. Summaries return to the primary chat.
+
+Direct continuation after restart now uses the shared composer. Conversation
+retains its typed ProjectSessionBinding from the original journal; acknowledged
+closed Project conversations can submit again. Host's ordinary prompt shell
+calls the same existing exact-ACP-load path used by Project follow-up before
+forwarding the prompt and context. Unbound closed conversations keep their
+existing behavior; no replacement session or automatic prompt replay is added.
+
+The shared resource header uses destination and view menus in narrow columns;
+selected artifact identity and version controls move beneath the titleband.
+This preserves access to the existing file, artifact, change and layout actions
+without overlapping the fixed-height window header. Sidebar rows use recorded
+Project outcomes only when no live session status takes precedence. The project
+roster shares the sidebar scroll owner, including after expanding More.

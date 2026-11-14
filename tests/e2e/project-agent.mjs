@@ -33,7 +33,7 @@ await writeFile(agents, JSON.stringify([{ id: 'project-fixture', name: 'Harness 
     '--max-tokens', '2048', '--max-retries', '0'], env: { AGENT_PROVIDER_API_KEY: 'loopback-fixture-only' } }]));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'desktop'), PERO_SETTINGS_PATH: settings,
   PERO_HISTORY_PATH: join(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_ENV_FILE: join(temp, 'no-env'),
-  PERO_LOCALE: 'en', PERO_REQUIRED_APPS: '', PERO_BUILTIN_APPS: '', PERO_APP_INFRA_EMBED: '0' };
+  PERO_LOCALE: 'en', PERO_REQUIRED_APPS: 'scientific-viewer', PERO_BUILTIN_APPS: 'scientific-viewer', PERO_APP_INFRA_EMBED: '0' };
 for (const key of ['ELECTRON_RUN_AS_NODE', 'PERO_CLOUD_URL', 'PERO_CLIENT_TOKEN', 'PERO_OPERATOR_TOKEN']) delete env[key];
 let app, page;
 const errors = [], checks = [];
@@ -72,8 +72,21 @@ async function close() {
 async function project() {
   await clickAppShortcut(page, 'projects');
   await control(`open:${projectKey}`);
-  await control('tab:project.agent');
+  await expect.poll(async () => (await state()).projectTab).toBe('agent');
   await expect.poll(async () => (await snapshot())?.project_id).toBe(projectId);
+}
+async function wideColumns(id) {
+  await expect.poll(async () => {
+    const s = await state(), controls = s.projectControls;
+    return ['agent:conversation', 'agent:context', `agent:open:${id}`].every(key => controls[key]?.width > 0);
+  }).toBe(true);
+  const s = await state(), nav = s.projectControls[`agent:open:${id}`];
+  const conversation = s.projectControls['agent:conversation'], context = s.projectControls['agent:context'];
+  expect(nav.x + nav.width).toBeLessThanOrEqual(conversation.x + 2);
+  expect(conversation.width).toBeGreaterThan(context.width);
+  expect(context.x).toBeGreaterThanOrEqual(conversation.x + conversation.width - 2);
+  expect(s.composerBounds.input.x).toBeGreaterThanOrEqual(conversation.x);
+  expect(s.composerBounds.input.x + s.composerBounds.input.width).toBeLessThanOrEqual(context.x + 2);
 }
 async function open(id) {
   await expect.poll(async () => {
@@ -82,15 +95,24 @@ async function open(id) {
     const s = await state(); return s.chats[s.activeChat]?.id;
   }).toBe(id);
 }
-async function submit(text) {
+async function draft(text) {
   await click(async () => (await state()).composerBounds.input);
-  await page.keyboard.insertText(text); await page.keyboard.press('Enter');
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.insertText(text);
+  await expect.poll(async () => (await state()).composer).toBe(text);
+}
+async function submit(text) {
+  const before = await state(), id = before.chats[before.activeChat].id;
+  const users = before.chats[before.activeChat].messages.filter(message => message.role === 'user').length;
+  await draft(text); await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).chats.find(chat => chat.id === id)?.messages.filter(message => message.role === 'user').length,
+    { timeout: 30000 }).toBe(users + 1);
 }
 async function permissionMode(id, mode) {
   await open(id);
   await expect.poll(async () => (await state()).chats.find(chat => chat.id === id)?.state).toBe('idle');
   await click(async () => (await state()).composerBounds.permissions);
-  await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowRight');
   await paint(); await capture('permission-mode-menu');
   // Permission choices follow their advertised order in the shared menu.
   for (let index = 0; index < (mode === 'full-access' ? 2 : 3); index++) await page.keyboard.press('ArrowDown');
@@ -119,22 +141,29 @@ try {
   await control('agent:start');
   await expect.poll(async () => (await sessions()).length).toBe(1);
   const main = (await sessions())[0].thread_id;
-  await permissionMode(main, 'full-access'); await submit('PROJECT_DELEGATE');
+  await wideColumns(main);
+  checks.push('research-project-opens-central-agent-chat-with-left-navigation-and-right-materials');
+  await permissionMode(main, 'full-access');
+  expect((await sessions()).find(session => session.thread_id === main)?.error).toBeNull();
+  await submit('PROJECT_DELEGATE');
   await expect.poll(async () => (await sessions()).filter(session => session.binding.parent_thread).length, { timeout: 60000 }).toBe(1);
   const child = (await sessions()).find(session => session.binding.parent_thread);
+  const delegatedState = await state();
+  expect(delegatedState.chats[delegatedState.activeChat].id).toBe(main);
   await approve(child.thread_id);
   await completed(child.thread_id);
   expect(child.workspace).not.toBe(workspace);
   expect(await readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('observed fixture evidence');
+  await wideColumns(child.thread_id);
   await capture('02-child-evidence');
   checks.push('primary-MCP-delegation-and-child-shell-with-real-approval-cards');
 
-  await control(`agent:followup:${child.thread_id}`);
-  await control('agent:instruction'); await page.keyboard.insertText('PROJECT_FOLLOWUP');
-  await control('agent:send'); await approve(child.thread_id); await completed(child.thread_id);
-  expect(await readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('followup evidence');
+  await open(child.thread_id); await submit('PROJECT_FOLLOWUP');
+  await approve(child.thread_id);
+  await expect.poll(() => readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('followup evidence');
+  await completed(child.thread_id);
   await capture('03-followup');
-  checks.push('append-instructions-to-original-child-session');
+  checks.push('left-child-navigation-and-shared-composer-append-to-original-session');
 
   await open(main); await submit('PROJECT_WAIT');
   await expect.poll(async () => (await sessions()).filter(session => session.binding.parent_thread).length).toBe(2);
@@ -143,58 +172,97 @@ try {
   await expect.poll(() => readFile(join(slow.workspace, 'slow-ready'), 'utf8').catch(() => '')).toBe('ready');
   await expect.poll(async () => (await sessions()).find(session => session.thread_id === slow.thread_id)?.status).toBe('running');
   await capture('04-running');
-  await control(`agent:cancel:${slow.thread_id}`);
+  await open(slow.thread_id);
+  await click(async () => (await state()).stopButtonBounds);
   await expect.poll(async () => (await sessions()).find(session => session.thread_id === slow.thread_id)?.status, { timeout: 30000 }).toBe('cancelled');
   await capture('05-cancelled');
-  checks.push('running-and-confirmed-child-cancellation');
+  checks.push('shared-composer-stop-and-confirmed-original-child-cancellation');
 
   await control('agent:summarize');
   await expect.poll(async () => (await sessions()).find(session => session.thread_id === main)?.result, { timeout: 30000 }).toContain('PROJECT_SUMMARY_VERIFIED');
   await completed(main);
+  await expect.poll(async () => { const s = await state(); return s.chats[s.activeChat]?.id; }).toBe(main);
   const result = (await sessions()).find(session => session.thread_id === main).result;
   expect(result).toContain(child.thread_id);
   await capture('06-evidence-summary');
   checks.push('primary-summary-with-source-conversation-evidence');
+
+  const summaryState = await state(), summaryChat = summaryState.chats.find(chat => chat.id === main);
+  const summaryIndex = summaryChat.messages.findLastIndex(message => message.role === 'assistant');
+  await click(async () => (await state()).artifacts?.bounds[`save-reply:${summaryIndex}`]);
+  await expect.poll(async () => (await state()).artifacts?.items.length).toBe(1);
+  const artifact = (await state()).artifacts.items[0];
+  expect(artifact.thread_id).toBe(main);
+  expect(artifact.versions[0].source_message_id).toBe(`message:${summaryIndex}`);
+  expect(artifact.versions[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+  await expect.poll(async () => (await state()).artifacts.open).toBe(true);
+  const viewerFrame = page.locator('iframe[title="Scientific Viewer"]');
+  const viewer = page.frameLocator('iframe[title="Scientific Viewer"]');
+  await expect(viewer.locator(`[data-artifact-id="${artifact.id}"]`)).toBeVisible({ timeout: 60000 });
+  await viewer.locator(`[data-artifact-id="${artifact.id}"]`).dblclick();
+  await expect(viewer.locator('.artifact-markdown:visible')).toContainText('PROJECT_SUMMARY_VERIFIED', { timeout: 60000 });
+  const artifactBounds = await viewerFrame.boundingBox(), conversationBounds = (await state()).projectControls['agent:conversation'];
+  expect(artifactBounds.x).toBeGreaterThanOrEqual(conversationBounds.x + conversationBounds.width - 2);
+  await capture('06-saved-summary-artifact');
+  await control('agent:materials');
+  await expect.poll(async () => (await state()).artifacts.open).toBe(false);
+  await wideColumns(main);
+  await control('agent:artifacts');
+  await expect.poll(async () => (await state()).artifacts.open).toBe(true);
+  if (!await viewer.locator('.artifact-markdown:visible').isVisible()) {
+    await viewer.locator(`[data-artifact-id="${artifact.id}"]`).dblclick();
+  }
+  await expect(viewer.locator('.artifact-markdown:visible')).toContainText('PROJECT_SUMMARY_VERIFIED');
+  checks.push('right-materials-and-real-versioned-artifact-switch-with-central-chat-retained');
 
   await open(main); await submit('PROJECT_FAIL');
   await expect.poll(async () => (await sessions()).some(session => session.binding.label === 'Failed check' && session.status === 'failed' && session.error), { timeout: 30000 }).toBe(true);
   await capture('06-provider-failure');
   checks.push('provider-failure-visible-with-original-error-and-retained-results');
 
-  await control(`agent:followup:${child.thread_id}`);
-  await control('agent:instruction'); await page.keyboard.insertText('Preserved instruction draft');
+  await open(child.thread_id); await draft('Preserved composer draft');
   const settingsBeforeError = await readFile(settings, 'utf8');
   await writeFile(settings, 'invalid');
   await control('agent:refresh');
   await expect.poll(async () => (await state()).projectAgent.errors[projectId]).toBeTruthy();
-  expect((await state()).projectAgent.instruction.text).toBe('Preserved instruction draft');
+  expect((await state()).composer).toBe('Preserved composer draft');
   expect((await sessions()).some(session => session.thread_id === child.thread_id)).toBe(true);
   await capture('06-refresh-error-retains-draft');
   await writeFile(settings, settingsBeforeError); await control('agent:refresh');
   await expect.poll(async () => (await state()).projectAgent.errors[projectId]).toBeUndefined();
-  checks.push('refresh-failure-retains-content-and-instruction-draft-then-recovers');
+  await open(main); await open(child.thread_id);
+  expect((await state()).composer).toBe('Preserved composer draft');
+  checks.push('refresh-failure-and-left-navigation-retain-shared-composer-draft-and-content');
 
   await setAppearance(page, 'dark'); await capture('07-dark');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 740));
-  await capture('08-narrow-chat-dark');
-  await control('chat-toggle');
-  await expect.poll(async () => (await state()).preferences.layout.chat_open).toBe(false);
-  await expect.poll(async () => Boolean((await state()).projectControls['agent:refresh'])).toBe(true);
-  expect((await state()).projectAgent.instruction.text).toBe('Preserved instruction draft');
   await capture('08-narrow-dark');
+  expect((await state()).composer).toBe('Preserved composer draft');
+  await control('agent:materials');
+  await expect.poll(async () => (await state()).projectControls['agent:context']?.width).toBeGreaterThan(0);
+  await capture('08-narrow-materials-dark');
+  await control('agent:context-close');
+  await expect.poll(async () => (await state()).projectControls['agent:conversation']?.width).toBeGreaterThan(0);
+  expect((await state()).composer).toBe('Preserved composer draft');
+  await open(main); await open(child.thread_id);
+  expect((await state()).composer).toBe('Preserved composer draft');
+  checks.push('dark-narrow-shared-chat-keeps-draft-and-project-session-navigation');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1500, 1020));
   await setAppearance(page, 'light');
   const ids = (await sessions()).map(session => session.thread_id);
   await close(); await launch(); await project();
   expect((await sessions()).map(session => session.thread_id)).toEqual(ids);
+  await open(main);
+  await expect.poll(async () => (await state()).artifacts?.items.some(item => item.id === artifact.id)).toBe(true);
+  expect((await state()).artifacts.items.find(item => item.id === artifact.id).versions[0].sha256).toBe(artifact.versions[0].sha256);
   await open(child.thread_id);
   const restoredMessages = (await state()).chats.find(chat => chat.id === child.thread_id).messages;
   expect(restoredMessages.length).toBeGreaterThan(0);
   const historyBeforeResume = (await readFile(join(temp, 'history.jsonl'), 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
   const originalAcp = historyBeforeResume.find(event => event.kind === 'session_ready' && event.thread_id === child.thread_id).data.sessionId;
-  await control(`agent:followup:${child.thread_id}`);
-  await control('agent:instruction'); await page.keyboard.insertText('PROJECT_FOLLOWUP');
-  await control('agent:send'); await approve(child.thread_id); await completed(child.thread_id);
+  await submit('PROJECT_FOLLOWUP'); await approve(child.thread_id);
+  await expect.poll(async () => (await readFile(join(child.workspace, 'evidence.txt'), 'utf8')).split('followup evidence')).toHaveLength(3);
+  await completed(child.thread_id);
   const resumedMessages = (await state()).chats.find(chat => chat.id === child.thread_id).messages;
   expect(resumedMessages.slice(0, restoredMessages.length)).toEqual(restoredMessages);
   expect(resumedMessages).toHaveLength(restoredMessages.length + 2);
@@ -202,10 +270,10 @@ try {
   const historyAfterResume = (await readFile(join(temp, 'history.jsonl'), 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
   expect(historyAfterResume.filter(event => event.kind === 'session_ready' && event.thread_id === child.thread_id).at(-1).data.sessionId).toBe(originalAcp);
   await capture('09-restored-original-conversations');
-  checks.push('restart-restores-project-parent-child-and-original-chat-history');
+  checks.push('restart-restores-project-navigation-artifact-and-composer-resumes-exact-original-ACP-session');
   expect(errors).toEqual([]);
   await writeFile(join(out, 'results.json'), JSON.stringify({ scope: 'Electron L1 / scripted model / actual shell and MCP',
-    checks, errors, sessions: await sessions(), calls: provider.calls.length, temp,
+    checks, errors, artifact, sessions: await sessions(), calls: provider.calls.length, temp,
     history: (await readFile(join(temp, 'history.jsonl'), 'utf8')).split('\n').filter(Boolean).length }, null, 2));
   console.log(JSON.stringify({ checks, output: out, temp }, null, 2));
 } catch (error) {

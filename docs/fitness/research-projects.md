@@ -251,3 +251,68 @@ revision is recorded in the existing Project Agent execution plan. No redesign
 or Cursor backend behavior is claimed by this review. Keyboard-only operation,
 screen-reader behavior, dark mode and narrow-window behavior in Cursor were
 not verified.
+
+## Conversation-centered Project Agent — 2026-11-14
+
+Source: `codex/project-agent` at `3df2db4d6` plus the UI revision in this
+worktree. Build outputs and dependencies are isolated from the concurrent PR
+checkout. No production deployment or installed-app replacement was performed.
+
+The old report and separate instruction form have been replaced by the existing
+central ChatPanel, compact primary/child navigation in the global sidebar, and
+Project materials on the right. Real artifacts use the original conversation
+catalog and Scientific Viewer. Research projects enter this view by default;
+Overview remains available. Component/consumer migration is recorded in the
+existing Project Agent task record. No theme or icon generation sources changed.
+
+### Checks and observed behavior
+
+- `npm run check` passed (1,250 bilingual messages and 86 shared icons).
+- Nightly Rust tests passed: 49 Native-feature Chat cases and one real inline
+  image integration case, including bound-session continuation/retarget
+  admission; the ordinary suite passed 33 UI cases, 36 Chat core cases and 58
+  Host cases with one existing prepared-Docker case ignored.
+- Wasm, Host, Go Harness, Scientific Viewer, Web and Electron development builds
+  passed. Native UI compilation passed separately.
+- Actual isolated Electron L1 acceptance passed all 10 behaviors with 16
+  scripted loopback model calls, actual Rust Host/Go Harness/MCP/shell effects
+  and zero page errors. The primary stays selected during background child
+  creation. Left navigation opens the original child in the central composer;
+  real approval cards, append and stop controls use their existing owners.
+- The summary was saved through the real message action as a versioned artifact
+  with source message ID and SHA-256. Its actual Scientific Viewer preview was
+  opened on the right, and switching Materials/Artifacts retained the central
+  chat. The narrow resource header no longer overlaps; identity/version
+  controls are beneath the titleband.
+- Provider failure retained original errors; refresh failure retained the prior
+  sessions and composer draft. Left navigation, theme changes and minimum
+  window materials/back preserved the draft. Requested 920px width was clamped
+  by Electron's existing 1000px window minimum; this is 1000px evidence.
+- Restart restored Project membership, original history and the saved artifact.
+  Direct input in the same composer loaded the original ACP session ID and
+  appended exactly one user/assistant turn, without replaying old messages.
+  An externally created session is marked Connecting before it is focused;
+  successful creation no longer triggers a duplicate ordinary new-session call.
+
+Electron receipts: `test-results/project-agent/results.json`. Inspected captures
+include `01-ready-light.png`, `02-child-evidence.png`,
+`06-saved-summary-artifact.png`, `08-narrow-dark.png`,
+`08-narrow-materials-dark.png` and `09-restored-original-conversations.png`.
+These show real development surfaces with explicitly scripted task text.
+
+Actual macOS Native L1 checks separately observed central main/child Chat,
+left navigation, right materials, light/dark hierarchy and a real shell follow-up
+after restart with the same ACP identity and no duplicated history. Captures
+and receipts are in `test-results/project-agent-redesign-native/`, including
+`02-main-light.png`, `03-child-light.png`, `04-resumed-followup-light.png`,
+`06-child-dark.png` and `native-followup-verification.json`.
+
+### Limits
+
+The final compact artifact header and Scientific Viewer preview were observed
+in Electron. Native's isolated profile did not enable Viewer; its narrow-window
+interaction was blocked by the macOS lock screen. Final Native compilation is
+separate from these unverified interactions. No lock-screen bypass was attempted.
+The new UI was not tested with a real model or in a signed release package;
+these scripted flows do not establish scientific acceptance. Full keyboard-only
+and screen-reader acceptance remain outside this run.
