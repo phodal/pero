@@ -337,3 +337,9 @@ GUI acceptance beyond the earlier observed scope and final compilation.
 
 GitHub PR: https://github.com/phodal/pero/pull/231. Captures are local ignored
 artifacts; the connected GitHub API has no image-attachment upload operation.
+
+PR #231's initial remote Bazel job exposed a stale rules_js input hash for the
+added package.json test script. Regenerating with `bazel run @npm//:sync`
+changed only that hash; `bazel test --config=ci //:checks` then passed all seven
+checks. The existing lockfile incident record contains the recurrence. Remote
+CI after the repair is not claimed complete by these local results.

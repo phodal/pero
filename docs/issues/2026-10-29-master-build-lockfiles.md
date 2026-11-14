@@ -207,3 +207,15 @@ This is the same script-input cache invalidation; regenerate with the pinned
 
 Only the package.json input hash changed. All seven frozen generated checks
 passed locally with `bazel test --config=ci //:checks`; dependency locks were unchanged.
+
+## 2026-11-14 recurrence — Project Agent PR #231
+
+Run 43550741425 failed the Bazel job before tests (exit 48): the Project Agent
+`test:project-agent` script changed package.json without regenerating the
+rules_js repository input cache. This is the same script-only invalidation
+tracked above, not an npm dependency change.
+
+`bazel run @npm//:sync` regenerated only the watched package.json hash, then
+`bazel test --config=ci //:checks` passed all seven frozen checks on macOS.
+No dependency or lockfile versions changed. The cache repair is included in
+PR #231; the remote CI rerun remains separate verification.
