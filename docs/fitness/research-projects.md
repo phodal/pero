@@ -420,3 +420,40 @@ the inspected wide and minimum-window layouts. Native Viewer, Native minimum
 window, full keyboard/screen-reader, real model and signed package acceptance
 remain unverified in this iteration. Fixture markers and raw JSON belong to
 scripted replies, not a claim about real-model output or scientific validation.
+
+## Compact execution evidence and clean catalog — 2026-11-14
+
+Source: `21f4bf2f2` plus this follow-up revision. The transcript retains readable
+assistant prose and discloses exact same-turn tool receipt echoes through the
+existing collapsed tool row. Unrelated or changed JSON remains visible. Original
+messages and tool receipts remain in persisted history, and copy/save explicitly
+operate on the original reply. Project catalog collection excludes implicit
+delegated execution workspaces while preserving explicit saved projects.
+
+Verification completed:
+
+- Actual Electron Project Agent: all 14 flows pass, 16 scripted loopback model
+  calls and zero renderer errors. New checks exercise initial collapse,
+  expand/collapse, readable prose with the original receipt retained, catalog
+  exclusion of all three child workspaces, and retained disclosure after restart.
+  Existing approval, cancellation, artifact, failure recovery, dark/narrow and
+  exact original ACP-session continuation flows pass.
+- Native-feature Chat: all 50 cases pass, including exact receipt, streaming
+  prefix, fenced receipt and unrelated/changed JSON cases. Repository checks,
+  Wasm/Web builds and the actual Native development binary build pass.
+- Ordinary Electron Chat passes streaming, follow-up, cancellation, permission,
+  long stream, scroll retention, reload, history/draft retention, locale, dark
+  and narrow flows with zero renderer or invalid Host-event errors.
+- Actual macOS Native GUI inspection of the copied prior profile confirms both
+  older child replies now retain their prose without the echoed JSON wall.
+  Tool rows start collapsed; expanding shows the command, stdout and exit code.
+  The catalog shows the one saved research project, with no child worktree rows.
+
+Inspected Electron captures: `test-results/project-agent/02-child-evidence.png`,
+`02-expanded-execution-evidence.png` and `06-clean-project-catalog.png`.
+Native captures: `test-results/project-agent-cursor-native/04-evidence-collapsed.jpg`,
+`05-evidence-expanded.jpg` and `06-clean-catalog.jpg`. Captures remain local,
+ignored artifacts; no screenshot binaries are committed. Native inspection uses
+persisted scripted execution history, not a new Native tool run. Real-model,
+scientific acceptance, Native Viewer/minimum-window and signed-release scope
+remain unverified.

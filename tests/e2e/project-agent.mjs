@@ -183,7 +183,21 @@ try {
   expect(child.workspace).not.toBe(workspace);
   expect(await readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('observed fixture evidence');
   await wideColumns(child.thread_id);
+  const childState = await state();
+  const childReply = childState.readableReplies.find(reply => reply.chat === child.thread_id);
+  expect(childReply.text).toContain('execution evidence');
+  expect(childReply.text).not.toContain('readIsolated');
+  expect(childState.chats.find(chat => chat.id === child.thread_id).messages.at(-1).text).toContain('readIsolated');
+  const tool = childState.toolBounds.find(tool => tool.chat === child.thread_id);
+  const toolKey = `${child.thread_id}/${tool.tool}`;
+  expect(childState.expandedTools).not.toContain(toolKey);
   await capture('02-child-evidence');
+  await click(async () => (await state()).toolBounds.find(item => item.chat === child.thread_id && item.tool === tool.tool)?.bounds);
+  await expect.poll(async () => (await state()).expandedTools.includes(toolKey)).toBe(true);
+  await capture('02-expanded-execution-evidence');
+  await click(async () => (await state()).toolBounds.find(item => item.chat === child.thread_id && item.tool === tool.tool)?.bounds);
+  await expect.poll(async () => (await state()).expandedTools.includes(toolKey)).toBe(false);
+  checks.push('raw-tool-echo-is-readable-by-default-with-original-reply-and-expandable-evidence-retained');
   checks.push('primary-MCP-delegation-and-child-shell-with-real-approval-cards');
 
   await open(child.thread_id); await submit('PROJECT_FOLLOWUP');
@@ -246,6 +260,15 @@ try {
   await open(main); await submit('PROJECT_FAIL');
   await expect.poll(async () => (await sessions()).some(session => session.binding.label === 'Failed check' && session.status === 'failed' && session.error), { timeout: 30000 }).toBe(true);
   await capture('06-provider-failure');
+  const projectChildren = (await sessions()).filter(session => session.binding.parent_thread);
+  await clickAppShortcut(page, 'projects');
+  await expect.poll(async () => (await state()).projectControls[`open:${projectKey}`]?.width || 0).toBeGreaterThan(0);
+  await capture('06-clean-project-catalog');
+  for (const child of projectChildren) expect((await state()).projectControls[`open:workspace:${child.workspace}`]?.width || 0).toBe(0);
+  await control(`open:${projectKey}`);
+  await control('agent:materials');
+  await wideColumns(main);
+  checks.push('project-catalog-excludes-delegated-workspaces-and-keeps-saved-project-entry');
   checks.push('provider-failure-visible-with-original-error-and-retained-results');
 
   await open(child.thread_id); await draft('Preserved composer draft');
@@ -288,6 +311,7 @@ try {
   expect((await state()).artifacts.items.find(item => item.id === artifact.id).versions[0].sha256).toBe(artifact.versions[0].sha256);
   await open(child.thread_id);
   const restoredMessages = (await state()).chats.find(chat => chat.id === child.thread_id).messages;
+  expect((await state()).readableReplies.filter(reply => reply.chat === child.thread_id).every(reply => !reply.text.includes('readIsolated'))).toBe(true);
   expect(restoredMessages.length).toBeGreaterThan(0);
   const historyBeforeResume = (await readFile(join(temp, 'history.jsonl'), 'utf8')).split('\n').filter(Boolean).map(JSON.parse);
   const originalAcp = historyBeforeResume.find(event => event.kind === 'session_ready' && event.thread_id === child.thread_id).data.sessionId;

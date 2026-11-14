@@ -58,7 +58,7 @@ export async function projectAgentProvider() {
             delta = { content: `PROJECT_READONLY_DENIED: no write was accepted. ${observed}` };
           } else {
             assert(observed.includes('observed fixture evidence') || prompt.includes('PROJECT_CHILD_WAIT'), observed);
-            delta = { content: `PROJECT_CHILD_RESULT: evidence.txt is the executed shell evidence. ${observed}` };
+            delta = { content: `The shell check wrote \`evidence.txt\` in its isolated workspace. This records execution evidence; scientific acceptance remains unverified.\n\n${observed}` };
           }
         }
       } else if (prompt.includes('PROJECT_DELEGATE') || prompt.includes('PROJECT_WAIT') || prompt.includes('PROJECT_FAIL')) {
@@ -76,7 +76,7 @@ export async function projectAgentProvider() {
           const child = snapshot.sessions.find(session => session.thread_id === snapshot.selected_thread)
             || snapshot.sessions.filter(session => session.binding.parent_thread).at(-1);
           assert(child, receipt);
-          delta = { content: `PROJECT_DELEGATED: ${child.binding.label} · ${child.thread_id} · ${child.status}. Inspect the original child conversation for its execution evidence.` };
+          delta = { content: `Delegated **${child.binding.label}** to a separate Agent. Open its original conversation in the sidebar to inspect the execution evidence.` };
         }
       } else if (prompt.includes('PROJECT_SUMMARY') || /summariz|summary|汇总/i.test(prompt)) {
         assert(projectTool, 'Summary must use the original project tool');

@@ -214,3 +214,29 @@ Composer bounds instead and passes the actual IME/stream/approval flow.
 The scoped visual comparison and iteration record is `design-qa.md`. It records
 expected product/content differences from Cursor rather than claiming an exact
 clone. Screenshots remain ignored local artifacts, not binary Git commits.
+
+## Readable execution evidence and project catalog — 2026-11-14
+
+The user requested compact, initially collapsed execution rows and reported
+that the Projects catalog remained cluttered. Tool rows were already collapsed;
+the large JSON blocks came from assistant prose echoing the same tool receipt.
+The shared transcript now derives a `ReplyPresentation` from exact JSON receipts
+in the same user turn, retaining surrounding prose. A matching streaming prefix
+is also disclosed through its existing tool row. Different or unrelated JSON
+remains visible. Stored replies, tool results, copy/save output, and artifact
+provenance retain the original text. Copy/save labels explicitly identify the
+original reply. Summary links route through the original message entity; an
+explicit source reveal renders that original message and its highlight.
+
+| Previous presentation | New shared presentation | Preserved behavior |
+| --- | --- | --- |
+| Long command in the collapsed activity header | Short Shell command label and explicit domain status | Existing expand/collapse control shows command, stdout and exit code; generic receipts remain in their detail reader |
+| Exact tool JSON repeated in assistant prose | Retained readable Markdown projection | Original history, source navigation, links, copying and saving retain their existing owners |
+| Child execution workspaces appear as implicit projects | Catalog excludes implicit workspaces bound to child Agents | Explicit saved bindings and research projects remain; no history or directory is deleted |
+| Oversized section headings and full-width catalog rows | Small muted headings with inline count in a bounded column | Existing project open/create/folder/task actions remain shared controls |
+
+The Electron fixture deliberately continues echoing the receipt so acceptance
+exercises the projection rather than avoiding the problematic content. The
+actual Native check also uses older persisted conversations containing the
+original JSON. This is presentation of observed evidence, not generated prose
+or a scientific result assessment.
