@@ -312,6 +312,8 @@ async fn run(
     let notification_models = model_api.clone();
     let configuration = Arc::new(Mutex::new(Configuration::default()));
     let notification_configuration = configuration.clone();
+    let loading_history = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let notification_loading = loading_history.clone();
     let notify_tx = tx.clone();
     let notify_thread = thread.clone();
     let perm_tx = tx.clone();
@@ -349,6 +351,12 @@ async fn run(
                     }
                     serde_json::to_value(parsed.update).unwrap_or_default()
                 };
+                // Host already restored the original conversation journal.
+                // ACP load replay is historical content, not another live turn.
+                if notification_loading.load(std::sync::atomic::Ordering::Acquire)
+                    && matches!(update["sessionUpdate"].as_str(), Some("user_message_chunk" | "agent_message_chunk" | "agent_thought_chunk" | "tool_call" | "tool_call_update" | "plan")) {
+                    return Ok(());
+                }
                 if update["sessionUpdate"] == "config_option_update" {
                     let advertised = ModelApi::from_session(&update);
                     *notification_models.lock().unwrap() = advertised;
@@ -447,10 +455,12 @@ async fn run(
                 if negotiated {
                     request["_meta"] = json!({"pero.mcpRuntime": {"revision": mcp_runtime.lock().unwrap().revision}});
                 }
+                loading_history.store(resume_id.is_some(), std::sync::atomic::Ordering::Release);
                 let result = setup_request(
                     connection.send_request(UntypedMessage::new(method, request)?).block_task(),
                     &mut commands, &mut deferred, &tx, &thread, "Session creation",
                 ).await;
+                loading_history.store(false, std::sync::atomic::Ordering::Release);
                 match result {
                     Ok(Some(session)) => break session,
                     Ok(None) => return Ok(()),

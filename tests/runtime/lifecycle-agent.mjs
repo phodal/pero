@@ -21,7 +21,7 @@ const update = text => send({ method: 'session/update', params: { sessionId: 'fi
 const finish = reason => { if (active !== undefined) { reply(active, { stopReason: reason }); active = undefined; } };
 const configs = () => [{ id: 'provider-model', name: 'Model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' }] },
  ...(scenario==='composer' ? [{id:'approval',name:'Tool permissions',category:'_permission',type:'select',currentValue:approval,options:[{value:'ask',name:'Ask before tools',description:'Request approval before using tools'},{value:'read',name:'Allow reads',description:'Allow read tools only'}]}] : []),
- ...(scenario==='settings' ? [
+ ...(scenario==='settings' || scenario==='load_replay' ? [
   {id:'mode',name:'Mode',category:'mode',type:'select',currentValue:mode,options:[{value:'agent',name:'Agent'},{value:'plan',name:'Plan'}]},
   {id:'effort',name:'Thinking effort',category:'thought_level',type:'select',currentValue:effort,options:[{group:'standard',name:'Standard',options:[{value:'medium',name:'Medium'},{value:'low',name:'Low'},{value:'high',name:'High'}]}]},
  ]:[])];
@@ -37,7 +37,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'science') { reply(id, {protocolVersion:1,agentCapabilities:{_meta:{'pero.scienceSession':1}}}); return; }
     if (scenario === 'initialization_hangs') return;
     if (scenario === 'unsupported_protocol') { reply(id, { protocolVersion: 999, agentCapabilities: {}, authMethods: [] }); return; }
-    if (scenario === 'dsh_wire') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
+    if (scenario === 'dsh_wire' || scenario === 'load_replay') { reply(id, { protocolVersion: 1, agentCapabilities: { loadSession: true }, authMethods: [] }); return; }
     reply(id, { protocolVersion: 1, agentCapabilities: scenario === 'composer' ? {promptCapabilities:{image:true,embeddedContext:true}} : (scenario.startsWith('mcp') && scenario !== 'mcp_unsupported' || scenario === 'app_use_boundary') ? {mcpCapabilities: {http: true, sse: true}} : {}, agentInfo: { name: 'lifecycle-fixture', version: '1' }, authMethods: [{ id: 'login', name: 'Fixture login' }, { type: 'terminal', id: 'terminal-login', name: 'Interactive fixture login' }] });
   } else if (method === 'session/new') {
     sessionAttempts += 1;
@@ -72,6 +72,19 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     if (scenario === 'legacy_modes') session.modes = {currentModeId:mode,availableModes:[{id:'agent',name:'Agent'},{id:'plan',name:'Plan'}]};
     reply(id, session);
     if (scenario === 'composer') send({ method:'session/update', params:{sessionId:'fixture-session', update:{sessionUpdate:'available_commands_update', availableCommands:[{name:'compact',description:'Compact conversation',input:{hint:'instructions'}}]}} });
+  } else if (method === 'session/load' && scenario === 'load_replay') {
+    if (params.sessionId !== 'fixture-session') { fail(id, -32602, 'Original session ID required'); return; }
+    const notify = update => send({ method: 'session/update', params: { sessionId: 'fixture-session', update } });
+    for (const lane of ['user_message_chunk', 'agent_message_chunk', 'agent_thought_chunk']) {
+      notify({ sessionUpdate: lane, content: { type: 'text', text: 'already in Host history' } });
+    }
+    notify({ sessionUpdate: 'tool_call', toolCallId: 'historical-tool', title: 'Prior read', status: 'in_progress' });
+    notify({ sessionUpdate: 'tool_call_update', toolCallId: 'historical-tool', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: 'Prior result' } }] });
+    notify({ sessionUpdate: 'plan', entries: [{ content: 'Prior plan', priority: 'medium', status: 'completed' }] });
+    mode = 'plan';
+    notify({ sessionUpdate: 'config_option_update', configOptions: configs() });
+    notify({ sessionUpdate: 'session_info_update', title: 'Original conversation' });
+    reply(id, { sessionId: 'fixture-session', configOptions: configs() });
   } else if (method === '_pero/science/session' && scenario === 'science') {
     reply(id, {session:params.sessionId,command:params.request,duringTurn:active!==undefined});
   } else if (method === 'authenticate') {
