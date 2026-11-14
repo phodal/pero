@@ -124,11 +124,13 @@ impl ChatPanel {
             .child(
                 div()
                     .when(user, |el| {
-                        el.w_full()
+                        el.self_end()
+                            .max_w(relative(0.88))
+                            .min_w_0()
                             .px(px(pero_theme::SPACE_12))
                             .py(px(pero_theme::SPACE_8))
                             .bg(p.surface_muted)
-                            .rounded(px(pero_theme::RADIUS_PANEL))
+                            .rounded(px(pero_theme::RADIUS_BUBBLE))
                     })
                     .child(message.view.clone()),
             )
