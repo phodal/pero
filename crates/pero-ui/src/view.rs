@@ -69,11 +69,12 @@ impl Workbench {
                 active: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == &app.name),
             })
         }).collect();
+        let context_navigation = self.project_agent_navigation(cx);
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             new_chat_bounds: &self.view_bounds.new_chat,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps,
+            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps, context_navigation,
         }, settings, actions, cx)
     }
 

@@ -46,6 +46,7 @@ pub(crate) struct SidebarProps<'a> {
     pub local_connected: bool,
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
+    pub context_navigation: Option<AnyElement>,
 }
 pub(crate) struct SessionsProps {
     pub empty_text: &'static str,
@@ -86,10 +87,17 @@ fn recent_row(
         S::NeedsInput => (Some("message-circle"), ui.palette.warning, Some(ui.t("chat.question_waiting"))),
         S::Failed => (Some("alert-circle"), ui.palette.error, Some(ui.t("cloud.phase.failed"))),
         S::Authentication => (Some("shield"), ui.palette.warning, Some(ui.t("roadmap.auth_required"))),
+        S::Completed => (Some("circle-check"), ui.palette.success, Some(ui.t("research.completed"))),
+        S::Cancelled => (Some("circle-x"), ui.palette.text_muted, Some(ui.t("project.agent.cancelled"))),
+        S::Interrupted => (Some("player-pause"), ui.palette.warning, Some(ui.t("project.agent.interrupted"))),
     };
     let mut accessible = status.map(|status| format!("{} · {}", row.label, status)).unwrap_or_else(|| row.label.clone());
     if row.unread { accessible = format!("{} · {}", accessible, ui.t("sessions.unread")); }
-    let lead = icon.map(|name| ui.icon(name).size(chrome.geo(pero_theme::SESSION_STATUS)).text_color(color).into_any_element())
+    let lead = icon.map(|name| div().id(("session-status",index)).size(chrome.geo(pero_theme::SESSION_STATUS))
+        .flex().items_center().justify_center()
+        .child(ui.icon(name).size(chrome.geo(pero_theme::SESSION_STATUS)).text_color(color))
+        .when_some(status, |el,label|el.tooltip(move |window,cx|gpui_kit::component::tooltip::Tooltip::new(label).build(window,cx)))
+        .into_any_element())
         .or_else(|| row.unread.then(|| div().size(px(6.)).rounded_full().bg(ui.palette.info).into_any_element()));
     let trailing = row.delete.map(|delete| {
         pero_theme::session_actions(("session-actions", index), row.active || row.menu_open,
@@ -335,6 +343,20 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
                 )
 }
 
+/// Current Project's Agent conversations share the ordinary session row owner.
+pub(crate) fn project_navigation(ui: Ui<'_>, group: ProjectGroup, on_action: ActionHandler<SidebarAction>, cx: &App) -> AnyElement {
+    let chrome = ui.chrome();
+    let header = project_header(ui, 300000, &group, &on_action, chrome, cx);
+    let more = group.rows.len() > group.revealed;
+    let rows = group.rows.into_iter().take(group.revealed).enumerate().map(|(index,row)|
+        recent_row(ui,row,300000+index,&on_action,cx).into_any_element()).collect::<Vec<_>>();
+    div().id("project-agent-navigation").w_full().flex().flex_col()
+        .child(header)
+        .when(!group.collapsed, |el| el.children(rows).when(more, |el|
+            el.child(show_more(ui,300000,group.key,&on_action,chrome,cx))))
+        .into_any_element()
+}
+
 pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings: AnyElement, on_action: ActionHandler<SidebarAction>, cx: &App) -> Stateful<Div> {
     let p = ui.palette; let chrome = ui.chrome(); let collapsed = props.collapsed;
     let nav = |id: &'static str, label: &'static str, icon: &'static str, selected: bool, action: SidebarAction| {
@@ -391,6 +413,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).relative().child(props.shortcut_bounds.probe("projects".into())))
         .children(app_rows(primary))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
+            .children(props.context_navigation)
             .when(!workspace.is_empty(), |scroll| scroll.child(pero_theme::sidebar_group(None, true, chrome).children(app_rows(workspace))))
             .child(pero_theme::sidebar_group(None, true, chrome)
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
