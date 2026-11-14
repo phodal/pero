@@ -22,6 +22,10 @@ pub(crate) fn echoed_receipt(text: &str, receipt: &str) -> Option<Range<usize>> 
         .map(|(index, _)| index)
         .unwrap_or(receipt.len());
     let start = text.find(&receipt[..prefix_end])?;
+    // Only a standalone receipt is disclosure. Inline code/examples remain text.
+    if !text[..start].rsplit('\n').next().unwrap_or_default().trim().is_empty() {
+        return None;
+    }
     let tail = &text[start..];
     let end = if tail.starts_with(receipt) {
         start + receipt.len()
@@ -39,13 +43,23 @@ pub(crate) fn echoed_receipt(text: &str, receipt: &str) -> Option<Range<usize>> 
                 .map(|prefix| prefix.len())
         });
     let fenced_end = text[end..].strip_prefix("\n```").map(|_| end + 4);
-    Some(
-        fenced_start.unwrap_or(start)..if fenced_start.is_some() {
-            fenced_end.unwrap_or(end)
-        } else {
-            end
-        },
-    )
+    if let Some(open) = fenced_start {
+        // A fence containing additional content is an assistant example, not a
+        // receipt-only block. A streaming block may not have its closing fence yet.
+        return match fenced_end {
+            Some(close) => Some(open..close),
+            None if end == text.len() => Some(open..end),
+            None => None,
+        };
+    }
+    if !text[end..].split('\n').next().unwrap_or_default().trim().is_empty() {
+        return None;
+    }
+    // Preserve matches inside a larger Markdown code example.
+    if text[..start].lines().filter(|line| line.trim_start().starts_with("```")).count() % 2 != 0 {
+        return None;
+    }
+    Some(start..end)
 }
 
 #[cfg(any(target_family = "wasm", feature = "native"))]
@@ -146,16 +160,16 @@ mod tests {
             r#"{"exitCode":0,"stdout":{"text":"observed evidence"},"stderr":{"text":""}}"#;
         for (text, expected) in [
             (
-                format!("Evidence was written. {receipt}"),
-                Some("Evidence was written. "),
+                format!("Evidence was written.\n{receipt}"),
+                Some("Evidence was written.\n"),
             ),
             (
                 format!("Before.\n```json\n{receipt}\n```\nAfter."),
                 Some("Before.\n\nAfter."),
             ),
             (
-                format!("证据已生成。{}", &receipt[..40]),
-                Some("证据已生成。"),
+                format!("证据已生成。\n{}", &receipt[..40]),
+                Some("证据已生成。\n"),
             ),
             (
                 receipt.replace("observed evidence", "different evidence"),
@@ -170,6 +184,12 @@ mod tests {
                 value
             });
             assert_eq!(actual.as_deref(), expected);
+        }
+        for text in ["fn marker() {}", "let value = {};", "```rust\n{}\n```"] {
+            assert_eq!(echoed_receipt(text, "{}"), None);
+        }
+        for text in [format!("```json\n{receipt}\n{{\"another\":1}}\n```\nExplanation"), format!("```rust\nlet x = 1;\n{receipt}\n```"), format!("inline `{receipt}`")] {
+            assert_eq!(echoed_receipt(&text, receipt), None);
         }
         assert_eq!(echoed_receipt("hello", "hello"), None);
         assert_eq!(
