@@ -6,7 +6,7 @@ use std::{
     hash::BuildHasher,
     io::{self, BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::mpsc,
+    sync::{mpsc, Arc, Mutex},
     time::Duration,
 };
 
@@ -18,7 +18,7 @@ pub(crate) struct ToolCall {
 }
 pub(crate) struct Broker {
     address: String,
-    token: String,
+    credentials: Arc<Mutex<std::collections::HashMap<String, String>>>,
     receiver: mpsc::Receiver<ToolCall>,
 }
 #[derive(Debug, Deserialize, Serialize)]
@@ -48,7 +48,6 @@ impl Action {
 #[serde(deny_unknown_fields)]
 struct Envelope {
     token: String,
-    thread_id: String,
     request_id: String,
     action: Action,
 }
@@ -57,9 +56,8 @@ impl Broker {
     pub fn start() -> io::Result<Self> {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
         let address = listener.local_addr()?.to_string();
-        let seed = std::collections::hash_map::RandomState::new();
-        let token = format!("{:016x}{:016x}", seed.hash_one("project-tools-a"), seed.hash_one("project-tools-b"));
-        let expected = token.clone();
+        let credentials = Arc::new(Mutex::new(std::collections::HashMap::<String, String>::new()));
+        let expected = credentials.clone();
         let (sender, receiver) = mpsc::sync_channel::<ToolCall>(16);
         std::thread::spawn(move || {
             for connection in listener.incoming() {
@@ -71,9 +69,10 @@ impl Broker {
                     BufReader::new((&mut stream).take(1_048_577)).read_line(&mut line).map_err(|e| e.to_string())?;
                     if line.len() > 1_048_576 { return Err("Project tool input exceeds 1 MiB".into()); }
                     let input: Envelope = serde_json::from_str(&line).map_err(|e| e.to_string())?;
-                    if input.token != expected { return Err("Project tool connection expired".into()); }
+                    let thread_id = expected.lock().unwrap().get(&input.token).cloned()
+                        .ok_or("Project tool connection expired")?;
                     let (reply, receive) = mpsc::sync_channel(1);
-                    sender.send(ToolCall {thread_id: input.thread_id, request_id: input.request_id, action: input.action, reply})
+                    sender.send(ToolCall {thread_id, request_id: input.request_id, action: input.action, reply})
                         .map_err(|_| "Project Host is unavailable")?;
                     receive.recv_timeout(Duration::from_secs(45)).map_err(|_| "Project Host request timed out; inspect the same request before retrying")?
                 })();
@@ -81,14 +80,19 @@ impl Broker {
                 if serde_json::to_writer(&mut stream, &response).is_ok() { let _ = writeln!(stream); }
             }
         });
-        Ok(Self {address, token, receiver})
+        Ok(Self {address, credentials, receiver})
     }
     pub fn drain(&self) -> Vec<ToolCall> { self.receiver.try_iter().collect() }
     pub fn server(&self, thread: &str) -> Result<pero_runtime::acp::sdk::schema::v1::McpServer, String> {
         use pero_runtime::acp::sdk::schema::v1::{McpServer, McpServerStdio};
         let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+        let seed = std::collections::hash_map::RandomState::new();
+        let token = format!("{:016x}{:016x}", seed.hash_one("project-tools-a"), seed.hash_one("project-tools-b"));
+        let mut credentials = self.credentials.lock().unwrap();
+        credentials.retain(|_, primary| primary != thread);
+        credentials.insert(token.clone(), thread.into());
         Ok(McpServer::Stdio(McpServerStdio::new("pero-project", executable).args(vec![
-            "--project-tools".into(), self.address.clone(), self.token.clone(), thread.into(),
+            "--project-tools".into(), self.address.clone(), token, thread.into(),
         ])))
     }
 }
@@ -138,10 +142,36 @@ fn forward(address: &str, token: &str, thread: &str, mut args: Value) -> Result<
     let action: Action = serde_json::from_value(args).map_err(|error| error.to_string())?;
     let mut stream = TcpStream::connect(address).map_err(|e| e.to_string())?;
     stream.set_read_timeout(Some(Duration::from_secs(50))).map_err(|e| e.to_string())?;
-    serde_json::to_writer(&mut stream, &Envelope {token: token.into(), thread_id: thread.into(), request_id, action}).map_err(|e| e.to_string())?;
+    serde_json::to_writer(&mut stream, &Envelope {token: token.into(), request_id, action}).map_err(|e| e.to_string())?;
     writeln!(stream).map_err(|e| e.to_string())?;
     let mut line = String::new();
     BufReader::new(stream.take(2_097_153)).read_line(&mut line).map_err(|e| e.to_string())?;
     let response: Value = serde_json::from_str(&line).map_err(|e| e.to_string())?;
     if response["ok"] == true {Ok(response["value"].clone())} else {Err(response["error"].as_str().unwrap_or("Project Host unavailable").into())}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn broker_credentials_bind_the_original_primary_and_expire_on_rebind() {
+        let broker = Broker::start().unwrap();
+        let credential = |thread| {
+            let value = serde_json::to_value(broker.server(thread).unwrap()).unwrap();
+            value["args"][2].as_str().unwrap().to_owned()
+        };
+        let first = credential("primary-a");
+        let second = credential("primary-b");
+        assert_ne!(first, second);
+        for (token, expected, claimed) in [(first.clone(), "primary-a", "primary-b"), (second, "primary-b", "primary-a")] {
+            let address = broker.address.clone();
+            let client = std::thread::spawn(move || forward(&address, &token, claimed, json!({"action":"list"})));
+            let call = broker.receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert_eq!(call.thread_id, expected);
+            call.reply.send(Ok(json!({"checked":true}))).unwrap();
+            assert_eq!(client.join().unwrap().unwrap(), json!({"checked":true}));
+        }
+        credential("primary-a");
+        assert!(forward(&broker.address, &first, "primary-a", json!({"action":"list"})).unwrap_err().contains("expired"));
+    }
 }
