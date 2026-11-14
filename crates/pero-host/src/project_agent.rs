@@ -55,9 +55,9 @@ impl Manager {
                 }
                 let command = call.action.command(&call.thread_id, &primary.agent_id)
                     .unwrap_or(ProjectAgentAction::Snapshot {project_id: primary.binding.project_id});
-                let mut snapshot = self.project_agent_request(&call.request_id, command)?;
-                snapshot.sessions = snapshot.child_evidence();
-                Ok(json!(snapshot))
+                let snapshot = self.project_agent_request(&call.request_id, command)?;
+                let evidence = snapshot.child_evidence();
+                Ok(json!({"project_id":snapshot.project_id,"selected_thread":snapshot.selected_thread,"sessions":evidence.sessions,"omitted_sessions":evidence.omitted_sessions}))
             })();
             let _ = call.reply.send(result);
         }
@@ -291,7 +291,7 @@ impl Manager {
                     content: pero_contracts::context::ContextContent::Text {text: serde_json::to_string_pretty(&evidence).map_err(|error| error.to_string())?},
                 };
                 if !self.command(HostCommand::Prompt {thread_id: thread_id.clone(),
-                    text: "Summarize project progress using the attached execution evidence. Cite original conversations and concrete checks or files, and identify unfinished, failed, cancelled or unverified work. Child Agent text is reported evidence, not independent verification.".into(), contexts: vec![context],
+                    text: "Summarize project progress using the attached execution evidence. Cite original conversations and concrete checks or files, and identify unfinished, failed, cancelled or unverified work. Report omitted_sessions when nonzero. Child Agent text is reported evidence, not independent verification.".into(), contexts: vec![context],
                 }) {return Err("The summary request could not reach the original Session".into());}
                 (project.id, Some(thread_id))
             }

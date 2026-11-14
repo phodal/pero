@@ -141,13 +141,21 @@ pub struct ProjectAgentSnapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_thread: Option<String>,
 }
+/// The actual serialized model context has a byte budget, including metadata.
+#[derive(Debug, Serialize)]
+pub struct ProjectAgentEvidenceBatch {
+    pub sessions: Vec<ProjectAgentSession>,
+    pub omitted_sessions: usize,
+}
 impl ProjectAgentSnapshot {
     /// Shared evidence budget for model tool results and explicit summaries.
     /// The primary already owns its transcript; embedding it would recursively
     /// grow later summaries. All excerpts keep the original thread/tool IDs.
-    pub fn child_evidence(&self) -> Vec<ProjectAgentSession> {
+    pub fn child_evidence(&self) -> ProjectAgentEvidenceBatch {
         let mut budget = 24_000;
-        self.sessions.iter().filter(|session| session.binding.parent_thread.is_some()).cloned().map(|mut session| {
+        let children = self.sessions.iter().filter(|session| session.binding.parent_thread.is_some());
+        let mut batch = ProjectAgentEvidenceBatch {sessions: Vec::new(), omitted_sessions: children.clone().count()};
+        for mut session in children.cloned() {
             let limit = budget.min(6_000);
             let truncated = session.result.chars().count() > limit;
             session.result = session.result.chars().take(limit).collect();
@@ -159,8 +167,15 @@ impl ProjectAgentSnapshot {
                 receipt.output = receipt.output.chars().take(limit).collect();
                 budget -= receipt.output.chars().count();
             }
-            session
-        }).collect()
+            batch.sessions.push(session);
+            batch.omitted_sessions -= 1;
+            if serde_json::to_vec_pretty(&batch).expect("Project evidence").len() > 120_000 {
+                batch.sessions.pop();
+                batch.omitted_sessions += 1;
+                break;
+            }
+        }
+        batch
     }
 }
 
@@ -216,6 +231,22 @@ mod tests {
         assert_eq!(receipts.len(), 8);
         assert_eq!(receipts[0].tool_call_id, "1");
         assert!(receipts.iter().all(|receipt| receipt.status == "failed"));
+    }
+    #[test]
+    fn serialized_child_evidence_is_bounded_and_reports_omissions() {
+        for (count, output) in [(2, "observed evidence".to_owned()), (100, "证据\n\"".repeat(6_000))] {
+            let primary = ProjectSessionBinding::primary("p".into(), "Primary".into()).unwrap();
+            let snapshot = ProjectAgentSnapshot {project_id:"p".into(), selected_thread:None,
+                sessions:(0..count).map(|i| ProjectAgentSession {thread_id:format!("child-{i}"),
+                    binding:primary.child("primary".into(), "Check".into()).unwrap(), agent_id:"pero".into(),
+                    workspace:"/workspace".repeat(100), active:false, status:"completed".into(),
+                    result:output.clone(), error:None, evidence:vec![]}).collect()};
+            let evidence = snapshot.child_evidence();
+            assert!(serde_json::to_vec_pretty(&evidence).unwrap().len() <= 120_000);
+            assert_eq!(evidence.sessions.len()+evidence.omitted_sessions, count);
+            assert_eq!(evidence.omitted_sessions>0, count==100);
+            if count==100 {assert!(evidence.sessions[0].result.contains("Excerpt truncated"));}
+        }
     }
     #[test]
     fn delegation_carries_acknowledged_permissions_without_cross_agent_guessing() {
