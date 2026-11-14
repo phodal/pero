@@ -112,8 +112,10 @@ mod rendering {
             let cancelled = tool.cancelled;
             let (action_key, icon) = action(tool.activity.kind.as_str());
             let embedded = embedded_result(tool);
-            let summary = if !tool.activity.detail.is_empty() {
-                format!("{} · {}", self.t(action_key), tool.activity.detail)
+            let summary = if matches!(tool.body, crate::tool_body::ToolBody::Terminal { .. }) {
+                format!("{} · {}", self.t(action_key), self.t("chat.tool_shell"))
+            } else if !tool.activity.detail.is_empty() {
+                format!("{} · {}", self.t(action_key), crate::tool_activity::preview(&tool.activity.detail, 72))
             } else { short_label(self.t(action_key), &tool.title, tool.locations.first().map(|location| location.path.as_str())) };
             let status = if failed {
                 Some("chat.tool_failed")
@@ -122,7 +124,7 @@ mod rendering {
             } else if cancelled {
                 Some("chat.tool_cancelled")
             } else {
-                None
+                Some("chat.tool_completed")
             };
             let reader_tool = tool.id.clone();
             let reader_chat = conversation_id.to_string();
