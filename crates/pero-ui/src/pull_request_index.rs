@@ -304,10 +304,7 @@ fn author_face(login: &str) -> Option<gpui_kit::AnyElement> {
 }
 
 fn opened_phrase(opened_at: &str, label: impl Fn(&str) -> &'static str) -> Option<String> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?
-        .as_secs() as i64;
+    let now = pero_chat_ui::clock::unix_seconds()?;
     if let Some(age) = opened_ago(opened_at, now) {
         if age.count == 0 {
             return Some(label("pr.just_now").to_owned());
