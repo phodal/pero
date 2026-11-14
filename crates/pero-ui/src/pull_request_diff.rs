@@ -1,9 +1,12 @@
 //! PR API patches become retained Kit diff documents at this presentation boundary.
 use gpui_kit::{
     App, AppContext, Entity,
-    component::diff::{DiffFile, DiffParseOptions, DiffState},
+    component::diff::{
+        DiffFile, DiffLinePosition, DiffLineRange, DiffParseOptions, DiffSide, DiffState,
+    },
 };
-use pero_contracts::pull_request::PullRequestView;
+use pero_contracts::pull_request::{DiscussionSide, PullRequestDiscussion, PullRequestView};
+use std::collections::HashSet;
 
 pub(super) struct PullRequestDiff {
     pub state: Entity<DiffState>,
@@ -11,6 +14,7 @@ pub(super) struct PullRequestDiff {
     source: Vec<pero_contracts::pull_request::PullRequestFile>,
     head_sha: String,
     pub notices: Vec<(String, &'static str)>,
+    discussion_lines: HashSet<DiffLinePosition>,
 }
 
 impl PullRequestDiff {
@@ -21,6 +25,7 @@ impl PullRequestDiff {
             source: vec![],
             head_sha: String::new(),
             notices: vec![],
+            discussion_lines: HashSet::new(),
         }
     }
 
@@ -60,10 +65,55 @@ impl PullRequestDiff {
             )
         });
     }
+
+    /// Ask Kit which supplied source coordinates survive its parsed projection.
+    /// The offscreen state keeps this probe separate from the reader's selection.
+    pub fn receive_discussion_anchors(
+        &mut self,
+        discussions: &[PullRequestDiscussion],
+        cx: &mut App,
+    ) {
+        self.discussion_lines.clear();
+        let projection = cx.new(|cx| DiffState::new(self.files.clone(), cx));
+        projection.update(cx, |state, cx| {
+            for position in discussions
+                .iter()
+                .filter(|discussion| !discussion.outdated)
+                .filter_map(discussion_position)
+            {
+                let range = DiffLineRange::new(
+                    position.path().clone(),
+                    position.side(),
+                    position.line(),
+                    position.line(),
+                );
+                state.set_selected_lines(Some(range.clone()), cx);
+                if state.selected_lines().as_ref() == Some(&range) {
+                    self.discussion_lines.insert(position);
+                }
+            }
+            state.set_selected_lines(None, cx);
+        });
+    }
+
+    pub fn contains_discussion_line(&self, position: &DiffLinePosition) -> bool {
+        self.discussion_lines.contains(position)
+    }
+}
+
+pub(super) fn discussion_position(discussion: &PullRequestDiscussion) -> Option<DiffLinePosition> {
+    Some(DiffLinePosition::new(
+        discussion.path.clone(),
+        match discussion.side {
+            DiscussionSide::Left => DiffSide::Original,
+            DiscussionSide::Right => DiffSide::Modified,
+        },
+        discussion.display_anchor().line? as usize,
+    ))
 }
 
 // This is a display conversion, not a second PR or patch state machine.
-fn parse_file(
+pub(super) fn parse_file(
     file: &pero_contracts::pull_request::PullRequestFile,
 ) -> (DiffFile, Option<&'static str>) {
     let old = serde_json::to_string(&format!(

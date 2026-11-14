@@ -18,6 +18,7 @@ pub(crate) struct PullRequestContent {
     pub(super) scrolls: [ScrollHandle; 5],
     pub(super) directory_open: bool,
     pub(super) diff: crate::pull_request_diff::PullRequestDiff,
+    pub(super) discussions: crate::pull_request_discussions::DiscussionViews,
     _links: Vec<Subscription>,
     _review_links: Vec<Subscription>,
 }
@@ -72,6 +73,7 @@ impl Workbench {
             scrolls: std::array::from_fn(|_| ScrollHandle::new()),
             directory_open: false,
             diff,
+            discussions: Default::default(),
             _links: vec![link, observer],
             _review_links: Vec::new(),
         });
@@ -123,6 +125,9 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if self.receive_pull_request_discussion(event, window, cx) {
+            return true;
+        }
         if self.receive_pull_request_list(event, cx) {
             return true;
         }
@@ -155,13 +160,14 @@ impl Workbench {
         let Some(request_id) = event.request_id.as_deref() else {
             return true;
         };
-        let Some(view) = self
+        let Some(index) = self
             .pull_requests
-            .iter_mut()
-            .find(|view| view.state.pending.as_deref() == Some(request_id))
+            .iter()
+            .position(|view| view.state.pending.as_deref() == Some(request_id))
         else {
             return true;
         };
+        let view = &mut self.pull_requests[index];
         let result = if event.kind == "pull_request_loaded" {
             serde_json::from_value::<PullRequestSnapshot>(event.data.clone())
                 .map_err(|error| error.to_string())
@@ -200,7 +206,7 @@ impl Workbench {
             self.chat
                 .update(cx, |chat, _| chat.note_pull_request(summary));
         }
-        let _ = window;
+        self.sync_pull_request_discussions(index, window, cx);
         cx.notify();
         true
     }
@@ -396,7 +402,10 @@ impl Workbench {
                                     }
                                     PullRequestTab::Commits => Some(snapshot.commits.items.len()),
                                     PullRequestTab::Checks => Some(snapshot.checks.items.len()),
-                                    PullRequestTab::Reviews => Some(snapshot.reviews.items.len()),
+                                    PullRequestTab::Reviews => Some(
+                                        snapshot.reviews.items.len()
+                                            + snapshot.discussions.items.len(),
+                                    ),
                                     PullRequestTab::Description => None,
                                 }),
                                 |button, count| {
@@ -488,7 +497,9 @@ impl Workbench {
                     );
                 }
                 PullRequestTab::Reviews => {
-                    body = body.child(self.pull_request_reviews(view, cx));
+                    body = body
+                        .child(self.pull_request_reviews(view, cx))
+                        .child(self.pull_request_discussion_list(view, cx));
                 }
                 PullRequestTab::Commits => {
                     body = body.child(self.pull_request_commits(view, cx));
@@ -519,7 +530,7 @@ impl Workbench {
 }
 
 /// PR prose shares the workspace link owner, including each independent review body.
-fn pull_request_markdown(
+pub(super) fn pull_request_markdown(
     text: &str,
     window: &mut Window,
     cx: &mut Context<Workbench>,
