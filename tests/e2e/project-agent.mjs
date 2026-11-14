@@ -98,7 +98,8 @@ async function open(id) {
 async function draft(text) {
   await click(async () => (await state()).composerBounds.input);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
-  await page.keyboard.insertText(text);
+  if (text) await page.keyboard.insertText(text);
+  else await page.keyboard.press('Backspace');
   await expect.poll(async () => (await state()).composer).toBe(text);
 }
 async function submit(text) {
@@ -143,6 +144,26 @@ try {
   const main = (await sessions())[0].thread_id;
   await wideColumns(main);
   checks.push('research-project-opens-central-agent-chat-with-left-navigation-and-right-materials');
+  await draft('Overview keeps the central draft');
+  await control('edit');
+  await expect.poll(async () => !!(await state()).researchProjects.editor).toBe(true);
+  const overviewEditing = await state();
+  expect(overviewEditing.projectControls['research-goal'].x).toBeGreaterThanOrEqual(overviewEditing.projectControls['agent:context'].x);
+  expect(overviewEditing.composer).toBe('Overview keeps the central draft');
+  await capture('01-overview-editor-right');
+  await control('edit-cancel');
+  await expect.poll(async () => (await state()).researchProjects.editor).toBeNull();
+  expect((await state()).composer).toBe('Overview keeps the central draft');
+  await control('agent:views');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).projectTab).toBe('tasks');
+  await control('tab:project.overview');
+  await wideColumns(main);
+  expect((await state()).composer).toBe('Overview keeps the central draft');
+  await draft('');
+  checks.push('overview-edits-in-right-context-with-central-conversation-and-draft-retained');
+
   await permissionMode(main, 'full-access');
   expect((await sessions()).find(session => session.thread_id === main)?.error).toBeNull();
   await submit('PROJECT_DELEGATE');
@@ -250,7 +271,10 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1500, 1020));
   await setAppearance(page, 'light');
   const ids = (await sessions()).map(session => session.thread_id);
-  await close(); await launch(); await project();
+  await close(); await launch();
+  await expect.poll(async () => (await state()).projectTab, {timeout:30000}).toBe('agent');
+  await expect.poll(async () => (await state()).projectControls['agent:context']?.width).toBeGreaterThan(0);
+  await expect.poll(async () => (await snapshot())?.project_id).toBe(projectId);
   expect((await sessions()).map(session => session.thread_id)).toEqual(ids);
   await open(main);
   await expect.poll(async () => (await state()).artifacts?.items.some(item => item.id === artifact.id)).toBe(true);

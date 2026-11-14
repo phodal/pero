@@ -352,6 +352,7 @@ impl Workbench {
                     )
                     .child(
                         Button::new("research-cancel")
+                            .relative().child(self.view_bounds.projects.probe("edit-cancel".into()))
                             .ghost()
                             .label(self.t("worker.local.cancel"))
                             .disabled(saving)

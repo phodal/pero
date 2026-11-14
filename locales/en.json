@@ -1236,6 +1236,7 @@
   "cloud.worker.offline": "Offline",
   "cloud.worker.disabled": "Disabled",
   "cloud.worker.attention": "Needs review",
+  "project.actions": "Project views",
   "project.agent.materials": "Project materials",
   "project.agent": "Project Agent",
   "project.agent.hint": "Keep one conversation for the project. Ask the main Agent to split work, delegate to Agents, and summarize results with evidence. Child sessions keep their own approvals and execution history.",

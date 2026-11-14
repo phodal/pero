@@ -343,3 +343,36 @@ added package.json test script. Regenerating with `bazel run @npm//:sync`
 changed only that hash; `bazel test --config=ci //:checks` then passed all seven
 checks. The existing lockfile incident record contains the recurrence. Remote
 CI after the repair is not claimed complete by these local results.
+
+
+## Default Agent with right Overview — 2026-11-14
+
+Source: `codex/project-agent`, parent `1417f4faf`, with the entry/inspector
+change in this revision. Actual macOS Electron acceptance passed all 11 flows
+with zero renderer errors. In addition to the existing Host/Harness/MCP/shell
+coverage, this run checked:
+
+- Project entry shows the central Agent and right Overview directly.
+- Goal editing is bounded inside the right inspector. Cancel retains the
+  original central conversation and its unsent draft.
+- The right Project views menu opens Tasks; selecting its Overview tab returns
+  to the central Agent without clearing the draft.
+- Restart restores the project Agent and right context without test-driven
+  project navigation, then resumes the exact original ACP session.
+
+`npm run check`, Wasm and Web development builds and Native UI compilation
+passed. Final captures inspected include
+`test-results/project-agent/01-overview-editor-right.png` and
+`09-restored-original-conversations.png`; the final header uses the existing
+bundled dots icon and a named Edit goal command. No new token or artwork was
+added. The existing real artifact preview, failure recovery and dark/minimum
+window flows also passed in the same run.
+
+This is entry/interaction acceptance in Electron. The latest inspector changes
+have no new Native GUI, signed-package or screen-reader acceptance. The model
+is scripted; raw JSON visible in these fixture replies is explicitly scripted
+assistant content, not evidence that a real model produces that layout. The
+current broad user bubbles, prominent Projects selection and Composer density
+remain visible differences from Cursor. Detailed observations and proposed
+shared-component work are in the existing execution plan; matching Cursor's
+visual quality is not claimed by a passing behavior suite.

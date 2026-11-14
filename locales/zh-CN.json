@@ -1236,6 +1236,7 @@
   "cloud.worker.offline": "离线",
   "cloud.worker.disabled": "已停用",
   "cloud.worker.attention": "需要复核",
+  "project.actions": "项目视图",
   "project.agent.materials": "项目资料",
   "project.agent": "项目 Agent",
   "project.agent.hint": "通过主 Agent 对话拆分和分派工作，并汇总带证据的结果。子会话保留各自的审批和执行记录。",

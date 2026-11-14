@@ -92,8 +92,8 @@ current owners. This direction was subsequently authorized and implemented in th
 ## Conversation-centered revision — 2026-11-14
 
 The user authorized this revision in the isolated worktree. Saved research
-projects now enter the central Agent conversation by default; Overview remains
-available through the back action. Directory-only projects keep their existing
+projects now enter the central Agent conversation by default; Overview lives
+in the right context column, including goal editing. Directory-only projects keep their existing
 entry. The existing ChatPanel is mounted once, as the main content, with its
 original composer, model/permission controls, tools and approval cards.
 
@@ -141,3 +141,45 @@ Shared component migration: session-row selection changes from surface-muted
 themes; user turns use surface-muted without the input-like outline. Consumers
 remain the ordinary and Project conversation/session surfaces. No new colors,
 artwork, execution state or preference store is introduced.
+
+
+## Cursor style inspection and entry correction — 2026-11-14
+
+The user clarified that opening a project must immediately expose Project
+Agent, with Overview on the right. The previous back action could recreate the
+full-page Overview shown in the user's screenshot. It is removed. Saved-project
+Overview/Agent selection now shares the existing Agent entry; directory-only
+projects keep their established overview. Project Tasks, repositories/PRs,
+execution and settings remain reachable through the right header's named menu
+and their original owners. Goal editing reuses the existing ProjectEditor in
+the inspector while preserving the conversation and draft.
+
+A fresh inspection of installed Cursor.app captured the child conversation and
+Library, primary project conversation, and expanded Agents roster in that
+order. The original child/Library and developer-tools state were restored.
+Evidence: `test-results/cursor-style-audit/01-conversation-library.png`,
+`02-project-primary.png`, `03-agents-disclosure.png`. These captures establish
+visible behavior in this configuration, not Cursor's complete design system.
+
+Observed inline DOM values included a 271px sidebar, 796px composer maximum
+width, 20px conversation bubble radius and 14px transcript row gap. The root
+system font stack was -apple-system/BlinkMacSystemFont/sans-serif, with a normal
+weight of 418 and medium/semibold weights of 500/600. These are local observed
+values, not inferred universal defaults. No exact color tokens or uninspected
+compositing behavior are claimed.
+
+| Visible Cursor rule | Remaining Pero mismatch | Implementation direction |
+| --- | --- | --- |
+| Stable reading column aligned with input; spare width becomes margins | Multiple header bands and broad message blocks compete with content | Align transcript and composer on one maximum-width column and simplify chrome responsibilities |
+| Short user messages hug content on the right; assistant prose has no card | Shared user surface remains broad, with similar visual weight to controls | Make bubble width content-dependent and preserve right alignment; keep agent prose on the reading surface |
+| Neutral surfaces and subdued selected rows | Large outlined Projects selection dominates the sidebar | Adjust the shared navigation selection role; retain visible keyboard focus separately |
+| Compact regular-weight session rows, small quiet status marks and trailing ages | Strong status and action presentation can dominate titles | Present current domain state with restrained indicators and reveal secondary actions on interaction |
+| Compact empty composer; Agents/Changes context sits beside the task stage | Configuration, workspace, permission, diff and send controls remain simultaneously prominent | Keep execution authority discoverable while reducing resting-state visual weight in the shared Composer |
+| Project title, resources and file tree remain in an independent right object surface | Central full-page Overview was an alternate landing page | Corrected in this change; project entry and restart keep the conversation central |
+| Primary/child switching preserves the right Project view | Navigation can otherwise feel like opening unrelated pages | Keep conversation, resource selection and draft in existing owners; verify transitions rather than static mockups |
+
+These findings explain why three columns alone did not establish visual
+acceptance. The entry correction is implemented; the broader shared typography,
+message sizing, navigation and Composer changes above are recommendations, not
+claims that the present interface already matches Cursor. Full keyboard,
+contrast measurement and Cursor dark-theme review were not performed.

@@ -153,7 +153,7 @@ impl Workbench {
             self.project_agents.loading.clear();
             self.project_agents.dirty.clear();
         }
-        if self.project_tab == ProjectTab::Agent
+        if self.project_agent_active()
             && matches!(
                 event.kind.as_str(),
                 "replay"
@@ -186,7 +186,7 @@ impl Workbench {
         false
     }
     pub(crate) fn project_agent_active(&self) -> bool {
-        self.project_tab == ProjectTab::Agent
+        matches!(self.project_tab, ProjectTab::Agent | ProjectTab::Overview)
             && self.navigation.page() == crate::workspace::WorkbenchPage::Tasks
             && self.saved_research_project().is_some()
             && matches!(self.navigation.current(), Some(crate::workspace::WorkspaceItem::Project(key)) if Some(key.as_str()) == self.selected_project.as_deref())
@@ -327,22 +327,6 @@ impl Workbench {
                                 .px(px(pero_theme::SPACE_16))
                                 .py(px(pero_theme::SPACE_8))
                                 .child(
-                                    pero_theme::ghost_icon_button(
-                                        "project-agent-back",
-                                        pero_theme::Chrome::from_app(cx),
-                                        cx,
-                                    )
-                                    .icon(Icon::default().path("icons/arrow-left.svg"))
-                                    .accessibility_label(self.t("project.overview"))
-                                    .tooltip(self.t("project.overview"))
-                                    .on_click(cx.listener(
-                                        |this, _, _, cx| {
-                                            this.project_tab = ProjectTab::Overview;
-                                            cx.notify();
-                                        },
-                                    )),
-                                )
-                                .child(
                                     div()
                                         .flex_1()
                                         .min_w_0()
@@ -414,8 +398,8 @@ impl Workbench {
                                         cx,
                                     )
                                     .icon(Icon::default().path("icons/panel-right-open.svg"))
-                                    .accessibility_label(self.t("project.agent.materials"))
-                                    .tooltip(self.t("project.agent.materials"))
+                                    .accessibility_label(self.t("project.overview"))
+                                    .tooltip(self.t("project.overview"))
                                     .relative()
                                     .child(
                                         self.view_bounds.projects.probe("agent:materials".into()),
@@ -610,7 +594,43 @@ impl Workbench {
                         div()
                             .flex_1()
                             .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("project.agent.materials")),
+                            .child(self.t("project.overview")),
+                    )
+                    .child(
+                        pero_theme::ghost_icon_button(
+                            "project-overview-actions",
+                            pero_theme::Chrome::from_app(cx),
+                            cx,
+                        )
+                        .icon(Icon::default().path("icons/dots.svg"))
+                        .accessibility_label(self.t("project.actions"))
+                        .tooltip(self.t("project.actions"))
+                        .relative()
+                        .child(self.view_bounds.projects.probe("agent:views".into()))
+                        .dropdown_menu({
+                            let owner = cx.entity().downgrade();
+                            let entries = [
+                                ProjectTab::Tasks,
+                                ProjectTab::Sources,
+                                ProjectTab::Execution,
+                                ProjectTab::Settings,
+                            ]
+                            .map(|tab| (tab, self.t(tab.label_key()).to_owned()));
+                            move |mut menu, _, _| {
+                                for (tab, label) in &entries {
+                                    let tab = *tab;
+                                    let owner = owner.clone();
+                                    menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
+                                        move |_, _, cx| {
+                                            let _ = owner.update(cx, |this, cx| {
+                                                this.select_project_view(tab, cx)
+                                            });
+                                        },
+                                    ));
+                                }
+                                menu
+                            }
+                        }),
                     )
                     .when(has_session, |el| {
                         el.child(
@@ -655,32 +675,65 @@ impl Workbench {
                         )
                     }),
             )
-            .child(
-                div()
-                    .px(px(pero_theme::SPACE_16))
-                    .pt(px(pero_theme::SPACE_16))
-                    .flex()
-                    .flex_col()
-                    .gap(px(pero_theme::SPACE_8))
-                    .child(
-                        div()
-                            .whitespace_normal()
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(project.title.clone()),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(pero_theme::TYPE_CAPTION))
-                            .text_color(p.text_muted)
-                            .child(self.t("research.goal")),
-                    )
-                    .child(div().whitespace_normal().child(if project.goal.is_empty() {
-                        self.t("research.goal_empty").to_owned()
-                    } else {
-                        project.goal.clone()
-                    })),
-            )
-            .child(self.research_resources(cx))
+            .when(self.research.editor.is_none(), |el| {
+                el.child(
+                    div()
+                        .px(px(pero_theme::SPACE_16))
+                        .pt(px(pero_theme::SPACE_16))
+                        .flex()
+                        .flex_col()
+                        .gap(px(pero_theme::SPACE_8))
+                        .child(
+                            div()
+                                .whitespace_normal()
+                                .font_weight(FontWeight::MEDIUM)
+                                .child(project.title.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(pero_theme::TYPE_CAPTION))
+                                .text_color(p.text_muted)
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(self.t("research.goal"))
+                                .child(
+                                    Button::new("project-overview-edit")
+                                    .ghost()
+                                    .small()
+                                    .label(self.t("research.edit"))
+                                    .tooltip(self.t("research.edit"))
+                                    .accessibility_label(self.t("research.edit"))
+                                    .relative()
+                                    .child(self.view_bounds.projects.probe("edit".into()))
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
+                                            this.edit_research_project(false, window, cx)
+                                        },
+                                    )),
+                                ),
+                        )
+                        .child(div().whitespace_normal().child(if project.goal.is_empty() {
+                            self.t("research.goal_empty").to_owned()
+                        } else {
+                            project.goal.clone()
+                        })),
+                )
+            })
+            .when(self.research.editor.is_none(), |el| {
+                el.child(self.research_resources(cx))
+            })
+            .when(self.research.editor.is_some(), |el| {
+                el.child(
+                    div()
+                        .id("project-overview-editor")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .px(px(pero_theme::SPACE_16))
+                        .child(self.research_editor(cx)),
+                )
+            })
             .into_any_element()
     }
 }

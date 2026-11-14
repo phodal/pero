@@ -434,6 +434,20 @@ impl Workbench {
             })
     }
 
+    pub(crate) fn select_project_view(&mut self, tab: ProjectTab, cx: &mut Context<Self>) {
+        if matches!(tab, ProjectTab::Overview | ProjectTab::Agent) && self.saved_research_project().is_some() {
+            self.show_project_agents(cx);
+            return;
+        }
+        self.project_tab = tab;
+        if tab == ProjectTab::Sources {
+            if let Some(repository) = self.listed_repositories(cx).into_iter().next() {
+                self.request_pull_request_list(&repository, self.pull_request_index.state, cx);
+            }
+        }
+        cx.notify();
+    }
+
     pub(crate) fn project_workspace(
         &self,
         narrow: bool,
@@ -499,15 +513,7 @@ impl Workbench {
                                         "surface"
                                     }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.project_tab = tab;
-                                        if tab == ProjectTab::Agent { this.show_project_agents(cx); }
-                                        if tab == ProjectTab::Sources {
-                                            if let Some(repository) = this.listed_repositories(cx).into_iter().next() {
-                                                let state = this.pull_request_index.state;
-                                                this.request_pull_request_list(&repository, state, cx);
-                                            }
-                                        }
-                                        cx.notify();
+                                        this.select_project_view(tab, cx);
                                     }))
                             })),
                     ),
