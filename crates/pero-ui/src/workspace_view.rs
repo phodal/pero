@@ -617,6 +617,7 @@ impl Workbench {
                 |el| {
                     el.child(
                         Button::new("workspace-chat-toggle")
+                            .relative().child(self.view_bounds.projects.probe("chat-toggle".into()))
                             .ghost()
                             .small()
                             .h(px(pero_theme::UiAppearance::global(cx)

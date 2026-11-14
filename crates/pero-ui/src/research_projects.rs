@@ -51,7 +51,7 @@ impl Workbench {
         self.research.resolving_workspace = None;
     }
 
-    fn saved_research_project(&self) -> Option<&ResearchProject> {
+    pub(crate) fn saved_research_project(&self) -> Option<&ResearchProject> {
         let id = self.selected_project.as_deref()?.strip_prefix("research:")?;
         self.preferences
             .research_projects
@@ -399,6 +399,12 @@ impl Workbench {
                                     .disabled(saving)
                                     .relative().child(self.view_bounds.projects.probe("edit".into()))
                                     .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
+                            )
+                            .child(
+                                Button::new("research-project-agent")
+                                    .outline().label(self.t("project.agent"))
+                                    .relative().child(self.view_bounds.projects.probe("agent:entry".into()))
+                                    .on_click(cx.listener(|this, _, _, cx| this.show_project_agents(cx))),
                             )
                             .child(
                                 Button::new("research-continue")

@@ -96,6 +96,7 @@ pub(crate) struct Workbench {
     pub recent_tasks: Vec<String>,
     pub selected_project: Option<String>,
     pub(crate) research: crate::research_projects::ResearchProjectsView,
+    pub(crate) project_agents: crate::project_agent::ProjectAgentsView,
     pub project_binding: Entity<InputState>,
     pub collapsed_projects: std::collections::HashSet<String>,
     pub revealed_sessions: std::collections::HashMap<String, usize>,
@@ -384,7 +385,7 @@ impl Workbench {
             settings_subscriptions: Vec::new(),
             recent_tasks: Vec::new(),
             selected_project: None,
-            research: Default::default(),
+            research: Default::default(), project_agents: Default::default(),
             project_binding,
             collapsed_projects: Default::default(),
             revealed_sessions: Default::default(),
@@ -579,7 +580,7 @@ impl Workbench {
             || self.receive_harness(&event, cx) || self.receive_computer(&event, cx) || self.receive_engram(&event, window, cx) || self.receive_roadmap(&event, cx)
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
-            || self.receive_research_resources(&event, cx)
+            || self.receive_project_agents(&event, cx) || self.receive_research_resources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
         // App lifecycle notifications also reach Chat; scope admission stays with Apps.
@@ -865,7 +866,7 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
-        value["researchProjects"] = ui.research.snapshot(cx);
+        value["researchProjects"] = ui.research.snapshot(cx); value["projectAgent"] = ui.project_agents.snapshot(cx);
         value["projectControls"] = ui.view_bounds.projects.snapshot();
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();

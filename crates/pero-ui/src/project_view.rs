@@ -121,6 +121,7 @@ impl Workbench {
         self.cancel_research_editor();
         self.research.choosing = false;
         self.refresh_project_resources(cx);
+        self.refresh_project_agents(cx);
         self.local_roadmap.show_cloud = project.workspace.is_none() && self.remote.configured();
         self.local_roadmap.selected_line = None;
         self.task_status = Default::default();
@@ -475,7 +476,7 @@ impl Workbench {
                             .border_color(p.border)
                             .flex_wrap()
                             .children(ProjectTab::ALL.into_iter().enumerate()
-                                .filter(|(_, tab)| *tab != ProjectTab::ResearchResources || is_research)
+                                .filter(|(_, tab)| !matches!(tab, ProjectTab::ResearchResources | ProjectTab::Agent) || is_research)
                                 .map(|(i, tab)| {
                                 Button::new(("project-tab", i))
                                     .ghost()
@@ -495,6 +496,7 @@ impl Workbench {
                                     }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.project_tab = tab;
+                                        if tab == ProjectTab::Agent { this.refresh_project_agents(cx); }
                                         if tab == ProjectTab::Sources {
                                             if let Some(repository) = this.listed_repositories(cx).into_iter().next() {
                                                 let state = this.pull_request_index.state;
@@ -509,6 +511,7 @@ impl Workbench {
             .when(self.project_tab == ProjectTab::Overview, |el| {
                 el.child(self.project_overview(project.as_ref(), cx))
             })
+            .when(self.project_tab == ProjectTab::Agent, |el| { el.child(self.project_agent_view(cx)) })
             .when(self.project_tab == ProjectTab::ResearchResources, |el| {
                 el.child(self.research_resources(cx))
             })
