@@ -17,6 +17,8 @@ pub mod automation_agent;
 mod mcp_settings;
 #[path = "mcp_session.rs"]
 mod mcp_session;
+#[path = "project_agent.rs"]
+mod project_agent;
 use std::{
     collections::HashMap,
     io::{BufRead, Write},
@@ -42,6 +44,7 @@ pub struct Manager {
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
+    project_tools: Option<crate::project_tools::Broker>,
     automation_threads: std::collections::HashSet<String>,
     automation_tx: mpsc::SyncSender<automation_agent::AutomationReceipt>,
     automation_rx: Option<mpsc::Receiver<automation_agent::AutomationReceipt>>,
@@ -188,6 +191,7 @@ impl Manager {
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
             history_path,
+            project_tools: crate::project_tools::Broker::start().map_err(|error| eprintln!("Project tools: {error}")).ok(),
         }
     }
     pub fn configure_harness(
