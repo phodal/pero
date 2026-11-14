@@ -58,6 +58,7 @@ SwiftShader WebGL2，供无 GPU 的 runner 使用。Linux 隐藏模式仍需 X11
 | `e2e/local-roadmap.mjs` | L1 | `npm run test:local-roadmap` | Cloud 请求挂起时仍可加载本地 ROADMAP；搜索、已完成项、切换来源、真实 Host/ACP 临时文件写入、来源不变、文件错误恢复与明暗/窄窗 |
 | `runtime/local-worker-host.mjs` | L1 | `node tests/runtime/local-worker-host.mjs` | 临时目录与 loopback Cloud 下的真实 Host/Worker 生命周期、异常/EOF 清理、凭据不进入公共状态 |
 | `e2e/composer.mjs` | L1 | `npm run test:composer` | 类型化上下文、`@`/`/`、键盘与 token 删除/撤销、冻结快照、图片粘贴、Agent 声明的模式/强度/权限，以及明暗主题和窄窗口 |
+| `contracts/project-agent.mjs` + `e2e/project-agent.mjs` | L1 | `npm run test:project-agent` | 实际 Host、Go Harness、MCP、shell、独立 worktree 与脚本化 loopback 模型；Project 主/子归属、权限继承、原会话追加、取消、失败、证据汇总、重启恢复及实际 Electron UI。需要当前 Host/Harness/Wasm/Web/Desktop 构建 |
 | `e2e/i18n.mjs` | L1 | `npm run test:i18n` | 中英文切换、原生菜单、重启后偏好、用户原文不翻译、无 Host 的预览窗口。文案源见 [locales/README.md](../locales/README.md) |
 | `e2e/remote.mjs` | L2 | `npm run test:remote` | Electron、Go、PostgreSQL、`pero-worker` 和 ACP fixture 的一轮创建、执行、取消和断线恢复。需要 `PERO_TEST_DATABASE_URL` |
 | `e2e/github.mjs` + `server/internal/httpapi/desktop_github_test.go` | L2 | `npm run test:github` | Go harness 启动真实 PostgreSQL/API 和只读 GitHub fixture；两个 Electron 客户端认领、释放、接手并经独立 Worker 执行，验证项目可见范围和自动派发不重复。需要 `PERO_TEST_DATABASE_URL` |
