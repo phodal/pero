@@ -32,6 +32,7 @@ pub mod workbench;
 pub mod workspace_path;
 pub mod web_document;
 pub mod table_projection;
+pub mod project_agent;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_TEXT_CHARS: usize = 4096;
