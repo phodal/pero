@@ -36,7 +36,7 @@ pub fn session_row(
         .items_center()
         .rounded(chrome.geo(RADIUS_BUTTON))
         .bg(if selected {
-            p.accent_soft
+            chrome.navigation_selected()
         } else {
             p.text.opacity(0.)
         })
@@ -45,10 +45,10 @@ pub fn session_row(
             Button::new("session-title")
                 .custom(
                     ButtonCustomVariant::new(cx)
-                        .foreground(if selected { p.accent_text } else { p.text })
+                        .foreground(p.text)
                         .hover(p.text.opacity(0.))
                         .active(if selected {
-                            p.accent_soft
+                            p.text.opacity(0.)
                         } else {
                             p.surface_pressed
                         }),

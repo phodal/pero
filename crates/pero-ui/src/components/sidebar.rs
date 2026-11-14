@@ -87,7 +87,7 @@ fn recent_row(
         S::NeedsInput => (Some("message-circle"), ui.palette.warning, Some(ui.t("chat.question_waiting"))),
         S::Failed => (Some("alert-circle"), ui.palette.error, Some(ui.t("cloud.phase.failed"))),
         S::Authentication => (Some("shield"), ui.palette.warning, Some(ui.t("roadmap.auth_required"))),
-        S::Completed => (Some("circle-check"), ui.palette.success, Some(ui.t("research.completed"))),
+        S::Completed => (Some("circle-filled"), ui.palette.text_muted, Some(ui.t("research.completed"))),
         S::Cancelled => (Some("circle-x"), ui.palette.text_muted, Some(ui.t("project.agent.cancelled"))),
         S::Interrupted => (Some("player-pause"), ui.palette.warning, Some(ui.t("project.agent.interrupted"))),
     };
@@ -95,7 +95,7 @@ fn recent_row(
     if row.unread { accessible = format!("{} · {}", accessible, ui.t("sessions.unread")); }
     let lead = icon.map(|name| div().id(("session-status",index)).size(chrome.geo(pero_theme::SESSION_STATUS))
         .flex().items_center().justify_center()
-        .child(ui.icon(name).size(chrome.geo(pero_theme::SESSION_STATUS)).text_color(color))
+        .child(ui.icon(name).size(chrome.geo(if row.status == S::Completed { 6. } else { pero_theme::SESSION_STATUS })).text_color(color))
         .when_some(status, |el,label|el.tooltip(move |window,cx|gpui_kit::component::tooltip::Tooltip::new(label).build(window,cx)))
         .into_any_element())
         .or_else(|| row.unread.then(|| div().size(px(6.)).rounded_full().bg(ui.palette.info).into_any_element()));
@@ -362,7 +362,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
     let nav = |id: &'static str, label: &'static str, icon: &'static str, selected: bool, action: SidebarAction| {
         let element = if collapsed {
             pero_theme::ghost_icon_button(id, chrome, cx).selected(selected)
-                .when(selected, |button| button.border_color(chrome.palette.action))
+                .when(selected, |button| button.bg(chrome.navigation_selected()).text_color(p.text))
                 .icon(Icon::default().path(icon))
                 .tooltip(label).accessibility_label(label).on_click(click(&on_action, action)).into_any_element()
         } else {
@@ -388,7 +388,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 let element = if collapsed {
                     pero_theme::ghost_icon_button(("sidebar-app", index), chrome, cx)
                         .selected(app.active)
-                        .when(app.active, |button| button.border_color(chrome.palette.action))
+                        .when(app.active, |button| button.bg(chrome.navigation_selected()).text_color(p.text))
                         .icon(Icon::default().path(app.icon)).tooltip(app.label.clone()).accessibility_label(app.label)
                         .on_click(click(&on_action, action)).into_any_element()
                 } else {
