@@ -141,27 +141,44 @@ pub(super) fn open(settings: Option<&Path>) -> Market {
 }
 
 fn catalog_path(workspace: &Path) -> PathBuf {
-    let packaged = workspace.join("apps/skills/market-catalog.json");
-    if packaged.is_file() {
-        return packaged;
+    // Customize ships the catalog. The skills path remains for a packaged
+    // skills app and for the development catalog written beside that source.
+    for relative in [
+        "apps/connectors/market-catalog.json",
+        "apps/skills/market-catalog.json",
+    ] {
+        let packaged = workspace.join(relative);
+        if packaged.is_file() {
+            return packaged;
+        }
     }
     if let Ok(executable) = std::env::current_exe() {
         if let Some(directory) = executable.parent() {
-            let beside = directory.join("../apps/skills/market-catalog.json");
-            if beside.is_file() {
-                return beside;
+            for relative in [
+                "../apps/connectors/market-catalog.json",
+                "../apps/skills/market-catalog.json",
+            ] {
+                let beside = directory.join(relative);
+                if beside.is_file() {
+                    return beside;
+                }
             }
         }
     }
-    let development = workspace.join("apps/skills/dist/market-catalog.json");
-    if development.is_file() {
-        return development;
+    for relative in [
+        "apps/connectors/dist/market-catalog.json",
+        "apps/skills/dist/market-catalog.json",
+    ] {
+        let development = workspace.join(relative);
+        if development.is_file() {
+            return development;
+        }
     }
     let reviewed = workspace.join("docs/design-docs/research-skills-catalog.json");
     if reviewed.is_file() {
         return reviewed;
     }
-    packaged
+    workspace.join("apps/connectors/market-catalog.json")
 }
 
 impl Apps {

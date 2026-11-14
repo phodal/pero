@@ -8,8 +8,8 @@ import { stageBuiltinApp } from './builtin-app-payload.mjs';
 test('Packaged Skills catalog is a sanitized file beside the app', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pero-skills-catalog-'));
   try {
-    const output = join(directory, 'skills');
-    stageBuiltinApp(join(import.meta.dirname, '../../apps/skills'), 'skills', output);
+    const output = join(directory, 'connectors');
+    stageBuiltinApp(join(import.meta.dirname, '../../apps/connectors'), 'connectors', output);
     const packaged = JSON.parse(readFileSync(join(output, 'market-catalog.json'), 'utf8'));
     const reviewed = JSON.parse(readFileSync(join(import.meta.dirname, '../../docs/design-docs/research-skills-catalog.json'), 'utf8'));
     assert.equal(packaged.schema_version, 1);

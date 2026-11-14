@@ -32,10 +32,16 @@
 .point-connectors-hint{color:var(--pero-text-secondary);font-size:var(--pero-font-size-sm, 12px);margin:0 0 var(--pero-space-4, 8px)}
 .point-connectors-section{margin-bottom:16px}
 .point-connectors-section-count{font-size:var(--pero-font-size-sm, 12px);font-weight:var(--pero-font-weight-regular, 400);color:var(--pero-text-secondary)}
-.point-connectors-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-@container connectors (max-width:860px){.point-connectors-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@container connectors (max-width:520px){.point-connectors-guides,.point-connectors-grid{grid-template-columns:1fr}}
-.point-connectors-page .point-connectors-tile{--pero-card-padding:10px 12px;display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0}
+.customize-banner{margin:8px 16px 0;color:var(--pero-text-muted);font-size:var(--pero-font-caption)}
+.point-connectors-page[data-section=skills]{display:flex;flex-direction:column;height:100%;min-height:0}
+.customize-mast{display:flex;align-items:center;padding:12px 16px 0}
+.customize-mast .pero-search-field{flex:1;min-width:0}
+.customize-pills.pero-ui-tabs-list[data-variant=navigation]:not([data-unstyled]){width:fit-content;margin:8px 16px 0;gap:4px;padding:3px;border-radius:999px;background:var(--pero-surface-muted)}
+.customize-pills.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled]){border:0;border-radius:999px;min-height:28px;padding:2px 12px;font-size:var(--pero-font-caption)}
+.customize-pills.pero-ui-tabs-list[data-variant=navigation]>.pero-ui-tabs-trigger:not([data-unstyled])[data-state=active]{background:var(--pero-surface);color:var(--pero-text);border-bottom-color:transparent;box-shadow:inset 0 0 0 1px var(--pero-border)}
+.point-connectors-grid{display:flex;flex-direction:column;gap:0}
+@container connectors (max-width:520px){.point-connectors-guides{grid-template-columns:1fr}}
+.point-connectors-page .point-connectors-tile{--pero-card-padding:8px 2px;display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0;border:0;border-radius:0;box-shadow:none;background:transparent;border-bottom:0.5px solid var(--pero-border)}
 .point-connectors-page .point-connectors-tile.pero-ui-card:hover{background:var(--pero-surface-hover)}
 .point-connectors-tile-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .point-connectors-tile-action{flex:none}

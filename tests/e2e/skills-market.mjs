@@ -7,7 +7,11 @@ import {mkdtemp, mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'test-results/skills-market');
-expect(JSON.parse(await readFile(resolve(root,'products/pero.json'),'utf8')).apps).toContain('skills');
+const product = JSON.parse(await readFile(resolve(root,'products/pero.json'),'utf8'));
+const customize = JSON.parse(await readFile(resolve(root,'apps/connectors/app.json'),'utf8'));
+expect(product.apps).toContain('connectors');
+expect(product.apps).not.toContain('skills');
+expect(customize.permissions.host).toContain('skills');
 const profiles = resolve(root,'target/skills-market-e2e');
 await mkdir(profiles,{recursive:true});
 const directory = await mkdtemp(resolve(profiles,'profile-'));
@@ -23,7 +27,7 @@ const settingsPath = resolve(directory, 'settings.json');
 await writeFile(settingsPath, JSON.stringify({workbench:{appearance:'light'}}));
 const env = {...process.env, PERO_DESKTOP_DATA_DIR:directory, PERO_SETTINGS_PATH:settingsPath,
   PERO_HISTORY_PATH:resolve(directory, 'history.jsonl'), PERO_SKILLS_CATALOG:catalogPath, PERO_LOCALE:'en',
-  PERO_BUILTIN_APPS:'skills', PERO_REQUIRED_APPS:'skills'};
+  PERO_BUILTIN_APPS:'connectors', PERO_REQUIRED_APPS:'connectors'};
 for (const key of ['ELECTRON_RUN_AS_NODE','PERO_APPS_ROOT','PERO_CLOUD_URL','PERO_CLIENT_TOKEN','PERO_OPERATOR_TOKEN']) delete env[key];
 let app, page, frame;
 const errors = [], checks = [];
@@ -33,9 +37,9 @@ async function open() {
   page = await app.firstWindow();
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, {timeout:60000});
-  await expect.poll(async () => (await state()).apps?.some(item => item.name === 'skills'), {timeout:30000}).toBe(true);
-  await clickAppShortcut(page,'skills');
-  frame = page.frameLocator('iframe[title="skills"]');
+  await expect.poll(async () => (await state()).apps?.some(item => item.name === 'connectors'), {timeout:30000}).toBe(true);
+  await clickAppShortcut(page,'connectors');
+  frame = page.frameLocator('iframe[title="connectors"]');
   await expect(frame.getByRole('heading',{name:'Skills',exact:true})).toBeVisible({timeout:30000});
   await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();

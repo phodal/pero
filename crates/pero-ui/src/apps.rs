@@ -83,6 +83,16 @@ impl InstalledApp {
     pub fn has_sidebar_entry(&self) -> bool {
         self.enabled || self.placement() != AppPlacement::Catalog
     }
+    /// Skills is a section of Customize once Connectors can open. It keeps its
+    /// own shortcut only when that host is not enabled.
+    pub fn listed_in_sidebar(&self, connectors_enabled: bool) -> bool {
+        self.has_sidebar_entry() && !(self.name == "skills" && connectors_enabled)
+    }
+    /// The Customize shortcut stays selected while its Skills section is open.
+    pub fn shortcut_selected(&self, current: Option<&str>, skills_folded_into_customize: bool) -> bool {
+        current == Some(self.name.as_str())
+            || (skills_folded_into_customize && self.name == "connectors" && current == Some("skills"))
+    }
     pub fn category(&self) -> AppCategory {
         match self.name.as_str() { "virtual-cell" | "control-lab" | "scientific-viewer" | "hpc" | "compute" | "lcms2yield" | "notebook" => AppCategory::Research, "data" | "insights" => AppCategory::Data, _ => AppCategory::Tools }
     }
@@ -617,6 +627,26 @@ mod tests {
             assert_eq!(app.has_sidebar_entry(), shortcut, "{name}, enabled={enabled}");
             assert_eq!(app.placement().in_catalog(), catalog, "{name}");
         }
+    }
+
+    #[test]
+    fn skills_fold_into_customize_when_connectors_are_enabled() {
+        let app = |name, enabled| InstalledApp {
+            name: name.into(), version: "1".into(), display_name: name.into(),
+            description: String::new(), tenure: String::new(), enabled,
+            panels: vec![AppPanel { id: "main".into(), title: name.into(), entry: "dist/index.html".into() }],
+            column_header: ColumnHeaderContribution::default(),
+        };
+        let skills = app("skills", true);
+        let connectors = app("connectors", true);
+        assert!(skills.listed_in_sidebar(false));
+        assert!(!skills.listed_in_sidebar(true));
+        assert!(connectors.listed_in_sidebar(true));
+        assert!(connectors.shortcut_selected(Some("connectors"), true));
+        assert!(connectors.shortcut_selected(Some("skills"), true));
+        assert!(!connectors.shortcut_selected(Some("skills"), false));
+        assert!(skills.shortcut_selected(Some("skills"), false));
+        assert!(!app("skills", false).listed_in_sidebar(false));
     }
 
     #[test]
