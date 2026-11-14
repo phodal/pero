@@ -85,3 +85,38 @@ This increment does not add shared research-project synchronization, cross-App
 experiment scheduling, automatic evidence promotion, full result-version
 storage or a universal scientific verification policy. Those require their own
 concrete contracts and acceptance evidence.
+
+## Project Agent — 2026-11-14
+
+A saved ResearchProject can bind one primary Agent and its delegated ACP
+conversations. `ProjectSessionBinding` lives in the original `session_created`
+journal entry. Goal and resource references still belong to the saved project;
+session identity, messages, approvals, tool evidence and cancellation still
+belong to Host/ACP. Execution status is projected by the existing App Agent
+transcript owner, rather than stored as a second project task state machine.
+
+The primary receives frozen project context and the `project_work` MCP tool.
+Delegation starts an ordinary independent ACP session with a retained workspace,
+returns its exact thread identity, and lets the primary inspect original
+receipts or send follow-ups and cancellation. Repository children use detached
+Git worktrees so their existing workspace leases can coexist with the primary
+turn. Changes are available for inspection in that workspace; no implicit merge
+or promotion to a shared Task/Run takes place.
+
+Delegation inherits the primary's acknowledged permission setting through the
+existing ACP configuration owner before the child's first prompt. An
+incompatible Agent policy fails visibly instead of falling back to its default.
+Model-facing evidence contains bounded original tool receipts, including tool
+IDs, observed status and output excerpts. Child narrative remains reported
+evidence; it is not independent verification.
+
+The Project Agent page uses the existing ChatPanel for conversations and
+approvals, and exposes original-thread navigation, instructions, cancellation
+and an explicit evidence-summary request. After restart, journal replay
+restores membership. Continuing explicitly loads the acknowledged original ACP
+session; unsupported or unavailable loads fail visibly, without substituting a
+new session. Interrupted execution is not automatically retried.
+
+Implementation scope and limitations are tracked in
+[the Project Agent task record](../exec-plans/2026-11-14-project-agent.md), with
+observed verification in the existing research-project record.
