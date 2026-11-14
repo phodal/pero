@@ -18,19 +18,19 @@ use serde_json::{Value, json};
 
 impl Workbench {
     pub(crate) fn project_catalog(&self, cx: &App) -> Vec<Project> {
-        let mut workspaces = vec![self.workspace.clone()];
+        let chats = &self.chat.read(cx).chats;
+        let delegated = chats.iter().filter(|chat| chat.project_agent.as_ref().is_some_and(|binding| binding.parent_thread.is_some()))
+            .map(|chat| chat.workspace.as_str()).collect::<Vec<_>>();
+        // Child worktrees are execution locations under their saved Project,
+        // not implicit projects. Explicit persisted project bindings remain below.
+        let mut workspaces = std::iter::once(self.workspace.as_str()).chain(chats.iter().map(|chat| chat.workspace.as_str()))
+            .filter(|path| !delegated.iter().any(|child| pero_contracts::workspace_path::WorkspacePath(child).matches(path)))
+            .map(str::to_owned).collect::<Vec<_>>();
         workspaces.extend(
             self.preferences
                 .projects
                 .iter()
                 .map(|binding| binding.workspace.clone()),
-        );
-        workspaces.extend(
-            self.chat
-                .read(cx)
-                .chats
-                .iter()
-                .map(|chat| chat.workspace.clone()),
         );
         workspaces.extend(self.preferences.research_projects.iter().filter_map(|project| project.workspace.clone()));
         let mut shared = self.remote.data["identity"]["projects"]
@@ -287,14 +287,10 @@ impl Workbench {
                     .w_full()
                     .flex()
                     .flex_col()
-                    .child(pero_theme::library_header(
-                        SharedString::from(format!("projects-header-{label}")),
-                        self.t(label),
-                        Some(count.to_string().into()),
-                        None,
-                        chrome,
-                    ))
-                    .child(pero_theme::hairline(chrome))
+                    .child(div().px(chrome.geo(pero_theme::SPACE_12)).py(chrome.geo(pero_theme::SPACE_8))
+                        .flex().items_center().gap(chrome.geo(pero_theme::SPACE_8))
+                        .text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(chrome.palette.text_muted)
+                        .child(self.t(label)).child(count.to_string()))
                     .children(rows)
                     .into_any_element()
             })
@@ -362,7 +358,7 @@ impl Workbench {
                             .min_h_0()
                             .w_full()
                             .overflow_y_scroll()
-                            .bg(chrome.list())
+                            .bg(chrome.palette.surface)
                             .when_some(editor, |body, editor| {
                                 body.child(
                                     div()
@@ -374,7 +370,8 @@ impl Workbench {
                                         .child(editor),
                                 )
                             })
-                            .children(sections),
+                            .child(div().w_full().max_w(px(960.)).mx_auto().p(chrome.geo(pero_theme::SPACE_16))
+                                .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_16)).children(sections)),
                     ),
             )
     }
