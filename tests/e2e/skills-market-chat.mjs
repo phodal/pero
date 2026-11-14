@@ -51,7 +51,7 @@ const env = {...process.env,...forwarder.env,GIT_CONFIG_GLOBAL:fixture.gitconfig
   MARKET_FIXTURE_KEY:'market-chat-fixture',PERO_HOST_EXECUTABLE:hostPath,
   PERO_DESKTOP_DATA_DIR:profile,PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(profile,'history.jsonl'),
   PERO_AGENTS_FILE:agents,PERO_SKILLS_CATALOG:fixture.catalogPath,PERO_LOCALE:'en',
-  PERO_BUILTIN_APPS:'skills',PERO_REQUIRED_APPS:'skills'};
+  PERO_BUILTIN_APPS:'connectors',PERO_REQUIRED_APPS:'connectors'};
 for (const key of ['ELECTRON_RUN_AS_NODE','PERO_APPS_ROOT','PERO_CLOUD_URL','PERO_CLIENT_TOKEN','PERO_OPERATOR_TOKEN']) delete env[key];
 let app, page, marketFrame, stage = 'startup', lastSnapshot, installProof;
 const state = async () => lastSnapshot = await page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
@@ -73,8 +73,8 @@ try {
   app=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
   page=await app.firstWindow();page.on('pageerror',error=>pageErrors.push(error.message));
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
-  await expect.poll(async()=>(await state()).apps?.some(item=>item.name==='skills'),{timeout:30000}).toBe(true);
-  await clickAppShortcut(page,'skills');marketFrame=page.frameLocator('iframe[title="skills"]');
+  await expect.poll(async()=>(await state()).apps?.some(item=>item.name==='connectors'),{timeout:30000}).toBe(true);
+  await clickAppShortcut(page,'connectors');marketFrame=page.frameLocator('iframe[title="connectors"]');
   await expect(marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
   await marketFrame.getByRole('searchbox',{name:'Search skills'}).fill('fast');
   await marketFrame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');

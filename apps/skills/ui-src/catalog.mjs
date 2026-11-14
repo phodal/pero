@@ -25,3 +25,15 @@ export function findSkills(skills, {query = '', category = '', scope = '', view 
   const shown = Math.min(Math.max(0, page), pages - 1);
   return {items: matches.slice(shown * 12, (shown + 1) * 12), total: matches.length, page: shown, pages};
 }
+
+/** Groups a page by source owner without changing the caller's item order inside a group. */
+export function groupSkills(skills) {
+  const groups = [], index = new Map();
+  for (const item of skills) {
+    const owner = String(item.source?.repository || '').split('/')[0];
+    let group = index.get(owner);
+    if (!group) { group = {owner, items: []}; index.set(owner, group); groups.push(group); }
+    group.items.push(item);
+  }
+  return groups;
+}

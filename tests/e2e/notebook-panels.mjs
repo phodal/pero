@@ -49,16 +49,16 @@ try {
   await frame.getByRole('menuitem', { name: 'App Canvas', exact: true }).click();
   const canvas = frame.locator('[data-kind=appCanvas]');
   await canvas.getByRole('button', { name: 'Installed App', exact: true }).click();
-  await frame.getByRole('option', { name: /Skills/ }).click();
+  await frame.getByRole('option', { name: /Connectors/ }).click();
   await canvas.getByRole('button', { name: 'Declared view', exact: true }).click();
-  await frame.getByRole('option', { name: /Skills/ }).click();
+  await frame.getByRole('option', { name: /Connectors/ }).click();
   await canvas.getByRole('button', { name: 'Save binding', exact: true }).click();
-  await canvas.locator('[data-pero-app-panel=skills]').scrollIntoViewIfNeeded();
-  const skills = page.frameLocator('iframe[title=skills]');
+  await canvas.locator('[data-pero-app-panel=connectors]').scrollIntoViewIfNeeded();
+  const skills = page.frameLocator('iframe[title=connectors]');
   await expect(skills.getByRole('searchbox')).toBeVisible({ timeout: 30_000 });
   await expect(skills.locator('.skills-row').first()).toBeVisible({ timeout: 30_000 });
-  const box = await canvas.locator('[data-pero-app-panel=skills]').boundingBox();
-  const mounted = await page.locator('iframe[title=skills]').boundingBox();
+  const box = await canvas.locator('[data-pero-app-panel=connectors]').boundingBox();
+  const mounted = await page.locator('iframe[title=connectors]').boundingBox();
   for (const field of ['x','y','width','height']) assert.ok(Math.abs(box[field] - mounted[field]) <= 2, `Embedded ${field}: ${box[field]} / ${mounted[field]}`);
   await skills.getByRole('searchbox').fill('writing');
   await expect(skills.getByRole('searchbox')).toHaveValue('writing');
@@ -66,9 +66,9 @@ try {
   await page.screenshot({ path: resolve(output, 'desktop-embedded-skills.png') });
   // Notebook menus cover the child surface, then closing restores its state.
   await frame.locator('[data-notebook-menu=file] .pero-ui-popover-trigger').click();
-  await expect(page.locator('iframe[title=skills]')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('iframe[title=connectors]')).toHaveAttribute('aria-hidden', 'true');
   await frame.locator('[data-notebook-menu=file] .pero-ui-popover-trigger').press('Escape');
-  await expect(page.locator('iframe[title=skills]')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('iframe[title=connectors]')).toHaveAttribute('aria-hidden', 'false');
   await expect(skills.getByRole('searchbox')).toHaveValue('writing');
   await frame.getByRole('button', { name: 'Save revision', exact: true }).click();
   await expect(frame.locator('.notebook-status')).toHaveText('Revision 2');
@@ -76,7 +76,7 @@ try {
   await frame.getByRole('button', { name: 'Revision history', exact: true }).click();
   await frame.getByRole('button', { name: 'Revision 2', exact: true }).click();
   await expect(frame.getByText('Historical notebook revision. Open the App separately to use its current page.', { exact: true })).toBeVisible();
-  await expect(page.locator('iframe[title=skills]')).toHaveCount(0);
+  await expect(page.locator('iframe[title=connectors]')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Return to current notebook', exact: true }).click();
   await expect(skills.getByRole('searchbox')).toBeVisible({ timeout: 30_000 });
   assert.deepEqual(errors, []);

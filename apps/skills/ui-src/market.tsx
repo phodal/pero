@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
 import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, ListRow, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
-import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
+import {findSkills, groupSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
 function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missing: React.ReactNode}) {
@@ -11,7 +11,7 @@ function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missi
 const glyphs:Record<string,string> = {writing:'quote',literature:'skill',statistics:'simulation',visualization:'palette','research-design':'light',presentation:'browser',ai:'circuit',data:'table','scientific-computing':'protein',laboratory:'microscope',workflow:'nodes',documents:'document',review:'checklist'};
 function SkillGlyph({skill}:{skill:Skill}) {return <span className={`skills-glyph tone-${skill.category}`}><Icon name={glyphs[skill.category] || 'skill'} size={20}/></span>;}
 
-export function SkillsMarket() {
+export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange }: { embedded?: boolean; query?: string; onQueryChange?: (value: string) => void } = {}) {
   const {locale, permissions} = useAppContext(), capability = useHostCapability('skills');
   const zh = locale === 'zh-CN', text = (cn: string, en: string) => zh ? cn : en;
   const title = (item: Skill) => zh ? copy(item)?.title || item.title_zh || item.name : item.name;
@@ -19,9 +19,11 @@ export function SkillsMarket() {
   const categoryLabel = (item: Skill) => zh ? item.category_zh || item.category : item.category.replace(/[-_]/g,' ');
   const [catalog, setCatalog] = useState<Catalog>(), [installed, setInstalled] = useState<Installations>();
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
-  const [view, setView] = useState('discover'), [query, setQuery] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
+  const [view, setView] = useState('discover'), [queryState, setQueryState] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
+  const query = queryProp ?? queryState;
+  const setQuery = (value: string) => { onQueryChange?.(value); if (queryProp === undefined) setQueryState(value); };
   const [selected, setSelected] = useState(''), [page, setPage] = useState(0), [detailTab,setDetailTab] = useState('overview');
-  const [onlyReady,setOnlyReady] = useState(false), [sort,setSort] = useState('flow'), [queueOpen,setQueueOpen] = useState(true), [opening,setOpening] = useState('');
+  const [onlyReady,setOnlyReady] = useState(false), [sort,setSort] = useState('flow'), [queueOpen,setQueueOpen] = useState(true), [opening,setOpening] = useState(''), [noticeOpen,setNoticeOpen] = useState(true);
   const search = useRef<HTMLInputElement>(null), scroller = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<Record<string, {operation: string; cancelling: boolean; notice?: string}>>({});
   const [outcomes, setOutcomes] = useState<Record<string, {error: boolean; message: string; operation:string; input:Record<string,unknown>}>>({});
@@ -65,7 +67,7 @@ export function SkillsMarket() {
   function filter(change: () => void) { change(); setPage(0); }
   function open(target:Skill) {setSelected(target.id);setDetailTab('overview');}
   useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,category,onlyReady,sort]);
-  useEffect(()=>{const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();search.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[selected]);
+  useEffect(()=>{if(embedded)return;const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();search.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[embedded,selected]);
   async function useSkill(target:Skill, message='') {
     const saved=records.find(value=>value.id===target.id);
     if(!saved)return;
@@ -139,7 +141,16 @@ export function SkillsMarket() {
   const running=Object.keys(busy).length;
   const missingEvidence=item ? <>{text('未明确列出，请查看','Not explicitly listed; review the')} <a href={item.source.url} target="_blank" rel="noreferrer">{text('技能原文','original skill')}</a>。</> : null;
 
-  return <main className="skills-market">
+  const groups = sort === 'name' ? [{owner:'', items: shown.items}] : groupSkills(shown.items);
+  const resetBrowse = () => filter(()=>{setView('discover');setQuery('');setCategory('');setScope('');setOnlyReady(false);});
+  const titleRow = <div className="customize-mast-title"><h1>{text('技能','Skills')}</h1>{catalog && <p className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong></p>}</div>;
+  return <main className={embedded ? 'skills-market skills-market-embedded' : 'skills-market'}>
+        {embedded ? <div className="skills-embedded-head">{titleRow}<Button variant="primary" onClick={resetBrowse}>{text('浏览市场','Browse marketplace')}</Button></div> : <header className="customize-mast">
+          {titleRow}
+          <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索技能','Search skills')} placeholder={text('搜索技能、MCP…','Search skills, MCPs…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
+          <Button variant="primary" onClick={resetBrowse}>{text('浏览市场','Browse marketplace')}</Button>
+        </header>}
+        {noticeOpen && <div className="customize-banner" role="note"><Icon name="info" size={15}/><p>{text('在聊天中手动选用技能。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</p><IconButton label={text('关闭提示','Dismiss notice')} onClick={()=>setNoticeOpen(false)}><Icon name="close" size={14}/></IconButton></div>}
         <Tabs className="skills-frame" value={view} onValueChange={next=>filter(()=>setView(next))}>
           <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
             <TabsTrigger value="discover">{text('发现技能','Discover')}</TabsTrigger>
@@ -147,7 +158,6 @@ export function SkillsMarket() {
           </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={loading} disabled={!capability} onClick={() => void load()}><Icon name="sync" size={14}/></IconButton>} />
           <ContentPane id="skills-catalog" label={text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
             toolbar={<div className="skills-tools">
-            <div className="skills-search"><Icon name="search" size={18}/><Input ref={search} type="search" aria-label={text('搜索技能','Search skills')} placeholder={text('搜索用途、技能名称或来源…','Search tasks, skill names or sources…')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/><kbd>Ctrl K</kbd></div>
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>
             <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>filter(()=>setCategory(value))}/>
             <label className="skills-ready"><Checkbox checked={onlyReady} onCheckedChange={checked=>filter(()=>setOnlyReady(checked===true))}/>{text('可直接安装','Ready to install')}</label>
@@ -161,14 +171,14 @@ export function SkillsMarket() {
           <TabsContent value={view}>
             {!catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
-                {view==='installed'&&<p className="skills-installed-guide"><Icon name="info" size={15}/>{text('可在聊天中手动选择，不必开启自动选用。','Select skills in Chat without enabling automatic use.')}</p>}
-                {shown.items.length ? shown.items.map(value=>{
+                {catalog && <p className="skills-summary">{text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`)}</p>}
+                {shown.items.length ? groups.map(group => <div key={group.owner || '\0'} className="skills-source-group">{sort !== 'name' && <header className="skills-source-head"><h2>{group.owner || text('本地','Local')}</h2><span>{group.items.length}</span></header>}{group.items.map(value=>{
                   const saved=records.find(row=>row.id===value.id), pending=busy[value.id];
                   const displayed=value;
                   return <article key={value.id}>
                     <ListRow className="skills-row" onOpen={()=>open(value)} title={<span className="skills-row-identity"><SkillGlyph skill={displayed}/><span className="skills-row-copy"><span className="skills-row-title"><span role="heading" aria-level={3}>{title(displayed)}</span>{saved&&<span className="skills-installed-label"><Icon name="check" size={12}/>{text('已安装','Installed')}</span>}{pending&&<span className="skills-pending-label">{text('处理中','Working')}</span>}{!pending&&outcomes[value.id]?.error&&<span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>}</span><span className="skills-row-description">{description(displayed)}</span><span className="skills-row-meta"><span className={`skills-category tone-${displayed.category}`}>{categoryLabel(displayed)}</span><code>{displayed.name}</code><span className="skills-source-owner">{displayed.source.repository.split('/')[0]}</span></span></span></span>} trailing={<div className="skills-row-action">{primary(displayed,true)}</div>}/>
                   </article>;
-                }):<EmptyState icon={<EmptyIllustration kind={view==='installed'&&!query&&!category?'data':'search'} size="compact"/>} heading={view==='installed'&&!query&&!category?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={<Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
+                })}</div>) : <EmptyState icon={<EmptyIllustration kind={view==='installed'&&!query&&!category?'data':'search'} size="compact"/>} heading={view==='installed'&&!query&&!category?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={<Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
                 {shown.total>0&&<footer className="skills-pagination"><span>{text(`显示 ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)}，共 ${shown.total.toLocaleString(locale)} 项`,`Showing ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)} of ${shown.total.toLocaleString(locale)}`)}</span><div><Button aria-label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left" size={15}/></Button><span>{shown.page+1} / {shown.pages}</span><Button aria-label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right" size={15}/></Button></div></footer>}
               </section>
               <p className="skills-source-note"><Icon name="info" size={15}/>{text('目录保留固定来源与许可依据。安装成功不代表科研方法已经验证。','Sources and license evidence are preserved. Installation does not establish scientific validation.')}</p>

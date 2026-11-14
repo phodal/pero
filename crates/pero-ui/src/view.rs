@@ -58,7 +58,12 @@ impl Workbench {
             .child(self.settings_menu(self.sidebar_collapsed, cx))
             .child(self.view_bounds.settings.probe("settings".into()))
             .into_any_element();
-        let apps = self.apps.entries.iter().filter(|app| app.has_sidebar_entry()).filter_map(|app| {
+        let current_app = match self.navigation.current() {
+            Some(WorkspaceItem::App { name, .. }) => Some(name.clone()),
+            _ => None,
+        };
+        let connectors_enabled = self.apps.entries.iter().any(|app| app.name == "connectors" && app.enabled);
+        let apps = self.apps.entries.iter().filter(|app| app.listed_in_sidebar(connectors_enabled)).filter_map(|app| {
             let panel = app.panels.first()?;
             Some(sidebar::AppShortcut {
                 badge: self.apps.badges.get(&app.name).map(ToString::to_string),
@@ -66,7 +71,7 @@ impl Workbench {
                 label: self.installed_app_title(&app.name, &app.display_name),
                 placement: app.placement(),
                 icon: pero_chat_ui::icon_theme::app_icon(&app.name, pero_theme::UiAppearance::global(cx).dark),
-                active: matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == &app.name),
+                active: app.shortcut_selected(current_app.as_deref(), connectors_enabled),
             })
         }).collect();
         let context_navigation = self.project_agent_navigation(cx);

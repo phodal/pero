@@ -328,7 +328,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
           return command({action:'notebook_research_source',app:value.app,href:value.href});
         }
         if (value.kind === 'skill') {
-          if (frame.name !== 'skills') throw new Error('Open installed skills from the Skills market');
+          if (frame.name !== 'connectors' && frame.name !== 'skills') throw new Error('Open installed skills from Customize');
           return command({action:'skill_chat_open',source:value.source,message:value.message});
         }
         if (value.kind === 'session') {

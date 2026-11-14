@@ -44,8 +44,10 @@ await packageScientificRuntime(root, appName);
 const outdir = resolve(appRoot, 'dist');
 await mkdir(outdir, { recursive: true });
 await packageNotebookDiagnostics(root, appName);
-if (appName === 'skills') {
-  const catalog = spawnSync(process.env.PYTHON || 'python3', [resolve(root, 'scripts/research-skills/publish.py'), '--output', resolve(outdir, 'market-catalog.json')], {stdio:'inherit'});
+if (appName === 'skills' || appName === 'connectors') {
+  const catalogDir = resolve(root, 'apps/skills/dist');
+  await mkdir(catalogDir, { recursive: true });
+  const catalog = spawnSync(process.env.PYTHON || 'python3', [resolve(root, 'scripts/research-skills/publish.py'), '--output', resolve(catalogDir, 'market-catalog.json')], {stdio:'inherit'});
   if (catalog.error) throw catalog.error;
   if (catalog.status !== 0) throw new Error('Skills catalog could not be published');
 }

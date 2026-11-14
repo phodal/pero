@@ -84,8 +84,16 @@ impl Spotlight {
                 },
             ),
             (
-                workbench.t("nav.connectors"),
+                workbench.t("nav.customize"),
                 "plug",
+                Target::OpenApp {
+                    name: "connectors",
+                    panel: "main",
+                },
+            ),
+            (
+                workbench.t("nav.skills"),
+                "lightbulb",
                 Target::OpenApp {
                     name: "connectors",
                     panel: "main",

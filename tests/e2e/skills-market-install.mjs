@@ -18,7 +18,7 @@ await writeFile(agents,JSON.stringify([{id:'pero',name:'Pero install fixture',co
 await writeFile(settings,JSON.stringify({workbench:{appearance:'light'}}));
 const env={...process.env,...forwarder.env,GIT_CONFIG_GLOBAL:fixture.gitconfig,GIT_CONFIG_NOSYSTEM:'1',
   PERO_DESKTOP_DATA_DIR:profile,PERO_SETTINGS_PATH:settings,PERO_HISTORY_PATH:resolve(profile,'history.jsonl'),
-  PERO_AGENTS_FILE:agents,PERO_SKILLS_CATALOG:fixture.catalogPath,PERO_LOCALE:'en',PERO_BUILTIN_APPS:'skills',PERO_REQUIRED_APPS:'skills'};
+  PERO_AGENTS_FILE:agents,PERO_SKILLS_CATALOG:fixture.catalogPath,PERO_LOCALE:'en',PERO_BUILTIN_APPS:'connectors',PERO_REQUIRED_APPS:'connectors'};
 for(const key of ['ELECTRON_RUN_AS_NODE','PERO_APPS_ROOT','PERO_CLOUD_URL','PERO_CLIENT_TOKEN','PERO_OPERATOR_TOKEN'])delete env[key];
 let app,page,frame;
 const errors=[];
@@ -27,8 +27,8 @@ async function open(){
   app=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve(root,'desktop')],cwd:root,env});
   page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
-  await expect.poll(async()=>JSON.parse(await page.evaluate(()=>window.peroDiagnostics.snapshot())).apps?.some(item=>item.name==='skills'),{timeout:30000}).toBe(true);
-  await clickAppShortcut(page,'skills');frame=page.frameLocator('iframe[title="skills"]');
+  await expect.poll(async()=>JSON.parse(await page.evaluate(()=>window.peroDiagnostics.snapshot())).apps?.some(item=>item.name==='connectors'),{timeout:30000}).toBe(true);
+  await clickAppShortcut(page,'connectors');frame=page.frameLocator('iframe[title="connectors"]');
   await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(2,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
 }
