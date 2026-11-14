@@ -265,6 +265,249 @@ impl Workbench {
         }
     }
 
+    pub(crate) fn project_agent_titleband(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(project) = self.saved_research_project() else {
+            return div().into_any_element();
+        };
+        let id = project.id.clone();
+        let snapshot = self.project_agents.snapshot_for(&id);
+        let loading = self.project_agents.loading.contains(&id);
+        let primary = snapshot.and_then(|snapshot| {
+            snapshot
+                .sessions
+                .iter()
+                .find(|session| session.binding.parent_thread.is_none())
+        });
+        let selected = self
+            .chat
+            .read(cx)
+            .active_chat
+            .and_then(|index| self.chat.read(cx).chats.get(index))
+            .and_then(|chat| {
+                snapshot?
+                    .sessions
+                    .iter()
+                    .find(|session| session.thread_id == chat.id)
+            });
+        let has_session = selected.is_some();
+        let primary_thread = primary.map(|session| session.thread_id.clone());
+        let summarize_id = id;
+        let can_summarize = primary
+            .is_some_and(|session| !matches!(session.status.as_str(), "running" | "cancelling"));
+        let external_resources = self.chat.read(cx).resource_column.is_some();
+        let narrow_context =
+            !external_resources && self.layout.narrow && self.project_agents.context_open;
+        let header = div()
+            .w_full()
+            .h_full()
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .gap(px(pero_theme::SPACE_8))
+            .px(px(pero_theme::SPACE_16))
+            .py(px(0.))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .whitespace_nowrap()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(
+                        selected
+                            .map(|session| {
+                                if session.binding.parent_thread.is_none() {
+                                    self.t("project.agent.primary").to_owned()
+                                } else {
+                                    session.binding.label.clone()
+                                }
+                            })
+                            .unwrap_or_else(|| project.title.clone()),
+                    ),
+            )
+            .when(primary.is_some(), |el| {
+                el.child(
+                    Button::new("project-agent-summarize")
+                        .ghost()
+                        .small()
+                        .icon(Icon::default().path("icons/sparkles.svg"))
+                        .accessibility_label(self.t("project.agent.summarize"))
+                        .tooltip(self.t("project.agent.summarize"))
+                        .disabled(loading || !can_summarize)
+                        .relative()
+                        .child(self.view_bounds.projects.probe("agent:summarize".into()))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(thread) = &primary_thread {
+                                this.request_project_agents(
+                                    &summarize_id,
+                                    "summarize",
+                                    json!({"thread_id":thread}),
+                                    cx,
+                                );
+                            }
+                        })),
+                )
+            })
+            .child(
+                pero_theme::ghost_icon_button(
+                    "project-agent-refresh",
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
+                )
+                .icon(Icon::default().path("icons/refresh.svg"))
+                .accessibility_label(self.t("remote.refresh"))
+                .tooltip(self.t("remote.refresh"))
+                .disabled(loading)
+                .relative()
+                .child(self.view_bounds.projects.probe("agent:refresh".into()))
+                .on_click(cx.listener(|this, _, _, cx| this.refresh_project_agents(cx))),
+            )
+            .child(
+                pero_theme::ghost_icon_button(
+                    "project-agent-context",
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
+                )
+                .icon(Icon::default().path("icons/panel-right-open.svg"))
+                .accessibility_label(self.t("project.overview"))
+                .tooltip(self.t("project.overview"))
+                .relative()
+                .child(self.view_bounds.projects.probe("agent:materials".into()))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.chat
+                        .update(cx, |chat, cx| chat.close_resource_pane(cx));
+                    this.project_agents.context_open =
+                        this.layout.narrow && !this.project_agents.context_open;
+                    cx.notify();
+                })),
+            )
+            .children(self.main_actions(&[crate::titleband::Action::Search], cx));
+        div()
+            .w_full()
+            .h_full()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .when(!narrow_context, |el| {
+                el.child(div().flex_1().min_w_0().h_full().child(header))
+            })
+            .when(
+                !external_resources && (!self.layout.narrow || narrow_context),
+                |el| {
+                    el.child(
+                        div()
+                            .h_full()
+                            .min_w_0()
+                            .flex_shrink_0()
+                            .when(!self.layout.narrow, |el| {
+                                el.w(px(self
+                                    .chat
+                                    .read(cx)
+                                    .artifact_pane_width()
+                                    .clamp(320., 360.)))
+                            })
+                            .when(self.layout.narrow, |el| el.flex_1())
+                            .child(self.project_overview_header(has_session, cx)),
+                    )
+                },
+            )
+            .into_any_element()
+    }
+
+    fn project_overview_header(&self, has_session: bool, cx: &mut Context<Self>) -> AnyElement {
+        div()
+            .px(px(pero_theme::SPACE_16))
+            .h_full()
+            .flex()
+            .items_center()
+            .gap(px(pero_theme::SPACE_8))
+            .child(
+                div()
+                    .flex_1()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(self.t("project.overview")),
+            )
+            .child(
+                pero_theme::ghost_icon_button(
+                    "project-overview-actions",
+                    pero_theme::Chrome::from_app(cx),
+                    cx,
+                )
+                .icon(Icon::default().path("icons/dots.svg"))
+                .accessibility_label(self.t("project.actions"))
+                .tooltip(self.t("project.actions"))
+                .relative()
+                .child(self.view_bounds.projects.probe("agent:views".into()))
+                .dropdown_menu({
+                    let owner = cx.entity().downgrade();
+                    let entries = [
+                        ProjectTab::Tasks,
+                        ProjectTab::Sources,
+                        ProjectTab::Execution,
+                        ProjectTab::Settings,
+                    ]
+                    .map(|tab| (tab, self.t(tab.label_key()).to_owned()));
+                    move |mut menu, _, _| {
+                        for (tab, label) in &entries {
+                            let tab = *tab;
+                            let owner = owner.clone();
+                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
+                                move |_, _, cx| {
+                                    let _ = owner
+                                        .update(cx, |this, cx| this.select_project_view(tab, cx));
+                                },
+                            ));
+                        }
+                        menu
+                    }
+                }),
+            )
+            .when(has_session, |el| {
+                el.child(
+                    Button::new("project-agent-artifacts")
+                        .ghost()
+                        .small()
+                        .label(self.t("artifacts.title"))
+                        .relative()
+                        .child(self.view_bounds.projects.probe("agent:artifacts".into()))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.project_agents.context_open = false;
+                            this.chat.update(cx, |chat, cx| {
+                                chat.open_resource_tab(
+                                    pero_contracts::workbench::ResourceTab::Artifacts,
+                                    cx,
+                                )
+                            });
+                            cx.notify();
+                        })),
+                )
+            })
+            .when(self.layout.narrow, |el| {
+                el.child(
+                    pero_theme::ghost_icon_button(
+                        "project-agent-context-back",
+                        pero_theme::Chrome::from_app(cx),
+                        cx,
+                    )
+                    .icon(Icon::default().path("icons/x.svg"))
+                    .accessibility_label(self.t("chat.panel_title"))
+                    .tooltip(self.t("chat.panel_title"))
+                    .relative()
+                    .child(
+                        self.view_bounds
+                            .projects
+                            .probe("agent:context-close".into()),
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.project_agents.context_open = false;
+                        cx.notify();
+                    })),
+                )
+            })
+            .into_any_element()
+    }
+
     pub(crate) fn project_agent_view(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let Some(project) = self.saved_research_project() else {
@@ -295,10 +538,6 @@ impl Workbench {
         let narrow_context =
             !external_resources && self.layout.narrow && self.project_agents.context_open;
         let context = !external_resources && (!self.layout.narrow || narrow_context);
-        let primary_thread = primary.map(|session| session.thread_id.clone());
-        let summarize_id = id.clone();
-        let can_summarize = primary
-            .is_some_and(|session| !matches!(session.status.as_str(), "running" | "cancelling"));
         div()
             .id("project-agent")
             .size_full()
@@ -318,104 +557,6 @@ impl Workbench {
                         .bg(p.surface)
                         .relative()
                         .child(self.view_bounds.projects.probe("agent:conversation".into()))
-                        .child(
-                            div()
-                                .flex_shrink_0()
-                                .flex()
-                                .items_center()
-                                .gap(px(pero_theme::SPACE_8))
-                                .px(px(pero_theme::SPACE_16))
-                                .py(px(pero_theme::SPACE_8))
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .overflow_hidden()
-                                        .text_ellipsis()
-                                        .whitespace_nowrap()
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .child(
-                                            selected
-                                                .map(|session| {
-                                                    if session.binding.parent_thread.is_none() {
-                                                        self.t("project.agent.primary").to_owned()
-                                                    } else {
-                                                        session.binding.label.clone()
-                                                    }
-                                                })
-                                                .unwrap_or_else(|| project.title.clone()),
-                                        ),
-                                )
-                                .when(primary.is_some(), |el| {
-                                    el.child(
-                                        Button::new("project-agent-summarize")
-                                            .ghost()
-                                            .small()
-                                            .label(self.t("project.agent.summary_short"))
-                                            .icon(Icon::default().path("icons/sparkles.svg"))
-                                            .tooltip(self.t("project.agent.summarize"))
-                                            .disabled(loading || !can_summarize)
-                                            .relative()
-                                            .child(
-                                                self.view_bounds
-                                                    .projects
-                                                    .probe("agent:summarize".into()),
-                                            )
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                if let Some(thread) = &primary_thread {
-                                                    this.request_project_agents(
-                                                        &summarize_id,
-                                                        "summarize",
-                                                        json!({"thread_id":thread}),
-                                                        cx,
-                                                    );
-                                                }
-                                            })),
-                                    )
-                                })
-                                .child(
-                                    pero_theme::ghost_icon_button(
-                                        "project-agent-refresh",
-                                        pero_theme::Chrome::from_app(cx),
-                                        cx,
-                                    )
-                                    .icon(Icon::default().path("icons/refresh.svg"))
-                                    .accessibility_label(self.t("remote.refresh"))
-                                    .tooltip(self.t("remote.refresh"))
-                                    .disabled(loading)
-                                    .relative()
-                                    .child(self.view_bounds.projects.probe("agent:refresh".into()))
-                                    .on_click(
-                                        cx.listener(|this, _, _, cx| {
-                                            this.refresh_project_agents(cx)
-                                        }),
-                                    ),
-                                )
-                                .child(
-                                    pero_theme::ghost_icon_button(
-                                        "project-agent-context",
-                                        pero_theme::Chrome::from_app(cx),
-                                        cx,
-                                    )
-                                    .icon(Icon::default().path("icons/panel-right-open.svg"))
-                                    .accessibility_label(self.t("project.overview"))
-                                    .tooltip(self.t("project.overview"))
-                                    .relative()
-                                    .child(
-                                        self.view_bounds.projects.probe("agent:materials".into()),
-                                    )
-                                    .on_click(cx.listener(
-                                        |this, _, _, cx| {
-                                            this.chat.update(cx, |chat, cx| {
-                                                chat.close_resource_pane(cx)
-                                            });
-                                            this.project_agents.context_open = this.layout.narrow
-                                                && !this.project_agents.context_open;
-                                            cx.notify();
-                                        },
-                                    )),
-                                ),
-                        )
                         .when_some(error, |el, error| {
                             el.child(
                                 div()
@@ -445,9 +586,7 @@ impl Workbench {
                         }),
                 )
             })
-            .when(context, |el| {
-                el.child(self.project_agent_context(selected.is_some(), cx))
-            })
+            .when(context, |el| el.child(self.project_agent_context(cx)))
             .into_any_element()
     }
 
@@ -558,7 +697,7 @@ impl Workbench {
             .into_any_element()
     }
 
-    fn project_agent_context(&self, has_session: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn project_agent_context(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self
             .saved_research_project()
@@ -583,98 +722,6 @@ impl Workbench {
             .when(self.layout.narrow, |el| el.flex_1().min_w_0())
             .relative()
             .child(self.view_bounds.projects.probe("agent:context".into()))
-            .child(
-                div()
-                    .px(px(pero_theme::SPACE_16))
-                    .py(px(pero_theme::SPACE_8))
-                    .flex()
-                    .items_center()
-                    .gap(px(pero_theme::SPACE_8))
-                    .child(
-                        div()
-                            .flex_1()
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("project.overview")),
-                    )
-                    .child(
-                        pero_theme::ghost_icon_button(
-                            "project-overview-actions",
-                            pero_theme::Chrome::from_app(cx),
-                            cx,
-                        )
-                        .icon(Icon::default().path("icons/dots.svg"))
-                        .accessibility_label(self.t("project.actions"))
-                        .tooltip(self.t("project.actions"))
-                        .relative()
-                        .child(self.view_bounds.projects.probe("agent:views".into()))
-                        .dropdown_menu({
-                            let owner = cx.entity().downgrade();
-                            let entries = [
-                                ProjectTab::Tasks,
-                                ProjectTab::Sources,
-                                ProjectTab::Execution,
-                                ProjectTab::Settings,
-                            ]
-                            .map(|tab| (tab, self.t(tab.label_key()).to_owned()));
-                            move |mut menu, _, _| {
-                                for (tab, label) in &entries {
-                                    let tab = *tab;
-                                    let owner = owner.clone();
-                                    menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
-                                        move |_, _, cx| {
-                                            let _ = owner.update(cx, |this, cx| {
-                                                this.select_project_view(tab, cx)
-                                            });
-                                        },
-                                    ));
-                                }
-                                menu
-                            }
-                        }),
-                    )
-                    .when(has_session, |el| {
-                        el.child(
-                            Button::new("project-agent-artifacts")
-                                .ghost()
-                                .small()
-                                .label(self.t("artifacts.title"))
-                                .relative()
-                                .child(self.view_bounds.projects.probe("agent:artifacts".into()))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.project_agents.context_open = false;
-                                    this.chat.update(cx, |chat, cx| {
-                                        chat.open_resource_tab(
-                                            pero_contracts::workbench::ResourceTab::Artifacts,
-                                            cx,
-                                        )
-                                    });
-                                    cx.notify();
-                                })),
-                        )
-                    })
-                    .when(self.layout.narrow, |el| {
-                        el.child(
-                            pero_theme::ghost_icon_button(
-                                "project-agent-context-back",
-                                pero_theme::Chrome::from_app(cx),
-                                cx,
-                            )
-                            .icon(Icon::default().path("icons/x.svg"))
-                            .accessibility_label(self.t("chat.panel_title"))
-                            .tooltip(self.t("chat.panel_title"))
-                            .relative()
-                            .child(
-                                self.view_bounds
-                                    .projects
-                                    .probe("agent:context-close".into()),
-                            )
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.project_agents.context_open = false;
-                                cx.notify();
-                            })),
-                        )
-                    }),
-            )
             .when(self.research.editor.is_none(), |el| {
                 el.child(
                     div()
@@ -699,18 +746,16 @@ impl Workbench {
                                 .child(self.t("research.goal"))
                                 .child(
                                     Button::new("project-overview-edit")
-                                    .ghost()
-                                    .small()
-                                    .label(self.t("research.edit"))
-                                    .tooltip(self.t("research.edit"))
-                                    .accessibility_label(self.t("research.edit"))
-                                    .relative()
-                                    .child(self.view_bounds.projects.probe("edit".into()))
-                                    .on_click(cx.listener(
-                                        |this, _, window, cx| {
+                                        .ghost()
+                                        .small()
+                                        .label(self.t("research.edit"))
+                                        .tooltip(self.t("research.edit"))
+                                        .accessibility_label(self.t("research.edit"))
+                                        .relative()
+                                        .child(self.view_bounds.projects.probe("edit".into()))
+                                        .on_click(cx.listener(|this, _, window, cx| {
                                             this.edit_research_project(false, window, cx)
-                                        },
-                                    )),
+                                        })),
                                 ),
                         )
                         .child(div().whitespace_normal().child(if project.goal.is_empty() {
