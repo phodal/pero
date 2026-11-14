@@ -583,7 +583,7 @@ union HostEvent {
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
-  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,
+  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,PullRequestDiscussionUpdatedEvent,PullRequestDiscussionPublishedEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,

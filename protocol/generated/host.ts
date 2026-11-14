@@ -92,7 +92,13 @@ export type ArtifactRequest =
 export type ArtifactPresentation = "inline" | "below" | "side" | "expanded";
 export type ArtifactRelationRole = "input" | "code" | "execution_log" | "environment" | "review" | "run_record";
 export type ChangesRequest = ChangesList | ChangesCurrent | ChangesRead;
-export type PullRequestRequest = PullRequestLoad | PullRequestDiscover | PullRequestListRequest;
+export type PullRequestRequest =
+  | PullRequestLoad
+  | PullRequestDiscover
+  | PullRequestListRequest
+  | PullRequestReply
+  | PullRequestSetResolved
+  | PullRequestAddDiscussion;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
@@ -224,6 +230,8 @@ export type HostEvent =
   | PullRequestErrorEvent
   | PullRequestDiscoveredEvent
   | PullRequestListedEvent
+  | PullRequestDiscussionUpdatedEvent
+  | PullRequestDiscussionPublishedEvent
   | WorkspaceChangesEvent
   | WorkspaceChangesCatalogEvent
   | WorkspaceChangeDiffEvent
@@ -1173,6 +1181,35 @@ export interface PullRequestListRequest {
   request_id: string;
   repository: string;
   state: "open" | "closed" | "all";
+}
+export interface PullRequestReply {
+  method: "pull_requests";
+  action: "reply";
+  request_id: string;
+  reference: string;
+  discussion_id: string;
+  body: string;
+}
+export interface PullRequestSetResolved {
+  method: "pull_requests";
+  action: "set_resolved";
+  request_id: string;
+  reference: string;
+  discussion_id: string;
+  resolved: boolean;
+}
+export interface PullRequestAddDiscussion {
+  method: "pull_requests";
+  action: "add_discussion";
+  request_id: string;
+  reference: string;
+  head_sha: string;
+  path: string;
+  side: "left" | "right";
+  line: number;
+  start_line?: number | null;
+  start_side?: "left" | "right" | null;
+  body: string;
 }
 export interface LocalWorkerStartCommand {
   action: "local_worker_start";
@@ -2616,6 +2653,7 @@ export interface PullRequestSnapshot {
   base: string;
   head: string;
   head_sha: string;
+  base_sha?: string;
   additions: number;
   deletions: number;
   changed_files: number;
@@ -2625,6 +2663,7 @@ export interface PullRequestSnapshot {
   commits: PullRequestSectionPullRequestCommit;
   checks: PullRequestSectionPullRequestCheck;
   reviews: PullRequestSectionPullRequestReview;
+  discussions?: PullRequestSectionPullRequestDiscussion;
 }
 export interface PullRequestSectionPullRequestFile {
   items: PullRequestFile[];
@@ -2666,6 +2705,37 @@ export interface PullRequestReview {
   state: string;
   body: string;
 }
+export interface PullRequestSectionPullRequestDiscussion {
+  items: PullRequestDiscussion[];
+  error: string | null;
+}
+export interface PullRequestDiscussion {
+  id: string;
+  path: string;
+  line: number | null;
+  original_line: number | null;
+  start_line: number | null;
+  original_start_line: number | null;
+  side: "left" | "right";
+  start_side: "left" | "right" | null;
+  outdated: boolean;
+  resolved: boolean;
+  can_reply: boolean;
+  can_resolve: boolean;
+  can_unresolve: boolean;
+  comments: PullRequestDiscussionComment[];
+}
+export interface PullRequestDiscussionComment {
+  id: string;
+  author: string;
+  body: string;
+  url: string;
+  created_at: string;
+  updated_at: string;
+  diff_hunk: string;
+  commit_sha: string | null;
+  original_commit_sha: string | null;
+}
 export interface PullRequestErrorEvent {
   kind: "pull_request_error";
   version: 1;
@@ -2705,6 +2775,25 @@ export interface PullRequestSummary {
   opened_at?: string;
   review?: "none" | "approved" | "changes_requested" | "review_required";
   blocked?: boolean;
+}
+export interface PullRequestDiscussionUpdatedEvent {
+  kind: "pull_request_discussion_updated";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    reference: string;
+    discussion: PullRequestDiscussion;
+  };
+}
+export interface PullRequestDiscussionPublishedEvent {
+  kind: "pull_request_discussion_published";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: {
+    reference: string;
+  };
 }
 export interface WorkspaceChangesEvent {
   kind: "workspace_changes";
