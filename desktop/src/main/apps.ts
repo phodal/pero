@@ -297,7 +297,8 @@ export class DesktopApps {
         const {capability, operation, input} = JSON.parse(body);
         const routes: Record<string,string> = {agent:'app-agent',insights:'insights',connectors:'connectors',automation:'automation','research-assets':'research-assets',skills:'skills'};
         if (!Object.hasOwn(routes, capability) || typeof operation !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) return new Response('Host capability unavailable', {status:403});
-        const target = new URL(`/host/${routes[capability]}`, request.url);
+        const route = capability === 'agent' && ['science', 'science_sessions'].includes(operation) ? 'agent' : routes[capability];
+        const target = new URL(`/host/${route}`, request.url);
         return this.serve(new Request(target, {method:'POST',headers:request.headers,body:JSON.stringify({...input,operation})}));
       }
       if (url.pathname === '/host/skills') {

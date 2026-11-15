@@ -130,6 +130,7 @@ class EntryStore:
                 'ai_proposal_workspace', 'ai_proposal_archive', 'notebook_comment_threads', 'notebook_local_tasks',
                 'notebook_review_records', 'notebook_review_activity', 'notebook_review_requests',
                 'notebook_workflow_configs', 'notebook_workflow_runs', 'notebook_review_batches',
+                'notebook_publication_builds',
             ):
                 if connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)

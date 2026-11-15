@@ -45,6 +45,9 @@ func (s *Server) extensionCapabilities() map[string]int {
 	if s.questionTools {
 		result[UserQuestionsCapability] = 1
 	}
+	if s.science != nil {
+		result[ScienceSessionCapability] = 1
+	}
 	return result
 }
 

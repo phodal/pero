@@ -35,6 +35,7 @@
     "check": "tsc --noEmit && node scripts/codegen/theme.mjs --check && node scripts/codegen/design.mjs --check && node scripts/build/app-sdk-tokens.mjs --check && node scripts/check/locales.mjs && node scripts/codegen/contracts.mjs --check && node scripts/generate-icons.mjs --check",
     "gen:icons": "node scripts/generate-icons.mjs",
     "test:pull-requests": "node tests/contracts/pull-requests.mjs && node tests/e2e/pull-requests.mjs",
+    "test:project-agent": "node tests/contracts/project-agent.mjs && node tests/e2e/project-agent.mjs",
     "test:pull-requests:live": "node tests/contracts/pull-requests.mjs --live",
     "test:shortcuts": "node tests/e2e/shortcuts.mjs",
     "test:workspace": "node tests/e2e/workspace.mjs",

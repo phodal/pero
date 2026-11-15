@@ -99,6 +99,8 @@ pub struct LayoutPreferences {
     pub resource_tab: ResourceTab,
     #[serde(default)]
     pub link_surface: LinkSurface,
+    #[serde(default = "LayoutPreferences::default_diff_soft_wrap")]
+    pub diff_soft_wrap: bool,
 }
 
 impl Default for LayoutPreferences {
@@ -112,11 +114,16 @@ impl Default for LayoutPreferences {
             artifact_view: ArtifactView::Icons,
             resource_tab: ResourceTab::Artifacts,
             link_surface: LinkSurface::InApp,
+            diff_soft_wrap: Self::default_diff_soft_wrap(),
         }
     }
 }
 
 impl LayoutPreferences {
+    fn default_diff_soft_wrap() -> bool {
+        true
+    }
+
     const MIN_CHAT_WIDTH: u16 = 320;
     const MAX_CHAT_WIDTH: u16 = 640;
     pub const MIN_SIDEBAR_WIDTH: u16 = 200;
@@ -273,8 +280,9 @@ impl WorkbenchPreferences {
     }
 
     pub fn bind(&mut self, workspace: String, project_id: String) {
-        self.projects
-            .retain(|binding| !crate::workspace_path::WorkspacePath(&binding.workspace).matches(&workspace));
+        self.projects.retain(|binding| {
+            !crate::workspace_path::WorkspacePath(&binding.workspace).matches(&workspace)
+        });
         self.projects.push(ProjectBinding {
             workspace,
             project_id,
@@ -399,6 +407,17 @@ mod layout_tests {
                 .ok();
             assert_eq!(restored, expected, "{input}");
         }
+        for (input, wraps) in [
+            (serde_json::json!({}), true),
+            (serde_json::json!({"diff_soft_wrap":true}), true),
+            (serde_json::json!({"diff_soft_wrap":false}), false),
+        ] {
+            let layout: LayoutPreferences = serde_json::from_value(input).unwrap();
+            assert_eq!(layout.diff_soft_wrap, wraps);
+            let restored: LayoutPreferences =
+                serde_json::from_value(serde_json::to_value(layout).unwrap()).unwrap();
+            assert_eq!(restored.diff_soft_wrap, wraps);
+        }
         let mut layout = LayoutPreferences::default();
         for (requested, expected) in [(200., 320.), (400.7, 401.), (800., 640.)] {
             layout.resize_chat(requested);
@@ -483,6 +502,7 @@ mod layout_tests {
     fn link_surface_defaults_inside_the_app_and_a_modifier_reverses_it() {
         let layout: LayoutPreferences = serde_json::from_str("{}").unwrap();
         assert_eq!(layout.link_surface, LinkSurface::InApp);
+
         for (surface, middle, primary, external) in [
             (LinkSurface::InApp, false, false, false),
             (LinkSurface::InApp, true, false, true),

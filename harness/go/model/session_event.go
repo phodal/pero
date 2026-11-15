@@ -78,6 +78,7 @@ var sourceSessionEventTypes = [...]string{
 
 // Additional semantic records understood by this native build.
 var nativeSessionEventTypes = [...]string{
+	"science/cell",
 	"agent/inbox/guarded",
 	"agent/inbox/moved",
 	"assistant/chunk",

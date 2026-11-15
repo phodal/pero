@@ -57,8 +57,8 @@ export function stageBuiltinApp(source, name, destination) {
     const path = resolve(root, entry);
     if (existsSync(path)) cpSync(path, join(destination, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
   }
-  // The installed Skills app reads this file. It is not embedded in the Host binary.
-  if (name === 'skills') {
+  // Customize reads this file beside the app. It is not embedded in the Host binary.
+  if (name === 'skills' || name === 'connectors') {
     mkdirSync(destination, { recursive: true });
     execFileSync(process.env.PYTHON || 'python3', [
       resolve(repoRoot, 'scripts/research-skills/publish.py'),

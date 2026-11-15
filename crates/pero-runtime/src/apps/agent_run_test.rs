@@ -13,10 +13,33 @@ fn transcript_keeps_complete_messages_cursors_attempts_and_interruption() {
     let mut resumed=history.clone();resumed.push(event("app_agent_attempt","",serde_json::json!({"attempt":{"requestId":"retry-1","text":"Continue","attempt":2,"updatedAt":"2026-10-31T00:00:02Z"}})));
     let next=Transcript::project("run",&binding,&resumed,true,view.cursor);assert_eq!(next.run.attempt,2);assert_eq!(next.run.request_id,"retry-1");assert_eq!(next.run.status,"running");
     assert_eq!(Transcript::project("run",&binding,&resumed,false,0).run.status,"interrupted");
+    let recovered=vec![event("session_error","old provider failure",serde_json::json!({})), event("turn_finished","error",serde_json::json!({})), event("turn_started","",serde_json::json!({})),event("turn_finished","end_turn",serde_json::json!({}))];
+    let recovered=Transcript::project("run",&binding,&recovered,true,0);
+    assert_eq!(recovered.run.status,"completed");assert!(recovered.run.error.is_none());
+    assert_eq!(recovered.run.stop_reason.as_deref(),Some("end_turn"));
     let paged:Vec<_>=(0..100).map(|_|event("turn_started","",serde_json::json!({}))).collect();
     let first=Transcript::project("run",&binding,&paged,true,0);assert_eq!(first.events.len(),64);
     let second=Transcript::project("run",&binding,&paged,true,first.cursor);assert_eq!(second.events.len(),36);
     assert!(second.events[0].seq>first.cursor);
+    for (transitions, expected) in [
+        (vec![("permission",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":0}))], "running"),
+        (vec![("permission",serde_json::json!({})), ("permission",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":1}))], "needs_input"),
+        (vec![("permission",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":1})), ("session_update",serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"text":"progress"}}))], "needs_input"),
+        (vec![("permission",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":1})), ("permission_resolved",serde_json::json!({"pending":0}))], "running"),
+        (vec![("permission",serde_json::json!({})), ("app_agent_cancel",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":0}))], "cancelling"),
+        (vec![("turn_finished",serde_json::json!({"stopReason":"end_turn"})), ("permission_resolved",serde_json::json!({"pending":0}))], "completed"),
+        (vec![("session_error",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":0}))], "failed"),
+        (vec![("user_questions",serde_json::json!({"request_id":"q1"}))], "needs_input"),
+        (vec![("user_questions",serde_json::json!({"request_id":"q1"})), ("user_questions_resolved",serde_json::json!({"request_id":"q1"}))], "running"),
+        (vec![("user_questions",serde_json::json!({"request_id":"q1"})), ("permission",serde_json::json!({})), ("permission_resolved",serde_json::json!({"pending":0}))], "needs_input"),
+        (vec![("user_questions",serde_json::json!({"request_id":"q1"})), ("user_questions",serde_json::json!({"request_id":"q2"})), ("user_questions_resolved",serde_json::json!({"request_id":"q1"}))], "needs_input"),
+        (vec![("permission",serde_json::json!({})), ("user_questions",serde_json::json!({"request_id":"q1"})), ("user_questions_resolved",serde_json::json!({"request_id":"q1"}))], "needs_input"),
+        (vec![("session_auth_required",serde_json::json!({})), ("session_authenticated",serde_json::json!({}))], "running"),
+    ] {
+        let mut history = vec![event("turn_started", "", serde_json::json!({}))];
+        history.extend(transitions.into_iter().map(|(kind,data)| event(kind,"",data)));
+        assert_eq!(Transcript::project("run", &binding, &history, true, 0).run.status, expected);
+    }
 }
 #[test]
 fn scope_and_request_identity_are_bounded_and_app_specific() {

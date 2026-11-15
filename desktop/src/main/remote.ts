@@ -169,13 +169,13 @@ export class RemoteAdapter {
     const message = error instanceof Error ? error.message : 'Remote request failed';
     return (this.token ? message.replaceAll(this.token, '[redacted]') : message).slice(0, 500);
   }
-  private async request(path: string, method = 'GET', body?: unknown): Promise<unknown> {
+  private async request(path: string, method = 'GET', body?: unknown, requestId?: string): Promise<unknown> {
     let response: Response;
     try {
       response = await fetch(`${this.base}${path}`, {
         method, redirect: 'error', signal: AbortSignal.timeout(8000),
         headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json',
-          ...(method === 'POST' ? { 'Idempotency-Key': randomUUID() } : {}) },
+          ...(method === 'POST' ? { 'Idempotency-Key': requestId ?? randomUUID() } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch { throw new RemoteRequestError('network'); }
@@ -311,7 +311,6 @@ export class RemoteAdapter {
       }
       if (action === 'remote_more') this.pages += 1;
       if (action === 'remote_create') {
-        if (this.clientMode) throw new Error('Only the operator can create manual tasks');
         const spec: TaskSpec = {
           title: text(command.title, 240), prompt: text(command.prompt, 64000), acceptance: text(command.acceptance, 16000),
           project_id: text(command.project_id, 128), workspace_key: text(command.workspace_key, 128), agent_id: text(command.agent_id, 128),
@@ -321,7 +320,7 @@ export class RemoteAdapter {
           if (!Array.isArray(command.tags) || command.tags.length > 32) throw new Error('Invalid task tags');
           spec.tags = command.tags.map(tag => text(tag, 128));
         }
-        const task = checked<Task>('Task', await this.request('/api/v1/tasks', 'POST', spec)); this.state.selected_task_id = task.id;
+        const task = checked<Task>('Task', await this.request(`${this.api}/tasks`, 'POST', spec, command.request_id === undefined ? undefined : id(command.request_id))); this.state.selected_task_id = task.id;
       } else if (['remote_dispatch', 'remote_cancel', 'remote_claim', 'remote_release'].includes(action)) {
         const taskID = id(command.task_id);
         const body = action === 'remote_dispatch' && command.worker_id ? { worker_id: id(command.worker_id) } : {};

@@ -1,0 +1,30 @@
+--- a/crates/component/src/diff/mod.rs
++++ b/crates/component/src/diff/mod.rs
+@@ -769,7 +769,11 @@
+                                 code_width(painted, gutter_width, lane_width, rem, mode)
+                             };
+                             if state.record_paint(bounds.size, painted) || rehinted {
+-                                cx.notify();
++                                // Notify after this draw returns, so the owner renders the new viewport.
++                                let state = cx.weak_entity();
++                                cx.defer(move |cx| {
++                                    let _ = state.update(cx, |_, cx| cx.notify());
++                                });
+                             }
+                         });
+                     }
+@@ -1260,9 +1264,13 @@
+     };
+     let state = code.state.clone();
+     let name = document.path().clone();
++    // Headers stay in the viewport while code owns the horizontal scroll extent.
++    let viewport = code.state.read(cx).viewport().width;
++    let offset = code.state.read(cx).horizontal_scroll().offset().x;
+     v_flex()
+         .id("file-header")
+-        .w_full()
++        .relative().left(-offset)
++        .w(viewport)
+         .when(file > 0, |this| this.border_t_1())
+         .border_b_1()
+         .border_color(border)

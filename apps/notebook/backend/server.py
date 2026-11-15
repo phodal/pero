@@ -33,6 +33,8 @@ from scientific_block import BlockProposalStore, block_proposal_route
 from source_parsers import source_extraction_route
 from notebook_home import notebook_home
 from interop import NotebookDescriptor
+from publication_compiler import PublicationBuildStore
+from publication_routes import publication_route
 
 
 ENTRY_ID = re.compile(r'[a-f0-9]{32}')
@@ -61,6 +63,7 @@ def handler(store, secret):
     scientific = ScientificDesignStore(store)
     amendments = WorksheetAmendmentStore(store)
     block_proposals = BlockProposalStore(store)
+    publications = PublicationBuildStore(store)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -125,6 +128,9 @@ def handler(store, secret):
                 return self.error(500, 'storage-error', 'Notebook storage operation failed')
 
         def get(self):
+            response = publication_route(publications, 'GET', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
             if self.path == '/api/notebook-home':
                 return self.reply(200, notebook_home(store))
             for route, owner in ((scientific_route, scientific), (worksheet_amendment_route, amendments), (block_proposal_route, block_proposals)):
@@ -174,6 +180,9 @@ def handler(store, secret):
             return self.reply(200, store.read(match[1]).wire())
 
         def post(self):
+            response = publication_route(publications, 'POST', self.path, self.body)
+            if response is not None:
+                return self.reply(*response)
             response = source_extraction_route('POST', self.path, self.body)
             if response is not None:
                 return self.reply(*response)

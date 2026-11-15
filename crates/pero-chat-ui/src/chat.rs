@@ -615,6 +615,8 @@ impl ChatPanel {
         let mut restore_queue = false;
         match event.kind.as_str() {
             "session_created" => {
+                chat.state = SessionState::Connecting;
+                chat.project_agent = event.data.get("projectAgent").and_then(|value| serde_json::from_value(value.clone()).ok());
                 chat.workspace = event.data["workspace"].as_str().unwrap_or_default().into();
                 chat.scope = event
                     .data

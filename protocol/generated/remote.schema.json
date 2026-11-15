@@ -1568,6 +1568,30 @@
       "title": "Worker",
       "type": "object",
       "properties": {
+        "presence": {
+          "$ref": "#/$defs/WorkerPresence"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "occupied": {
+          "type": "boolean"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkerCapability"
+          }
+        },
+        "current_run_id": {
+          "type": "string"
+        },
+        "current_task_id": {
+          "type": "string"
+        },
+        "current_run_status": {
+          "$ref": "#/$defs/RunStatus"
+        },
         "id": {
           "$ref": "#/$defs/Id"
         },
@@ -1642,6 +1666,47 @@
       "required": [
         "worker",
         "token"
+      ],
+      "additionalProperties": false
+    },
+    "WorkerPresence": {
+      "title": "WorkerPresence",
+      "type": "object",
+      "properties": {
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "unknown"
+            },
+            {
+              "type": "string",
+              "const": "online"
+            },
+            {
+              "type": "string",
+              "const": "offline"
+            }
+          ]
+        },
+        "last_seen_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "last_seen_at",
+        "observed_at"
       ],
       "additionalProperties": false
     }

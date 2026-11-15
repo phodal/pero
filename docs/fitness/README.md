@@ -1,10 +1,23 @@
 # Quality gates
 
+Combined shared computation, provenance, Reviewer and P1 workflow verification:
+[Scientific workflow integration](science-p0-p1-integration.md).
+
+Versioned Virtual Cell CPU task packages, reusable model endpoint state,
+independent arithmetic checks and real browser scope:
+[Domain task workflows](domain-workflows.md).
+
 Current design principles, 15-App inventory, Native/browser observations and
 remaining gaps: [Design principles audit — 2026-11-11](2026-11-11-design-principles-audit.md).
 
 Notebook block editing, Excel calculation and exchange, and versioned evidence:
 [Notebook verification](notebook.md).
+
+Shared human/Agent Python/R execution, Notebook observation and lifecycle:
+[Shared science session](shared-science-session.md).
+
+Saved publication builds, panel/code/data provenance, offline Tectonic and
+historical PDF previews: [Notebook publication workflow](notebook-publication.md).
 
 Pinned marimo/Jupyter runtime experiment, existing Science Kernel comparison,
 cancellation, offline exports and a proposed owner handoff:
@@ -96,6 +109,9 @@ Host-backed Environments App and scoped Paper/Control Lab inspector:
 
 ReFrame benchmark library, local numerical references and separate Slurm/OpenFOAM
 acceptance: [HPC Benchmarks](hpc.md).
+
+Host-owned SSH/Slurm execution, authenticated loopback evidence and separate site
+acceptance: [Remote Compute](remote-compute.md).
 
 Global appearance, scoped typography and current Settings shell limits:
 [appearance](appearance.md).
@@ -228,3 +244,6 @@ Shared command catalog, Host keymap overrides and actual Native/Electron scope:
 
 GitHub PR content, shared typed link routing, real Electron/public GitHub
 receipts and actual macOS Native Reviews acceptance: [Pull request views](pull-request-view.md).
+
+Bounded independent model review, exact session evidence, reasoned correction
+states and actual Electron/real-provider scope: [Scientific Reviewer](scientific-reviewer.md).

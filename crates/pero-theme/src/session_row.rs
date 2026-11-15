@@ -36,7 +36,7 @@ pub fn session_row(
         .items_center()
         .rounded(chrome.geo(RADIUS_BUTTON))
         .bg(if selected {
-            p.surface_muted
+            chrome.navigation_selected()
         } else {
             p.text.opacity(0.)
         })
@@ -48,7 +48,7 @@ pub fn session_row(
                         .foreground(p.text)
                         .hover(p.text.opacity(0.))
                         .active(if selected {
-                            p.surface_muted
+                            p.text.opacity(0.)
                         } else {
                             p.surface_pressed
                         }),

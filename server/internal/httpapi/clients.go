@@ -20,6 +20,7 @@ func (a *API) registerClients(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/clients", a.createClient)
 	mux.HandleFunc("GET /api/client/v1/me", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, clientIdentity(r)) })
 	mux.HandleFunc("GET /api/client/v1/tasks", a.clientTasks)
+	mux.HandleFunc("POST /api/client/v1/tasks", a.clientCreateTask)
 	mux.HandleFunc("GET /api/client/v1/workers", a.clientWorkers)
 	mux.HandleFunc("POST /api/client/v1/workers", a.enrollWorker)
 	mux.HandleFunc("POST /api/client/v1/workers/{id}/disable", a.disableOwnedWorker)
@@ -166,4 +167,26 @@ func (a *API) clientCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, run)
+}
+
+func (a *API) clientCreateTask(w http.ResponseWriter, r *http.Request) {
+	var spec store.Spec
+	if !decode(w, r, &spec) {
+		return
+	}
+	draft, err := spec.ForClient(clientIdentity(r))
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	key, ok := idempotency(w, r)
+	if !ok {
+		return
+	}
+	task, err := a.db.ClientCreateTask(r.Context(), draft, key)
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 201, task)
 }

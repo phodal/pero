@@ -1,6 +1,6 @@
 //! Slurm remains the queue/allocation authority. A submission receipt is not a
 //! running-node snapshot, and disappearance from scontrol is never proof of stop.
-use super::{Command, Path, PathBuf, command_output};
+use super::{Command, Path, PathBuf, SshTransport, command_output};
 use crate::environments::{
     BatchConstraints, BatchObservation, BatchState, BatchSubmission, ContentDigest, Identity,
 };
@@ -8,9 +8,20 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{fs, io::Write};
 
+/// An admitted method's fixed batch handoff. Only the Host composition supplies
+/// site paths; this value is never deserialized from an App command body.
+pub struct SlurmInvocation<'a> {
+    pub operation: Identity,
+    pub constraints: BatchConstraints,
+    pub payload: ContentDigest,
+    pub entry: &'a Path,
+    pub directory: &'a Path,
+    pub account: Option<&'a Identity>,
+}
 pub struct SlurmSite {
     binaries: PathBuf,
     cluster: Identity,
+    transport: Option<SshTransport>,
 }
 #[derive(Deserialize)]
 struct Controller {
@@ -52,30 +63,73 @@ impl Number {
     }
 }
 impl SlurmSite {
-    /// Trusted composition selects these CLI executables. For a remote site the
-    /// existing site transport supplies them; App JSON cannot provide commands.
+    /// Local CLI and SSH share the same submission/observation rules.
     pub fn connect(binaries: PathBuf, expected_cluster: Identity) -> Result<Self, String> {
         let site = Self {
             binaries,
             cluster: expected_cluster,
+            transport: None,
         };
-        let output =
-            command_output(Command::new(site.binaries.join("scontrol")).args(["--json", "ping"]))?;
+        let actual = site.controller()?;
+        if actual != site.cluster {
+            return Err("Slurm cluster identity changed".into());
+        }
+        Ok(site)
+    }
+    pub fn connect_ssh(
+        transport: SshTransport,
+        binaries: PathBuf,
+        expected_cluster: Identity,
+    ) -> Result<Self, String> {
+        let site = Self {
+            binaries,
+            cluster: expected_cluster,
+            transport: Some(transport),
+        };
+        if site.controller()? != site.cluster {
+            return Err("Slurm cluster identity changed".into());
+        }
+        Ok(site)
+    }
+    /// Discover the controller's identity during an explicit connection probe.
+    pub fn probe_ssh(transport: SshTransport, binaries: PathBuf) -> Result<Self, String> {
+        let mut site = Self {
+            binaries,
+            cluster: "probe".to_owned().try_into().unwrap(),
+            transport: Some(transport),
+        };
+        site.cluster = site.controller()?;
+        Ok(site)
+    }
+    pub fn cluster(&self) -> &Identity {
+        &self.cluster
+    }
+    fn run(&self, binary: &str, arguments: &[String]) -> Result<std::process::Output, String> {
+        let program = self.binaries.join(binary);
+        match &self.transport {
+            Some(transport) => transport.run(&program, arguments),
+            None => command_output(Command::new(program).args(arguments)),
+        }
+    }
+    fn controller(&self) -> Result<Identity, String> {
+        let output = self.run("scontrol", &["--json".into(), "ping".into()])?;
         if !output.status.success() {
             return Err("Slurm controller is unavailable".into());
         }
         let controller: Controller =
             serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
-        if controller.meta.slurm.cluster != site.cluster {
-            return Err("Slurm cluster identity changed".into());
-        }
-        Ok(site)
+        Ok(controller.meta.slurm.cluster)
     }
     fn jobs(&self, job_id: u64) -> Result<Vec<Job>, String> {
-        let mut command = Command::new(self.binaries.join("scontrol"));
-        command.args(["--json", "show", "jobs"]);
-        command.arg(job_id.to_string());
-        let output = command_output(&mut command)?;
+        let output = self.run(
+            "scontrol",
+            &[
+                "--json".into(),
+                "show".into(),
+                "jobs".into(),
+                job_id.to_string(),
+            ],
+        )?;
         if !output.status.success() {
             return Err("Slurm observation unavailable; original job state is unknown".into());
         }
@@ -102,8 +156,40 @@ impl SlurmSite {
         let directory = directory.canonicalize().map_err(|e| e.to_string())?;
         let bytes = fs::read(&payload).map_err(|e| e.to_string())?;
         let digest: ContentDigest = format!("{:x}", Sha256::digest(&bytes)).try_into().unwrap();
+        self.submit_staged(
+            SlurmInvocation {
+                operation,
+                constraints,
+                payload: digest,
+                entry: &payload,
+                directory: &directory,
+                account: None,
+            },
+            record,
+            executions,
+        )
+    }
+    /// The method owner staged and froze these bytes before approval. Payload and
+    /// working directory are absolute paths on the selected remote site.
+    pub fn submit_staged(
+        &self,
+        invocation: SlurmInvocation<'_>,
+        record: &Path,
+        executions: &Path,
+    ) -> Result<BatchSubmission, String> {
+        let SlurmInvocation {
+            operation,
+            constraints,
+            payload: digest,
+            entry: payload,
+            directory,
+            account,
+        } = invocation;
+        if !payload.is_absolute() || !directory.is_absolute() {
+            return Err("Slurm payload and attempt directory must be absolute".into());
+        }
         let marker = format!("pero:{}", ContentDigest::of(&operation).as_str());
-        let intent = serde_json::json!({"operation":operation,"cluster":self.cluster,"constraints":constraints,"payload":digest});
+        let intent = serde_json::json!({"operation":operation,"cluster":self.cluster,"constraints":constraints,"account":account,"payload":digest});
         // Exclusive intent prevents replay even if sbatch's response is lost.
         let mut intent_file = fs::OpenOptions::new()
             .write(true)
@@ -134,30 +220,35 @@ impl SlurmSite {
             (seconds / 60) % 60,
             seconds % 60
         );
-        let output = command_output(
-            Command::new(self.binaries.join("sbatch"))
-                .args([
-                    "--parsable",
-                    "--no-requeue",
-                    "--comment",
-                    &marker,
-                    "--partition",
-                    constraints.partition().as_str(),
-                    "--cpus-per-task",
-                    &constraints.cpus().to_string(),
-                    "--mem",
-                    &format!("{}M", constraints.memory_mib()),
-                    "--time",
-                    &walltime,
-                    "--output",
-                    "stdout.log",
-                    "--error",
-                    "stderr.log",
-                    "--chdir",
-                ])
-                .arg(directory)
-                .args(["--wrap", &script]),
-        )?;
+        let mut arguments = vec![
+            "--parsable".into(),
+            "--no-requeue".into(),
+            "--comment".into(),
+            marker.clone(),
+            "--partition".into(),
+            constraints.partition().as_str().into(),
+            "--cpus-per-task".into(),
+            constraints.cpus().to_string(),
+            "--mem".into(),
+            format!("{}M", constraints.memory_mib()),
+            "--time".into(),
+            walltime,
+            "--output".into(),
+            "stdout.log".into(),
+            "--error".into(),
+            "stderr.log".into(),
+            "--chdir".into(),
+            directory
+                .to_str()
+                .ok_or("Site directory must be UTF-8")?
+                .into(),
+            "--wrap".into(),
+            script,
+        ];
+        if let Some(account) = account {
+            arguments.extend(["--account".into(), account.as_str().into()]);
+        }
+        let output = self.run("sbatch", &arguments)?;
         if !output.status.success() {
             return Err(format!(
                 "Slurm submission unconfirmed; reconcile marker {marker}: {}",
@@ -236,9 +327,7 @@ impl SlurmSite {
         if observed.stopped() {
             return Ok(observed);
         }
-        let result = command_output(
-            Command::new(self.binaries.join("scancel")).arg(submission.job_id.to_string()),
-        );
+        let result = self.run("scancel", &[submission.job_id.to_string()]);
         // A job may finish while scancel is in flight. Its observed terminal
         // receipt is authoritative even if the cancellation reply was lost.
         let observed = self.observe(executions, submission)?;

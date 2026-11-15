@@ -20,7 +20,7 @@
   padding-inline-start: calc(var(--pero-sidebar-edge) + var(--pero-sub-indent));
   font-size: var(--pero-font-caption);
 }
-.pero-sidebar-row[aria-current="page"] { background: var(--pero-fill-selected); color: var(--pero-accent-text); }
+.pero-sidebar-row[aria-current="page"] { background: var(--pero-navigation-selected); color: var(--pero-text); }
 .pero-sidebar-row:hover:not([aria-current="page"], :disabled) { background: var(--pero-fill-hover); }
 .pero-lead {
   width: var(--pero-lead);

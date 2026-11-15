@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findSkills } from '../ui-src/catalog.mjs';
+import { findSkills, groupSkills } from '../ui-src/catalog.mjs';
 
 const skills = [
   { id: 'a', name: 'paper-read', title_zh: '论文阅读', description: 'Read and cite papers', description_zh: '提取原文证据', category: 'literature', category_zh: '文献', kind: 'research_skill', source: {repository: 'lab/papers'} },
@@ -51,6 +51,16 @@ test('installation filter and task ordering compose with discovery', () => {
   assert.deepEqual(findSkills(data,{sort:'name'}).items.map(item=>item.id),['blocked',id]);
 });
 
+
+test('source groups keep every skill once and gather the same owner', () => {
+  const grouped = groupSkills([
+    {...skills[0], id:'a', source:{repository:'Atlassian/jira'}},
+    {...skills[1], id:'b', source:{repository:'aws/agents'}},
+    {...skills[0], id:'c', source:{repository:'Atlassian/confluence'}},
+    {...skills[2], id:'d', source:{repository:''}},
+  ]);
+  assert.deepEqual(grouped.map(group => [group.owner, group.items.map(item => item.id)]), [['Atlassian', ['a', 'c']], ['aws', ['b']], ['', ['d']]]);
+});
 
 test('scope composes with disabled installed records and shared document identities', () => {
   const data = [...skills, {...skills[0], id:'general', kind:'general_skill'}, {...skills[0], id:'document', discovery_scopes:['general','research']}];

@@ -260,6 +260,9 @@ test('custom MCPs is a view beside the service catalog', async t => {
   await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'zh' }));
   const tab = [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '自定义 MCPs');
   assert.ok(tab);
+  assert.equal([...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '技能')?.getAttribute('aria-selected'), 'false');
+  assert.equal([...document.querySelectorAll('[role=tab]')].find(node => node.textContent === 'MCP')?.getAttribute('aria-selected'), 'true');
+  assert.ok(document.querySelector('input[type=search]'));
   assert.equal([...document.querySelectorAll('button')].some(node => node.textContent.includes('自定义 MCP') && !node.textContent.includes('MCPs')), true);
   t.mock.method(globalThis, 'setTimeout', () => 0);
   await f.click(tab);

@@ -53,19 +53,26 @@ impl Workbench {
                         this.command(json!({"action":"remote_refresh"}), cx)
                     })),
             )
-            .when(self.remote.operator(), |el| {
-                el.child(
-                    Button::new("remote-new")
-                        .primary()
-                        .small()
-                        .icon(IconName::Plus)
-                        .label(self.t("remote.new"))
-                        .disabled(loading || unbound)
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.start_remote_form(window, cx)),
-                        ),
-                )
-            });
+            .when(
+                self.remote.operator()
+                    || (self.remote.client()
+                        && self.remote.data["identity"]["projects"]
+                            .as_array()
+                            .is_some_and(|projects| !projects.is_empty())),
+                |el| {
+                    el.child(
+                        Button::new("remote-new")
+                            .primary()
+                            .small()
+                            .icon(IconName::Plus)
+                            .label(self.t("remote.new"))
+                            .disabled(loading || unbound)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.start_remote_form(window, cx)
+                            })),
+                    )
+                },
+            );
         let filters = div()
             .px(px(pero_theme::WorkbenchStyle::PAGE))
             .pb(px(12.))

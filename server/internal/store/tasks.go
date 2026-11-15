@@ -16,6 +16,17 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	task, err := createTaskTx(ctx, tx, spec, key, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return task, nil
+}
+
+func createTaskTx(ctx context.Context, tx pgx.Tx, spec Spec, key string, creator *TaskClaimant) (*Task, error) {
 	id, digest, err := receipt(ctx, tx, key, "create-task", spec)
 	if err != nil {
 		return nil, err
@@ -25,16 +36,17 @@ func (s *Store) CreateTask(ctx context.Context, spec Spec, key string) (*Task, e
 	}
 	id = newID("task")
 	data, _ := json.Marshal(spec)
-	if _, err = tx.Exec(ctx, `INSERT INTO tasks(id,spec) VALUES($1,$2)`, id, data); err != nil {
+	var owner *string
+	if creator != nil {
+		owner = &creator.ID
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO tasks(id,spec,claimed_by_client_id) VALUES($1,$2,$3)`, id, data, owner); err != nil {
 		return nil, err
 	}
 	if err = saveReceipt(ctx, tx, key, "create-task", digest, id); err != nil {
 		return nil, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return &Task{ID: id, Spec: spec, State: "draft"}, nil
+	return &Task{ID: id, Spec: spec, State: "draft", ClaimedBy: creator}, nil
 }
 
 func taskIn(ctx context.Context, q interface {

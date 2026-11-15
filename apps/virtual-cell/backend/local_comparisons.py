@@ -4,6 +4,7 @@ Host still supervises the App process group. Children inherit that group;
 there are no commands supplied by clients, queues, workers or auto-replays.
 """
 from datetime import datetime, timezone
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,7 @@ from comparison import ACTIVE, ComparisonRun
 from contract import BASELINES, Invalid, canonical
 from evaluation import METHOD, compare
 from workbench import Workbench
+from task_package import PACKAGE
 
 RUN_ID = re.compile(r"^[a-f0-9]{32}$")
 LOG_BYTES = 64 * 1024
@@ -45,6 +47,7 @@ class ComparisonHistory:
         self.processes = {}
         self.observers = {}
         self.closed = False
+        self.model = None
         # Host owns descendants through a POSIX process group. Its Windows
         # child-only kill cannot safely supervise this new CPU subprocess.
         self.available = sys.platform in ("linux", "darwin")
@@ -53,6 +56,7 @@ class ComparisonHistory:
             run = ComparisonRun.restore(doc)
             self.provenance[run.id] = {key: doc[key] for key in (
                 "methods", "evaluator", "sourceHashes", "environment", "scope", "isolation", "acceptance")}
+            self.provenance[run.id].update({key: doc.get(key) for key in ("taskPackage", "modelEndpoint")})
             # A previous PID is not proof of ownership or successful exit.
             # Do not signal it, trust a leftover result, or replay the request.
             self._save(run.interrupted(now()))
@@ -95,7 +99,9 @@ class ComparisonHistory:
                     truncated = size > LOG_BYTES
                     handle.seek(max(0, size - LOG_BYTES))
                     logs = handle.read(LOG_BYTES).decode("utf-8", errors="replace")
-            return {**run.document(), **self.provenance[identity],
+            check_path = self.root / identity / "check.json"
+            check = self.workbench.read(json.loads(check_path.read_bytes())["artifactId"]) if check_path.exists() else None
+            return {**run.document(), **self.provenance[identity], "check": check,
                     "logs": logs, "logsTruncated": truncated}
 
     def start(self, input_id):
@@ -107,19 +113,28 @@ class ComparisonHistory:
             if any(run.status in ACTIVE for run in self.runs.values()):
                 raise Invalid("comparison_already_running")
             self.workbench.comparison_inputs(input_id)
+            prediction_id, model_evidence = None, None
+            if self.model is not None:
+                model = self.model.read()
+                if model["status"] != "stopped":
+                    prediction = self.model.predict(input_id)
+                    prediction_id = self.workbench.put({"kind": "model-prediction", "prediction": prediction})
+                    model_evidence = {"source": model["source"], "model": model["model"],
+                                      "inputId": input_id, "predictionDigest": prediction["digest"]}
             run = ComparisonRun(uuid4().hex, input_id, now())
             self.provenance[run.id] = {
                 "methods": [{"id": name, "version": BASELINE_VERSION} for name in BASELINES],
                 "evaluator": METHOD, "sourceHashes": self.workbench.source,
                 "environment": environment(), "scope": "app_local",
-                "isolation": "unverified", "acceptance": "not_reviewed"}
+                "isolation": "unverified", "acceptance": "not_reviewed",
+                "taskPackage": PACKAGE.document(self.workbench.source), "modelEndpoint": model_evidence}
             self._save(run)
             directory = self.root / run.id
             with (directory / "process.log").open("ab") as log:
                 try:
                     process = subprocess.Popen(
                         [sys.executable, "-E", "-s", "-u", str(Path(__file__).resolve()),
-                         str(self.workbench.root.resolve()), input_id, str(directory.resolve())],
+                         str(self.workbench.root.resolve()), input_id, str(directory.resolve()), prediction_id or ""],
                         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
                 except OSError:
                     self._save(run.launch_failed(now()))
@@ -190,17 +205,37 @@ class ComparisonHistory:
                               "comparison": "Compare evaluation and prediction digests; sourceHashes identify the method implementation.",
                               "acceptance": "not_reviewed"}}).decode()}
 
+    def check(self, identity):
+        from check_comparison import check_export
+        with self.lock:
+            run = self._find(identity)
+            if run.status != "succeeded":
+                raise Invalid("comparison_output_required")
+            report = check_export(json.loads(self.export(identity)["content"]))
+            check_id = self.workbench.put(report)
+            path = self.root / identity / "check.json"
+            temporary = path.with_suffix(".tmp")
+            temporary.write_bytes(canonical({"artifactId": check_id}))
+            os.replace(temporary, path)
+            return self.read(identity)
 
-def run_cpu(root, input_id, directory):
+
+def run_cpu(root, input_id, directory, prediction_id=""):
     """The only child entry point: use admitted input, emit real output/logs."""
     workbench = Workbench(root)
     print("Starting CPU comparison: control, train_mean, additive; evaluation=" + METHOD, flush=True)
     try:
-        result = compare(workbench.comparison_inputs(input_id))
-        for prediction in result.predictions:
-            print(f"Computed {prediction['model']['id']}: {len(prediction['conditions'])} conditions; {prediction['digest']}", flush=True)
+        inputs = workbench.comparison_inputs(input_id)
+        prediction = workbench.read(prediction_id)["prediction"] if prediction_id else None
+        if prediction is not None:
+            inputs = replace(inputs, predictions=(*inputs.predictions, prediction))
+        result = compare(inputs)
+        for baseline_prediction in result.predictions:
+            print(f"Computed {baseline_prediction['model']['id']}: {len(baseline_prediction['conditions'])} conditions; {baseline_prediction['digest']}", flush=True)
+        if prediction:
+            print("Used model endpoint: " + prediction["digest"], flush=True)
         output = {"kind": "output", "inputId": input_id, "operation": "compare",
-                  "result": result.evaluation, "predictions": list(result.predictions),
+                  "result": result.evaluation, "predictions": [*result.predictions, *([prediction] if prediction else [])],
                   "sourceHashes": workbench.source, "environment": environment(),
                   "scope": "app_local", "isolation": "unverified", "acceptance": "not_reviewed"}
         output_id = workbench.put(output)

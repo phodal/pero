@@ -32,6 +32,18 @@ mod web_documents;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod pull_requests;
 #[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_changes;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_diff;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_checks;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_commits;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_reviews;
+#[cfg(any(target_family="wasm",feature="native"))]
+mod pull_request_discussions;
+#[cfg(any(target_family="wasm",feature="native"))]
 mod pull_request_index;
 #[cfg(any(target_family="wasm",feature="native"))]
 mod source_navigation;
@@ -49,6 +61,8 @@ mod local_roadmap;
 mod project_view;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod research_projects;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod project_agent;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 #[cfg(test)]
 mod insights;

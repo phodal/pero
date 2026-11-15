@@ -124,13 +124,15 @@ choose **Execute** for their own claim. Release permits another client to claim
 it, but is blocked during queued, running, cancellation or unresolved execution.
 A human claim is separate from the Worker's expiring execution lease and does
 not change the GitHub assignee. Operators alone control repository bindings,
-source synchronization, client provisioning and manual task creation.
+source synchronization and client provisioning. A client can create a manual
+task within its project grants; creation atomically claims that draft for its creator.
 
 Client routes use `Authorization: Bearer <PERO_CLIENT_TOKEN>`:
 
 ```text
 GET  /api/client/v1/me
 GET  /api/client/v1/tasks
+POST /api/client/v1/tasks
 GET  /api/client/v1/workers
 GET  /api/client/v1/tasks/{id}
 POST /api/client/v1/tasks/{id}/claim
@@ -138,6 +140,11 @@ POST /api/client/v1/tasks/{id}/release
 POST /api/client/v1/tasks/{id}/dispatch
 POST /api/client/v1/tasks/{id}/cancel
 ```
+
+Task creation accepts the operator manual TaskSpec fields, excluding source and
+parent identity. An optional `Idempotency-Key` is scoped to the creating client;
+retry the same creation with the same key and payload after a lost response.
+Creation does not dispatch.
 
 Claim, release and cancel accept `{}`. Dispatch accepts the same optional
 `worker_id` and idempotency header as operator dispatch. API checks enforce
@@ -174,8 +181,16 @@ credential-revocation operation.
 Claims for enrolled devices intersect device scope with the owner's current Client
 project grants and match the advertised project/workspace/Agent tuple before
 acquiring a lease. Existing administrator-provisioned Workers retain
-legacy claim behavior. Registered devices are not online-status receipts; the
-Workers list still has no heartbeat discovery. See [ADR 0010](../docs/adr/0010-desktop-worker-enrollment.md).
+legacy claim behavior. Worker listings report authenticated contact as
+`presence` (`unknown` before first contact, `online` for 15 seconds, then `offline`),
+with `last_seen_at` and server `observed_at`. This is contact observation, not
+execution readiness or authorization. `occupied` and current Run references come
+from running/cancel-requested/reconcile Runs, independently of presence. Device
+`enabled` and registered `capabilities` are included; client listings filter project
+grants and hide foreign Run identifiers while retaining machine occupancy.
+Desktop permits an explicit compatible machine or any compatible machine at
+dispatch; an offline explicit machine remains queued until it claims work.
+Older servers without observation fields display unknown. See [ADR 0010](../docs/adr/0010-desktop-worker-enrollment.md).
 
 ## Run
 

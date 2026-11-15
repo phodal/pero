@@ -48,6 +48,8 @@ export function useAppAgent(): AppAgent & LegacyAgent {
       return modern;
     };
     return { ...info, infoLoading, refresh,
+      scienceSessions: () => supported().scienceSessions(),
+      science: input => supported().science(input),
       prepare: input => supported().prepare(input),
       lookup: input => supported().lookup(input),
       status: input => supported().status(input),

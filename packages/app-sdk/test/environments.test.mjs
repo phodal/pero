@@ -14,7 +14,7 @@ function observation(matched = true) {
 const response = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
 
 test('catalog contains the supported scientific methods', () => {
-  assert.deepEqual(METHODS.map(x => x.id), [target, 'control-lab.python-control', 'control-lab.ngspice', 'lcms2yield.inference']);
+  assert.deepEqual(METHODS.map(x => x.id), [target, 'control-lab.python-control', 'control-lab.ngspice', 'virtual-cell.comparison', 'lcms2yield.inference']);
   assert.equal(Object.isFrozen(METHODS), true);
 });
 test('preserves valid blocked and matching observations without verdicts', () => {
@@ -33,6 +33,12 @@ test('does not accept one App observation for another method', () => {
   chemistry.profile.observation.name = 'lcms2yield';
   chemistry.requirements.method = 'lcms2yield.inference';
   assert.equal(readInspection(chemistry, 'lcms2yield.inference').method, 'lcms2yield.inference');
+  const virtualCell = observation();
+  virtualCell.method = 'virtual-cell.comparison';
+  virtualCell.profile.observation.name = 'virtual-cell';
+  virtualCell.profile.observation.packages = {};
+  virtualCell.requirements = { method: 'virtual-cell.comparison', required: [{kind:'python',major:3,minor:12,patch:null}], preferred: [] };
+  assert.equal(readInspection(virtualCell, 'virtual-cell.comparison').matched, true);
 });
 test('does not silently convert malformed evidence to a match', () => {
   for (const [key, value] of [['schema', 'wrong'], ['scope', 'running-process'], ['evidence', 'verified'], ['matched', 'true'], ['observed_at_ms', NaN], ['missing', null]]) {
@@ -61,7 +67,7 @@ test('filter searches method, App and software without broadening scope', () => 
   assert.equal(filterMethods(all, 'casadi', 'all', records, 1000)[0].id, target);
   assert.equal(filterMethods([target], 'control', 'all', records, 1000).length, 0);
   assert.equal(filterMethods(all, '', 'matched', records, 1000).length, 1);
-  assert.equal(filterMethods(all, '', 'unchecked', records, 1000).length, 3);
+  assert.equal(filterMethods(all, '', 'unchecked', records, 1000).length, 4);
   assert.equal(filterMethods(all, 'nothing', 'all', records, 1000).length, 0);
 });
 test('requirement formatting preserves exact constraints', () => {

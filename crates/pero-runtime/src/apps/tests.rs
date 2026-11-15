@@ -30,7 +30,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('X-Pero-App-Token') != os.environ['PERO_APP_TOKEN']:
             self.send_response(403); self.end_headers(); return
         Path(os.environ['PERO_APP_DATA'], 'observed').write_text('request')
-        self.send_response(200); self.end_headers(); self.wfile.write(b'cell-result')
+        self.send_response(200); self.end_headers()
+        body = json.dumps({key: os.environ.get(key) for key in ('PERO_VIRTUAL_CELL_MODEL_URL', 'PERO_VIRTUAL_CELL_MODEL_TOKEN', 'PERO_NOTEBOOK_TEX_CACHE')}).encode() if self.path == '/deployment' else b'cell-result'
+        self.wfile.write(body)
 server = TCPServer(('127.0.0.1', 0), Handler)
 print(json.dumps({'port':server.server_address[1]}), flush=True)
 server.serve_forever()
@@ -498,4 +500,88 @@ fn canvas_admission_rechecks_installation_revision_and_declared_inputs_without_s
     assert!(store.processes.is_empty());
     store.set_enabled(&name,false).unwrap();assert!(store.canvas_view(&binding).is_err());
     store.uninstall(&name).unwrap();assert!(store.canvas_view(&binding).is_err());
+}
+
+
+#[test]
+fn declared_stdlib_python_is_prepared_before_the_real_virtual_cell_backend_starts() {
+    let workspace = Workspace::new();
+    let source = workspace.package(Some("python"));
+    let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(source.join("app.json")).unwrap()).unwrap();
+    manifest["backend"]["python"] = serde_json::json!("3.12");
+    fs::write(source.join("app.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+    // Use the production backend with the existing package fixture's static panel.
+    let backend = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/virtual-cell/backend");
+    copy_package(&backend, &source.join("backend"), &mut (0, 0)).unwrap();
+    let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
+    let mut store = AppStore::open(workspace.0.join("managed/apps"), PythonEnvironments::default()).unwrap();
+    store.install(&source).unwrap();
+    store.set_enabled(&name, true).unwrap();
+    let mut phases = Vec::new();
+    let error = store.resolve_with_progress(&name, &mut |p| phases.push(p.phase)).err().unwrap();
+    assert!(error.contains("Prepare the App environment"), "{error}");
+    assert!(store.processes.is_empty(), "Opening must not spawn an incompatible system Python");
+    assert!(matches!(phases.last(), Some(preparation::PreparationPhase::Required)));
+
+    let environment = store.managed_python_directory(&name).unwrap();
+    fs::create_dir_all(environment.parent().unwrap()).unwrap();
+    // An installed interpreter creates an offline stdlib venv; no pip/download.
+    let created = std::process::Command::new(python::bundled_python_executable().unwrap())
+        .args(["-m", "venv", "--without-pip"]).arg(&environment).status().unwrap();
+    assert!(created.success());
+    phases.clear();
+    store.prepare(&name, &mut |p| phases.push(p.phase)).unwrap();
+    assert!(matches!(phases.last(), Some(preparation::PreparationPhase::Ready)));
+    assert!(!phases.iter().any(|p| matches!(p, preparation::PreparationPhase::Creating | preparation::PreparationPhase::Installing)));
+    assert_eq!(store.python.select(&name).unwrap().root(), environment);
+    let access = store.resolve(&name).unwrap().backend.unwrap();
+    let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(5)).build().unwrap();
+    let package: serde_json::Value = serde_json::from_str(&client.get(format!("{}/api/task-package", access.url))
+        .header("X-Pero-App-Token", &access.token).send().unwrap().error_for_status().unwrap().text().unwrap()).unwrap();
+    assert_eq!(package["id"], "virtual-cell.comparison");
+    let endpoint: serde_json::Value = serde_json::from_str(&client.get(format!("{}/api/model", access.url))
+        .header("X-Pero-App-Token", &access.token).send().unwrap().error_for_status().unwrap().text().unwrap()).unwrap();
+    assert_eq!(endpoint["status"], "stopped");
+    store.set_enabled(&name, false).unwrap();
+    assert!(TcpStream::connect(access.url.strip_prefix("http://").unwrap()).is_err());
+}
+
+#[test]
+fn deployment_configuration_reaches_only_its_backend() {
+    const CHILD: &str = "PERO_TEST_MODEL_CONFIG_CHILD";
+    const URL: &str = "https://model.example.invalid";
+    const TOKEN: &str = "test-model-capability";
+    const CACHE: &str = "/tmp/pero-test-tex-cache";
+    if std::env::var(CHILD).as_deref() != Ok("1") {
+        // Configure only this isolated Host test process; never mutate the
+        // parent test runner's ambient environment while other tests run.
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "apps::tests::deployment_configuration_reaches_only_its_backend", "--nocapture"])
+            .env(CHILD, "1").env("PERO_VIRTUAL_CELL_MODEL_URL", URL)
+            .env("PERO_VIRTUAL_CELL_MODEL_TOKEN", TOKEN)
+            .env("PERO_NOTEBOOK_TEX_CACHE", CACHE).status().unwrap();
+        assert!(result.success());
+        return;
+    }
+    for app in ["virtual-cell", "notebook", "other-app"] {
+        let workspace = Workspace::new();
+        let source = workspace.package(Some("python"));
+        let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(source.join("app.json")).unwrap()).unwrap();
+        manifest["name"] = serde_json::json!(app);
+        fs::write(source.join("app.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let name = AppName::try_from(app.to_owned()).unwrap();
+        let mut store = AppStore::open(workspace.0.join("managed/apps"), PythonEnvironments::default()).unwrap();
+        store.install(&source).unwrap();
+        store.set_enabled(&name, true).unwrap();
+        let access = store.resolve(&name).unwrap().backend.unwrap();
+        let observed: serde_json::Value = serde_json::from_str(&reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(5)).build().unwrap()
+            .get(format!("{}/deployment", access.url)).header("X-Pero-App-Token", &access.token)
+            .send().unwrap().error_for_status().unwrap().text().unwrap()).unwrap();
+        let expected = match app {
+            "virtual-cell" => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":URL,"PERO_VIRTUAL_CELL_MODEL_TOKEN":TOKEN,"PERO_NOTEBOOK_TEX_CACHE":null}),
+            "notebook" => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":null,"PERO_VIRTUAL_CELL_MODEL_TOKEN":null,"PERO_NOTEBOOK_TEX_CACHE":CACHE}),
+            _ => serde_json::json!({"PERO_VIRTUAL_CELL_MODEL_URL":null,"PERO_VIRTUAL_CELL_MODEL_TOKEN":null,"PERO_NOTEBOOK_TEX_CACHE":null}),
+        };
+        assert_eq!(observed, expected, "{app}");
+    }
 }

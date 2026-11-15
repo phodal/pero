@@ -54,7 +54,7 @@ export function PaperInspectorHeader({ paper, status, savingId, locked, t, onSta
       <Badge tone={statusTone[status]}>{t(status === 'reading' ? 'statusReading' : status === 'to-read' ? 'statusToRead' : 'statusReviewed')}</Badge>
       <OutlineBadge>{contentKind(paper, t)}</OutlineBadge>
     </div>}
-    actions={<><Button variant="primary" disabled={locked} onClick={() => onRead(paper)}>{t(status === 'to-read' ? 'openReader' : 'continueReading')}</Button><DropdownMenu>
+    actions={<><Button variant="ghost" disabled={locked} onClick={() => onRead(paper)}>{t(status === 'to-read' ? 'openReader' : 'continueReading')}</Button><DropdownMenu>
       <DropdownMenuTrigger asChild>
         <IconButton label={t('moreActions')} variant="ghost"><Icon name="dots" size={16}/></IconButton>
       </DropdownMenuTrigger>

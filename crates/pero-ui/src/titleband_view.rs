@@ -365,12 +365,14 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let bg = self.ui(cx).palette.surface_muted;
-        let primary = match segment.primary {
+        let primary = if self.project_agent_active() {
+            self.project_agent_titleband(cx)
+        } else { match segment.primary {
             Primary::Address => self.web_toolbar(true, cx).into_any_element(),
             Primary::Tabs => self.main_tabs(cx).into_any_element(),
             _ => div().into_any_element(),
-        };
-        let actions = self.main_actions(&segment.actions, cx);
+        }};
+        let actions = if self.project_agent_active() { Vec::new() } else { self.main_actions(&segment.actions, cx) };
         window_drag(
             div()
                 .id("titleband-main")
@@ -473,7 +475,7 @@ impl Workbench {
         }
     }
 
-    fn main_actions(&self, actions: &[Action], cx: &mut Context<Self>) -> Vec<AnyElement> {
+    pub(crate) fn main_actions(&self, actions: &[Action], cx: &mut Context<Self>) -> Vec<AnyElement> {
         let mut painted = Vec::new();
         for action in actions {
             match action {

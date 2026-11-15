@@ -3,7 +3,7 @@
   "name": "compute",
   "version": "0.1.0",
   "displayName": "Compute",
-  "description": "Prepare HPC cluster connection drafts and inspect cluster job availability. Slurm connections and execution are not connected yet.",
+  "description": "Connect SSH workstations and Slurm sites, approve fixed remote computations and collect original execution evidence.",
   "contributes": { "panels": [{ "id": "main", "title": "Compute", "entry": "dist/index.html" }] },
   "backend": { "type": "python", "entry": "backend/server.py" }
 }

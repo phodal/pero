@@ -79,7 +79,7 @@ func (e *Env) registerSkillTools(ctx context.Context, h *harness.Harness) error 
 }
 
 func (e *Env) loadSkill(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
-	session, err := e.session(request)
+	_, err := e.session(request)
 	if err != nil {
 		return cellError(err.Error()), nil
 	}
@@ -97,11 +97,11 @@ func (e *Env) loadSkill(ctx context.Context, request harness.ToolRequest) (harne
 		return cellError(err.Error()), nil
 	}
 	if kernelSource != "" {
-		kernel, err := e.kernel(session, Python)
+		current, err := e.computation(request.Agent, Python)
 		if err != nil {
 			return cellError(err.Error()), nil
 		}
-		out, err := kernel.Load(ctx, kernelSource, e.host(session, Python, request.Agent))
+		out, err := current.execute(ctx, kernelSource, AgentCell, true)
 		if err != nil {
 			return cellError(err.Error()), nil
 		}

@@ -177,46 +177,8 @@ pub enum ArtifactRelationRole {
     RunRecord,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExternalRunOutcome {
-    Succeeded,
-    Failed,
-    Cancelled,
-}
-
-/// A workspace-side receipt written by the execution owner beside an output.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExternalRunManifest {
-    pub schema_version: u32,
-    pub system: String,
-    pub run_id: String,
-    pub outcome: ExternalRunOutcome,
-    pub output_sha256: String,
-    pub evidence: Vec<ExternalRunEvidence>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExternalRunEvidence {
-    pub path: String,
-    pub role: ArtifactRelationRole,
-    pub sha256: String,
-}
-
-impl ExternalRunManifest {
-    pub fn validate(&self) -> Result<(), ArtifactError> {
-        if self.schema_version != 1 || !identifier(&self.system) || !identifier(&self.run_id)
-            || !snapshot_digest(&self.output_sha256) || self.evidence.len() >= MAX_ARTIFACT_RELATIONS
-            || self.evidence.iter().any(|item| item.path.is_empty() || !snapshot_digest(&item.sha256)
-                || item.role == ArtifactRelationRole::RunRecord)
-        {
-            return Err(ArtifactError::Source);
-        }
-        Ok(())
-    }
-}
+mod external_run;
+pub use external_run::{ExternalRunEvidence, ExternalRunExecution, ExternalRunInvocation, ExternalRunManifest, ExternalRunOutcome, ExternalRunOutputKind};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

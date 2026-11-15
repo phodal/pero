@@ -219,10 +219,6 @@ impl CloudSession {
         if !self.configured() {
             return;
         }
-        if self.client_mode {
-            self.error = Some("Only the operator can create manual tasks".into());
-            return;
-        }
         let spec = match cloud_links::task_spec(value) {
             Ok(spec) => spec,
             Err(message) => {
@@ -230,7 +226,21 @@ impl CloudSession {
                 return;
             }
         };
-        match self.post("/api/v1/tasks", &spec) {
+        let key = value
+            .get("request_id")
+            .and_then(|_| identifier(value.get("request_id")));
+        if value.get("request_id").is_some() && key.is_none() {
+            self.error = Some("Invalid task request identifier".into());
+            return;
+        }
+        let response = self.read(
+            self.http
+                .post(format!("{}{}{}", self.base, self.api(), "/tasks"))
+                .bearer_auth(&self.token)
+                .header("Idempotency-Key", key.unwrap_or_else(idempotency_key))
+                .json(&spec),
+        );
+        match response {
             Ok(task) => {
                 self.selected = identifier(task.get("id"));
                 self.reload();
@@ -903,16 +913,13 @@ mod tests {
     }
 
     #[test]
-    fn a_client_cannot_create_or_sync_and_a_bad_claim_stays_local() {
+    fn invalid_creation_sync_and_claim_stay_local() {
         let mut cloud = CloudSession::new();
         cloud.token = "desktop_name.secret_value".into();
         let created = cloud
-            .command(&json!({"action":"remote_create","title":"Title","prompt":"Prompt","acceptance":"Done","project_id":"pero","workspace_key":"pero","agent_id":"codex"}))
+            .command(&json!({"action":"remote_create","title":"","prompt":"Prompt","acceptance":"Done","project_id":"pero","workspace_key":"pero","agent_id":"codex"}))
             .unwrap();
-        assert_eq!(
-            created.event.data["error"],
-            "Only the operator can create manual tasks"
-        );
+        assert_eq!(created.event.data["error"], "Invalid remote task field");
         let synced = cloud
             .command(&json!({"action":"remote_sync_issues"}))
             .unwrap();

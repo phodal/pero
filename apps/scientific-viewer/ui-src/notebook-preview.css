@@ -30,3 +30,4 @@
 .notebook-kernel-status::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--pero-text-secondary); }
 .notebook-kernel-status[data-kernel="idle"]::before { background:var(--pero-success); }
 .notebook-kernel-status[data-kernel="running"]::before { background:var(--pero-action); }
+.notebook-history-code { margin:0; font-family:var(--pero-font-family-mono,monospace); white-space:pre-wrap; overflow-wrap:anywhere; }

@@ -38,3 +38,14 @@ html, body, #app { height: 100%; }
 .compute-report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); }
 .compute-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--pero-spacing-3); }
 .compute-report-row { min-width: 0; overflow-wrap: anywhere; }
+
+.compute-remote-root { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+.compute-remote-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pero-spacing-2); padding: var(--pero-spacing-2) var(--pero-spacing-3); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.compute-remote-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); align-items: start; gap: var(--pero-spacing-3); }
+.compute-remote-form .compute-report-actions { grid-column: 1 / -1; }
+.compute-remote-probe { margin-top: var(--pero-spacing-3); }
+#compute-remote-preparation { height: auto; flex: none; }
+.compute-remote-root > .compute-split { flex: 1 0 600px; }
+.compute-remote-log { max-height: 24rem; margin: var(--pero-spacing-2) 0; padding: var(--pero-spacing-3); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--pero-surface-muted); border-radius: var(--pero-radius-selection); font-size: var(--pero-font-caption); }
+.compute-remote-outputs { list-style: none; margin: 0; padding: 0; }
+.compute-remote-outputs > li + li { margin-top: var(--pero-spacing-4); }

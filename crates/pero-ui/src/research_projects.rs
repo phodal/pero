@@ -51,7 +51,7 @@ impl Workbench {
         self.research.resolving_workspace = None;
     }
 
-    fn saved_research_project(&self) -> Option<&ResearchProject> {
+    pub(crate) fn saved_research_project(&self) -> Option<&ResearchProject> {
         let id = self.selected_project.as_deref()?.strip_prefix("research:")?;
         self.preferences
             .research_projects
@@ -192,7 +192,7 @@ impl Workbench {
         }
         self.navigation.open(WorkspaceItem::Project(key.clone()));
         if close_editor || self.selected_project.as_deref() != Some(key.as_str()) {
-            self.project_tab = ProjectTab::Overview;
+            self.project_tab = ProjectTab::Agent;
         }
         self.selected_project = Some(key);
         if close_editor {
@@ -205,6 +205,7 @@ impl Workbench {
             }
         }
         self.refresh_project_resources(cx);
+        self.refresh_project_agents(cx);
         self.sync_follow(cx);
         let _ = window;
     }
@@ -351,6 +352,7 @@ impl Workbench {
                     )
                     .child(
                         Button::new("research-cancel")
+                            .relative().child(self.view_bounds.projects.probe("edit-cancel".into()))
                             .ghost()
                             .label(self.t("worker.local.cancel"))
                             .disabled(saving)
@@ -399,6 +401,12 @@ impl Workbench {
                                     .disabled(saving)
                                     .relative().child(self.view_bounds.projects.probe("edit".into()))
                                     .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
+                            )
+                            .child(
+                                Button::new("research-project-agent")
+                                    .outline().label(self.t("project.agent"))
+                                    .relative().child(self.view_bounds.projects.probe("agent:entry".into()))
+                                    .on_click(cx.listener(|this, _, _, cx| this.show_project_agents(cx))),
                             )
                             .child(
                                 Button::new("research-continue")
@@ -454,11 +462,11 @@ impl Workbench {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let references = self.saved_research_project().map(|project| project.resources.as_slice()).unwrap_or_default();
         let saving = self.research.pending.is_some() && self.error.is_none();
+        let compact = self.project_agent_active();
         div()
             .id("research-resources")
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
+            .when(!compact, |el| el.flex_1().min_h_0().overflow_y_scroll())
+            .when(compact, |el| el.flex_shrink_0())
             .p(px(pero_theme::WorkbenchStyle::PAGE))
             .flex()
             .flex_col()
@@ -477,13 +485,14 @@ impl Workbench {
                     )
                     .child(
                         Button::new("research-link")
-                            .when(references.is_empty() && !self.research.choosing, |button| button.primary())
-                            .when(!references.is_empty() || self.research.choosing, |button| button.outline())
-                            .label(self.t(if self.research.choosing {
-                                "worker.local.cancel"
-                            } else {
-                                "research.link"
-                            }))
+                            .when(compact, |button| button.ghost().small()
+                                .icon(Icon::default().path(if self.research.choosing {"icons/x.svg"} else {"icons/plus.svg"}))
+                                .accessibility_label(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"}))
+                                .tooltip(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"})))
+                            .when(!compact, |button| button
+                                .when(references.is_empty() && !self.research.choosing, |button| button.primary())
+                                .when(!references.is_empty() || self.research.choosing, |button| button.outline())
+                                .label(self.t(if self.research.choosing {"worker.local.cancel"} else {"research.link"})))
                             .disabled(saving)
                             .relative()
                             .child(self.view_bounds.projects.probe("link".into()))
@@ -495,7 +504,8 @@ impl Workbench {
                     .when(!references.is_empty(), |el| el.child(
                         Button::new("research-refresh")
                             .ghost()
-                            .label(self.t("remote.refresh"))
+                            .when(compact, |button| button.small().icon(Icon::default().path("icons/refresh.svg")).accessibility_label(self.t("remote.refresh")).tooltip(self.t("remote.refresh")))
+                            .when(!compact, |button| button.label(self.t("remote.refresh")))
                             .disabled(saving || !self.research.loading.is_empty())
                             .relative()
                             .child(self.view_bounds.projects.probe("refresh".into()))

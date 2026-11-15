@@ -2,8 +2,12 @@ import type { AppMessages } from '@pero/app-sdk';
 
 export const messages: AppMessages = {
   navigation: { en: 'Compute views', zh: '计算视图' },
-  jobs: { en: 'Jobs', zh: '作业' },
+  jobs: { en: 'Owner receipts', zh: '执行回执' },
   reports: { en: 'Experiment reports', zh: '实验报告' },
+  remote: { en: 'Remote execution', zh: '远程执行' },
+  executionPath: { en: 'Execution path', zh: '执行路径' },
+  ssh: { en: 'SSH workstation', zh: 'SSH 工作站' },
+  slurm: { en: 'Slurm over SSH', zh: 'Slurm / SSH' },
   clusters: { en: 'Clusters', zh: '集群' },
   add: { en: 'Add cluster draft', zh: '添加集群配置' },
   edit: { en: 'Edit draft', zh: '编辑配置' },
@@ -15,14 +19,14 @@ export const messages: AppMessages = {
   partition: { en: 'Slurm partition', zh: 'Slurm 分区' },
   workdir: { en: 'Working directory', zh: '工作目录' },
   optional: { en: 'Optional', zh: '可选' },
-  configurationHelp: { en: 'Save host and Slurm settings on this device. The draft stays not connected.', zh: '在本机保存主机与 Slurm 配置，草稿保持“未连接”。' },
-  notConnected: { en: 'Not connected', zh: '未连接' },
-  draftHelp: { en: 'This is a saved configuration draft. Host access, Slurm account and partition have not been verified. Slurm connections are not available yet.', zh: '这是已保存的配置草稿，主机访问、Slurm 账号与分区尚未验证。当前尚未接通 Slurm 集群连接。' },
+  configurationHelp: { en: 'Save non-secret connection settings on this device. Probe and run from Remote execution.', zh: '在本机保存不含凭据的连接配置。请到“远程执行”探测连接并运行。' },
+  notConnected: { en: 'Saved configuration', zh: '已保存配置' },
+  draftHelp: { en: 'Saved settings alone do not verify access. Open Remote execution to probe this host and prepare a calculation.', zh: '保存配置不代表已验证访问。请到“远程执行”探测主机并准备计算。' },
   noClusters: { en: 'Prepare your first cluster connection', zh: '准备第一个集群连接' },
-  noClustersHelp: { en: 'Save host and Slurm settings as a draft. Cluster access is not connected yet.', zh: '先保存主机与 Slurm 配置草稿。集群连接尚未接通，配置会保持“未连接”。' },
-  jobsUnavailable: { en: 'Connect a cluster to read jobs', zh: '尚未连接，无法读取作业' },
-  jobsHelp: { en: 'Cluster scheduling is not connected yet. No queue or job history has been queried. Start by preparing a cluster configuration.', zh: '集群调度尚未接通，目前未查询作业队列或历史。可以先准备集群配置。' },
-  selectedJobsHelp: { en: '“{name}” is a saved draft and is not connected. Its queue and job history cannot be read yet.', zh: '“{name}”仍是未连接的配置草稿，当前无法读取该集群的队列与作业历史。' },
+  noClustersHelp: { en: 'Save an SSH workstation or Slurm login host, then probe access from Remote execution.', zh: '先保存 SSH 工作站或 Slurm 登录主机，再到“远程执行”探测访问。' },
+  jobsUnavailable: { en: 'No execution receipts yet', zh: '尚无执行回执' },
+  jobsHelp: { en: 'This view shows owner receipts. Use Remote execution to probe a saved host and run a calculation.', zh: '此视图显示执行方回执。可在“远程执行”探测已保存主机并运行计算。' },
+  selectedJobsHelp: { en: 'No site-wide queue has been queried for “{name}”. Remote execution observes only the original executions submitted through Host.', zh: '尚未查询“{name}”的全站队列。“远程执行”只读取经 Host 提交的原始执行。' },
   recordedHelp: { en: 'These receipts were written by the execution owner. They are not a query of the cluster queue.', zh: '这些回执由执行方写入，不是对集群队列的查询。' },
   executionsUnreadable: { en: 'An execution receipt could not be read. The cluster queue was not queried.', zh: '有一份执行回执无法读取。集群队列并未查询。' },
   operation: { en: 'Operation', zh: '操作' },
@@ -56,7 +60,7 @@ export const messages: AppMessages = {
   draftCopied: { en: 'Reproduce draft copied.', zh: '已复制重跑草稿。' },
   draftCopyFailed: { en: 'The draft is shown below. The clipboard is unavailable.', zh: '草稿已显示在下方，剪贴板暂不可用。' },
   manage: { en: 'Manage clusters', zh: '管理集群' },
-  saved: { en: 'Cluster draft saved. It is not connected.', zh: '集群配置草稿已保存，尚未建立连接。' },
+  saved: { en: 'Connection settings saved. Probe access in Remote execution.', zh: '连接配置已保存。请到“远程执行”探测访问。' },
   loading: { en: 'Loading cluster drafts…', zh: '正在读取集群配置…' },
   refreshing: { en: 'Updating saved configuration…', zh: '正在更新已保存的配置…' },
   selecting: { en: 'Saving cluster selection…', zh: '正在保存集群选择…' },
@@ -82,7 +86,7 @@ export const messages: AppMessages = {
   reload: { en: 'Reload', zh: '重新加载' },
 };
 
-export type Cluster = { id: string; name: string; host: string; account: string; partition: string; workdir: string; connectionStatus: 'not_connected' };
+export type Cluster = { id: string; name: string; host: string; account: string; partition: string; workdir: string; scheduler?: 'ssh' | 'slurm'; connectionStatus: 'not_connected' };
 export type ClusterInput = Omit<Cluster, 'connectionStatus' | 'id'> & { id?: string };
 export type SchedulerObservation = { states: string[]; nodes: string; startTime: number | null; endTime: number | null; wallSeconds: number | null };
 export type ExecutionReceipt = {

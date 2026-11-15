@@ -36,7 +36,9 @@ try{
  await expect.poll(async()=>(await state()).chats[0].state).toBe('idle');
  await page.screenshot({path:resolve(out,'agent-ready.png')});
  const input=async(text)=>{
-  await page.mouse.click(950,975);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
+  await expect.poll(async()=>{const bounds=(await state()).composerBounds.input;return bounds?.width>0 && bounds?.height>0;}).toBe(true);
+  const bounds=(await state()).composerBounds.input;
+  await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));
   const cdp=await page.context().newCDPSession(page);
   await cdp.send('Input.imeSetComposition',{text:'nihao',selectionStart:5,selectionEnd:5});
   await cdp.send('Input.insertText',{text});

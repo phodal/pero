@@ -57,7 +57,10 @@ impl Workbench {
                             .when(now && !stopped, |el| el.border_2())
                             .border_color(p.color(ring))
                             .bg(p.color(fill))
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .font_weight(FontWeight::BOLD)
                             .text_color(p.color(if done || stopped && now {
                                 "surface"
@@ -72,7 +75,10 @@ impl Workbench {
                     )
                     .child(
                         div()
-                            .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                            .text_size(
+                                pero_theme::UiAppearance::global(cx)
+                                    .text(pero_theme::TextRole::Caption),
+                            )
                             .when(now, |el| el.font_weight(FontWeight::SEMIBOLD))
                             .text_color(p.color(text))
                             .child(self.t(stage.label_key())),
@@ -102,6 +108,7 @@ impl Workbench {
             matches!(phase, Phase::Queued | Phase::Running) && (operator || (client && mine));
         let confirming = self.remote.confirm_cancel.as_deref() == Some(id.as_str());
         let workers = self.worker_count();
+        let target_worker = self.remote_target_worker(task);
         let worker = self.worker_name(string(run, "worker_id"));
         let (border, bg) = match phase.tone() {
             Tone::Info => ("info", "surface"),
@@ -248,6 +255,7 @@ impl Workbench {
                         .child(string(run, "summary").to_string()),
                 )
             })
+            .when(can_dispatch, |el|el.child(self.remote_target_picker(Some(task),busy,cx)))
             .child(
                 div()
                     .flex()
@@ -349,12 +357,13 @@ impl Workbench {
                                 } else {
                                     "cloud.redelegate"
                                 }))
-                                .disabled(!can_dispatch || busy)
+                                .disabled(!can_dispatch || busy || (self.remote.target_worker.is_some() && target_worker.is_none()))
                                 .on_click(cx.listener({
                                     let id = id.clone();
+                                    let worker_id = target_worker.clone();
                                     move |this, _, _, cx| {
                                         this.command(
-                                            json!({"action":"remote_dispatch","task_id":id}),
+                                            json!({"action":"remote_dispatch","task_id":id,"worker_id":worker_id}),
                                             cx,
                                         )
                                     }

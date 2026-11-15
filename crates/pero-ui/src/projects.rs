@@ -138,6 +138,7 @@ pub(crate) enum ProjectTab {
     #[default]
     Overview,
     ResearchResources,
+    Agent,
     Tasks,
     Sources,
     Execution,
@@ -145,11 +146,12 @@ pub(crate) enum ProjectTab {
 }
 
 impl ProjectTab {
-    pub const ALL: [Self; 6] = [Self::Overview, Self::ResearchResources, Self::Tasks, Self::Sources, Self::Execution, Self::Settings];
+    pub const ALL: [Self; 7] = [Self::Overview, Self::Agent, Self::ResearchResources, Self::Tasks, Self::Sources, Self::Execution, Self::Settings];
     pub fn label_key(self) -> &'static str {
         match self {
             Self::Overview => "project.overview",
             Self::ResearchResources => "research.linked",
+            Self::Agent => "project.agent",
             Self::Tasks => "nav.tasks",
             Self::Sources => "project.sources",
             Self::Execution => "project.execution",

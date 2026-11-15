@@ -37,6 +37,8 @@ model TypeWeight {
 }
 
 model Radii {
+  /** Conversation bubbles and the resting single-line Composer. */
+  bubble: 20;
   panel: 12;
   selection: 8;
   button: 6;
@@ -86,6 +88,9 @@ model ChatProse {
   h6Line: "71/50";
   h6Gap: "1/1";
 }
+
+/** Neutral persistent navigation fill; keyboard focus stays independent. */
+model NavigationStyle { selectedOpacity: 0.1; }
 
 model Metrics {
   /** Window controls and content tabs share one bar, without a repeated page title. */

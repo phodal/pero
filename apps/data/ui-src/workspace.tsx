@@ -331,7 +331,7 @@ export function Workspace(props: Props) {
             status={<span>{availability}</span>}
             actions={<>
               {props.objectActions}
-              <Button variant="primary" disabled={busy || !hostPresent} onClick={props.onOpenNotebook}>{t('openNotebook')}</Button>
+              <Button variant="ghost" disabled={busy || !hostPresent} onClick={props.onOpenNotebook}>{t('openNotebook')}</Button>
             </>}
             dismiss={{ label: t('close'), onDismiss: props.onDismiss }}
           />}

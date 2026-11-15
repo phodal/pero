@@ -230,6 +230,7 @@ model LayoutPreferences {
   artifact_view?: ArtifactView = "icons";
   resource_tab?: "files" | "artifacts" = "artifacts";
   link_surface?: "in_app" | "external_browser" = "in_app";
+  diff_soft_wrap?: boolean = true;
   ...Closed;
 }
 model TypographyPreferences {
@@ -496,6 +497,8 @@ model SessionUsageEvent { kind: "session_usage"; ...ThreadEventBase; data: Sessi
 /** The ACP RequestPermissionRequest plus the Host-issued `permission_id`. */
 model PermissionData { ...Record<unknown>; permission_id: string }
 model PermissionEvent { kind: "permission"; ...ThreadEventBase; data: PermissionData }
+model PermissionResolvedData { permission_id: string; @minValue(0) pending: integer; ...Closed }
+model PermissionResolvedEvent { kind: "permission_resolved"; ...ThreadEventBase; data: PermissionResolvedData }
 model UserQuestionsData {
   request_id: string;
   sessionId: string;
@@ -582,7 +585,7 @@ union HostEvent {
   FileDocumentEvent,
   WorkspaceFilesListEvent, WorkspaceFilesDocumentEvent, WorkspaceFilesErrorEvent,
   FileDocumentErrorEvent,
-  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,
+  PullRequestLoadedEvent,PullRequestErrorEvent,PullRequestDiscoveredEvent,PullRequestListedEvent,PullRequestDiscussionUpdatedEvent,PullRequestDiscussionPublishedEvent,
   WorkspaceChangesEvent,WorkspaceChangesCatalogEvent,WorkspaceChangeDiffEvent,WorkspaceChangesErrorEvent,
   ArtifactCatalogEvent,ArtifactRegisteredEvent,ArtifactPresentedEvent,ArtifactDocumentEvent,ArtifactContextEvent,ArtifactSnapshotResultEvent,ArtifactErrorEvent,
   ContentDocumentEvent,
@@ -628,6 +631,7 @@ union HostEvent {
   SessionAuthErrorEvent,
   SessionAuthenticatedEvent,
   PermissionEvent,
+  PermissionResolvedEvent,
   UserQuestionsEvent,
   QuestionsResolvedEvent,
   QuestionsErrorEvent,

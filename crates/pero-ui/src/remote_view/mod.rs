@@ -3,6 +3,7 @@
 mod detail;
 mod form;
 mod list;
+mod targets;
 mod workers;
 use crate::{
     app::Workbench,
@@ -25,6 +26,7 @@ use gpui_kit::{
     *,
 };
 use serde_json::{Value, json};
+use targets::worker_status;
 
 pub(crate) fn phase(task: &Value) -> Phase {
     Phase::of(string(task, "state"), source_closed(task))

@@ -18,19 +18,19 @@ use serde_json::{Value, json};
 
 impl Workbench {
     pub(crate) fn project_catalog(&self, cx: &App) -> Vec<Project> {
-        let mut workspaces = vec![self.workspace.clone()];
+        let chats = &self.chat.read(cx).chats;
+        let delegated = chats.iter().filter(|chat| chat.project_agent.as_ref().is_some_and(|binding| binding.parent_thread.is_some()))
+            .map(|chat| chat.workspace.as_str()).collect::<Vec<_>>();
+        // Child worktrees are execution locations under their saved Project,
+        // not implicit projects. Explicit persisted project bindings remain below.
+        let mut workspaces = std::iter::once(self.workspace.as_str()).chain(chats.iter().map(|chat| chat.workspace.as_str()))
+            .filter(|path| !delegated.iter().any(|child| pero_contracts::workspace_path::WorkspacePath(child).matches(path)))
+            .map(str::to_owned).collect::<Vec<_>>();
         workspaces.extend(
             self.preferences
                 .projects
                 .iter()
                 .map(|binding| binding.workspace.clone()),
-        );
-        workspaces.extend(
-            self.chat
-                .read(cx)
-                .chats
-                .iter()
-                .map(|chat| chat.workspace.clone()),
         );
         workspaces.extend(self.preferences.research_projects.iter().filter_map(|project| project.workspace.clone()));
         let mut shared = self.remote.data["identity"]["projects"]
@@ -117,10 +117,11 @@ impl Workbench {
             .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
-        self.project_tab = ProjectTab::Overview;
+        self.project_tab = if project.research_id().is_some() { ProjectTab::Agent } else { ProjectTab::Overview };
         self.cancel_research_editor();
         self.research.choosing = false;
         self.refresh_project_resources(cx);
+        self.refresh_project_agents(cx);
         self.local_roadmap.show_cloud = project.workspace.is_none() && self.remote.configured();
         self.local_roadmap.selected_line = None;
         self.task_status = Default::default();
@@ -143,6 +144,7 @@ impl Workbench {
             self.command(json!({"action":"workspace","path":workspace}), cx);
         }
         self.command(json!({"action":"remote_select","task_id":null}), cx);
+        if self.project_agent_active() { self.select_project_conversation(cx); }
         self.sync_follow(cx);
         cx.notify();
     }
@@ -285,14 +287,10 @@ impl Workbench {
                     .w_full()
                     .flex()
                     .flex_col()
-                    .child(pero_theme::library_header(
-                        SharedString::from(format!("projects-header-{label}")),
-                        self.t(label),
-                        Some(count.to_string().into()),
-                        None,
-                        chrome,
-                    ))
-                    .child(pero_theme::hairline(chrome))
+                    .child(div().px(chrome.geo(pero_theme::SPACE_12)).py(chrome.geo(pero_theme::SPACE_8))
+                        .flex().items_center().gap(chrome.geo(pero_theme::SPACE_8))
+                        .text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(chrome.palette.text_muted)
+                        .child(self.t(label)).child(count.to_string()))
                     .children(rows)
                     .into_any_element()
             })
@@ -360,7 +358,7 @@ impl Workbench {
                             .min_h_0()
                             .w_full()
                             .overflow_y_scroll()
-                            .bg(chrome.list())
+                            .bg(chrome.palette.surface)
                             .when_some(editor, |body, editor| {
                                 body.child(
                                     div()
@@ -372,7 +370,8 @@ impl Workbench {
                                         .child(editor),
                                 )
                             })
-                            .children(sections),
+                            .child(div().w_full().max_w(px(960.)).mx_auto().p(chrome.geo(pero_theme::SPACE_16))
+                                .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_16)).children(sections)),
                     ),
             )
     }
@@ -432,11 +431,28 @@ impl Workbench {
             })
     }
 
+    pub(crate) fn select_project_view(&mut self, tab: ProjectTab, cx: &mut Context<Self>) {
+        if matches!(tab, ProjectTab::Overview | ProjectTab::Agent) && self.saved_research_project().is_some() {
+            self.show_project_agents(cx);
+            return;
+        }
+        self.project_tab = tab;
+        if tab == ProjectTab::Sources {
+            if let Some(repository) = self.listed_repositories(cx).into_iter().next() {
+                self.request_pull_request_list(&repository, self.pull_request_index.state, cx);
+            }
+        }
+        cx.notify();
+    }
+
     pub(crate) fn project_workspace(
         &self,
         narrow: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        if self.project_agent_active() {
+            return self.project_agent_view(cx);
+        }
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self.current_project(cx);
         let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some());
@@ -475,7 +491,7 @@ impl Workbench {
                             .border_color(p.border)
                             .flex_wrap()
                             .children(ProjectTab::ALL.into_iter().enumerate()
-                                .filter(|(_, tab)| *tab != ProjectTab::ResearchResources || is_research)
+                                .filter(|(_, tab)| !matches!(tab, ProjectTab::ResearchResources | ProjectTab::Agent) || is_research)
                                 .map(|(i, tab)| {
                                 Button::new(("project-tab", i))
                                     .ghost()
@@ -494,14 +510,7 @@ impl Workbench {
                                         "surface"
                                     }))
                                     .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.project_tab = tab;
-                                        if tab == ProjectTab::Sources {
-                                            if let Some(repository) = this.listed_repositories(cx).into_iter().next() {
-                                                let state = this.pull_request_index.state;
-                                                this.request_pull_request_list(&repository, state, cx);
-                                            }
-                                        }
-                                        cx.notify();
+                                        this.select_project_view(tab, cx);
                                     }))
                             })),
                     ),
@@ -509,6 +518,7 @@ impl Workbench {
             .when(self.project_tab == ProjectTab::Overview, |el| {
                 el.child(self.project_overview(project.as_ref(), cx))
             })
+            .when(self.project_tab == ProjectTab::Agent, |el| { el.child(self.project_agent_view(cx)) })
             .when(self.project_tab == ProjectTab::ResearchResources, |el| {
                 el.child(self.research_resources(cx))
             })
@@ -524,6 +534,7 @@ impl Workbench {
             .when(self.project_tab == ProjectTab::Settings, |el| {
                 el.child(self.project_settings(cx))
             })
+            .into_any_element()
     }
 
     fn project_sources(&self, cx: &mut Context<Self>) -> impl IntoElement {

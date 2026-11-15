@@ -1,4 +1,8 @@
 export const mystProjectMessages = {
+  updateProject: { en: 'Update from regenerated project', zh: '从重新生成的项目更新' },
+  updatedProject: { en: 'Updated this project draft. Save a revision to retain the new figure, code and data together.', zh: '已更新此项目草稿。保存修订以一起保留新图、代码和数据。' },
+  updateLimit: { en: 'Choose a MyST project snapshot at most 8 MiB.', zh: '请选择不超过 8 MiB 的 MyST 项目快照。' },
+  updateChanged: { en: 'The project changed while reading this file. Review the current draft and choose the file again.', zh: '读取文件时项目已有修改。请检查当前草稿并重新选择文件。' },
   sourceRecoveryWarning: { en: 'Scientific downloads (DOCX, JATS, LaTeX, Typst and ZIPs) include the full original source, including comments and content omitted from the publication. Review before sharing.', zh: '科学格式下载（DOCX、JATS、LaTeX、Typst 及 ZIP）包含完整原始源码，也包括注释和出版物中省略的内容。分享前请检查。' },
 
   resource: { en: 'Project resource', zh: '项目资源' },

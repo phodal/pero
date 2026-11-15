@@ -96,24 +96,14 @@ func (s *Store) AuthenticateWorker(ctx context.Context, token string) (string, e
 	if err != nil || subtle.ConstantTimeCompare(expected, actual[:]) != 1 {
 		return "", ErrForbidden
 	}
+	if _, err = s.pool.Exec(ctx, `UPDATE workers SET last_seen_at=clock_timestamp() WHERE id=$1`, id); err != nil {
+		return "", err
+	}
 	return id, nil
 }
 
 func (s *Store) Workers(ctx context.Context) ([]Worker, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id,name,projects,labels FROM workers ORDER BY created_at,id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	workers := []Worker{}
-	for rows.Next() {
-		var w Worker
-		if err = rows.Scan(&w.ID, &w.Name, &w.Projects, &w.Labels); err != nil {
-			return nil, err
-		}
-		workers = append(workers, w)
-	}
-	return workers, rows.Err()
+	return s.listWorkers(ctx, nil)
 }
 
 // Idempotency keys are scoped to their original operation and canonical payload.

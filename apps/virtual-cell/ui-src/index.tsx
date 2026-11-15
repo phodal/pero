@@ -58,6 +58,8 @@ export default function VirtualCell() {
     inputId: isComparison ? comparison.selected ? comparisonRecord?.inputId ?? null : lab.input?.id ?? null : lab.input?.id ?? null,
     artifactId: isComparison ? comparisonRecord?.outputId ?? null : lab.output?.id ?? null, operation: isComparison ? 'compare' : lab.output?.operation ?? null,
     comparisonRunId: isComparison ? comparison.selected || null : null,
+    modelEndpoint: isComparison ? comparison.task.model : null,
+    independentCheck: isComparison ? comparison.run?.check ?? null : null,
     rawDataset: isComparison && download.dataset ? { status: download.dataset.status, receivedBytes: download.dataset.receivedBytes, verifiedBytes: download.dataset.verifiedBytes, prepared: download.dataset.prepared, path: download.dataset.status === 'ready' ? download.dataset.path : null } : null,
     isolation: 'unverified', acceptance: 'not_reviewed',
   }, actions: { select_view: {
@@ -81,7 +83,7 @@ export default function VirtualCell() {
         </TabsList>}
         utilities={<IconButton label={t('refresh')} disabled={lab.busy} onClick={() => { void lab.refresh(); comparison.refresh(); download.refresh(); }}><Icon name="refresh"/></IconButton>}
         commands={<>
-          {!isComparison && <Button variant="ghost" disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode('perturbation'); }}>{t('example')}</Button>}
+          <Button variant="ghost" disabled={lab.busy} onClick={() => { void lab.example(); setView('cells'); setMode(isComparison ? 'comparison' : 'perturbation'); }}>{t(isComparison ? 'taskExample' : 'example')}</Button>
           {view === 'cells' && mode === 'perturbation' && !isComparison && lab.input && ['split', 'queries', 'candidates'].map(operation => <Button key={operation} variant="ghost" disabled={lab.busy || (operation === 'candidates' && !lab.input.hasPlan)} onClick={() => lab.run(operation)}>{t(operation as 'split')}</Button>)}
           {(isComparison && lab.input || view === 'cells' && mode === 'perturbation' && !isComparison && lab.input) && <FilePicker compact multiple variant="ghost" accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>}
           <Button variant="ghost" onClick={()=>{void chat.open({attachments:[chat.objectReference('virtual-cell')]}).catch(error=>setDisplayError(String(error)));}}>{t('discussContext')}</Button>
@@ -89,7 +91,7 @@ export default function VirtualCell() {
           <Button variant="ghost" onClick={()=>{void chat.open().catch(error=>setDisplayError(String(error)));}}>{t('openChat')}</Button>
         </>}
         primary={isComparison && lab.input
-          ? <Button variant="primary" disabled={!comparison.canStart} onClick={() => void comparison.start(lab.input.id)}>{comparison.pending === 'start' ? t('comparison_starting') : t('comparisonStart')}</Button>
+          ? <Button variant="primary" disabled={!comparison.canStartInput(lab.input.id)} onClick={() => void comparison.start(lab.input.id)}>{comparison.pending === 'start' ? t('comparison_starting') : t('comparisonStart')}</Button>
           : view === 'cells' && mode === 'perturbation' && !isComparison && lab.input
             ? <Button variant="primary" disabled={lab.busy} onClick={() => lab.run('evaluate')}>{t('evaluate')}</Button>
             : <FilePicker compact multiple variant="primary" accept=".json,application/json" label={isComparison ? t('comparisonImport') : t('import')} emptyLabel="" disabled={lab.busy} onFiles={files => void importFiles(files)}/>} />

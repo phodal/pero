@@ -180,7 +180,24 @@ export interface AppAgentRun { id: string; sessionId: string; scope: AppAgentSco
 export interface AppAgentRef { runId: string; scope: AppAgentScope }
 /** Original start identity plus the latest Host state, which may be a later retry. */
 export interface AppAgentLookup { requestId: string; run: AppAgentRun | null }
+export interface AppScienceCell {
+  id: number; origin: 'agent' | 'user'; code: string; generation: number;
+  status: string; outputs: Record<string, unknown>[]; execution_count: number | null; error?: string;
+}
+export interface AppScienceSnapshot {
+  session: string; language: 'python' | 'r' | 'repl'; generation: number;
+  status: 'idle' | 'running' | 'closed' | 'unavailable';
+  history: AppScienceCell[]; outputs: Record<string, unknown>[]; execution_count: number | null; error?: string;
+}
+export interface AppScienceCommand {
+  sessionId: string; action: 'start' | 'status' | 'execute' | 'interrupt' | 'restart' | 'close';
+  language: 'python' | 'r' | 'repl'; code?: string;
+}
 export interface AppAgent {
+  /** Existing App-scoped conversations; listing starts no kernel or Agent. */
+  scienceSessions(): Promise<{sessions: Array<{sessionId: string; title?: string; ready: boolean}>}>;
+  /** User computation in the same kernel used by this conversation's Agent. */
+  science(input: AppScienceCommand): Promise<AppScienceSnapshot>;
   prepare(input: {scope: AppAgentScope; input: Record<string,unknown>}): Promise<Record<string,unknown>>;
   start(input: { scope: AppAgentScope; text: string; requestId?: string; harnessId?: string; context?: Record<string, unknown> }): Promise<AppAgentRun>;
   /** Read-only original-request reconciliation. Null means unresolved, never no effect. */

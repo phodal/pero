@@ -5,6 +5,7 @@ outputs are new files and an existing output is never overwritten, because a
 frozen split or evaluation is immutable once referenced.
 """
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -52,8 +53,21 @@ def main(argv=None):
             document = load(args.bundle)
             bundle = document.get("bundle", document) if isinstance(document, dict) else document
             inputs = ComparisonInputs.parse_bundle(bundle)
+            endpoint = document.get("run", {}).get("modelEndpoint")
+            if endpoint:
+                # Offline rerun needs no live endpoint. Recompute its declared
+                # CPU baseline from frozen training inputs under the same ID.
+                from baselines import run_baseline
+                from contract import sealed
+                from dataset import training_view
+                from model_endpoint import MODEL
+                if endpoint.get("model") != MODEL:
+                    raise Invalid("comparison_model_unsupported")
+                prediction = run_baseline("additive", inputs.split, training_view(inputs.dataset, inputs.split), test_queries(inputs.dataset, inputs.split))
+                prediction = sealed({**prediction, "model": {**endpoint["model"], "kind": "empirical_baseline"}})
+                inputs = replace(inputs, predictions=(*inputs.predictions, prediction))
             comparison = compare(inputs)
-            result = {"evaluation": comparison.evaluation, "predictions": list(comparison.predictions)}
+            result = {"evaluation": comparison.evaluation, "predictions": [*comparison.predictions, *([prediction] if endpoint else [])]}
         else:
             dataset, spec = load(args.dataset), load(args.spec)
         if args.command == "split":

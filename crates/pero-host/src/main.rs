@@ -17,6 +17,7 @@ mod apps;
 mod app_canvas;
 mod research_assets;
 mod project_resources;
+mod project_tools;
 mod notebook_projects;
 mod paper_reproduction;
 mod local_repo;
@@ -38,6 +39,10 @@ fn emit(event: HostEvent) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
+    let args: Vec<_> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--project-tools") && args.len() == 5 {
+        return project_tools::serve(&args[2], &args[3], &args[4]);
+    }
     if std::env::args().nth(1).as_deref() != Some("--stdio") {
         eprintln!("Usage: pero-host --stdio (bootstrap probe only)");
         std::process::exit(2);
@@ -81,6 +86,7 @@ fn main() -> io::Result<()> {
     });
     loop {
         for event in mcp.poll(&mut agents) { emit(event)?; }
+        agents.poll_project_tools();
         agents.reconcile_paper_runs();
         if let Ok(owner) = &mut automation {
             if let Some(event) = owner.tick(&mut agents) { emit(event)?; }
@@ -91,6 +97,10 @@ fn main() -> io::Result<()> {
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         };
         let value: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
+        if value.get("method").and_then(|v| v.as_str()) == Some("project_agent") {
+            agents.dispatch_project_agent(value);
+            continue;
+        }
         if value.get("method").and_then(|v| v.as_str()) == Some("pull_requests") {
             pull_requests::dispatch(value, &agents);
             continue;

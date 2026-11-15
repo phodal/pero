@@ -21,7 +21,7 @@ const env = { ...process.env,
 delete env.ELECTRON_RUN_AS_NODE; delete env.PERO_APPS_ROOT; delete env.PERO_BUILTIN_APPS;
 let app, page;
 const errors = [], checks = [], reports = {};
-const targets = ['paper-agent.pcgym', 'control-lab.python-control', 'control-lab.ngspice', 'lcms2yield.inference'];
+const targets = ['paper-agent.pcgym', 'control-lab.python-control', 'control-lab.ngspice', 'lcms2yield.inference', 'virtual-cell.comparison'];
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const post = (frame, body) => frame.locator('body').evaluate(async (_, body) => {
   const response = await fetch('/host/environment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -42,7 +42,7 @@ try {
   await expect.poll(async () => (await state()).apps?.filter(item => ['environments', 'paper-agent', 'control-lab'].includes(item.name)).length).toBe(3);
   const frame = await open('environments');
   await expect(frame.getByRole('heading', { name: 'Environments', exact: true })).toBeVisible();
-  await expect(frame.getByRole('table').getByText('Not checked', { exact: true })).toHaveCount(4);
+  await expect(frame.getByRole('table').getByText('Not checked', { exact: true })).toHaveCount(targets.length);
   await frame.getByLabel('Search environments', { exact: true }).fill('missing query');
   await expect(frame.getByText('No matching environments.', { exact: true })).toBeVisible();
   await frame.getByRole('button', { name: 'Clear filters', exact: true }).click();
@@ -56,7 +56,7 @@ try {
   await frame.getByRole('button', { name: 'Check all', exact: true }).click();
   await expect(frame.getByRole('button', { name: 'Check all', exact: true })).toBeEnabled({ timeout: 30000 });
   page.off('response', responseListener);
-  expect(responses).toHaveLength(4);
+  expect(responses).toHaveLength(targets.length);
   for (const response of responses) {
     expect(response.status(), await response.text()).toBe(200);
     const value = await response.json();
@@ -69,7 +69,7 @@ try {
   await writeFile(resolve(out, 'observations.json'), JSON.stringify(reports, null, 2));
   await page.screenshot({ path: resolve(out, 'catalog-light.png') });
   await frame.getByRole('button', { name: 'Grid', exact: true }).click();
-  await expect(frame.locator('.env-tile')).toHaveCount(4);
+  await expect(frame.locator('.env-tile')).toHaveCount(targets.length);
   await frame.getByRole('button', { name: 'PC-Gym', exact: true }).click();
   await expect(frame.getByRole('table', { name: 'Software', exact: true })).toBeVisible();
   await expect(frame.getByText('Python', { exact: true })).toBeVisible();
@@ -86,7 +86,7 @@ try {
   await expect.poll(async () => {
     try { return JSON.parse(await readFile(exportPath, 'utf8')); } catch { return null; }
   }, { timeout: 15000 }).toEqual(reports['paper-agent.pcgym']);
-  checks.push('all four configured-interpreter probes, table/grid, requirements, observation JSON and actual file export');
+  checks.push('all configured-interpreter probes, table/grid, requirements, observation JSON and actual file export');
   expect((await post(frame, { target: targets[0], name: 'paper-agent' })).status).toBe(400);
   expect((await post(frame, { target: 'arbitrary' })).status).toBeGreaterThanOrEqual(400);
   checks.push('transport rejects caller injection and unknown methods');

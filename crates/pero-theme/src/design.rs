@@ -35,6 +35,11 @@ impl<'a> Chrome<'a> {
         }
     }
 
+    /// Quiet persistent navigation selection, distinct from hover and focus.
+    pub fn navigation_selected(self) -> Hsla {
+        self.palette.text.opacity(crate::NAVIGATION_SELECTED_OPACITY)
+    }
+
     /// Contract geometry stays at the spec pixel. Type scales with the UI size.
     pub fn geo(self, base: f32) -> Pixels {
         px(base)
@@ -130,13 +135,12 @@ pub fn sidebar_row(
     let muted = chrome.palette.text_muted;
     let label = label.into();
     Button::new(id)
-    .custom(ghost_colors(chrome, cx, chrome.palette.accent_soft))
+    .custom(ghost_colors(chrome, cx, chrome.navigation_selected()))
     .selected(active)
     .accessibility_label(label.clone())
     .small().w_full().h(chrome.control(if sub { ROW_SUB } else { ROW_NAV }))
     .rounded(chrome.geo(RADIUS_SELECTION))
-    .border_1().border_color(if active { chrome.palette.action } else { clear(chrome) })
-    .when(active, |row| row.text_color(chrome.palette.accent_text))
+    .border_1().border_color(clear(chrome))
     .cursor_pointer()
     .pl(chrome.geo(if sub { SPACE_8 + SUB_INDENT } else { SPACE_8 }))
     .pr(chrome.geo(SPACE_8))

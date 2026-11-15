@@ -4,10 +4,11 @@ import { AppProvider, useAppChat, useAppContext } from '@pero/app-sdk';
 import { ConnectorsPage } from './connectors-page';
 import { Button, Feedback, LibraryHeader } from './ui';
 import './styles.css';
+import '../../skills/ui-src/styles.css';
 
 function Connectors() {
   const { locale } = useAppContext(), chat = useAppChat();
-  return <ConnectorsPage locale={locale === 'zh-CN' ? 'zh' : 'en'} onTry={async prompt => { await chat.compose(prompt); }}/>;
+  return <ConnectorsPage locale={locale === 'zh-CN' ? 'zh' : 'en'} initialSection="skills" onTry={async prompt => { await chat.compose(prompt); }}/>;
 }
 function ConnectorsLoadError({ message }: { message: string }) {
   const { locale } = useAppContext();

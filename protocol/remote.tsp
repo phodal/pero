@@ -88,7 +88,20 @@ model Task {
   updated_at?: string;
   ...Closed;
 }
+model WorkerPresence {
+  state: "unknown" | "online" | "offline";
+  last_seen_at: string | null;
+  observed_at: string;
+  ...Closed;
+}
 model Worker {
+  presence?: WorkerPresence;
+  enabled?: boolean;
+  occupied?: boolean;
+  capabilities?: WorkerCapability[];
+  current_run_id?: string;
+  current_task_id?: string;
+  current_run_status?: RunStatus;
   id: Id;
   name: string;
   projects: string[];

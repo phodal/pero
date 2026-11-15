@@ -5,7 +5,7 @@ import { parseNotebookLink } from '@pero/notebook/workspace';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppApiError, AppProvider, downloadFile, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject } from '@pero/app-sdk';
-import { AppFrame, Button, ContentPane, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
+import { AppFrame, Button, ContentPane, Dialog, Disclosure, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, EmptyState, Feedback, FilePicker, Icon, IconButton, ListRow, LoadingSkeleton, SearchField, SkeletonBlock, SkeletonText, Split, SplitPane } from '@pero/app-sdk/ui';
 import { scientificReferenceState, type ScientificReference, type NotebookDocument, type NotebookEntry, type NotebookEntrySummary, type NotebookNode } from '@pero/notebook';
 import { entryIdentity } from '@pero/notebook/entry-record';
 import { documentHistory, transitionDocument, type DocumentHistory } from '@pero/notebook/document-history';
@@ -415,7 +415,7 @@ function Notebook() {
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
           <ContentPane id="notebook-catalog" label={t('notebooks')} as="div" surface="list" inset="none" scroll="pane"
-            header={<LibraryHeader density="compact" title={t('notebooks')} subtitle={String(entries.length)} actions={<>
+            header={<div className="notebook-nav-tools">
             <IconButton label={t('searchNotebooks')} aria-expanded={librarySearchVisible} aria-controls="notebook-library-search"
               aria-pressed={librarySearchVisible} onClick={() => {
                 if (librarySearchVisible && !entryQuery.trim()) setLibrarySearchOpen(false);
@@ -431,7 +431,7 @@ function Notebook() {
             </DropdownMenu></div>
             <IconButton label={t('notebooks')} aria-expanded={navigationOpen} aria-controls="notebook-list"
               title={t('collapseNotebooks')} onClick={() => setNavigationOpen(false)}><Icon name="panel-left-close" /></IconButton>
-          </>} />}
+          </div>}
             toolbar={librarySearchVisible && <div className="notebook-library-tools" id="notebook-library-search">
             <SearchField ref={librarySearch} aria-label={t('searchNotebooks')} placeholder={t('searchNotebooks')} value={entryQuery}
               onChange={event => setEntryQuery(event.target.value)}

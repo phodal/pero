@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "c1bea070 MCP Apps conversation result capture; exact per-file hashes below",
+  "right_ref": "06c89aa64 PR #225 shared computational sessions and scientific Reviewer; exact per-file hashes below",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -239,9 +239,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "b0327a9a7094ddd644087d76eaceda922d3cfbbe240067d316db2070d2d3d27b"
+        "sha256": "86b21ad55ad25a25a790cb03a62a61d0c01230b59df8c592b855f16e7076abd1"
       },
-      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests.",
+      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence.",
       "landmarks": [
         {
           "id": "admission-context",
@@ -278,9 +278,9 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "a5580d0495c2ed52c34661d6686d1e18b0756b1536c14bd694c453151aa53aa4"
+        "sha256": "cd890fe6dc35d21f23da60a4baf9680bc6764bfb838dfea5ba889831a32e3fdd"
       },
-      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact.",
+      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity.",
       "landmarks": [
         {
           "id": "cancel-admission",
@@ -307,9 +307,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "b0327a9a7094ddd644087d76eaceda922d3cfbbe240067d316db2070d2d3d27b"
+        "sha256": "86b21ad55ad25a25a790cb03a62a61d0c01230b59df8c592b855f16e7076abd1"
       },
-      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates.",
+      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence.",
       "landmarks": [
         {
           "id": "settlement",

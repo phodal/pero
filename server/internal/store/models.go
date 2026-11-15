@@ -99,10 +99,17 @@ type Run struct {
 }
 
 type Worker struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Projects []string `json:"projects"`
-	Labels   []string `json:"labels"`
+	Occupied         bool               `json:"occupied"`
+	Presence         *WorkerPresence    `json:"presence,omitempty"`
+	Enabled          *bool              `json:"enabled,omitempty"`
+	Capabilities     []WorkerCapability `json:"capabilities,omitempty"`
+	CurrentRunID     string             `json:"current_run_id,omitempty"`
+	CurrentTaskID    string             `json:"current_task_id,omitempty"`
+	CurrentRunStatus string             `json:"current_run_status,omitempty"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Projects         []string           `json:"projects"`
+	Labels           []string           `json:"labels"`
 }
 
 type Event struct {

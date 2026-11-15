@@ -46,6 +46,9 @@ impl CapturedFile {
         if manifest.output_sha256 != self.digest {
             return Err(ArtifactStoreError::Integrity);
         }
+        if manifest.output_path.as_ref().is_some_and(|output| workspace.join(output) != Path::new(path)) {
+            return Err(ArtifactStoreError::Integrity);
+        }
         let mut total = receipt.bytes.len() as u64;
         let mut files = vec![(ArtifactRelationRole::RunRecord, receipt)];
         for evidence in manifest.evidence {
