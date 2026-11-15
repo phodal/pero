@@ -13,6 +13,7 @@ test('CI selects affected expensive consumers on PR and push while full and unkn
       [['docs/issues/incident.md'], []],
       [['crates/pero-worker/src/journal.rs'], []],
       [['apps/notebook/ui-src/frame.tsx'], ['notebook', 'notebook-canvas', 'mcp-browser', 'notebook-python']],
+      [['packages/source-extraction/python/pero_source_tools.py'], ['notebook', 'notebook-canvas', 'mcp-browser', 'notebook-python']],
       [['apps/data/backend/inspection.py'], ['data', 'notebook-canvas', 'notebook-python']],
       [['crates/pero-ui/src/apps.rs'], ['native-ui']],
       [['apps/lcms2yield/ui-src/index.tsx'], ['lcms2yield']],

@@ -32,9 +32,9 @@ const sharedAppInputs = [
   'package.json', 'package-lock.json', 'packages/app-sdk/**', 'packages/pero-design/**',
   'spec/pero-design/**', 'DESIGN.md', 'locales/**', 'scripts/build/**',
 ];
-const notebookInputs = ['apps/notebook/**', 'packages/notebook/**', 'packages/mcp-apps/**', 'tests/**/notebook*'];
+const notebookInputs = ['apps/notebook/**', 'packages/notebook/**', 'packages/mcp-apps/**', 'packages/source-extraction/**', 'tests/**/notebook*'];
 const hostInputs = ['crates/pero-host/**', 'crates/pero-runtime/**', 'crates/pero-contracts/**', 'protocol/**', 'Cargo.toml', 'Cargo.lock'];
-const scienceInputs = ['packages/scientific-runtime/**', 'packages/source-parsers/**'];
+const scienceInputs = ['packages/scientific-runtime/**'];
 
 // CI scope owns which expensive consumers a source change can affect. Ordinary
 // contracts remain independent; these flags route browser/engine/Native checks.
