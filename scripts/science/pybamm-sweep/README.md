@@ -266,6 +266,12 @@ must return the original identities. Cancellation/failure cases observe a durabl
 child-start event and SIGSTOP that actual child, as in the existing VM acceptance;
 they do not measure solver-timestep cancellation.
 
+Recovery requires a local receipt when the disconnected journal has unacknowledged
+events. If every event was uploaded before disconnection, it instead requires the
+original start in Cloud history. Both paths retain the one-attempt checks, and
+`recovery_evidence` records which evidence was observed; no scheduling pause is
+used to force one upload order.
+
 Only the connection-loss case uses a loopback CONNECT proxy. TLS remains directly
 between the Worker and the deployed HTTPS endpoint; closing this test's tunnels
 does not change firewall, system proxy or other applications. The normal and

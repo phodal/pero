@@ -54,3 +54,20 @@ Method SHA-256: `52953a5a8bdd44f39ff29c3a721998d2a4cccebfcbe550c8115cea86155e64a
 The first and final attempts retain dedicated Workers with unresolved Runs: `worker_c220c68f52e9d8667f08aaa2c6498891` and `worker_8cbc5df7fedcb2ab3f963c907d2a3d3d`. Do not create replacement workers to bypass those fences; each invocation uses its own project and original identities.
 
 `node scripts/cargo.mjs test -p pero-worker`: 18 unit and 17 process/protocol tests passed. Five frozen-method Python tests passed; new command compiled and its deployed integration passed. This is numerical/transport acceptance, not general writable Agent, GUI, signed-package, multi-machine or scientific acceptance. GitHub #220 remains open pending integration.
+
+## Integration review — 2026-11-15
+
+Merged current `master` `11b2d60d8` into PR #222 without conflicts. On that
+integration, all 18 Worker unit tests, 17 process/protocol tests and five Python
+tests passed. Fast CI contracts passed 147 cases with five existing platform/VM
+skips locally. The prior `undefined.props` CI failures no longer reproduce.
+
+Review identified a scheduling-dependent acceptance assertion: the final flush
+can acknowledge every event before the proxy disconnects. Recovery now requires
+local retention only for unacknowledged events in the disconnected journal;
+otherwise it requires the original uploaded start event. Both paths still check
+the original Run and one calculation attempt. The receipt records the observed
+evidence location. No Worker recovery policy or lease boundary changed.
+
+The 2026-11-13 production receipts above are historical evidence. This integration
+review did not rerun live provisioning or production fault injection.

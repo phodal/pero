@@ -207,7 +207,8 @@ def main(args):
             wait_for(lambda: process.poll() is not None, 'Worker exit', timeout=180)
             row['worker_exit'] = process.returncode
             if case == 'connection-loss':
-                save(output / 'disconnected-journal.json', json.loads(journal.read_text()))
+                disconnected = json.loads(journal.read_text())
+                save(output / 'disconnected-journal.json', disconnected)
                 egress.connected.set()
                 recovered = launch('recovered', proxy=True)
                 wait_for(lambda: recovered.poll() is not None, 'Original-journal recovery')
@@ -223,13 +224,26 @@ def main(args):
                 'PERO_PYBAMM_START ') for event in detail['events'])
             if case == 'connection-loss':
                 retained = list(journal.with_suffix('.retained').glob('*.json'))
-                assert len(retained) == 1, 'Unuploaded execution evidence must survive recovery'
-                local = json.loads(retained[0].read_text())
-                assert local['run']['id'] == binding.run
-                local_starts = sum((event.get('data') or {}).get('content', {}).get('text', '').startswith(
-                    'PERO_PYBAMM_START ') for event in local['events'])
-                assert local_starts == 1 and starts <= 1, 'Original prompt was missing or replayed'
-                row['retained_local_starts'] = local_starts
+                active = disconnected.get('active')
+                if active:
+                    assert active['run']['id'] == binding.run
+                    unuploaded = any(event['seq'] > active['acknowledged'] for event in active['events'])
+                    assert not unuploaded or retained, 'Unuploaded execution evidence must survive recovery'
+                assert len(retained) <= 1, 'Unexpected recovery receipt'
+                if retained:
+                    local = json.loads(retained[0].read_text())
+                    assert local['run']['id'] == binding.run
+                    local_starts = sum((event.get('data') or {}).get('content', {}).get('text', '').startswith(
+                        'PERO_PYBAMM_START ') for event in local['events'])
+                    assert local_starts == 1 and starts <= 1, 'Original prompt was missing or replayed'
+                    row['retained_local_starts'] = local_starts
+                    row['recovery_evidence'] = 'retained_local_receipt'
+                else:
+                    # The last flush may have acknowledged every event before the
+                    # tunnel closes. Correct recovery then needs no local receipt.
+                    assert starts == 1, 'Uploaded execution evidence must survive recovery'
+                    row['retained_local_starts'] = 0
+                    row['recovery_evidence'] = 'uploaded_server_events'
             else:
                 assert starts == 1, 'Original prompt was missing or replayed'
             if case == 'calculation':
