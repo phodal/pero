@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn skills_fold_into_customize_when_connectors_are_enabled() {
-        let app = |name, enabled| InstalledApp {
+        let app = |name: &str, enabled| InstalledApp {
             name: name.into(), version: "1".into(), display_name: name.into(),
             description: String::new(), tenure: String::new(), enabled,
             panels: vec![AppPanel { id: "main".into(), title: name.into(), entry: "dist/index.html".into() }],
