@@ -4,11 +4,11 @@ There are five runnable entry points and one shared implementation file:
 
 | File | Purpose |
 | --- | --- |
-| `ci.yml` | PR/master contracts, daily/manual full-platform coverage, and the existing Linux/full-platform gates |
+| `ci.yml` | PR/master core contracts, path-selected App acceptance, and daily/manual full-platform coverage |
 | `ci-jobs.yml` | Reusable CI job families only; no automatic or manual trigger |
 | `acceptance.yml` | Path-scoped Paper checks, labeled sandbox acceptance, and explicitly selected manual diagnostics |
-| `computer-use.yml` | Scoped native platform checks and their existing daily/manual diagnostics |
-| `release.yml` | Existing tag publication and package validation, with its trust/CI gates unchanged |
+| `computer-use.yml` | Explicitly selected manual native platform diagnostics |
+| `release.yml` | Tag publication, daily/manual package validation, and explicitly opted-in PR packaging |
 | `pages.yml` | Existing successful-CI deployment and explicit rollback gate |
 
 Ordinary feature contracts belong in CI. Add jobs or suites to an existing
@@ -19,6 +19,23 @@ CI calls `ci-jobs.yml` with a `suite` selector for Desktop, Notebook, Notebook
 Canvas, Native shell, or an App's browser/scientific contracts (Data, Lab,
 Control Lab, Virtual Cell, Scientific Viewer and LCMS2Yield). The reusable file
 owns those implementations; `ci.yml` owns their triggers and aggregate gate.
+
+Ordinary PRs and master pushes select expensive Notebook, Notebook Canvas,
+Native, App browser/scientific, and MCP Apps browser checks from the changed
+paths. `scripts/ci/workflow-scope.mjs` owns that dependency map. Shared SDK/design
+inputs select all affected Apps. Deleted/renamed inputs remain in scope; an
+unreadable diff runs every scoped check. Core protocol, authorization, Rust/Go
+and recovery checks remain ordinary checks.
+
+Daily, manual CI and `ci:full` still run all suites. The aggregate gate accepts
+a skipped App only when a successful scope output explicitly excludes it;
+failures, cancellations and missing scope evidence remain failures.
+
+Virtual Cell PR packaging requires `ci:package` or `ci:full`, including for
+Worker/Host changes. New PR revisions cancel obsolete PR package attempts.
+Version tags, manual release, daily packaging, exact-SHA trust and publication
+gates retain their existing behavior; tagged releases are not cancelled by this
+PR-only policy.
 
 `acceptance.yml` offers these manual suites:
 

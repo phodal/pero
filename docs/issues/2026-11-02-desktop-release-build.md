@@ -6,6 +6,20 @@ date: 2026-11-02
 
 # Desktop release Reader build prerequisites
 
+## 2026-11-15 standalone preparation recurrence
+
+PR #222 optional packaging [run 43663747636](https://github.com/phodal/pero/actions/runs/43663747636),
+job `132658937533`, built the standalone Virtual Cell package but failed
+`Verify standalone App and bundled Python`. The actual accessibility tree again
+reported `Could not open app` / `Prepare the App environment before opening it`,
+and `Cells & perturbations` was absent. This matches the previously recorded
+preparation symptom; no new root cause or passing package is inferred.
+
+PR #222's core CI passed and its Worker repair merged separately. The subsequent
+user-authorized CI cleanup makes PR packaging explicitly opt-in, while retaining
+tag/manual/daily validation and publication gates. That routing change does not
+repair this release failure; this incident remains active.
+
 ## 2026-11-14 standalone preparation recurrence
 
 Virtual Cell release smoke in PR #231 run 43558147069 reached the packaged App

@@ -6,6 +6,44 @@ date: 2026-10-31
 
 # CI delays integration failures behind serial acceptance
 
+## 2026-11-15 source-scoped expensive checks
+
+Processing PR #222 repeatedly launched unrelated Notebook, Native and App
+acceptance, and a long product packaging run. Core also performed Notebook
+environment preparation and MCP Apps browser work serially for unrelated changes.
+The user explicitly requested removing unnecessary automatic work to accelerate
+ordinary Actions feedback.
+
+One CI scope now owns the source-to-consumer map. PR and master-push diffs select
+affected expensive App/Native/Notebook checks; shared inputs select their
+consumers. Deleted/renamed paths remain visible. An unreadable diff selects all
+scoped checks, and the gate allows a skip only with an explicit false scope.
+Actual failures/cancellations and absent scope evidence remain blocking.
+
+Notebook Python preparation, core Canvas and MCP Apps browser acceptance use
+the same scope. Core MCP protocol/ownership, Rust/Go, authorization and recovery
+checks remain automatic. Daily/manual/`ci:full` retains complete coverage.
+Virtual Cell PR packaging now requires `ci:package`/`ci:full`; tag/manual/daily
+packaging and publication trust gates remain. Only obsolete PR package runs
+are automatically cancelled.
+
+Local fast verification: 150 passed, five existing platform/VM skips, including
+actual Bash/Git scope routing, failure/cancellation gates, and retained reusable
+job/shell behavior. Hosted routing and cold/warm timing remain separate from
+these deterministic results. Existing GUI/release failures below are not fixed
+by selecting their acceptance explicitly.
+
+The old-policy docs-only master run `43664478717` also failed the retained core
+Rust test `apps::docling_runtime::tests::host_death_stops_installer_and_releases_its_lease`:
+the installer process was still observed running at `docling_runtime_test.rs:380`.
+That lifecycle check remains enabled and blocking; this routing change neither
+classifies the cause nor repairs or suppresses it.
+
+Hosted scope [run 43665607376](https://github.com/phodal/pero/actions/runs/43665607376)
+successfully read the real push refs and selected every scoped suite for the
+policy-source change at `a44defcd3`, as intended. A following documentation-only
+push exercises the excluded-consumer path without changing runtime sources.
+
 ## 2026-11-13 diagnostics handoff leaves File over the editor
 
 After #210 was updated onto master `29fc1570`, head `31bfa86e` failed the

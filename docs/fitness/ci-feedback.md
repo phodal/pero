@@ -1,5 +1,32 @@
 # CI feedback and complete acceptance
 
+## Current routing — 2026-11-15
+
+Ordinary PR/push core contracts remain enabled. Expensive App jobs now use one
+source dependency map: Notebook, Notebook Canvas, Native shell, Scientific
+Viewer, LCMS2Yield, Data, Lab, Control Lab and Virtual Cell run for affected
+paths, shared SDK/design inputs, or an explicit full run. The Notebook Python
+setup and core Canvas/MCP Apps browser consumers follow that same scope;
+lightweight MCP settings/ownership contracts remain in core.
+
+The scope job reads actual PR or push refs, including deleted/renamed paths.
+Unknown diffs select all scoped checks. Daily/manual/`ci:full` coverage remains
+complete. `Linux CI gate` permits only explicitly out-of-scope App skips and
+still fails for actual failures, cancellations or missing scope evidence.
+App implementations live in the existing `ci-jobs.yml`, preserving Bash
+pipefail, commands, artifacts and setup dependencies.
+
+PR product packaging is opt-in (`ci:package` or `ci:full`). Tag/manual/daily
+packaging and exact-SHA publication trust remain enabled. Superseded PR
+package attempts cancel; tagged/manual releases keep their non-cancelling policy.
+
+Local fast contracts: 150 passed, five existing platform/VM skips. Routing
+regressions execute the actual Bash scope step against disposable Git PR/push
+refs, moved-out Notebook files and failed fetches. Gate cases cover selected,
+excluded, unknown, full, failed and cancelled consumers. These verify routing
+and preserved failure semantics; exact hosted elapsed time still requires
+comparable cold/warm runs. The baseline measurements below remain historical.
+
 ## Measured baseline (2026-10-31)
 
 Run `41199679837` passed, but Linux took about 30 minutes: build 5m36s,
