@@ -320,19 +320,16 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     {loading && dialogOnly && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
-    <header className="customize-mast">
-      <SearchField ref={searchField} placeholder={copy('搜索技能、MCP…', 'Search skills, MCPs…')} value={search} onChange={e => setSearch(e.target.value)} aria-label={section === 'skills' ? copy('搜索技能', 'Search skills') : copy('搜索', 'Search')} />
-    </header>
-    <Tabs value={section} onValueChange={next => { if (next === 'skills' || next === 'mcp') setSection(next); }}>
-      <TabsList className="customize-pills" variant="navigation" aria-label={copy('自定义', 'Customize')}>
+    <AppBar scope={<Tabs value={section} onValueChange={next => { if (next === 'skills' || next === 'mcp') setSection(next); }}>
+      <TabsList variant="navigation" aria-label={copy('自定义', 'Customize')}>
         <TabsTrigger value="skills">{copy('技能', 'Skills')}</TabsTrigger>
         <TabsTrigger value="mcp">{copy('MCP', 'MCPs')}</TabsTrigger>
       </TabsList>
-    </Tabs>
-    {section === 'skills' && <SkillsMarket embedded query={search} onQueryChange={setSearch} />}
+    </Tabs>} />
+    {section === 'skills' && <SkillsMarket embedded query={search} onQueryChange={setSearch} searchRef={searchField} />}
     {section === 'mcp' && <>
 
-    <AppBar className="point-page-toolbar point-connectors-toolbar" scope={<TabsList variant="navigation" aria-label={copy('视图', 'View')}>
+    <AppBar className="point-connectors-toolbar" scope={<TabsList variant="navigation" aria-label={copy('视图', 'View')}>
         <TabsTrigger value="catalog">{copy('服务目录', 'Service catalog')}</TabsTrigger>
         <TabsTrigger value="manage">{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</TabsTrigger>
         <TabsTrigger value="custom">{copy('自定义 MCPs', 'Custom MCPs')}</TabsTrigger>
@@ -348,6 +345,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
 
     {mode === 'catalog' && <TabsContent value="catalog" className="point-connectors-catalog"><ContentPane id="connectors-catalog" label={copy('服务目录', 'Service catalog')} as="div" surface="list" inset="compact" scroll="pane"
       toolbar={<div className="point-connectors-search-tools">
+        <SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
         <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={category} aria-label={copy('服务分类', 'Service category')} onValueChange={next => { if (next) setCategory(next); }}>
           <ToggleGroupItem value="all">{copy('全部服务', 'All services')}<span className="point-connectors-filter-count">{matchesSearch.length}</span></ToggleGroupItem>
           {categoriesAvailable.filter(key => key !== 'all').map(key => <ToggleGroupItem key={key} value={key}>{categoryLabels[key] ?? key}<span className="point-connectors-filter-count">{shelfCounts[key] ?? 0}</span></ToggleGroupItem>)}
@@ -408,6 +406,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     {mode === 'manage' && <TabsContent value="manage" className="point-connectors-manage"><ContentPane id="connectors-installed" label={copy('已安装连接', 'Installed connections')} as="div" surface="list" inset="compact" scroll="pane"
       header={<LibraryHeader density="compact" title={copy('已安装连接', 'Installed connections')} subtitle={String(matchesManage.length)} />}
       toolbar={<div className="point-connectors-search-tools">
+        <SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
         <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={stateFilter} aria-label={copy('筛选', 'Filter')} onValueChange={next => { if (next === 'all' || next === 'attention' || next === 'ready' || next === 'paused') setStateFilter(next); }}>
           {([['all', copy('全部', 'All')], ['attention', copy('需处理', 'Needs attention')], ['ready', copy('正常', 'Ready')], ['paused', copy('已停用', 'Paused')]] as const).map(([key, label]) =>
             <ToggleGroupItem key={key} value={key}>{label} {key === 'all' ? connections.length : key === 'attention' ? connections.filter(c => ATTENTION.has(c.state)).length : key === 'ready' ? connections.filter(c => READY.has(c.state)).length : connections.filter(c => !c.enabled).length}</ToggleGroupItem>)}
@@ -434,7 +433,8 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     </ContentPane></TabsContent>}
 
     {mode === 'custom' && <TabsContent value="custom" className="point-connectors-manage"><ContentPane id="connectors-custom" label={copy('自定义 MCPs', 'Custom MCPs')} as="div" surface="list" inset="compact" scroll="pane"
-      header={<LibraryHeader density="compact" title={copy('自定义 MCPs', 'Custom MCPs')} />}>
+      header={<LibraryHeader density="compact" title={copy('自定义 MCPs', 'Custom MCPs')} />}
+      toolbar={<div className="point-connectors-search-tools"><SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} /></div>}>
       <CustomMcps locale={locale} query={search} onBar={onCustomBar} />
     </ContentPane></TabsContent>}
     </>}

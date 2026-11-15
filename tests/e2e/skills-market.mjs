@@ -40,7 +40,7 @@ async function open() {
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'connectors'), {timeout:30000}).toBe(true);
   await clickAppShortcut(page,'connectors');
   frame = page.frameLocator('iframe[title="connectors"]');
-  await expect(frame.getByRole('heading',{name:'Skills',exact:true})).toBeVisible({timeout:30000});
+  await expect(frame.getByRole('heading',{name:'Discover',exact:true})).toBeVisible({timeout:30000});
   await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
 }
