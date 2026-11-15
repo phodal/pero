@@ -684,6 +684,7 @@ impl Workbench {
             .min_h_0()
             .flex_shrink_0()
             .relative()
+            .bg(p.surface)
             .border_l_1()
             .border_color(p.border)
             .child(self.chat.clone())

@@ -760,7 +760,9 @@ impl Render for Workbench {
                                                             .flex()
                                                             .flex_col()
                                                             .rounded_tl(px(pero_theme::RADIUS_PANEL))
-                                                            .bg(p.bg)
+                                                            // Reading surface owns the cutout. Opaque children
+                                                            // must not repaint a square fill over this corner.
+                                                            .bg(p.surface)
                                                             .child(
                                                                 canvas(
                                                                     |bounds, _, _| note_content_corner(bounds.origin),

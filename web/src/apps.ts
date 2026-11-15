@@ -14,7 +14,7 @@ import type { DocumentHeader } from '../../protocol/generated/host';
 
 declare global { interface Window { peroColumnHeader?(json: string): void } }
 
-export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
+export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; roundTopLeft?: boolean; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
 type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;embedded?:boolean;presenceExpiry?:ReturnType<typeof setTimeout>};
@@ -236,7 +236,8 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
         paintedPanels.add(key(value.app,value.panel));
         target.embedded = true;
         target.surface = { ...parent!.surface, name: value.app, panel: value.panel,
-          left: (parent!.surface.left || 0) + rect!.x, top: (parent!.surface.top || 0) + rect!.y, width: rect!.width, height: rect!.height };
+          left: (parent!.surface.left || 0) + rect!.x, top: (parent!.surface.top || 0) + rect!.y, width: rect!.width, height: rect!.height,
+          roundTopLeft: !!parent!.surface.roundTopLeft && rect!.x <= 0 && rect!.y <= 0 };
       }
       panelReply(owner, id, valid && !!active(target)?.ready, request.error);
     }
@@ -251,7 +252,9 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       const value=slot.surface;slot.region.hidden=!value.visible;
       // Page chrome, not reading surface: short App documents must not flash a
       // white slab through the iframe when their height chain is incomplete.
-      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-material-chrome)`;
+      // Match the workbench content cutout when this panel sits at that corner.
+      const corner = value.roundTopLeft ? 'var(--pero-radius-panel)' : '0';
+      slot.region.style.cssText=`position:absolute;left:${(value.left||0)-left}px;top:${(value.top||0)-top}px;width:${value.width||0}px;height:${value.height||0}px;overflow:hidden;border-top-left-radius:${corner};pointer-events:auto;color-scheme:${value.dark?'dark':'light'};background:var(--pero-material-chrome)`;
       const frame = active(slot);
       const x = value.left || 0, y = value.top || 0, w = value.width || 0, h = value.height || 0;
       const overlay = chatOverlaySuspended ? null : chatOverlay;

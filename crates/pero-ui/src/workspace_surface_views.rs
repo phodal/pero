@@ -473,7 +473,7 @@ impl Workbench {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let apps=surfaces.iter().filter_map(|surface|match &surface.route {WorkspaceRoute::Content(WorkspaceItem::App{name,panel})=>Some(json!({"visible":true,"pane":surface.id,"name":name,"panel":panel,"left":surface.bounds.x,"top":surface.bounds.y,"width":surface.bounds.width,"height":surface.bounds.height,"focused":self.navigation.pane_layout().and_then(|layout|layout.focused)==Some(surface.id)})),_=>None}).collect::<Vec<_>>();
+            let apps=surfaces.iter().filter_map(|surface|match &surface.route {WorkspaceRoute::Content(WorkspaceItem::App{name,panel})=>Some(json!({"visible":true,"pane":surface.id,"name":name,"panel":panel,"left":surface.bounds.x,"top":surface.bounds.y,"width":surface.bounds.width,"height":surface.bounds.height,"roundTopLeft":crate::view::at_content_corner(point(px(surface.bounds.x), px(surface.bounds.y))),"focused":self.navigation.pane_layout().and_then(|layout|layout.focused)==Some(surface.id)})),_=>None}).collect::<Vec<_>>();
             let open = self
                 .navigation
                 .items()

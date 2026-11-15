@@ -828,7 +828,9 @@ impl ChatPanel {
             .and_then(|c| c.mcp.as_ref()).map(|mcp| mcp.failed_servers())
             .filter(|servers| !servers.is_empty())
             .map(|servers| self.t("chat.tools_unavailable").replace("{servers}", &servers.join(", ")));
-        div().flex_1().min_h_0().min_w_0().flex().flex_col().bg(p.surface)
+        // Fill comes from the workbench content surface, dock, or float wrapper so
+        // those owners can keep the leading content corner rounded.
+        div().flex_1().min_h_0().min_w_0().flex().flex_col()
             .when(self.show_return_to_review,|el|el.child(
                 div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).child(
                     Button::new("contribution-return").outline().small().label(self.t("contribution.return_review")).on_click(cx.listener(|_,_,_,cx|{
