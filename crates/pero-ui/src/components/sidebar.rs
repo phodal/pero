@@ -46,7 +46,18 @@ pub(crate) struct SidebarProps<'a> {
     pub local_connected: bool,
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
+    pub environment: Option<EnvironmentStatus>,
     pub context_navigation: Option<AnyElement>,
+}
+/// Global environment activity. Progress is a status; a missing or failed
+/// environment is the prepare or retry action.
+#[derive(Clone)]
+pub(crate) struct EnvironmentStatus {
+    pub name: String,
+    pub panel: String,
+    pub title: String,
+    pub label_key: &'static str,
+    pub needs_action: bool,
 }
 pub(crate) struct SessionsProps {
     pub empty_text: &'static str,
@@ -63,6 +74,8 @@ pub(crate) enum SidebarAction {
     SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
     OpenApp { name: String, panel: String },
+    OpenEnvironment { name: String, panel: String },
+    PrepareEnvironment { name: String },
     ToggleProject(String),
     RevealSessions(String),
     SelectSession(usize),
@@ -240,6 +253,8 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
     let p = ui.palette; let chrome = ui.chrome(); let mut index = 0;
     let empty = props.groups.is_empty() && props.ungrouped.is_empty();
     div().id("sessions-list").w(px(width)).flex_shrink_0().h_full().flex().flex_col()
+        .overflow_hidden()
+        .rounded_tl(px(pero_theme::RADIUS_PANEL))
         .bg(p.surface).border_r(px(1.)).border_color(p.border).p(px(8.))
         .child(div().flex().items_center().justify_between().gap(chrome.geo(pero_theme::SPACE_8))
             .child(div().pl(chrome.geo(pero_theme::SPACE_8)).text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(p.text_muted).child(ui.t("nav.sessions")))
@@ -422,5 +437,43 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .when(!props.local_connected && !collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).text_color(p.warning).text_size(px(12.)).child(ui.t("status.disconnected"))))
         .children(app_rows(customize))
         .children(app_rows(automation))
+        .when_some(props.environment.clone(), |el, status| el.child(environment_row(ui, &status, collapsed, &on_action, cx)))
         .child(settings)
+}
+
+fn environment_row(ui: Ui<'_>, status: &EnvironmentStatus, collapsed: bool, on_action: &ActionHandler<SidebarAction>, cx: &App) -> AnyElement {
+    let chrome = ui.chrome();
+    let label = format!("{} · {}", ui.t(status.label_key), status.title);
+    let icon = if status.needs_action { "icons/alert-circle.svg" } else { "icons/clock.svg" };
+    if status.needs_action {
+        let action = SidebarAction::PrepareEnvironment { name: status.name.clone() };
+        let button = if collapsed {
+            pero_theme::ghost_icon_button("sidebar-environment", chrome, cx)
+                .icon(Icon::default().path(icon))
+                .tooltip(label.clone())
+                .accessibility_label(label)
+                .on_click(click(on_action, action))
+                .into_any_element()
+        } else {
+            pero_theme::sidebar_row(
+                "sidebar-environment", label, None, None, false, pero_theme::RowLevel::Nav,
+                Some(Icon::default().path(icon).into_any_element()), chrome, cx, click(on_action, action),
+            ).into_any_element()
+        };
+        return div().w_full().flex().justify_center().text_color(ui.palette.warning).child(button).into_any_element();
+    }
+    if collapsed {
+        return div().w_full().flex().justify_center().child(
+            pero_theme::ghost_icon_button("sidebar-environment", chrome, cx)
+                .icon(Icon::default().path(icon))
+                .tooltip(label.clone())
+                .accessibility_label(label)
+                .on_click(click(on_action, SidebarAction::OpenEnvironment { name: status.name.clone(), panel: status.panel.clone() })),
+        ).into_any_element();
+    }
+    div().id("sidebar-environment").w_full().px(px(8.)).py(px(6.)).flex().items_center().gap(px(8.))
+        .text_color(ui.palette.text_muted).text_size(px(12.))
+        .child(Icon::default().path(icon).size(px(14.)))
+        .child(div().min_w_0().flex_1().text_ellipsis().child(label))
+        .into_any_element()
 }

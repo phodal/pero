@@ -1,4 +1,7 @@
 //! Stdio adapter. App rules, installed state and backend lifetime belong to the runtime.
+/// The App store lock is busy. This is transient contention, not proof that a
+/// Python environment is installing. Shells treat it as waiting. The visible
+/// environment phase is the `apps_preparation` event.
 pub(crate) const APP_PREPARING: &str = "An App environment is being prepared; retry when installation finishes";
 use pero_contracts::HostEvent;
 use pero_runtime::apps::agent::AgentRequest;

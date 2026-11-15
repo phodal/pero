@@ -75,12 +75,40 @@ impl Workbench {
             })
         }).collect();
         let context_navigation = self.project_agent_navigation(cx);
+        let environment = self.sidebar_environment(current_app.as_deref());
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             new_chat_bounds: &self.view_bounds.new_chat,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps, context_navigation,
+            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps, environment, context_navigation,
         }, settings, actions, cx)
+    }
+
+    /// Environment activity stays in the sidebar unless this page already shows it.
+    /// The web shell has its own preparation overlay, so this row is native only.
+    fn sidebar_environment(&self, current_app: Option<&str>) -> Option<sidebar::EnvironmentStatus> {
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = current_app;
+            return None;
+        }
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let preparation = self.apps.preparation.as_ref()?;
+            let catalog_open = self.navigation.current().is_none();
+            let surface_shows = catalog_open || current_app == Some(preparation.name.as_str());
+            let value = crate::apps::sidebar_environment(Some(preparation), surface_shows)?;
+            let entry = self.apps.entries.iter().find(|app| app.name == value.name);
+            let display = entry.map(|app| app.display_name.as_str()).unwrap_or(value.name.as_str());
+            let panel = entry.and_then(|app| app.panels.first()).map(|panel| panel.id.clone()).unwrap_or_default();
+            Some(sidebar::EnvironmentStatus {
+                name: value.name.clone(),
+                panel,
+                title: self.installed_app_title(&value.name, display),
+                label_key: value.sidebar_label_key(),
+                needs_action: value.activity() == Some(crate::apps::EnvironmentActivity::NeedsAction),
+            })
+        }
     }
 
     pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {

@@ -130,6 +130,45 @@ pub(crate) struct AppPreparationView {
     pub details_open: bool,
 }
 
+/// What the latest environment preparation asks the global status to do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EnvironmentActivity {
+    /// Checking, creating, or installing. The phase is the status.
+    Progress,
+    /// Missing or failed. The status is the prepare or retry action.
+    NeedsAction,
+}
+
+impl AppPreparationView {
+    pub(crate) fn activity(&self) -> Option<EnvironmentActivity> {
+        match self.phase.as_str() {
+            "checking" | "creating" | "installing" => Some(EnvironmentActivity::Progress),
+            "required" | "failed" => Some(EnvironmentActivity::NeedsAction),
+            _ => None,
+        }
+    }
+
+    /// Sidebar copy. An action phase names the button, not the failure.
+    pub(crate) fn sidebar_label_key(&self) -> &'static str {
+        match self.phase.as_str() {
+            "creating" => "apps.env_creating",
+            "installing" => "apps.env_installing",
+            "required" => "apps.env_prepare",
+            "failed" => "apps.env_retry",
+            _ => "apps.env_checking",
+        }
+    }
+}
+
+/// The sidebar shows the current environment only when this surface does not
+/// already render the preparation panel for it.
+pub(crate) fn sidebar_environment<'a>(
+    preparation: Option<&'a AppPreparationView>,
+    surface_shows_preparation: bool,
+) -> Option<&'a AppPreparationView> {
+    preparation.filter(|value| value.activity().is_some() && !surface_shows_preparation)
+}
+
 #[derive(Default)]
 pub(crate) struct AppCatalog {
     pub entries: Vec<InstalledApp>,
@@ -415,6 +454,7 @@ mod surface {
                         json!({"visible":true,"name":name,"panel":panel,
                         "left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),
                         "width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),
+                        "roundTopLeft":crate::view::at_content_corner(bounds.origin),
                         "dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale})
                     }
                     _ => json!({"visible":false,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),
@@ -470,7 +510,7 @@ mod surface {
             let card_width = (grid_width - (columns - 1.) * card_gap) / columns;
             let card_hover = p.surface_hover;
             let card_edge = p.input_border;
-            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().bg(p.bg).p(px(24.))
+            div().id("apps-library").flex_1().min_w_0().h_full().overflow_y_scroll().p(px(24.))
                 .child(div().id("apps-library-header").flex().flex_shrink_0().items_center()
                     .child(div().flex_1().font_weight(FontWeight::SEMIBOLD).text_size(px(22.)).child(self.t("apps.manage")))
                     .gap(px(pero_theme::ICON_GAP)).mb(px(12.))
@@ -706,6 +746,35 @@ mod tests {
         ] {
             assert_eq!(catalog.panel_open_error(app, panel, retained), expected);
         }
+    }
+
+    #[test]
+    fn sidebar_environment_follows_the_phase_and_yields_when_the_surface_shows_it() {
+        let preparation = |phase: &str| AppPreparationView {
+            name: "paper-agent".into(),
+            phase: phase.into(),
+            message: String::new(),
+            log: Vec::new(),
+            details_open: false,
+        };
+        for (phase, activity, label) in [
+            ("checking", Some(EnvironmentActivity::Progress), "apps.env_checking"),
+            ("creating", Some(EnvironmentActivity::Progress), "apps.env_creating"),
+            ("installing", Some(EnvironmentActivity::Progress), "apps.env_installing"),
+            ("required", Some(EnvironmentActivity::NeedsAction), "apps.env_prepare"),
+            ("failed", Some(EnvironmentActivity::NeedsAction), "apps.env_retry"),
+            ("ready", None, "apps.env_checking"),
+        ] {
+            let value = preparation(phase);
+            assert_eq!(value.activity(), activity, "{phase}");
+            assert_eq!(value.sidebar_label_key(), label, "{phase}");
+            assert_eq!(
+                sidebar_environment(Some(&value), false).map(|item| item.phase.as_str()),
+                activity.map(|_| phase),
+            );
+            assert!(sidebar_environment(Some(&value), true).is_none(), "{phase}");
+        }
+        assert!(sidebar_environment(None, false).is_none());
     }
 }
 

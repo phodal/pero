@@ -4,7 +4,7 @@ use crate::{
         ActionHandler,
         sidebar::{self, DeleteAffordance, SidebarAction},
     },
-    workspace::{ConversationTab, WorkbenchPage},
+    workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
     AnyElement, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, Role, Window,
@@ -87,6 +87,21 @@ impl Workbench {
                         this.new_chat(cx);
                         let composer = this.chat.read(cx).composer.clone();
                         composer.update(cx, |input, cx| input.focus(window, cx));
+                    }
+                    SidebarAction::OpenEnvironment { name, panel } => {
+                        if panel.is_empty() {
+                            this.navigate(WorkbenchPage::Apps, cx);
+                        } else {
+                            this.open_app(name.clone(), panel.clone(), cx);
+                        }
+                    }
+                    SidebarAction::PrepareEnvironment { name } => {
+                        if let Some(WorkspaceItem::App { name: active, panel }) = this.navigation.current() {
+                            if active == name {
+                                this.pending_app = Some((active.clone(), panel.clone()));
+                            }
+                        }
+                        this.command(serde_json::json!({"action":"apps_prepare","name":name}), cx);
                     }
                     SidebarAction::OpenApp { name, panel } => {
                         this.chat
