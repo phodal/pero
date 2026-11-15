@@ -21,3 +21,6 @@ Validation uses the CI's pinned nightly and command:
 All 82 Native library cases passed locally after preparing the generated fonts
 with the existing `scripts/build/fonts.mjs` step, matching the CI prerequisite.
 The remote CI rerun remains required before merging #222.
+
+Final result: [core CI 43663747647](https://github.com/phodal/pero/actions/runs/43663747647)
+passed on `28460e50d`, including the Native job. PR #222 merged as `79c66be0a`.

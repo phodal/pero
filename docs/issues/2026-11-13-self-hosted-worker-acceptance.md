@@ -1,9 +1,9 @@
 ---
 kind: issue
-status: in_review
+status: resolved
 date: 2026-11-13
 github_issue: 220
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/220
 related: https://github.com/phodal/pero/issues/219
 ---
@@ -89,3 +89,12 @@ successes and three cleanup aborts. It uses explicit HTTP/process/proxy/signal
 ports, not a live service or numerical execution. Ordinary core CI now runs this
 stdlib suite. Worker tests after directory-sync repair: 18 unit + 17 process/
 protocol cases passed. The latest remote CI remains a separate merge gate.
+
+## Integrated — 2026-11-15
+
+PR #222 merged as `79c66be0ada9da0df249e341dc96efef394d1aee` after
+[core CI 43663747647](https://github.com/phodal/pero/actions/runs/43663747647)
+passed on exact head `28460e50d` and all review threads were resolved. GitHub #220
+is closed. The new offline acceptance suite also passed in that CI. Production
+fault injection was not repeated, and standalone Virtual Cell packaging was
+still running at merge; neither is promoted to a new release/scientific claim.
