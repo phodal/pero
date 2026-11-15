@@ -43,6 +43,7 @@ fn terminal(status: &str) -> bool {
 }
 
 fn clear(journal: &mut Journal) -> Result<(), String> {
+    journal.retain_unuploaded()?;
     journal.state.active = None;
     journal.state.pending_claim = None;
     journal.save()

@@ -45,6 +45,10 @@ Unicode prompts and acceptance criteria.
 A restart reconciles interrupted execution without replaying its prompt, then
 stops so the operator can review effects. The journal has an exclusive process
 lock, and the selected checkout has an exclusive `.pero-worker.lock` write lock.
+If a terminal Run prevents upload of remaining events, clearing intake state first
+retains the original Run and events in `<journal-stem>.retained/<run-digest>.json`.
+These private local receipts support review; they are not replay instructions or
+automatic cloud uploads. Keep them with the original workspace until reviewed.
 
 Renewals continue even while the Agent produces no output. An independent
 monotonic watchdog stops execution when its lease expires. The Worker first
