@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -64,7 +64,7 @@ jobs:
         run: gh workflow run release.yml --ref "$RELEASE_BRANCH" --field "tag=$RELEASE_TAG" --field "sha=$SHA"
 
   scope:
-    name: Decide Virtual Cell packaging scope
+    name: Decide optional Virtual Cell packaging
     if: github.event_name == 'pull_request' || github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -76,25 +76,12 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
       - id: decide
-        name: Run for relevant changes, the daily canary, or ci:full
+        name: Run for explicit PR opt-in or the daily canary
         env:
           SCOPE_KIND: release-package
           SCOPE_EVENT: ${{ github.event_name }}
           SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
-          SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          SCOPE_PR: ${{ github.event.pull_request.number }}
-        run: |
-          files=""
-          if [[ "$SCOPE_EVENT" == "pull_request" ]]; then
-            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "refs/pull/${SCOPE_PR}/head:refs/remotes/origin/pr-head"; then
-              files=$(git diff --name-only refs/remotes/origin/pr-base refs/remotes/origin/pr-head)
-            else
-              echo "Cannot read the pull request diff; running the check." >&2
-              echo "run=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-          printf '%s\n' "$files" | node scripts/ci/workflow-scope.mjs
+        run: node scripts/ci/workflow-scope.mjs < /dev/null
 
   resolve:
     name: Pin the requested tag

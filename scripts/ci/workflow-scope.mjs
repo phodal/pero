@@ -25,29 +25,6 @@ export const computerUseGlobs = Object.freeze([
   '.github/workflows/computer-use.yml',
 ]);
 
-// Virtual Cell packaging builds the Host, the reader, and the product shell.
-// The daily schedule and workflow_dispatch remain the path-independent exits.
-export const releasePackageGlobs = Object.freeze([
-  'apps/virtual-cell/**',
-  'products/virtual-cell/**',
-  'packages/product/**',
-  'scripts/release/**',
-  'scripts/build/**',
-  'scripts/cargo.mjs',
-  'scripts/lib/**',
-  'desktop/**',
-  'crates/pero-host/**',
-  'crates/pero-worker/**',
-  'crates/pero-runtime/**',
-  'Cargo.toml',
-  'Cargo.lock',
-  'package.json',
-  'package-lock.json',
-  'scripts/ci/deployment-gate.mjs',
-  'scripts/ci/workflow-scope.mjs',
-  '.github/workflows/release.yml',
-]);
-
 const computerUseLabels = new Set(['ci:full', 'ci:paper-native-diagnostic', 'ci:paper-host-approval-native']);
 
 const sharedAppInputs = [
@@ -95,11 +72,11 @@ export function matchesPath(pattern, file) {
 }
 
 export function shouldRun(kind, { event, labels = [], files = [] }) {
-  const globs = ciScopeGlobs[kind] || (kind === 'computer-use' ? computerUseGlobs : kind === 'release-package' ? releasePackageGlobs : null);
+  const globs = ciScopeGlobs[kind] || (kind === 'computer-use' ? computerUseGlobs : kind === 'release-package' ? [] : null);
   if (!globs) throw new Error(`Unknown workflow scope: ${kind}`);
   if (event === 'schedule' || event === 'workflow_dispatch' || (event === 'push' && !ciScopeGlobs[kind])) return true;
   if (event !== 'pull_request' && event !== 'push') return false;
-  const labelsThatRun = kind === 'computer-use' ? computerUseLabels : new Set(['ci:full']);
+  const labelsThatRun = kind === 'computer-use' ? computerUseLabels : new Set(kind === 'release-package' ? ['ci:full', 'ci:package'] : ['ci:full']);
   if (labels.some(label => labelsThatRun.has(label))) return true;
   return files.some(file => globs.some(pattern => matchesPath(pattern, file)));
 }

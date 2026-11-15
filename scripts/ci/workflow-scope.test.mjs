@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
-import { ciScope, ciScopeGlobs, computerUseGlobs, matchesPath, releasePackageGlobs, shouldRun } from './workflow-scope.mjs';
+import { ciScope, ciScopeGlobs, computerUseGlobs, matchesPath, shouldRun } from './workflow-scope.mjs';
 
 test('CI selects affected expensive consumers on PR and push while full and unknown diffs retain them', () => {
   for (const event of ['pull_request', 'push']) {
@@ -87,9 +87,11 @@ test('scope keeps synchronize, manual, schedule, and explicit labels without run
     ['computer-use', { event: 'pull_request', labels: ['ci:paper-host-approval-native'], files: ['docs/fitness/computer-use.md'] }, true],
     ['computer-use', { event: 'pull_request', labels: ['documentation'], files: ['README.md'] }, false],
     ['release-package', { event: 'schedule' }, true],
+    ['release-package', { event: 'push' }, true],
+    ['release-package', { event: 'pull_request', labels: ['ci:package'], files: ['crates/pero-worker/src/main.rs'] }, true],
     ['release-package', { event: 'workflow_dispatch' }, true],
-    ['release-package', { event: 'pull_request', files: ['apps/virtual-cell/src/main.tsx'] }, true],
-    ['release-package', { event: 'pull_request', files: ['crates/pero-host/src/lib.rs'] }, true],
+    ['release-package', { event: 'pull_request', files: ['apps/virtual-cell/src/main.tsx'] }, false],
+    ['release-package', { event: 'pull_request', files: ['crates/pero-host/src/lib.rs'] }, false],
     ['release-package', { event: 'pull_request', files: ['docs/README.md'] }, false],
     ['release-package', { event: 'pull_request', labels: ['ci:full'], files: ['docs/README.md'] }, true],
     ['release-package', { event: 'pull_request', labels: ['ci:paper-host-approval-native'], files: ['docs/README.md'] }, false],
@@ -145,7 +147,7 @@ test('the actual scope step reads PR and push diffs, deleted paths, and unknown 
   }
 });
 
-test('Computer Use is manual only while Release retains its PR triggers', () => {
+test('Computer Use is manual and PR packaging is opt-in without cancelling tagged releases', () => {
   const computer = YAML.parse(readFileSync('.github/workflows/computer-use.yml', 'utf8'));
   assert.deepEqual(Object.keys(computer.on), ['workflow_dispatch']);
   assert.equal(computer.on.workflow_dispatch.inputs.paper_native_diagnostic.default, false);
@@ -158,9 +160,9 @@ test('Computer Use is manual only while Release retains its PR triggers', () => 
   assert.equal(release.on.push.branches, undefined);
   assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
   assert.equal(release.on.pull_request.paths, undefined);
-  assert.match(release.jobs.scope.steps.at(-1).run, /git diff --name-only refs\/remotes\/origin\/pr-base refs\/remotes\/origin\/pr-head/);
-  assert.doesNotMatch(release.jobs.scope.steps.at(-1).run, /FETCH_HEAD/);
-  assert.match(release.jobs.scope.steps.at(-1).run, /Cannot read the pull request diff; running the check/);
+  assert.equal(release.concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
+  assert.equal(release.jobs.scope.steps.at(-1).run, 'node scripts/ci/workflow-scope.mjs < /dev/null');
+  assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_BASE, undefined);
   assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'release-package');
   const sandbox = YAML.parse(readFileSync('.github/workflows/acceptance.yml', 'utf8'));
   const isolated = sandbox;
@@ -182,6 +184,4 @@ test('Computer Use is manual only while Release retains its PR triggers', () => 
   assert.match(release.jobs.build.if, /schedule/);
   assert.match(release.jobs.build.strategy.matrix.include, /workflow_dispatch/);
   assert.match(release.jobs.build.strategy.matrix.include, /virtual-cell/);
-  assert.ok(releasePackageGlobs.includes('apps/virtual-cell/**'));
-  assert.ok(releasePackageGlobs.includes('crates/pero-host/**'));
 });
