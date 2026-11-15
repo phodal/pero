@@ -74,7 +74,12 @@ impl Journal {
         drop(file);
         std::fs::rename(pending, path).map_err(|e| e.to_string())?;
         #[cfg(unix)]
-        File::open(directory).and_then(|file| file.sync_all()).map_err(|e| e.to_string())?;
+        {
+            File::open(&directory).and_then(|file| file.sync_all()).map_err(|e| e.to_string())?;
+            // Persist the new directory entry before clear can replace the journal.
+            let parent = directory.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+            File::open(parent).and_then(|file| file.sync_all()).map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 

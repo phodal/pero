@@ -71,3 +71,8 @@ evidence location. No Worker recovery policy or lease boundary changed.
 
 The 2026-11-13 production receipts above are historical evidence. This integration
 review did not rerun live provisioning or production fault injection.
+
+Durability review also found that syncing the retained directory's contents did
+not persist its new entry in the parent before the active journal was replaced.
+The Journal now syncs both directory levels in that order on Unix, using its
+existing file/directory sync policy. A sync failure still prevents clearing.
