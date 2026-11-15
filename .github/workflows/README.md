@@ -16,8 +16,9 @@ entry point instead of creating one workflow per feature. Separate release and
 Pages owners retain their different permissions and publication conditions.
 
 CI calls `ci-jobs.yml` with a `suite` selector for Desktop, Notebook, Notebook
-Canvas, or Native shell. Caller names, implementation job names, tests and final
-CI gate dependencies stay unchanged.
+Canvas, Native shell, or an App's browser/scientific contracts (Data, Lab,
+Control Lab, Virtual Cell, Scientific Viewer and LCMS2Yield). The reusable file
+owns those implementations; `ci.yml` owns their triggers and aggregate gate.
 
 `acceptance.yml` offers these manual suites:
 

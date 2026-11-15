@@ -371,3 +371,207 @@ jobs:
         run: node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native
       - name: Test Native Canvas transport and private consent contracts
         run: node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib
+
+  scientific-viewer:
+    if: inputs.suite == 'scientific-viewer'
+    name: Scientific Viewer browser inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/scientific-viewer/requirements.txt
+      - name: Prepare pinned App and actual molecular engine
+        id: prepare
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/scientific-viewer --ignore-scripts
+          python -m pip install --only-binary=:all: -r apps/scientific-viewer/requirements.txt
+          npx playwright install --with-deps chromium
+          npm run build --prefix apps/scientific-viewer
+      - name: Verify App context handshake and cross-origin bridge
+        run: node tests/e2e/app-use-bridge.mjs
+      - name: Verify imported files, charts, molecules and responsive themes
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node tests/e2e/scientific-viewer-browser.mjs
+      - name: Verify Research Lab meshes, offline copies and resource cleanup
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node tests/e2e/research-lab-browser.mjs
+      - name: Verify artifact previews and Gallery keyboard behavior
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node apps/scientific-viewer/test/artifact-browser.mjs
+      - name: Viewer screenshots and exact bundle evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scientific-viewer-browser-${{ github.sha }}
+          path: |
+            test-results/scientific-viewer-browser/
+            test-results/session-artifacts-viewer/
+            test-results/research-lab-browser/
+          if-no-files-found: warn
+
+  lcms2yield:
+    if: inputs.suite == 'lcms2yield'
+    name: LCMS2Yield input and browser contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install UI dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/lcms2yield --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Verify selected populations and CSV result attribution
+        run: |
+          npm --prefix apps/lcms2yield test
+          npm --prefix apps/lcms2yield run typecheck
+          npm --prefix apps/lcms2yield run test:browser
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcms2yield-browser
+          path: test-results/lcms2yield/
+          if-no-files-found: error
+
+  data:
+    if: inputs.suite == 'data'
+    name: Data local catalog and download contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test opaque imports, bounded downloads and restart persistence
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/data/package-lock.json
+      - name: Install Data browser test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/data --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Check Data types and keyboard behavior in the real App frame
+        run: |
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
+          npm --prefix apps/data run test:browser
+      - name: Upload Data browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: data-fields-browser
+          path: |
+            test-results/data-fields/
+            test-results/data-workflow/
+          if-no-files-found: ignore
+
+  lab:
+    if: inputs.suite == 'lab'
+    name: Lab real Chatterbox and evidence contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pinned no-hardware backend
+        run: |
+          python -m pip install --only-binary=:all: -r apps/lab/requirements.txt
+      - name: Require real adapter, pure domain and authenticated evidence contracts
+        env:
+          LAB_REQUIRE_PLR: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/lab/test -p 'test_*.py' -v
+      - name: Reproduce published scoring math and constructed state-gate comparison
+        run: |
+          python apps/lab/benchmarks/paper_score.py --output test-results/lab-paper/paper-score.json
+          python apps/lab/benchmarks/stateful_gate.py --output test-results/lab-paper/stateful-gate.json
+      - name: Upload bounded software reproduction reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: lab-paper-software-${{ github.sha }}
+          path: test-results/lab-paper/
+          if-no-files-found: error
+          retention-days: 7
+
+  control-lab:
+    if: inputs.suite == 'control-lab'
+    name: Control Lab actual python-control and ngspice
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install real numerical engines
+        run: |
+          node scripts/build/scientific-runtime.mjs
+          sudo apt-get update
+          sudo apt-get install --yes ngspice
+          python -m pip install --only-binary=:all: -r apps/control-lab/requirements.txt
+          mkdir -p test-results/control-lab-science
+          python -c 'import control; print(control.__version__)' | tee test-results/control-lab-science/python-control-version.txt
+          ngspice --version | tee test-results/control-lab-science/ngspice-version.txt
+      - name: Require both numerical engines and scientific contracts without dependency skips
+        env:
+          CONTROL_LAB_REQUIRE_SOLVERS: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/control-lab/test -p 'test_*.py' -v 2>&1 | tee test-results/control-lab-science/tests.log
+      - name: Numerical engine versions and scientific results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: control-lab-science-linux
+          path: test-results/control-lab-science/
+          if-no-files-found: warn
+          retention-days: 7
+
+  virtual-cell:
+    if: inputs.suite == 'virtual-cell'
+    name: Virtual Cell local comparison contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install preparation-test dependencies
+        run: python -m pip install -r apps/virtual-cell/tools/norman/test-requirements.txt
+      - name: Verify preparation tests cannot silently skip dependencies
+        run: python -c 'import numpy, scipy'
+      - name: Test scientific boundaries and local process lifecycle
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/virtual-cell/test -p 'test_*.py' -v

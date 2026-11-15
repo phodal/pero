@@ -12,6 +12,7 @@ test('CI selects the existing reusable job families without adding automatic ent
   assert.deepEqual(jobs.permissions, { contents: 'read' });
   assert.equal(jobs.on.workflow_call.inputs.suite.required, true);
   const families = {
+    ...Object.fromEntries(['scientific-viewer', 'lcms2yield', 'data', 'lab', 'control-lab', 'virtual-cell'].map(name => [name, [name, name]])),
     notebook: ['notebook', 'notebook'],
     'notebook-canvas': ['notebook-canvas', 'browser'],
     'native-ui': ['native-ui', 'native-ui'],
@@ -27,5 +28,5 @@ test('CI selects the existing reusable job families without adding automatic ent
   assert.equal(ci.jobs['desktop-linux'].with.os, 'ubuntu-latest');
   assert.equal(ci.jobs['desktop-linux'].with['upload-runtime'], true);
   assert.equal(ci.jobs.desktop.with.os, '${{ matrix.os }}');
-  assert.deepEqual(Object.keys(jobs.jobs).sort(), ['browser', 'desktop', 'native-ui', 'notebook']);
+  assert.deepEqual(Object.keys(jobs.jobs).sort(), ['browser', 'control-lab', 'data', 'desktop', 'lab', 'lcms2yield', 'native-ui', 'notebook', 'scientific-viewer', 'virtual-cell']);
 });

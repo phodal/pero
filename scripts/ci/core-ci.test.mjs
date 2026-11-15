@@ -78,7 +78,7 @@ test('cancellation stops new checks rather than acting like an assertion failure
 });
 
 test('Viewer inspection survives bridge failure and retains screenshot evidence', () => {
-  const job = workflow.jobs['scientific-viewer'];
+  const job = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs['scientific-viewer'];
   const bridge = job.steps.find(step => step.run === 'node tests/e2e/app-use-bridge.mjs');
   const viewer = job.steps.find(step => step.run === 'node tests/e2e/scientific-viewer-browser.mjs');
   const prepare = job.steps.find(step => step.id === 'prepare');
