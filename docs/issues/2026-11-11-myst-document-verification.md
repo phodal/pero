@@ -3,7 +3,7 @@ kind: verification_report
 status: partial
 date: 2026-11-11
 github_issue: 195
-github_state: open
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/195
 ---
 

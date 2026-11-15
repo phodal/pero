@@ -1,6 +1,6 @@
 ---
 kind: feature
-status: implemented
+status: resolved
 ---
 
 # Complete the Desktop contributor workflow
@@ -76,3 +76,9 @@ The downloaded public App passed checksum/signature checks and the full isolated
 contributor acceptance suite after installation outside the checkout. The online
 service and CI-built development package are delivered. Notarization and real
 maintainer acceptance of a contributed PR remain separate from this delivery.
+
+## Issue hygiene review — 2026-11-15
+
+Closed the stale local lifecycle status using the completed acceptance evidence
+already recorded above. This review did not rerun the historical runtime or
+extend its stated release, provider or scientific acceptance boundaries.

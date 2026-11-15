@@ -1,7 +1,7 @@
 ---
 kind: verification_report
 github_issue: 168
-github_state: CLOSED
+github_state: closed
 github_url: https://github.com/phodal/pero/issues/168
 ---
 

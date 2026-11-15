@@ -62,7 +62,7 @@ The user requested that screenshots remain local; no PNGs are committed or
 uploaded. Keep #223 open for integration/release acceptance; #219 remains the
 architecture/reference issue and #222 remains the independent P0 recovery fix.
 
-Implementation PR: [#224](https://github.com/phodal/pero/pull/224), merge requested by the user; Native/release acceptance remains open.
+Implementation PR: [#224](https://github.com/phodal/pero/pull/224), merged as `60c800888`. GitHub #223 was rechecked on 2026-11-15 and remains open for Native/release acceptance; merged implementation alone does not complete those gates.
 
 
 ### CI baseline comparison before merge

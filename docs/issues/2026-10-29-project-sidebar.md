@@ -1,6 +1,6 @@
 ---
 kind: feature
-status: implemented
+status: resolved
 github_issue: 14
 github_state: closed
 github_url: https://github.com/phodal/pero/issues/14
@@ -135,3 +135,9 @@ narrow-window checks also passed. Screenshots:
 `test-results/sidebar/01-project-tasks.png` (merged group) and
 `test-results/sidebar/13-distinct-repository-homonym.png` (distinct repository).
 These are isolated development/fixture checks, not packaged release acceptance.
+
+## Issue hygiene review — 2026-11-15
+
+Closed the stale local lifecycle status using the completed acceptance evidence
+already recorded above. This review did not rerun the historical runtime or
+extend its stated release, provider or scientific acceptance boundaries.
