@@ -622,6 +622,10 @@ jobs:
         id: research_quality_python
         if: ${{ !cancelled() && steps.python.outcome == 'success' }}
         run: python -m unittest discover -s tests/runtime -p 'test_research_quality.py' -v
+      - name: Offline Worker acceptance and frozen-method contracts
+        id: worker_acceptance_python
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        run: python -m unittest discover -s scripts/science/pybamm-sweep -p 'test_*.py' -v
       - name: Paper PDF HTTP contracts
         id: paper_pdf_http
         if: ${{ !cancelled() && steps.paper_python.outcome == 'success' }}

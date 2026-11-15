@@ -76,3 +76,16 @@ Durability review also found that syncing the retained directory's contents did
 not persist its new entry in the parent before the active journal was replaced.
 The Journal now syncs both directory levels in that order on Unix, using its
 existing file/directory sync policy. A sync failure still prevents clearing.
+
+The command also requires recovery exit code zero and an empty active/pending
+journal, rather than accepting Cloud's terminal status alone. Cleanup records
+remote errors, continues other owned cleanup, and closes local resources and
+persists its final receipt independently. A cleanup error cannot yield PASS;
+the expected unresolved-Run HTTP 409 fence remains a retained, documented state.
+
+Six Python tests pass, including a nine-case offline shell-port outcome table.
+The same new table against the previous command reproduces two false recovery
+successes and three cleanup aborts. It uses explicit HTTP/process/proxy/signal
+ports, not a live service or numerical execution. Ordinary core CI now runs this
+stdlib suite. Worker tests after directory-sync repair: 18 unit + 17 process/
+protocol cases passed. The latest remote CI remains a separate merge gate.

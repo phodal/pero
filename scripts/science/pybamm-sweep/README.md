@@ -271,6 +271,9 @@ events. If every event was uploaded before disconnection, it instead requires th
 original start in Cloud history. Both paths retain the one-attempt checks, and
 `recovery_evidence` records which evidence was observed; no scheduling pause is
 used to force one upload order.
+The recovered Worker must exit successfully and clear both active execution and
+pending claim in the original journal. A terminal Cloud status alone cannot
+establish successful local reconciliation.
 
 Only the connection-loss case uses a loopback CONNECT proxy. TLS remains directly
 between the Worker and the deployed HTTPS endpoint; closing this test's tunnels
@@ -286,3 +289,10 @@ the receipt records that original Worker fence for explicit operator review,
 rather than deleting data or bypassing reconciliation. This is one execution
 machine, numerical consistency and production transport acceptance, not general
 coding-Agent permissions, multi-machine or scientific acceptance.
+
+Remote cleanup failures are recorded as `cleanup_errors`, fail the acceptance,
+and do not skip other tasks, credential-disable attempts, proxy/log closure or
+final receipt persistence. Offline shell-port regressions cover these failures,
+both evidence locations and unsuccessful/unfinished recovery without making
+network requests, sending signals or running the solver. They run with the
+existing frozen-method tests in ordinary CI.

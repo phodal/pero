@@ -2,6 +2,7 @@
 import argparse
 from dataclasses import asdict
 from datetime import datetime, timezone
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path
@@ -121,8 +122,9 @@ def main(args):
     # Preflight before any remote writes. Preserve the selected venv executable path.
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
-    subprocess.run([str(python), str(ROOT / 'run.py'), experiment, str(output / 'preflight.jsonl')],
-                   check=True, stdout=(output / 'preflight.log').open('w'), stderr=subprocess.STDOUT)
+    with (output / 'preflight.log').open('w') as preflight_log:
+        subprocess.run([str(python), str(ROOT / 'run.py'), experiment, str(output / 'preflight.jsonl')],
+                       check=True, stdout=preflight_log, stderr=subprocess.STDOUT)
     nonce = uuid.uuid4().hex
     project = 'selfhost-' + nonce[:16]
     workspace = output / 'workspace'
@@ -213,6 +215,10 @@ def main(args):
                 recovered = launch('recovered', proxy=True)
                 wait_for(lambda: recovered.poll() is not None, 'Original-journal recovery')
                 row['recovery_exit'] = recovered.returncode
+                assert recovered.returncode == 0, 'Original-journal recovery must exit successfully'
+                recovered_state = json.loads(journal.read_text())
+                assert recovered_state['active'] is None and recovered_state['pending_claim'] is None, \
+                    'Original-journal recovery must finish reconciliation'
                 row['proxy_tunnels'] = egress.tunnels
             detail = api.request('/api/v1/tasks/' + task['id'])
             save(output / (case + '-detail.json'), detail)
@@ -259,35 +265,48 @@ def main(args):
         receipt['passed'] = True
     finally:
         egress.connected.set()
-        for process in reversed(processes):
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-        # Faults retain their Run; settle only this invocation's active tasks.
-        for task in tasks:
-            detail = api.request('/api/v1/tasks/' + task)
-            if detail['run']['status'] in ('queued', 'running', 'cancel_requested'):
-                api.request('/api/v1/tasks/' + task + '/cancel', {})
-        for pid in children:
-            if alive(pid):
-                receipt['cleanup_forced'] = True
-                os.kill(pid, signal.SIGKILL)
         try:
-            api.request('/api/v1/workers/' + worker_id + '/disable', {})
-            receipt['worker_disabled'] = True
-        except HTTPError as error:
-            if error.code != 409:
-                raise
-            receipt['worker_retained_reason'] = 'Original unresolved Run fences credential disable; operator review required.'
-        receipt['passed'] = bool(receipt.get('passed') and not receipt.get('cleanup_forced'))
-        save(output / 'receipt.json', receipt)
-        egress.close()
-        for log in logs:
-            log.close()
+            for process in reversed(processes):
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+            for pid in children:
+                if alive(pid):
+                    receipt['cleanup_forced'] = True
+                    os.kill(pid, signal.SIGKILL)
+            # Faults retain their Run; settle only this invocation's active tasks.
+            for task in tasks:
+                try:
+                    detail = api.request('/api/v1/tasks/' + task)
+                    if detail['run']['status'] in ('queued', 'running', 'cancel_requested'):
+                        api.request('/api/v1/tasks/' + task + '/cancel', {})
+                except (OSError, ValueError, HTTPException) as error:
+                    receipt.setdefault('cleanup_errors', []).append({'task_id': task, 'error': type(error).__name__})
+            try:
+                api.request('/api/v1/workers/' + worker_id + '/disable', {})
+                receipt['worker_disabled'] = True
+            except (OSError, ValueError, HTTPException) as error:
+                if isinstance(error, HTTPError) and error.code == 409:
+                    receipt['worker_retained_reason'] = 'Original unresolved Run fences credential disable; operator review required.'
+                else:
+                    receipt.setdefault('cleanup_errors', []).append({'worker_id': worker_id, 'error': type(error).__name__})
+        finally:
+            proxy_closed = False
+            try:
+                egress.close()
+                proxy_closed = True
+            finally:
+                try:
+                    for log in logs:
+                        log.close()
+                finally:
+                    receipt['passed'] = bool(receipt.get('passed') and proxy_closed
+                                             and not receipt.get('cleanup_forced') and not receipt.get('cleanup_errors'))
+                    save(output / 'receipt.json', receipt)
     print(json.dumps(receipt, indent=2))
     if not receipt['passed']:
         raise RuntimeError('Acceptance incomplete; inspect retained receipt and logs')
