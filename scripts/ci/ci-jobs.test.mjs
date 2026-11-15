@@ -10,6 +10,7 @@ test('CI selects the existing reusable job families without adding automatic ent
   const jobs = read('ci-jobs');
   assert.deepEqual(Object.keys(jobs.on), ['workflow_call']);
   assert.deepEqual(jobs.permissions, { contents: 'read' });
+  assert.equal(jobs.defaults.run.shell, 'bash');
   assert.equal(jobs.on.workflow_call.inputs.suite.required, true);
   const families = {
     ...Object.fromEntries(['scientific-viewer', 'lcms2yield', 'data', 'lab', 'control-lab', 'virtual-cell'].map(name => [name, [name, name]])),

@@ -16,6 +16,9 @@ on:
         default: false
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 jobs:
   desktop:
     if: inputs.suite == 'desktop'
