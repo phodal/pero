@@ -38,43 +38,87 @@ defaults:
     shell: bash
 
 jobs:
+  scope:
+    name: Select affected App checks
+    runs-on: ubuntu-latest
+    outputs:
+      scopes: ${{ steps.decide.outputs.scopes }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - id: decide
+        env:
+          SCOPE_KIND: ci
+          SCOPE_EVENT: ${{ github.event_name }}
+          SCOPE_LABELS: ${{ github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',') || '' }}
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SCOPE_HEAD: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.sha }}
+        run: |
+          files=""
+          unknown=false
+          if [[ "$SCOPE_EVENT" == "pull_request" || "$SCOPE_EVENT" == "push" ]]; then
+            if git fetch --no-tags --depth=1 origin "${SCOPE_BASE}:refs/remotes/origin/pr-base" "${SCOPE_HEAD}:refs/remotes/origin/pr-head" && files=$(git diff --name-only --no-renames refs/remotes/origin/pr-base refs/remotes/origin/pr-head); then
+              :
+            else
+              echo "Cannot read the diff; running all scoped checks." >&2
+              unknown=true
+            fi
+          fi
+          printf '%s\n' "$files" | SCOPE_UNKNOWN="$unknown" node scripts/ci/workflow-scope.mjs
+
   notebook:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['notebook']
     name: Notebook revisions, workbook and browser contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: notebook
 
   scientific-viewer:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['scientific-viewer']
     name: Scientific Viewer browser inspection
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: scientific-viewer
 
   lcms2yield:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['lcms2yield']
     name: LCMS2Yield input and browser contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: lcms2yield
 
   data:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['data']
     name: Data local catalog and download contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: data
 
   lab:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['lab']
     name: Lab real Chatterbox and evidence contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: lab
 
   control-lab:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['control-lab']
     name: Control Lab actual python-control and ngspice
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: control-lab
 
   virtual-cell:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['virtual-cell']
     name: Virtual Cell local comparison contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
@@ -372,6 +416,11 @@ jobs:
   # on its setup/build inputs, so assertion failures stay red without hiding peers.
   # !cancelled() overrides implicit success() while still honoring cancellation.
   core:
+    needs: scope
+    env:
+      NOTEBOOK_PYTHON: ${{ fromJSON(needs.scope.outputs.scopes)['notebook-python'] }}
+      NOTEBOOK_CANVAS: ${{ fromJSON(needs.scope.outputs.scopes)['notebook-canvas'] }}
+      MCP_BROWSER: ${{ fromJSON(needs.scope.outputs.scopes)['mcp-browser'] }}
     name: Linux core types, permissions and durable runtime
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -445,7 +494,7 @@ jobs:
           python -c 'import json,subprocess,sys; dependencies=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*dependencies],check=True)'
       - name: Prepare pinned Notebook Canvas Python environment
         id: notebook_canvas_python
-        if: ${{ !cancelled() && steps.python.outcome == 'success' && steps.node.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.python.outcome == 'success' && steps.node.outcome == 'success' && env.NOTEBOOK_PYTHON == 'true' }}
         run: |
           node scripts/build/source-parsers.mjs
           python -m venv "$RUNNER_TEMP/notebook-canvas-python"
@@ -562,7 +611,7 @@ jobs:
         run: node scripts/cargo.mjs build --locked -p pero-host -p pero-worker
       - name: Declared Canvas real Host and owner recovery contracts
         id: app_canvas
-        if: ${{ !cancelled() && steps.host_build.outcome == 'success' && steps.notebook_canvas_python.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.host_build.outcome == 'success' && steps.notebook_canvas_python.outcome == 'success' && env.NOTEBOOK_CANVAS == 'true' }}
         env:
           PERO_APP_PYTHON: ${{ runner.temp }}/notebook-canvas-python/bin/python
         run: node tests/contracts/app-canvas.mjs
@@ -627,8 +676,11 @@ jobs:
       - name: Host MCP settings contracts
         id: host_mcp_settings
         if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}
+        run: node tests/contracts/mcp-settings.mjs
+      - name: Host MCP Apps browser acceptance
+        id: mcp_browser
+        if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' && steps.notebook_canvas_python.outcome == 'success' && env.MCP_BROWSER == 'true' }}
         run: |
-          node tests/contracts/mcp-settings.mjs
           node scripts/build/harness.mjs
           npx playwright install --with-deps chromium
           node --experimental-transform-types tests/contracts/mcp-session-panel.mjs --browser
@@ -813,12 +865,16 @@ jobs:
           retention-days: 7
 
   notebook-canvas:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['notebook-canvas']
     name: Notebook Canvas real Host browser acceptance
     uses: ./.github/workflows/ci-jobs.yml
     with:
       suite: notebook-canvas
 
   native-ui:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.scopes)['native-ui']
     name: Native shell compilation and unit contracts
     uses: ./.github/workflows/ci-jobs.yml
     with:
@@ -827,13 +883,14 @@ jobs:
   complete:
     name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full')) && 'Full-platform CI gate' || 'Linux CI gate' }}
     if: always()
-    needs: [notebook-canvas, native-ui, paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
+    needs: [scope, notebook-canvas, native-ui, paper-html-live, core, data, lab, control-lab, virtual-cell, notebook, scientific-viewer, lcms2yield, bazel, go, harness, harness-bazel, strict-sandbox, windows-acl-sandbox, ast, generated, desktop-linux, desktop, desktop-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Require every contract and acceptance shard for this mode
         env:
           RESULTS: ${{ toJSON(needs) }}
+          SCOPES: ${{ needs.scope.outputs.scopes }}
           PAPER_HTML_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.paper_html_live) || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paper-html-live')) }}
           FULL_MATRIX: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full') }}
         run: node scripts/ci/gate.mjs

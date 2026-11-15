@@ -1,11 +1,64 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
-import { computerUseGlobs, matchesPath, releasePackageGlobs, shouldRun } from './workflow-scope.mjs';
+import { ciScope, ciScopeGlobs, computerUseGlobs, matchesPath, releasePackageGlobs, shouldRun } from './workflow-scope.mjs';
+
+test('CI selects affected expensive consumers on PR and push while full and unknown diffs retain them', () => {
+  for (const event of ['pull_request', 'push']) {
+    for (const [files, expected] of [
+      [['docs/issues/incident.md'], []],
+      [['crates/pero-worker/src/journal.rs'], []],
+      [['apps/notebook/ui-src/frame.tsx'], ['notebook', 'notebook-canvas', 'mcp-browser', 'notebook-python']],
+      [['apps/data/backend/inspection.py'], ['data', 'notebook-canvas', 'notebook-python']],
+      [['crates/pero-ui/src/apps.rs'], ['native-ui']],
+      [['apps/lcms2yield/ui-src/index.tsx'], ['lcms2yield']],
+      [['apps/virtual-cell/backend/store.py'], ['virtual-cell']],
+      [['harness/go/mcp/tools.go'], ['mcp-browser', 'notebook-python']],
+    ]) {
+      const flags = ciScope({ event, files });
+      assert.deepEqual(Object.keys(flags).filter(name => flags[name]).sort(), expected.sort(), `${event} ${files}`);
+    }
+  }
+  for (const input of [
+    { event: 'schedule' }, { event: 'workflow_dispatch' },
+    { event: 'pull_request', labels: ['ci:full'] },
+    { event: 'push', unknown: true },
+    { event: 'pull_request', files: ['packages/app-sdk/src/ui.tsx'] },
+    { event: 'push', files: ['.github/workflows/ci.yml'] },
+  ]) assert(Object.values(ciScope(input)).every(value => value === true), JSON.stringify(input));
+  assert(Object.isFrozen(ciScopeGlobs));
+});
+
+test('CI scope output and skipped-job gates retain actual failures and missing scope evidence', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'pero-ci-scope-'));
+  try {
+    const output = resolve(root, 'output');
+    execFileSync(process.execPath, ['scripts/ci/workflow-scope.mjs'], {
+      input: 'apps/notebook/ui-src/frame.tsx\n',
+      env: { ...process.env, SCOPE_KIND: 'ci', SCOPE_EVENT: 'push', SCOPE_LABELS: '', SCOPE_UNKNOWN: 'false', GITHUB_OUTPUT: output },
+    });
+    const flags = JSON.parse(readFileSync(output, 'utf8').trim().slice('scopes='.length));
+    assert.equal(flags.notebook, true);
+    assert.equal(flags['native-ui'], false);
+    const workflow = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
+    assert.deepEqual(workflow.jobs.core.needs, 'scope');
+    assert.equal(workflow.jobs.complete.env, undefined);
+    assert.equal(workflow.jobs.complete.steps.at(-1).env.SCOPES, '${{ needs.scope.outputs.scopes }}');
+    for (const name of Object.keys(ciScopeGlobs).filter(name => name !== 'mcp-browser')) {
+      assert.equal(workflow.jobs[name].needs, 'scope');
+      assert.equal(workflow.jobs[name].if, `fromJSON(needs.scope.outputs.scopes)['${name}']`);
+    }
+    const diff = workflow.jobs.scope.steps.at(-1);
+    assert.match(diff.run, /git diff --name-only --no-renames refs\/remotes\/origin\/pr-base refs\/remotes\/origin\/pr-head/);
+    assert.match(diff.run, /unknown=true/);
+    assert.match(diff.env.SCOPE_BASE, /github.event.before/);
+    assert.match(diff.env.SCOPE_HEAD, /refs\/pull\//);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 test('path globs match the workflow scope and do not swallow neighbors', () => {
   const cases = [
@@ -45,7 +98,7 @@ test('scope keeps synchronize, manual, schedule, and explicit labels without run
   assert.throws(() => shouldRun('other', { event: 'push' }), /Unknown workflow scope/);
 });
 
-test('a two-ref fetch names the pull request head, so FETCH_HEAD cannot hide the diff', () => {
+test('the actual scope step reads PR and push diffs, deleted paths, and unknown fetches', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'pero-scope-fetch-'));
   const git = (cwd, args) => execFileSync('git', ['-c', 'user.name=Pero', '-c', 'user.email=pero@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
   try {
@@ -57,18 +110,36 @@ test('a two-ref fetch names the pull request head, so FETCH_HEAD cannot hide the
     git(origin, ['commit', '-qm', 'base']);
     const base = git(origin, ['rev-parse', 'HEAD']);
     git(origin, ['checkout', '-q', '-b', 'pr']);
-    execFileSync('mkdir', ['-p', resolve(origin, 'use')]);
-    writeFileSync(resolve(origin, 'use/x'), '2\n');
-    git(origin, ['add', 'use/x']);
+    mkdirSync(resolve(origin, 'apps/notebook'), { recursive: true });
+    writeFileSync(resolve(origin, 'apps/notebook/x'), '2\n');
+    git(origin, ['add', 'apps/notebook/x']);
     git(origin, ['commit', '-qm', 'pr']);
     git(origin, ['update-ref', 'refs/pull/1/head', 'HEAD']);
+    const head = git(origin, ['rev-parse', 'HEAD']);
     git(origin, ['checkout', '-q', '--detach', base]);
     git(root, ['init', '-q', work]);
     git(work, ['remote', 'add', 'origin', origin]);
-    git(work, ['fetch', '--no-tags', '--depth=1', 'origin', `${base}:refs/remotes/origin/pr-base`, 'refs/pull/1/head:refs/remotes/origin/pr-head']);
+    mkdirSync(resolve(work, 'scripts/ci'), { recursive: true });
+    writeFileSync(resolve(work, 'scripts/ci/workflow-scope.mjs'), readFileSync('scripts/ci/workflow-scope.mjs'));
+    const step = YAML.parse(readFileSync('.github/workflows/ci.yml', 'utf8')).jobs.scope.steps.at(-1);
+    let invocation = 0;
+    function run(event, before, after) {
+      const output = resolve(root, `scope-${invocation++}`);
+      execFileSync('bash', ['-c', step.run], { cwd: work, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, SCOPE_KIND: 'ci', SCOPE_EVENT: event, SCOPE_LABELS: '', SCOPE_BASE: before, SCOPE_HEAD: after, GITHUB_OUTPUT: output } });
+      return JSON.parse(readFileSync(output, 'utf8').trim().slice('scopes='.length));
+    }
+    assert.equal(run('pull_request', base, 'refs/pull/1/head').notebook, true);
     assert.equal(git(work, ['rev-parse', 'FETCH_HEAD']), base);
     assert.equal(git(work, ['diff', '--name-only', 'refs/remotes/origin/pr-base', 'FETCH_HEAD']), '');
-    assert.equal(git(work, ['diff', '--name-only', 'refs/remotes/origin/pr-base', 'refs/remotes/origin/pr-head']), 'use/x');
+    assert.equal(run('push', base, head).notebook, true);
+    git(origin, ['checkout', '-q', 'pr']);
+    mkdirSync(resolve(origin, 'archive'));
+    git(origin, ['mv', 'apps/notebook/x', 'archive/x']);
+    git(origin, ['commit', '-qm', 'move out of Notebook']);
+    git(origin, ['update-ref', 'refs/pull/2/head', 'HEAD']);
+    assert.equal(run('pull_request', head, 'refs/pull/2/head').notebook, true, 'deleted Notebook input still selects its tests');
+    assert(Object.values(run('push', 'missing-base', head)).every(Boolean));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

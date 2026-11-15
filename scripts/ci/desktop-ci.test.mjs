@@ -225,6 +225,13 @@ test('Linux gate permits only full Desktop/platform skips; full gate requires th
   for (const result of ['failure', 'cancelled', 'skipped'])
     assert.deepEqual(failures({ core: { result } }, false), ['core']);
   assert.deepEqual(failures({ desktop: { result: 'failure' } }, false), ['desktop']);
+  for (const name of ['notebook', 'notebook-canvas', 'native-ui', 'scientific-viewer', 'data', 'lab', 'control-lab', 'virtual-cell', 'lcms2yield']) {
+    assert.deepEqual(failures({ [name]: { result: 'skipped' } }, false, false, { [name]: false }), []);
+    for (const scopes of [{}, { [name]: true }]) assert.deepEqual(failures({ [name]: { result: 'skipped' } }, false, false, scopes), [name]);
+    assert.deepEqual(failures({ [name]: { result: 'skipped' } }, true, false, { [name]: false }), [name]);
+    for (const result of ['failure', 'cancelled']) assert.deepEqual(failures({ [name]: { result } }, false, false, { [name]: false }), [name]);
+  }
+  assert.deepEqual(failures({ scope: { result: 'failure' }, core: { result: 'skipped' } }, false), ['scope', 'core']);
 });
 
 test('native reproduction fixture dispatches cancellation modes outside Electron evaluate arguments', async () => {

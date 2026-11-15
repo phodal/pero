@@ -13,16 +13,18 @@ const checks = steps.filter(step => step.run && !['npm', 'gpui', 'paper_python',
 // Interpret only this workflow's deliberately small condition vocabulary. This
 // verifies the declared dependency graph, not an emulation of the Actions runner.
 function dependencies(step) {
-  assert.match(step.if, /^\$\{\{ !cancelled\(\)( && steps\.\w+\.outcome == 'success')* \}\}$/);
+  const setup = step.if.replace(/ && env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER) == 'true'/g, '');
+  assert.match(setup, /^\$\{\{ !cancelled\(\)( && steps\.\w+\.outcome == 'success')* \}\}$/);
   return [...step.if.matchAll(/steps\.(\w+)\.outcome/g)].map(match => match[1]);
 }
-function outcomes(failed = [], cancelBefore) {
+function outcomes(failed = [], cancelBefore, scoped = true) {
   const results = {};
   let cancelled = false;
   for (const step of steps) {
     if (!step.id) continue; // Evidence upload runs even after failures/cancellation.
     if (step.id === cancelBefore) cancelled = true;
-    const ready = !cancelled && (step.id === 'checkout' || dependencies(step).every(id => results[id] === 'success'));
+    const selected = scoped || !/env\.(NOTEBOOK_PYTHON|NOTEBOOK_CANVAS|MCP_BROWSER)/.test(step.if);
+    const ready = !cancelled && selected && (step.id === 'checkout' || dependencies(step).every(id => results[id] === 'success'));
     results[step.id] = !ready ? 'skipped' : failed.includes(step.id) ? 'failure' : 'success';
   }
   return results;
@@ -42,6 +44,15 @@ test('core checks have explicit preceding prerequisites and never mask failures'
   assert.equal(steps.at(-1).if, 'always()');
 });
 
+test('unrelated changes skip Notebook and MCP browser work while retaining core protocol checks', () => {
+  const result = outcomes([], undefined, false);
+  for (const id of ['notebook_canvas_python', 'app_canvas', 'mcp_browser']) assert.equal(result[id], 'skipped');
+  for (const id of ['rust_tests', 'host_build', 'host_stdio', 'host_mcp_settings', 'host_mcp_ownership', 'worker_acceptance_python']) assert.equal(result[id], 'success');
+  assert.equal(workflow.jobs.core.env.NOTEBOOK_PYTHON, "${{ fromJSON(needs.scope.outputs.scopes)['notebook-python'] }}");
+  assert.equal(workflow.jobs.core.env.NOTEBOOK_CANVAS, "${{ fromJSON(needs.scope.outputs.scopes)['notebook-canvas'] }}");
+  assert.equal(workflow.jobs.core.env.MCP_BROWSER, "${{ fromJSON(needs.scope.outputs.scopes)['mcp-browser'] }}");
+});
+
 test('every assertion failure leaves independent core checks running and the gate red', () => {
   for (const failed of checks) {
     const result = outcomes([failed.id]);
@@ -57,10 +68,10 @@ test('failed prerequisites skip their consumers without hiding unrelated checks'
   for (const [failed, skipped, running] of [
     ['paper_npm', ['paper_components', 'paper_types', 'paper_availability', 'paper_manual', 'app_build_contracts'], ['viewer_unit', 'hpc_ui', 'core_types', 'rust_tests', 'host_stdio']],
     ['rust', ['rust_tests', 'host_build', 'host_stdio', 'app_canvas'], ['paper_components', 'core_types', 'app_use', 'mcp_build']],
-    ['host_build', ['app_canvas', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
-    ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership'], ['host_stdio', 'host_research', 'host_app_agent']],
+    ['host_build', ['app_canvas', 'mcp_browser', 'host_stdio', 'host_research', 'host_mcp_settings', 'host_mcp_ownership', 'host_automation', 'host_app_automation', 'host_app_agent', 'control_lab_host'], ['rust_tests', 'core_types', 'mcp_build', 'control_lab']],
+    ['mcp_build', ['host_mcp_settings', 'host_mcp_ownership', 'mcp_browser'], ['host_stdio', 'host_research', 'host_app_agent']],
     ['paper_python', ['paper_backend', 'paper_pdf_http', 'paper_source_http', 'paper_source_cli', 'host_research'], ['data_backend', 'viewer_backend', 'paper_components', 'host_stdio']],
-    ['notebook_canvas_python', ['app_canvas'], ['paper_backend', 'core_types', 'host_build', 'host_stdio']],
+    ['notebook_canvas_python', ['app_canvas', 'mcp_browser'], ['paper_backend', 'core_types', 'host_build', 'host_stdio']],
     ['npm', ['core_types', 'app_use', 'paper_components', 'host_stdio'], ['rust_tests', 'host_build', 'paper_backend', 'data_backend']],
   ]) {
     const result = outcomes([failed]);
