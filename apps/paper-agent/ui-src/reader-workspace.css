@@ -80,39 +80,6 @@
   width: 240px;
   min-width: min(100%, 8rem);
   max-width: 240px;
-  height: auto;
-  min-height: var(--pero-control-height);
-  padding: 0 8px;
-  border: 1px solid var(--pero-border);
-  border-radius: 4px;
-  background: var(--pero-surface);
-  box-shadow: none;
-  font-size: var(--pero-font-caption);
-}
-.pa-workbench .pa-pdf-selection .pa-pdf-selection-close {
-  color: var(--pero-text-muted);
-}
-.pa-workbench .pa-pdf-selection .pero-ui-button {
-  height: auto;
-  min-height: var(--pero-control-height);
-  padding: 0 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--pero-font-caption);
-  font-weight: 500;
-  line-height: 1.4;
-}
-.pa-workbench .pa-pdf-selection .pero-ui-button:hover:not(:disabled) {
-  background: var(--pero-surface-muted);
-}
-.pa-workbench .pa-pdf-selection .pa-pdf-selection-save,
-.pa-workbench .pa-pdf-selection .pa-pdf-selection-save:hover:not(:disabled) {
-  color: var(--pero-accent-text);
-}
-.pa-workbench .pa-pdf-selection .pa-pdf-selection-save:hover:not(:disabled) {
-  background: var(--pero-accent-soft);
 }
 
 .pa-workbench .pa-records {

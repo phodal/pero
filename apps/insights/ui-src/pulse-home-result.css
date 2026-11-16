@@ -57,7 +57,7 @@
 .point-pulse-ahead { margin-top: var(--pero-spacing-6); padding-top: var(--pero-spacing-4); border-top: 1px solid var(--pero-border); }
 .point-pulse-ahead h3 { margin: 0 0 var(--pero-spacing-2); color: var(--pero-text-muted); font-size: var(--pero-font-caption); font-weight: var(--pero-font-weight-semibold); }
 .point-pulse-ahead ul { display: grid; gap: var(--pero-spacing-2); margin: 0; padding-inline-start: var(--pero-spacing-5); color: var(--pero-text-muted); font-size: var(--pero-font-body); line-height: 1.6; }
-.point-pulse-banner { margin: 0 auto 16px; width: min(var(--pero-reading-width), 100%); padding: 10px 14px; border-radius: 10px; background: var(--pero-accent-soft); font-size: var(--pero-font-caption); }
+.point-pulse-banner { margin: 0 auto var(--pero-spacing-4); width: min(var(--pero-reading-width), 100%); padding: var(--pero-spacing-3) var(--pero-spacing-4); border-radius: var(--pero-radius-panel); background: var(--pero-accent-soft); font-size: var(--pero-font-caption); }
 
 .point-pulse-detail[hidden] { display: none; }
 .point-pulse-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pero-spacing-2); }

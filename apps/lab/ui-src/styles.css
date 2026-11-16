@@ -13,10 +13,6 @@ button, input, select, textarea { font: inherit; }
 .notice { color: var(--pero-info); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .toolbar, .fields { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.lab-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 12px; background: var(--pero-surface); border-bottom: .5px solid var(--pero-border); }
-.app-title { display: flex; align-items: center; gap: 8px; flex: none; }
-.context-row { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 40px; padding: 8px 12px; border-bottom: .5px solid var(--pero-border); background: var(--pero-surface); }
-.lab .context-row label { flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
 .experiment-picker { flex: 1; min-width: 220px; max-width: 660px; }
 .experiment-picker .pero-select { width: 100%; }
 .experiment-summary { display: flex; flex: none; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 6px 12px; border-bottom: .5px solid var(--pero-border); color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
@@ -59,7 +55,7 @@ button, input, select, textarea { font: inherit; }
 .deck-surface { flex: 1; }
 .deck-toolbar { flex: none; }
 .deck-canvas { display: flex; align-items: flex-start; justify-content: flex-start; flex: 1; min-height: 350px; overflow: auto; padding: 24px; background: var(--pero-surface-muted); }
-.plate-tray { flex: 0 0 auto; width: max(520px, calc(var(--pero-font-caption) * 36)); min-width: 380px; margin: auto; padding: 12px; border: 1px solid var(--pero-border); border-radius: 10px; background: var(--pero-bg); }
+.plate-tray { flex: 0 0 auto; width: max(520px, calc(var(--pero-font-caption) * 36)); min-width: 380px; margin: auto; padding: 12px; border: 1px solid var(--pero-border); border-radius: var(--pero-radius-panel); background: var(--pero-bg); }
 .plate { display: grid; grid-template-columns: calc(var(--pero-font-caption) * 1.5) repeat(12, minmax(24px, 1fr)); gap: 4px; }
 .plate-axis { display: grid; place-items: center; font-size: var(--pero-font-caption); color: var(--pero-text-muted); }
 .plate .well.pero-ui-button { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-height: 24px; min-width: 0; padding: 0; border: 1px solid var(--pero-border); border-radius: 50%; background: var(--pero-surface); color: var(--pero-text); overflow: hidden; }
@@ -142,11 +138,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 450px; overflo
 .lab .protocol-layout[data-stacked] .draft-footer { position: sticky; bottom: 0; z-index: 1; }
 .lab .protocol-layout[data-stacked] .candidate-pane { border-top: .5px solid var(--pero-border); }
 @media (max-width: 600px) {
-  .lab-header { flex-wrap: wrap; gap: 8px; }
-  .lab-header > .toolbar { margin-left: auto; }
-  .lab-header:has(.toolbar > :nth-child(3)) > .toolbar { width: 100%; justify-content: flex-end; }
   .lab-statusbar { flex-wrap: wrap; gap: 2px 12px; }
-  .context-row > .toolbar { width: 100%; justify-content: space-between; }
   .experiment-picker { max-width: 100%; }
   .deck-canvas { justify-content: flex-start; padding: 12px; }
   .setup-layout .deck-canvas { padding: 12px; }
