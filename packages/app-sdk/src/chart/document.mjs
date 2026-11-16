@@ -23,14 +23,14 @@ export const APP_DOCUMENT_CHART_TYPES = Object.freeze([
 
 const DOCUMENT_STYLE_ID = "pero-app-document-chart-styles";
 const DOCUMENT_CSS = `
-[data-pero-document-chart]{color:var(--pero-text,#24354b);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
-[data-pero-document-chart] .pero-doc-chart__title{margin:0 0 var(--pero-space-3,6px);font-size:var(--pero-font-size-sm,12px);font-weight:var(--pero-font-weight-semibold,600)}
+[data-pero-document-chart]{color:var(--pero-text,#172536);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+[data-pero-document-chart] .pero-doc-chart__title{margin:0 0 var(--pero-spacing-2);font-size:var(--pero-font-caption);font-weight:var(--pero-font-weight-semibold,600)}
 [data-pero-document-chart] .pero-doc-chart__plot{width:100%}
 [data-pero-document-chart] .pero-doc-chart__svg{width:100%;height:auto;aspect-ratio:8/3;display:block}
 [data-pero-document-chart][data-type=horizontalBar] .pero-doc-chart__svg{aspect-ratio:4/3}
-[data-pero-document-chart] .pero-doc-chart__grid{stroke:var(--pero-border-subtle,#e4e7ec);stroke-width:1}
-[data-pero-document-chart] .pero-doc-chart__axis{stroke:var(--pero-border-subtle,#e4e7ec);stroke-width:1}
-[data-pero-document-chart] .pero-doc-chart__tick{fill:var(--pero-text-secondary,#5f6e80);font-size:12px}
+[data-pero-document-chart] .pero-doc-chart__grid{stroke:var(--pero-border,#e4e7ec);stroke-width:1}
+[data-pero-document-chart] .pero-doc-chart__axis{stroke:var(--pero-border,#e4e7ec);stroke-width:1}
+[data-pero-document-chart] .pero-doc-chart__tick{fill:var(--pero-text-muted,#4A5C6E);font-size:12px}
 [data-pero-document-chart] .pero-doc-chart__bar{fill:var(--pero-chart-2,#239886)}
 [data-pero-document-chart] .pero-doc-chart__bar[data-series="0"]{fill:var(--pero-chart-1,#24354b)}
 [data-pero-document-chart] .pero-doc-chart__bar[data-series="1"]{fill:var(--pero-chart-2,#239886)}
@@ -40,12 +40,12 @@ const DOCUMENT_CSS = `
 [data-pero-document-chart] .pero-doc-chart__bar[data-series="5"]{fill:var(--pero-chart-6,#9a82d8)}
 [data-pero-document-chart] .pero-doc-chart__line{fill:none;stroke:var(--pero-chart-1,#24354b);stroke-width:2;vector-effect:non-scaling-stroke}
 [data-pero-document-chart] .pero-doc-chart__area{fill:color-mix(in srgb,var(--pero-chart-1,#24354b) 22%,transparent);stroke:var(--pero-chart-1,#24354b);stroke-width:2;vector-effect:non-scaling-stroke}
-[data-pero-document-chart] .pero-doc-chart__xticks{display:grid;gap:0;margin:2px 0 0;padding:0;list-style:none;font-size:12px;color:var(--pero-text-secondary,#5f6e80)}
+[data-pero-document-chart] .pero-doc-chart__xticks{display:grid;gap:0;margin:2px 0 0;padding:0;list-style:none;font-size:12px;color:var(--pero-text-muted,#4A5C6E)}
 [data-pero-document-chart] .pero-doc-chart__xticks li{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
-[data-pero-document-chart] .pero-doc-chart__legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--pero-text-secondary,#5f6e80)}
+[data-pero-document-chart] .pero-doc-chart__legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--pero-text-muted,#4A5C6E)}
 [data-pero-document-chart] .pero-doc-chart__legend li{display:inline-flex;align-items:center;gap:6px}
 [data-pero-document-chart] .pero-doc-chart__swatch{width:12px;height:10px;border-radius:2px;background:var(--pero-chart-1,#24354b)}
-[data-pero-document-chart] .pero-doc-chart__empty,[data-pero-document-chart] .pero-doc-chart__error{margin:0;color:var(--pero-text-secondary,#5f6e80);font-size:var(--pero-font-size-sm,12px)}
+[data-pero-document-chart] .pero-doc-chart__empty,[data-pero-document-chart] .pero-doc-chart__error{margin:0;color:var(--pero-text-muted,#4A5C6E);font-size:var(--pero-font-caption)}
 [data-pero-document-chart] .pero-doc-chart__error{color:var(--pero-danger,#a62f41)}
 [data-pero-document-chart] .pero-ui-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 `;

@@ -118,7 +118,7 @@ button:disabled, input:disabled, select:disabled { cursor: default; opacity: .5;
 .pero-standalone-document { box-sizing: border-box; width: 94vw; height: 90vh; max-width: 1600px; max-height: none; padding: 0; border: 0; color: var(--pero-text); background: var(--pero-material-reading); overflow: hidden; border-radius: var(--pero-radius-panel); }
 .pero-standalone-document[open] { display: flex; flex-direction: column; }
 .pero-standalone-document::backdrop { background: color-mix(in oklab, black 32%, transparent); }
-.pero-standalone-document > header { min-height: 44px; display: flex; align-items: center; gap: var(--pero-spacing-2); padding: 0 var(--pero-spacing-3); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); flex-shrink: 0; }
+.pero-standalone-document > header { min-height: var(--pero-window-titlebar); display: flex; align-items: center; gap: var(--pero-spacing-2); padding: 0 var(--pero-spacing-3); border-bottom: var(--pero-hairline); background: var(--pero-material-chrome); flex-shrink: 0; }
 .pero-standalone-document > header strong { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pero-standalone-document > header button { font: inherit; min-height: var(--pero-icon-button); padding: 0 var(--pero-spacing-2); color: inherit; background: transparent; border: 0; border-radius: var(--pero-radius-button); }
 .pero-standalone-document-body { position: relative; flex: 1; min-height: 0; background: var(--pero-material-reading); }
