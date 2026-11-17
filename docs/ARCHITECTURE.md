@@ -1,12 +1,11 @@
 # Pero Architecture
 
-Pero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、任务、执行记录与结果复核。本文中的目录规划与服务拓扑是 Pero 的建设方向，不代表这些模块已经实现。
+Pero 面向研究者、Agent 与计算环境，围绕 Project 组织上下文、任务、执行记录与结果复核。目录一节记录当前仓库布局。后文的服务拓扑是建设方向，不代表图中每个模块已经实现。
 
 当前首版接线以 [ADR 0001](adr/0001-electron-gpui-bootstrap.md) 和
 [ADR 0002](adr/0002-remote-task-dispatch.md) 为准：`server/` 是 Go 控制面，
 `crates/pero-runtime` 持有 Rust ACP 接入，`crates/pero-worker` 是独立远程执行入口，
-`protocol/` 保存版本化契约。以下较早的 Go daemon、React 和 `cloud/` 目录规划
-保留为背景，不作为并行实现另一套执行器的依据。
+`protocol/` 保存版本化契约。较早的顶层 `cloud/`、`daemon/` 草图没有建成，见目录一节；不要据此再并行实现一套执行器。
 
 本地 App 机制以 [ADR 0007](adr/0007-local-app-platform.md) 为准：Rust Host
 管理安装、启停与 Python 后端，GPUI 管理导航和面板区域，Web 层承载独立来源的
@@ -177,53 +176,98 @@ macOS AppKit 与 Linux X11 窗口已有实际输入效果验证，Windows 已通
 
 ## 目录结构
 
-当前仓库结构：
+下面是仓库里已提交的源码目录。不含本地构建产物（`node_modules/`、`target/`、`bazel-*`、`test-results/`）。
 
 ```text
 pero/
 ├── ROADMAP.md
+├── .github/                 # Actions 工作流
+├── apps/                    # 本地 Web 面板与可选 Python 后端
+│   ├── automations/
+│   ├── compute/
+│   ├── connectors/          # Connectors 管理界面
+│   ├── control-lab/
+│   ├── data/
+│   ├── environments/        # 软件观察与本地准备界面
+│   ├── hpc/
+│   ├── insights/
+│   ├── lab/
+│   ├── lcms2yield/
+│   ├── notebook/
+│   ├── paper-agent/
+│   ├── scientific-viewer/
+│   ├── skills/
+│   └── virtual-cell/
 ├── crates/
-│   ├── pero-contracts/
-│   ├── pero-host/      # stdio JSONL Host
-│   ├── pero-runtime/   # ACP 会话
-│   ├── pero-ui/        # GPUI Wasm 工作台
-│   ├── pero-chat-ui/   # 共享 GPUI Composer、会话与展示
-│   ├── pero-chat-web/  # 独立 chat-only Wasm 装配入口
-│   └── pero-worker/    # 独立远程执行入口
-├── desktop/            # Electron 壳
-├── web/                # Wasm 加载与共享静态资源
-├── server/             # Go 控制面
-├── protocol/           # TypeSpec 契约
-├── harness/            # 内置 Go Agent Harness 与 ACP stdio 入口
-├── apps/               # 独立 Web 面板与可选领域后端
-├── packages/app-sdk/   # Web App SDK 与共享控件
-├── packages/product/   # 不可变 Product 模型与校验
-├── products/           # 工作台与独立产品交付配置
-├── pages/              # 交互原型源码
-├── locales/            # 工作台文案
-├── tests/
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── adr/
-    ├── fitness/
-    ├── issues/
-    ├── index.html      # 生成的中文原型
-    └── en/             # 生成的英文原型
+│   ├── pero-chat-ui/        # 共享 GPUI 会话组件
+│   ├── pero-chat-web/       # 独立 chat Wasm 入口；Host 仍拥有 ACP 会话
+│   ├── pero-content-worker/ # 浏览器 Worker 中的内容分析入口
+│   ├── pero-contracts/      # 协议与 Host 的 Rust 类型
+│   ├── pero-host/           # stdio JSONL Host
+│   ├── pero-reader-web/     # 不带 Host 的 GPUI 阅读器 Wasm
+│   ├── pero-runtime/        # ACP 会话、App 目录、科学环境模型
+│   ├── pero-theme/          # 共享外观定义
+│   ├── pero-ui/             # GPUI Wasm 工作台
+│   ├── pero-worker/         # 独立远程执行入口
+│   └── session-analysis/    # 单份会话记录的纯 fold，不是 harness
+├── deployment/              # 任务中心与 agent sandbox 的部署说明
+├── desktop/                 # Electron 壳
+├── docs/
+│   ├── adr/
+│   ├── assets/
+│   ├── design/
+│   ├── design-docs/
+│   ├── en/                  # 生成的英文原型
+│   ├── examples/
+│   ├── exec-plans/
+│   ├── fitness/
+│   ├── index.html           # 生成的中文原型
+│   └── issues/
+├── experiments/             # 试验记录，不是产品运行时
+├── harness/
+│   ├── examples/
+│   ├── go/                  # 独立 Go module：Agent loop 与 ACP stdio
+│   └── tools/
+├── locales/                 # 工作台文案
+├── packages/
+│   ├── agent-runtime/
+│   ├── app-infra/
+│   ├── app-sdk/             # Web App SDK 与共享控件
+│   ├── connectors/          # 连接器领域与管理组合
+│   ├── content-source/
+│   ├── icons/
+│   ├── mcp-apps/            # MCP Apps 渲染与生命周期
+│   ├── molecule-viewer/
+│   ├── notebook/            # 版本化 Notebook 块与表格计算
+│   ├── paper-reader/
+│   ├── pero-design/         # 组件契约与目录
+│   ├── product/             # 不可变 Product 模型与校验
+│   ├── scientific-runtime/
+│   └── source-extraction/
+├── pages/                   # 交互原型源码
+├── patches/                 # GPUI 依赖补丁
+├── products/                # 工作台与独立产品交付配置
+├── protocol/                # TypeSpec 契约
+├── reports/
+├── research_notes/
+├── resources/               # 应用图标与标志
+├── scripts/                 # 仓库工具链
+├── server/                  # Go 控制面（module github.com/phodal/pero/server）
+├── spec/                    # 设计 token 与组件契约（design.tsp）
+├── tests/                   # 契约、构建与桌面验收
+├── use/
+│   ├── computer/            # Computer Use 原生可执行文件
+│   └── connectors/          # 独立 Rust MCP worker
+└── web/                     # Wasm 加载与共享静态资源
 ```
 
-后续按职责补齐目录，不要求一次创建：
+`apps/connectors` 呈现 Workbench 管理界面，`packages/connectors` 持有连接器领域以及 connect、probe、OAuth 转移，`use/connectors/worker` 作为独立 Rust MCP worker 持有协议连接与子进程生命周期，Electron 保管加密凭据，Rust Host 准入 `/host/connectors`，这些都是实际工作（[ADR 0025](adr/0025-connectors-app.md)）。
 
-```text
-contracts/         # 版本化的任务、执行、产物与 Worker 协议
-cloud/             # Go：Project、权限、任务协调与协作接口
-harness/           # Go：Agent loop、Session、工具与执行后端接入
-daemon/            # Go：Host 常驻入口、工作区准入与受管执行装配
-environments/      # Go：资源绑定、Use、Owner 端口与环境快照
-delivery/          # Go：独立验证协议、执行与回执
-apps/              # 科研应用；Web 界面与可选 Python 后端
-web/               # JavaScript / TypeScript：共享工作台与组件
-desktop/           # Electron 桌面壳、浏览器与本机进程装配
-```
+没有顶层 `environments/`：`apps/environments` 是软件观察和本地准备界面并把探测交给 Rust Host，`server/internal/environments` 负责 Kubernetes 资源的绑定、供给与释放且不授予 Agent 执行，`harness/go/environmentservice` 监督显式拉起并活过单次 Agent 进程的服务进程组，科学环境的匹配与 Use 转移在 `crates/pero-runtime/src/environments`，使用记录在 `crates/pero-runtime/src/environment_use_store`（[ADR 0029](adr/0029-ai4s-environments.md)）。
+
+`harness/go` 是独立于 `server` 的 Go module（`github.com/phodal/pero/harness/go`，`go.mod` 声明 Go 1.25.0，`server` 声明 Go 1.24，仓库没有 `go.work`），提供 Agent loop 和 `cmd/pero-agent-acp` 的 ACP stdio 入口，模块内部把 `github.com/phodal/pero/harness/go/runtime` 别名为 `point`，这个名字是遗留，不是另一个 module。
+
+早期草图里的 `contracts/`、`cloud/`、`daemon/`、`environments/`、`delivery/` 没有建成，不要创建这些目录，对应职责今天在 `server/`、`crates/pero-host`、`harness/go` 和 `use/`。
 
 ## 语言与技术栈
 
