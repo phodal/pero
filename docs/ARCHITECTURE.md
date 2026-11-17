@@ -280,7 +280,6 @@ pero/
 ├── patches/                 # GPUI 依赖补丁
 ├── products/                # 工作台与独立产品交付配置
 ├── protocol/                # TypeSpec 契约
-├── reports/
 ├── research_notes/
 ├── resources/               # 应用图标与标志
 ├── scripts/                 # 仓库工具链
