@@ -29,7 +29,7 @@ export { uPlot };
 const STYLE_ELEMENT_ID = "pero-app-chart-styles";
 const FONT = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 const LANE_CSS = `
-[data-pero-lanes]{--pero-lane-text:var(--pero-text,#172536);--pero-lane-muted:var(--pero-text-muted,#4A5C6E);--pero-lane-accent:var(--pero-chart-1,#24354b);--pero-lane-select:var(--pero-domain-app-sdk-pero-lane-select, rgba(88,211,192,.12));color:var(--pero-lane-text);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+[data-pero-lanes]{--pero-lane-text:var(--pero-text,#172536);--pero-lane-muted:var(--pero-text-muted,#4A5C6E);--pero-lane-accent:var(--pero-chart-1,#3B6FD8);--pero-lane-select:var(--pero-domain-app-sdk-pero-lane-select, rgba(88,211,192,.12));color:var(--pero-lane-text);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
 [data-pero-lanes] .pero-lane{margin-bottom:var(--pero-spacing-2)}
 [data-pero-lanes] .pero-lane__head{display:flex;gap:var(--pero-spacing-3);align-items:baseline;flex-wrap:wrap;min-height:18px}
 [data-pero-lanes] .pero-lane__title{font-weight:var(--pero-font-weight-semibold, 600)}

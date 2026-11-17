@@ -45,6 +45,12 @@
   --pero-tint-apricot-text: #80502E;
   --pero-disabled: #E3EAF1;
   --pero-disabled-text: #596B7D;
+  --pero-chart-1: #3B6FD8;
+  --pero-chart-2: #D9535F;
+  --pero-chart-3: #2F9564;
+  --pero-chart-4: #845EC2;
+  --pero-chart-5: #B86A18;
+  --pero-chart-6: #9C7A14;
   --pero-primary: var(--pero-action);
   --pero-primary-hover: var(--pero-action-hover);
   --pero-primary-border: var(--pero-action);
@@ -103,6 +109,12 @@
   --pero-tint-apricot-text: #F1CEAD;
   --pero-disabled: #293B4D;
   --pero-disabled-text: #ACBBCB;
+  --pero-chart-1: #3B6FD8;
+  --pero-chart-2: #D9535F;
+  --pero-chart-3: #2F9564;
+  --pero-chart-4: #845EC2;
+  --pero-chart-5: #EB9234;
+  --pero-chart-6: #F2C94C;
   --pero-primary: var(--pero-action);
   --pero-primary-hover: var(--pero-action-hover);
   --pero-primary-border: var(--pero-action);
@@ -161,6 +173,12 @@
   --pero-tint-apricot-text: #F1CEAD;
   --pero-disabled: #293B4D;
   --pero-disabled-text: #ACBBCB;
+  --pero-chart-1: #3B6FD8;
+  --pero-chart-2: #D9535F;
+  --pero-chart-3: #2F9564;
+  --pero-chart-4: #845EC2;
+  --pero-chart-5: #EB9234;
+  --pero-chart-6: #F2C94C;
   --pero-primary: var(--pero-action);
   --pero-primary-hover: var(--pero-action-hover);
   --pero-primary-border: var(--pero-action);

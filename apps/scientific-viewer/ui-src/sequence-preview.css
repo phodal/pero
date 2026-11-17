@@ -14,14 +14,14 @@
   flex: none;
   min-width: 0;
 }
-.sequence-header,.sequence-pane-bar { border-bottom: 1px solid var(--pero-border-subtle, var(--pero-border)); }
+.sequence-header,.sequence-pane-bar { border-bottom: 1px solid var(--pero-border); }
 .sequence-header { justify-content: space-between; flex-wrap: wrap; }
 .sequence-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--pero-spacing-2); min-width: 0; overflow-wrap: anywhere; }
 .sequence-heading strong { font-size: var(--pero-font-heading); }
 .sequence-heading span,.sequence-footer,.sequence-message { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
 .sequence-search { display: flex; align-items: center; gap: var(--pero-spacing-1); flex: 0 1 320px; min-width: 0; }
 .sequence-search input { flex: 1; min-width: 0; }
-.sequence-message { margin: 0; padding: var(--pero-spacing-1) var(--pero-spacing-3); border-bottom: 1px solid var(--pero-border-subtle, var(--pero-border)); }
+.sequence-message { margin: 0; padding: var(--pero-spacing-1) var(--pero-spacing-3); border-bottom: 1px solid var(--pero-border); }
 .sequence-split { flex: 1; min-height: 0; }
 .sequence-split[data-stacked] { overflow-y: auto; }
 .sequence-split[data-stacked] > #sequence-map { flex: 0 0 400px; }
@@ -97,15 +97,15 @@
 .sequence-map-feature:is(:hover,:focus-visible,[aria-pressed="true"]) .sequence-feature-stroke { stroke: var(--feature-color); }
 .sequence-map-feature:is(:hover,:focus-visible,[aria-pressed="true"]) .sequence-feature-tip { fill: var(--feature-color); }
 .sequence-map-selection { stroke: var(--pero-action); stroke-width: 5; stroke-linecap: round; fill: none; pointer-events: none; }
-.sequence-annotations { flex: none; border-top: 1px solid var(--pero-border-subtle, var(--pero-border)); }
+.sequence-annotations { flex: none; border-top: 1px solid var(--pero-border); }
 .sequence-annotations summary { cursor: pointer; padding: var(--pero-spacing-2) var(--pero-spacing-3); font-size: var(--pero-font-caption); }
 .sequence-annotations summary span { color: var(--pero-text-muted); padding-inline-start: var(--pero-spacing-1); }
 .sequence-annotation-list { display: grid; max-height: 125px; overflow: auto; padding-inline: var(--pero-spacing-2); }
 .sequence-annotation-list .pero-ui-button { justify-content: space-between; min-width: 0; border-inline-start: 3px solid var(--feature-color); }
 .sequence-annotation-list .pero-ui-button span { overflow: hidden; text-overflow: ellipsis; text-align: start; }
 .sequence-annotation-list .pero-ui-button[aria-pressed="true"] { background: var(--pero-accent-soft); }
-.sequence-footer { flex-wrap: wrap; border-top: 1px solid var(--pero-border-subtle, var(--pero-border)); }
-.sequence-cut { color: var(--pero-text-secondary); cursor: pointer; }
+.sequence-footer { flex-wrap: wrap; border-top: 1px solid var(--pero-border); }
+.sequence-cut { color: var(--pero-text-muted); cursor: pointer; }
 .sequence-cut path { fill: none; stroke: currentColor; stroke-width: .7; opacity: .65; }
 .sequence-cut circle,.sequence-cut text { fill: currentColor; }
 .sequence-cut text { font: 9px var(--sequence-mono); paint-order: stroke; stroke: var(--pero-surface); stroke-width: 2px; }

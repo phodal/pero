@@ -1,5 +1,5 @@
-/* Compatibility aliases. New components use the TypeSpec --pero-spacing-* scale.
- * The legacy --pero-space-* scale remains for existing App layouts. */
+/* Compatibility aliases for radii, type, and control metrics.
+ * Layout spacing uses the TypeSpec --pero-spacing-* scale. */
 :root {
   --pero-radius-2xs: 2px;
   --pero-radius-xs: 4px;
@@ -10,17 +10,6 @@
   --pero-radius-2xl: 14px;
   --pero-radius-3xl: 16px;
   --pero-radius-full: 999px;
-  --pero-space-1: 2px;
-  --pero-space-2: 4px;
-  --pero-space-3: 6px;
-  --pero-space-4: 8px;
-  --pero-space-5: 10px;
-  --pero-space-6: 12px;
-  --pero-space-7: 14px;
-  --pero-space-8: 16px;
-  --pero-space-9: 18px;
-  --pero-space-10: 20px;
-  --pero-space-12: 24px;
   --pero-font-size-2xs: var(--pero-font-caption);
   --pero-font-size-xs: var(--pero-font-caption);
   --pero-font-size-xs-plus: var(--pero-font-caption);
@@ -88,17 +77,6 @@ body[data-style="comfortable"],
   --pero-radius-2xl: 18px;
   --pero-radius-3xl: 22px;
   --pero-radius-full: 999px;
-  --pero-space-1: 3px;
-  --pero-space-2: 5px;
-  --pero-space-3: 8px;
-  --pero-space-4: 10px;
-  --pero-space-5: 13px;
-  --pero-space-6: 15px;
-  --pero-space-7: 18px;
-  --pero-space-8: 20px;
-  --pero-space-9: 22px;
-  --pero-space-10: 25px;
-  --pero-space-12: 30px;
   --pero-font-size-2xs: var(--pero-font-caption);
   --pero-font-size-xs: var(--pero-font-caption);
   --pero-font-size-xs-plus: var(--pero-font-caption);
@@ -150,17 +128,6 @@ body[data-style="compact"],
   --pero-radius-2xl: 7px;
   --pero-radius-3xl: 8px;
   --pero-radius-full: 999px;
-  --pero-space-1: 2px;
-  --pero-space-2: 3px;
-  --pero-space-3: 4px;
-  --pero-space-4: 6px;
-  --pero-space-5: 7px;
-  --pero-space-6: 9px;
-  --pero-space-7: 10px;
-  --pero-space-8: 12px;
-  --pero-space-9: 13px;
-  --pero-space-10: 15px;
-  --pero-space-12: 18px;
   --pero-font-size-2xs: var(--pero-font-caption);
   --pero-font-size-xs: var(--pero-font-caption);
   --pero-font-size-xs-plus: var(--pero-font-caption);
@@ -212,17 +179,6 @@ body[data-style="pero-default"],
   --pero-radius-2xl: 14px;
   --pero-radius-3xl: 16px;
   --pero-radius-full: 999px;
-  --pero-space-1: 2px;
-  --pero-space-2: 4px;
-  --pero-space-3: 6px;
-  --pero-space-4: 8px;
-  --pero-space-5: 10px;
-  --pero-space-6: 12px;
-  --pero-space-7: 14px;
-  --pero-space-8: 16px;
-  --pero-space-9: 18px;
-  --pero-space-10: 20px;
-  --pero-space-12: 24px;
   --pero-font-size-2xs: var(--pero-font-caption);
   --pero-font-size-xs: var(--pero-font-caption);
   --pero-font-size-xs-plus: var(--pero-font-caption);

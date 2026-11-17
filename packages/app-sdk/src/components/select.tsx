@@ -88,7 +88,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       const theme = {
         bg: ['--pero-select-bg', '--pero-surface', '--dsw-alias-bg-base'], ink: ['--pero-select-ink', '--pero-text', '--dsw-alias-label-primary'],
         border: ['--pero-select-border', '--pero-border-control', '--pero-border', '--dsw-alias-border-primary'],
-        muted: ['--pero-select-muted', '--pero-text-secondary', '--pero-muted', '--dsw-alias-label-secondary'],
+        muted: ['--pero-select-muted', '--pero-text-muted', '--pero-text-secondary', '--pero-muted', '--dsw-alias-label-secondary'],
         selected: ['--pero-select-selected', '--pero-accent-soft'], 'selected-ink': ['--pero-select-selected-ink', '--pero-accent-text'],
         hover: ['--pero-select-hover', '--pero-surface-hover', '--pero-hover', '--dsw-alias-interactive-bg-hover'], accent: ['--pero-select-accent', '--pero-focus', '--pero-action', '--pero-accent', '--pero-accent-color', '--dsw-alias-button-info-fill', '--dsw-alias-brand-primary'],
       };

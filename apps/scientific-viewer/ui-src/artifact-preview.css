@@ -52,7 +52,7 @@ body { color:var(--pero-text,#172536); background:var(--pero-surface,#fff); font
     margin-inline:auto;
     padding:var(--pero-spacing-6) clamp(24px, 5vw, 48px);
     background:var(--pero-material-reading);
-    border:1px solid var(--pero-border-subtle);
+    border:1px solid var(--pero-border);
     border-radius:var(--pero-radius-panel);
   }
 }

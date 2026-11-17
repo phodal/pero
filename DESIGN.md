@@ -61,6 +61,12 @@ colors:
     tint-apricot-text: "#80502E"
     disabled: "#E3EAF1"
     disabled-text: "#596B7D"
+    chart-1: "#3B6FD8"
+    chart-2: "#D9535F"
+    chart-3: "#2F9564"
+    chart-4: "#845EC2"
+    chart-5: "#B86A18"
+    chart-6: "#9C7A14"
   dark:
     bg: "#0B1420"
     surface: "#121F2E"
@@ -103,6 +109,12 @@ colors:
     tint-apricot-text: "#F1CEAD"
     disabled: "#293B4D"
     disabled-text: "#ACBBCB"
+    chart-1: "#3B6FD8"
+    chart-2: "#D9535F"
+    chart-3: "#2F9564"
+    chart-4: "#845EC2"
+    chart-5: "#EB9234"
+    chart-6: "#F2C94C"
   data:
     blue:
       name: "轨道蓝"
