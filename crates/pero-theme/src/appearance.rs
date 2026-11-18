@@ -1,4 +1,4 @@
-use crate::{AccentColor, ResolvedTypography, TextRole};
+use crate::{AccentColor, Palette, Palettes, ResolvedTypography, TextRole};
 use gpui_kit::{
     component::{Sizable, Theme, ThemeMode, button::Button, input::Input},
     *,
@@ -63,170 +63,6 @@ impl WorkbenchStyle {
             .px(px(crate::SPACE_8))
             .py(px(if compact { crate::SPACE_4 } else { crate::SPACE_8 }))
     }
-}
-
-#[derive(Clone, Deserialize)]
-pub struct Palettes {
-    pub light: Palette,
-    pub dark: Palette,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub struct Palette {
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub bg: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub surface: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub surface_muted: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub text: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub text_muted: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub border: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub input_border: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub action: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub action_hover: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_action: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub accent: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_accent: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub accent_soft: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub accent_text: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub link: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub focus: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub success: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_success: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub success_bg: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub warning: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_warning: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub warning_bg: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub error: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_error: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub error_bg: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub info: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub on_info: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub info_bg: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub surface_hover: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub surface_pressed: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub action_pressed: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_blue_surface: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_blue_soft: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_blue_strong: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_blue_text: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_apricot_surface: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_apricot_soft: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_apricot_strong: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub tint_apricot_text: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub disabled: Hsla,
-    #[serde(deserialize_with = "color", serialize_with = "serialize_color")]
-    pub disabled_text: Hsla,
-}
-
-fn color<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Hsla, D::Error> {
-    let value = String::deserialize(deserializer)?;
-    let hex = value
-        .strip_prefix('#')
-        .filter(|hex| hex.len() == 6)
-        .ok_or_else(|| serde::de::Error::custom("Expected a six-digit palette color"))?;
-    u32::from_str_radix(hex, 16)
-        .map(|value| rgb(value).into())
-        .map_err(serde::de::Error::custom)
-}
-
-// Compatibility for existing status presenters that select a semantic token by name.
-impl Palette {
-    pub fn color(&self, token: &str) -> Hsla {
-        match token {
-            "bg" => self.bg,
-            "surface" => self.surface,
-            "surface-muted" => self.surface_muted,
-            "text" => self.text,
-            "text-muted" => self.text_muted,
-            "border" => self.border,
-            "input-border" => self.input_border,
-            "action" => self.action,
-            "action-hover" => self.action_hover,
-            "on-action" => self.on_action,
-            "accent" => self.accent,
-            "on-accent" => self.on_accent,
-            "accent-soft" => self.accent_soft,
-            "accent-text" => self.accent_text,
-            "link" => self.link,
-            "focus" => self.focus,
-            "success" => self.success,
-            "on-success" => self.on_success,
-            "success-bg" => self.success_bg,
-            "warning" => self.warning,
-            "on-warning" => self.on_warning,
-            "warning-bg" => self.warning_bg,
-            "error" => self.error,
-            "on-error" => self.on_error,
-            "error-bg" => self.error_bg,
-            "info" => self.info,
-            "on-info" => self.on_info,
-            "info-bg" => self.info_bg,
-            "surface-hover" => self.surface_hover,
-            "surface-pressed" => self.surface_pressed,
-            "action-pressed" => self.action_pressed,
-            "tint-blue-surface" => self.tint_blue_surface,
-            "tint-blue-soft" => self.tint_blue_soft,
-            "tint-blue-strong" => self.tint_blue_strong,
-            "tint-blue-text" => self.tint_blue_text,
-            "tint-apricot-surface" => self.tint_apricot_surface,
-            "tint-apricot-soft" => self.tint_apricot_soft,
-            "tint-apricot-strong" => self.tint_apricot_strong,
-            "tint-apricot-text" => self.tint_apricot_text,
-            "disabled" => self.disabled,
-            "disabled-text" => self.disabled_text,
-            _ => panic!("Unknown design token: {token}"),
-        }
-    }
-}
-
-fn serialize_color<S: serde::Serializer>(color: &Hsla, serializer: S) -> Result<S::Ok, S::Error> {
-    let rgb = color.to_rgb();
-    serializer.serialize_str(&format!(
-        "#{:02X}{:02X}{:02X}",
-        (rgb.r * 255.).round() as u8,
-        (rgb.g * 255.).round() as u8,
-        (rgb.b * 255.).round() as u8
-    ))
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -317,11 +153,11 @@ impl ResolvedAppearance {
             theme.mono_font_family = "JetBrains Mono".into();
             let c = &mut theme.colors;
             // The chart palette follows DESIGN.md's categorical data colors.
-            c.chart_1 = rgb(0x3b6fd8).into();
-            c.chart_2 = rgb(0xd9535f).into();
-            c.chart_3 = rgb(0x2f9564).into();
-            c.chart_4 = rgb(0x845ec2).into();
-            c.chart_5 = rgb(0xb86a18).into();
+            c.chart_1 = p.chart_1;
+            c.chart_2 = p.chart_2;
+            c.chart_3 = p.chart_3;
+            c.chart_4 = p.chart_4;
+            c.chart_5 = p.chart_5;
             c.background = p.surface;
             c.foreground = p.text;
             c.border = p.border;
@@ -383,12 +219,6 @@ impl ResolvedAppearance {
         });
         cx.set_global(self);
         cx.refresh_windows();
-    }
-}
-
-impl Palettes {
-    pub fn get(&self, dark: bool) -> &Palette {
-        if dark { &self.dark } else { &self.light }
     }
 }
 
