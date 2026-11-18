@@ -1,13 +1,14 @@
-use super::PythonEnvironment;
+use super::python::AppPython;
 use crate::owned_process::OwnedProcess;
 use super::definition::{AppDefinition, BackendKind};
+use super::startup_failure::{AppStartupFailure, StartupCode};
 use serde::Serialize;
 use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 #[derive(Clone, Serialize)]
@@ -54,16 +55,18 @@ impl AppProcess {
         definition: &AppDefinition,
         root: &Path,
         data: &Path,
-        python: Option<&PythonEnvironment>,
-    ) -> Result<Self, String> {
-        let backend = definition.backend.as_ref().ok_or("App has no backend")?;
-        std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
+        python: &AppPython,
+    ) -> Result<Self, AppStartupFailure> {
+        let backend = definition.backend.as_ref().ok_or_else(|| {
+            AppStartupFailure::new(StartupCode::AppUnavailable, "App has no backend")
+        })?;
+        std::fs::create_dir_all(data).map_err(|error| AppStartupFailure::setup(error.to_string()))?;
         let token = uuid::Uuid::new_v4().to_string();
         let reproduction = ReproductionDeployment::resolve(definition.name.as_str(),
-            std::env::var_os("PERO_PAPER_PCGYM_CHECKOUT"))?;
+            std::env::var_os("PERO_PAPER_PCGYM_CHECKOUT")).map_err(AppStartupFailure::setup)?;
         let reproduction_token = reproduction.as_ref().map(|_| uuid::Uuid::new_v4().to_string());
         let (executable, label) = match (&backend.kind, python) {
-            (BackendKind::Python, Some(environment)) => {
+            (BackendKind::Python, AppPython::Environment(environment)) => {
                 let marker = environment.root().join(super::conda::MARKER);
                 if marker.is_file() {
                     let text = std::fs::read_to_string(&marker).map_err(|error| {
@@ -71,8 +74,8 @@ impl AppProcess {
                             "App {} conda prefix {} is unavailable: {error}. Prepare the environment or update app_python and restart the Host.",
                             definition.name.as_str(), marker.display(),
                         )
-                    })?;
-                    super::conda::accept_marker(&text)?;
+                    }).map_err(AppStartupFailure::environment)?;
+                    super::conda::accept_marker(&text).map_err(AppStartupFailure::environment)?;
                 } else {
                     let config = environment.root().join("pyvenv.cfg");
                     let contents = std::fs::read_to_string(&config).map_err(|error| {
@@ -80,23 +83,20 @@ impl AppProcess {
                             "App {} Python environment {} is unavailable: {error}. Prepare the virtual environment or update app_python and restart the Host.",
                             definition.name.as_str(), config.display(),
                         )
-                    })?;
-                    environment.validate_config(&contents)?;
+                    }).map_err(AppStartupFailure::environment)?;
+                    environment.validate_config(&contents).map_err(AppStartupFailure::environment)?;
                 }
                 let executable = environment.executable();
                 if !executable.is_file() {
-                    return Err(format!(
+                    return Err(AppStartupFailure::environment(format!(
                         "App {} Python interpreter {} is missing. Recreate the virtual environment or update app_python and restart the Host.",
                         definition.name.as_str(),
                         executable.display(),
-                    ));
+                    )));
                 }
                 (executable.into_os_string(), "Python")
             }
-            (BackendKind::Python, None) => (
-                super::python::default_executable(),
-                "Python",
-            ),
+            (BackendKind::Python, _) => (python.executable(), "Python"),
             (BackendKind::Node, _) => (
                 std::env::var_os("PERO_APP_NODE").unwrap_or_else(|| "node".into()),
                 "Node",
@@ -117,8 +117,8 @@ impl AppProcess {
                 command.env(key, value);
             }
         }
-        if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
-            environment.configure_command(&mut command)?;
+        if let (BackendKind::Python, AppPython::Environment(environment)) = (&backend.kind, python) {
+            environment.configure_command(&mut command).map_err(AppStartupFailure::environment)?;
         }
         // Remote method deployment belongs to trusted Host configuration. Keep
         // model credentials out of every other App's environment and manifests.
@@ -151,12 +151,15 @@ impl AppProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
-        let remote_compute = super::remote_compute::RemoteCompute::start(definition.name.as_str(), data)?;
+        let remote_compute = super::remote_compute::RemoteCompute::start(definition.name.as_str(), data)
+            .map_err(AppStartupFailure::setup)?;
         if let Some(remote) = &remote_compute { remote.configure(&mut command); }
-        let scientific_uses = super::scientific_uses::ScientificUses::start(definition.name.as_str(), data)?;
+        let scientific_uses = super::scientific_uses::ScientificUses::start(definition.name.as_str(), data)
+            .map_err(AppStartupFailure::setup)?;
         if let Some(uses) = &scientific_uses { uses.configure(&mut command); }
         let mut child = OwnedProcess::spawn(&mut command)
-            .map_err(|error| format!("Cannot start App {label} backend {}: {error}. Check its configured interpreter and environment.", definition.name.as_str()))?;
+            .map_err(|error| AppStartupFailure::new(StartupCode::SpawnFailed,
+                format!("Cannot start App {label} backend {}: {error}. Check its configured interpreter and environment.", definition.name.as_str())))?;
         if let Some(uses) = &scientific_uses { uses.bind(child.child_mut().id()); }
         let mut process = Self {
             child,
@@ -181,27 +184,39 @@ impl AppProcess {
             let _ = send.send(ready);
             let _ = std::io::copy(&mut reader, &mut std::io::sink());
         });
+        let deadline = Instant::now() + Duration::from_secs(10);
         let line = receive
-            .recv_timeout(Duration::from_secs(10))
-            .map_err(|_| "App backend did not report readiness within 10 seconds".to_string())?
-            .map_err(|error| error.to_string())?;
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .map_err(|error| match error {
+                mpsc::RecvTimeoutError::Timeout => AppStartupFailure::new(
+                    StartupCode::ReadinessTimeout, "App backend did not report readiness within 10 seconds"),
+                mpsc::RecvTimeoutError::Disconnected => AppStartupFailure::new(
+                    StartupCode::ReadinessIo, "App backend readiness channel closed"),
+            })?
+            .map_err(|error| AppStartupFailure::new(StartupCode::ReadinessIo, error.to_string()))?;
+        loop {
+            if let Some(status) = process.child.try_wait()
+                .map_err(|error| AppStartupFailure::new(StartupCode::ReadinessIo, error.to_string()))?
+            {
+                return Err(AppStartupFailure::exited(status));
+            }
+            // The OS can close the pipe before making the exit status available.
+            // On EOF, wait for it within the same startup deadline.
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if !line.is_empty() || remaining.is_zero() {
+                break;
+            }
+            std::thread::sleep(remaining.min(Duration::from_millis(10)));
+        }
         #[derive(serde::Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Ready {
             port: u16,
         }
         let ready: Ready = serde_json::from_str(&line)
-            .map_err(|_| "App backend returned an invalid readiness line")?;
+            .map_err(|_| AppStartupFailure::new(StartupCode::InvalidReadiness, "App backend returned an invalid readiness line"))?;
         if ready.port == 0 {
-            return Err("App backend returned an invalid port".into());
-        }
-        if process
-            .child
-            .try_wait()
-            .map_err(|error| error.to_string())?
-            .is_some()
-        {
-            return Err("App backend stopped during startup".into());
+            return Err(AppStartupFailure::new(StartupCode::InvalidReadiness, "App backend returned an invalid port"));
         }
         process.access.url = format!("http://127.0.0.1:{}", ready.port);
         Ok(process)

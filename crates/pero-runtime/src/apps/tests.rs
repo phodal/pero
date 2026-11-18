@@ -547,6 +547,42 @@ fn declared_stdlib_python_is_prepared_before_the_real_virtual_cell_backend_start
 }
 
 #[test]
+fn bundled_app_python_satisfies_requirements_without_preparing_a_profile() {
+    let python = python::bundled_python_executable().unwrap();
+    let name = AppName::try_from("virtual-cell".to_owned()).unwrap();
+    for (minor, dependencies, available, expected_error) in [
+        ("3.12", vec![], true, None),
+        ("3.11", vec![], true, Some("requires Python 3.11")),
+        ("3.12", vec!["pero-uninstalled-fixture==1.0"], true, Some("missing the App's locked dependencies")),
+        ("3.12", vec![], false, Some("Cannot start App Python backend with the bundled interpreter")),
+    ] {
+        let workspace = Workspace::new();
+        let source = workspace.package(Some("python"));
+        let manifest_path = source.join("app.json");
+        let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["backend"]["python"] = serde_json::json!(minor);
+        manifest["backend"]["dependencies"] = serde_json::json!(dependencies);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        let executable = if available { python.clone() } else { workspace.0.join("missing/python3") };
+        let mut selection = PythonEnvironments::default().with_bundled_python(Some(executable)).unwrap();
+        selection.bind(name.clone(), workspace.0.join("missing/profile-venv")).unwrap();
+        let mut store = AppStore::open(workspace.0.join("profile/apps"), selection).unwrap();
+        store.install(&source).unwrap();
+        store.set_enabled(&name, true).unwrap();
+
+        let opened = store.resolve(&name);
+        if let Some(expected) = expected_error {
+            let error = opened.err().expect("bundle requirements must be checked");
+            assert!(error.contains(expected), "{error}");
+        } else {
+            assert!(opened.unwrap().backend.is_some());
+        }
+        assert!(!workspace.0.join("profile/environment").exists());
+    }
+}
+
+#[test]
 fn deployment_configuration_reaches_only_its_backend() {
     const CHILD: &str = "PERO_TEST_MODEL_CONFIG_CHILD";
     const URL: &str = "https://model.example.invalid";

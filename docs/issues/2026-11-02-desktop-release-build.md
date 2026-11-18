@@ -6,6 +6,36 @@ date: 2026-11-02
 
 # Desktop release Reader build prerequisites
 
+## 2026-11-18 bundled Python selection
+
+Virtual Cell declares Python 3.12. The standalone shell previously supplied its
+bundled interpreter as the generic default, which Host only used after the
+managed environment requirement. A clean profile therefore failed before
+launching the interpreter.
+
+The Product now supplies a dedicated bundled interpreter path to Host. Host
+checks the bundled interpreter against the App's declared Python minor and
+locked dependencies before launch. Opening the packaged App requires no
+profile environment or preparation step. Workbench still uses its selected or
+managed environments.
+
+A clean-profile comparison on macOS arm64 used the pinned CPython 3.12.16
+release input and the production Virtual Cell backend. The baseline Host
+returned the recorded preparation error. The updated Host started the backend
+and returned HTTP 200 for its task package, with no environment in the profile.
+The AppStore suite also verified missing interpreter, wrong minor, missing
+locked dependencies and Workbench preparation. Hosted release acceptance
+remains open.
+
+The macOS arm64 builder produced a 130,667,914-byte local DMG. A relocated copy
+of its signed App passed all six Product Electron checks with a clean profile
+and restricted PATH. The App opened directly and did not create a profile
+environment. The atlas, synthetic comparison, reaction simulation, and
+language and data persistence passed. Removing the bundled interpreter
+temporarily produced the expected environment diagnostic. Restoring it and
+pressing Retry opened the App again. The light atlas and 800-pixel dark
+reaction screenshots were inspected. Evidence is in `test-results/product/`.
+
 ## 2026-11-15 standalone preparation recurrence
 
 PR #222 optional packaging [run 43663747636](https://github.com/phodal/pero/actions/runs/43663747636),

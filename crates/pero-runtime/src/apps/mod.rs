@@ -11,6 +11,7 @@ mod builtins;
 use builtins::BuiltinDiscovery;
 mod definition;
 mod process;
+mod startup_failure;
 mod scientific_uses;
 mod remote_compute;
 pub mod project_proposal;
@@ -34,6 +35,8 @@ pub use preparation::AppPreparation;
 pub use definition::{AppDefinition, AppName, AppSummary};
 use process::AppProcess;
 pub use process::BackendAccess;
+pub use startup_failure::AppStartupFailure;
+use startup_failure::StartupCode;
 pub use python::{PythonEnvironment, PythonEnvironments};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -479,6 +482,11 @@ impl AppStore {
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if self.processes.contains_key(name) { return Ok(()); }
         let Some(backend) = &app.definition.backend else { return Ok(()); };
+        if matches!(backend.kind, definition::BackendKind::Python) {
+            if let Some(python) = &self.python.bundled {
+                return preparation::check_bundled(python, backend);
+            }
+        }
         if !backend.uses_python_environment(self.python.select(name).is_some()) { return Ok(()); }
         let managed = self.managed_python_directory(name)?;
         let dependencies = backend.dependencies.clone();
@@ -530,7 +538,12 @@ impl AppStore {
     }
 
     pub fn resolve_with_progress(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<AppAccess, String> {
-        let mut access = self.resolve_static(name)?;
+        self.resolve_backend(name, progress).map_err(|failure| failure.to_string())
+    }
+
+    pub fn resolve_backend(&mut self, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<AppAccess, AppStartupFailure> {
+        let mut access = self.resolve_static(name)
+            .map_err(|message| AppStartupFailure::new(StartupCode::AppUnavailable, message))?;
         let app = self.installed.get(name).expect("resolved installed App");
         if self
             .processes
@@ -540,11 +553,13 @@ impl AppStore {
             self.processes.remove(name);
         }
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
-            let mut python = self.selected_python(name)?;
+            let mut python = self.selected_python(name).map_err(AppStartupFailure::environment)?;
             let backend = app.definition.backend.as_ref().expect("App backend");
-            if backend.uses_python_environment(python.is_some())
-            {
-                let managed = PythonEnvironment::try_from(self.managed_python_directory(name)?)?;
+            if let (definition::BackendKind::Python, python::AppPython::Bundled(bundled)) = (&backend.kind, &python) {
+                preparation::check_bundled(bundled, backend).map_err(AppStartupFailure::environment)?;
+            } else if backend.uses_python_environment(matches!(python, python::AppPython::Environment(_))) {
+                let directory = self.managed_python_directory(name).map_err(AppStartupFailure::environment)?;
+                let managed = PythonEnvironment::try_from(directory).map_err(AppStartupFailure::environment)?;
                 let required_minor = backend.python.as_ref().map(|minor| minor.as_str());
                 let checked = preparation::check(self.python.select(name), managed, &backend.dependencies, required_minor);
                 progress(AppPreparation {
@@ -552,7 +567,7 @@ impl AppStore {
                     phase: if checked.is_ok() { preparation::PreparationPhase::Ready } else { preparation::PreparationPhase::Required },
                     message: match &checked { Ok(_) => "Python environment is ready".into(), Err(error) => error.clone() },
                 });
-                python = Some(checked?);
+                python = python::AppPython::Environment(checked.map_err(AppStartupFailure::environment)?);
             }
             self.processes.insert(
                 name.clone(),
@@ -560,7 +575,7 @@ impl AppStore {
                     &app.definition,
                     &access.root,
                     &self.data.join(name.as_str()),
-                    python.as_ref(),
+                    &python,
                 )?,
             );
         }
@@ -568,7 +583,7 @@ impl AppStore {
             .processes
             .get_mut(name)
             .map(AppProcess::access)
-            .transpose()?;
+            .transpose().map_err(|message| AppStartupFailure::new(StartupCode::ReadinessIo, message))?;
         access.backend = backend;
         Ok(access)
     }

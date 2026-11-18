@@ -51,7 +51,9 @@ For a pre-provisioned or offline setup:
 - `PERO_APP_PYTHON` is a fallback executable for Apps without a selected venv and without declared dependencies, such as Data in an appropriately isolated development profile. Set it before launching. It suppresses automatic default binding on a new workbench launch, but **does not override an existing `app_python` binding** or bypass an App's dependency/version checks. Data's fallback interpreter needs Python 3.10+.
 - `PERO_DESKTOP_DATA_DIR` isolates an Electron preview and skips normal-home initialization; the preview's own saved settings still apply. Do not assume behavior observed with that override is normal installed-workbench first use.
 
-See [App environment rules](apps/README.md#python-environments) for current source behavior. The standalone Product's `python` setting controls its packaged fallback runtime; it does not replace workbench settings or establish that a fresh workbench environment is ready.
+See [App environment rules](apps/README.md#python-environments) for current source behavior. Products with `python: bundled` use the packaged interpreter after the Host checks the App's required version and dependencies. The Workbench applies its own profile's environment settings.
+
+For App startup failures, check `app-startup.jsonl` next to the Host's runtime settings. Each record carries the App name, request ID, startup stage, error code, elapsed time and any observed exit status. Electron error responses from Host resolution carry the same ID in `X-Pero-Request-Id`. The Host retains up to two 256 KiB files and excludes backend output and request bodies from these records.
 
 ### Native fresh-profile limitation
 

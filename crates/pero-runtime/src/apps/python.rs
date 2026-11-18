@@ -123,9 +123,17 @@ impl PythonPreparation {
 pub struct PythonEnvironments {
     default: Option<PythonEnvironment>,
     apps: BTreeMap<AppName, PythonEnvironment>,
+    #[serde(skip)]
+    pub(super) bundled: Option<BundledAppPython>,
 }
 
 impl PythonEnvironments {
+    /// Product composition supplies this path independently of profile settings.
+    pub fn with_bundled_python(mut self, executable: Option<PathBuf>) -> Result<Self, String> {
+        self.bundled = executable.map(BundledAppPython::try_from).transpose()?;
+        Ok(self)
+    }
+
     pub fn select(&self, name: &AppName) -> Option<&PythonEnvironment> {
         self.apps.get(name).or(self.default.as_ref())
     }
@@ -133,6 +141,53 @@ impl PythonEnvironments {
     pub fn bind(&mut self, name: AppName, root: PathBuf) -> Result<(), String> {
         self.apps.insert(name, PythonEnvironment::try_from(root)?);
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BundledAppPython(PathBuf);
+
+impl TryFrom<PathBuf> for BundledAppPython {
+    type Error = String;
+
+    fn try_from(executable: PathBuf) -> Result<Self, Self::Error> {
+        if !executable.is_absolute() {
+            return Err("Bundled App Python requires an absolute executable path".into());
+        }
+        Ok(Self(executable))
+    }
+}
+
+impl BundledAppPython {
+    pub(super) fn executable(&self) -> &Path {
+        &self.0
+    }
+
+    pub(super) fn check_minor(&self, required_minor: Option<&str>) -> Result<(), String> {
+        let version = probe_version(self.executable())
+            .map_err(|error| format!("Cannot start App Python backend with the bundled interpreter: {error}"))?;
+        if let Some(required) = required_minor {
+            if !python_minor_matches(&version, required) {
+                return Err(format!("Bundled App Python is {version}; this App requires Python {required}"));
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(super) enum AppPython {
+    Default,
+    Environment(PythonEnvironment),
+    Bundled(BundledAppPython),
+}
+
+impl AppPython {
+    pub(super) fn executable(&self) -> std::ffi::OsString {
+        match self {
+            Self::Default => default_executable(),
+            Self::Environment(environment) => environment.executable().into_os_string(),
+            Self::Bundled(python) => python.executable().as_os_str().to_owned(),
+        }
     }
 }
 
@@ -207,7 +262,10 @@ impl PythonEnvironment {
 }
 
 pub(super) fn default_executable() -> std::ffi::OsString {
-    std::env::var_os("PERO_APP_PYTHON").unwrap_or_else(|| "python3".into())
+    // Utility probes without an AppStore use the same Product executable.
+    std::env::var_os("PERO_BUNDLED_APP_PYTHON")
+        .or_else(|| std::env::var_os("PERO_APP_PYTHON"))
+        .unwrap_or_else(|| "python3".into())
 }
 
 /// Real `python3.12` executable. Resolving the symlink keeps venv `home` on the

@@ -1,5 +1,9 @@
 //! Host-owned Python preparation, shared by every Desktop shell.
-use super::{AppName, PythonEnvironment, definition::PythonDependency, python::PythonPreparation};
+use super::{
+    AppName, PythonEnvironment,
+    definition::{AppBackend, PythonDependency},
+    python::{BundledAppPython, PythonPreparation},
+};
 use serde::Serialize;
 use std::{
     path::Path,
@@ -84,7 +88,7 @@ pub(super) fn prepare(
         let requirements: Vec<&str> = dependencies.iter().map(PythonDependency::as_str).collect();
         // Check installed distribution versions, rather than trusting a receipt
         // left behind before an environment was edited or removed.
-        let check = || locked_packages_ready(environment, &requirements);
+        let check = || locked_packages_ready(&environment.executable(), &requirements);
         if !check()? {
             report(
                 PreparationPhase::Installing,
@@ -139,10 +143,19 @@ pub(super) fn check(
         environment.validate_config(&config)?;
     }
     let requirements: Vec<&str> = dependencies.iter().map(PythonDependency::as_str).collect();
-    if !locked_packages_ready(environment, &requirements)? {
+    if !locked_packages_ready(&environment.executable(), &requirements)? {
         return Err("The App's locked dependencies are missing. Choose Prepare environment to install them.".into());
     }
     Ok(environment.clone())
+}
+
+pub(super) fn check_bundled(python: &BundledAppPython, backend: &AppBackend) -> Result<(), String> {
+    python.check_minor(backend.python.as_ref().map(|minor| minor.as_str()))?;
+    let requirements: Vec<&str> = backend.dependencies.iter().map(PythonDependency::as_str).collect();
+    if !locked_packages_ready(python.executable(), &requirements)? {
+        return Err("The bundled App Python is missing the App's locked dependencies.".into());
+    }
+    Ok(())
 }
 
 fn selection(
@@ -176,13 +189,13 @@ fn selection(
 /// Missing pins are not ready. Pins that are installed but cannot be imported
 /// stay failed, so a later open does not run pip again.
 fn locked_packages_ready(
-    environment: &PythonEnvironment,
+    executable: &Path,
     requirements: &[&str],
 ) -> Result<bool, String> {
     if requirements.is_empty() {
         return Ok(true);
     }
-    let output = Command::new(environment.executable())
+    let output = Command::new(executable)
         .args(["-I", "-B", "-c", "import importlib, importlib.metadata as m, sys\nreqs=sys.argv[1:]\ntry:\n ok=all(m.version(n)==v for n,v in (r.split('==') for r in reqs))\nexcept m.PackageNotFoundError:\n sys.exit(1)\nif not ok:\n sys.exit(1)\ntry:\n for req in reqs:\n  name=req.split('==',1)[0]\n  dist=m.distribution(name)\n  for top in (dist.read_text('top_level.txt') or '').split():\n   if top: importlib.import_module(top)\n  if name=='scipy': importlib.import_module('scipy.linalg')\nexcept Exception as exc:\n print(exc, file=sys.stderr)\n sys.exit(2)"])
         .args(requirements)
         .output()

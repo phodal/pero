@@ -60,3 +60,22 @@ Kit paints a selected-cell overlay after its contents. An opaque accent fill
 therefore covered the value. The table selection token now uses translucent
 focus ink; the separate focus border keeps selection visible without masking
 text. This is specific to Kit's overlay semantics, not a second palette.
+
+## 2026-11-18 generated chart palette
+
+The shared Rust palette rejected `chart-1` when loading the new categorical
+chart colors from DESIGN.md. Electron Workbench and the macOS Native origin
+probe both failed at startup on `dc65fe341`. The ordinary Linux gate passed
+its generation checks without exercising that Rust input. [Full CI evidence](https://github.com/phodal/pero/actions/runs/44005175096)
+
+The parser now recognizes all six chart tokens in both themes and still rejects
+unknown palette fields. GPUI's available five chart slots read from the same
+parsed palette. Ordinary CI exercises this parser without GPUI or Wasm
+compilation. The working-tree repair at `dc65fe341` passed both headless palette
+tests and all three Native-feature appearance tests on macOS arm64. The theme
+generator freshness check also passed. A development Native build with
+`native-probe` passed `node tests/e2e/native-webview.mjs` on macOS 27.2.1 arm64.
+The hidden GPUI workbench loaded the generated palette, mounted a real Wry
+page, retained its form, traversed history and released the view. Evidence is
+in `test-results/native-webview/result.json`. Electron Workbench, the packaged
+Native app and visual acceptance remain unverified for this repair.

@@ -2,6 +2,10 @@
 pub use pero_contracts::appearance::{AccentColor, ResolvedTypography, TextRole};
 mod design_tokens;
 pub use design_tokens::*;
+#[cfg(any(test, target_family = "wasm", feature = "native"))]
+mod palette;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub use palette::{Palette, Palettes};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod design;
 #[cfg(any(target_family = "wasm", feature = "native"))]

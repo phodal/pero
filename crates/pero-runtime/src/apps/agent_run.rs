@@ -70,13 +70,23 @@ pub fn workspace_id(path: &std::path::Path) -> String {
 }
 impl Run {
     pub fn active(&self) -> bool { matches!(self.status.as_str(), "running" | "cancelling" | "needs_input") }
+
+    /// Project the current state without constructing an App event page.
+    pub fn project(id: &str, binding: &Binding, history: &[HostEvent], active: bool) -> Self {
+        Transcript::fold(id, binding, history, active, None).run
+    }
 }
 impl Transcript {
     /// Cursors count the original Session journal, including events not exposed
     /// by this App API. Each source event owns two stable projection positions.
     pub fn project(id: &str, binding: &Binding, history: &[HostEvent], active: bool, after: u64) -> Self {
+        Self::fold(id, binding, history, active, Some(after))
+    }
+
+    fn fold(id: &str, binding: &Binding, history: &[HostEvent], active: bool, after: Option<u64>) -> Self {
         let mut run = Run { id:id.into(),session_id:id.into(),scope:binding.scope.clone(),status:"running".into(),attempt:1,
             request_id:binding.request_id.clone(),updated_at:binding.created_at.clone(),error:None,stop_reason:None };
+        let include_events = after.is_some();
         let mut events = Vec::new();
         let mut text = String::new();
         let mut cursor = 0;
@@ -102,7 +112,10 @@ impl Transcript {
                 "app_agent_cancel" => { if run.active() { run.status="cancelling".into(); } Some("app-agent/state") }
                 "session_update" if event.data["sessionUpdate"] == "agent_message_chunk" => {
                     if !matches!(run.status.as_str(), "cancelling" | "needs_input") {run.status="running".into();}
-                    text.push_str(event.data["content"]["text"].as_str().unwrap_or_default());None
+                    if include_events {
+                        text.push_str(event.data["content"]["text"].as_str().unwrap_or_default());
+                    }
+                    None
                 }
                 "permission" | "permission_resolved" | "user_questions" | "user_questions_resolved"
                 | "session_auth_required" | "session_auth_error" | "session_authenticated" => {
@@ -137,9 +150,12 @@ impl Transcript {
                 }
                 _ => None,
             };
-            if let Some(kind)=kind {events.push(Event{seq,kind:kind.into(),data:serde_json::to_value(&run).expect("Pero run")});}
+            if let (true, Some(kind)) = (include_events, kind) {
+                events.push(Event { seq, kind: kind.into(), data: serde_json::to_value(&run).expect("Pero run") });
+            }
         }
         if !active && run.active() { run.status="interrupted".into();run.error=Some("This Pero Host Session stopped; inspect its history before explicitly retrying".into()); }
+        let Some(after) = after else { return Self { run, events, cursor }; };
         let mut size=0;
         let events:Vec<_>=events.into_iter().filter(|event|event.seq>after).take(64).take_while(|event|{
             let bytes=serde_json::to_vec(&event).expect("Pero event").len();

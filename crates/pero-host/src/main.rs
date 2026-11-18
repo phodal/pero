@@ -14,6 +14,7 @@ mod environment_uses;
 #[cfg(test)]
 mod environment_execution;
 mod apps;
+mod app_startup;
 mod app_canvas;
 mod research_assets;
 mod project_resources;

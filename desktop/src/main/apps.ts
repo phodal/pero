@@ -14,6 +14,13 @@ import { PreparedAppWrite, type AppWriteDefinition } from './app-write.ts';
 import type { AppAccess, AppRecord, ArtifactSnapshot, ProjectResourceCatalog } from '../../../protocol/generated/host';
 
 type Event = { version: number; kind: string; request_id: string | null; text: string; data?: unknown };
+class AppRequestError extends Error {
+  readonly requestId: string;
+  constructor(message: string, requestId: string) {
+    super(message);
+    this.requestId = requestId;
+  }
+}
 type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
 
 type ReproductionIds = Readonly<{ itemId: string; specId: string; requestId: string }>;
@@ -81,7 +88,7 @@ export class DesktopApps {
       this.pending.delete(event.request_id!);
       const result = event.data as { ok: boolean; value?: unknown; error?: string };
       if (result.ok) pending.resolve(result.value);
-      else pending.reject(new Error(result.error || 'App request failed'));
+      else pending.reject(new AppRequestError(result.error || 'App request failed', event.request_id!));
     }
     return true; // Never forward private backend access descriptors to the renderer.
   }
@@ -430,7 +437,9 @@ export class DesktopApps {
       headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });
     } catch (error) {
-      return new Response((error as Error).message, { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      const headers = new Headers({ 'Content-Type': 'text/plain' });
+      if (error instanceof AppRequestError) headers.set('X-Pero-Request-Id', error.requestId);
+      return new Response((error as Error).message, { status: 503, headers });
     }
   }
 }

@@ -1,6 +1,6 @@
 //! Read-only inspection of an already configured scientific interpreter.
 //! Host projection adds no install, backend startup, Use grant or calculation.
-use super::{AppName, AppStore, PythonEnvironment};
+use super::{AppName, AppStore, PythonEnvironment, python::AppPython};
 use crate::environments::*;
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command};
@@ -130,16 +130,11 @@ impl EnvironmentInspection {
 
     pub(super) fn inspect(
         root: &Path,
-        python: Option<&PythonEnvironment>,
+        python: &AppPython,
         method: ScientificMethod,
     ) -> Result<Self, String> {
         let (_, _, module, argument) = method.target();
-        let mut command = Command::new(
-            python
-                .map(PythonEnvironment::executable)
-                .map(|p| p.into_os_string())
-                .unwrap_or_else(super::python::default_executable),
-        );
+        let mut command = Command::new(python.executable());
         command
             .args(["-E", "-s", "-B", "-m", module])
             .current_dir(root.join("backend"))
@@ -152,7 +147,7 @@ impl EnvironmentInspection {
                 command.env(key, value);
             }
         }
-        if let Some(python) = python {
+        if let AppPython::Environment(python) = python {
             python.configure_command(&mut command)?;
         }
         let output = command
@@ -176,10 +171,13 @@ impl AppStore {
     pub(super) fn selected_python(
         &self,
         name: &AppName,
-    ) -> Result<Option<PythonEnvironment>, String> {
+    ) -> Result<AppPython, String> {
         let app = self.installed.get(name).ok_or("App is not installed")?;
+        if let Some(python) = &self.python.bundled {
+            return Ok(AppPython::Bundled(python.clone()));
+        }
         if let Some(python) = self.python.select(name) {
-            return Ok(Some(python.clone()));
+            return Ok(AppPython::Environment(python.clone()));
         }
         if app
             .definition
@@ -187,11 +185,11 @@ impl AppStore {
             .as_ref()
             .is_some_and(|backend| backend.uses_python_environment(false))
         {
-            return Ok(Some(PythonEnvironment::try_from(
+            return Ok(AppPython::Environment(PythonEnvironment::try_from(
                 self.managed_python_directory(name)?,
             )?));
         }
-        Ok(None)
+        Ok(AppPython::Default)
     }
 
     /// LCMS2Yield carries PyTorch pins that conflict with Control Lab, so its
@@ -226,7 +224,7 @@ impl AppStore {
         }
         EnvironmentInspection::inspect(
             &self.root.join(app),
-            self.selected_python(&name)?.as_ref(),
+            &self.selected_python(&name)?,
             method,
         )
     }
@@ -281,7 +279,7 @@ mod tests {
             ("lcms2yield", ScientificMethod::Lcms2Yield),
             ("virtual-cell", ScientificMethod::VirtualCell),
         ] {
-            let inspection = EnvironmentInspection::inspect(&root.join(app), None, method).unwrap();
+            let inspection = EnvironmentInspection::inspect(&root.join(app), &AppPython::Default, method).unwrap();
             let crate::environments::SoftwareObservation::Legacy(observed) = inspection.profile.observation() else {
                 panic!("legacy probe contract")
             };
