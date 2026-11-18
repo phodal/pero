@@ -510,6 +510,15 @@ impl Workbench {
                 }
             }
             self.chat.update(cx, |panel, cx| {
+                if value["action"] == "load_thread_history" {
+                    let mut failure = HostEvent::message(
+                        "thread_history_error",
+                        value["request_id"].as_str().map(str::to_owned),
+                        "error.connection",
+                    );
+                    failure.thread_id = value["thread_id"].as_str().map(str::to_owned);
+                    panel.receive(&failure, cx);
+                }
                 panel.fail_file_reads(cx);
                 if let Some(chat) = panel
                     .active_chat
