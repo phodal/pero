@@ -802,6 +802,14 @@ jobs:
           PERO_TEST_HEADED: '1'
           PERO_TEST_SOFTWARE_GL: '1'
         run: node scripts/ci/desktop-suite.mjs '${{ matrix.suite }}'
+      - name: Verify session history and retain the recovery screenshot
+        if: matrix.suite == 'workbench'
+        env:
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: |
+          node scripts/ci/run-acceptance.mjs --name session-history --timeout-seconds 100 -- \
+            xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/session-history.mjs
       - name: Explicit public source study journey
         if: ${{ !cancelled() && matrix.suite == 'paper-research-import' && ((github.event_name == 'workflow_dispatch' && inputs.paper_pdf_live) || contains(github.event.pull_request.labels.*.name, 'ci:paper-pdf-live')) }}
         env:
