@@ -167,7 +167,7 @@ try {
         const slug = keyword === 'docx' ? 'docx' : page === 1 ? 'first' : 'second';
         const items = keyword === 'filtered' ? [] : [{name,slug,publisher:'fixture-team',description:'Fixture skill',descriptionZh:'',version:'2.0',downloads:10}];
         if (page === 2 && fixture.pageError) {
-          fixture.pageError = false;
+          if (fixture.pageError === true) fixture.pageError = false;
           return failure('Page fixture offline');
         }
         if (keyword === 'docx') return new Promise(done => { fixture.finishSearch = () => done(Response.json({items,total:1})); });
@@ -212,7 +212,7 @@ try {
   await expect(results.getByRole('heading',{name:'Second Skill'})).toBeVisible();
   await expect(pageNumber).toHaveText('2 / 2');
   expect(await body.evaluate(() => window.skillHubFixture.searches)).toEqual([['',1],['',2],['',2]]);
-  await body.evaluate(() => { window.skillHubFixture.pageError = true; });
+  await body.evaluate(() => { window.skillHubFixture.pageError = 'offline'; });
   await refreshSkills.press('Enter');
   await expect(results.getByRole('alert')).toContainText('SkillHub is unavailable.');
   await results.getByRole('button',{name:'Keep current page'}).press('Enter');
@@ -244,20 +244,25 @@ try {
   await expect(history.locator('.skills-release-list li')).toHaveCount(2);
   await expect(history.getByRole('button',{name:'Installing…',exact:true})).toBeDisabled();
   await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
+  await fixtureInstalled.press('Enter');
   await body.evaluate(() => window.skillHubFixture.finishInstall());
-  await writer.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
+  const tasks = frame.getByRole('region',{name:'Installation tasks'});
+  await expect(tasks.getByRole('alert')).toContainText('Install fixture offline');
+  await tasks.getByRole('button',{name:'View release'}).press('Enter');
+  await expect(history.getByRole('button',{name:'Version to install'})).toHaveText('1.0');
   await expect(history.getByRole('button',{name:'Install selected version',exact:true})).toBeEnabled();
-  await select('Version to install','1.0');
   await expect(history.getByRole('alert')).toContainText('Install fixture offline');
   await capture('skillhub-install-error');
   await body.evaluate(() => { window.skillHubFixture.onlyLatest = true; });
   await history.getByRole('button',{name:'Reload releases'}).press('Enter');
   await expect(history.getByRole('button',{name:'Version to install'})).toHaveText('Choose a release');
+  await expect(history.getByRole('button',{name:'Version to install'})).toBeFocused();
   await expect(history.getByRole('button',{name:'Install selected version',exact:true})).toBeDisabled();
   await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
   await hubSearchBox.fill('filtered');
   await expect(results.getByText('No skills can be displayed on this page',{exact:true})).toBeVisible();
   await body.evaluate(() => {window.fetch = window.skillHubFixture.fetch; delete window.skillHubFixture;});
+  await frame.getByRole('button',{name:'Clear completed tasks'}).press('Enter');
   await fixtureInstalled.press('Enter');
   await refreshSkills.press('Enter');
   await expect(frame.getByRole('tab',{name:'Installed (0)',exact:true})).toBeVisible();
@@ -332,13 +337,14 @@ try {
   // downloading third-party code. The profile is disposable; no Agent is run.
   const entry = catalog.skills.find(item=>item.kind==='research_skill' && item.source && item.name && item.inputs?.length && item.license?.spdx && ['declared_in_skill','directory_license'].includes(item.license.status));
   expect(entry,'a real licensed catalog entry with explicitly documented inputs').toBeTruthy();
-  const revision = entry.source.commit, previous = revision === '1'.repeat(40) ? '2'.repeat(40) : '1'.repeat(40);
+  const revision = entry.source.commit;
+  const [previous, older] = ['1','2','3'].map(value=>value.repeat(40)).filter(value=>value!==revision);
   const market = resolve(directory,'skill-market'), snapshot = resolve(market,'snapshots','ui-fixture');
   await mkdir(snapshot,{recursive:true});
   const invocation = `market-ui-fixture:${entry.name}`;
   const version = value => ({revision:value,sha256:entry.source.sha256,invocation,directory:snapshot,adapterVersion:1,entry:{...entry,source:{...entry.source,commit:value,url:entry.source.url.replace(revision,value)}}});
   await writeFile(resolve(market,'state.json'),JSON.stringify({items:{[entry.id]:{
-    id:entry.id,revision,enabled:false,selected:false,previousRevision:previous,invocation,entry:{...entry,description:'OUTDATED_DESCRIPTION_FIXTURE',description_zh:'OUTDATED_DESCRIPTION_FIXTURE'},versions:[version(revision),version(previous)]
+    id:entry.id,revision,enabled:false,selected:false,previousRevision:previous,invocation,entry:{...entry,description:'OUTDATED_DESCRIPTION_FIXTURE',description_zh:'OUTDATED_DESCRIPTION_FIXTURE'},versions:[version(revision),version(previous),version(older)]
   }}}));
   await open();
   const installedTab = frame.getByRole('tab',{name:'Installed (1)',exact:true});
@@ -359,9 +365,9 @@ try {
   const installedRevision = installedDetail.locator('#skill-version dd:first-of-type code');
   await installedDetail.getByRole('button',{name:'Roll back',exact:true}).press('Enter');
   await expect(installedRevision).toHaveText(previous);
-  await select('Retained versions',revision.slice(0,12));
+  await select('Retained versions',older.slice(0,12));
   await installedDetail.getByRole('button',{name:'Switch version',exact:true}).press('Enter');
-  await expect(installedRevision).toHaveText(revision);
+  await expect(installedRevision).toHaveText(older);
   await select('Retained versions',previous.slice(0,12));
   await installedDetail.getByRole('button',{name:'Switch version',exact:true}).press('Enter');
   await expect(installedRevision).toHaveText(previous);
