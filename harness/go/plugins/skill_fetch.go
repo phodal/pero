@@ -91,6 +91,11 @@ func FetchSkill(ctx context.Context, source, cache, commit, skillPath, namespace
 	if err = os.RemoveAll(original); err != nil {
 		return SkillFetchReceipt{}, err
 	}
+	return publishSkillView(ctx, stage, cache, revision, skillPath, namespace, digest)
+}
+
+func publishSkillView(ctx context.Context, stage, cache, revision, skillPath, namespace, digest string) (SkillFetchReceipt, error) {
+	var err error
 	if err = os.Mkdir(filepath.Join(stage, ".claude-plugin"), 0700); err != nil {
 		return SkillFetchReceipt{}, err
 	}
