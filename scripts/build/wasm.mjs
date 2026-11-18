@@ -18,8 +18,9 @@ await ensureGpuiLock();
 await run('rustup', ['target', 'add', '--toolchain', 'nightly-2026-10-28', 'wasm32-unknown-unknown']);
 const chatOnly = process.argv.includes('--chat-only');
 const readerOnly = process.argv.includes('--reader-only');
+const readerAndChat = process.argv.includes('--reader-and-chat');
 for (const [pkg, artifact, folder] of [
-  ...(!chatOnly && !readerOnly ? [['pero-ui', 'pero_ui', 'wasm']] : []),
+  ...(!chatOnly && !readerOnly && !readerAndChat ? [['pero-ui', 'pero_ui', 'wasm']] : []),
   ...(!readerOnly ? [['pero-chat-web', 'pero_chat_web', 'chat-wasm']] : []),
   ...(!chatOnly ? [['pero-reader-web', 'pero_reader_web', 'reader-wasm']] : []),
   ['pero-content-worker', 'pero_content_worker', 'content-wasm'],

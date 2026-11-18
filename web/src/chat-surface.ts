@@ -72,10 +72,22 @@ export function mountChatSurface(container: HTMLElement, options: {
       if (!command || typeof command !== 'object' || Array.isArray(command)) return;
       if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
       if(command.action==='read_result'){void loadContentResult(command,options.readContent,event=>post('pero:chat:event',{event}));return;}
-      void options.command(command).catch(error => post('pero:chat:event', { event: {
-        version: 1, kind: command.thread_id ? 'session_error' : command.request_id ? 'context_error' : 'error',
-        thread_id: command.thread_id, request_id: command.request_id ?? null, text: error instanceof Error ? error.message : String(error),
-      } }));
+      void options.command(command).catch(error => {
+        const envelope = {
+          version: 1 as const, thread_id: command.thread_id, request_id: command.request_id ?? null,
+          text: error instanceof Error ? error.message : String(error),
+        };
+        const event: HostEvent = command.method === 'artifacts'
+          ? { ...envelope, kind: 'artifact_error', data: {
+              thread_id: command.thread_id ?? null, artifact_id: command.artifact_id ?? null, reason: 'unavailable',
+            } }
+          : { ...envelope, kind:
+              command.method === 'workspace_changes' ? 'workspace_changes_error'
+              : command.action === 'load_thread_history' ? 'thread_history_error'
+              : command.thread_id ? 'session_error' : command.request_id ? 'context_error' : 'error',
+            };
+        post('pero:chat:event', { event });
+      });
     }
   };
   window.addEventListener('message', receive);

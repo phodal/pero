@@ -27,6 +27,29 @@ excluded, unknown, full, failed and cancelled consumers. These verify routing
 and preserved failure semantics; exact hosted elapsed time still requires
 comparable cold/warm runs. The baseline measurements below remain historical.
 
+## Workbench build and startup — 2026-11-18
+
+The Workbench development and Electron release builds now run bindgen once per
+Wasm module. Apps receive an explicit Reader bundle built from the same Reader
+and Content Worker bindings as the Workbench. A standalone product with Chat
+builds Chat, Reader and Content Worker together in release mode.
+
+On macOS arm64, the targeted Reader release build after source changes took
+159.44 seconds with an existing dependency cache. Its two Cargo invocations
+took 17.17 and 7.13 seconds. Two Vite-only runs using the resulting bindings
+took 0.484 and 0.423 seconds, with identical SHA-256 hashes for all 66 bundle
+files. The Virtual Cell App build copied those two exact Wasm assets.
+See `test-results/build/reader-artifacts.json` for local evidence. Full clean
+and warm Workbench pipeline timings remain unmeasured.
+
+The existing Linux producer starts real Electron under Xvfb and waits for the
+GPUI renderer and Host before uploading the runtime archive. A bootstrap error
+fails the producer and retains the bounded runner receipt. The 20 acceptance
+shards still depend on that producer. A local development smoke completed in
+3.47 seconds with fresh debug Workbench and Chat Wasm, optimized Reader and
+Content Worker, and one built-in Virtual Cell App. Hosted Linux startup and
+complete App coverage require separate runs.
+
 ## Measured baseline (2026-10-31)
 
 Run `41199679837` passed, but Linux took about 30 minutes: build 5m36s,

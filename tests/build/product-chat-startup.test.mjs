@@ -60,7 +60,7 @@ for (const order of [ ['ready', 'chat', 'app'], ['ready', 'app', 'chat'], ['chat
       else fixture.event(step === 'app' ? 'apps_opened' : 'ready', step === 'app' ? { name: 'fixture', panel: 'main' } : undefined);
       assert.equal(fixture.commands.length, index === 2 ? 2 : 0, 'no automatic session preparation before App resolution');
     }
-    assert.deepEqual(JSON.parse(JSON.stringify(fixture.commands)), [{ action: 'list_agents' }, { method: 'settings.workbench.get' }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.commands)), [{ action: 'list_agents', history: 'catalog' }, { method: 'settings.workbench.get' }]);
     assert.ok(fixture.contexts.every(context => context.scope.app === 'fixture' && context.scope.panel === 'main'));
   });
 }

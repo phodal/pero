@@ -1,6 +1,7 @@
 use crate::session_state::SessionState;
 use crate::{
     conversation::{Conversation, StreamItem},
+    history_recovery::HistoryLoad,
     panel::ChatPanel,
 };
 use gpui_kit::{
@@ -8,7 +9,7 @@ use gpui_kit::{
     prelude::*,
     *,
 };
-use pero_contracts::HostEvent;
+use pero_contracts::{HostEvent, session_history::{SessionReplay, recorded_kind}};
 use serde_json::json;
 
 pub(crate) use crate::process::TranscriptRow as RenderItem;
@@ -199,6 +200,7 @@ impl ChatPanel {
             return;
         }
         if let Some(i) = self.active_chat {
+            self.load_thread_history(i, cx);
             if self.chats[i].state == SessionState::Draft
                 && self
                     .agents
@@ -421,6 +423,10 @@ impl ChatPanel {
     }
     pub fn receive_chat(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if self.changes_event(event,cx) {return true;}
+        if matches!(event.kind.as_str(), "thread_history" | "thread_history_error") {
+            self.receive_thread_history(event, cx);
+            return true;
+        }
         if event
             .thread_id
             .as_ref()
@@ -440,28 +446,38 @@ impl ChatPanel {
                 .iter()
                 .map(|chat| chat.id.clone())
                 .collect::<std::collections::HashSet<_>>();
-            if let Some(events) = event.data["events"].as_array() {
-                for value in events {
-                    if let Ok(replayed) = serde_json::from_value::<HostEvent>(value.clone()) {
-                        if replayed
-                            .thread_id
-                            .as_ref()
-                            .is_some_and(|id| !retained.contains(id))
-                        {
-                            self.receive_chat(&replayed, cx);
+            let Ok(replay) = serde_json::from_value::<SessionReplay>(event.data.clone()) else { return true; };
+            for replayed in replay.events {
+                if replayed.thread_id.as_ref().is_some_and(|id| !retained.contains(id)) {
+                    self.receive_chat(&replayed, cx);
+                }
+            }
+            if let Some(catalog) = replay.catalog {
+                let brief_title = self.t("chat.brief_title").to_string();
+                for summary in catalog {
+                    if retained.contains(&summary.thread_id) || !summary.has_messages {
+                        continue;
+                    }
+                    if let Some(chat) = self.chats.iter_mut().find(|chat| chat.id == summary.thread_id) {
+                        chat.history = HistoryLoad::Deferred;
+                        if let Some(prompt) = summary.prompt_title {
+                            chat.title = crate::conversation_title::ConversationTitle::new(prompt);
+                            if chat.brief.is_some() {
+                                chat.title.prompt(&brief_title);
+                            }
                         }
+                        chat.title.report(summary.reported_title.as_deref());
                     }
                 }
             }
+            let active: std::collections::HashSet<_> = replay.active.iter().map(String::as_str).collect();
             for chat in &mut self.chats {
                 if !retained.contains(&chat.id) { chat.notice.read(); }
-                let active = event.data["active"]
-                    .as_array()
-                    .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&chat.id)));
-                if active && chat.state == SessionState::Draft {
+                let live = active.contains(chat.id.as_str());
+                if live && chat.state == SessionState::Draft {
                     chat.state = SessionState::Connecting;
                 }
-                if !active && chat.state != SessionState::Draft {
+                if !live && chat.state != SessionState::Draft {
                     chat.state = SessionState::Closed;
                     chat.permission = None;
                     chat.user_questions.clear();
@@ -486,9 +502,8 @@ impl ChatPanel {
             self.chats.retain(|chat| {
                 retained.contains(&chat.id)
                     || !chat.messages.is_empty()
-                    || event.data["active"]
-                        .as_array()
-                        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&chat.id)))
+                    || !chat.history.complete()
+                    || active.contains(chat.id.as_str())
             });
             let initial_empty = !self.replayed
                 && self.pending_prompts.is_empty()
@@ -604,6 +619,14 @@ impl ChatPanel {
         };
         if event.kind == "session_deleted" {
             self.forget_chat(index, cx);
+            return true;
+        }
+        if recorded_kind(&event.kind) && !self.chats[index].history.complete() {
+            // The Host writer will include this event in the requested body.
+            if matches!(self.chats[index].history, HistoryLoad::Failed) {
+                self.chats[index].history = HistoryLoad::Deferred;
+            }
+            self.load_thread_history(index, cx);
             return true;
         }
         let brief_title = self.t("chat.brief_title").to_string();
@@ -840,7 +863,15 @@ impl ChatPanel {
                 .child(div().id("session-column").w_full().max_w(px(pero_theme::COMPOSER_MAX)).min_w_0().mx_auto().px(px(12.)).overflow_x_scroll()
                 .when(chat.is_some_and(|chat| chat.state == SessionState::AwaitingApp), |el| el.child(
                     div().py(px(8.)).text_color(p.text_muted).child(self.t("chat.preparing_app"))))
-                .when(chat.is_none_or(|c|c.messages.is_empty()),|el|el.child(pero_theme::empty_state(
+                .when(chat.is_some_and(|c| !c.history.complete()), |el| {
+                    let failed = chat.is_some_and(|c| matches!(c.history, HistoryLoad::Failed));
+                    el.child(div().p(px(12.)).text_color(p.text_muted)
+                        .child(self.t(if failed { "chat.panel_timeout" } else { "chat.panel_loading" }))
+                        .when(failed, |el| el.child(Button::new("retry-thread-history").small().label(self.t("chat.retry"))
+                            .on_click(cx.listener(|this, _, _, cx| this.retry_thread_history(cx)))))
+                    )
+                })
+                .when(chat.is_none_or(|c|c.history.complete() && c.messages.is_empty()),|el|el.child(pero_theme::empty_state(
                     self.t("chat.welcome"),
                     Some(self.t(if self.connected && !self.agents.iter().any(|agent|agent.available){"chat.install_agent"}else if credential_reminder{"chat.credential_required"}else{"chat.description"}).into()),
                     pero_theme::Chrome::from_app(cx))))

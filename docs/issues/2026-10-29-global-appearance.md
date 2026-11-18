@@ -77,5 +77,7 @@ generator freshness check also passed. A development Native build with
 `native-probe` passed `node tests/e2e/native-webview.mjs` on macOS 27.2.1 arm64.
 The hidden GPUI workbench loaded the generated palette, mounted a real Wry
 page, retained its form, traversed history and released the view. Evidence is
-in `test-results/native-webview/result.json`. Electron Workbench, the packaged
-Native app and visual acceptance remain unverified for this repair.
+in `test-results/native-webview/result.json`. The development Electron
+Workbench also passed the renderer and Host readiness probe with one built-in
+App. The full Electron acceptance matrix, packaged Native app and visual
+acceptance remain unverified for this repair.

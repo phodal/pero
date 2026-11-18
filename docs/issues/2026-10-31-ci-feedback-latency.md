@@ -6,6 +6,22 @@ date: 2026-10-31
 
 # CI delays integration failures behind serial acceptance
 
+## 2026-11-18 Workbench readiness and downstream coverage
+
+The new isolated Linux startup step passed before archiving the runtime in
+[PR #234's full run](https://github.com/phodal/pero/actions/runs/44224453857).
+The Workbench shard verified and restored that archive and passed the normal
+interactive suite. The added history check later timed out waiting for a
+painted conversation row. Its fixture now explicitly opens the Sessions
+navigator, waits for its rendered bounds, and retains a bounded failure receipt.
+
+Other full-matrix failures have separate evidence. Virtual Cell Workbench
+reached its managed Python preparation screen. The Data tests still expect
+rows under the former Preview side panel. The MCP settings tests still search
+for the section removed in `f2f6b22ca5`. Windows ACL and Harness failures also
+appear in the [earlier full run](https://github.com/phodal/pero/actions/runs/44220261598).
+Keep these acceptance paths visible in the full gate.
+
 ## 2026-11-15 source-scoped expensive checks
 
 Processing PR #222 repeatedly launched unrelated Notebook, Native and App

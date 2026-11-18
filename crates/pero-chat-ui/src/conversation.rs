@@ -274,6 +274,8 @@ pub struct Conversation {
     pub usage: Option<pero_contracts::usage::SessionUsage>,
     pub mcp: Option<pero_contracts::mcp_runtime::McpRuntimeSession>,
     pub id: String,
+    #[serde(skip)]
+    pub(crate) history: crate::history_recovery::HistoryLoad,
     pub title: crate::conversation_title::ConversationTitle,
     #[serde(skip)]
     pub thinking: crate::thinking::ThinkingState,
@@ -329,6 +331,7 @@ impl Conversation {
             usage: None,
             mcp: None,
             id,
+            history: Default::default(),
             agent,
             title: crate::conversation_title::ConversationTitle::new(title),
             thinking: Default::default(),
@@ -361,7 +364,7 @@ impl Conversation {
     }
 
     pub fn can_retarget(&self) -> bool {
-        self.project_agent.is_none() && self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
+        self.history.complete() && self.project_agent.is_none() && self.state.can_retarget(!self.messages.is_empty(), self.queued.is_some())
     }
 
     pub fn can_retry(&self) -> bool {
@@ -370,7 +373,7 @@ impl Conversation {
     }
 
     pub fn can_submit(&self) -> bool {
-        (self.state.can_submit()
+        self.history.complete() && (self.state.can_submit()
             || (self.state == SessionState::Closed && self.project_agent.is_some() && !self.session_id.is_empty()))
             && self.queued.is_none()
             && self.pending_model.is_none() && self.pending_setting.is_none()

@@ -267,6 +267,17 @@ jobs:
         if: matrix.product == 'virtual-cell'
         run: npm run test:product:e2e 2>&1 | tee target/release-diagnostics/smoke.log
 
+      - name: Retain successful Virtual Cell package acceptance
+        if: matrix.product == 'virtual-cell'
+        uses: actions/upload-artifact@v7
+        with:
+          name: virtual-cell-packaged-smoke-${{ github.sha }}
+          path: |
+            test-results/product/*.png
+            test-results/product/result.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Stage verified release assets
         run: node scripts/release/desktop.mjs stage
 

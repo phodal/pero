@@ -36,6 +36,12 @@ export PERO_GPUI_KIT_PATH=/absolute/path/to/gpui-kit
 npm run dev
 ```
 
+The full Workbench build prepares the Reader and Content Worker bindings once.
+It bundles the standalone Reader entry from those bindings and passes the
+Reader directory to the Apps that embed it. The Electron release package uses
+the same sequence with optimized Wasm. `npm run build:apps` can still build the
+Reader when it runs by itself.
+
 Font binaries are generated and ignored by Git. `build:wasm` first reuses
 validated fonts from `PERO_FONT_DIR` or the Kit checkout, then cached sources;
 missing sources download from checksum-pinned URLs. See

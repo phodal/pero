@@ -14,15 +14,7 @@ impl ConversationTitle {
         }
     }
     pub fn prompt(&mut self, text: &str) {
-        self.provisional = text
-            .lines()
-            .map(str::trim)
-            .find(|line| !line.is_empty())
-            .and_then(single_line)
-            .unwrap_or_default()
-            .chars()
-            .take(24)
-            .collect();
+        self.provisional = pero_contracts::session_history::prompt_title(text);
     }
     pub fn report(&mut self, title: Option<&str>) {
         self.reported = title.and_then(single_line);

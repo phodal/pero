@@ -139,6 +139,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify real Workbench startup before Desktop acceptance
+        if: inputs.upload-runtime
+        env:
+          PERO_TEST_HEADED: '1'
+          PERO_TEST_SOFTWARE_GL: '1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64 xvfb
+          node scripts/ci/run-acceptance.mjs --name workbench-startup --timeout-seconds 75 -- \
+            xvfb-run -a -s '-screen 0 1920x1200x24' node tests/e2e/workbench-startup.mjs
+
       - name: Compile and test the Native GPUI and Wry shell
         if: runner.os == 'macOS'
         run: |

@@ -19,9 +19,12 @@ mod mcp_settings;
 mod mcp_session;
 #[path = "project_agent.rs"]
 mod project_agent;
+#[path = "session_journal.rs"]
+mod session_journal;
+use session_journal::SessionJournal;
+use pero_contracts::session_history::{SessionHistorySaveFailure, SessionHistoryStatus, recorded_kind};
 use std::{
     collections::HashMap,
-    io::{BufRead, Write},
     path::PathBuf,
     sync::{
         mpsc::{self, Sender},
@@ -44,6 +47,7 @@ pub struct Manager {
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
+    history_status: Arc<Mutex<SessionHistoryStatus>>,
     project_tools: Option<crate::project_tools::Broker>,
     automation_threads: std::collections::HashSet<String>,
     automation_tx: mpsc::SyncSender<automation_agent::AutomationReceipt>,
@@ -66,12 +70,12 @@ impl Manager {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join("target/sessions.jsonl"));
-        let mut stored = pero_contracts::session_history::SessionHistory::default();
-        if let Ok(file) = std::fs::File::open(&history_file) {
-            for line in std::io::BufReader::new(file).split(b'\n').map_while(Result::ok) {
-                if let Ok(event) = serde_json::from_slice::<HostEvent>(&line) { stored.record(event); }
-            }
+        let (stored, mut journal, status) = SessionJournal::open(&history_file);
+        if status.degraded() {
+            eprintln!("Session history: {}", SessionJournal::status_event(status).data);
         }
+        let history_status = Arc::new(Mutex::new(status));
+        let writer_status = history_status.clone();
         let app_bindings = stored
             .events()
             .iter()
@@ -89,49 +93,26 @@ impl Manager {
         let run_writer=run_journal.clone();
         let history = Arc::new(Mutex::new(stored));
         let saved = history.clone();
-        if let Some(parent) = history_file.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let history_path = history_file.clone();
-        let mut journal = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(history_file)
-            .ok();
         let (tx, rx) = mpsc::channel::<HostEvent>();
         std::thread::spawn(move || {
             for mut event in rx {
+                // Recovery observes the same FIFO at which live events are
+                // recorded and emitted, including updates before the first catalog.
+                if event.kind == "replay" {
+                    let active = serde_json::from_value(std::mem::take(&mut event.data["active"]))
+                        .expect("internal replay session IDs");
+                    let mode = serde_json::from_value(std::mem::take(&mut event.data["history"]))
+                        .expect("internal replay mode");
+                    let replay = saved.lock().unwrap().replay(active, mode);
+                    event.data = serde_json::json!(replay);
+                } else if event.kind == "thread_history" && let Some(thread) = &event.thread_id {
+                    let body = saved.lock().unwrap().thread(thread, event.data["active"].as_bool() == Some(true));
+                    event.data = serde_json::json!(body);
+                }
                 run_writer.stamp(&mut event);
                 let ack_id=event.request_id.clone();
                 let mut persistence=None;
-                if event.thread_id.is_some()
-                    && matches!(
-                        event.kind.as_str(),
-                        "app_agent_attempt"
-                            | "app_agent_cancel"
-                            | "session_created"
-                            | "user_message"
-                            | "session_update"
-                            | "session_usage"
-                            | "session_ready"
-                            | "model_changed"
-                            | "configuration_changed"
-                            | "turn_started"
-                            | "turn_finished"
-                            | "workspace_changes"
-                            | "session_error"
-                            | "session_closed"
-                            | "session_deleted"
-                            | "permission"
-                            | "permission_resolved"
-                            | "user_questions"
-                            | "user_questions_resolved"
-                            | "user_questions_error"
-                            | "session_auth_required"
-                            | "session_auth_error"
-                            | "session_authenticated"
-                    )
-                {
+                if event.thread_id.is_some() && recorded_kind(&event.kind) {
                     saved.lock().unwrap().record(event.clone());
                     let mut persisted=Err("Session journal is unavailable".to_string());
                     if !matches!(
@@ -145,8 +126,15 @@ impl Manager {
                             | "session_auth_error"
                             | "session_authenticated"
                     ) {
-                        if let Some(file) = journal.as_mut() {
-                            persisted=serde_json::to_writer(&mut *file, &event).map_err(|e|e.to_string()).and_then(|_|writeln!(file).map_err(|e|e.to_string()));
+                        persisted = journal.append(&event);
+                        if persisted.is_err() {
+                            let mut status = writer_status.lock().unwrap();
+                            if status.save_failure.is_none() {
+                                status.save_failure = Some(SessionHistorySaveFailure::Write);
+                                let warning = SessionJournal::status_event(*status);
+                                eprintln!("Session history: {}", warning.data);
+                                let _ = super::emit(warning);
+                            }
                         }
                     }
                     persistence=Some(persisted);
@@ -190,8 +178,15 @@ impl Manager {
             app_plugins: HashMap::new(),
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
-            history_path,
+            history_path: history_file,
+            history_status,
             project_tools: crate::project_tools::Broker::start().map_err(|error| eprintln!("Project tools: {error}")).ok(),
+        }
+    }
+    fn publish_history_status(&self) {
+        let status = *self.history_status.lock().unwrap();
+        if status.degraded() {
+            let _ = self.tx.send(SessionJournal::status_event(status));
         }
     }
     pub fn configure_harness(
@@ -336,25 +331,21 @@ impl Manager {
         }
         match command {
             HostCommand::LoadRoadmap => self.publish_roadmap(),
-            HostCommand::ListAgents => {
+            HostCommand::ListAgents { history } => {
                 self.send(
                     "agents",
                     self.workspace.to_string_lossy(),
                     serde_json::json!(self.agents.iter().map(|a| a.public()).collect::<Vec<_>>()),
                 );
                 self.publish_workspace();
-                let events = self.visible_history();
+                self.publish_history_status();
                 let active: Vec<_> = self
                     .sessions
                     .iter()
                     .filter(|(_, session)| !session.tx.is_closed())
                     .map(|(id, _)| id.clone())
                     .collect();
-                self.send(
-                    "replay",
-                    "",
-                    serde_json::json!({"events":events,"active":active}),
-                );
+                self.send("replay", "", serde_json::json!({"active":active,"history":history}));
                 // Readiness is historical; reconnecting renderers need the live
                 // session owner's current observations after replay completes.
                 for session in self.sessions.values().filter(|session| !session.tx.is_closed()) {
@@ -364,6 +355,19 @@ impl Manager {
                     event.data = serde_json::json!(&*snapshot);
                     let _ = self.tx.send(event);
                 }
+            }
+            HostCommand::LoadThreadHistory { thread_id, request_id } => {
+                if thread_id.is_empty() || thread_id.len() > 128 || request_id.is_empty() || request_id.len() > 128 {
+                    let mut event = HostEvent::new("thread_history_error", Some(request_id), "Invalid history request".into());
+                    event.thread_id = Some(thread_id);
+                    let _ = self.tx.send(event);
+                    return false;
+                }
+                let active = self.sessions.get(&thread_id).is_some_and(|session| !session.tx.is_closed());
+                let mut event = HostEvent::new("thread_history", Some(request_id), String::new());
+                event.thread_id = Some(thread_id);
+                event.data = serde_json::json!({"active":active});
+                let _ = self.tx.send(event);
             }
             HostCommand::Workspace { path } => match dunce::canonicalize(path) {
                 Ok(path) if path.is_dir() => {
