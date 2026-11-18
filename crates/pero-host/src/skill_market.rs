@@ -8,6 +8,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[path = "skillhub.rs"]
+mod skillhub;
+
 #[derive(Clone)]
 pub(super) struct Market {
     store: Arc<Mutex<Result<SkillMarketStore, String>>>,
@@ -183,6 +186,15 @@ fn catalog_path(workspace: &Path) -> PathBuf {
 
 impl Apps {
     pub(crate) fn skill_market(&self, request: Request) -> Result<serde_json::Value, String> {
+        match request {
+            Request::SkillHubSearch { keyword, page, sort } => {
+                return skillhub::search(&keyword, page, sort);
+            }
+            Request::SkillHubVersions { publisher, slug } => {
+                return skillhub::versions(&publisher, &slug);
+            }
+            _ => {}
+        }
         if let Request::Cancel { id } = &request {
             self.market.control.cancel(id)?;
             return Ok(serde_json::json!({"cancelled":true}));

@@ -113,6 +113,13 @@ model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 /** User-managed inventory; skill instructions do not grant execution permissions. */
 @minLength(1) @maxLength(2048) scalar SkillMarketId extends string;
 model SkillMarketRead { operation: "catalog" | "installed"; ...AppClosed; }
+union SkillHubSort { score: "score", downloads: "downloads", updated: "updated_at" }
+model SkillHubSearch { operation: "skillhub-search"; @maxLength(120) keyword: string; @minValue(1) page: uint32; sort: SkillHubSort; ...AppClosed; }
+model SkillHubVersions { operation: "skillhub-versions"; @minLength(1) @maxLength(100) publisher: string; @minLength(1) @maxLength(100) slug: string; ...AppClosed; }
+model SkillHubEntry { publisher: string; slug: string; name: string; description: string; descriptionZh: string; version: string; downloads: safeint; ...AppClosed; }
+model SkillHubPage { items: SkillHubEntry[]; total: safeint; ...AppClosed; }
+model SkillHubRelease { versionId: safeint; version: string; changelog?: string; createdAt: safeint; ...AppClosed; }
+model SkillHubHistory { versions: SkillHubRelease[]; ...AppClosed; }
 model SkillMarketEntryOperation { operation: "install" | "remove" | "check-update"; id: SkillMarketId; ...AppClosed; }
 @minLength(40) @maxLength(40) @pattern("^[0-9a-fA-F]{40}$") scalar SkillRevision extends string;
 @minLength(64) @maxLength(64) @pattern("^[0-9a-fA-F]{64}$") scalar SkillDigest extends string;
@@ -121,7 +128,7 @@ model SkillMarketUpdateOperation { operation: "update"; id: SkillMarketId; revis
 model SkillMarketEnable { operation: "enable"; id: SkillMarketId; enabled: boolean; ...AppClosed; }
 model SkillMarketCancel { operation: "cancel"; id: SkillMarketId; ...AppClosed; }
 model SkillMarketRollback { operation: "rollback"; id: SkillMarketId; revision?: string; ...AppClosed; }
-@oneOf union SkillMarketOperation { SkillMarketRead, SkillMarketEntryOperation, SkillMarketUpdateOperation, SkillMarketEnable, SkillMarketRollback, SkillMarketCancel }
+@oneOf union SkillMarketOperation { SkillMarketRead, SkillHubSearch, SkillHubVersions, SkillMarketEntryOperation, SkillMarketUpdateOperation, SkillMarketEnable, SkillMarketRollback, SkillMarketCancel }
 model SkillMarketApp { action: "skillsmarket"; name: AppName; request: SkillMarketOperation; ...RequestBase; }
 model SkillMarketCategories is Record<string>;
 model SkillMarketCatalog {
@@ -213,7 +220,7 @@ model PreparationFailure {stage:"bootstrap"|"resolve"|"install"|"observe"|"cance
 model LocalEnvironmentRecord {failure?:PreparationFailure|null;locked_compute?:boolean;prepared?:LockedPythonProfile|null;id:AppName;label:string;target:"paper-agent.pcgym"|"control-lab.python-control"|"control-lab.ngspice"|"lcms2yield.inference" | "virtual-cell.comparison";dependencies:string[];state:"created"|"preparing"|"ready"|"failed";log:string[];error:string|null;bound:boolean;...AppClosed;}
 @oneOf union AppRequest { NotebookProjectsApp, AppCanvasRequest, SkillMarketApp, LocalEnvironmentApp, EnvironmentInspectionApp, AppApiAccess, AppSdkRequest, ListApps, InstallApp, ListAgentPlugins, InstallAgentPlugin, EnableAgentPlugin, AgentRunCommand, AgentCatalogCommand, PrepareApp, EnableApp, DisableApp, UninstallApp, ResolveApp, ResolveStaticApp, ProjectResourcesApp, AgentApp, ConnectorsApp, AutomationApp, ResearchAssetsApp }
 model AppGrant { permitted: true; ...AppClosed; }
-model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | LocalEnvironmentRecord[] | EnvironmentProposal | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
+model AppSuccess { ok: true; value: NotebookProjectsReply | CanvasReply | SkillMarketCatalog | SkillMarketInstalled | SkillMarketUpdate | SkillMarketCancelled | SkillHubPage | SkillHubHistory | LocalEnvironmentRecord[] | EnvironmentProposal | EnvironmentInspectionReport | AgentPreparedContext | AgentTerminalList | AppSdkContext | AgentRun | AgentRunTranscript | AgentRunLookupReply | AgentRunOpenReply | AgentCatalogReply | AutomationApiReply | AppRecord[] | AgentPluginSummary[] | AgentPluginSummary | AppAccess | ProjectResourceCatalog | AppAgentInfo | AppAgentStarted | AppAgentTranscript | AppAgentCancelled | AppGrant | ResearchAssetReply | ResearchBundleReply; ...AppClosed; }
 model AppFailure { ok: false; error: string; ...AppClosed; }
 @oneOf union AppResult { AppSuccess, AppFailure }
 

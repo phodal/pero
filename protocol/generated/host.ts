@@ -161,11 +161,14 @@ export type CanvasOperation =
   CanvasMount | CanvasRead | CanvasRelease | CanvasPrepare | CanvasDecide | CanvasStatus | CanvasCancel;
 export type SkillMarketOperation =
   | SkillMarketRead
+  | SkillHubSearch
+  | SkillHubVersions
   | SkillMarketEntryOperation
   | SkillMarketUpdateOperation
   | SkillMarketEnable
   | SkillMarketRollback
   | SkillMarketCancel;
+export type SkillHubSort = "score" | "downloads" | "updated_at";
 /**
  * User-managed inventory; skill instructions do not grant execution permissions.
  */
@@ -1946,6 +1949,17 @@ export interface SkillMarketApp {
 }
 export interface SkillMarketRead {
   operation: "catalog" | "installed";
+}
+export interface SkillHubSearch {
+  operation: "skillhub-search";
+  keyword: string;
+  page: number;
+  sort: SkillHubSort;
+}
+export interface SkillHubVersions {
+  operation: "skillhub-versions";
+  publisher: string;
+  slug: string;
 }
 export interface SkillMarketEntryOperation {
   operation: "install" | "remove" | "check-update";
@@ -4132,6 +4146,8 @@ export interface AppSuccess {
     | SkillMarketInstalled
     | SkillMarketUpdate
     | SkillMarketCancelled
+    | SkillHubPage
+    | SkillHubHistory
     | LocalEnvironmentRecord[]
     | EnvironmentProposal
     | EnvironmentInspectionReport
@@ -4255,6 +4271,28 @@ export interface SkillMarketUpdate {
 }
 export interface SkillMarketCancelled {
   cancelled: true;
+}
+export interface SkillHubPage {
+  items: SkillHubEntry[];
+  total: number;
+}
+export interface SkillHubEntry {
+  publisher: string;
+  slug: string;
+  name: string;
+  description: string;
+  descriptionZh: string;
+  version: string;
+  downloads: number;
+}
+export interface SkillHubHistory {
+  versions: SkillHubRelease[];
+}
+export interface SkillHubRelease {
+  versionId: number;
+  version: string;
+  changelog?: string;
+  createdAt: number;
 }
 export interface PreparationFailure {
   stage: "bootstrap" | "resolve" | "install" | "observe" | "cancelled" | "interrupted";

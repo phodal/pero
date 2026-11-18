@@ -263,6 +263,15 @@ impl SkillMarketState {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillHubSort {
+    Score,
+    Downloads,
+    #[serde(rename = "updated_at")]
+    Updated,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "operation", deny_unknown_fields)]
 pub enum Request {
     #[serde(rename = "cancel")]
@@ -271,6 +280,14 @@ pub enum Request {
     Catalog,
     #[serde(rename = "installed")]
     Installed,
+    #[serde(rename = "skillhub-search")]
+    SkillHubSearch {
+        keyword: String,
+        page: u32,
+        sort: SkillHubSort,
+    },
+    #[serde(rename = "skillhub-versions")]
+    SkillHubVersions { publisher: String, slug: String },
     #[serde(rename = "install")]
     Install { id: String },
     #[serde(rename = "enable")]

@@ -2191,6 +2191,12 @@
               "$ref": "#/$defs/SkillMarketCancelled"
             },
             {
+              "$ref": "#/$defs/SkillHubPage"
+            },
+            {
+              "$ref": "#/$defs/SkillHubHistory"
+            },
+            {
               "type": "array",
               "items": {
                 "$ref": "#/$defs/LocalEnvironmentRecord"
@@ -17596,6 +17602,175 @@
       "maxLength": 64,
       "pattern": "^[0-9a-fA-F]{64}$"
     },
+    "SkillHubEntry": {
+      "title": "SkillHubEntry",
+      "type": "object",
+      "properties": {
+        "publisher": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "descriptionZh": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "downloads": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "publisher",
+        "slug",
+        "name",
+        "description",
+        "descriptionZh",
+        "version",
+        "downloads"
+      ],
+      "additionalProperties": false
+    },
+    "SkillHubHistory": {
+      "title": "SkillHubHistory",
+      "type": "object",
+      "properties": {
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillHubRelease"
+          }
+        }
+      },
+      "required": [
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "SkillHubPage": {
+      "title": "SkillHubPage",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SkillHubEntry"
+          }
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "SkillHubRelease": {
+      "title": "SkillHubRelease",
+      "type": "object",
+      "properties": {
+        "versionId": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "string"
+        },
+        "changelog": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "versionId",
+        "version",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "SkillHubSearch": {
+      "title": "SkillHubSearch",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "skillhub-search"
+        },
+        "keyword": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "sort": {
+          "$ref": "#/$defs/SkillHubSort"
+        }
+      },
+      "required": [
+        "operation",
+        "keyword",
+        "page",
+        "sort"
+      ],
+      "additionalProperties": false
+    },
+    "SkillHubSort": {
+      "title": "SkillHubSort",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "score"
+        },
+        {
+          "type": "string",
+          "const": "downloads"
+        },
+        {
+          "type": "string",
+          "const": "updated_at"
+        }
+      ]
+    },
+    "SkillHubVersions": {
+      "title": "SkillHubVersions",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "skillhub-versions"
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "operation",
+        "publisher",
+        "slug"
+      ],
+      "additionalProperties": false
+    },
     "SkillMarketApp": {
       "title": "SkillMarketApp",
       "type": "object",
@@ -17824,6 +17999,12 @@
       "oneOf": [
         {
           "$ref": "#/$defs/SkillMarketRead"
+        },
+        {
+          "$ref": "#/$defs/SkillHubSearch"
+        },
+        {
+          "$ref": "#/$defs/SkillHubVersions"
         },
         {
           "$ref": "#/$defs/SkillMarketEntryOperation"
