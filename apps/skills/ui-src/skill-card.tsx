@@ -14,13 +14,17 @@ export function SkillCard({name, category, description, publisher, icon, version
 }) {
   return <Card asChild className="skills-card">
     <article>
-      <Button variant="ghost" className="skills-card-open" onClick={onOpen}>
+      <div className="skills-card-header">
         <span className="skills-glyph"><Icon name={icon} size={18}/></span>
-        <span className="skills-card-heading">
-          <span role="heading" aria-level={3} title={name}>{name}</span>
+        <div className="skills-card-heading">
+          <h3 className="skills-card-title">
+            <Button variant="ghost" className="skills-card-open" onClick={onOpen}>
+              <span className="skills-card-name" title={name}>{name}</span>
+            </Button>
+          </h3>
           <span className="skills-card-publisher" title={publisher}>{publisher}</span>
-        </span>
-      </Button>
+        </div>
+      </div>
       <p className="skills-card-description">{description}</p>
       <div className="skills-card-meta">
         {category && <span className="skills-card-publisher" title={category}>{category}</span>}

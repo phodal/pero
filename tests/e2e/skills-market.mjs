@@ -145,6 +145,103 @@ try {
   await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
   await expect(frame.getByText('No installed skills',{exact:true})).toBeVisible();
   checks.push('actual Host missing-catalog refresh failure retains content; restoring the file and retrying recovers; initial installed empty state');
+  // Drive transient and partial responses through the real Customize panel.
+  const body = frame.locator('body');
+  await body.evaluate(() => {
+    const fetch = window.fetch;
+    const fixture = {fetch, searches:[], inventoryError:true, pageError:true};
+    window.skillHubFixture = fixture;
+    window.fetch = (url, init) => {
+      if (url !== '/host/capability' || typeof init?.body !== 'string') return fetch(url, init);
+      const {operation, input} = JSON.parse(init.body);
+      const response = data => Promise.resolve(Response.json(data));
+      const failure = message => Promise.resolve(new Response(message,{status:503}));
+      if (operation === 'installed' && fixture.inventoryError) return failure('Inventory fixture offline');
+      if (operation === 'skillhub-search') {
+        const {keyword, page} = input;
+        fixture.searches.push([keyword, page]);
+        const name = keyword === 'docx' ? 'Document Writer' : page === 1 ? 'First Skill' : 'Second Skill';
+        const slug = keyword === 'docx' ? 'docx' : page === 1 ? 'first' : 'second';
+        const items = keyword === 'filtered' ? [] : [{name,slug,publisher:'fixture-team',description:'Fixture skill',descriptionZh:'',version:'2.0',downloads:10}];
+        if (page === 2 && fixture.pageError) {
+          fixture.pageError = false;
+          return failure('Page fixture offline');
+        }
+        if (keyword === 'docx') return new Promise(done => { fixture.finishSearch = () => done(Response.json({items,total:1})); });
+        return response({items,total:keyword === 'filtered' ? 1 : 13});
+      }
+      if (operation === 'skillhub-versions') {
+        if (input.publisher !== 'fixture-team' || input.slug !== 'docx') return failure('Wrong release identity');
+        return response({versions:[{versionId:18,version:'2.0',createdAt:0},{versionId:17,version:'1.0',createdAt:0}]});
+      }
+      if (operation === 'skillhub-install') {
+        fixture.install = input;
+        return new Promise(done => { fixture.finishInstall = () => done(new Response('Install fixture offline',{status:503})); });
+      }
+      return fetch(url, init);
+    };
+  });
+  const refreshSkills = frame.getByRole('button',{name:'Refresh',exact:true});
+  await expect(refreshSkills).toBeEnabled();
+  await refreshSkills.press('Enter');
+  await expect(frame.getByText('Inventory fixture offline',{exact:false})).toBeVisible();
+  const hubTab = frame.getByRole('tab',{name:'SkillHub',exact:true});
+  await hubTab.press('Enter');
+  const results = frame.getByRole('region',{name:'SkillHub results',exact:true});
+  const hubSearchBox = frame.getByRole('searchbox',{name:'Search SkillHub',exact:true});
+  const nextPage = results.getByRole('button',{name:'Next',exact:true});
+  const pageNumber = results.locator('.skills-pagination span');
+  await expect(results.getByRole('heading',{name:'First Skill'})).toBeVisible();
+  await body.evaluate(() => { window.skillHubFixture.inventoryError = false; });
+  await frame.getByRole('button',{name:'Retry inventory',exact:true}).press('Enter');
+  await expect(frame.getByText('Inventory fixture offline',{exact:false})).toHaveCount(0);
+  await expect(results.getByRole('heading',{name:'First Skill'})).toBeVisible();
+  await nextPage.press('Enter');
+  await expect(results.getByRole('alert')).toContainText('SkillHub is unavailable.');
+  await expect(pageNumber).toHaveText('1 / 2');
+  await expect(results.getByRole('heading',{name:'First Skill'})).toBeVisible();
+  await results.getByRole('button',{name:'Return to page 1'}).press('Enter');
+  await expect(results.getByRole('status')).toHaveText('13 matches');
+  await nextPage.press('Enter');
+  await expect(results.getByRole('heading',{name:'Second Skill'})).toBeVisible();
+  await expect(pageNumber).toHaveText('2 / 2');
+  expect(await body.evaluate(() => window.skillHubFixture.searches)).toEqual([['',1],['',2],['',2]]);
+  await hubSearchBox.fill('docx');
+  await expect(results.getByRole('status')).toContainText('Showing the previous results');
+  await expect(pageNumber).toHaveText('2 / 2');
+  await expect.poll(() => body.evaluate(() => !!window.skillHubFixture.finishSearch)).toBe(true);
+  await body.evaluate(() => { window.skillHubFixture.finishSearch(); delete window.skillHubFixture.finishSearch; });
+  const writer = results.getByRole('article').filter({has:frame.getByRole('heading',{name:'Document Writer'})});
+  await expect(writer).toBeVisible();
+  await writer.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
+  const history = frame.getByRole('dialog',{name:'Document Writer',exact:true});
+  await expect(history.locator('.skills-card-publisher')).toHaveText('@fixture-team/docx');
+  await select('Version to install','1.0');
+  await history.getByRole('button',{name:'Install selected version',exact:true}).press('Enter');
+  await expect(history.getByRole('button',{name:'Installing…',exact:true})).toBeVisible();
+  expect(await body.evaluate(() => window.skillHubFixture.install)).toEqual({publisher:'fixture-team',slug:'docx',versionId:17});
+  await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
+  await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
+  await hubTab.press('Enter');
+  await expect.poll(() => body.evaluate(() => !!window.skillHubFixture.finishSearch)).toBe(true);
+  await body.evaluate(() => window.skillHubFixture.finishSearch());
+  await expect(writer).toBeVisible();
+  await writer.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
+  await expect(history.getByRole('button',{name:'Installing…',exact:true})).toBeDisabled();
+  await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
+  await body.evaluate(() => window.skillHubFixture.finishInstall());
+  await writer.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
+  await expect(history.getByRole('button',{name:'Install selected version',exact:true})).toBeEnabled();
+  await select('Version to install','1.0');
+  await expect(history.getByRole('alert')).toContainText('Install fixture offline');
+  await capture('skillhub-install-error');
+  await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
+  await hubSearchBox.fill('filtered');
+  await expect(results.getByText('No skills can be displayed on this page',{exact:true})).toBeVisible();
+  await body.evaluate(() => {window.fetch = window.skillHubFixture.fetch; delete window.skillHubFixture;});
+  await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
+  checks.push('SkillHub capability fixtures cover inventory retry, matching cards and pagination, cached-page recovery, release identity and install failure across tab switches');
+
   if (process.env.PERO_SKILLS_MARKET_SKILLHUB === '1') {
     await search('private-local-query-fixture');
     // One dropped renderer/Host reply verifies the visible error and retry path.
@@ -161,10 +258,10 @@ try {
     });
     await frame.getByRole('tab',{name:'SkillHub',exact:true}).press('Enter');
     const hubSearch = frame.getByRole('searchbox',{name:'Search SkillHub',exact:true});
-    await expect(hubSearch).toHaveValue('');
+    await hubSearch.fill('');
     await expect(frame.getByRole('alert')).toContainText('SkillHub is unavailable.',{timeout:18000});
     await frame.getByRole('button',{name:'Retry',exact:true}).press('Enter');
-    await expect(frame.getByRole('alert')).toHaveCount(0);
+    await expect(frame.getByRole('region',{name:'SkillHub results',exact:true}).getByRole('status')).toHaveText(/match(?:es)?$/, {timeout:20000});
     await hubSearch.fill('find-skill-skillhub');
     const hub = frame.getByRole('region',{name:'SkillHub results',exact:true});
     const card = hub.getByRole('article').filter({hasText:'@user_290ac21c'});
@@ -189,16 +286,6 @@ try {
     expect(saved.selected).toBe(false);
     await capture('skillhub-releases');
     await releases.getByRole('button',{name:'Close',exact:true}).press('Escape');
-    const next = hub.getByRole('button',{name:'Next',exact:true});
-    await expect(next).toBeEnabled();
-    await next.press('Enter');
-    await expect(hub.locator('.skills-pagination span')).toHaveText(/^2 \/ /);
-    await expect(hub.getByRole('status')).toHaveText(/matches$/, {timeout:20000});
-    await hubSearch.fill('docx');
-    await expect(hub.locator('.skills-pagination span')).toHaveText(/^1 \/ /);
-    await hubSearch.fill('find-skill-skillhub');
-    await expect(hub.locator('.skills-pagination span')).toHaveText(/^1 \/ /);
-    await expect(hub.getByRole('status')).toHaveText(/matches$/, {timeout:20000});
     await frame.getByRole('tab',{name:'Installed (1)',exact:true}).press('Enter');
     await search('');
     const installedCard = rows.filter({hasText:saved.entry.name});
@@ -303,9 +390,17 @@ try {
   expect(saved.items).toEqual({});
   checks.push('remove confirmation/cancel and actual profile removal persistence');
   await frame.getByRole('tab',{name:'发现技能',exact:true}).press('Enter');
+  await frame.getByRole('button',{name:'清除已完成任务',exact:true}).press('Enter');
   const narrowGrid = frame.locator('.skills-grid');
   await expect(narrowGrid.getByRole('article')).toHaveCount(12);
   expect(await narrowGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length)).toBeLessThan(columns);
+  expect(await narrowGrid.evaluate(node => {
+    const pane = node.closest('.skills-results').getBoundingClientRect();
+    return [...node.querySelectorAll('article')].every(card => {
+      const bounds = card.getBoundingClientRect();
+      return bounds.left >= pane.left - 1 && bounds.right <= pane.right + 1;
+    });
+  })).toBe(true);
   expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await capture('catalog-dark-narrow-zh');
   expect(errors).toEqual([]);

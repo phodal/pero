@@ -3,8 +3,8 @@ import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk
 import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, LibraryHeader, ListRow, SearchField, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import {SkillCard} from './skill-card';
-import {SkillHub} from './skillhub';
-import type {SkillHubInstall} from '../../../protocol/generated/host';
+import {SkillHub, skillHubId} from './skillhub';
+import type {SkillHubEntry} from '../../../protocol/generated/host';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
 function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missing: React.ReactNode}) {
@@ -22,6 +22,8 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const categoryLabel = (item: Skill) => zh ? item.category_zh || item.category : item.category.replace(/[-_]/g,' ');
   const [catalog, setCatalog] = useState<Catalog>(), [installed, setInstalled] = useState<Installations>();
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
+  const [inventoryLoading, setInventoryLoading] = useState(false), [inventoryError, setInventoryError] = useState('');
+  const [hubInstallErrors, setHubInstallErrors] = useState<Record<string, Record<number, string>>>({});
   const [view, setView] = useState('discover'), [queryState, setQueryState] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
   const [hubQuery, setHubQuery] = useState(''), [hubRefresh, setHubRefresh] = useState(0);
   const [targetRevision, setTargetRevision] = useState('');
@@ -39,19 +41,36 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const installedEpoch = useRef(0);
   const activeOperations = useRef(new Map<string, {cancelRequested?:boolean}>());
 
+  const loadInstalled = useCallback(async () => {
+    if (!capability) return;
+    const request = ++installedEpoch.current;
+    setInventoryLoading(true);
+    setInventoryError('');
+    try {
+      const result = await capability.call<Installations>('installed', {});
+      if (installedEpoch.current === request) setInstalled(result);
+    } catch (reason) {
+      if (installedEpoch.current === request) setInventoryError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (installedEpoch.current === request) setInventoryLoading(false);
+    }
+  }, [capability]);
   const load = useCallback(async () => {
     if (!capability) return;
     const request = ++epoch.current;
-    const installedRequest = ++installedEpoch.current;
-    setLoading(true); setError('');
-    const results = await Promise.allSettled([capability.call('catalog', {}) as Promise<Catalog>, capability.call('installed', {}) as Promise<Installations>]);
-    if (epoch.current !== request) return;
-    if (results[0].status === 'fulfilled') setCatalog(results[0].value);
-    if (results[1].status === 'fulfilled' && installedRequest === installedEpoch.current) setInstalled(results[1].value);
-    setError(results.flatMap(result => result.status === 'rejected' ? [String(result.reason instanceof Error ? result.reason.message : result.reason)] : []).join('\n'));
-    setLoading(false);
-  }, [capability]);
-  useEffect(() => { void load(); return () => { epoch.current++; }; }, [load]);
+    setLoading(true);
+    setError('');
+    void loadInstalled();
+    try {
+      const result = await capability.call<Catalog>('catalog', {});
+      if (epoch.current === request) setCatalog(result);
+    } catch (reason) {
+      if (epoch.current === request) setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (epoch.current === request) setLoading(false);
+    }
+  }, [capability, loadInstalled]);
+  useEffect(() => { void load(); return () => { epoch.current++; installedEpoch.current++; }; }, [load]);
 
   const records = installed?.items ?? [];
   const entries = useMemo(() => {
@@ -63,7 +82,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
     for (const item of installed?.items ?? []) if (item.entry && !ids.has(item.id)) { values.push(item.entry); ids.add(item.id); }
     return values;
   }, [catalog, installed]);
-  const shown = findSkills(entries, {scope,query, category, view, installed:records, page, onlyReady, sort});
+  const shown = hub ? undefined : findSkills(entries, {scope,query, category, view, installed:records, page, onlyReady, sort});
   const listed = entries.find(value => value.id === selected);
   const record = records.find(value => value.id === listed?.id);
   const retained = record?.versions ?? [];
@@ -72,18 +91,32 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const item = listed;
   const itemBusy = busy[item?.id ?? ''];
   const update = updates[item?.id ?? ''];
-  const categories = [...new Map(entries.map(value => [value.category, {value:value.category, label:categoryLabel(value)}])).values()].sort((a,b) => a.label.localeCompare(b.label, locale));
+  const categories = hub ? [] : [...new Map(entries.map(value => [value.category, {value:value.category, label:categoryLabel(value)}])).values()].sort((a,b) => a.label.localeCompare(b.label, locale));
   const noCapability = !!permissions && !capability;
   function filter(change: () => void) { change(); setPage(0); }
   function open(target:Skill) {setSelected(target.id);setDetailTab('overview');setTargetRevision('');}
   function mergeInstalled(result: Installations, id: string) {
     installedEpoch.current++;
+    setInventoryLoading(false);
+    setInventoryError('');
     setInstalled(previous => ({...result, items:[...(previous?.items ?? []).filter(value => value.id !== id), ...result.items.filter(value => value.id === id)]}));
   }
-  async function installFromHub(input: Omit<SkillHubInstall, 'operation'>) {
-    if (!capability) throw new Error('Skill installation is unavailable');
-    const result = await capability.call<Installations>('skillhub-install', input);
-    mergeInstalled(result, `skillhub:${input.publisher}/${input.slug}`);
+  async function installFromHub(item: SkillHubEntry, versionId: number) {
+    const id = skillHubId(item);
+    if (!capability || !installed || activeOperations.current.has(id)) return;
+    activeOperations.current.set(id, {});
+    setBusy(previous => ({...previous, [id]:{operation:'skillhub-install', cancelling:false}}));
+    setHubInstallErrors(previous => ({...previous, [id]:{...previous[id], [versionId]:''}}));
+    try {
+      const result = await capability.call<Installations>('skillhub-install', {publisher:item.publisher, slug:item.slug, versionId});
+      mergeInstalled(result, id);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setHubInstallErrors(previous => ({...previous, [id]:{...previous[id], [versionId]:message}}));
+    } finally {
+      activeOperations.current.delete(id);
+      setBusy(previous => {const next={...previous};delete next[id];return next;});
+    }
   }
   useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,hubQuery,category,onlyReady,sort]);
   useEffect(()=>{if(embedded)return;const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();searchInput.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[embedded,searchInput,selected]);
@@ -155,8 +188,8 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
     if(outcome.operation==='use')void useSkill(target, String(outcome.input.message||''));
     else void operate(outcome.operation,target,outcome.input);
   }
-  const taskIds=[...new Set([...Object.keys(outcomes),...Object.keys(busy)])].reverse();
-  const running=Object.keys(busy).length;
+  const taskIds=[...new Set([...Object.keys(outcomes),...Object.keys(busy)])].filter(id=>busy[id]?.operation!=='skillhub-install').reverse();
+  const running=taskIds.filter(id=>busy[id]).length;
   const missingEvidence=item ? <>{text('未明确列出，请查看','Not explicitly listed; review the')} <a href={item.source.url} target="_blank" rel="noreferrer">{text('技能原文','original skill')}</a>。</> : null;
 
   const filtered = !!(query || category || scope || onlyReady);
@@ -186,10 +219,12 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
             feedback={<div className="skills-status">
             {!hub&&loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
             {!hub&&error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}
+            {inventoryError&&<Feedback kind="error">{text('无法读取已安装技能。','Could not load installed skills.')} {inventoryError} <Button variant="link" disabled={inventoryLoading} onClick={()=>void loadInstalled()}>{text('重试','Retry inventory')}</Button></Feedback>}
+            {hub && inventoryLoading && !installed && <Feedback>{text('正在读取已安装技能…','Loading installed skills…')}</Feedback>}
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
           </div>}>
           <TabsContent value={view}>
-            {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} installed={installed} onInstall={installFromHub} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
+            {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} installed={installed} busy={busy} installErrors={hubInstallErrors} onInstall={(item, versionId)=>void installFromHub(item, versionId)} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !shown || !catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
                 {catalog && <p className="skills-summary">{text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`)}</p>}
                 {shown.items.length ? <div className="skills-grid">{shown.items.map(value=>{
@@ -254,6 +289,6 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
         </Tabs>
       </div>
     </Dialog>}
-    {removing&&<Dialog title={text(`移除 ${title(removing)}？`,`Remove ${title(removing)}?`)} closeLabel={text('关闭','Close')} size="sm" onClose={()=>setRemoving(undefined)} footer={<><Button onClick={()=>setRemoving(undefined)}>{text('取消','Cancel')}</Button><Button variant="danger" onClick={()=>{const target=removing;setRemoving(undefined);void operate('remove',target);}}>{text('移除','Remove')}</Button></>}><p>{text('将从已安装列表和后续会话选择中移除。已有会话仍绑定原快照，不会被中途替换或清除。','Remove from installed skills and future session selection. Existing sessions retain their original snapshot.')}</p></Dialog>}
+    {removing&&<Dialog title={text(`移除 ${title(removing)}？`,`Remove ${title(removing)}?`)} closeLabel={text('关闭','Close')} size="sm" onClose={()=>setRemoving(undefined)} footer={<><Button onClick={()=>setRemoving(undefined)}>{text('取消','Cancel')}</Button><Button variant="danger" disabled={!!busy[removing.id]} onClick={()=>{const target=removing;setRemoving(undefined);void operate('remove',target);}}>{text('移除','Remove')}</Button></>}><p>{text('将从已安装列表和后续会话选择中移除。已有会话仍绑定原快照，不会被中途替换或清除。','Remove from installed skills and future session selection. Existing sessions retain their original snapshot.')}</p></Dialog>}
   </main>;
 }

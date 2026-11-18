@@ -263,3 +263,13 @@ checker 仍 9/9 通过。`reopened/report.md`、代码、日志和任务回执�
 Windows Electron 专项验收在真实应用页模拟一次未返回的 SkillHub 查询，约 13 秒内出现错误和重试按钮。随后使用官方接口恢复搜索，通过版本选择安装公开发布包，核对发布身份、包校验值和本地版本摘要。已安装的版本出现在市场和新会话技能选择器中，安装时全局启用状态为关闭。
 
 验收命令为 `PERO_SKILLS_MARKET_SKILLHUB=1 node tests/e2e/skills-market.mjs`。Go 插件测试覆盖归档路径检查，Host Skills 专项及 `npm run check` 通过。
+
+### PR #235 评审修复
+
+2026-11-18 在 macOS arm64 的 Electron 开发版复验。基于 PR 原始提交
+`45cc5719`，重新构建 Customize、Electron 主进程、Host 和 Go Harness。
+
+- 受控响应验证了安装清单重试、搜索结果与页码同步、翻页失败时直接恢复缓存页，以及上游有匹配但本页无可显示条目的提示。
+- 选择非默认发布版本后，关闭弹窗并切换标签再返回时，安装按钮仍处于忙碌状态。模拟请求失败后重新打开所选版本，可看到原错误。
+- 真实 SkillHub 查询在一次模拟超时后重试成功。随后从官方接口读取公开发布历史、安装指定版本，并将该版本选入普通会话草稿。安装未开启全局装配。
+- Rust Skills 专项、Go 插件和 ACP 测试、两款 App 类型检查和 `npm run check` 通过。检查了安装失败截图和 720 像素窄窗两列布局，证据在 `test-results/skills-market/`。Native 和签名安装包待验收。
