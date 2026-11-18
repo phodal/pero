@@ -8,6 +8,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[path = "skillhub.rs"]
+mod skillhub;
+
 #[derive(Clone)]
 pub(super) struct Market {
     store: Arc<Mutex<Result<SkillMarketStore, String>>>,
@@ -183,6 +186,45 @@ fn catalog_path(workspace: &Path) -> PathBuf {
 
 impl Apps {
     pub(crate) fn skill_market(&self, request: Request) -> Result<serde_json::Value, String> {
+        match request {
+            Request::SkillHubSearch {
+                keyword,
+                page,
+                sort,
+            } => {
+                return skillhub::search(&keyword, page, sort);
+            }
+            Request::SkillHubVersions { publisher, slug } => {
+                let identity = pero_runtime::skill_market::SkillHubIdentity::new(publisher, slug)?;
+                return skillhub::versions(&identity);
+            }
+            Request::SkillHubInstall {
+                publisher,
+                slug,
+                version_id,
+            } => {
+                let identity = pero_runtime::skill_market::SkillHubIdentity::new(publisher, slug)?;
+                let mut job = self
+                    .market
+                    .store
+                    .lock()
+                    .map_err(|err| err.to_string())?
+                    .as_ref()
+                    .map_err(Clone::clone)?
+                    .prepare_skillhub(identity.clone())?;
+                let release = skillhub::install_release(&identity, version_id)?;
+                let version = job.run(release)?;
+                return self
+                    .market
+                    .store
+                    .lock()
+                    .map_err(|err| err.to_string())?
+                    .as_mut()
+                    .map_err(|err| err.clone())?
+                    .complete_skillhub(&mut job, version);
+            }
+            _ => {}
+        }
         if let Request::Cancel { id } = &request {
             self.market.control.cancel(id)?;
             return Ok(serde_json::json!({"cancelled":true}));

@@ -1,4 +1,4 @@
-export type Source = {repository: string; commit: string; path: string; url: string; sha256?: string};
+export type Source = {repository: string; commit: string; path: string; url: string; sha256?: string; release?: string; release_id?: number};
 export type EvidenceSection = {heading: string; text: string};
 export type Skill = {
   id: string; name: string; title_zh: string; description: string; description_zh: string;
@@ -11,6 +11,6 @@ export type Skill = {
   verification: {content: string; runtime: string; notes: string[]};
 };
 export type Catalog = {schema_version: number; generated_at: string; issue_url: string; sources: unknown[]; skills: Skill[]; resources: unknown[]; exclusions: unknown[]; stats: Record<string, unknown>};
-export type Installed = {id: string; revision: string; enabled: boolean; selected: boolean; invocation?: string; previousRevision?: string; entry?: Skill};
+export type Installed = {id: string; revision: string; versions?: string[]; releaseNames?: Record<string,string>; enabled: boolean; selected: boolean; invocation?: string; previousRevision?: string; entry?: Skill};
 export type Installations = {items: Installed[]; supportedAgent: string};
 export type Update = {id: string; currentRevision: string; latestRevision: string; latestSha256: string; updateAvailable: boolean};

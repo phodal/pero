@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,6 +19,24 @@ import (
 func runPlugins(args []string, output io.Writer) error {
 	operation, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if len(args) > 0 && args[0] == "fetch-skillhub" {
+		if len(args) != 6 {
+			return errors.New("usage: pero-agent-acp plugins fetch-skillhub CACHE PUBLISHER SLUG VERSION RELEASE_ID")
+		}
+		id, err := strconv.ParseUint(args[5], 10, 64)
+		if err != nil || id == 0 {
+			return errors.New("plugins: invalid SkillHub release ID")
+		}
+		ctx, cancel := context.WithTimeout(operation, 45*time.Second)
+		defer cancel()
+		receipt, err := plugins.FetchSkillHub(ctx, args[1], plugins.SkillHubRelease{
+			Publisher: args[2], Slug: args[3], Version: args[4], ID: id,
+		})
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(receipt)
+	}
 	if len(args) == 3 && args[0] == "skill-observe" {
 		if err := plugins.PublicGitHubSkillSource(args[1]); err != nil {
 			return err

@@ -2,6 +2,8 @@
 mod acquisition;
 mod acquisition_job;
 pub use acquisition_job::{AcquisitionKind, AcquisitionResult, SkillAcquisition};
+mod hub_install;
+pub use hub_install::{SkillHubIdentity, SkillHubInstall};
 mod catalog;
 pub use catalog::sanitize_catalog;
 mod context;
@@ -26,6 +28,10 @@ pub struct SkillSource {
     pub resource_fingerprint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archive: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_id: Option<u64>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SkillLicense {
@@ -263,6 +269,15 @@ impl SkillMarketState {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillHubSort {
+    Score,
+    Downloads,
+    #[serde(rename = "updated_at")]
+    Updated,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "operation", deny_unknown_fields)]
 pub enum Request {
     #[serde(rename = "cancel")]
@@ -271,6 +286,21 @@ pub enum Request {
     Catalog,
     #[serde(rename = "installed")]
     Installed,
+    #[serde(rename = "skillhub-search")]
+    SkillHubSearch {
+        keyword: String,
+        page: u32,
+        sort: SkillHubSort,
+    },
+    #[serde(rename = "skillhub-versions")]
+    SkillHubVersions { publisher: String, slug: String },
+    #[serde(rename = "skillhub-install")]
+    SkillHubInstall {
+        publisher: String,
+        slug: String,
+        #[serde(rename = "versionId")]
+        version_id: u64,
+    },
     #[serde(rename = "install")]
     Install { id: String },
     #[serde(rename = "enable")]
