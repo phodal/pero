@@ -80,7 +80,14 @@ impl HostEvent {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HostCommand {
-    ListAgents,
+    ListAgents {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        history: Option<session_history::SessionReplayMode>,
+    },
+    LoadThreadHistory {
+        thread_id: String,
+        request_id: String,
+    },
     Workspace {
         path: String,
     },

@@ -1,7 +1,7 @@
 //! Complete conversation replay, compacting only adjacent plain text deltas.
 use crate::HostEvent;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -26,6 +26,63 @@ impl SessionHistoryStatus {
 pub enum SessionHistorySaveFailure {
     Open,
     Write,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionReplayMode {
+    Catalog,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct SessionReplay {
+    pub events: Vec<HostEvent>,
+    pub active: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<Vec<DeferredThread>>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DeferredThread {
+    pub thread_id: String,
+    pub has_messages: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reported_title: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ThreadHistory {
+    pub events: Vec<HostEvent>,
+    pub active: bool,
+}
+
+/// These events are folded into an in-memory replay, including live requests
+/// that must never be written to disk.
+pub fn recorded_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "app_agent_attempt" | "app_agent_cancel" | "session_created" | "user_message"
+            | "session_update" | "session_usage" | "session_ready" | "model_changed"
+            | "configuration_changed" | "turn_started" | "turn_finished" | "workspace_changes"
+            | "session_error" | "session_closed" | "session_deleted" | "permission"
+            | "permission_resolved" | "user_questions" | "user_questions_resolved"
+            | "user_questions_error" | "session_auth_required" | "session_auth_error"
+            | "session_authenticated"
+    )
+}
+
+pub fn prompt_title(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or_default()
+        .split_whitespace()
+        .flat_map(|word| std::iter::once(' ').chain(word.chars()))
+        .skip(1)
+        .take(24)
+        .collect()
 }
 
 #[derive(Default)]
@@ -88,6 +145,71 @@ impl SessionHistory {
     }
 
     pub fn events(&self) -> &[HostEvent] { &self.events }
+
+    pub fn replay(&self, active: Vec<String>, mode: Option<SessionReplayMode>) -> SessionReplay {
+        if mode.is_none() {
+            return SessionReplay { events: self.events.clone(), active, catalog: None };
+        }
+        let live: HashSet<_> = active.iter().map(String::as_str).collect();
+        let mut events = Vec::new();
+        let mut catalog = Vec::<DeferredThread>::new();
+        let mut deferred = HashMap::new();
+        let mut errors = HashMap::new();
+        for event in &self.events {
+            let Some(thread) = event.thread_id.as_deref() else { continue; };
+            if live.contains(thread) {
+                events.push(event.clone());
+                continue;
+            }
+            if event.kind == "session_created" {
+                deferred.entry(thread).or_insert_with(|| {
+                    let index = catalog.len();
+                    catalog.push(DeferredThread {
+                        thread_id: thread.into(),
+                        has_messages: false,
+                        prompt_title: None,
+                        reported_title: None,
+                    });
+                    index
+                });
+                events.push(event.clone());
+            }
+            let Some(summary) = deferred.get(thread).map(|index| &mut catalog[*index]) else { continue; };
+            match (event.kind.as_str(), event.data["sessionUpdate"].as_str()) {
+                ("user_message", _) => {
+                    if !summary.has_messages {
+                        summary.prompt_title = Some(prompt_title(&event.text));
+                    }
+                    summary.has_messages = true;
+                }
+                ("session_update", Some("agent_message_chunk" | "agent_thought_chunk"))
+                    if event.data["content"]["text"].as_str().is_some_and(|text| !text.is_empty()) =>
+                {
+                    summary.has_messages = true;
+                }
+                ("session_update", Some("session_info_update")) if event.data.get("title").is_some() => {
+                    summary.reported_title = event.data["title"].as_str().map(str::to_owned);
+                }
+                ("session_error" | "session_auth_required" | "session_auth_error", _) => {
+                    errors.insert(thread, event);
+                }
+                ("session_authenticated", _) => {
+                    errors.remove(thread);
+                }
+                _ => {}
+            }
+        }
+        events.extend(catalog.iter().filter_map(|entry| errors.get(entry.thread_id.as_str()).copied().cloned()));
+        SessionReplay { events, active, catalog: Some(catalog) }
+    }
+
+    pub fn thread(&self, thread: &str, active: bool) -> ThreadHistory {
+        let events = self.events.iter()
+            .filter(|event| event.thread_id.as_deref() == Some(thread))
+            .cloned()
+            .collect();
+        ThreadHistory { events, active }
+    }
 }
 
 #[cfg(test)]
@@ -138,5 +260,43 @@ mod tests {
         assert_eq!(history.events.len(), 2);
         assert_eq!(history.events[0].thread_id.as_deref(), Some("keep"));
         assert_eq!(history.events[1].kind, "workspace");
+    }
+
+    #[test]
+    fn catalog_preserves_origins_titles_and_live_history_and_defers_closed_bodies() {
+        let mut history = SessionHistory::default();
+        let archived = "已完成的对话";
+        let scope = json!({"app":"paper-agent","panel":"main"});
+        history.record(event("session_created", archived, json!({"agent":"pero","scope":scope})));
+        history.record(event("session_created", "active", json!({"agent":"pero"})));
+        let mut user = event("user_message", archived, json!({"contexts":[{"id":"original-reference"}]}));
+        user.text = "\n  a    preview of the original user request\nnot a title".into();
+        history.record(user);
+        history.record(chunk("active", "agent_message_chunk", "live"));
+        history.record(chunk(archived, "agent_message_chunk", "original "));
+        history.record(chunk(archived, "agent_message_chunk", "result"));
+        history.record(event("session_update", archived, json!({"sessionUpdate":"session_info_update","title":"Agent title"})));
+        history.record(event("session_error", archived, json!({})));
+        history.record(event("session_closed", archived, json!({})));
+        let active = vec!["active".into()];
+        let eager = history.replay(active.clone(), None);
+        let catalog = history.replay(active, Some(SessionReplayMode::Catalog));
+        let deferred = catalog.catalog.unwrap();
+        assert_eq!(deferred.len(), 1);
+        assert_eq!(deferred[0].thread_id, archived);
+        assert!(deferred[0].has_messages);
+        assert_eq!(deferred[0].prompt_title.as_deref(), Some("a preview of the origina"));
+        assert_eq!(deferred[0].reported_title.as_deref(), Some("Agent title"));
+        assert_eq!(catalog.events[0].data["scope"], scope);
+        assert_eq!(catalog.events[2].data["content"]["text"], "live");
+        assert_eq!(catalog.events[3].kind, "session_error");
+        assert_eq!(catalog.events.len(), 4);
+        let body = history.thread(archived, false);
+        assert!(!body.active);
+        assert_eq!(body.events[1].data["contexts"][0]["id"], "original-reference");
+        assert_eq!(body.events[2].data["content"]["text"], "original result");
+        let eager_body = eager.events.iter().filter(|entry| entry.thread_id.as_deref() == Some(archived))
+            .map(|entry| serde_json::to_value(entry).unwrap()).collect::<Vec<_>>();
+        assert_eq!(serde_json::to_value(body.events).unwrap(), json!(eager_body));
     }
 }

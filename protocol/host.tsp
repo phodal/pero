@@ -259,7 +259,8 @@ model SetRemoteSettingsRequest {
   ...Closed;
 }
 
-model ListAgentsCommand { action: "list_agents"; ...Closed }
+model ListAgentsCommand { action: "list_agents"; history?: "catalog"; ...Closed }
+model LoadThreadHistoryCommand { action: "load_thread_history"; thread_id: ThreadId; @minLength(1) @maxLength(128) request_id: string; ...Closed }
 model WorkspaceCommand { action: "workspace"; path: string; ...Closed }
 model LoadRoadmapCommand { action: "load_roadmap"; ...Closed }
 model AttachFilesCommand { action: "attach_files"; paths: string[]; ...Closed }
@@ -312,6 +313,7 @@ model InsightsCommand { action: "insights"; thread_id: ThreadId; ...Closed }
 @oneOf
 union HostCommand {
   ListAgentsCommand,
+  LoadThreadHistoryCommand,
   WorkspaceCommand,
   LoadRoadmapCommand,
   AttachFilesCommand,
@@ -433,8 +435,14 @@ model AgentSummary {
 }
 /** `text` is the current workspace path. */
 model AgentsEvent { kind: "agents"; ...EventBase; data: AgentSummary[] }
-model ReplayData { events: ThreadEvent[]; active: string[]; ...Closed }
+model DeferredThread {
+  thread_id: ThreadId; has_messages: boolean; prompt_title?: string; reported_title?: string; ...Closed;
+}
+model ReplayData { events: ReplayThreadEvent[]; active: string[]; catalog?: DeferredThread[]; ...Closed }
 model ReplayEvent { kind: "replay"; ...EventBase; data: ReplayData }
+model ThreadHistoryData { events: ReplayThreadEvent[]; active: boolean; ...Closed }
+model ThreadHistoryEvent { kind: "thread_history"; ...ThreadEventBase; data: ThreadHistoryData }
+model ThreadHistoryErrorEvent { kind: "thread_history_error"; ...ThreadEventBase }
 /** `text` is the selected workspace path. */
 model RepositoryIdentity { host: string; owner: string; name: string; ...Closed }
 model WorkspaceIdentity { repository: RepositoryIdentity | null; ...Closed }
@@ -473,7 +481,8 @@ model AppAgentAttemptData {attempt:Pero.Apps.AgentRunAttempt;runTime?:string;...
 model AppAgentAttemptEvent {kind:"app_agent_attempt";...ThreadEventBase;data:AppAgentAttemptData}
 model AppAgentCancelData {runTime?:string;...Closed}
 model AppAgentCancelEvent {kind:"app_agent_cancel";...ThreadEventBase;data:AppAgentCancelData}
-model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; skillSelections?: Pero.Apps.SkillMarketSelection[]; ...Closed }
+model ProjectSessionBinding { project_id: string; parent_thread: ThreadId | null; label: string; ...Closed }
+model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScope; appBinding?: Pero.Apps.AppSessionBinding; appPlugin?: Pero.Apps.AppPluginAssembly; agentPlugins?: Pero.Apps.AgentPluginRevision[]; skillSelections?: Pero.Apps.SkillMarketSelection[]; projectAgent?: ProjectSessionBinding; projectPrompt?: string; ...Closed }
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
@@ -575,6 +584,14 @@ union ThreadEvent {
   SessionDeletedEvent,
 }
 
+/** Replay can also include the current in-memory state of an active Session. */
+@oneOf
+union ReplayThreadEvent {
+  ThreadEvent, WorkspaceChangesEvent, PermissionEvent, PermissionResolvedEvent,
+  UserQuestionsEvent, QuestionsResolvedEvent, QuestionsErrorEvent,
+  SessionAuthRequiredEvent, SessionAuthErrorEvent, SessionAuthenticatedEvent,
+}
+
 model ContributorStateEvent { kind: "contributor_state"; ...EventBase; data: RemoteSnapshotPayload }
 model ContributorSessionData { task_id: string; workspace: string; agent_id?: string; ...Closed }
 model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase; data: ContributorSessionData }
@@ -615,6 +632,8 @@ union HostEvent {
   ErrorEvent,
   AgentsEvent,
   ReplayEvent,
+  ThreadHistoryEvent,
+  ThreadHistoryErrorEvent,
   WorkspaceEvent,
   LocalRoadmapEvent,
   ContextFilesEvent,

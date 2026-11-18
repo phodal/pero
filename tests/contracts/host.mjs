@@ -110,7 +110,7 @@ function startHost(overrides = {}) {
   });
   let stopping;
   const stop = () => stopping ??= (async () => { child.stdin.end(); await closed; })();
-  const host = { send, next, stop };
+  const host = { send, next, stop, events };
   hosts.push(host);
   return host;
 }
@@ -269,6 +269,20 @@ try {
   host.send({ action: 'model', thread_id: thread, model_id: 'fixture' });
   await host.next('model_changed', inThread);
 
+  host.send({ action: 'prompt', thread_id: thread, text: 'longstream' });
+  const streamText = entry => inThread(entry) && entry.kind === 'session_update'
+    && entry.data?.content?.text?.startsWith('中文片段') ? entry.data.content.text : '';
+  await host.next('session_update', entry => streamText(entry) === '中文片段0 ');
+  host.send({ action: 'list_agents', history: 'catalog' });
+  const liveReplay = await host.next('replay');
+  const streamEnd = await host.next('turn_finished', inThread, 15000);
+  const prefix = liveReplay.data.events.map(streamText).join('');
+  const tail = host.events.slice(host.events.indexOf(liveReplay) + 1, host.events.indexOf(streamEnd)).map(streamText).join('');
+  const expectedStream = Array.from({length: 1000}, (_, index) => `中文片段${index} `).join('');
+  if (!prefix || !tail || prefix + tail !== expectedStream) {
+    failures.push('catalog replay and following live stream must yield every delta exactly once and in order');
+  }
+
   host.send({ action: 'prompt', thread_id: thread, text: 'wait' });
   await host.next('turn_started', inThread);
   host.send({ action: 'prompt', thread_id: thread, text: 'queued follow-up' });
@@ -305,7 +319,7 @@ try {
   if (afterDelete.data.some(item => item.source === thread || item.source === 'delete-live')) failures.push('deleted thread remained searchable');
   // A renderer reload must receive observations newer than session_ready,
   // including both a post-startup disconnect and a subsequent recovery.
-  const runtimeThread = 'runtime-contract';
+  const runtimeThread = 'runtime-contract-恢复';
   host.send({action:'new_session',thread_id:runtimeThread,agent_id:'runtime-fixture'});
   await host.next('session_ready', event => event.thread_id === runtimeThread);
   for (const [text, status] of [['disconnect','disconnected'], ['recover','connected']]) {
@@ -313,8 +327,13 @@ try {
     const changed = await host.next('mcp_runtime', event => event.thread_id === runtimeThread
       && event.data.servers.some(server => server.server === 'docs' && server.status === status && server.generation > 2));
     await host.next('turn_finished', event => event.thread_id === runtimeThread);
-    host.send({action:'list_agents'});
-    await host.next('replay');
+    host.send({action:'list_agents', history:'catalog'});
+    const refresh = await host.next('replay');
+    if (!refresh.data.active.includes(runtimeThread)
+        || refresh.data.catalog.some(entry => entry.thread_id === runtimeThread)
+        || !refresh.data.events.some(entry => entry.thread_id === runtimeThread && entry.kind === 'turn_finished')) {
+      failures.push('catalog replay did not retain the live thread and its observed turns');
+    }
     const refreshed = await host.next('mcp_runtime', event => event.thread_id === runtimeThread
       && event.data.servers.some(server => server.server === 'docs' && server.generation === changed.data.servers.find(server => server.server === 'docs').generation));
     if (!isDeepStrictEqual(refreshed.data, changed.data)) failures.push('renderer reconnect restored a stale MCP observation');
@@ -346,6 +365,18 @@ try {
   if (replay.data.events.some(event => event.thread_id === thread || event.thread_id === 'delete-live')) failures.push('deleted thread was replayed');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract')) failures.push('deleting a thread removed unrelated history');
   if (!replay.data.events.some(event => event.thread_id === 'settings-contract' && event.kind === 'session_created' && isDeepStrictEqual(event.data.scope, {app:'fixture',panel:'main'}))) failures.push('App scope was lost after Host restart');
+  host.send({action:'list_agents', history:'catalog'});
+  const catalog = await host.next('replay');
+  if (!catalog.data.catalog.some(entry => entry.thread_id === runtimeThread && entry.has_messages)
+      || catalog.data.events.some(entry => entry.thread_id === runtimeThread && entry.kind === 'user_message')) {
+    failures.push('catalog replay should include metadata and defer an archived body');
+  }
+  host.send({action:'load_thread_history', thread_id:runtimeThread, request_id:'load-archived'});
+  const body = await host.next('thread_history', entry => entry.request_id === 'load-archived');
+  if (body.data.active || body.thread_id !== runtimeThread
+      || !isDeepStrictEqual(body.data.events, replay.data.events.filter(entry => entry.thread_id === runtimeThread))) {
+    failures.push('archived Unicode thread body did not match legacy replay');
+  }
   if (!readFileSync(env.PERO_HISTORY_PATH).equals(damaged)) failures.push('history recovery rewrote the source journal');
   host.send({action:'new_session',thread_id:'builtin-contract',agent_id:'runtime-fixture'});
   const builtinReady = await host.next('session_ready', event => event.thread_id === 'builtin-contract');

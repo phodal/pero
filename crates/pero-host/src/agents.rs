@@ -22,7 +22,7 @@ mod project_agent;
 #[path = "session_journal.rs"]
 mod session_journal;
 use session_journal::SessionJournal;
-use pero_contracts::session_history::{SessionHistorySaveFailure, SessionHistoryStatus};
+use pero_contracts::session_history::{SessionHistorySaveFailure, SessionHistoryStatus, recorded_kind};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -96,37 +96,23 @@ impl Manager {
         let (tx, rx) = mpsc::channel::<HostEvent>();
         std::thread::spawn(move || {
             for mut event in rx {
+                // Recovery observes the same FIFO at which live events are
+                // recorded and emitted, including updates before the first catalog.
+                if event.kind == "replay" {
+                    let active = serde_json::from_value(std::mem::take(&mut event.data["active"]))
+                        .expect("internal replay session IDs");
+                    let mode = serde_json::from_value(std::mem::take(&mut event.data["history"]))
+                        .expect("internal replay mode");
+                    let replay = saved.lock().unwrap().replay(active, mode);
+                    event.data = serde_json::json!(replay);
+                } else if event.kind == "thread_history" && let Some(thread) = &event.thread_id {
+                    let body = saved.lock().unwrap().thread(thread, event.data["active"].as_bool() == Some(true));
+                    event.data = serde_json::json!(body);
+                }
                 run_writer.stamp(&mut event);
                 let ack_id=event.request_id.clone();
                 let mut persistence=None;
-                if event.thread_id.is_some()
-                    && matches!(
-                        event.kind.as_str(),
-                        "app_agent_attempt"
-                            | "app_agent_cancel"
-                            | "session_created"
-                            | "user_message"
-                            | "session_update"
-                            | "session_usage"
-                            | "session_ready"
-                            | "model_changed"
-                            | "configuration_changed"
-                            | "turn_started"
-                            | "turn_finished"
-                            | "workspace_changes"
-                            | "session_error"
-                            | "session_closed"
-                            | "session_deleted"
-                            | "permission"
-                            | "permission_resolved"
-                            | "user_questions"
-                            | "user_questions_resolved"
-                            | "user_questions_error"
-                            | "session_auth_required"
-                            | "session_auth_error"
-                            | "session_authenticated"
-                    )
-                {
+                if event.thread_id.is_some() && recorded_kind(&event.kind) {
                     saved.lock().unwrap().record(event.clone());
                     let mut persisted=Err("Session journal is unavailable".to_string());
                     if !matches!(
@@ -345,7 +331,7 @@ impl Manager {
         }
         match command {
             HostCommand::LoadRoadmap => self.publish_roadmap(),
-            HostCommand::ListAgents => {
+            HostCommand::ListAgents { history } => {
                 self.send(
                     "agents",
                     self.workspace.to_string_lossy(),
@@ -353,18 +339,13 @@ impl Manager {
                 );
                 self.publish_workspace();
                 self.publish_history_status();
-                let events = self.visible_history();
                 let active: Vec<_> = self
                     .sessions
                     .iter()
                     .filter(|(_, session)| !session.tx.is_closed())
                     .map(|(id, _)| id.clone())
                     .collect();
-                self.send(
-                    "replay",
-                    "",
-                    serde_json::json!({"events":events,"active":active}),
-                );
+                self.send("replay", "", serde_json::json!({"active":active,"history":history}));
                 // Readiness is historical; reconnecting renderers need the live
                 // session owner's current observations after replay completes.
                 for session in self.sessions.values().filter(|session| !session.tx.is_closed()) {
@@ -374,6 +355,19 @@ impl Manager {
                     event.data = serde_json::json!(&*snapshot);
                     let _ = self.tx.send(event);
                 }
+            }
+            HostCommand::LoadThreadHistory { thread_id, request_id } => {
+                if thread_id.is_empty() || thread_id.len() > 128 || request_id.is_empty() || request_id.len() > 128 {
+                    let mut event = HostEvent::new("thread_history_error", Some(request_id), "Invalid history request".into());
+                    event.thread_id = Some(thread_id);
+                    let _ = self.tx.send(event);
+                    return false;
+                }
+                let active = self.sessions.get(&thread_id).is_some_and(|session| !session.tx.is_closed());
+                let mut event = HostEvent::new("thread_history", Some(request_id), String::new());
+                event.thread_id = Some(thread_id);
+                event.data = serde_json::json!({"active":active});
+                let _ = self.tx.send(event);
             }
             HostCommand::Workspace { path } => match dunce::canonicalize(path) {
                 Ok(path) if path.is_dir() => {

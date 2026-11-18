@@ -104,6 +104,7 @@ export type KeySequence = string;
 export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
+  | LoadThreadHistoryCommand
   | WorkspaceCommand
   | LoadRoadmapCommand
   | AttachFilesCommand
@@ -263,6 +264,8 @@ export type HostEvent =
   | ErrorEvent
   | AgentsEvent
   | ReplayEvent
+  | ThreadHistoryEvent
+  | ThreadHistoryErrorEvent
   | WorkspaceEvent
   | LocalRoadmapEvent
   | ContextFilesEvent
@@ -305,6 +308,20 @@ export type ArtifactSnapshotResult = ArtifactSnapshotSuccess | ArtifactSnapshotF
  * Catalog key resolved by the UI from locales/*.json.
  */
 export type MessageKey = string;
+/**
+ * Replay can also include the current in-memory state of an active Session.
+ */
+export type ReplayThreadEvent =
+  | ThreadEvent
+  | WorkspaceChangesEvent
+  | PermissionEvent
+  | PermissionResolvedEvent
+  | UserQuestionsEvent
+  | QuestionsResolvedEvent
+  | QuestionsErrorEvent
+  | SessionAuthRequiredEvent
+  | SessionAuthErrorEvent
+  | SessionAuthenticatedEvent;
 /**
  * Events persisted to the session journal and replayed to the UI.
  */
@@ -1698,6 +1715,12 @@ export interface LayoutPreferences {
 }
 export interface ListAgentsCommand {
   action: "list_agents";
+  history?: "catalog";
+}
+export interface LoadThreadHistoryCommand {
+  action: "load_thread_history";
+  thread_id: ThreadId;
+  request_id: string;
 }
 export interface WorkspaceCommand {
   action: "workspace";
@@ -3392,8 +3415,9 @@ export interface ReplayEvent {
   data: ReplayData;
 }
 export interface ReplayData {
-  events: ThreadEvent[];
+  events: ReplayThreadEvent[];
   active: string[];
+  catalog?: DeferredThread[];
 }
 export interface TurnStartedEvent {
   kind: "turn_started";
@@ -3458,6 +3482,8 @@ export interface SessionCreatedData {
   appPlugin?: AppPluginAssembly;
   agentPlugins?: AgentPluginRevision[];
   skillSelections?: SkillMarketSelection[];
+  projectAgent?: ProjectSessionBinding;
+  projectPrompt?: string;
 }
 export interface AppSessionBinding {
   app: AppName;
@@ -3498,6 +3524,11 @@ export interface AgentPluginRevision {
 export interface SkillMarketSelection {
   id: string;
   revision: string;
+}
+export interface ProjectSessionBinding {
+  project_id: string;
+  parent_thread: ThreadId | null;
+  label: string;
 }
 export interface UserMessageEvent {
   kind: "user_message";
@@ -3615,6 +3646,155 @@ export interface SessionClosedEvent {
 }
 export interface SessionDeletedEvent {
   kind: "session_deleted";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+}
+export interface PermissionEvent {
+  kind: "permission";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: PermissionData;
+}
+/**
+ * The ACP RequestPermissionRequest plus the Host-issued `permission_id`.
+ */
+export interface PermissionData {
+  permission_id: string;
+  [k: string]: unknown | undefined;
+}
+export interface PermissionResolvedEvent {
+  kind: "permission_resolved";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: PermissionResolvedData;
+}
+export interface PermissionResolvedData {
+  permission_id: string;
+  pending: number;
+}
+export interface UserQuestionsEvent {
+  kind: "user_questions";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: UserQuestionsData;
+}
+export interface UserQuestionsData {
+  request_id: string;
+  sessionId: string;
+  toolCallId: string;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  questions:
+    | [UserQuestion]
+    | [UserQuestion, UserQuestion]
+    | [UserQuestion, UserQuestion, UserQuestion]
+    | [UserQuestion, UserQuestion, UserQuestion, UserQuestion];
+}
+export interface UserQuestion {
+  question: string;
+  header: string;
+  /**
+   * @minItems 2
+   * @maxItems 4
+   */
+  options:
+    | [QuestionOption, QuestionOption]
+    | [QuestionOption, QuestionOption, QuestionOption]
+    | [QuestionOption, QuestionOption, QuestionOption, QuestionOption];
+  multiSelect?: boolean;
+}
+export interface QuestionOption {
+  label: string;
+  description: string;
+  preview?: string;
+}
+export interface QuestionsResolvedEvent {
+  kind: "user_questions_resolved";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: QuestionsResolvedData;
+}
+export interface QuestionsResolvedData {
+  request_id: string;
+  toolCallId: string;
+}
+export interface QuestionsErrorEvent {
+  kind: "user_questions_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: QuestionsErrorData;
+}
+export interface QuestionsErrorData {
+  request_id: string;
+  error: string;
+}
+export interface SessionAuthRequiredEvent {
+  kind: "session_auth_required";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: AuthRequiredData;
+}
+export interface AuthRequiredData {
+  authMethods: AcpPayload[];
+}
+export interface SessionAuthErrorEvent {
+  kind: "session_auth_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data?: AuthErrorData;
+}
+export interface AuthErrorData {
+  methodId: string;
+}
+export interface SessionAuthenticatedEvent {
+  kind: "session_authenticated";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: SessionAuthenticatedData;
+}
+export interface SessionAuthenticatedData {
+  sessionId: string;
+}
+export interface DeferredThread {
+  thread_id: ThreadId;
+  has_messages: boolean;
+  prompt_title?: string;
+  reported_title?: string;
+}
+export interface ThreadHistoryEvent {
+  kind: "thread_history";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: ThreadHistoryData;
+}
+export interface ThreadHistoryData {
+  events: ReplayThreadEvent[];
+  active: boolean;
+}
+export interface ThreadHistoryErrorEvent {
+  kind: "thread_history_error";
   version: 1;
   request_id: string | null;
   text: string;
@@ -4367,130 +4547,6 @@ export interface AgentInfoEvent {
   text: string;
   thread_id: string;
   data: AcpPayload;
-}
-export interface SessionAuthRequiredEvent {
-  kind: "session_auth_required";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: AuthRequiredData;
-}
-export interface AuthRequiredData {
-  authMethods: AcpPayload[];
-}
-export interface SessionAuthErrorEvent {
-  kind: "session_auth_error";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data?: AuthErrorData;
-}
-export interface AuthErrorData {
-  methodId: string;
-}
-export interface SessionAuthenticatedEvent {
-  kind: "session_authenticated";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: SessionAuthenticatedData;
-}
-export interface SessionAuthenticatedData {
-  sessionId: string;
-}
-export interface PermissionEvent {
-  kind: "permission";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: PermissionData;
-}
-/**
- * The ACP RequestPermissionRequest plus the Host-issued `permission_id`.
- */
-export interface PermissionData {
-  permission_id: string;
-  [k: string]: unknown | undefined;
-}
-export interface PermissionResolvedEvent {
-  kind: "permission_resolved";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: PermissionResolvedData;
-}
-export interface PermissionResolvedData {
-  permission_id: string;
-  pending: number;
-}
-export interface UserQuestionsEvent {
-  kind: "user_questions";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: UserQuestionsData;
-}
-export interface UserQuestionsData {
-  request_id: string;
-  sessionId: string;
-  toolCallId: string;
-  /**
-   * @minItems 1
-   * @maxItems 4
-   */
-  questions:
-    | [UserQuestion]
-    | [UserQuestion, UserQuestion]
-    | [UserQuestion, UserQuestion, UserQuestion]
-    | [UserQuestion, UserQuestion, UserQuestion, UserQuestion];
-}
-export interface UserQuestion {
-  question: string;
-  header: string;
-  /**
-   * @minItems 2
-   * @maxItems 4
-   */
-  options:
-    | [QuestionOption, QuestionOption]
-    | [QuestionOption, QuestionOption, QuestionOption]
-    | [QuestionOption, QuestionOption, QuestionOption, QuestionOption];
-  multiSelect?: boolean;
-}
-export interface QuestionOption {
-  label: string;
-  description: string;
-  preview?: string;
-}
-export interface QuestionsResolvedEvent {
-  kind: "user_questions_resolved";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: QuestionsResolvedData;
-}
-export interface QuestionsResolvedData {
-  request_id: string;
-  toolCallId: string;
-}
-export interface QuestionsErrorEvent {
-  kind: "user_questions_error";
-  version: 1;
-  request_id: string | null;
-  text: string;
-  thread_id: string;
-  data: QuestionsErrorData;
-}
-export interface QuestionsErrorData {
-  request_id: string;
-  error: string;
 }
 export interface PromptQueuedEvent {
   kind: "prompt_queued";

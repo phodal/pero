@@ -7339,6 +7339,29 @@
       ],
       "additionalProperties": false
     },
+    "DeferredThread": {
+      "title": "DeferredThread",
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "has_messages": {
+          "type": "boolean"
+        },
+        "prompt_title": {
+          "type": "string"
+        },
+        "reported_title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "thread_id",
+        "has_messages"
+      ],
+      "additionalProperties": false
+    },
     "DeleteCommand": {
       "title": "DeleteCommand",
       "type": "object",
@@ -8616,6 +8639,9 @@
           "$ref": "#/$defs/ListAgentsCommand"
         },
         {
+          "$ref": "#/$defs/LoadThreadHistoryCommand"
+        },
+        {
           "$ref": "#/$defs/WorkspaceCommand"
         },
         {
@@ -8889,6 +8915,12 @@
         },
         {
           "$ref": "#/$defs/ReplayEvent"
+        },
+        {
+          "$ref": "#/$defs/ThreadHistoryEvent"
+        },
+        {
+          "$ref": "#/$defs/ThreadHistoryErrorEvent"
         },
         {
           "$ref": "#/$defs/WorkspaceEvent"
@@ -9747,6 +9779,10 @@
         "action": {
           "type": "string",
           "const": "list_agents"
+        },
+        "history": {
+          "type": "string",
+          "const": "catalog"
         }
       },
       "required": [
@@ -9817,6 +9853,30 @@
       },
       "required": [
         "action"
+      ],
+      "additionalProperties": false
+    },
+    "LoadThreadHistoryCommand": {
+      "title": "LoadThreadHistoryCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "load_thread_history"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "action",
+        "thread_id",
+        "request_id"
       ],
       "additionalProperties": false
     },
@@ -13365,6 +13425,34 @@
       ],
       "additionalProperties": false
     },
+    "ProjectSessionBinding": {
+      "title": "ProjectSessionBinding",
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "parent_thread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "project_id",
+        "parent_thread",
+        "label"
+      ],
+      "additionalProperties": false
+    },
     "PromptCommand": {
       "title": "PromptCommand",
       "type": "object",
@@ -15574,13 +15662,19 @@
         "events": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ThreadEvent"
+            "$ref": "#/$defs/ReplayThreadEvent"
           }
         },
         "active": {
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "catalog": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeferredThread"
           }
         }
       },
@@ -15627,6 +15721,42 @@
         "data"
       ],
       "additionalProperties": false
+    },
+    "ReplayThreadEvent": {
+      "title": "ReplayThreadEvent",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ThreadEvent"
+        },
+        {
+          "$ref": "#/$defs/WorkspaceChangesEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionResolvedEvent"
+        },
+        {
+          "$ref": "#/$defs/UserQuestionsEvent"
+        },
+        {
+          "$ref": "#/$defs/QuestionsResolvedEvent"
+        },
+        {
+          "$ref": "#/$defs/QuestionsErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionAuthRequiredEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionAuthErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionAuthenticatedEvent"
+        }
+      ],
+      "description": "Replay can also include the current in-memory state of an active Session."
     },
     "RepositoryIdentity": {
       "title": "RepositoryIdentity",
@@ -16794,6 +16924,12 @@
           "items": {
             "$ref": "#/$defs/SkillMarketSelection"
           }
+        },
+        "projectAgent": {
+          "$ref": "#/$defs/ProjectSessionBinding"
+        },
+        "projectPrompt": {
+          "type": "string"
         }
       },
       "required": [
@@ -18268,6 +18404,106 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadHistoryData": {
+      "title": "ThreadHistoryData",
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReplayThreadEvent"
+          }
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "events",
+        "active"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadHistoryErrorEvent": {
+      "title": "ThreadHistoryErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "thread_history_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadHistoryEvent": {
+      "title": "ThreadHistoryEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "thread_history"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ThreadHistoryData"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
       ],
       "additionalProperties": false
     },
