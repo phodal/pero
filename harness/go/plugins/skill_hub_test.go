@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,8 @@ func TestSkillHubArchiveAdmission(t *testing.T) {
 		{"case collision", []string{"SKILL.md", "skill.md"}, false},
 		{"implicit directory case collision", []string{"references/Notes/a.md", "references/notes/b.md"}, false},
 		{"file collides with implicit directory", []string{"references/Notes/a.md", "references/notes"}, false},
+		{"path depth limit", []string{strings.Repeat("Folder/", 65)}, false},
+		{"path length limit", []string{strings.Repeat("a", 4097)}, false},
 		{"plugin integration", []string{"hooks/hooks.json"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -28,6 +31,9 @@ func TestSkillHubArchiveAdmission(t *testing.T) {
 				writer, err := archive.Create(member)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if strings.HasSuffix(member, "/") {
+					continue
 				}
 				if _, err = writer.Write([]byte("Skill fixture")); err != nil {
 					t.Fatal(err)

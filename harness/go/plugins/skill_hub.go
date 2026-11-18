@@ -146,6 +146,9 @@ func unpackSkillHub(data []byte, source string) error {
 	directories := make(map[string]string)
 	for _, member := range archive.File {
 		name := strings.TrimSuffix(member.Name, "/")
+		if len(name) > 4096 || strings.Count(name, "/") >= 64 {
+			return errors.New("plugins: SkillHub archive path exceeds supported limits")
+		}
 		key := strings.ToLower(name)
 		_, duplicate := seen[key]
 		if !fs.ValidPath(name) || !localPath(name) || name == "." || strings.ContainsAny(name, ":\x00") ||
