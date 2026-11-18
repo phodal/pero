@@ -5,7 +5,6 @@ import { mkdtemp, mkdir, readFile, writeFile, copyFile, rm } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, clickSessionRow } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..'), temp = await mkdtemp(resolve(tmpdir(), 'pero-history-'));
 const out = resolve(root, 'test-results/session-history');
@@ -53,20 +52,19 @@ const state = async () => {
     threads: chats?.map(chat => ({ id: chat.id, messages: chat.messages.length, state: chat.state })) };
   return snapshot;
 };
-async function waitForBounds(field, id) {
+async function clickPainted(field, id) {
   // The session catalog can arrive before the navigator paints its controls.
+  let bounds;
   await expect.poll(async () => {
-    const bounds = (await state())[field]?.[id];
-    return bounds?.width > 0 && bounds?.height > 0;
+    bounds = (await state())[field]?.[id];
+    return !!bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
+      && bounds.width > 0 && bounds.height > 0;
   }, { timeout: 30000 }).toBe(true);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
 async function selectHistory(thread) {
-  phase = `open session navigator for ${thread}`;
-  await waitForBounds('sidebarButtonBounds', 'sessions');
-  await clickAppShortcut(page, 'sessions');
   phase = `select ${thread}`;
-  await waitForBounds('sessionRowBounds', thread);
-  await clickSessionRow(page, thread);
+  await clickPainted('sessionRowBounds', thread);
   await expect.poll(async () => (await state()).activeContent, { timeout: 30000 })
     .toEqual({ kind: 'conversation', value: thread });
 }
@@ -87,6 +85,8 @@ try {
   await expect.poll(async () => (await state()).historyStatus, { timeout: 30000 }).toEqual({
     read_failed: false, malformed_records: 1, save_failure: null,
   });
+  phase = 'open session navigator';
+  await clickPainted('sidebarButtonBounds', 'sessions');
   await selectHistory(old);
   phase = 'restore long conversation';
   await expect.poll(async () => (await state()).chats?.find(chat => chat.id === old)?.messages.length, { timeout: 30000 }).toBe(4);
