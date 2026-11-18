@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="检视一个数据版本、复核一个已发表的数值，或用研究项目整理材料。以下功能以相应源码版本和验证记录为准。">
+  <meta name="description" content="从一份数据、一条论文结果或一组试验记录开始，核对输入、方法与执行证据，再把需要复查的内容保存下来。">
   <title>科研工作流 · OpenPero</title>
   <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/docs/workflows/">
@@ -31,64 +31,98 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="文档"><ul>
-      <li><a href="../">概览</a></li>
-      <li><a href="../install/">安装与启动</a></li>
-      <li><a href="../paper/">阅读第一篇论文</a></li>
-      <li><a href="./" aria-current="page">科研工作流</a></li>
-      <li><a href="../reference/">概念与参考</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="./" aria-current="page">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
         <h1 id="guide-title">科研工作流</h1>
-        <p>检视一个数据版本、复核一个已发表的数值，或用研究项目整理材料。以下功能以相应源码版本和验证记录为准。</p>
+        <p>从一份数据、一条论文结果或一组试验记录开始，核对输入、方法与执行证据，再把需要复查的内容保存下来。</p>
       </header>
     <nav class="guide-outline" aria-label="本页目录">
       <p aria-hidden="true">本页目录</p>
       <ul>
-        <li><a href="#inspect-data">检视一个数据版本</a></li>
-        <li><a href="#recheck-a-result">复核 Fisher 论文中的一个数值</a></li>
-        <li><a href="#organize-a-project">把材料关联到研究项目</a></li>
+        <li><a href="#inspect-data">从数据到研究笔记</a></li>
+        <li><a href="#recheck-a-result">复核 Fisher 表 III 的一个数值</a></li>
+        <li><a href="#organize-a-project">让研究材料回到同一个问题</a></li>
+        <li><a href="#control-experiment">从候选方案到独立试验</a></li>
         <li><a href="#remote-compute">准备一次远程计算</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="inspect-data">
-        <h2 id="inspect-data">检视一个数据版本</h2>
-        <ol>
-            <li>将<a href="https://raw.githubusercontent.com/phodal/pero/master/docs/examples/first-dataset.json">六条合成记录</a>保存为 <code>first-dataset.json</code>。在<strong>数据</strong>中选择<strong>导入数据</strong>，选择文件并确认导入。</li>
-            <li>打开该数据集并选择<strong>查看数据</strong>，确认有 6 条记录和 3 个字段。在来源信息中核对所选版本和 SHA-256。</li>
-            <li>需要记录筛选或图表设置时，保存视图。更新数据时，用已有条目的<strong>添加版本</strong>追加文件。在资料库再次导入同名文件会创建新条目。</li>
-          </ol>
-          <p>表格检视可以在本机完成，无需模型。支持 UTF-8 CSV、TSV、JSON 和 JSONL，导入上限为 10 MiB。详见 <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data 版本、来源与检查规则</a>。</p>
+        <h2 id="inspect-data">从数据到研究笔记</h2>
+        <p>下载六条合成记录，在 Data 中检查字段与重复行，筛选处理组并保存视图。接着在 Notebook 中另存你的方法、计算或结论。若要交接，记下数据版本与 SHA-256，并随笔记提供原始文件或可访问的来源。</p>
+          <ul><li>跟做<a href="../data/#sample-walkthrough">六条记录的数据检视与绘图</a>。</li><li>跟做<a href="../notebook/#first-revision">第一条笔记修订</a>，或保存一条<a href="../notebook/#attach-evidence">可回查的证据</a>。</li></ul>
       </section>
 
       <section aria-labelledby="recheck-a-result">
-        <h2 id="recheck-a-result">复核 Fisher 论文中的一个数值</h2>
-        <ol>
-            <li>在 Paper 导入<a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">项目复核使用的 Fisher（1936）原始 PDF</a>。匹配该文件后，工具栏会提供 Fisher Table III 的结果选择入口。</li>
-            <li>查看原表、100 条输入测量值、计算方法和比较规则。冻结协议后，显式确认并运行一次。对照原文中的 <strong>19.1434 cm²</strong>、计算值、差值和独立数值检查。</li>
-            <li>导出证据 ZIP 并解压，在解压目录运行下方命令。独立检查只使用 Python 标准库，无需联网或调用模型。</li>
+        <h2 id="recheck-a-result">复核 Fisher 表 III 的一个数值</h2>
+        <p>下面复核 Fisher（1936）表 III 的萼片长度组内平方和 <strong>19.1434 cm²</strong>。输入是表 I 的 100 个观测值，setosa 和 versicolor 各 50 个。按物种分别求均值与离均差平方和，再加总两组。自由度 98 用于解释表格，这项统计量不除以 98。</p>
+          <ol>
+            <li>将<a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">这份大学托管的原始 PDF</a>下载并导入 Paper。打开阅读器，点击<strong>选择 Fisher 表 III 结果</strong>，应跳到 PDF 第 4 页（印刷页 181）的原始单元格。按钮依赖原始文件的 SHA-256，重新打印或重存的 PDF 会失去匹配。</li>
+            <li>展开<strong>核对输入观测值</strong>，与 PDF 第 3 页（印刷页 180）的表 I 对照。扫描中 setosa 第 32 行是 <code>5.4</code>，文字识别可能得到 <code>6.4</code>。保留页面给出的默认绝对容差 <code>0.00005</code>，核对数据、统计口径与比较规则后点击<strong>冻结方案</strong>。</li>
+            <li>点击<strong>确认并运行固定算术</strong>。选中本次尝试，检查执行状态、单个结果判定、独立数值核验和原文位置。历史验收的两组平方和为 <code>6.0882</code>、<code>13.0552</code>，独立精确总和 <code>95717/5000</code>，与论文值相差 <code>0 cm²</code>。</li>
+            <li>点击<strong>导出独立交接 ZIP</strong>，解压到新目录。ZIP 含原始 PDF、人工核对的 CSV、冻结方案、运行记录和独立核验器。在解压目录执行下方命令。此检查只需要 Python 标准库，无需联网或模型账号。</li>
           </ol>
           <pre><code>python -I -S verify.py</code></pre>
-          <p>记录中的 <code>REPRODUCED</code> 对应该表的单个数值。整篇论文仍为 <code>NOT_ASSESSED</code>（未评估）。查看 <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11">Fisher 案例的输入与验收记录</a>。</p>
+          <p>预期退出码为 0。核验 JSON 应有 <code>count: 100</code>，精确结果的分子和分母分别为 <code>95717</code> 与 <code>5000</code>，单项判定为 <code>REPRODUCED</code>，整篇论文状态为 <code>NOT_ASSESSED</code>。如果运行环境与冻结方案不符，查看日志后恢复环境，或核对新环境并建立新方案。若计算完成却未满足容差，先核对输入与规则。重跑沿用同一规则并保存一条新的尝试记录。</p>
+          <p>完整源文件摘要、实际执行与恢复证据见 <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md">Fisher 案例验证记录</a>。</p>
       </section>
 
       <section aria-labelledby="organize-a-project">
-        <h2 id="organize-a-project">把材料关联到研究项目</h2>
-        <p>选择<strong>新建研究项目</strong>，填入项目名称和研究目标，可以按需关联本地目录。打开<strong>资料与实验 → 关联已有记录</strong>，选择已启用的 App，再关联保存的论文、研究记录或实验。</p>
-          <p>项目保存指向原记录的引用。之后从项目打开材料时，仍由对应 App 展示。若原记录版本有变化，可查看原记录后更新关联。详见<a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md">研究项目的功能与验证</a>。</p>
+        <h2 id="organize-a-project">让研究材料回到同一个问题</h2>
+        <p>在<a href="../projects/">研究项目</a>中写下待回答的问题，关联 Paper 论文、研究记录或实验。项目中显示的是原记录的摘要；打开时回到原 App。需要在报告中引用精确输入时，继续保留论文版本、Notebook 修订或试验编号。</p>
+      </section>
+
+      <section aria-labelledby="control-experiment">
+        <h2 id="control-experiment">从候选方案到独立试验</h2>
+        <p><strong>控制实验</strong>支持用 python-control 做控制器仿真，或用 ngspice 做限定的二阶有源低通仿真。打开实验前，先确认可用性面板显示实际求解器。ngspice 需要系统安装并能从桌面进程的 PATH 找到。</p>
+          <ol><li>冻结系统、输入、指标、搜索场景和验收阈值。</li><li>运行有界候选搜索，对比基线与候选曲线，记录候选方案为何被选中。</li><li>锁定候选并运行最终场景，逐项检查结果、单位、约束和失败项。从实验的<strong>导出</strong>获取 JSON，把具体试验记录<a href="../notebook/#attach-evidence">附进笔记</a>。</li></ol>
+          <p>有限采样窗内的结果需要按冻结规则解释。实物电路、无限时间稳定性和正式验收仍需各自证据。查看 <a href="https://github.com/phodal/pero/blob/master/apps/control-lab/README.md">Control Lab 的环境要求和验证边界</a>。</p>
       </section>
 
       <section aria-labelledby="remote-compute">
         <h2 id="remote-compute">准备一次远程计算</h2>
-        <p>有已授权的 SSH 或 Slurm 环境时，可在<strong>科学计算</strong>中选择连接，探测后准备内置的 CPU 中点求积方法。检查目标、固定参数和所需资源后，再显式批准提交。</p>
-          <p>用原尝试查看状态与日志，收集已保存的产物。当前验证覆盖实际 SSH 回环和 Slurm 测试替身。真实 Slurm 站点和其他科研方法需分别验收。入口和限制见 <a href="https://github.com/phodal/pero/blob/master/apps/compute/README.md">Compute 使用说明</a>和<a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">验证记录</a>。</p>
+        <p>已获授权的 SSH 或 Slurm 环境可用于尝试内置 CPU 中点求积。提交前检查连接、固定参数和资源，提交后用同一次尝试的状态、日志和已收集产物核对结果。查看<a href="../compute/">环境与远程计算</a>的完整流程。</p>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

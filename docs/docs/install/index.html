@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="选择适合操作系统的 Electron 开发预览版，或按开发指南从源码启动。">
+  <meta name="description" content="选择对应系统的桌面包，校验下载，准备第一个 App 的环境。需要开发分支功能时，可以从源码启动。">
   <title>安装与启动 · OpenPero</title>
   <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/docs/install/">
@@ -31,59 +31,123 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="文档"><ul>
-      <li><a href="../">概览</a></li>
-      <li><a href="./" aria-current="page">安装与启动</a></li>
-      <li><a href="../paper/">阅读第一篇论文</a></li>
-      <li><a href="../workflows/">科研工作流</a></li>
-      <li><a href="../reference/">概念与参考</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="./" aria-current="page">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
         <h1 id="guide-title">安装与启动</h1>
-        <p>选择适合操作系统的 Electron 开发预览版，或按开发指南从源码启动。</p>
+        <p>选择对应系统的桌面包，校验下载，准备第一个 App 的环境。需要开发分支功能时，可以从源码启动。</p>
       </header>
     <nav class="guide-outline" aria-label="本页目录">
       <p aria-hidden="true">本页目录</p>
       <ul>
-        <li><a href="#download">下载桌面版</a></li>
-        <li><a href="#prepare-environment">准备 App 环境</a></li>
+        <li><a href="#download">选择版本和桌面包</a></li>
+        <li><a href="#verify-download">校验下载文件</a></li>
+        <li><a href="#prepare-environment">首次启动并准备 App 环境</a></li>
+        <li><a href="#startup-troubleshooting">定位启动或准备失败</a></li>
         <li><a href="#from-source">从源码启动</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="download">
-        <h2 id="download">下载桌面版</h2>
-        <p>打开 <a href="https://github.com/phodal/pero/releases">GitHub Releases</a>，查看所选版本的说明和下载文件。下面的包名对应 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 开发预览版</a>。</p>
-          <ul>
-            <li><strong>macOS Apple Silicon</strong>。打开 <code>Pero-macos-arm64.dmg</code>，将 <code>Pero.app</code> 拖入「应用程序」，然后从那里打开。</li>
-            <li><strong>Windows x64</strong>。完整解压 <code>Pero-windows-x64.zip</code>，打开解压目录中的 <code>Pero.exe</code>。</li>
-            <li><strong>Linux x64</strong>。解压 <code>Pero-linux-x64.tar.gz</code>，在解压后的程序目录运行 <code>./pero</code>。系统需提供 Electron 所需的桌面库。</li>
-          </ul>
-          <p>macOS 包使用 ad-hoc 签名，尚未经公证。Windows 和 Linux 包未签名。下载后可用同一版本的 <code>SHA256SUMS</code> 核对文件摘要。如遇系统启动限制，请查看发布说明。</p>
-          <p>同一版本还提供 macOS Apple Silicon 的 <strong>Pero Native</strong>，使用独立配置。文档里的首次体验以 Electron 工作台为准。源码文档中的功能可能晚于你下载的版本，具体以该版本的说明为准。</p>
+        <h2 id="download">选择版本和桌面包</h2>
+        <p>在 <a href="https://github.com/phodal/pero/releases">GitHub Releases</a> 打开你要安装的开发预览版。以下文件名对应 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 开发预览版</a>。文档中标记为源码的功能可能晚于安装包，核对时以你的版本和对应发布说明为准。</p>
+          <table>
+            <thead><tr><th scope="col">平台</th><th scope="col">Electron 工作台</th><th scope="col">启动方式</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">macOS Apple Silicon</th><td><code>Pero-macos-arm64.dmg</code></td><td>打开 DMG，把 <code>Pero.app</code> 拖到「应用程序」，从那里启动。</td></tr>
+              <tr><th scope="row">Windows x64</th><td><code>Pero-windows-x64.zip</code></td><td>完整解压到同一个目录，再打开 <code>Pero.exe</code>。</td></tr>
+              <tr><th scope="row">Linux x64</th><td><code>Pero-linux-x64.tar.gz</code></td><td>解压后，在应用目录运行 <code>./pero</code>。需要系统提供 Electron 桌面库。</td></tr>
+            </tbody>
+          </table>
+          <p>同一版本还提供独立的 macOS Apple Silicon Native 包。Electron 和 Native 使用各自的配置。本文的首次启动路径以 Electron 为例。macOS 开发包采用 ad-hoc 签名且未经公证，Windows 和 Linux 开发包未签名。系统阻止启动时先核对发布说明和下载来源。</p>
+      </section>
+
+      <section aria-labelledby="verify-download">
+        <h2 id="verify-download">校验下载文件</h2>
+        <p>从同一个发布条目下载 <code>SHA256SUMS</code>。在下载目录按系统运行一条命令，把输出的完整摘要与校验文件中<strong>同名归档</strong>的那行对照。</p>
+          <pre><code># macOS
+shasum -a 256 Pero-macos-arm64.dmg
+
+# Windows PowerShell
+Get-FileHash .\Pero-windows-x64.zip -Algorithm SHA256
+
+# Linux
+sha256sum Pero-linux-x64.tar.gz</code></pre>
+          <p>摘要一致时继续解包或安装。摘要不一致时重新从发布条目下载并校验。发布条目里的构建信息可用于核对源码提交和目标平台。</p>
       </section>
 
       <section aria-labelledby="prepare-environment">
-        <h2 id="prepare-environment">准备 App 环境</h2>
+        <h2 id="prepare-environment">首次启动并准备 App 环境</h2>
         <ol>
-            <li>打开 Pero，在侧栏选择<strong>论文</strong>。遇到环境提示时，选择<strong>准备环境</strong>。</li>
-            <li>等待<strong>环境已就绪</strong>。首次准备可能需要联网下载 uv、CPython 3.12 和 App 的固定依赖。失败时先查看错误详情，再重试。</li>
-            <li>准备完成后，继续<a href="../paper/">阅读并标注第一篇论文</a>。导入和阅读本地 PDF 无需模型账号或 API Key。</li>
+            <li>打开 Electron 工作台。在侧栏选择<strong>论文</strong>。如果界面提示缺少运行环境，点击<strong>准备环境</strong>。</li>
+            <li>首次准备可能需要联网获取 uv、CPython 3.12 和 App 声明的固定依赖。等待界面显示环境就绪。新配置的默认环境目录为 <code>~/.pero/environment/pero-python312</code>，已有配置继续使用已选环境。</li>
+            <li>打开一份可选中文字的 PDF 并保存一处高亮，验证阅读器和保存流程。按<a href="../paper/#import-and-highlight">第一篇论文教程</a>操作即可。导入和阅读本地 PDF 无需模型账号、Task Center 登录或 PostgreSQL。</li>
           </ol>
-          <p>已准备好的虚拟环境和离线使用见 <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">Python 环境设置</a>。</p>
+          <p>需要预装依赖供离线使用时，按<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">预置环境说明</a>设置绝对 venv 目录。准备、检查和绑定环境的区别见<a href="../compute/">计算环境</a>。</p>
+      </section>
+
+      <section aria-labelledby="startup-troubleshooting">
+        <h2 id="startup-troubleshooting">定位启动或准备失败</h2>
+        <dl>
+            <dt>应用窗口打不开</dt><dd>检查下载摘要、CPU 架构和解压是否完整。Linux 如果报告缺少共享库，先检查报错中的库名和对应发行版运行依赖。</dd>
+            <dt>工作台能打开，App 报缺少环境</dt><dd>从 App 提示显式准备环境。失败时打开详情，区分下载失败、已有环境无效和 App 启动失败。看到就绪后再打开 App。</dd>
+            <dt>预期的 App、资料或设置没有出现</dt><dd>确认打开的是原来的 Electron、Native 或开发预览配置，并核对当前发布版本是否包含该功能。各 App 的领域数据位置见<a href="../reference/#data-and-cost">数据与配置</a>。</dd>
+            <dt>准备成功后仍启动失败</dt><dd>较新的源码构建可在 Host 设置文件旁查看 <code>app-startup.jsonl</code>，用界面的请求 ID 对照启动阶段、错误码和退出状态。报告问题时附上可分享的对应记录。</dd>
+          </dl>
       </section>
 
       <section aria-labelledby="from-source">
         <h2 id="from-source">从源码启动</h2>
-        <p>先按<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">开发指南</a>准备 Node.js、Go、Rust（含 Wasm 目标）、Electron 和固定版本的 GPUI Kit，再在仓库根目录执行下面的命令。</p>
-          <pre><code>npm run dev:paper</code></pre>
-          <p>这个命令构建并启动独立开发配置中的 Paper。打开完整工作台用 <code>npm run dev</code>。本地阅读和 App 计算无需启动独立的 Go 控制面或 PostgreSQL。</p>
+        <p>先核对<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">开发指南</a>中的系统依赖。当前源码需要 Node.js 22.18+、Go 1.27.3、Rust stable、<code>nightly-2026-10-28</code> 的 Wasm 目标，以及固定的 GPUI Kit。以下命令用于 POSIX shell，假设当前位于干净的 Pero 仓库根目录，且上一级没有 <code>gpui-kit</code> 目录。</p>
+          <pre><code>npm ci
+node node_modules/electron/install.js
+rustup toolchain install stable --profile minimal
+rustup toolchain install nightly-2026-10-28 --profile minimal --target wasm32-unknown-unknown
+git -c core.autocrlf=false clone https://github.com/longbridge/gpui-kit.git ../gpui-kit
+git -C ../gpui-kit checkout --detach 7591a35eced761e3613c01e71ff04c10129dae1a
+export PERO_GPUI_KIT_PATH="$(cd ../gpui-kit &amp;&amp; pwd)"
+npm run dev</code></pre>
+          <p>首次构建可能下载 Rust 依赖、字体、Wasm 工具和 App 依赖。成功时会打开 Electron 工作台。只想试 Paper 可运行 <code>npm run dev:paper</code>，它使用独立配置。构建过且无需重建时，可用 <code>npm start</code> 打开现有工作台产物。</p>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

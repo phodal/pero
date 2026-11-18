@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="了解数据和执行由谁管理，以及怎样核对功能在什么版本、平台和条件下通过了验证。">
-  <title>概念与参考 · OpenPero</title>
+  <meta name="description" content="知道记录保存在哪里、一次运行能证明什么，以及故障发生时该看哪一层。">
+  <title>概念、证据与故障排查 · OpenPero</title>
   <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/docs/reference/">
   <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/reference/">
@@ -31,56 +31,114 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="文档"><ul>
-      <li><a href="../">概览</a></li>
-      <li><a href="../install/">安装与启动</a></li>
-      <li><a href="../paper/">阅读第一篇论文</a></li>
-      <li><a href="../workflows/">科研工作流</a></li>
-      <li><a href="./" aria-current="page">概念与参考</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="./" aria-current="page">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
-        <h1 id="guide-title">概念与参考</h1>
-        <p>了解数据和执行由谁管理，以及怎样核对功能在什么版本、平台和条件下通过了验证。</p>
+        <h1 id="guide-title">概念、证据与故障排查</h1>
+        <p>知道记录保存在哪里、一次运行能证明什么，以及故障发生时该看哪一层。</p>
       </header>
     <nav class="guide-outline" aria-label="本页目录">
       <p aria-hidden="true">本页目录</p>
       <ul>
-        <li><a href="#concepts">工作台中的对象</a></li>
-        <li><a href="#data-and-cost">数据、权限与费用</a></li>
-        <li><a href="#verification-and-help">验证范围与问题反馈</a></li>
+        <li><a href="#concepts">工作台里的对象和记录</a></li>
+        <li><a href="#read-a-result">从结论回查来源和验证</a></li>
+        <li><a href="#data-and-cost">本地数据、权限与费用</a></li>
+        <li><a href="#verification-and-help">读懂验证记录并排查故障</a></li>
+        <li><a href="#developer-reference">开发与部署入口</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="concepts">
-        <h2 id="concepts">工作台中的对象</h2>
-        <dl>
-            <dt>研究项目</dt><dd>保存研究目标和 App 记录引用，可按需关联本地目录。</dd>
-            <dt>App</dt><dd>提供一个领域的界面、方法与数据，例如 Paper 保存论文与研究报告，Data 保存数据版本。</dd>
-            <dt>Host 与 Agent 会话</dt><dd>Host 管理本机 App、凭据以及 Agent 的会话、审批和取消。使用工具前，可在对话里查看待审批的请求。</dd>
-            <dt>控制面与 Worker</dt><dd>可选控制面协调共享任务，独立 Worker 在所配置的执行环境中处理任务。相关服务需要单独部署和授权。</dd>
-          </dl>
-          <p>完整的职责与接入状态见<a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">架构文档</a>和 <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App 开发说明</a>。</p>
+        <h2 id="concepts">工作台里的对象和记录</h2>
+        <table>
+            <thead><tr><th scope="col">对象</th><th scope="col">保存什么</th><th scope="col">到哪里查看</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">研究项目</th><td>目标、可选本地目录，以及指向 App 记录的关联。每个 App 保存自己的领域数据。</td><td><a href="../projects/">项目概览与资料关联</a></td></tr>
+              <tr><th scope="row">科研 App</th><td>论文快照、数据集文件版本、笔记修订或实验尝试，具体由 App 决定。</td><td><a href="../workflows/">各 App 工作流和原记录</a></td></tr>
+              <tr><th scope="row">Agent 会话</th><td>对话、工具和审批记录。会话由本机 Host 管理，启动时选定 Agent 和工作区。</td><td><a href="../agents/">对话历史和工具记录</a></td></tr>
+              <tr><th scope="row">计算尝试</th><td>方法、输入、运行环境及该次尝试的状态、日志或产物。具体字段取决于工作流。</td><td><a href="../compute/">计算记录</a>或实验所属 App</td></tr>
+              <tr><th scope="row">共享任务与 Worker</th><td>可选控制面协调协作任务，已登记的 Worker 在其环境执行。该部署用于共享任务。</td><td><a href="https://github.com/phodal/pero/blob/master/desktop/README.md#remote-tasks">Desktop 远程任务接入</a></td></tr>
+            </tbody>
+          </table>
+          <p>例如，在 Project 里关联 Paper 报告后，打开关联会回到 Paper 的原记录。希望固定当时看到的数据时，要记下 Data 的具体文件版本，或保存带引用的 Notebook 修订。</p>
+      </section>
+
+      <section aria-labelledby="read-a-result">
+        <h2 id="read-a-result">从结论回查来源和验证</h2>
+        <ol>
+            <li><strong>定位来源。</strong>论文主张回到引用段落，检查上下文和单位。数据回到明确的文件版本，查看来源和 SHA-256。</li>
+            <li><strong>找本次运行。</strong>对照输入、方法版本、参数和环境，打开同一次尝试的日志与产物。重新运行时记录新的尝试，保留旧结果以便比较。</li>
+            <li><strong>读验证结果。</strong>确认检查针对哪个输出、用什么预先定义的规则、哪部分由独立过程复算。执行正常只能证明运行完成。验证未执行、验证不匹配和已通过验证需要分别理解。</li>
+            <li><strong>写明结论范围。</strong>例如，<a href="../workflows/#recheck-a-result">Fisher 案例</a>复核的是 Table III 的一个数值。<code>REPRODUCED</code> 是该数值的判定，整篇论文仍为 <code>NOT_ASSESSED</code>。</li>
+          </ol>
+          <p>例如，Fisher（1936）的复核记录应写明 Table III 的具体条目、100 条核对过的输入、预期值 19.1434 cm² 和容差 0.00005 cm²。独立检查结果见导出的验证报告。</p>
       </section>
 
       <section aria-labelledby="data-and-cost">
-        <h2 id="data-and-cost">数据、权限与费用</h2>
+        <h2 id="data-and-cost">本地数据、权限与费用</h2>
         <ul>
-            <li>App 领域数据保存在运行它的机器上。调用模型、文献检索、MCP 连接器或共享任务服务时，相应外部服务可能收到选定的数据。</li>
-            <li>本地插件和 App 后端运行受信任的代码。打开敏感材料前，检查安装来源、会话权限和提交的内容。</li>
-            <li>模型和远程算力由各自的提供方计费。费用以提供方记录为准，研究操作次数或运行时间限制只约束工作流。</li>
+            <li><strong>配置和数据。</strong>默认 Electron 工作台把 Host 设置保存在 <code>~/.pero/config/runtime-settings.json</code>，把 App 记录保存在 <code>~/.pero/app-data/</code>。会话历史保存在 Electron 用户数据里的 <code>sessions.jsonl</code>。独立产品、Native、开发和隔离配置的位置应按各自说明确认。</li>
+            <li><strong>外部请求。</strong>直接阅读本地文件和运行本地方法可以在本机完成。使用模型、文献搜索、MCP 或共享任务服务时，所选问题、上下文或工具参数可能发给相应服务。发送前可以检查草稿及附件，执行前查看实际请求和会话权限。</li>
+            <li><strong>费用。</strong>模型和远程算力以供应方的用量记录计费。工作流的步骤或时长限制约束本次运行的行为。界面只在收到用量数据时展示对应数据。</li>
           </ul>
+          <p>交换研究记录时优先使用 App 的导出入口。版本对照、Notebook 修订和运行证据都有自己的导出范围，详见相应用法。</p>
       </section>
 
       <section aria-labelledby="verification-and-help">
-        <h2 id="verification-and-help">验证范围与问题反馈</h2>
-        <p><a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">质量门禁</a>记录各项功能的源码检查、真实桌面、外部服务和发布包验证。复核科学结果时，还需检查来源、运行输入、比较规则和独立验收。计划中的跨团队同步与共享研究记忆见<a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">路线图</a>。</p>
-          <p>反馈问题时，请在 <a href="https://github.com/phodal/pero/issues">GitHub Issues</a> 附上版本或源码提交、平台、Electron 或 Native、复现步骤和可分享的错误信息。代码贡献从<a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">贡献指南</a>开始。</p>
+        <h2 id="verification-and-help">读懂验证记录并排查故障</h2>
+        <p><strong>先定位故障发生在哪一层。</strong>桌面或 App 无法启动，从<a href="../install/#startup-troubleshooting">安装排错</a>开始。模型无法回复，看<a href="../agents/">登录、凭据和会话设置</a>。任务已提交但没有结果，检查<a href="../compute/">连接、尝试状态、日志和产物</a>。结果有疑问，从<a href="#read-a-result">来源与验证</a>回查。</p>
+          <p><a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">验收分级</a>以证据覆盖的条件为准。L0 是源码检查，L1 是实际桌面配测试 Agent，L2 涉及真实提供方、环境或外部服务，L3 是签名发布包在目标系统上的安装、升级和运行。查看记录时同时核对版本、系统、样例与未覆盖范围。</p>
+          <p>向 <a href="https://github.com/phodal/pero/issues">GitHub Issues</a> 提交问题时，附上版本或提交 SHA、操作系统和架构、Electron 或 Native、可复现步骤、预期与实际结果，以及可公开的错误和请求 ID。</p>
+      </section>
+
+      <section aria-labelledby="developer-reference">
+        <h2 id="developer-reference">开发与部署入口</h2>
+        <dl>
+            <dt>构建桌面与贡献代码</dt><dd>按<a href="../install/#from-source">源码安装</a>启动，按<a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">贡献指南</a>选择对应验证。完整命令和依赖见<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#verification">开发验证</a>。</dd>
+            <dt>开发 App</dt><dd>在 <code>apps/</code> 中选一个已有 App 作参照。App 的清单、Web 面板、后端、环境和声明式权限见<a href="https://github.com/phodal/pero/blob/master/apps/README.md">App 开发契约</a>。</dd>
+            <dt>部署共享任务</dt><dd>服务端配置、PostgreSQL 和项目授权见<a href="https://github.com/phodal/pero/blob/master/server/README.md">控制面文档</a>。执行机见<a href="https://github.com/phodal/pero/blob/master/crates/pero-worker/README.md">Worker 文档</a>。</dd>
+            <dt>查运行边界和计划</dt><dd>看<a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">架构</a>、<a href="https://github.com/phodal/pero/blob/master/docs/adr/README.md">决策记录</a>和<a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">路线图</a>。</dd>
+          </dl>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
