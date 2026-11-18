@@ -521,6 +521,7 @@ module.exports = {
   "OpenPero 官网交互原型：围绕研究项目组织任务，让合作者、AI 与执行节点共同完成研究。体验 GitHub Issue 到任务、运行、复核与项目记录的本地演示。": "OpenPero website prototype: organize work around a research project so collaborators, AI, and execution nodes can finish it together. A local demo from a GitHub Issue through tasks, runs, review, and the project record.",
   "OpenPero 首页": "OpenPero home",
   "主要导航": "Primary navigation",
+  "文档": "Docs",
   "查看协作示例": "View the collaboration example",
   "Pero 橘猫示意": "Pero cat sketch",
   "协作进度": "Collaboration progress",

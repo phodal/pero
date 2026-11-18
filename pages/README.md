@@ -1,4 +1,4 @@
-# Website prototype
+# OpenPero website and documentation
 
 ```sh
 npm ci
@@ -6,9 +6,24 @@ npm ci --prefix apps/virtual-cell
 node pages/scripts/build.mjs
 ```
 
-Serve `docs/` over a local HTTP server to preview the Chinese and English pages.
-Pushes to `master` publish this site and the WASM workbench together through
-`.github/workflows/pages.yml`. The workbench is at `/workbench/`.
+Serve `docs/` over local HTTP to preview the Chinese and English pages.
+The [Pages workflow](../.github/workflows/pages.yml) publishes `docs/` from the
+admitted commit and adds the built WASM workbench at `/workbench/`. Include the
+generated files when changing the site.
+
+## Official documentation
+
+The website navigation links to the Chinese guide at `/docs/` and the English
+guide at `/en/docs/`. Each page links to its counterpart in the other language.
+Edit the paired content in `locales/guide.zh-CN.mjs` and `locales/guide.en.mjs`.
+Keep topic keys and section IDs aligned so links remain stable. The guide uses
+the shared appearance palette and design dimensions.
+
+The [documentation research](DOCUMENTATION-RESEARCH.md) records the official
+docs reviewed and the decisions behind the first five topics.
+
+## Interactive homepage
+
 The generated 3D viewer uses local assets under `docs/assets/molecule-viewer.*`;
 keep those files alongside the generated pages when deploying. No CDN or App
 backend is required.

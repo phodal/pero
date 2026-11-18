@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildGuide } from './build-guide.mjs';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -252,4 +253,5 @@ fs.writeFileSync(path.join(docs, 'preview.html'), `<!DOCTYPE html>
 <p><a href="./index.html">OpenPero</a></p>
 </html>
 `);
-console.log('Built docs/index.html and docs/en/index.html (' + required.size + ' strings).');
+buildGuide(root, docs, escapeHtml);
+console.log('Built the OpenPero homepage and documentation in Chinese and English.');
