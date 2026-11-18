@@ -11,18 +11,18 @@ import (
 
 func TestSkillHubArchiveAdmission(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		members  []string
-		accepted bool
+		name      string
+		members   []string
+		errorText string
 	}{
-		{"static skill and reference", []string{"SKILL.md", "references/notes.md", "references/more.md"}, true},
-		{"parent path", []string{"../outside.md"}, false},
-		{"case collision", []string{"SKILL.md", "skill.md"}, false},
-		{"implicit directory case collision", []string{"references/Notes/a.md", "references/notes/b.md"}, false},
-		{"file collides with implicit directory", []string{"references/Notes/a.md", "references/notes"}, false},
-		{"path depth limit", []string{strings.Repeat("Folder/", 65)}, false},
-		{"path length limit", []string{strings.Repeat("a", 4097)}, false},
-		{"plugin integration", []string{"hooks/hooks.json"}, false},
+		{"static skill and reference", []string{"SKILL.md", "references/notes.md", "references/more.md"}, ""},
+		{"parent path", []string{"../outside.md"}, "unsupported path"},
+		{"case collision", []string{"SKILL.md", "skill.md"}, "unsupported path"},
+		{"implicit directory case collision", []string{"references/Notes/a.md", "references/notes/b.md"}, "unsupported path"},
+		{"file collides with implicit directory", []string{"references/Notes/a.md", "references/notes"}, "unsupported path"},
+		{"path depth limit", []string{strings.Repeat("Folder/", 65)}, "path exceeds supported limits"},
+		{"path length limit", []string{strings.Repeat(strings.Repeat("a", 128)+"/", 32)}, "path exceeds supported limits"},
+		{"plugin integration", []string{"hooks/hooks.json"}, "unsupported path"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var buffer bytes.Buffer
@@ -44,10 +44,14 @@ func TestSkillHubArchiveAdmission(t *testing.T) {
 			}
 			source := filepath.Join(t.TempDir(), "source")
 			err := unpackSkillHub(buffer.Bytes(), source)
-			if (err == nil) != tc.accepted {
-				t.Fatalf("archive admission = %v, want accepted %v", err, tc.accepted)
-			}
-			if tc.accepted {
+			if tc.errorText != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.errorText) {
+					t.Fatalf("archive admission = %v, want %q", err, tc.errorText)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
 				content, err := os.ReadFile(filepath.Join(source, "references", "notes.md"))
 				if err != nil || string(content) != "Skill fixture" {
 					t.Fatalf("bundled reference = %q, error = %v", content, err)
