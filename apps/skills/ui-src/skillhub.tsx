@@ -38,8 +38,8 @@ function History({item, close, text, saved, ready, busy, installErrors, onInstal
   const [versions, setVersions] = useState<SkillHubRelease[]>();
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [chosen, setChosen] = useState('');
-  const release = versions?.find(version => String(version.versionId) === chosen) ?? versions?.[0];
+  const [chosen, setChosen] = useState<string>();
+  const release = chosen === undefined ? versions?.[0] : versions?.find(version => String(version.versionId) === chosen);
   const installError = release && installErrors?.[release.versionId];
   const isInstalled = release !== undefined && saved?.entry?.source.release_id === release.versionId;
   useEffect(() => {
@@ -60,11 +60,18 @@ function History({item, close, text, saved, ready, busy, installErrors, onInstal
     </>}>
     <p className="skills-card-publisher">@{item.publisher}/{item.slug}</p>
     <p>{description(item, text)}</p>
-    {release && <Select label={text('安装版本','Version to install')} value={String(release.versionId)} disabled={busy}
-      options={(versions ?? []).map(version=>({value:String(version.versionId),label:version.version,hint:String(version.versionId)}))}
+    {versions && versions.length > 0 && <Select label={text('安装版本','Version to install')}
+      value={release ? String(release.versionId) : ''} placeholder={text('选择发布版本','Choose a release')} disabled={busy}
+      options={versions.map(version=>({value:String(version.versionId),label:version.version,hint:String(version.versionId)}))}
       onChange={setChosen}/>}
     {isInstalled && <Feedback>{text('此版本可在新会话的技能选择器中选用。','Select this version from the skill picker in a new chat.')}</Feedback>}
-    {installError && <Feedback kind="error">{text('安装失败。','Installation failed.')} {installError}</Feedback>}
+    {installError && <Feedback kind="error">{text('安装失败。','Installation failed.')} {installError}
+      <Button variant="link" onClick={()=>{
+        setChosen(release && String(release.versionId));
+        setVersions(undefined);
+        setAttempt(attempt+1);
+      }}>{text('重新加载版本','Reload releases')}</Button>
+    </Feedback>}
     <h3>{text('发布历史','Release history')}</h3>
     {error ? <Feedback kind="error">{text('无法加载 SkillHub 版本。','SkillHub versions are unavailable.')} <Button variant="link" onClick={()=>setAttempt(attempt+1)}>{text('重试','Retry')}</Button></Feedback>
       : versions === undefined ? <Feedback>{text('正在读取发布历史…','Loading releases…')}</Feedback>
@@ -79,7 +86,7 @@ function History({item, close, text, saved, ready, busy, installErrors, onInstal
 
 export function SkillHub({query, refresh, onPageChange, installed, busy, installErrors, onInstall}: {
   query: string; refresh: number; onPageChange: () => void; installed?: Installations;
-  busy: Partial<Record<string, unknown>>;
+  busy: Partial<Record<string, {operation: string}>>;
   installErrors: Partial<Record<string, Record<number, string>>>;
   onInstall: Install;
 }) {
@@ -99,7 +106,7 @@ export function SkillHub({query, refresh, onPageChange, installed, busy, install
   const visiblePage = snapshot?.cursor.page ?? 1;
   const total = result?.total ?? 0;
   const pages = pageCount(total);
-  const canRestore = error && snapshot?.cursor.query === query && snapshot.cursor.sort === sort && visiblePage !== page;
+  const canRestore = error && snapshot?.cursor.query === query && snapshot.cursor.sort === sort;
 
   function search(next: Cursor) {
     setRequest({cursor:next, fetch:true, refresh});
@@ -154,13 +161,14 @@ export function SkillHub({query, refresh, onPageChange, installed, busy, install
       {canRestore && <Button variant="link" onClick={()=>{
         setRequest({cursor:snapshot.cursor, fetch:false, refresh});
         setError(false);
-      }}>{text(`返回第 ${visiblePage} 页`,`Return to page ${visiblePage}`)}</Button>}
+      }}>{visiblePage === page ? text('保留当前页','Keep current page') : text(`返回第 ${visiblePage} 页`,`Return to page ${visiblePage}`)}</Button>}
     </Feedback>}
     {result?.items.length ? <div className="skills-grid">
       {result.items.map(item=><SkillCard key={`${item.publisher}/${item.slug}`} name={item.name}
         publisher={`@${item.publisher}`} icon="skill" description={description(item,text)}
         version={{label:item.version || text('无发布版本','Unversioned'),full:item.version}}
-        status={<span className="skills-card-publisher">{installed?.items.some(saved=>saved.id===skillHubId(item))
+        status={<span className="skills-card-publisher">{busy[skillHubId(item)]?.operation === 'skillhub-install'
+          ? text('正在安装…','Installing…') : installed?.items.some(saved=>saved.id===skillHubId(item))
           ? text('已安装','Installed') : `${text('下载','Downloads')} ${item.downloads.toLocaleString(locale)}`}</span>}
         action={<Button variant="secondary" onClick={()=>setSelected(item)}>{text('安装 / 版本','Install / Versions')}</Button>}
         onOpen={()=>setSelected(item)}/>)}

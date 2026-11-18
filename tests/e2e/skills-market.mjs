@@ -147,16 +147,19 @@ try {
   checks.push('actual Host missing-catalog refresh failure retains content; restoring the file and retrying recovers; initial installed empty state');
   // Drive transient and partial responses through the real Customize panel.
   const body = frame.locator('body');
-  await body.evaluate(() => {
+  const existingEntry = catalog.skills[0];
+  await body.evaluate((_node, entry) => {
     const fetch = window.fetch;
-    const fixture = {fetch, searches:[], inventoryError:true, pageError:true};
+    const fixture = {fetch, searches:[], inventoryError:true, pageError:true, onlyLatest:false};
     window.skillHubFixture = fixture;
     window.fetch = (url, init) => {
       if (url !== '/host/capability' || typeof init?.body !== 'string') return fetch(url, init);
       const {operation, input} = JSON.parse(init.body);
       const response = data => Promise.resolve(Response.json(data));
       const failure = message => Promise.resolve(new Response(message,{status:503}));
-      if (operation === 'installed' && fixture.inventoryError) return failure('Inventory fixture offline');
+      if (operation === 'installed') return fixture.inventoryError
+        ? failure('Inventory fixture offline')
+        : response({supportedAgent:'pero',items:[{id:entry.id,revision:entry.source.commit,enabled:false,selected:false,entry}]});
       if (operation === 'skillhub-search') {
         const {keyword, page} = input;
         fixture.searches.push([keyword, page]);
@@ -172,7 +175,8 @@ try {
       }
       if (operation === 'skillhub-versions') {
         if (input.publisher !== 'fixture-team' || input.slug !== 'docx') return failure('Wrong release identity');
-        return response({versions:[{versionId:18,version:'2.0',createdAt:0},{versionId:17,version:'1.0',createdAt:0}]});
+        const versions = [{versionId:18,version:'2.0',createdAt:0},{versionId:17,version:'1.0',createdAt:0}];
+        return response({versions:fixture.onlyLatest ? versions.slice(0,1) : versions});
       }
       if (operation === 'skillhub-install') {
         fixture.install = input;
@@ -180,7 +184,7 @@ try {
       }
       return fetch(url, init);
     };
-  });
+  }, existingEntry);
   const refreshSkills = frame.getByRole('button',{name:'Refresh',exact:true});
   await expect(refreshSkills).toBeEnabled();
   await refreshSkills.press('Enter');
@@ -194,6 +198,8 @@ try {
   await expect(results.getByRole('heading',{name:'First Skill'})).toBeVisible();
   await body.evaluate(() => { window.skillHubFixture.inventoryError = false; });
   await frame.getByRole('button',{name:'Retry inventory',exact:true}).press('Enter');
+  const fixtureInstalled = frame.getByRole('tab',{name:'Installed (1)',exact:true});
+  await expect(fixtureInstalled).toBeVisible();
   await expect(frame.getByText('Inventory fixture offline',{exact:false})).toHaveCount(0);
   await expect(results.getByRole('heading',{name:'First Skill'})).toBeVisible();
   await nextPage.press('Enter');
@@ -206,6 +212,12 @@ try {
   await expect(results.getByRole('heading',{name:'Second Skill'})).toBeVisible();
   await expect(pageNumber).toHaveText('2 / 2');
   expect(await body.evaluate(() => window.skillHubFixture.searches)).toEqual([['',1],['',2],['',2]]);
+  await body.evaluate(() => { window.skillHubFixture.pageError = true; });
+  await refreshSkills.press('Enter');
+  await expect(results.getByRole('alert')).toContainText('SkillHub is unavailable.');
+  await results.getByRole('button',{name:'Keep current page'}).press('Enter');
+  await expect(pageNumber).toHaveText('2 / 2');
+  await expect(results.getByRole('button',{name:'Previous',exact:true})).toBeEnabled();
   await hubSearchBox.fill('docx');
   await expect(results.getByRole('status')).toContainText('Showing the previous results');
   await expect(pageNumber).toHaveText('2 / 2');
@@ -221,12 +233,15 @@ try {
   await expect(history.getByRole('button',{name:'Installing…',exact:true})).toBeVisible();
   expect(await body.evaluate(() => window.skillHubFixture.install)).toEqual({publisher:'fixture-team',slug:'docx',versionId:17});
   await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
-  await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
+  await expect(writer).toContainText('Installing…');
+  await fixtureInstalled.press('Enter');
+  await expect(frame.getByRole('region',{name:'Installation tasks'})).toContainText('Document Writer');
   await hubTab.press('Enter');
   await expect.poll(() => body.evaluate(() => !!window.skillHubFixture.finishSearch)).toBe(true);
   await body.evaluate(() => window.skillHubFixture.finishSearch());
   await expect(writer).toBeVisible();
   await writer.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
+  await expect(history.locator('.skills-release-list li')).toHaveCount(2);
   await expect(history.getByRole('button',{name:'Installing…',exact:true})).toBeDisabled();
   await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
   await body.evaluate(() => window.skillHubFixture.finishInstall());
@@ -235,11 +250,17 @@ try {
   await select('Version to install','1.0');
   await expect(history.getByRole('alert')).toContainText('Install fixture offline');
   await capture('skillhub-install-error');
+  await body.evaluate(() => { window.skillHubFixture.onlyLatest = true; });
+  await history.getByRole('button',{name:'Reload releases'}).press('Enter');
+  await expect(history.getByRole('button',{name:'Version to install'})).toHaveText('Choose a release');
+  await expect(history.getByRole('button',{name:'Install selected version',exact:true})).toBeDisabled();
   await history.getByRole('button',{name:'Close',exact:true}).press('Escape');
   await hubSearchBox.fill('filtered');
   await expect(results.getByText('No skills can be displayed on this page',{exact:true})).toBeVisible();
   await body.evaluate(() => {window.fetch = window.skillHubFixture.fetch; delete window.skillHubFixture;});
-  await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
+  await fixtureInstalled.press('Enter');
+  await refreshSkills.press('Enter');
+  await expect(frame.getByRole('tab',{name:'Installed (0)',exact:true})).toBeVisible();
   checks.push('SkillHub capability fixtures cover inventory retry, matching cards and pagination, cached-page recovery, release identity and install failure across tab switches');
 
   if (process.env.PERO_SKILLS_MARKET_SKILLHUB === '1') {
@@ -248,10 +269,12 @@ try {
     await frame.locator('body').evaluate(() => {
       const fetch = window.fetch;
       window.fetch = (input, init) => {
-        if (input === '/host/capability' && typeof init?.body === 'string' &&
-            JSON.parse(init.body).operation === 'skillhub-search') {
-          window.fetch = fetch;
-          return new Promise(() => {});
+        if (input === '/host/capability' && typeof init?.body === 'string') {
+          const request = JSON.parse(init.body);
+          if (request.operation === 'skillhub-search' && request.input.keyword === '' && request.input.page === 1) {
+            window.fetch = fetch;
+            return new Promise(() => {});
+          }
         }
         return fetch(input, init);
       };
@@ -395,10 +418,12 @@ try {
   await expect(narrowGrid.getByRole('article')).toHaveCount(12);
   expect(await narrowGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length)).toBeLessThan(columns);
   expect(await narrowGrid.evaluate(node => {
-    const pane = node.closest('.skills-results').getBoundingClientRect();
+    const pane = node.closest('.pero-content-body');
+    const left = pane.getBoundingClientRect().left + pane.clientLeft;
+    const right = left + pane.clientWidth;
     return [...node.querySelectorAll('article')].every(card => {
       const bounds = card.getBoundingClientRect();
-      return bounds.left >= pane.left - 1 && bounds.right <= pane.right + 1;
+      return bounds.left >= left - 1 && bounds.right <= right + 1;
     });
   })).toBe(true);
   expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
