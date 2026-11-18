@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Check local software, prepare an environment for an App or an experiment, and explicitly approve a built-in computation on an SSH workstation or Slurm.">
+  <title>Environments and remote compute · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/compute/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/compute/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/compute/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/compute/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="./" aria-current="page">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Environments and remote compute</h1>
+        <p>Check local software, prepare an environment for an App or an experiment, and explicitly approve a built-in computation on an SSH workstation or Slurm.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#inspect-software">Check a method’s software requirements</a></li>
+        <li><a href="#app-environment">Prepare and bind an App service environment</a></li>
+        <li><a href="#locked-compute-profile">Select a locked computation profile</a></li>
+        <li><a href="#remote-connection">Set up an SSH or Slurm connection</a></li>
+        <li><a href="#first-remote-run">Run a quadrature example with a known result</a></li>
+        <li><a href="#remote-recovery">Recover the original run and collect missing evidence</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="inspect-software">
+        <h2 id="inspect-software">Check a method’s software requirements</h2>
+        <p>Open <strong>Environments</strong> from the sidebar. If it does not appear, enable it in <strong>Apps</strong>. The Paper reproduction panel and Control Lab engine availability also open checks scoped to that method.</p>
+          <ol>
+            <li>Open <strong>Software checks</strong> and select a method, such as python-control for Control Lab. Run the check and review required software, observed versions, and missing packages.</li>
+            <li>Record the method and check outcome. You can export a versioned observation. Opening the list reads saved entries. Starting a check inspects the software referred to by the current configuration.</li>
+          </ol>
+          <p>Once the software matches, prepare or select the environment and start the experiment in its own App. The software observation contains compatibility information. Experiment outputs and conclusions come from the subsequent run and review.</p>
+      </section>
+
+      <section aria-labelledby="app-environment">
+        <h2 id="app-environment">Prepare and bind an App service environment</h2>
+        <ol>
+            <li>Open <strong>Environments → App environments → Create environment</strong>. Enter a name and choose a method, such as control system simulation for Control Lab. Review the runtime and packages, then choose <strong>Create and prepare</strong>.</li>
+            <li>Wait for <strong>Prepared</strong>. If preparation fails, open <strong>Installation log</strong>, check the dependency source or local software reported in the error, and choose <strong>Retry</strong>. First-time preparation can download Python and the method's dependencies.</li>
+            <li>Save work in the target App, then select <strong>Use this environment → Bind and restart</strong>. This restarts the App backend and stops its calculations. When <strong>Currently in use</strong> appears, verify the software in the target App. Control and Circuit share the Control Lab service environment.</li>
+          </ol>
+          <p>Create a new environment when changing the dependencies of a bound environment. To read PDFs, use the simpler <a href="../install/#prepare-environment">first-time Paper environment setup</a>.</p>
+      </section>
+
+      <section aria-labelledby="locked-compute-profile">
+        <h2 id="locked-compute-profile">Select a locked computation profile</h2>
+        <p>In supported macOS arm64 and Linux x64 builds, <strong>Environments → Compute</strong> creates a separate environment for Control Lab or PC-Gym. Choose a method, create a profile, and select <strong>Prepare environment</strong>. Once prepared, inspect the <code>uv.lock</code> and package content digests.</p>
+          <p>Choose <strong>Use for this method</strong> to select the environment for new experiments. The App service continues running. Existing experiments keep their original environment. To continue an existing experiment, select its original environment. To rebuild a prepared profile in a separate location, use <strong>Rebuild from same lock</strong>.</p>
+          <p>Preparation records installation and import checks. Start the computation from Control Lab or Paper and use the method's own approval and review steps. See the <a href="https://github.com/phodal/pero/blob/master/apps/environments/README.md#locked-scientific-computation">compute profile documentation</a> and <a href="https://github.com/phodal/pero/blob/master/docs/fitness/uv-scientific-production.md">platform verification</a>.</p>
+      </section>
+
+      <section aria-labelledby="remote-connection">
+        <h2 id="remote-connection">Set up an SSH or Slurm connection</h2>
+        <p><strong>Version requirement.</strong> The submission, observation, and collection steps below describe the current source. The November 12, 2026 preview of Compute saves connection drafts, displays available receipts, and imports reports. Use a build containing remote execution to follow this walkthrough. See <a href="../install/#from-source">launching from source</a>.</p>
+          <ol>
+            <li>Confirm your authorized SSH alias, host identity, and writable work directory with the site administrator. Set up noninteractive access and a verified <code>known_hosts</code> entry in OpenSSH. The App uses system SSH configuration and its agent. The form stores non-secret connection details.</li>
+            <li>In the <strong>Compute</strong> cluster settings, choose <strong>Add cluster draft</strong>. Enter a name, login host or SSH alias, and absolute remote working directory. Select <strong>SSH workstation</strong> or <strong>Slurm over SSH</strong>. For Slurm, specify a partition, add the account if your site requires it, and use a work directory shared by the login and compute nodes.</li>
+            <li>Save the draft, open <strong>Remote execution</strong>, select the connection, and choose <strong>Probe connection</strong>. When <strong>Connection verified</strong> appears, review the host, platform, Python version, and Slurm cluster identity where available. The probe observes the submission host. Job receipts report allocated nodes when observed.</li>
+          </ol>
+          <p>The login host needs Python 3 on the noninteractive path. Slurm also needs the scheduler commands, Python 3 on the allocated nodes, and site authorization for the fixed resource request. See the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md#reproduction-and-operations">site requirements</a>.</p>
+      </section>
+
+      <section aria-labelledby="first-remote-run">
+        <h2 id="first-remote-run">Run a quadrature example with a known result</h2>
+        <ol>
+            <li>In <strong>Remote execution</strong>, set <strong>Samples per repetition</strong> to <code>1000</code> and <strong>Repetitions</strong> to <code>1</code>. Select <strong>Prepare fixed inputs</strong>. The bundled CPU method integrates 4 / (1 + x²) over the interval from 0 to 1.</li>
+            <li>Look for <strong>Prepared, awaiting approval</strong>. Under <strong>Frozen inputs and destination</strong>, review the attempt ID, remote directory, and SHA-256. For Slurm, check the account, partition, 1 CPU, 256 MiB, and 600-second limit. Preparation stages a remote attempt directory. Select <strong>Approve and submit</strong> when the destination and parameters are correct.</li>
+            <li>Open the attempt under <strong>Saved executions</strong>. Use <strong>Observe original execution</strong> to see logs, any recorded exit code, and the Slurm job identity. A queued job is awaiting allocation. Observe again to check whether it has started or stopped.</li>
+            <li>After the execution ends, select <strong>Collect and save evidence</strong>, then <strong>Download original</strong>. On success, the <code>estimate</code> in <code>result.json</code> is about <code>3.1415927369</code>. The absolute error against π is about <code>8.33e-8</code>, with a tolerance of <code>1e-6</code> and <code>checkPassed</code> set to <code>true</code>. The <code>scientificAcceptance</code> field remains <code>unreviewed</code>.</li>
+          </ol>
+          <p>Copy the <code>compute:&lt;attempt&gt;:&lt;sha256&gt;</code> reference into your research record to identify the exact bytes collected locally. Later remote changes leave those collected bytes intact. The result and receipt establish execution of this fixed method.</p>
+      </section>
+
+      <section aria-labelledby="remote-recovery">
+        <h2 id="remote-recovery">Recover the original run and collect missing evidence</h2>
+        <dl>
+            <dt>Connection probe or preparation failed</dt><dd>Check the SSH alias and authorization, work directory access, and any Slurm account or partition. Probe after correcting the configuration, then prepare a new attempt if staging was incomplete.</dd>
+            <dt>Submission reply was lost or the run needs reconciliation</dt><dd>Refresh saved executions and observe the original attempt. Preserve its identity and remote directory. Ask the site operator to reconcile the original job identity and submit time before starting another run.</dd>
+            <dt>Cancellation requested</dt><dd>Observe the original attempt until the owner confirms stop. A submitted remote run can keep running after closing Pero. Reopen Compute and inspect that same attempt.</dd>
+            <dt>Collection is incomplete</dt><dd>Keep the files and fixed references you already have. Resolve missing files or access issues, then choose <strong>Retry collecting missing evidence</strong>. Collection is limited to 1 MiB per file. Larger files remain in the remote directory.</dd>
+          </dl>
+          <p>The development verification covers authenticated loopback SSH and a Slurm fixture. This workflow submits the built-in CPU method. Live-site Slurm acceptance remains open. See <a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">remote execution verification</a>.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

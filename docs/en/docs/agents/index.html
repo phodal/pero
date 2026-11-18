@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Connect a built-in or external Agent, confirm a plain-text reply, then add a workspace, context, and tool access for your task.">
+  <title>Configure Agents and tools · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/agents/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/agents/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/agents/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/agents/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="./" aria-current="page">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Configure Agents and tools</h1>
+        <p>Connect a built-in or external Agent, confirm a plain-text reply, then add a workspace, context, and tool access for your task.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#built-in-agent">Configure the built-in Pero Agent</a></li>
+        <li><a href="#external-agents">Connect an external Agent</a></li>
+        <li><a href="#first-chat">Verify your first model reply</a></li>
+        <li><a href="#workspace-and-approvals">Review workspace and permission scope</a></li>
+        <li><a href="#mcp-connectors">Add MCP tools with Connectors</a></li>
+        <li><a href="#troubleshoot-agent">Troubleshoot sign-in, models, and tools</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="built-in-agent">
+        <h2 id="built-in-agent">Configure the built-in Pero Agent</h2>
+        <ol>
+            <li>Open <strong>Settings → Built-in Agent</strong>. Enter the <strong>API URL</strong>, <strong>Model</strong>, and <strong>API Key</strong> provided by your service. The built-in defaults are <code>https://api.deepseek.com</code> and <code>deepseek-chat</code>. Use HTTPS for the URL, with HTTP available on loopback. Enter the model ID in the model field.</li>
+            <li>Select <strong>Save</strong> and look for <strong>Saved</strong>. Desktop encrypts the key through the system credential store. Leave the key field empty to keep the saved key when editing the URL or model. To clear it, select <strong>Remove saved key</strong> and confirm.</li>
+            <li>Open <strong>New chat</strong> and select <strong>Pero (DeepSeek)</strong> near the composer. The new session uses your saved configuration.</li>
+          </ol>
+          <p>Saved settings take precedence over development <code>DEEPSEEK_*</code> variables and <code>.env</code>. Existing sessions keep the configuration they started with. See <a href="../install/#from-source">launching from source</a> and the <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">Desktop configuration reference</a>.</p>
+      </section>
+
+      <section aria-labelledby="external-agents">
+        <h2 id="external-agents">Connect an external Agent</h2>
+        <p>Pero connects to external Agents using local ACP adapters. Open <strong>Settings → Models &amp; Agents</strong> to see which adapters are available. Each Agent has its own sign-in and model settings.</p>
+          <dl>
+            <dt>Codex and Claude</dt><dd>The Electron development preview bundles both ACP adapters. When running from source, <code>npm ci</code> at the repository root installs the project's adapters. Follow the session's sign-in instructions, then select a model offered by the Agent.</dd>
+            <dt>GitHub Copilot, Grok, Qoder, and OpenCode</dt><dd>Install the ACP-capable local CLI and complete its provider configuration or sign-in. The registered executables are <code>copilot</code>, xAI's <code>grok-build</code> or the <code>grok</code> in its own installation directory, <code>qodercli</code>, and <code>opencode</code>. Restart Pero after installation and check the selector again.</dd>
+          </dl>
+          <p>If the session asks you to sign in from a terminal, finish the Agent's terminal sign-in, then return and select <strong>I have signed in · Continue</strong>. Follow the Agent's buttons for other sign-in methods. Review the original prompt and send it again yourself after authentication.</p>
+      </section>
+
+      <section aria-labelledby="first-chat">
+        <h2 id="first-chat">Verify your first model reply</h2>
+        <ol>
+            <li>Open <strong>New chat</strong>. Use the folder button by the composer to choose an empty practice directory, then select a configured Agent. The workspace is the local execution target for that session. Once you have started the conversation, open a new chat to change the Agent or workspace.</li>
+            <li>Send a short prompt that needs no tools or attachments. If asked to sign in, complete the steps above and submit the prompt again.</li>
+          </ol>
+          <blockquote><p>Reply with exactly PERO_SETUP_OK. Please do not call tools or read or change files.</p></blockquote>
+          <p>The expected reply confirms a round trip to the model. <strong>Installed</strong> confirms adapter discovery, and ACP can connect before model sign-in. After getting a reply, try the <a href="../paper/#ask-agent">paper passage walkthrough</a> to check the Agent against your research task.</p>
+      </section>
+
+      <section aria-labelledby="workspace-and-approvals">
+        <h2 id="workspace-and-approvals">Review workspace and permission scope</h2>
+        <p>Start in a dedicated folder. Use the context menu in the composer to choose files to send, then review the draft and references before submitting. The folder gives the local Agent a working location. Your message and data read through tools can reach the selected model provider.</p>
+          <ul>
+            <li>Permission choices follow the Agent's capabilities. With the built-in Agent's <strong>View only</strong> mode, the Agent can read the workspace. File changes and commands are rejected. <strong>Edit in workspace</strong> asks before writing and rejects commands.</li>
+            <li><strong>Full access</strong> asks before file changes and commands. <strong>Auto-review</strong> allows these actions without a prompt. The built-in Agent's commands in these modes run without OS sandboxing. Available modes can differ by platform and external Agent.</li>
+            <li>When <strong>Permission required</strong> appears, expand the related tool and review the action and destination. Approve once if the Agent offers that choice, or decline and revise the request. Select <strong>Stop</strong> to request an end to the active turn. Check the original service for effects that already happened.</li>
+          </ul>
+      </section>
+
+      <section aria-labelledby="mcp-connectors">
+        <h2 id="mcp-connectors">Add MCP tools with Connectors</h2>
+        <ol>
+            <li>Open <strong>Connectors</strong> in Workbench or from the Apps catalog. Choose a trusted service, save its configuration, and complete its sign-in. If consent opens in a browser, review the account and scope. Enter credentials only in the connector's dedicated fields and keep them out of URLs, arguments, examples, and chat.</li>
+            <li>Select <strong>Verify connection</strong>. A verified connection has discovered tools and released the probe connection. Review the <strong>Tools</strong> list, select the tools needed for this task, and save. Use the actual connection result to determine which tools are available to this account.</li>
+            <li>Start a new conversation to use the connection. Host fixes the connector configuration and selected tools for that session. Changes to credentials or permissions invalidate the older connector snapshot. Open a new chat after saving, then verify with a read-only operation documented by the service.</li>
+          </ol>
+          <p>Direct per-Agent MCP configuration is saved separately and depends on adapter support. For features such as full-text paper search, the Agent needs the applicable MCP transport. The managed Connectors runtime is available on macOS and Linux and reports an unsupported platform on Windows. See the <a href="https://github.com/phodal/pero/blob/master/docs/adr/0025-connectors-app.md">Connectors design</a> and <a href="https://github.com/phodal/pero/blob/master/docs/fitness/connectors.md">platform verification</a>.</p>
+      </section>
+
+      <section aria-labelledby="troubleshoot-agent">
+        <h2 id="troubleshoot-agent">Troubleshoot sign-in, models, and tools</h2>
+        <dl>
+            <dt>The Agent is missing or disabled in the selector</dt><dd>Check that Desktop can find the CLI or adapter, restart Pero, and open the selector again.</dd>
+            <dt>The built-in Agent needs an API key, or saving fails</dt><dd>Check that the URL, model ID, and key belong to the same service. If the system credential store is unavailable, unlock it, reopen Desktop, save, and try a new chat.</dd>
+            <dt>The Agent connects and the model rejects the request</dt><dd>Resolve the authentication error using that Agent's sign-in flow. If the Agent offers a model selector, choose a model available to the account. Confirm the plain-text reply above before adding tools.</dd>
+            <dt>A tool is unavailable or denied</dt><dd>Check the connection test, the tool selection, the session's permission mode, and the Agent's transport support. Start a fresh conversation after a configuration change. If the outcome of an external write is unclear, inspect the original service's record before deciding whether to repeat it.</dd>
+          </dl>
+          <p>Record the package version, Agent name, shareable error text, and steps to reproduce. See <a href="../reference/#verification-and-help">verification scope and issue reporting</a>.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Inspect the full input at a specific file version, check fields and issues, chart the results, and save a view that opens the original records.">
+  <title>Inspect, chart, and share data · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/data/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/data/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/data/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/data/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="./" aria-current="page">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Inspect, chart, and share data</h1>
+        <p>Inspect the full input at a specific file version, check fields and issues, chart the results, and save a view that opens the original records.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#sample-walkthrough">Follow a six-record example</a></li>
+        <li><a href="#input-and-checks">Check field types and inspection scope</a></li>
+        <li><a href="#versions-and-exports">Pin a version, save a view, and export</a></li>
+        <li><a href="#troubleshoot-data">Recover from file and inspection issues</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="sample-walkthrough">
+        <h2 id="sample-walkthrough">Follow a six-record example</h2>
+        <p>Open <strong>Data</strong> in the desktop workbench and download <a href="../../../examples/first-dataset.json" download>first-dataset.json</a>. The three fields in this synthetic sample are <code>condition</code>, <code>replicate</code>, and <code>signal</code>. Inspection and charting work offline once you have the file.</p>
+          <ol>
+            <li>Choose <strong>Add data</strong>, select the downloaded JSON, keep the type set to <strong>Dataset</strong>, and choose <strong>Import</strong>. Open the entry and select <strong>Explore data</strong>. Expect 6 records and 3 fields.</li>
+            <li>In <strong>Table</strong>, set <strong>Filter field</strong> to <code>condition</code> and <strong>Condition</strong> to <strong>Equals</strong>. Enter <code>treated</code> and choose <strong>Apply</strong>. Expect original rows 4–6 with signal values <code>1.3</code>, <code>1.4</code>, and <code>1.5</code>. Open <strong>Source</strong> on one row to check its location in the original file.</li>
+            <li>Name the view <code>Treated only</code> and choose <strong>Save view</strong>. Under <strong>Checks</strong>, the full-input scope still contains 6 records. Missing fields, explicit nulls, empty strings, and duplicates each have count 0.</li>
+            <li>Return to <strong>Table</strong> and clear the filter and row selection. Under <strong>Chart</strong>, choose <strong>bar → Current aggregation</strong>, set <strong>Group by</strong> to <code>condition</code> and <strong>Measure</strong> to <code>signal</code>, then set <strong>Aggregate</strong> to <strong>Sum</strong>. Open <strong>Chart data</strong> and expect <code>3</code> for <code>control</code> and <code>4.2</code> for <code>treated</code>. With <strong>Count</strong>, each group has 3 records.</li>
+          </ol>
+          <p>Charts use the matching records or an explicit selection. If only the treatment group appears, check the filter and selected rows in Table. These totals help you check the tutorial input and aggregation.</p>
+      </section>
+
+      <section aria-labelledby="input-and-checks">
+        <h2 id="input-and-checks">Check field types and inspection scope</h2>
+        <p>Data inspects UTF-8 CSV, TSV, JSON, and JSONL/NDJSON. Imports are limited to 10 MiB. A single inspection supports up to 100,000 records and 256 fields. The table pages results from the full inspection. If parsing fails, review the reported cause.</p>
+          <ul>
+            <li>CSV and TSV values start as text to preserve identifiers such as <code>001</code>. To filter or aggregate numerically, open <strong>Fields</strong> and choose <strong>Preview number → Apply type</strong> for that column. Check the examples that fail conversion. Values with currency symbols, thousands separators, or outer spaces need review. Failed values retain their original text.</li>
+            <li>JSON preserves the difference between a missing field, <code>null</code>, and an empty string. Missing and conversion counts are cell counts. Duplicate counts are row counts. Opening issue rows pauses the table filter. Choose <strong>Return to analysis</strong> to restore your analysis.</li>
+            <li>Units are view labels. Changing a label from <code>cm</code> to <code>mm</code> leaves the values intact. For a conversion, retain the rule and the new dataset version.</li>
+          </ul>
+      </section>
+
+      <section aria-labelledby="versions-and-exports">
+        <h2 id="versions-and-exports">Pin a version, save a view, and export</h2>
+        <ol>
+            <li>To update a dataset, choose <strong>More → Add version</strong> on the existing entry. Older versions retain their original bytes and identifiers. <strong>Add data</strong> from the library creates a separate entry, even for the same filename.</li>
+            <li>Under <strong>Overview → Saved views</strong>, open <code>Treated only</code> to recover its input version and the three matching rows. Check the SHA-256 under Files or Versions. Reopening the view rechecks the original bytes.</li>
+            <li><strong>Export reference</strong> downloads a JSON reference containing the pinned asset, parser, view, and check report. Include the original file or an accessible source with that reference. Use <strong>Export records</strong> for the current data subset and <strong>Export chart JSON</strong> for the chart.</li>
+          </ol>
+          <p>Reports and exports keep source locations and analysis settings. Data’s <strong>Project reference</strong> groups datasets. The underlying files or services govern access. See <a href="../projects/">research projects</a> for a separate materials index.</p>
+      </section>
+
+      <section aria-labelledby="troubleshoot-data">
+        <h2 id="troubleshoot-data">Recover from file and inspection issues</h2>
+        <ul><li><strong>Missing or Changed.</strong> The catalog record remains. Restore the original bytes matching the admitted digest, or add a new version and save a new view.</li><li><strong>Unexpected numeric filter results.</strong> Check the field interpretation, conversion failures, and filter scope. Exact numbers and original text are recorded separately.</li><li><strong>A model file has no table.</strong> Data records its source and versions. Loading weights and running inference require a suitable method and execution environment.</li><li><strong>Archiving did not free space.</strong> Archiving moves an entry to <strong>Archived</strong> and keeps its versions and views available to restore.</li></ul>
+          <p>See the <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data inspection rules</a> and the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/data-workspace.md">workbench verification record</a>.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

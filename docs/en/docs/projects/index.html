@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Keep a research goal and relevant App records together, with project conversations, approvals, and artifacts you can return to later.">
+  <title>Organize materials and conversations by project · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/projects/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/projects/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/projects/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/projects/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="./" aria-current="page">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Organize materials and conversations by project</h1>
+        <p>Keep a research goal and relevant App records together, with project conversations, approvals, and artifacts you can return to later.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#create-project">Create a research project you can resume</a></li>
+        <li><a href="#link-materials">Link materials and reopen the source</a></li>
+        <li><a href="#project-agent">Give Project Agent a bounded task</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="create-project">
+        <h2 id="create-project">Create a research project you can resume</h2>
+        <ol><li>Open <strong>Projects</strong> in the sidebar. Choose <strong>New research project</strong> and enter a name and goal, such as “Recheck the Fisher Table III within-species sum of squares and document each input.”</li><li>Enter an absolute local directory path if you plan to use project files, workspace tasks, or delegated file inspection. Leave it empty when organizing App materials alone.</li><li>Choose <strong>Save project</strong>. Reopen the project and confirm the goal and materials area are available. Use <strong>Edit goal</strong> to update the research question later.</li></ol>
+      </section>
+
+      <section aria-labelledby="link-materials">
+        <h2 id="link-materials">Link materials and reopen the source</h2>
+        <ol><li>Save a paper or research record in <a href="../paper/">Paper</a>, or save an experiment in Control Lab or Lab.</li><li>In the project’s right-hand <strong>Overview</strong>, choose <strong>Materials &amp; experiments → Link existing records</strong>. Select the enabled source App and the record. You can also enter Materials from <strong>Project views</strong>.</li><li>Open the link and confirm it leads to the source App. If the original record changed, inspect that version before choosing <strong>Update linked revision</strong>. If it is unavailable, the project retains the reference so you can restore the source or choose <strong>Unlink</strong>.</li></ol>
+          <p>The project stores the association and observed revision. Updating or unlinking affects only the project record. For a handoff, retain the source App’s version, content digest, or trial archive as well.</p>
+      </section>
+
+      <section aria-labelledby="project-agent">
+        <h2 id="project-agent">Give Project Agent a bounded task</h2>
+        <p>Project Agent is available in the current source build. The November 12, 2026 preview predates it. Prepare a working <a href="../agents/">Agent and tools</a> and a local directory, then open a saved research project. Choose <strong>Start project conversation</strong> and submit a small, checkable task in the central Main Agent conversation.</p>
+          <blockquote><p>Delegate a read-only check of the input files for the within-species sum of squares in this project directory. List each path and SHA-256, preserve the original files, and list anything you could not check.</p></blockquote>
+          <ol><li>If the Main Agent creates a child conversation, open it from the sidebar and review its task and approval card. Decide whether to allow the specific command.</li><li>Expand the tool entry in the child conversation. Inspect the command, exit code, and output, and check that it read only the intended materials. Delegated work in a Git project has its own worktree. Review any changes before integrating them.</li><li>Choose <strong>Summarize with evidence</strong> from the Project Agent controls. Read the evidence, gaps, and original conversations from the Main Agent conversation. Use the message action to save a useful reply as an artifact, then reopen it from the project’s Artifacts view.</li></ol>
+          <p>After refresh or restart, use the project to reopen the original conversations, history, and saved artifacts. Decide how to continue unfinished instructions after checking their state. If conversation loading fails, refresh first and keep the original session. Development workbench verification used a scripted model with actual local execution. Review real-model output and scientific acceptance separately.</p>
+          <p>See the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md#merge-review-verification--2026-11-14">Project Agent interaction and restart verification</a>.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

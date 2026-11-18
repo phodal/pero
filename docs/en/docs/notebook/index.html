@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Save text, formulas, and evidence references in a Notebook revision. Try a small calculation, then attach a paper citation or experiment record beside a finding.">
+  <title>Record methods and reviewable evidence · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/notebook/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/notebook/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/notebook/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/notebook/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="./" aria-current="page">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Record methods and reviewable evidence</h1>
+        <p>Save text, formulas, and evidence references in a Notebook revision. Try a small calculation, then attach a paper citation or experiment record beside a finding.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#first-revision">Create your first notebook revision</a></li>
+        <li><a href="#attach-evidence">Put the finding beside its source</a></li>
+        <li><a href="#export-and-share">Choose the right export format</a></li>
+        <li><a href="#publication">Build a manuscript from a saved revision</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="first-revision">
+        <h2 id="first-revision">Create your first notebook revision</h2>
+        <ol>
+            <li>Enable and open <strong>Notebook</strong> from the workbench <strong>App Store</strong>. Choose <strong>New notebook</strong>, enter a title such as <code>Spreadsheet and revision practice</code>, and write down the input 2 and multiplier 6.</li>
+            <li>Choose <strong>Insert → Spreadsheet</strong>. Type <code>2</code> in <code>A1</code> and <code>=A1*6</code> in <code>B1</code>. Select another cell to commit. <code>B1</code> should show <code>12</code>. Select it again to inspect the formula.</li>
+            <li>Choose <strong>Save revision</strong> and note the revision number. Change <code>A1</code> to <code>3</code> and save again. Expect a higher revision number and <code>B1 = 18</code>.</li>
+            <li>Open <strong>File → Revision history</strong> and choose the earlier revision. Check <code>A1 = 2</code> and <code>B1 = 12</code>. Choose <strong>Return to current notebook</strong> and verify that the current value is <code>18</code>. Reopen the notebook to return to the saved revision.</li>
+          </ol>
+          <p>If saving conflicts with another edit, choose <strong>Export draft</strong> to preserve your changes before reviewing the latest revision. Loading the latest revision discards the current draft.</p>
+      </section>
+
+      <section aria-labelledby="attach-evidence">
+        <h2 id="attach-evidence">Put the finding beside its source</h2>
+        <ol>
+            <li>Write a specific finding and identify its metric, data scope, units, and uncertainty.</li>
+            <li>Insert an <strong>Evidence</strong> block. Paste a saved Paper citation or passage link, or import a Paper report JSON, choose the citation, and attach its snapshot. Expect an excerpt with the report or location identity.</li>
+            <li>For an experiment, export evidence JSON from Control Lab. Insert an <strong>Experiment reference</strong> in Notebook, load the JSON, choose the specific trial, and attach a snapshot. Open the original App to inspect that attempt’s inputs, result, and checks.</li>
+            <li>Save the revision. Review the notebook revision, source version, and original evidence together. If the source App adds results, earlier Notebook revisions still show the snapshots they saved.</li>
+          </ol>
+          <p>Notebook stores the version and evidence you selected. The source App holds the computation, source updates, and verification. Use the <a href="../paper/#check-citations">citation review workflow</a> to check key claims.</p>
+      </section>
+
+      <section aria-labelledby="export-and-share">
+        <h2 id="export-and-share">Choose the right export format</h2>
+        <ul>
+            <li>For the complete document, choose <strong>File → Export current JSON</strong>. It retains the Notebook document and versioned evidence. For an exact historical snapshot, open that revision before exporting. Exporting the current notebook can include unsaved edits.</li>
+            <li>Use Markdown to share the prose. For worksheet values and formulas, choose <strong>Export workbook</strong>. XLSX preserves worksheet names, values, and formulas. Notebook evidence, charts, and original workbook formatting fall outside that exchange.</li>
+            <li>For Agent review, save a revision first and choose <strong>File → Ask Agent</strong>. Check the attached entry and revision before sending. Review its conclusions against that revision and the original evidence.</li>
+          </ul>
+          <p>A worksheet supports up to 200 rows and 50 columns, scalar formulas, and references across sheets in the same notebook. External workbook links, network functions, and dynamic array spilling are outside the supported subset. See the <a href="https://github.com/phodal/pero/blob/master/apps/notebook/README.md#data-and-format-boundaries">format documentation</a> and the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook.md">workbench verification record</a>.</p>
+      </section>
+
+      <section aria-labelledby="publication">
+        <h2 id="publication">Build a manuscript from a saved revision</h2>
+        <p>The current source build can compile a saved MyST project to PDF. The November 12, 2026 preview predates this command. Start with a MyST manuscript, a working Tectonic engine, and a prepared package cache. Save the revision containing the manuscript block and choose <strong>Compile saved revision to PDF</strong> from that block. Check the exact revision, log, and output in build history before previewing or downloading.</p>
+          <p>After editing data or generating code, regenerate stale figures and update the document before you save a new revision. Failed builds retain inputs and diagnostics. The last successful PDF remains available in history. PDF compilation confirms the manuscript renders. Scientific claims require their own review. Follow the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook-publication.md">Fisher manuscript example with commands and expected output</a>.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>
