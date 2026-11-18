@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.">
+  <title>Read your first paper · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/paper/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/paper/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/paper/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/paper/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs"><ul>
+      <li><a href="../">Overview</a></li>
+      <li><a href="../install/">Install and launch</a></li>
+      <li><a href="./" aria-current="page">Read your first paper</a></li>
+      <li><a href="../workflows/">Research workflows</a></li>
+      <li><a href="../reference/">Concepts and reference</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Read your first paper</h1>
+        <p>Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#import-and-highlight">Import and save a highlight</a></li>
+        <li><a href="#ask-agent">Ask an Agent about a passage</a></li>
+        <li><a href="#check-citations">Follow citations to the source</a></li>
+        <li><a href="#troubleshoot">Troubleshooting</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="import-and-highlight">
+        <h2 id="import-and-highlight">Import and save a highlight</h2>
+        <p>Choose a PDF with selectable text. On first use, <a href="../install/#prepare-environment">prepare the App environment</a>.</p>
+          <ol>
+            <li>Open <strong>Papers</strong> from the sidebar and choose <strong>Add papers → PDF → Import PDF</strong>, or drop the file into the Paper window.</li>
+            <li>Select a sentence and choose <strong>Highlight</strong>. Open <strong>Annotations</strong> from the PDF context menu and inspect the saved location and quotation.</li>
+            <li>Return to the library and reopen the paper. Confirm the annotation still points to the right page. Paper saves annotations separately and retains the original PDF.</li>
+          </ol>
+          <p>This step requires no model. Text selection and search rely on the existing PDF text layer. If text is unavailable, use <strong>Capture area</strong> from the PDF context menu to save the location of a figure or table for review.</p>
+      </section>
+
+      <section aria-labelledby="ask-agent">
+        <h2 id="ask-agent">Ask an Agent about a passage</h2>
+        <ol>
+            <li>For the built-in Agent, open <strong>Settings → Built-in Agent</strong> and enter the API URL, model, and key. External Agents use their own sign-in flows. Full-text PDF research requires an Agent with HTTP MCP support. See the <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">Agent setup guide</a>.</li>
+            <li>Click <strong>Ask AI</strong> in the reader, or select text and choose <strong>Discuss selection</strong>. Review the draft and any attached passage, then send. Your model provider may receive the question and selected text.</li>
+          </ol>
+          <blockquote><p>How do the authors describe when this method applies? Quote the source and list the limitations I should check.</p></blockquote>
+      </section>
+
+      <section aria-labelledby="check-citations">
+        <h2 id="check-citations">Follow citations to the source</h2>
+        <ol>
+            <li>After the report is saved, click the clock icon labeled <strong>Research record</strong> in the reader toolbar and open the report.</li>
+            <li>Click a citation and read the surrounding passage. When a quotation has multiple matches, choose the location relevant to the claim.</li>
+            <li>Compare the claim with the source and review any open questions. Use <strong>Continue from here</strong> to draft a follow-up and send it when ready.</li>
+          </ol>
+          <p>A citation locates a source passage. Check whether the passage supports the claim and whether the method applies to your own work.</p>
+      </section>
+
+      <section aria-labelledby="troubleshoot">
+        <h2 id="troubleshoot">Troubleshooting</h2>
+        <ul>
+            <li><strong>Agent fails to start or sign in.</strong> Check your Agent choice, credentials, and the error shown in the conversation. After signing in, review and resend the question.</li>
+            <li><strong>Full-text search returns no matches.</strong> Try the paper's terminology, narrow your question, or select a known passage in the reader. An empty result describes the current search.</li>
+            <li><strong>A study stops before submitting a report.</strong> Open the saved research record, review its findings and gaps, then choose <strong>Continue research</strong>.</li>
+          </ul>
+          <p>See the <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#pdf-reading">Paper guide</a> for more reading and retrieval options.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

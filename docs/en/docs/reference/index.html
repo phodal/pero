@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.">
+  <title>Concepts and reference · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/reference/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/reference/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/reference/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/reference/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs"><ul>
+      <li><a href="../">Overview</a></li>
+      <li><a href="../install/">Install and launch</a></li>
+      <li><a href="../paper/">Read your first paper</a></li>
+      <li><a href="../workflows/">Research workflows</a></li>
+      <li><a href="./" aria-current="page">Concepts and reference</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Concepts and reference</h1>
+        <p>See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#concepts">Objects in the workbench</a></li>
+        <li><a href="#data-and-cost">Data, permissions, and costs</a></li>
+        <li><a href="#verification-and-help">Verification and support</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="concepts">
+        <h2 id="concepts">Objects in the workbench</h2>
+        <dl>
+            <dt>Research project</dt><dd>Holds a research goal and links to App records, with an optional local directory.</dd>
+            <dt>App</dt><dd>Provides a domain interface, methods, and data. Paper holds papers and research reports. Data holds dataset versions.</dd>
+            <dt>Host and Agent session</dt><dd>The Host manages local Apps, credentials, Agent sessions, approvals, and cancellation. Review pending tool requests in the conversation.</dd>
+            <dt>Control plane and Worker</dt><dd>The optional control plane coordinates shared tasks. A separate Worker handles them in its configured execution environment. The services need their own deployment and authorization.</dd>
+          </dl>
+          <p>See the <a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">architecture guide</a> and <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App development guide</a> for ownership and integration details.</p>
+      </section>
+
+      <section aria-labelledby="data-and-cost">
+        <h2 id="data-and-cost">Data, permissions, and costs</h2>
+        <ul>
+            <li>Apps store domain data on the machine where they run. Model providers, literature services, MCP connectors, or shared task services can receive selected data when you use them.</li>
+            <li>Local plugins and App backends run trusted code. Review where an App came from, the session's permissions, and the submitted content before using sensitive material.</li>
+            <li>Model and remote compute providers handle billing. Consult provider records for charges. Research step and time limits constrain the workflow.</li>
+          </ul>
+      </section>
+
+      <section aria-labelledby="verification-and-help">
+        <h2 id="verification-and-help">Verification and support</h2>
+        <p>The <a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">quality gates</a> record source checks, desktop runs, external services, and packaged release results by feature. When evaluating a scientific result, check its sources, run inputs, comparison rules, and independent review. The <a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">roadmap</a> covers planned team sync and shared research memory.</p>
+          <p>When reporting a problem in <a href="https://github.com/phodal/pero/issues">GitHub Issues</a>, include the version or source revision, platform, Electron or Native, reproduction steps, and any shareable error details. See the <a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">contributor guide</a> to make a code change.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

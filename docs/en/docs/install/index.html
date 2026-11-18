@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Download the Electron development preview for your operating system, or launch a build from source.">
+  <title>Install and launch · OpenPero</title>
+  <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/en/docs/install/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/install/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/install/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">Skip to content</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero home"><img src="../../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">Docs</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../../docs/install/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>Dark mode</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="Docs"><ul>
+      <li><a href="../">Overview</a></li>
+      <li><a href="./" aria-current="page">Install and launch</a></li>
+      <li><a href="../paper/">Read your first paper</a></li>
+      <li><a href="../workflows/">Research workflows</a></li>
+      <li><a href="../reference/">Concepts and reference</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">Install and launch</h1>
+        <p>Download the Electron development preview for your operating system, or launch a build from source.</p>
+      </header>
+    <nav class="guide-outline" aria-label="On this page">
+      <p aria-hidden="true">On this page</p>
+      <ul>
+        <li><a href="#download">Download the desktop workbench</a></li>
+        <li><a href="#prepare-environment">Prepare the App environment</a></li>
+        <li><a href="#from-source">Launch from source</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="download">
+        <h2 id="download">Download the desktop workbench</h2>
+        <p>Open <a href="https://github.com/phodal/pero/releases">GitHub Releases</a> and read the notes and assets for your release. The <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">November 12, 2026 development preview</a> provides these Electron packages.</p>
+          <ul>
+            <li><strong>macOS Apple Silicon.</strong> Open <code>Pero-macos-arm64.dmg</code>, drag <code>Pero.app</code> into Applications, and open it from there.</li>
+            <li><strong>Windows x64.</strong> Extract <code>Pero-windows-x64.zip</code> in full, then open <code>Pero.exe</code> from the extracted folder.</li>
+            <li><strong>Linux x64.</strong> Extract <code>Pero-linux-x64.tar.gz</code> and run <code>./pero</code> in the extracted app folder. Your system needs the usual Electron desktop libraries.</li>
+          </ul>
+          <p>macOS packages are ad-hoc signed and unnotarized. Windows and Linux packages are unsigned. Check the archive against <code>SHA256SUMS</code> from the same release. If the operating system blocks launch, consult the release notes.</p>
+          <p>The same preview offers <strong>Pero Native</strong> for Apple Silicon with a separate profile. This guide uses the Electron workbench for first use. Consult your release notes for features available in the package you downloaded.</p>
+      </section>
+
+      <section aria-labelledby="prepare-environment">
+        <h2 id="prepare-environment">Prepare the App environment</h2>
+        <ol>
+            <li>Open Pero and select <strong>Papers</strong> in the sidebar. If prompted, choose <strong>Prepare environment</strong>.</li>
+            <li>Wait for the environment to report ready. First-time setup may need internet access to download uv, CPython 3.12, and pinned App dependencies. If preparation fails, review the error details before retrying.</li>
+            <li>Continue to <a href="../paper/">read and annotate your first paper</a>. Importing and reading a local PDF requires no model account or API key.</li>
+          </ol>
+          <p>See <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">Python environment settings</a> for pre-provisioned virtual environments and offline setup.</p>
+      </section>
+
+      <section aria-labelledby="from-source">
+        <h2 id="from-source">Launch from source</h2>
+        <p>Follow the <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">development guide</a> for Node.js, Go, Rust with the Wasm target, Electron, and the pinned GPUI Kit. Then run this command at the repository root.</p>
+          <pre><code>npm run dev:paper</code></pre>
+          <p>The command builds and opens Paper in a separate development profile. Use <code>npm run dev</code> to open the full workbench. Local reading and App computation require neither the separate Go control plane nor PostgreSQL.</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>
