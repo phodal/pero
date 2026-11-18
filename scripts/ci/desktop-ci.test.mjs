@@ -66,6 +66,12 @@ test('daily keeps all Desktop acceptance; ordinary tier runs independent core co
   for (const name of ['desktop-linux', 'desktop', 'desktop-acceptance', 'windows-acl-sandbox']) assert.match(workflow.jobs[name].if, /schedule.*workflow_dispatch/);
   assert.equal(workflow.on.schedule[0].cron, '0 20 * * *');
   const platform = YAML.parse(readFileSync('.github/workflows/ci-jobs.yml', 'utf8')).jobs.desktop;
+  const startup = platform.steps.find(step => step.run?.includes('tests/e2e/workbench-startup.mjs'));
+  const runtimePack = platform.steps.find(step => step.run?.includes('desktop-artifact.mjs pack'));
+  assert.ok(platform.steps.indexOf(startup) > platform.steps.findIndex(step => step.run === 'npm run build'));
+  assert.ok(platform.steps.indexOf(startup) < platform.steps.indexOf(runtimePack));
+  assert.equal(startup.if, runtimePack.if);
+  assert.equal(startup['continue-on-error'], undefined);
   const nativeShell = platform.steps.find(step => step.name === 'Compile and test the Native GPUI and Wry shell');
   assert.equal(nativeShell.if, "runner.os == 'macOS'");
   assert.equal(nativeShell['continue-on-error'], undefined);
