@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.">
-  <title>Read your first paper · OpenPero</title>
+  <meta name="description" content="Import, annotate, and search a public PDF, then send a focused question to an Agent. Use the saved report to check citations, record gaps, and export evidence.">
+  <title>Read and research papers · OpenPero</title>
   <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/en/docs/paper/">
   <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/paper/">
@@ -31,71 +31,161 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="Docs"><ul>
-      <li><a href="../">Overview</a></li>
-      <li><a href="../install/">Install and launch</a></li>
-      <li><a href="./" aria-current="page">Read your first paper</a></li>
-      <li><a href="../workflows/">Research workflows</a></li>
-      <li><a href="../reference/">Concepts and reference</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="./" aria-current="page">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
-        <h1 id="guide-title">Read your first paper</h1>
-        <p>Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.</p>
+        <h1 id="guide-title">Read and research papers</h1>
+        <p>Import, annotate, and search a public PDF, then send a focused question to an Agent. Use the saved report to check citations, record gaps, and export evidence.</p>
       </header>
     <nav class="guide-outline" aria-label="On this page">
       <p aria-hidden="true">On this page</p>
       <ul>
-        <li><a href="#import-and-highlight">Import and save a highlight</a></li>
-        <li><a href="#ask-agent">Ask an Agent about a passage</a></li>
-        <li><a href="#check-citations">Follow citations to the source</a></li>
-        <li><a href="#troubleshoot">Troubleshooting</a></li>
+        <li><a href="#import-and-highlight">Import your first paper and save a highlight</a></li>
+        <li><a href="#reading-and-notes">Choose a reading view and organize annotations</a></li>
+        <li><a href="#find-sources">Find saved evidence and discover more papers</a></li>
+        <li><a href="#ask-agent">Ask a question you can check against the source</a></li>
+        <li><a href="#check-citations">Check citations, revise comparisons, and export</a></li>
+        <li><a href="#continue-research">Resume an unfinished study or follow up</a></li>
+        <li><a href="#research-plans">Plan a bounded literature investigation</a></li>
+        <li><a href="#troubleshoot">Troubleshoot reading and research</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="import-and-highlight">
-        <h2 id="import-and-highlight">Import and save a highlight</h2>
-        <p>Choose a PDF with selectable text. On first use, <a href="../install/#prepare-environment">prepare the App environment</a>.</p>
-          <ol>
-            <li>Open <strong>Papers</strong> from the sidebar and choose <strong>Add papers → PDF → Import PDF</strong>, or drop the file into the Paper window.</li>
-            <li>Select a sentence and choose <strong>Highlight</strong>. Open <strong>Annotations</strong> from the PDF context menu and inspect the saved location and quotation.</li>
-            <li>Return to the library and reopen the paper. Confirm the annotation still points to the right page. Paper saves annotations separately and retains the original PDF.</li>
-          </ol>
-          <p>This step requires no model. Text selection and search rely on the existing PDF text layer. If text is unavailable, use <strong>Capture area</strong> from the PDF context menu to save the location of a figure or table for review.</p>
+        <h2 id="import-and-highlight">Import your first paper and save a highlight</h2>
+        <p>Open <strong>Papers</strong> in the desktop workbench. On first use, <a href="../install/#prepare-environment">prepare the App environment</a> if prompted. This walkthrough uses the public preprint <a href="https://arxiv.org/abs/2603.28052v1">Meta-Harness (arXiv:2603.28052v1)</a>. You can also use a PDF you have permission to access with selectable text.</p>
+        <ol>
+          <li>Download the <a href="https://arxiv.org/pdf/2603.28052v1">versioned example PDF</a>. In the library choose <strong>Add papers → PDF → Import PDF</strong>, or drop the file into the Paper window. Paper opens the saved PDF. Importing a byte-identical file reopens the existing record.</li>
+          <li>On the first page, find the sentence containing <code>agentic proposer</code> in the abstract. Select text within that page. Enter a note if useful, such as “Which previous results can the proposer see?” Then choose <strong>Highlight</strong>.</li>
+          <li>Right-click the PDF and choose <strong>Annotations</strong>. Check the quotation, page number, and note. Return to the library, reopen the paper, and choose the annotation’s page number. You should return to the saved page and region.</li>
+        </ol>
+        <p>You have now saved and reopened a local annotation. This flow needs no model account or API key. Paper stores annotations separately from the original PDF.</p>
+      </section>
+
+      <section aria-labelledby="reading-and-notes">
+        <h2 id="reading-and-notes">Choose a reading view and organize annotations</h2>
+        <ul>
+          <li><strong>PDF</strong> gives you the original pagination, figures, and citation locations. Choose <strong>Page text</strong> from the PDF context menu to read the extracted text for the current page. Text selection depends on the file’s existing text layer.</li>
+          <li><strong>Read</strong> displays imported text or prepared structured full text. For a supported arXiv source, review the fixed version and authorize its official HTML to retain sections, equations, and tables. HTML and PDF preserve their own source locations.</li>
+          <li><strong>TeX</strong> builds a reading preview from an approved same-version source archive. The current compiler path requires macOS and Tectonic. The first build can need dependency downloads. The preview and the original PDF have separate identities and pagination. <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#typeset-tex-reading">TeX reading and diagnostics</a></li>
+        </ul>
+        <figure><img src="../../../assets/openpero-paper-research-02-read.svg" alt="Diagram of the Paper reader, showing the PDF view and the highlight action for selected text" width="1600" height="463" loading="lazy"><figcaption>Reader walkthrough diagram. Control placement varies by version.</figcaption></figure>
+        <p>For a scanned page, equation, or figure, choose <strong>Capture area</strong>, drag over the region, and confirm the image annotation. Choose <strong>Annotations → Add to matrix</strong> and enter a comparison field such as “Sample size” or “Metric.” The matrix page link opens the original region. Check values and units against headers, captions, and surrounding text.</p>
+      </section>
+
+      <section aria-labelledby="find-sources">
+        <h2 id="find-sources">Find saved evidence and discover more papers</h2>
+        <h3>Search your own library</h3>
+        <p>Return to the library and submit <code>agentic proposer</code> in <strong>Search saved text</strong>. The results should include matching passages. Open a PDF result to return to its saved document and page. Expand <strong>Snapshot details</strong> for the complete passage, source link, and digest. This searches saved text and each source’s latest saved PDF locally without starting an Agent.</p>
+        <h3>Find sources through public literature services</h3>
+        <ol>
+          <li>Use <strong>Add papers</strong> to search by title or keyword, or read a known paper ID. The selected public literature providers receive the search terms.</li>
+          <li>Check the title, authors, date, and version before saving. Identify whether you are reading <strong>Full text</strong>, an <strong>Abstract</strong>, or a <strong>Third-party report</strong>. Open the appropriate original before evaluating methods, data, or metrics.</li>
+          <li>Choose <strong>Discover</strong> on a saved paper and select <strong>Related papers</strong>, <strong>References</strong>, or <strong>Citing papers</strong>. If prompted to confirm the source, compare the OpenAlex candidate’s title, authors, and year. Save useful candidates and treat relationship results as leads to check.</li>
+        </ol>
+        <p>To inspect a public page that links papers, code, and data, use <strong>Add papers → Research URL</strong> with its HTTPS address. Save references first, then separately review and confirm any offered file downloads. <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#import-a-research-url">Research URL import and resource limits</a></p>
       </section>
 
       <section aria-labelledby="ask-agent">
-        <h2 id="ask-agent">Ask an Agent about a passage</h2>
+        <h2 id="ask-agent">Ask a question you can check against the source</h2>
         <ol>
-            <li>For the built-in Agent, open <strong>Settings → Built-in Agent</strong> and enter the API URL, model, and key. External Agents use their own sign-in flows. Full-text PDF research requires an Agent with HTTP MCP support. See the <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">Agent setup guide</a>.</li>
-            <li>Click <strong>Ask AI</strong> in the reader, or select text and choose <strong>Discuss selection</strong>. Review the draft and any attached passage, then send. Your model provider may receive the question and selected text.</li>
-          </ol>
-          <blockquote><p>How do the authors describe when this method applies? Quote the source and list the limitations I should check.</p></blockquote>
+          <li>Prepare a model using the <a href="../agents/">Agent setup guide</a>. Set the API URL, model, and key for the built-in Agent, or complete an external Agent’s sign-in flow. Full-PDF research requires an Agent with HTTP MCP support.</li>
+          <li>Choose <strong>Discuss selection</strong> on an excerpt from the example, or choose <strong>Ask AI</strong> in the reader. Review the draft and attached excerpt. Remove unrelated text. Hide the conversation for full-width reading, or toggle it with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>J</kbd>.</li>
+          <li>For a question that needs material beyond the selected excerpt, open <strong>Research settings</strong>, select one to five saved PDFs, and enable <strong>Search full PDF text</strong>. Sending freezes the question and file versions. Follow progress and approval requests in the shared conversation.</li>
+        </ol>
+        <blockquote><p>In Meta-Harness v1, what information about earlier candidates can the proposer access? How do the authors separate search feedback from held-out evaluation? Cite the source for each part and identify anything the evidence leaves open.</p></blockquote>
+        <p>Look for separate citations about candidate history and evaluation setup, plus any unresolved gaps. If the answer misses one part, narrow it to the terms used in the paper. Confirm that you may share the selected material with your provider before sending.</p>
       </section>
 
       <section aria-labelledby="check-citations">
-        <h2 id="check-citations">Follow citations to the source</h2>
+        <h2 id="check-citations">Check citations, revise comparisons, and export</h2>
         <ol>
-            <li>After the report is saved, click the clock icon labeled <strong>Research record</strong> in the reader toolbar and open the report.</li>
-            <li>Click a citation and read the surrounding passage. When a quotation has multiple matches, choose the location relevant to the claim.</li>
-            <li>Compare the claim with the source and review any open questions. Use <strong>Continue from here</strong> to draft a follow-up and send it when ready.</li>
-          </ol>
-          <p>A citation locates a source passage. Check whether the passage supports the claim and whether the method applies to your own work.</p>
+          <li>Open the reader’s clock icon, <strong>Research record</strong>, and select the question. Check for <strong>Report saved</strong>. If you have a chat response, confirm here that the report passed validation and was saved.</li>
+          <li>Select a citation. A PDF citation opens the saved version used for the study and locates the passage. If <strong>Citation evidence</strong> lists multiple matches, open each one and find the occurrence that supports or qualifies the claim. Read the context and check conditions and units.</li>
+          <li>When the report has an <strong>Evidence matrix</strong>, check the comparison definition, value, and citation in each cell. Use <strong>Edit cell</strong> and record a reason when making a correction. Paper preserves the original report and records human corrections separately.</li>
+          <li>Use <strong>Export Markdown</strong> to share a readable report, or <strong>Export JSON</strong> to retain structured citations, input versions, and matrix revisions. <strong>Print / PDF</strong> creates a readable copy. Reopening a saved report needs no model call.</li>
+        </ol>
+        <figure><img src="../../../assets/openpero-paper-research-04-review.svg" alt="Diagram of the research record and citation evidence alongside the original PDF" width="1600" height="719" loading="lazy"><figcaption>Research record and citation walkthrough diagram.</figcaption></figure>
+        <p>An exact match locates the quote in the saved source. For scientific review, judge whether the passage supports the claim, whether other evidence conflicts, and whether an independent check is needed. The <a href="../workflows/#recheck-a-result">Fisher worked example</a> shows independent numerical verification and evidence handoff.</p>
+      </section>
+
+      <section aria-labelledby="continue-research">
+        <h2 id="continue-research">Resume an unfinished study or follow up</h2>
+        <dl>
+          <dt>The study ended before submitting a report</dt>
+          <dd>Open its research record to check <strong>Findings</strong> and <strong>Still to check</strong>. Choose <strong>Continue research</strong> to proceed from the saved evidence and gaps. Check the original conversation for requests that are still running.</dd>
+          <dt>The report is saved and you need one more piece of evidence</dt>
+          <dd>Choose <strong>Continue from here</strong>, review the draft, and send it. For example, ask for the passage in the evaluation section that describes the held-out data. The new question retrieves its own source evidence and uses previous replies as conversation context.</dd>
+          <dt>The question or set of papers has changed</dt>
+          <dd>Prepare a new research input. Compare sources and gaps across the retained records. If you import a newer PDF, the earlier report still points to the version used in that study.</dd>
+        </dl>
+        <p>The example paper has been exercised in a real Agent and desktop run. The verification record also lists what the broad first question missed. <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-harness-journey.md#real-agent-acceptance">Example verification and retrieval scope</a></p>
+      </section>
+
+      <section aria-labelledby="research-plans">
+        <h2 id="research-plans">Plan a bounded literature investigation</h2>
+        <p>Use <strong>Autonomous research</strong> to screen and read sources over multiple rounds around one question. It requires a configured built-in Pero Agent and an available workspace.</p>
+        <ol>
+          <li>Choose <strong>New plan</strong> and select one to five saved starting papers. Set the scope and screening criteria. For example, include original sources that describe evaluation conditions and track abstract-only candidates separately.</li>
+          <li>Choose <strong>Sources to read</strong>. Begin with <strong>Saved sources only</strong> to bound the source set. When you need new sources, choose public PDFs or the policy that also permits fixed-version official HTML, as available in your version.</li>
+          <li>Review rounds, searches, reading steps, model requests, and the time limit. Choose <strong>Save and review plan</strong>, then explicitly choose <strong>Start research</strong>. Review round reports, sources, and <strong>Open questions</strong>.</li>
+          <li>Pausing lets you resume the same Run with the allowances already used. If the deadline passes, the allowance runs out, or you stop the study, review the retained evidence before starting any new plan.</li>
+        </ol>
+        <p>Round reports remain <strong>Needs review</strong>. Distinguish source passages actually read from discovered candidates and failed acquisitions. Workflow limits bound operations. Provider records determine model costs. <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-autonomous-research.md#product-behavior">Autonomous research verification</a></p>
       </section>
 
       <section aria-labelledby="troubleshoot">
-        <h2 id="troubleshoot">Troubleshooting</h2>
-        <ul>
-            <li><strong>Agent fails to start or sign in.</strong> Check your Agent choice, credentials, and the error shown in the conversation. After signing in, review and resend the question.</li>
-            <li><strong>Full-text search returns no matches.</strong> Try the paper's terminology, narrow your question, or select a known passage in the reader. An empty result describes the current search.</li>
-            <li><strong>A study stops before submitting a report.</strong> Open the saved research record, review its findings and gaps, then choose <strong>Continue research</strong>.</li>
-          </ul>
-          <p>See the <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#pdf-reading">Paper guide</a> for more reading and retrieval options.</p>
+        <h2 id="troubleshoot">Troubleshoot reading and research</h2>
+        <dl>
+          <dt>Import fails or the PDF will not open</dt>
+          <dd>Confirm the file is a PDF. Uploads accept up to 16 MiB and documents up to 500 pages. If the error names missing PDF dependencies, return to <a href="../install/#prepare-environment">environment preparation</a>, check the installation result, and reopen the paper.</dd>
+          <dt>You can see the page but cannot select text</dt>
+          <dd>Check for a text layer with <strong>Page text</strong>. For a scan, preserve the source location with <strong>Capture area</strong> or import a copy with a text layer. Full-text search does not automatically OCR scanned PDFs.</dd>
+          <dt>A full-text question found no passages</dt>
+          <dd>Confirm the PDF is saved and the target version contains source text. Try a method name, table name, or other source-language wording. You can also discuss a passage selected by hand. No matches means the search returned no matching passages for this attempt.</dd>
+          <dt>A request is waiting or a report cannot be saved</dt>
+          <dd>Check the shared conversation for sign-in, approval, and model errors. Then open the research record to check what was saved. If validation reports invalid citations, revisit those sources before retrying. Continue from an existing unfinished record when available.</dd>
+        </dl>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

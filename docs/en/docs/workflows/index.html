@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Inspect a dataset version, recheck a published result, or organize materials in a research project. Check the linked verification records for versions and coverage.">
+  <meta name="description" content="Start with a dataset, a published result, or a set of trials. Check the inputs, method, and execution evidence, then save the records someone will need to review.">
   <title>Research workflows · OpenPero</title>
   <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/en/docs/workflows/">
@@ -31,64 +31,98 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="Docs"><ul>
-      <li><a href="../">Overview</a></li>
-      <li><a href="../install/">Install and launch</a></li>
-      <li><a href="../paper/">Read your first paper</a></li>
-      <li><a href="./" aria-current="page">Research workflows</a></li>
-      <li><a href="../reference/">Concepts and reference</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="./" aria-current="page">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="../reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
         <h1 id="guide-title">Research workflows</h1>
-        <p>Inspect a dataset version, recheck a published result, or organize materials in a research project. Check the linked verification records for versions and coverage.</p>
+        <p>Start with a dataset, a published result, or a set of trials. Check the inputs, method, and execution evidence, then save the records someone will need to review.</p>
       </header>
     <nav class="guide-outline" aria-label="On this page">
       <p aria-hidden="true">On this page</p>
       <ul>
-        <li><a href="#inspect-data">Inspect a dataset version</a></li>
-        <li><a href="#recheck-a-result">Recheck one result from Fisher’s paper</a></li>
-        <li><a href="#organize-a-project">Link material to a research project</a></li>
-        <li><a href="#remote-compute">Prepare a remote computation</a></li>
+        <li><a href="#inspect-data">From a dataset to a research notebook</a></li>
+        <li><a href="#recheck-a-result">Recheck one number from Fisher Table III</a></li>
+        <li><a href="#organize-a-project">Organize materials around a research question</a></li>
+        <li><a href="#control-experiment">From candidate search to independent trials</a></li>
+        <li><a href="#remote-compute">Prepare a remote run</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="inspect-data">
-        <h2 id="inspect-data">Inspect a dataset version</h2>
-        <ol>
-            <li>Save these <a href="https://raw.githubusercontent.com/phodal/pero/master/docs/examples/first-dataset.json">six synthetic records</a> as <code>first-dataset.json</code>. In <strong>Data</strong>, choose <strong>Add data</strong>, select the file, and confirm the import.</li>
-            <li>Open the dataset and choose <strong>Explore data</strong>. Confirm the six records and three fields, then check the selected version and SHA-256 under provenance.</li>
-            <li>Save a view to retain filters or chart settings. To append a revision, choose <strong>Add version</strong> on the existing entry. Importing the same filename from the library creates a separate dataset.</li>
-          </ol>
-          <p>Table inspection runs locally without a model. It supports UTF-8 CSV, TSV, JSON, and JSONL. Imports are limited to 10 MiB. See <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data versions, provenance, and checks</a>.</p>
+        <h2 id="inspect-data">From a dataset to a research notebook</h2>
+        <p>Download six synthetic records, check fields and duplicates in Data, and save a view for the treatment group. Record your method, calculations, or conclusions separately in Notebook. When handing off your work, record the asset version and SHA-256 and include the original or an accessible source.</p>
+          <ul><li>Follow the <a href="../data/#sample-walkthrough">six-record Data walkthrough</a>.</li><li>Save <a href="../notebook/#first-revision">your first Notebook revision</a> or <a href="../notebook/#attach-evidence">attach evidence someone can trace</a>.</li></ul>
       </section>
 
       <section aria-labelledby="recheck-a-result">
-        <h2 id="recheck-a-result">Recheck one result from Fisher’s paper</h2>
-        <ol>
-            <li>In Paper, import the <a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">original Fisher (1936) PDF used for the case</a>. For those exact file bytes, the toolbar offers <strong>Select Fisher Table III result</strong>.</li>
-            <li>Review the original table, 100 input measurements, calculation, and comparison rule. Freeze the protocol and explicitly confirm a run. Compare the reported <strong>19.1434 cm²</strong> with the computed value, difference, and independent numerical check.</li>
-            <li>Export the evidence ZIP, extract it, and run the command below in the extracted directory. The independent check uses the Python standard library and requires no network or model.</li>
+        <h2 id="recheck-a-result">Recheck one number from Fisher Table III</h2>
+        <p>This walkthrough rechecks the sepal-length within-species sum of squares of <strong>19.1434 cm²</strong> from Fisher (1936), Table III. Table I supplies 100 inputs, 50 each for setosa and versicolor. For each species, sum the squared deviations from its mean and add the two sums. The table reports 98 degrees of freedom. The sum of squares has no divisor.</p>
+          <ol>
+            <li>Download <a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">the original university-hosted PDF</a> and import it into Paper. In the reader, choose <strong>Select Fisher Table III result</strong>. This opens the original cell on PDF page 4 (printed page 181). The action requires the original file’s SHA-256, so use the download without printing or resaving it.</li>
+            <li>Open <strong>Review input observations</strong> and compare the inputs with Table I on PDF page 3 (printed page 180). Setosa row 32 reads <code>5.4</code> in the scan. Text recognition may return <code>6.4</code>. Keep the default absolute tolerance <code>0.00005</code>, confirm the inputs, statistic, and policy, then choose <strong>Freeze protocol</strong>.</li>
+            <li>Choose <strong>Confirm and run fixed arithmetic</strong>. Open that attempt and review execution status, the single-result verdict, the independent check, and the original location. The recorded group sums are <code>6.0882</code> and <code>13.0552</code>. The independent exact total is <code>95717/5000</code>, with a difference of <code>0 cm²</code> from the published value.</li>
+            <li>Choose <strong>Export standalone handoff ZIP</strong> and extract it into a fresh directory. The ZIP includes the original PDF, reviewed CSV, frozen protocol, execution records, and standalone verifier. Run the command below in that directory. The check requires only the Python standard library and works offline.</li>
           </ol>
           <pre><code>python -I -S verify.py</code></pre>
-          <p>The recorded <code>REPRODUCED</code> verdict covers one value in the table. The paper-level verdict remains <code>NOT_ASSESSED</code>. See the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11">Fisher case inputs and acceptance record</a>.</p>
+          <p>Expect exit code 0 and JSON with <code>count: 100</code>, exact numerator <code>95717</code>, denominator <code>5000</code>, single-result verdict <code>REPRODUCED</code>, and whole-paper status <code>NOT_ASSESSED</code>. If the environment differs from the frozen protocol, review the logs and restore it, or review the new environment and freeze a new protocol. A completed calculation outside tolerance calls for reviewing the inputs and policy. A rerun uses the same policy and keeps a separate attempt.</p>
+          <p>See the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md">Fisher verification record</a> for source digests, observed runs, and recovery evidence.</p>
       </section>
 
       <section aria-labelledby="organize-a-project">
-        <h2 id="organize-a-project">Link material to a research project</h2>
-        <p>Choose <strong>New research project</strong> and enter a name and research goal. You can also attach a local directory. Open <strong>Materials &amp; experiments → Link existing records</strong>, choose an enabled App, and link a saved paper, study, or experiment.</p>
-          <p>The project stores links to the original records. Open a link to see the record in its App. If the record changes, review it and update the linked revision when needed. See <a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md">research project behavior and verification</a>.</p>
+        <h2 id="organize-a-project">Organize materials around a research question</h2>
+        <p>Write the question in a <a href="../projects/">research project</a> and link the relevant Paper documents, research records, or experiments. The project shows a summary and opens the record in its source App. To cite an exact input in a report, retain the paper version, Notebook revision, or trial ID as well.</p>
+      </section>
+
+      <section aria-labelledby="control-experiment">
+        <h2 id="control-experiment">From candidate search to independent trials</h2>
+        <p><strong>Control Lab</strong> uses python-control for controller simulation and ngspice for a constrained second-order active low-pass simulation. Check the availability panel for the actual solver before starting. Install ngspice through your system and make its executable available on the desktop process’s PATH.</p>
+          <ol><li>Freeze the system, inputs, metrics, search scenarios, and acceptance thresholds.</li><li>Run the bounded search. Compare the baseline and candidate traces and record why you chose a candidate.</li><li>Lock that candidate and run the final scenarios. Check results, units, constraints, and any failures. Use <strong>Export</strong> to get the experiment JSON and <a href="../notebook/#attach-evidence">attach a specific trial</a> to a notebook.</li></ol>
+          <p>Interpret finite-window observations against the frozen criteria. Hardware performance, asymptotic stability, and formal acceptance require their own evidence. See <a href="https://github.com/phodal/pero/blob/master/apps/control-lab/README.md">Control Lab environment and verification requirements</a>.</p>
       </section>
 
       <section aria-labelledby="remote-compute">
-        <h2 id="remote-compute">Prepare a remote computation</h2>
-        <p>With an authorized SSH or Slurm environment, choose a connection in <strong>Compute</strong>, probe it, and prepare the bundled CPU midpoint quadrature method. Review the destination, frozen parameters, and requested resources before approving submission.</p>
-          <p>Return to the original attempt to observe status, read logs, and collect saved artifacts. Verification covers an actual loopback SSH server and a Slurm fixture. Real Slurm sites and other scientific methods need separate acceptance. See the <a href="https://github.com/phodal/pero/blob/master/apps/compute/README.md">Compute guide</a> and <a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">verification record</a>.</p>
+        <h2 id="remote-compute">Prepare a remote run</h2>
+        <p>Use an authorized SSH or Slurm environment to try the built-in CPU midpoint quadrature. Review the connection, fixed parameters, and resources before submitting. Then check the status, logs, and collected artifacts for that attempt. Follow the <a href="../compute/">environments and remote compute guide</a>.</p>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

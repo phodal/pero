@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.">
-  <title>Concepts and reference · OpenPero</title>
+  <meta name="description" content="Find the right record, understand what a run can establish, and find where to investigate a problem.">
+  <title>Concepts, evidence, and troubleshooting · OpenPero</title>
   <link rel="icon" href="../../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/en/docs/reference/">
   <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/reference/">
@@ -31,56 +31,114 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="Docs"><ul>
-      <li><a href="../">Overview</a></li>
-      <li><a href="../install/">Install and launch</a></li>
-      <li><a href="../paper/">Read your first paper</a></li>
-      <li><a href="../workflows/">Research workflows</a></li>
-      <li><a href="./" aria-current="page">Concepts and reference</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../install/">Install and launch</a></li>
+          <li><a href="../paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="../workflows/">Research workflows</a></li>
+          <li><a href="../data/">Data</a></li>
+          <li><a href="../notebook/">Notebook</a></li>
+          <li><a href="../projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="../agents/">Agents and tools</a></li>
+          <li><a href="../compute/">Environments and compute</a></li>
+          <li><a href="./" aria-current="page">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
-        <h1 id="guide-title">Concepts and reference</h1>
-        <p>See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.</p>
+        <h1 id="guide-title">Concepts, evidence, and troubleshooting</h1>
+        <p>Find the right record, understand what a run can establish, and find where to investigate a problem.</p>
       </header>
     <nav class="guide-outline" aria-label="On this page">
       <p aria-hidden="true">On this page</p>
       <ul>
-        <li><a href="#concepts">Objects in the workbench</a></li>
-        <li><a href="#data-and-cost">Data, permissions, and costs</a></li>
-        <li><a href="#verification-and-help">Verification and support</a></li>
+        <li><a href="#concepts">Objects and records in the workbench</a></li>
+        <li><a href="#read-a-result">Trace a conclusion back to evidence</a></li>
+        <li><a href="#data-and-cost">Local data, permissions, and billing</a></li>
+        <li><a href="#verification-and-help">Read acceptance records and diagnose problems</a></li>
+        <li><a href="#developer-reference">Development and deployment</a></li>
       </ul>
     </nav>
       <article class="guide-prose">
       <section aria-labelledby="concepts">
-        <h2 id="concepts">Objects in the workbench</h2>
-        <dl>
-            <dt>Research project</dt><dd>Holds a research goal and links to App records, with an optional local directory.</dd>
-            <dt>App</dt><dd>Provides a domain interface, methods, and data. Paper holds papers and research reports. Data holds dataset versions.</dd>
-            <dt>Host and Agent session</dt><dd>The Host manages local Apps, credentials, Agent sessions, approvals, and cancellation. Review pending tool requests in the conversation.</dd>
-            <dt>Control plane and Worker</dt><dd>The optional control plane coordinates shared tasks. A separate Worker handles them in its configured execution environment. The services need their own deployment and authorization.</dd>
-          </dl>
-          <p>See the <a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">architecture guide</a> and <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App development guide</a> for ownership and integration details.</p>
+        <h2 id="concepts">Objects and records in the workbench</h2>
+        <table>
+            <thead><tr><th scope="col">Object</th><th scope="col">What it records</th><th scope="col">Where to look</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Research project</th><td>A goal, optional local folder, and links to App records. Each App stores its own domain data.</td><td><a href="../projects/">Project overview and references</a></td></tr>
+              <tr><th scope="row">Research App</th><td>Objects specific to the App, such as a paper snapshot, dataset file version, notebook revision, or experiment attempt.</td><td><a href="../workflows/">App workflows and source records</a></td></tr>
+              <tr><th scope="row">Agent session</th><td>Messages, tool activity, and approvals. The local Host manages the session. You choose the Agent and workspace when it starts.</td><td><a href="../agents/">Conversation history and tools</a></td></tr>
+              <tr><th scope="row">Computation attempt</th><td>The method, inputs, execution environment, and the status, logs, or artifacts of a specific attempt. Fields depend on the workflow.</td><td><a href="../compute/">Compute records</a> or the App that owns the experiment</td></tr>
+              <tr><th scope="row">Shared task and Worker</th><td>The optional control plane coordinates shared tasks. An enrolled Worker executes in its configured environment.</td><td><a href="https://github.com/phodal/pero/blob/master/desktop/README.md#remote-tasks">Desktop remote tasks</a></td></tr>
+            </tbody>
+          </table>
+          <p>For example, a project link to a Paper report opens the original in Paper. To record the data you reviewed at that point, note the exact Data file version or save a Notebook revision with a reference.</p>
+      </section>
+
+      <section aria-labelledby="read-a-result">
+        <h2 id="read-a-result">Trace a conclusion back to evidence</h2>
+        <ol>
+            <li><strong>Find the source.</strong> Follow a paper claim to the cited passage and check the context and units. For data, identify the exact file version, source, and SHA-256.</li>
+            <li><strong>Find the run.</strong> Check the input, method version, parameters, and environment. Open the logs and artifacts from that attempt. Keep the earlier attempt available when you rerun for comparison.</li>
+            <li><strong>Read the verification verdict.</strong> Check which output was evaluated, what rule was fixed before the run, and what an independent check recomputed. Record whether verification passed, found a mismatch, or was unavailable. A completed run establishes that the procedure ran.</li>
+            <li><strong>State the scope.</strong> The <a href="../workflows/#recheck-a-result">Fisher example</a> checks one value in Table III. <code>REPRODUCED</code> applies to that value. The whole-paper verdict is <code>NOT_ASSESSED</code>.</li>
+          </ol>
+          <p>A useful record for Fisher (1936) names the Table III result, the 100 reviewed inputs, the expected 19.1434 cm², and the tolerance of 0.00005 cm². The exported verification report contains the independent check.</p>
       </section>
 
       <section aria-labelledby="data-and-cost">
-        <h2 id="data-and-cost">Data, permissions, and costs</h2>
+        <h2 id="data-and-cost">Local data, permissions, and billing</h2>
         <ul>
-            <li>Apps store domain data on the machine where they run. Model providers, literature services, MCP connectors, or shared task services can receive selected data when you use them.</li>
-            <li>Local plugins and App backends run trusted code. Review where an App came from, the session's permissions, and the submitted content before using sensitive material.</li>
-            <li>Model and remote compute providers handle billing. Consult provider records for charges. Research step and time limits constrain the workflow.</li>
+            <li><strong>Settings and data.</strong> The default Electron workbench stores Host settings in <code>~/.pero/config/runtime-settings.json</code> and App records in <code>~/.pero/app-data/</code>. Conversation history is in <code>sessions.jsonl</code> in Electron’s user-data directory. Native, standalone products, and isolated development profiles use their own locations.</li>
+            <li><strong>External requests.</strong> Reading a local file and running a local method can stay on your computer. Model requests, literature search, MCP, and shared task services may receive relevant questions, selected context, or tool arguments. Review drafts, attachments, and requested permissions before proceeding.</li>
+            <li><strong>Billing.</strong> Model and compute charges come from the provider’s usage records. Workflow step and time limits govern that execution. The interface shows usage when usage data is available.</li>
           </ul>
+          <p>Use App export actions to share research records. Dataset versions, notebook revisions, and run evidence have their own export formats and scopes.</p>
       </section>
 
       <section aria-labelledby="verification-and-help">
-        <h2 id="verification-and-help">Verification and support</h2>
-        <p>The <a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">quality gates</a> record source checks, desktop runs, external services, and packaged release results by feature. When evaluating a scientific result, check its sources, run inputs, comparison rules, and independent review. The <a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">roadmap</a> covers planned team sync and shared research memory.</p>
-          <p>When reporting a problem in <a href="https://github.com/phodal/pero/issues">GitHub Issues</a>, include the version or source revision, platform, Electron or Native, reproduction steps, and any shareable error details. See the <a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">contributor guide</a> to make a code change.</p>
+        <h2 id="verification-and-help">Read acceptance records and diagnose problems</h2>
+        <p><strong>Identify where the failure occurred.</strong> Start with <a href="../install/#startup-troubleshooting">startup troubleshooting</a> if the workbench or an App cannot launch. For model errors, check <a href="../agents/">sign-in, credentials, and session settings</a>. When a submitted job produces no result, check <a href="../compute/">the connection, attempt state, logs, and artifacts</a>. If the conclusion is in question, follow the <a href="#read-a-result">source and verification checks</a>.</p>
+          <p>The <a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">acceptance levels</a> describe the conditions covered. L0 covers code and contract checks. L1 runs Desktop with an Agent fixture. L2 uses a real provider, environment, or service. L3 checks installation, upgrade, and operation of the signed package on the target system. Check the version, platform, sample, and remaining gaps in each record.</p>
+          <p>When filing a <a href="https://github.com/phodal/pero/issues">GitHub issue</a>, include the version or commit SHA, OS and architecture, Electron or Native, steps, expected and observed results, and any shareable error or request ID.</p>
+      </section>
+
+      <section aria-labelledby="developer-reference">
+        <h2 id="developer-reference">Development and deployment</h2>
+        <dl>
+            <dt>Build Desktop and contribute changes</dt><dd>Follow <a href="../install/#from-source">source setup</a>. Use the <a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">contribution guide</a> and <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#verification">verification commands</a> for the area you change.</dd>
+            <dt>Develop an App</dt><dd>Start from an existing example under <code>apps/</code>. The <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App development contract</a> covers the manifest, Web panels, backend, environment, and declared permissions.</dd>
+            <dt>Deploy shared tasks</dt><dd>See <a href="https://github.com/phodal/pero/blob/master/server/README.md">control plane setup</a> for PostgreSQL, server configuration, and project access. Use the <a href="https://github.com/phodal/pero/blob/master/crates/pero-worker/README.md">Worker guide</a> to connect an execution machine.</dd>
+            <dt>Look up boundaries and plans</dt><dd>See the <a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">architecture</a>, <a href="https://github.com/phodal/pero/blob/master/docs/adr/README.md">decision records</a>, and <a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">roadmap</a>.</dd>
+          </dl>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

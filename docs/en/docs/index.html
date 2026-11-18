@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Read papers, inspect data, run research Apps, and trace results back to their evidence in one desktop workbench. Start by importing a PDF.">
+  <meta name="description" content="Read papers, inspect data, and record your research in one desktop workbench. Trace results back to their sources and recorded runs.">
   <title>Pero documentation · OpenPero</title>
   <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
   <link rel="canonical" href="https://openpero.com/en/docs/">
@@ -31,37 +31,77 @@
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="Docs"><ul>
-      <li><a href="./" aria-current="page">Overview</a></li>
-      <li><a href="install/">Install and launch</a></li>
-      <li><a href="paper/">Read your first paper</a></li>
-      <li><a href="workflows/">Research workflows</a></li>
-      <li><a href="reference/">Concepts and reference</a></li>
-    </ul></nav>
+    <nav class="guide-nav" aria-label="Docs">
+      <div class="guide-nav-group">
+        <p>Get started</p>
+        <ul>
+          <li><a href="./" aria-current="page">Overview</a></li>
+          <li><a href="install/">Install and launch</a></li>
+          <li><a href="paper/">Paper research</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Research Apps</p>
+        <ul>
+          <li><a href="workflows/">Research workflows</a></li>
+          <li><a href="data/">Data</a></li>
+          <li><a href="notebook/">Notebook</a></li>
+          <li><a href="projects/">Research projects</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>Configuration and reference</p>
+        <ul>
+          <li><a href="agents/">Agents and tools</a></li>
+          <li><a href="compute/">Environments and compute</a></li>
+          <li><a href="reference/">Concepts and reference</a></li>
+        </ul>
+      </div>
+    </nav>
     <main id="guide-main" class="guide-main" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
         <h1 id="guide-title">Pero documentation</h1>
-        <p>Read papers, inspect data, run research Apps, and trace results back to their evidence in one desktop workbench. Start by importing a PDF.</p>
+        <p>Read papers, inspect data, and record your research in one desktop workbench. Trace results back to their sources and recorded runs.</p>
       </header>
       <article class="guide-prose">
       <section class="guide-start" aria-labelledby="choose-task">
-        <h2 id="choose-task">Choose a task</h2>
+        <h2 id="choose-task">Start here</h2>
         <ul>
-          <li><a href="install/"><strong>Install and launch</strong><span>Download the Electron development preview for your operating system, or launch a build from source.</span></a></li>
-          <li><a href="paper/"><strong>Read your first paper</strong><span>Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.</span></a></li>
-          <li><a href="workflows/"><strong>Research workflows</strong><span>Inspect a dataset version, recheck a published result, or organize materials in a research project. Check the linked verification records for versions and coverage.</span></a></li>
-          <li><a href="reference/"><strong>Concepts and reference</strong><span>See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.</span></a></li>
+          <li><a href="install/"><strong>Install and launch</strong><span>Choose a desktop package for your system, verify the download, and prepare your first App. Build from source to try newer features.</span></a></li>
+          <li><a href="paper/"><strong>Paper research</strong><span>Import, annotate, and search a public PDF, then send a focused question to an Agent. Use the saved report to check citations, record gaps, and export evidence.</span></a></li>
+          <li><a href="workflows/"><strong>Research workflows</strong><span>Start with a dataset, a published result, or a set of trials. Check the inputs, method, and execution evidence, then save the records someone will need to review.</span></a></li>
+          <li><a href="agents/"><strong>Agents and tools</strong><span>Connect a built-in or external Agent, confirm a plain-text reply, then add a workspace, context, and tool access for your task.</span></a></li>
         </ul>
       </section>
       <section aria-labelledby="where-to-run">
-        <h2 id="where-to-run">Choose where to start</h2>
-        <p>Use the <strong>Electron desktop workbench</strong> with your own papers and data. Read sources, save annotations, and inspect datasets locally. Set up a model provider when you need an Agent.</p>
-          <p>Try task assignment and result review in the <a href="../#distributed">interactive browser demo</a>. It uses example data and simulated roles. Use the desktop workbench to follow the research steps in this guide.</p>
+        <h2 id="where-to-run">Choose where to run Pero</h2>
+        <p>Follow the tutorials in the <strong>Electron desktop workbench</strong>. You can read and annotate PDFs, inspect local data, and save notes on your computer. Configure a model provider when you want an Agent to analyze something. Set up a Compute connection when a method needs to run on another machine.</p>
+          <p>The <a href="../#distributed">interactive website demo</a> shows task assignment and result review with example data and simulated roles. The <a href="https://openpero.com/workbench/">browser workbench preview</a> shows the interface. Local Agents and research Apps require the desktop Host.</p>
+      </section>
+
+      <section aria-labelledby="continue-your-research">
+        <h2 id="continue-your-research">Continue by research task</h2>
+        <ul>
+            <li>Use <a href="data/">Data</a> and six sample records to import a file, filter rows, save a view, and check a version.</li>
+            <li>Use <a href="notebook/">Notebook</a> to save a revision with your observations and sources, then reopen or export it.</li>
+            <li>Use <a href="projects/">Projects</a> to record a goal and link existing papers, research reports, and experiments.</li>
+            <li>Use <a href="compute/">Compute</a> to identify the dependencies and execution location, then inspect the job status, logs, and artifacts.</li>
+            <li><a href="reference/#read-a-result">Assess what a result supports</a> by checking sources, run records, independent verification, and researcher review.</li>
+          </ul>
       </section>
       </article>
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
