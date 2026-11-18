@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -142,15 +143,34 @@ func unpackSkillHub(data []byte, source string) error {
 	defer root.Close()
 	var total int64
 	seen := make(map[string]bool)
+	directories := make(map[string]string)
 	for _, member := range archive.File {
 		name := strings.TrimSuffix(member.Name, "/")
 		key := strings.ToLower(name)
+		_, duplicate := seen[key]
 		if !fs.ValidPath(name) || !localPath(name) || name == "." || strings.ContainsAny(name, ":\x00") ||
-			seen[key] || excludedSkillResource(key) {
+			duplicate || excludedSkillResource(key) {
 			return errors.New("plugins: SkillHub archive contains an unsupported path")
 		}
-		seen[key] = true
-		if member.FileInfo().IsDir() {
+		isDirectory := member.FileInfo().IsDir()
+		if _, isParent := directories[key]; isParent && !isDirectory {
+			return errors.New("plugins: SkillHub archive contains an unsupported path")
+		}
+		seen[key] = isDirectory
+		directory := path.Dir(name)
+		if isDirectory {
+			directory = name
+		}
+		for prefix := directory; prefix != "."; prefix = path.Dir(prefix) {
+			folded := strings.ToLower(prefix)
+			earlier, known := directories[folded]
+			priorDirectory, priorMember := seen[folded]
+			if (known && earlier != prefix) || (priorMember && !priorDirectory) {
+				return errors.New("plugins: SkillHub archive contains an unsupported path")
+			}
+			directories[folded] = prefix
+		}
+		if isDirectory {
 			continue
 		}
 		if !member.Mode().IsRegular() || member.UncompressedSize64 > uint64(maxSkillBundleBytes) ||

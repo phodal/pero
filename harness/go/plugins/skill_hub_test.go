@@ -14,9 +14,11 @@ func TestSkillHubArchiveAdmission(t *testing.T) {
 		members  []string
 		accepted bool
 	}{
-		{"static skill and reference", []string{"SKILL.md", "references/notes.md"}, true},
+		{"static skill and reference", []string{"SKILL.md", "references/notes.md", "references/more.md"}, true},
 		{"parent path", []string{"../outside.md"}, false},
 		{"case collision", []string{"SKILL.md", "skill.md"}, false},
+		{"implicit directory case collision", []string{"references/Notes/a.md", "references/notes/b.md"}, false},
+		{"file collides with implicit directory", []string{"references/Notes/a.md", "references/notes"}, false},
 		{"plugin integration", []string{"hooks/hooks.json"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
