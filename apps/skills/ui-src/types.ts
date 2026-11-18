@@ -1,4 +1,4 @@
-export type Source = {repository: string; commit: string; path: string; url: string; sha256?: string};
+export type Source = {repository: string; commit: string; path: string; url: string; sha256?: string; release?: string; release_id?: number};
 export type EvidenceSection = {heading: string; text: string};
 export type Skill = {
   id: string; name: string; title_zh: string; description: string; description_zh: string;

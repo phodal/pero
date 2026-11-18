@@ -257,3 +257,9 @@ checker 仍 9/9 通过。`reopened/report.md`、代码、日志和任务回执�
 - `npm run check`、Host 和 Runtime Skills 专项测试及两款 App 的类型检查通过。全量 Apps 契约测试在 Windows 的 `paper_dependency` fixture 失败，在上游基线复现。Native 和打包版待验收。
 
 本地截图和测试回执保存在 `test-results/skills-market/`。
+
+### SkillHub 查询超时与本地安装
+
+Windows Electron 专项验收在真实应用页模拟一次未返回的 SkillHub 查询，约 13 秒内出现错误和重试按钮。随后使用官方接口恢复搜索，通过版本选择安装公开发布包，核对发布身份、包校验值和本地版本摘要。已安装的版本出现在市场和新会话技能选择器中，安装时全局启用状态为关闭。
+
+验收命令为 `PERO_SKILLS_MARKET_SKILLHUB=1 node tests/e2e/skills-market.mjs`。Go 插件测试覆盖归档路径检查，Host Skills 专项及 `npm run check` 通过。

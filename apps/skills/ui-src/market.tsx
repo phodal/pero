@@ -4,6 +4,7 @@ import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllu
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import {SkillCard} from './skill-card';
 import {SkillHub} from './skillhub';
+import type {SkillHubInstall} from '../../../protocol/generated/host';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
 function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missing: React.ReactNode}) {
@@ -75,6 +76,15 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const noCapability = !!permissions && !capability;
   function filter(change: () => void) { change(); setPage(0); }
   function open(target:Skill) {setSelected(target.id);setDetailTab('overview');setTargetRevision('');}
+  function mergeInstalled(result: Installations, id: string) {
+    installedEpoch.current++;
+    setInstalled(previous => ({...result, items:[...(previous?.items ?? []).filter(value => value.id !== id), ...result.items.filter(value => value.id === id)]}));
+  }
+  async function installFromHub(input: Omit<SkillHubInstall, 'operation'>) {
+    if (!capability) throw new Error('Skill installation is unavailable');
+    const result = await capability.call<Installations>('skillhub-install', input);
+    mergeInstalled(result, `skillhub:${input.publisher}/${input.slug}`);
+  }
   useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,hubQuery,category,onlyReady,sort]);
   useEffect(()=>{if(embedded)return;const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();searchInput.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[embedded,searchInput,selected]);
   async function useSkill(target:Skill, message='') {
@@ -102,9 +112,8 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
           : text(`${title(target)}：已是当前上游版本`, `${title(target)}: already at the current upstream revision`)}}));
       } else {
         const result = await capability.call(operation, {id:target.id,...input}) as Installations;
-        installedEpoch.current++;
         // Each operation owns one skill; concurrent replies must not replace other records.
-        setInstalled(previous => ({...result, items:[...(previous?.items ?? []).filter(value => value.id !== target.id), ...result.items.filter(value => value.id === target.id)]}));
+        mergeInstalled(result, target.id);
         setUpdates(previous => {const next={...previous};delete next[target.id];return next;});
         if (operation === 'remove') setSelected('');
         setOutcomes(previous => ({...previous, [target.id]:{error:false, operation, input, message:text(`${title(target)}：操作已完成`, `${title(target)}: operation completed`)}}));
@@ -161,7 +170,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
           </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={!hub && loading} disabled={!capability} onClick={() => hub ? setHubRefresh(value=>value+1) : void load()}><Icon name="sync" size={14}/></IconButton>} />
           <ContentPane id="skills-catalog" label={hub ? 'SkillHub' : text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
-            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能与发布版本，在 SkillHub 查看来源与安装说明。','Browse community skills and releases. SkillHub provides source and installation instructions.') : catalog ? <span className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong> {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
+            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能并选择要安装的发布版本。','Browse community skills and choose a release to install.') : catalog ? <span className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong> {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
             toolbar={<div className="skills-tools">
             <SearchField ref={searchInput} aria-label={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')}
               placeholder={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')} value={hub ? hubQuery : query}
@@ -180,7 +189,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
           </div>}>
           <TabsContent value={view}>
-            {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
+            {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} installed={installed} onInstall={installFromHub} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
                 {catalog && <p className="skills-summary">{text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`)}</p>}
                 {shown.items.length ? <div className="skills-grid">{shown.items.map(value=>{
@@ -192,7 +201,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
                     : null;
                   return <SkillCard key={value.id} name={title(value)} category={categoryLabel(value)} description={description(value)}
                     publisher={value.source.repository} icon={glyphs[value.category] || 'skill'}
-                    version={{label:`Git ${revision.slice(0,8)}`, full:revision}} status={status}
+                    version={{label:value.source.release || `Git ${revision.slice(0,8)}`, full:revision}} status={status}
                     action={primary(value,true)} onOpen={()=>open(value)}/>;
                 })}</div> : <EmptyState icon={<EmptyIllustration kind={view==='installed'&&!query&&!category?'data':'search'} size="compact"/>} heading={view==='installed'&&!query&&!category?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={<Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
                 {shown.total>0&&<footer className="skills-pagination"><span>{text(`显示 ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)}，共 ${shown.total.toLocaleString(locale)} 项`,`Showing ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)} of ${shown.total.toLocaleString(locale)}`)}</span><div><Button aria-label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left" size={15}/></Button><span>{shown.page+1} / {shown.pages}</span><Button aria-label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right" size={15}/></Button></div></footer>}
@@ -222,7 +231,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
           <TabsContent value="source"><ContentSection id="skill-source" title={text('来源信息','Source information')}><dl className="skills-facts"><dt>{text('仓库','Repository')}</dt><dd><a href={item.source.url} target="_blank" rel="noreferrer">{item.source.repository}<Icon name="open" size={13}/></a></dd><dt>{text('固定版本','Pinned revision')}</dt><dd><code>{item.source.commit}</code></dd><dt>{text('技能文件','Skill file')}</dt><dd><code>{item.source.path}</code></dd><dt>{text('许可依据','License evidence')}</dt><dd><a href={item.license.evidence_url||item.source.url} target="_blank" rel="noreferrer">{item.license.spdx||text('待核对','Unverified')}</a> · {({declared_in_skill:text('技能自身声明','Declared by the skill'),directory_license:text('技能目录许可证','Skill directory license'),reviewed_repository:text('已复审仓库许可适用范围','Reviewed repository license scope'),repository_only:text('仅有仓库声明','Repository declaration only')})[item.license.status as 'declared_in_skill'|'directory_license'|'reviewed_repository'|'repository_only']||text('尚无许可依据','No license evidence')}</dd></dl></ContentSection><ContentSection id="skill-original" title={text('原始说明','Original description')}><p className="skills-original-description">{item.description||text('来源未提供摘要。','No source summary.')}</p></ContentSection>
             {record&&<ContentSection id="skill-version" title={text('版本管理','Version management')}>
               <dl className="skills-facts">
-                <dt>{text('已安装版本','Installed revision')}</dt><dd><code>{record.revision}</code></dd>
+                <dt>{text('已安装版本','Installed revision')}</dt><dd>{item.source.release && `${item.source.release} · `}<code>{record.revision}</code></dd>
                 {catalogRevision && catalogRevision !== record.revision && <><dt>{text('目录固定版本','Catalog revision')}</dt><dd><code>{catalogRevision}</code></dd></>}
                 {record.invocation&&<><dt>{text('调用名称','Invocation')}</dt><dd><code>/{record.invocation}</code></dd></>}
               </dl>
@@ -234,7 +243,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
                 <Button disabled={!!itemBusy || chosenRevision === record.revision} onClick={()=>void operate('rollback',item,{revision:chosenRevision})}>{text('切换版本','Switch version')}</Button>
               </div>}
               <div className="skills-version-actions">
-                <Button disabled={!!itemBusy} onClick={()=>void operate('check-update',item)}>{text('检查更新','Check for updates')}</Button>
+                {!item.source.release && <Button disabled={!!itemBusy} onClick={()=>void operate('check-update',item)}>{text('检查更新','Check for updates')}</Button>}
                 {update?.updateAvailable && <Button disabled={!!itemBusy} onClick={()=>void operate('update',item,{revision:update.latestRevision,sha256:update.latestSha256})}>{text('更新','Update')}</Button>}
                 <Button disabled={!!itemBusy||!record.previousRevision} onClick={()=>void operate('rollback',item)}>{text('回退','Roll back')}</Button>
               </div>

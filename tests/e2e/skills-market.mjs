@@ -2,7 +2,7 @@
 // Management starts from explicit fixture state; Git acquisition is tested separately.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {clickAppShortcut, setAppearance} from './sidebar-controls.mjs';
+import {clickAppShortcut, clickNewChat, setAppearance} from './sidebar-controls.mjs';
 import {mkdtemp, mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
@@ -147,22 +147,46 @@ try {
   checks.push('actual Host missing-catalog refresh failure retains content; restoring the file and retrying recovers; initial installed empty state');
   if (process.env.PERO_SKILLS_MARKET_SKILLHUB === '1') {
     await search('private-local-query-fixture');
+    // One dropped renderer/Host reply verifies the visible error and retry path.
+    await frame.locator('body').evaluate(() => {
+      const fetch = window.fetch;
+      window.fetch = (input, init) => {
+        if (input === '/host/capability' && typeof init?.body === 'string' &&
+            JSON.parse(init.body).operation === 'skillhub-search') {
+          window.fetch = fetch;
+          return new Promise(() => {});
+        }
+        return fetch(input, init);
+      };
+    });
     await frame.getByRole('tab',{name:'SkillHub',exact:true}).press('Enter');
     const hubSearch = frame.getByRole('searchbox',{name:'Search SkillHub',exact:true});
     await expect(hubSearch).toHaveValue('');
+    await expect(frame.getByRole('alert')).toContainText('SkillHub is unavailable.',{timeout:18000});
+    await frame.getByRole('button',{name:'Retry',exact:true}).press('Enter');
+    await expect(frame.getByRole('alert')).toHaveCount(0);
     await hubSearch.fill('find-skill-skillhub');
     const hub = frame.getByRole('region',{name:'SkillHub results',exact:true});
-    const card = hub.getByRole('article').first();
+    const card = hub.getByRole('article').filter({hasText:'@user_290ac21c'});
     await expect(card).toBeVisible({timeout:20000});
     await expect(card.locator('.skills-card-version')).toHaveText(/^\d+\.\d+\.\d+/);
     await capture('skillhub-search');
-    await card.getByRole('button',{name:'Versions',exact:true}).press('Enter');
+    await card.getByRole('button',{name:'Install / Versions',exact:true}).press('Enter');
     const releases = frame.getByRole('dialog');
     await expect(releases.getByRole('heading',{name:'Release history',exact:true})).toBeVisible();
     await expect(releases.locator('.skills-release-list li').first()).toBeVisible({timeout:20000});
     const identity = await releases.locator('.skills-card-publisher').textContent();
     expect(identity).toMatch(/^@[^/]+\/[^/]+$/);
     await expect(releases.getByRole('link',{name:'Open on SkillHub',exact:true})).toHaveAttribute('href', `https://skillhub.cn/skills/${identity.slice(1)}`);
+    const firstRelease = await releases.locator('.skills-release-list li strong').first().textContent();
+    await releases.getByRole('button',{name:'Install selected version',exact:true}).press('Enter');
+    await expect(releases.getByRole('button',{name:'Version installed',exact:true})).toBeVisible({timeout:65000});
+    const statePath = resolve(directory,'skill-market/state.json');
+    const inventory = JSON.parse(await readFile(statePath,'utf8')).items;
+    const saved = inventory[`skillhub:${identity.slice(1)}`];
+    expect(saved.entry.source.release).toBe(firstRelease);
+    expect(saved.enabled).toBe(false);
+    expect(saved.selected).toBe(false);
     await capture('skillhub-releases');
     await releases.getByRole('button',{name:'Close',exact:true}).press('Escape');
     const next = hub.getByRole('button',{name:'Next',exact:true});
@@ -175,7 +199,22 @@ try {
     await hubSearch.fill('find-skill-skillhub');
     await expect(hub.locator('.skills-pagination span')).toHaveText(/^1 \/ /);
     await expect(hub.getByRole('status')).toHaveText(/matches$/, {timeout:20000});
-    checks.push('actual SkillHub search with an independent query, paging resets, release version, history and publisher source link');
+    await frame.getByRole('tab',{name:'Installed (1)',exact:true}).press('Enter');
+    await search('');
+    const installedCard = rows.filter({hasText:saved.entry.name});
+    await expect(installedCard.locator('.skills-card-version')).toHaveText(firstRelease);
+    await installedCard.getByRole('button',{name:'Use skill',exact:true}).press('Enter');
+    await expect.poll(async()=> (await state()).attachments).toContain(saved.entry.name);
+    await clickNewChat(page);
+    await expect.poll(async()=> (await state()).attachments).toEqual([]);
+    await expect.poll(async()=> (await state()).composerBounds?.input?.width > 0).toBe(true);
+    const bounds = (await state()).composerBounds.input;
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.insertText',{text:`@skill ${saved.entry.name}`});
+    await cdp.detach();
+    await expect.poll(async()=> (await state()).completion?.items,{timeout:15000}).toContain(saved.entry.name);
+    checks.push('SkillHub timeout and Retry, live search, publisher-scoped history, pinned install, new chat and ordinary skill picker');
   }
   await app.close(); app = undefined;
 
