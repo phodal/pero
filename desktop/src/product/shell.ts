@@ -154,7 +154,7 @@ const initializeChat = () => {
   if (!context?.connected || !chatReady || openedScope?.app !== selected.app || openedScope.panel !== selected.panel) return;
   chat?.event({ version: 1, kind: 'ready', request_id: null, text: '' });
   void Promise.all([
-    bridge.sessionCommand({ action: 'list_agents' }),
+    bridge.sessionCommand({ action: 'list_agents', history: 'catalog' }),
     bridge.sessionCommand({ method: 'settings.workbench.get' }),
   ]).catch(error => chat?.event({ version: 1, kind: 'error', request_id: null, text: error instanceof Error ? error.message : String(error) }));
 };

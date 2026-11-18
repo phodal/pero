@@ -641,7 +641,7 @@ pub fn run() -> anyhow::Result<()> {
         apps().command(serde_json::json!({"action":"apps_list"}));
         let _ = commands.send(serde_json::json!({"action":"local_worker_init"}).to_string());
         let _ = commands.send(serde_json::json!({"method":"settings.workbench.get"}).to_string());
-        let _ = commands.send(serde_json::json!({"action":"list_agents"}).to_string());
+        let _ = commands.send(serde_json::json!({"action":"list_agents","history":"catalog"}).to_string());
         cx.on_window_closed(move |cx, closed| {
             if closed == window.window_id() {
                 apps().cancel_docling_confirmation();

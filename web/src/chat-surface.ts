@@ -73,7 +73,8 @@ export function mountChatSurface(container: HTMLElement, options: {
       if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
       if(command.action==='read_result'){void loadContentResult(command,options.readContent,event=>post('pero:chat:event',{event}));return;}
       void options.command(command).catch(error => post('pero:chat:event', { event: {
-        version: 1, kind: command.thread_id ? 'session_error' : command.request_id ? 'context_error' : 'error',
+        version: 1, kind: command.action === 'load_thread_history' ? 'thread_history_error'
+          : command.thread_id ? 'session_error' : command.request_id ? 'context_error' : 'error',
         thread_id: command.thread_id, request_id: command.request_id ?? null, text: error instanceof Error ? error.message : String(error),
       } }));
     }

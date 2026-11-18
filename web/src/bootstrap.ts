@@ -189,7 +189,7 @@ try {
     }
     if (!window.pero) { queueMicrotask(() => onEvent({version:1,kind:'error',request_id:null,text:'',message_key:'error.agent_browser'})); return; }
     const pending = command.action==='app_use_selection' ? window.pero.appUseCommand({action:'select',thread_id:command.thread_id}) : typeof command.action === 'string' && command.action.startsWith('apps_') ? window.pero.appsCommand(command) : typeof command.action === 'string' && command.action.startsWith('computer_') ? window.pero.computerCommand(command) : typeof command.action === 'string' && command.action.startsWith('remote_') ? window.pero.remoteCommand(command) : command.action === 'choose_workspace' ? window.pero.chooseWorkspace() : command.action === 'choose_context' ? window.pero.chooseContext(command.kind ? command : undefined) : window.pero.sessionCommand(command);
-    pending.catch(() => onEvent({version:1,kind:command.method === 'project_agent' ? 'project_agent_error' : command.method === 'pull_requests' ? 'pull_request_error' : command.method === 'workspace_changes' ? 'workspace_changes_error' : command.action === 'search_context' || command.action === 'resolve_context' || command.action === 'choose_context' && command.kind ? 'context_error' : command.thread_id?'session_error':'error',thread_id:command.thread_id,request_id:command.request_id ?? null,text:t('error.connection')}));
+    pending.catch(() => onEvent({version:1,kind:command.method === 'project_agent' ? 'project_agent_error' : command.method === 'pull_requests' ? 'pull_request_error' : command.method === 'workspace_changes' ? 'workspace_changes_error' : command.action === 'load_thread_history' ? 'thread_history_error' : command.action === 'search_context' || command.action === 'resolve_context' || command.action === 'choose_context' && command.kind ? 'context_error' : command.thread_id?'session_error':'error',thread_id:command.thread_id,request_id:command.request_id ?? null,text:t('error.connection')}));
   };
   run(JSON.stringify(themes), dark, locale);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
@@ -224,7 +224,7 @@ try {
     await connectHost(window.pero, onEvent);
     await window.pero.sessionCommand({method:'settings.workbench.get'});
     await window.pero.sessionCommand({method:'icons',action:'get',request_id:'icon-themes-startup'});
-    await window.pero.sessionCommand({action:'list_agents'});
+    await window.pero.sessionCommand({action:'list_agents',history:'catalog'});
     // The local workbench is ready even while Cloud refresh/enrollment waits.
     void window.pero.remoteCommand({action:'remote_refresh'}).catch(() => {});
     void window.pero.computerCommand({action:'computer_get'}).catch(() => {});

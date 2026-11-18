@@ -196,9 +196,9 @@ export class DesktopAppUse {
         this.authority.canBeginGoal(event.thread_id) && !this.submitted.has(event.thread_id));
       this.submitted.add(event.thread_id);
     }
-    if (event.kind === 'replay')
+    if (event.kind === 'replay' || event.kind === 'thread_history')
       for (const entry of (event.data as { events?: AppUseEvent[] })?.events || []) {
-        if (entry.thread_id) {
+        if (event.kind === 'replay' && entry.thread_id) {
           this.goals.blockRestored(entry.thread_id);
           this.authority.revoke(entry.thread_id);
         }

@@ -380,6 +380,9 @@ impl ChatPanel {
             "disconnected" => {
                 self.connected = false;
                 for chat in &mut self.chats {
+                    if matches!(chat.history, crate::history_recovery::HistoryLoad::Pending(_)) {
+                        chat.history = crate::history_recovery::HistoryLoad::Deferred;
+                    }
                     chat.user_questions.clear();
                     chat.pending_model = None;
                     chat.pending_setting = None;

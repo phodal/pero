@@ -23,6 +23,8 @@ pub mod composer_state;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod conversation;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod history_recovery;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
