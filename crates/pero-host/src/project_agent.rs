@@ -5,7 +5,7 @@ use pero_contracts::{
     research_project::ResearchProject,
     HostCommand, HostEvent,
 };
-use pero_runtime::{acp, apps::agent_run::{Binding, Scope, Transcript}};
+use pero_runtime::{acp, apps::agent_run::{Binding, Run, Scope}};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{collections::HashMap, path::{Path, PathBuf}};
@@ -17,6 +17,13 @@ pub(crate) struct Launch {
     pub server: Option<acp::sdk::schema::v1::McpServer>,
     pub initial_prompt: Option<String>,
     pub initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
+}
+
+struct ProjectConversationHistory {
+    binding: ProjectSessionBinding,
+    agent_id: String,
+    workspace: String,
+    events: Vec<HostEvent>,
 }
 
 fn digest(value: &str) -> String { format!("{:x}", Sha256::digest(value.as_bytes()))[..24].into() }
@@ -71,33 +78,45 @@ impl Manager {
     }
 
     fn project_sessions(&self, project: &str) -> Vec<ProjectAgentSession> {
-        let history = self.visible_history();
+        let history = self.history.lock().unwrap();
         let mut created = HashMap::new();
         let mut order = Vec::new();
-        for event in &history {
+        for event in history.events() {
             if event.kind != "session_created" {continue;}
             let Some(thread) = event.thread_id.as_deref() else {continue};
             let Some(raw) = event.data.get("projectAgent") else {continue};
             let Ok(binding) = serde_json::from_value::<ProjectSessionBinding>(raw.clone()) else {continue};
             if binding.validate().is_err() || binding.project_id != project {continue;}
             if !created.contains_key(thread) {order.push(thread.to_owned());}
-            created.insert(thread.to_owned(), (event, binding));
+            created.insert(thread.to_owned(), ProjectConversationHistory {
+                binding,
+                agent_id: event.data["agent"].as_str().unwrap_or_default().into(),
+                workspace: event.data["workspace"].as_str().unwrap_or_default().into(),
+                events: Vec::new(),
+            });
         }
+        if created.is_empty() { return Vec::new(); }
+        // Find the origins first to preserve any earlier events on the same threads.
+        for event in history.events() {
+            if let Some(conversation) = event.thread_id.as_deref().and_then(|thread| created.get_mut(thread)) {
+                conversation.events.push(event.clone());
+            }
+        }
+        drop(history);
         order.into_iter().filter_map(|thread| {
-            let (created, binding) = created.remove(&thread)?;
+            let ProjectConversationHistory { binding, agent_id, workspace, events } = created.remove(&thread)?;
             let active = self.sessions.get(&thread).is_some_and(|session| !session.tx.is_closed());
-            let workspace = created.data["workspace"].as_str().unwrap_or_default().to_owned();
             let run_binding = Binding {
                 scope: Scope {workspace_id: project.into()}, request_id: thread.clone(),
-                harness_id: created.data["agent"].as_str().unwrap_or_default().into(),
+                harness_id: agent_id,
                 panel: String::new(), runtime_digest: String::new(), app_revision: None,
                 created_at: String::new(), context: None,
             };
-            let run = Transcript::project(&thread, &run_binding, &history, active, 0).run;
+            let run = Run::project(&thread, &run_binding, &events, active);
             let mut result = String::new();
             let mut evidence = Vec::new();
             let mut submitted = false;
-            for event in history.iter().filter(|event| event.thread_id.as_deref() == Some(&thread)) {
+            for event in &events {
                 if event.kind == "user_message" {submitted = true;}
                 if event.kind == "turn_started" {result.clear(); evidence.clear();}
                 if event.kind == "session_update" && event.data["sessionUpdate"] == "agent_message_chunk" {

@@ -39,6 +39,7 @@ fn transcript_keeps_complete_messages_cursors_attempts_and_interruption() {
         let mut history = vec![event("turn_started", "", serde_json::json!({}))];
         history.extend(transitions.into_iter().map(|(kind,data)| event(kind,"",data)));
         assert_eq!(Transcript::project("run", &binding, &history, true, 0).run.status, expected);
+        assert_eq!(Run::project("run", &binding, &history, true).status, expected);
     }
 }
 #[test]
