@@ -1,7 +1,7 @@
-// Exercise the relocated packaged product with a clean profile and no system Python in PATH.
+// Exercise the relocated packaged product with a clean profile and restricted system PATH.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { mkdtemp, mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 const root = resolve(import.meta.dirname, '../..');
@@ -30,6 +30,7 @@ try {
   await expect(frame.getByRole('button', { name: 'Compare baselines and predictions', exact: true })).toBeEnabled();
   await frame.getByRole('button', { name: 'Compare baselines and predictions', exact: true }).click();
   await expect(frame.locator('.vc-models tbody tr')).toHaveCount(3);
+  await expect(stat(resolve(profile, 'environment'))).rejects.toHaveProperty('code', 'ENOENT');
   checks.push('bundled Python serves import and three real baseline computations');
   await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light'; });
   await expect.poll(() => frame.locator('html').evaluate(element => element.style.colorScheme)).toBe('light');

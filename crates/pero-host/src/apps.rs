@@ -199,7 +199,8 @@ impl Apps {
             let python = settings
                 .map(pero_runtime::settings::load_app_python)
                 .transpose()?
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .with_bundled_python(std::env::var_os("PERO_BUNDLED_APP_PYTHON").map(PathBuf::from))?;
             let required = std::env::var("PERO_REQUIRED_APPS").unwrap_or_default();
             let mut required_names = std::collections::BTreeSet::new();
             for name in required.split(',').map(str::trim).filter(|name| !name.is_empty()) {

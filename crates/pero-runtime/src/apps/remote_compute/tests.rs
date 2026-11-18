@@ -135,7 +135,7 @@ fn app_remote_loopback_run_collect_restart_and_cancel() {
         .join(uuid::Uuid::new_v4().to_string());
     fs::create_dir_all(&data).unwrap();
     let definition = AppDefinition::parse(&fs::read(app_root.join("app.json")).unwrap()).unwrap();
-    let start = || AppProcess::start(&definition, &app_root, &data, None).unwrap();
+    let start = || AppProcess::start(&definition, &app_root, &data, &crate::apps::python::AppPython::Default).unwrap();
     let mut app = start();
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(90))

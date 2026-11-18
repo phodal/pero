@@ -1,4 +1,4 @@
-use super::PythonEnvironment;
+use super::python::AppPython;
 use crate::owned_process::OwnedProcess;
 use super::definition::{AppDefinition, BackendKind};
 use serde::Serialize;
@@ -54,7 +54,7 @@ impl AppProcess {
         definition: &AppDefinition,
         root: &Path,
         data: &Path,
-        python: Option<&PythonEnvironment>,
+        python: &AppPython,
     ) -> Result<Self, String> {
         let backend = definition.backend.as_ref().ok_or("App has no backend")?;
         std::fs::create_dir_all(data).map_err(|error| error.to_string())?;
@@ -63,7 +63,7 @@ impl AppProcess {
             std::env::var_os("PERO_PAPER_PCGYM_CHECKOUT"))?;
         let reproduction_token = reproduction.as_ref().map(|_| uuid::Uuid::new_v4().to_string());
         let (executable, label) = match (&backend.kind, python) {
-            (BackendKind::Python, Some(environment)) => {
+            (BackendKind::Python, AppPython::Environment(environment)) => {
                 let marker = environment.root().join(super::conda::MARKER);
                 if marker.is_file() {
                     let text = std::fs::read_to_string(&marker).map_err(|error| {
@@ -93,10 +93,7 @@ impl AppProcess {
                 }
                 (executable.into_os_string(), "Python")
             }
-            (BackendKind::Python, None) => (
-                super::python::default_executable(),
-                "Python",
-            ),
+            (BackendKind::Python, _) => (python.executable(), "Python"),
             (BackendKind::Node, _) => (
                 std::env::var_os("PERO_APP_NODE").unwrap_or_else(|| "node".into()),
                 "Node",
@@ -117,7 +114,7 @@ impl AppProcess {
                 command.env(key, value);
             }
         }
-        if let (BackendKind::Python, Some(environment)) = (&backend.kind, python) {
+        if let (BackendKind::Python, AppPython::Environment(environment)) = (&backend.kind, python) {
             environment.configure_command(&mut command)?;
         }
         // Remote method deployment belongs to trusted Host configuration. Keep

@@ -479,6 +479,11 @@ impl AppStore {
         let app = self.installed.get(name).ok_or("App is not installed")?;
         if self.processes.contains_key(name) { return Ok(()); }
         let Some(backend) = &app.definition.backend else { return Ok(()); };
+        if matches!(backend.kind, definition::BackendKind::Python) {
+            if let Some(python) = &self.python.bundled {
+                return preparation::check_bundled(python, backend);
+            }
+        }
         if !backend.uses_python_environment(self.python.select(name).is_some()) { return Ok(()); }
         let managed = self.managed_python_directory(name)?;
         let dependencies = backend.dependencies.clone();
@@ -542,8 +547,9 @@ impl AppStore {
         if app.definition.backend.is_some() && !self.processes.contains_key(name) {
             let mut python = self.selected_python(name)?;
             let backend = app.definition.backend.as_ref().expect("App backend");
-            if backend.uses_python_environment(python.is_some())
-            {
+            if let (definition::BackendKind::Python, python::AppPython::Bundled(bundled)) = (&backend.kind, &python) {
+                preparation::check_bundled(bundled, backend)?;
+            } else if backend.uses_python_environment(matches!(python, python::AppPython::Environment(_))) {
                 let managed = PythonEnvironment::try_from(self.managed_python_directory(name)?)?;
                 let required_minor = backend.python.as_ref().map(|minor| minor.as_str());
                 let checked = preparation::check(self.python.select(name), managed, &backend.dependencies, required_minor);
@@ -552,7 +558,7 @@ impl AppStore {
                     phase: if checked.is_ok() { preparation::PreparationPhase::Ready } else { preparation::PreparationPhase::Required },
                     message: match &checked { Ok(_) => "Python environment is ready".into(), Err(error) => error.clone() },
                 });
-                python = Some(checked?);
+                python = python::AppPython::Environment(checked?);
             }
             self.processes.insert(
                 name.clone(),
@@ -560,7 +566,7 @@ impl AppStore {
                     &app.definition,
                     &access.root,
                     &self.data.join(name.as_str()),
-                    python.as_ref(),
+                    &python,
                 )?,
             );
         }

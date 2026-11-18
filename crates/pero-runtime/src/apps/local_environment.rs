@@ -319,7 +319,7 @@ impl AppStore {
         let environment = PythonEnvironment::try_from(root.clone())?;
         let inspection = super::environment::EnvironmentInspection::inspect(
             &self.root.join(app.as_str()),
-            Some(&environment),
+            &super::python::AppPython::Environment(environment),
             value.target,
         )?;
         crate::environments::match_software(&inspection.requirements, &inspection.profile)
@@ -437,7 +437,7 @@ impl EnvironmentPreparation {
             }
             let inspection = super::environment::EnvironmentInspection::inspect(
                 &self.app_root,
-                Some(&environment),
+                &super::python::AppPython::Environment(environment),
                 value.target,
             )?;
             crate::environments::match_software(&inspection.requirements, &inspection.profile)
