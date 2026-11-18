@@ -35,6 +35,8 @@ language and data persistence passed. Removing the bundled interpreter
 temporarily produced the expected environment diagnostic. Restoring it and
 pressing Retry opened the App again. The light atlas and 800-pixel dark
 reaction screenshots were inspected. Evidence is in `test-results/product/`.
+The release canary uploads the screenshots and JSON report after a successful
+Virtual Cell package smoke. Failed packages use the existing diagnostic upload.
 
 ## 2026-11-15 standalone preparation recurrence
 
