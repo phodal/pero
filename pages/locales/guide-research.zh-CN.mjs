@@ -57,14 +57,13 @@ export default {
         id: 'sample-walkthrough',
         title: '跟做一个六条记录的例子',
         body: `
-          <p>打开桌面工作台的<strong>数据</strong>，下载<a href="{{examples}}first-dataset.json" download>示例 first-dataset.json</a>。样本是合成数据，三列分别是 <code>condition</code>、<code>replicate</code> 和 <code>signal</code>。下载后可离线检视和绘图。</p>
+          <p>本节实测使用 <strong>macOS Apple Silicon Electron 发布包 v0.1.0-dev.20261112</strong>。从工作台侧栏打开<strong>数据（Data）</strong>，下载<a href="{{examples}}first-dataset.json" download>示例 first-dataset.json</a>。样本是合成数据，三列分别是 <code>condition</code>、<code>replicate</code> 和 <code>signal</code>。如果页面显示环境未就绪，选择<strong>准备环境（Prepare environment）</strong>，等到出现导入按钮。首次准备可能需要联网，之后的检视、绘图和导出在本地完成。</p>
           <ol>
-            <li>选择<strong>导入数据</strong>，选中下载的 JSON，类型保留为<strong>数据集</strong>，再点<strong>导入</strong>。打开该条目并点击<strong>查看数据</strong>，应看到 6 条记录、3 个字段。</li>
-            <li>在<strong>表格</strong>中将<strong>筛选字段</strong>设为 <code>condition</code>，<strong>条件</strong>设为<strong>等于</strong>，输入 <code>treated</code> 并点<strong>应用</strong>。结果应为原始第 4–6 条，<code>signal</code> 分别为 <code>1.3</code>、<code>1.4</code>、<code>1.5</code>。打开其中一条右侧的 <strong>Source</strong>，核对原文件位置。</li>
-            <li>将视图命名为 <code>Treated only</code>，点击 <strong>Save view</strong>。切到<strong>检查</strong>，报告仍应显示完整输入的 6 条记录，缺失字段、显式空值、空字符串和重复行计数均为 0。</li>
-            <li>回到<strong>表格</strong>清除筛选和行选择。在<strong>图表</strong>选择 <strong>bar → Current aggregation</strong>，<strong>Group by</strong> 设为 <code>condition</code>，<strong>Measure</strong> 设为 <code>signal</code>，<strong>Aggregate</strong> 选 <strong>Sum</strong>。展开 <strong>Chart data</strong>，应看到 <code>control</code> 合计 <code>3</code>、<code>treated</code> 合计 <code>4.2</code>。改回 <strong>Count</strong> 时两组各 3 条。</li>
+            <li>选择<strong>导入数据（Add data）</strong>，选中下载的 JSON，类型保留为<strong>数据集（Dataset）</strong>，再点<strong>导入（Import）</strong>。此发布包会直接打开 <strong>Table</strong>，显示 <strong>Bytes matched</strong>、6 条记录和 3 个字段。</li>
+            <li>在 <strong>Table</strong> 把 <strong>No filter</strong> 改为 <code>condition</code>，选择 <strong>Equals</strong>，输入 <code>treated</code> 后点 <strong>Apply</strong>。结果保留原始第 4–6 条的行号，<code>signal</code> 分别为 <code>1.3</code>、<code>1.4</code>、<code>1.5</code>。点击第 4 条右侧的 <strong>Source</strong>，会打开只读原始文件标签并选中该条记录。再点 <strong>Data</strong> 回到筛选结果。</li>
+            <li>在 <strong>View name</strong> 输入 <code>Treated only</code> 并点击 <strong>Save view</strong>。界面会提示视图和检查结果已固定到这个版本。切到 <strong>Checks</strong>，检查范围仍是完整输入的 6 条记录，缺失字段、显式空值、空字符串和重复行计数均为 0。</li>
           </ol>
-          <p>图表取当前匹配记录或显式选中的记录。若只看到处理组，回到表格核对筛选和行选择。这里的合计只用于检查教程输入和聚合操作。</p>`,
+          <p>要绘制两组，回到 <strong>Table</strong> 点 <strong>Clear filter</strong>。切到 <strong>Chart</strong>，选择 <strong>bar</strong> 和 <strong>Current aggregation</strong>，把 <strong>Group by</strong> 设为 <code>condition</code>、<strong>Measure</strong> 设为 <code>signal</code>、<strong>Aggregate</strong> 设为 <strong>Sum</strong>。展开 <strong>Chart data (2)</strong>，应看到 <code>control</code> 合计 <code>3.0</code>、<code>treated</code> 合计 <code>4.2</code>。换成 <strong>Count</strong> 时两组各为 <code>3</code>。图表中的分组顺序可能与原始文件不同。</p>`,
       },
       {
         id: 'input-and-checks',
@@ -82,9 +81,9 @@ export default {
         title: '固定版本、保存视图和导出',
         body: `
           <ol>
-            <li>更新数据时，从已有条目的<strong>更多 → 添加版本</strong>选择新文件。已有版本保留原始字节及标识。在资料库重新<strong>导入数据</strong>会新建条目，即使文件名相同。</li>
-            <li>回到<strong>概览 → 已保存视图</strong>打开 <code>Treated only</code>，应恢复保存时版本和 3 条匹配记录。检查文件或版本页的 SHA-256。按视图重新检视时会重新核对原始内容。</li>
-            <li><strong>导出引用</strong>生成 JSON，包含固定文件、解析器、视图和检查报告。要交接原始输入，请同时提供原文件或可访问的来源。需要交接当前数据子集时用<strong>导出记录</strong>。需要交接图表时用 <strong>Export chart JSON</strong>。</li>
+            <li>要试验版本管理，把样例另存一份 <code>first-dataset-v2.json</code>，将 <code>{"condition":"treated","replicate":4,"signal":1.6}</code> 加为数组第 7 项。在当前条目的版本选择框旁点击 <strong>Add version</strong>，导入新文件。在 <strong>Table</strong> 应看到 v2 的 7 条记录。从资料库重新执行 <strong>Add data</strong> 会创建新条目，即使文件名相同。</li>
+            <li>回到 <strong>Overview → Saved views</strong> 打开 <code>Treated only</code>，应恢复 <strong>v1 — first-dataset.json</strong> 和原来的 3 条匹配记录。重启工作台后实测仍可打开同一个视图，再次检视会重新核对原始内容。</li>
+            <li>视图旁的 <strong>Export reference</strong> 会下载 JSON，包含 v1 的 SHA-256、<code>condition = treated</code> 筛选和针对 6 条原始记录的完整检查报告。请把原文件或可访问的来源随引用一起交接。可用 <strong>Export records</strong> 导出当前数据子集，用 <strong>Export chart JSON</strong> 导出图表。</li>
           </ol>
           <p>报告和导出保留来源位置与处理配置。Data 里的<strong>项目引用</strong>是归类字段，访问权限由实际文件或服务管理。需要建立研究项目的材料索引时，见<a href="{{projects}}">研究项目</a>。</p>`,
       },
@@ -92,7 +91,7 @@ export default {
         id: 'troubleshoot-data',
         title: '数据打不开时怎么处理',
         body: `
-          <ul><li><strong>缺失或已变化。</strong>记录仍可查。恢复与登记摘要一致的原始文件，或显式添加新版本并建立新视图。</li><li><strong>数字筛选没有预期结果。</strong>先查字段解释和转换失败，再查筛选范围。精确的数值和原始文本分别保留。</li><li><strong>模型文件没有表格。</strong>Data 记录文件来源和版本。模型权重的加载和推理需要相应执行环境与方法。</li><li><strong>归档后磁盘空间未减少。</strong>归档将条目移到<strong>已归档</strong>，仍保留版本和视图，并可恢复。</li></ul>
+          <ul><li><strong>图表只有 treated。</strong>实测保留筛选时，图表只包含处理组。回到 <strong>Table</strong> 点 <strong>Clear filter</strong>，确认显示 6 行且没有勾选行，再回图表。</li><li><strong>缺失或已变化。</strong>记录仍可查。恢复与登记摘要一致的原始文件，或显式添加新版本并建立新视图。</li><li><strong>数字筛选没有预期结果。</strong>先查字段解释和转换失败，再查筛选范围。精确的数值和原始文本分别保留。</li><li><strong>模型文件没有表格。</strong>Data 记录文件来源和版本。模型权重的加载和推理需要相应执行环境与方法。</li><li><strong>归档后磁盘空间未减少。</strong>归档将条目移到<strong>已归档</strong>，仍保留版本和视图，并可恢复。</li></ul>
           <p>查看 <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data 检视规则</a>及<a href="https://github.com/phodal/pero/blob/master/docs/fitness/data-workspace.md">工作台验证记录</a>。</p>`,
       },
     ],
@@ -106,12 +105,15 @@ export default {
         id: 'first-revision',
         title: '创建第一条笔记修订',
         body: `
+          <p>以下步骤在 Apple Silicon macOS 上，使用 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 预览包</a>及全新配置验证。</p>
           <ol>
-            <li>从工作台<strong>应用商店</strong>启用并打开 <strong>Notebook</strong>，选择<strong>新建笔记</strong>。填入标题 <code>表格与修订练习</code>，在正文记下输入 2 和乘数 6。</li>
-            <li>选择<strong>插入 → 电子表格</strong>。在 <code>A1</code> 输入 <code>2</code>，在 <code>B1</code> 输入 <code>=A1*6</code>，点击其他单元格以提交。<code>B1</code> 应显示 <code>12</code>，再次选中它可以检查公式。</li>
-            <li>点<strong>保存新修订</strong>，记下工具栏上的修订号。再把 <code>A1</code> 改成 <code>3</code> 并保存，应看到更高的修订号和 <code>B1 = 18</code>。</li>
-            <li>打开<strong>文件 → 修订历史</strong>，选中前一条修订，核对 <code>A1 = 2</code>、<code>B1 = 12</code>。点击<strong>返回当前笔记</strong>，确认当前是 <code>18</code>。关闭再打开笔记，应能回到已保存的修订。</li>
+            <li>在工作台侧栏打开 <strong>Notebook</strong>。此预览包已经安装并启用 Notebook。首次出现<strong>环境未就绪</strong>时，点击<strong>准备环境</strong>，等待<strong>新建笔记</strong>出现。首次准备可能需要下载 Python 和依赖。如果等待过久或安装失败，先展开<strong>安装日志</strong>查看进度或错误，再决定是否重试。</li>
+            <li>选择<strong>新建笔记</strong>，填入标题 <code>表格与修订练习</code>，在正文记下输入 2 和乘数 6。新建笔记从<strong>修订 1</strong>开始。</li>
+            <li>选择<strong>插入 → 电子表格</strong>。在 <code>A1</code> 输入 <code>2</code>，在 <code>B1</code> 输入 <code>=A1*6</code>。点击另一个单元格提交公式，离开 <code>B1</code> 后应看到计算值 <code>12</code>。</li>
+            <li>点<strong>保存新修订</strong>，核对工具栏显示<strong>修订 2</strong>。再把 <code>A1</code> 改成 <code>3</code>，离开单元格后再次保存，核对<strong>修订 3</strong>及 <code>B1 = 18</code>。</li>
           </ol>
+          <p>打开<strong>文件 → 修订历史 → 修订 2</strong>。只读视图应显示 <code>A1 = 2</code>、<code>B1 = 12</code>。查看旧修订时，侧栏仍显示当前保存的修订号。点击<strong>返回当前笔记</strong>回到修订 3。需要基于旧内容重新编辑时，再用<strong>恢复为草稿</strong>。</p>
+          <p>要核对持久化，退出 Pero，重启后打开 Notebook 并选择已保存的笔记。实测仍为修订 3，<code>A1 = 3</code>、<code>B1 = 18</code>。</p>
           <p>如果保存冲突，先用<strong>导出草稿</strong>保留自己的版本，再查看已保存的最新修订后整理差异。加载最新修订会放弃当前草稿。</p>`,
       },
       {
@@ -131,17 +133,19 @@ export default {
         title: '选对交付格式',
         body: `
           <ul>
-            <li>完整交接选择<strong>文件 → 导出当前 JSON</strong>，保留笔记文档和版本化证据。需要交付确切的历史内容时，先打开相应修订再导出。当前笔记的普通导出可包含尚未保存的改动。</li>
-            <li>交流正文可用 Markdown。需要在电子表格里继续使用数据与公式时，使用<strong>导出工作簿</strong>。XLSX 保留工作表、值和公式；笔记证据、图表及原书样式不在此交换范围内。</li>
-            <li>若要请 Agent 审阅，先保存修订，再选<strong>文件 → 询问 Agent</strong>。确认草稿所附条目与修订号，随后发送。结果中的判断应回到保存版本和原证据核对。</li>
+            <li>完整交接选择<strong>文件 → 导出当前 JSON</strong>。实测 <code>Notebook.json</code> 中包含练习标题和原始公式 <code>=A1*6</code>。此格式保存文档与已记录的证据引用。需要交付准确的历史内容时，先打开相应修订再导出。导出当前笔记可包含尚未保存的改动。</li>
+            <li>需要表名、数值和公式时，选<strong>文件 → 导出工作簿</strong>。发布包导出的 <code>Notebook.xlsx</code> 中，<code>A1 = 3</code>，<code>B1</code> 保留公式 <code>A1*6</code>，打开工作簿时会请求重新计算。需要笔记证据时用 JSON，交流正文可用 Markdown。</li>
+            <li>需要 Agent 审阅时，先保存修订，再选<strong>文件 → 询问 Agent</strong>。实测打开的是引用已保存修订 3 的草稿。发送前核对草稿和引用，收到答复后回到保存版本及原证据复查。</li>
           </ul>
+          <p>要检查 JSON 导出，点<strong>新建笔记</strong>旁的<strong>…</strong>，选择<strong>导入笔记 JSON</strong>。实测导出文件生成一条独立笔记，从<strong>修订 1</strong>开始，仍是 <code>A1 = 3</code>、<code>B1 = 18</code>。原笔记仍保留在修订 3。</p>
+          <p>如果浮动对话挡住<strong>文件</strong>菜单底部，用对话标题栏的减号按钮<strong>收起对话</strong>，或者点击<strong>停靠对话</strong>。重新打开<strong>文件</strong>即可选<strong>导出工作簿</strong>。</p>
           <p>工作表每页上限为 200 行、50 列，支持标量公式和同一笔记内的跨工作表引用。外部工作簿链接、网络函数和动态数组溢出不在支持范围内。详情见 <a href="https://github.com/phodal/pero/blob/master/apps/notebook/README.md#data-and-format-boundaries">Notebook 格式说明</a>与<a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook.md">工作台验证记录</a>。</p>`,
       },
       {
         id: 'publication',
         title: '从已保存修订编译文稿',
         body: `
-          <p>当前源码支持将已保存的 MyST 项目编译为 PDF。2026-11-12 的开发预览包发布时尚无该编译入口。需要已有的 MyST 文稿、可用的 Tectonic 引擎及预备好的包缓存。先保存包含文稿块的修订，在该块选<strong>将已保存修订编译为 PDF</strong>。在构建历史中检查确切修订号、编译日志和输出，再预览或下载。</p>
+          <p>使用当前源码构建跟做 MyST 出版流程。需要已有的 MyST 文稿、可用的 Tectonic 引擎及预备好的包缓存。先保存包含文稿块的修订，在该块选<strong>将已保存修订编译为 PDF</strong>。在构建历史中检查确切修订号、编译日志和输出，再预览或下载。上面的发布包教程验证了工作簿与 JSON 导出。</p>
           <p>修改数据或生成代码后，先重新生成并更新过期图件，再保存新修订。失败记录保留诊断和输入，上一份成功 PDF 仍可在历史中打开。编译成功只说明文稿能生成 PDF，科学结论依然需要复核。可跟做<a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook-publication.md">带编译命令和预期结果的 Fisher 文稿示例</a>。</p>`,
       },
     ],

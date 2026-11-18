@@ -73,6 +73,7 @@ sha256sum Pero-linux-x64.tar.gz</code></pre>
             <li>First-time preparation may download uv, CPython 3.12, and the App’s pinned dependencies. Wait for the environment to report ready. The default directory in a fresh profile is <code>~/.pero/environment/pero-python312</code>. An existing profile keeps its selected environment.</li>
             <li>Open a selectable-text PDF and save a highlight to check that the reader works and saves annotations. Follow the <a href="{{paper}}#import-and-highlight">first paper tutorial</a>. Importing and reading a local PDF requires no model account, Task Center login, or PostgreSQL.</li>
           </ol>
+          <p>On the November 12 macOS Electron package, Paper also encountered a missing required plugin in a fresh profile. If <strong>Prepare environment</strong> immediately returns to the same screen, see the <a href="{{paper}}#release-environment">release-specific failure and recovery</a>. Data and Notebook completed preparation during the same package verification.</p>
           <p>For offline use, follow the <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">pre-provisioned environment instructions</a> to configure an absolute venv directory with its dependencies installed. See <a href="{{compute}}">Compute and environments</a> for preparation, inspection, and binding.</p>`,
       },
       {

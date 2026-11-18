@@ -4,6 +4,13 @@ export default {
   description: 'Import, annotate, and search a public PDF, then send a focused question to an Agent. Use the saved report to check citations, record gaps, and export evidence.',
   sections: [
     {
+      id: 'release-environment',
+      title: 'First launch in the November 12 preview',
+      body: `
+        <p>We followed this tutorial with the <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">v0.1.0-dev.20261112</a> macOS Apple Silicon Electron package. In a clean profile, <strong>Prepare environment</strong> returned to <strong>Environment not ready</strong>. The Host reported that the required <code>paper-autoresearch</code> plugin was missing from the package. Python preparation had yet to begin.</p>
+        <p>For the rest of the walkthrough, we installed the plugin from the same release tag into the isolated profile using the packaged Host’s <code>plugininstall</code> action. After restarting the original app and choosing <strong>Prepare environment</strong>, dependency installation finished and the library opened automatically. <a href="https://github.com/phodal/pero/blob/v0.1.0-dev.20261112/apps/README.md#agent-plugins">Release-tag Host plugin installation</a> · <a href="https://github.com/phodal/pero/tree/v0.1.0-dev.20261112/apps/paper-agent/agent-plugins/paper-autoresearch">Matching plugin</a></p>`,
+    },
+    {
       id: 'import-and-highlight',
       title: 'Import your first paper and save a highlight',
       body: `
@@ -13,7 +20,7 @@ export default {
           <li>On the first page, find the sentence containing <code>agentic proposer</code> in the abstract. Select text within that page. Enter a note if useful, such as “Which previous results can the proposer see?” Then choose <strong>Highlight</strong>.</li>
           <li>Right-click the PDF and choose <strong>Annotations</strong>. Check the quotation, page number, and note. Return to the library, reopen the paper, and choose the annotation’s page number. You should return to the saved page and region.</li>
         </ol>
-        <p>You have now saved and reopened a local annotation. This flow needs no model account or API key. Paper stores annotations separately from the original PDF.</p>`,
+        <p><strong>Expected result.</strong> Save the input as <code>Meta-Harness-v1.pdf</code> and the library shows <code>Meta-Harness-v1</code>. The reader shows <strong>1 / 26</strong>, with one annotation pointing to page 1. Reopen it and select the page link to return to the highlighted passage and saved note. This flow needs no model account or API key.</p>`,
     },
     {
       id: 'reading-and-notes',
@@ -24,7 +31,6 @@ export default {
           <li><strong>Read</strong> displays imported text or prepared structured full text. For a supported arXiv source, review the fixed version and authorize its official HTML to retain sections, equations, and tables. HTML and PDF preserve their own source locations.</li>
           <li><strong>TeX</strong> builds a reading preview from an approved same-version source archive. The current compiler path requires macOS and Tectonic. The first build can need dependency downloads. The preview and the original PDF have separate identities and pagination. <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#typeset-tex-reading">TeX reading and diagnostics</a></li>
         </ul>
-        <figure><img src="{{assets}}openpero-paper-research-02-read.svg" alt="Diagram of the Paper reader, showing the PDF view and the highlight action for selected text" width="1600" height="463" loading="lazy"><figcaption>Reader walkthrough diagram. Control placement varies by version.</figcaption></figure>
         <p>For a scanned page, equation, or figure, choose <strong>Capture area</strong>, drag over the region, and confirm the image annotation. Choose <strong>Annotations → Add to matrix</strong> and enter a comparison field such as “Sample size” or “Metric.” The matrix page link opens the original region. Check values and units against headers, captions, and surrounding text.</p>`,
     },
     {
@@ -32,7 +38,7 @@ export default {
       title: 'Find saved evidence and discover more papers',
       body: `
         <h3>Search your own library</h3>
-        <p>Return to the library and submit <code>agentic proposer</code> in <strong>Search saved text</strong>. The results should include matching passages. Open a PDF result to return to its saved document and page. Expand <strong>Snapshot details</strong> for the complete passage, source link, and digest. This searches saved text and each source’s latest saved PDF locally without starting an Agent.</p>
+        <p>Return to the library and submit <code>agentic proposer</code> in <strong>Search saved text</strong>. The release returned one paper and 12 passages. The first hit pointed to references on page 14. Scroll to the <strong>PDF Page 1</strong> result with the abstract passage. Open it and check that the reader shows <strong>1 / 26</strong>. Expand <strong>Snapshot details</strong> to check the passage and file digest. This search runs locally without starting an Agent.</p>
         <h3>Find sources through public literature services</h3>
         <ol>
           <li>Use <strong>Add papers</strong> to search by title or keyword, or read a known paper ID. The selected public literature providers receive the search terms.</li>
@@ -51,19 +57,20 @@ export default {
           <li>For a question that needs material beyond the selected excerpt, open <strong>Research settings</strong>, select one to five saved PDFs, and enable <strong>Search full PDF text</strong>. Sending freezes the question and file versions. Follow progress and approval requests in the shared conversation.</li>
         </ol>
         <blockquote><p>In Meta-Harness v1, what information about earlier candidates can the proposer access? How do the authors separate search feedback from held-out evaluation? Cite the source for each part and identify anything the evidence leaves open.</p></blockquote>
-        <p>Look for separate citations about candidate history and evaluation setup, plus any unresolved gaps. If the answer misses one part, narrow it to the terms used in the paper. Confirm that you may share the selected material with your provider before sending.</p>`,
+        <p>Look for separate citations about candidate history and evaluation setup, plus any unresolved gaps. If the answer misses one part, narrow it to the terms used in the paper. Confirm that you may share the selected material with your provider before sending.</p>
+        <p><strong>What happened in this run.</strong> The release offered <strong>6.2 Sol</strong>, which the service rejected for this Codex ChatGPT login. If this happens, choose a model your account supports from the menu beside the composer and resend. The test began reading the paper after switching to <strong>5.6 Sol</strong>.</p>`,
     },
     {
       id: 'check-citations',
       title: 'Check citations, revise comparisons, and export',
       body: `
         <ol>
-          <li>Open the reader’s clock icon, <strong>Research record</strong>, and select the question. Check for <strong>Report saved</strong>. If you have a chat response, confirm here that the report passed validation and was saved.</li>
+          <li>Return to the Paper library, open <strong>Research results</strong> in its sidebar, and select the question. Check for <strong>Report saved</strong>. If you only see a chat reply, check here whether there is a saved report.</li>
           <li>Select a citation. A PDF citation opens the saved version used for the study and locates the passage. If <strong>Citation evidence</strong> lists multiple matches, open each one and find the occurrence that supports or qualifies the claim. Read the context and check conditions and units.</li>
           <li>When the report has an <strong>Evidence matrix</strong>, check the comparison definition, value, and citation in each cell. Use <strong>Edit cell</strong> and record a reason when making a correction. Paper preserves the original report and records human corrections separately.</li>
           <li>Use <strong>Export Markdown</strong> to share a readable report, or <strong>Export JSON</strong> to retain structured citations, input versions, and matrix revisions. <strong>Print / PDF</strong> creates a readable copy. Reopening a saved report needs no model call.</li>
         </ol>
-        <figure><img src="{{assets}}openpero-paper-research-04-review.svg" alt="Diagram of the research record and citation evidence alongside the original PDF" width="1600" height="719" loading="lazy"><figcaption>Research record and citation walkthrough diagram.</figcaption></figure>
+        <p><strong>Expected result.</strong> In this run, 5.6 Sol saved a report with three sections and 13 evidence entries. The first numbered citation opened <strong>4 / 26</strong> and highlighted the methods passage on page 4. After restarting the release, we reopened that report and downloaded both Markdown and JSON. Both files preserved the title, and the JSON also contained sections, source passages, and source metadata. The app continued to show <strong>Conclusions not verified</strong>.</p>
         <p>An exact match locates the quote in the saved source. For scientific review, judge whether the passage supports the claim, whether other evidence conflicts, and whether an independent check is needed. The <a href="{{workflows}}#recheck-a-result">Fisher worked example</a> shows independent numerical verification and evidence handoff.</p>`,
     },
     {
