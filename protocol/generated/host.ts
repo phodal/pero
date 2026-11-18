@@ -170,6 +170,7 @@ export type SkillMarketOperation =
   | SkillMarketRollback
   | SkillMarketCancel;
 export type SkillHubSort = "score" | "downloads" | "updated_at";
+export type SkillHubSegment = string;
 /**
  * User-managed inventory; skill instructions do not grant execution permissions.
  */
@@ -1959,13 +1960,13 @@ export interface SkillHubSearch {
 }
 export interface SkillHubVersions {
   operation: "skillhub-versions";
-  publisher: string;
-  slug: string;
+  publisher: SkillHubSegment;
+  slug: SkillHubSegment;
 }
 export interface SkillHubInstall {
   operation: "skillhub-install";
-  publisher: string;
-  slug: string;
+  publisher: SkillHubSegment;
+  slug: SkillHubSegment;
   versionId: number;
 }
 export interface SkillMarketEntryOperation {

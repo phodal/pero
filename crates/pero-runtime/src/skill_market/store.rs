@@ -184,10 +184,22 @@ impl SkillMarketStore {
             }
         })
     }
-    pub fn prepare_skillhub(&self, release: SkillHubInstall) -> Result<super::hub_install::SkillHubAcquisition, String> {
-        super::hub_install::SkillHubAcquisition::begin(release, self.root.clone(), self.harness.clone(), self.control.clone())
+    pub fn prepare_skillhub(
+        &self,
+        identity: SkillHubIdentity,
+    ) -> Result<super::hub_install::SkillHubAcquisition, String> {
+        super::hub_install::SkillHubAcquisition::begin(
+            identity,
+            self.root.clone(),
+            self.harness.clone(),
+            self.control.clone(),
+        )
     }
-    pub fn complete_skillhub(&mut self, job: &super::hub_install::SkillHubAcquisition, version: SkillVersion) -> Result<serde_json::Value, String> {
+    pub fn complete_skillhub(
+        &mut self,
+        job: &mut super::hub_install::SkillHubAcquisition,
+        version: SkillVersion,
+    ) -> Result<serde_json::Value, String> {
         job.publish(|| {
             self.save(self.state.publish(version))?;
             Ok(self.installed())

@@ -3,7 +3,7 @@ mod acquisition;
 mod acquisition_job;
 pub use acquisition_job::{AcquisitionKind, AcquisitionResult, SkillAcquisition};
 mod hub_install;
-pub use hub_install::SkillHubInstall;
+pub use hub_install::{SkillHubIdentity, SkillHubInstall};
 mod catalog;
 pub use catalog::sanitize_catalog;
 mod context;

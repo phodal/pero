@@ -1,5 +1,5 @@
 //! SkillHub catalog, release history and verified release identity lookup.
-use pero_runtime::skill_market::{SkillHubInstall, SkillHubSort};
+use pero_runtime::skill_market::{SkillHubIdentity, SkillHubInstall, SkillHubSort};
 use reqwest::blocking::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -115,14 +115,6 @@ fn read<T: DeserializeOwned>(request: RequestBuilder) -> Result<T, String> {
     serde_json::from_slice(&bytes).map_err(|_| "SkillHub returned an invalid response".into())
 }
 
-fn is_segment(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 100
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-}
-
 pub(super) fn search(keyword: &str, page: u32, sort: SkillHubSort) -> Result<Value, String> {
     if keyword.chars().count() > 120 || page == 0 {
         return Err("Invalid SkillHub search".into());
@@ -151,12 +143,10 @@ pub(super) fn search(keyword: &str, page: u32, sort: SkillHubSort) -> Result<Val
         .into_iter()
         .filter_map(|item| {
             let namespace = item.namespace?;
-            if !is_segment(&namespace.handle) || !is_segment(&namespace.public_slug) {
-                return None;
-            }
+            let identity = SkillHubIdentity::new(namespace.handle, namespace.public_slug).ok()?;
             Some(Entry {
-                publisher: namespace.handle,
-                slug: namespace.public_slug,
+                publisher: identity.publisher().to_owned(),
+                slug: identity.slug().to_owned(),
                 name: item.name,
                 description: item.description.unwrap_or_default(),
                 description_zh: item.description_zh.unwrap_or_default(),
@@ -168,14 +158,13 @@ pub(super) fn search(keyword: &str, page: u32, sort: SkillHubSort) -> Result<Val
     Ok(serde_json::json!({"items": items, "total": data.total}))
 }
 
-pub(super) fn versions(namespace: &str, slug: &str) -> Result<Value, String> {
-    Ok(serde_json::json!({"versions": load_versions(namespace, slug)?}))
+pub(super) fn versions(identity: &SkillHubIdentity) -> Result<Value, String> {
+    Ok(serde_json::json!({"versions": load_versions(identity)?}))
 }
 
-fn load_versions(namespace: &str, slug: &str) -> Result<Vec<Release>, String> {
-    if !is_segment(namespace) || !is_segment(slug) {
-        return Err("Invalid SkillHub release identity".into());
-    }
+fn load_versions(identity: &SkillHubIdentity) -> Result<Vec<Release>, String> {
+    let slug = identity.slug();
+    let namespace = identity.publisher();
     let response: VersionList = read(
         client()?
             .get(format!("{ORIGIN}/api/v1/skills/{slug}/versions"))
@@ -185,11 +174,12 @@ fn load_versions(namespace: &str, slug: &str) -> Result<Vec<Release>, String> {
 }
 
 pub(super) fn install_release(
-    publisher: String,
-    slug: String,
+    identity: &SkillHubIdentity,
     version_id: u64,
 ) -> Result<SkillHubInstall, String> {
-    let version = load_versions(&publisher, &slug)?
+    let publisher = identity.publisher();
+    let slug = identity.slug();
+    let version = load_versions(identity)?
         .into_iter()
         .find(|release| release.version_id == version_id)
         .ok_or("SkillHub release is no longer available")?
@@ -199,10 +189,8 @@ pub(super) fn install_release(
             .get(format!("{ORIGIN}/api/v1/skills/{slug}"))
             .query(&[("namespace", &publisher)]),
     )?;
-    detail.namespace.matches(&publisher, &slug)?;
+    detail.namespace.matches(publisher, slug)?;
     Ok(SkillHubInstall {
-        publisher,
-        slug,
         name: detail.skill.display_name,
         description: detail.skill.summary.unwrap_or_default(),
         description_zh: detail.skill.summary_zh.unwrap_or_default(),

@@ -115,8 +115,9 @@ model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 model SkillMarketRead { operation: "catalog" | "installed"; ...AppClosed; }
 union SkillHubSort { score: "score", downloads: "downloads", updated: "updated_at" }
 model SkillHubSearch { operation: "skillhub-search"; @maxLength(120) keyword: string; @minValue(1) page: uint32; sort: SkillHubSort; ...AppClosed; }
-model SkillHubVersions { operation: "skillhub-versions"; @minLength(1) @maxLength(100) publisher: string; @minLength(1) @maxLength(100) slug: string; ...AppClosed; }
-model SkillHubInstall { operation: "skillhub-install"; @minLength(1) @maxLength(100) publisher: string; @minLength(1) @maxLength(100) slug: string; @minValue(1) versionId: safeint; ...AppClosed; }
+@minLength(1) @maxLength(100) @pattern("^[A-Za-z0-9_-]+$") scalar SkillHubSegment extends string;
+model SkillHubVersions { operation: "skillhub-versions"; publisher: SkillHubSegment; slug: SkillHubSegment; ...AppClosed; }
+model SkillHubInstall { operation: "skillhub-install"; publisher: SkillHubSegment; slug: SkillHubSegment; @minValue(1) versionId: safeint; ...AppClosed; }
 model SkillHubEntry { publisher: string; slug: string; name: string; description: string; descriptionZh: string; version: string; downloads: safeint; ...AppClosed; }
 model SkillHubPage { items: SkillHubEntry[]; total: safeint; ...AppClosed; }
 model SkillHubRelease { versionId: safeint; version: string; changelog?: string; createdAt: safeint; ...AppClosed; }

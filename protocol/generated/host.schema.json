@@ -17664,14 +17664,10 @@
           "const": "skillhub-install"
         },
         "publisher": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
+          "$ref": "#/$defs/SkillHubSegment"
         },
         "slug": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
+          "$ref": "#/$defs/SkillHubSegment"
         },
         "versionId": {
           "type": "integer",
@@ -17759,6 +17755,13 @@
       ],
       "additionalProperties": false
     },
+    "SkillHubSegment": {
+      "title": "SkillHubSegment",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
     "SkillHubSort": {
       "title": "SkillHubSort",
       "anyOf": [
@@ -17785,14 +17788,10 @@
           "const": "skillhub-versions"
         },
         "publisher": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
+          "$ref": "#/$defs/SkillHubSegment"
         },
         "slug": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
+          "$ref": "#/$defs/SkillHubSegment"
         }
       },
       "required": [
