@@ -193,6 +193,14 @@ impl Apps {
             Request::SkillHubVersions { publisher, slug } => {
                 return skillhub::versions(&publisher, &slug);
             }
+            Request::SkillHubInstall { publisher, slug, version_id } => {
+                let release = skillhub::install_release(publisher, slug, version_id)?;
+                let job = self.market.store.lock().map_err(|err| err.to_string())?
+                    .as_ref().map_err(Clone::clone)?.prepare_skillhub(release)?;
+                let version = job.run()?;
+                return self.market.store.lock().map_err(|err| err.to_string())?
+                    .as_mut().map_err(|err| err.clone())?.complete_skillhub(&job, version);
+            }
             _ => {}
         }
         if let Request::Cancel { id } = &request {

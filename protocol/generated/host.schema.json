@@ -17655,6 +17655,37 @@
       ],
       "additionalProperties": false
     },
+    "SkillHubInstall": {
+      "title": "SkillHubInstall",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "skillhub-install"
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "versionId": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "operation",
+        "publisher",
+        "slug",
+        "versionId"
+      ],
+      "additionalProperties": false
+    },
     "SkillHubPage": {
       "title": "SkillHubPage",
       "type": "object",
@@ -18005,6 +18036,9 @@
         },
         {
           "$ref": "#/$defs/SkillHubVersions"
+        },
+        {
+          "$ref": "#/$defs/SkillHubInstall"
         },
         {
           "$ref": "#/$defs/SkillMarketEntryOperation"

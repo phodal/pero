@@ -1,5 +1,5 @@
-//! Read-only adapter for Tencent's SkillHub catalog and release history.
-use pero_runtime::skill_market::SkillHubSort;
+//! SkillHub catalog, release history and verified release identity lookup.
+use pero_runtime::skill_market::{SkillHubInstall, SkillHubSort};
 use reqwest::blocking::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -55,6 +55,21 @@ struct Entry {
 struct VersionList {
     namespace: Namespace,
     versions: Vec<Release>,
+}
+
+#[derive(Deserialize)]
+struct Detail {
+    namespace: Namespace,
+    skill: DetailSkill,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DetailSkill {
+    display_name: String,
+    summary: Option<String>,
+    #[serde(rename = "summary_zh")]
+    summary_zh: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -154,6 +169,10 @@ pub(super) fn search(keyword: &str, page: u32, sort: SkillHubSort) -> Result<Val
 }
 
 pub(super) fn versions(namespace: &str, slug: &str) -> Result<Value, String> {
+    Ok(serde_json::json!({"versions": load_versions(namespace, slug)?}))
+}
+
+fn load_versions(namespace: &str, slug: &str) -> Result<Vec<Release>, String> {
     if !is_segment(namespace) || !is_segment(slug) {
         return Err("Invalid SkillHub release identity".into());
     }
@@ -165,12 +184,45 @@ pub(super) fn versions(namespace: &str, slug: &str) -> Result<Value, String> {
     response.for_skill(namespace, slug)
 }
 
+pub(super) fn install_release(
+    publisher: String,
+    slug: String,
+    version_id: u64,
+) -> Result<SkillHubInstall, String> {
+    let version = load_versions(&publisher, &slug)?
+        .into_iter()
+        .find(|release| release.version_id == version_id)
+        .ok_or("SkillHub release is no longer available")?
+        .version;
+    let detail: Detail = read(
+        client()?
+            .get(format!("{ORIGIN}/api/v1/skills/{slug}"))
+            .query(&[("namespace", &publisher)]),
+    )?;
+    detail.namespace.matches(&publisher, &slug)?;
+    Ok(SkillHubInstall {
+        publisher,
+        slug,
+        name: detail.skill.display_name,
+        description: detail.skill.summary.unwrap_or_default(),
+        description_zh: detail.skill.summary_zh.unwrap_or_default(),
+        version,
+        version_id,
+    })
+}
+
 impl VersionList {
-    fn for_skill(self, namespace: &str, slug: &str) -> Result<Value, String> {
-        if self.namespace.handle != namespace || self.namespace.public_slug != slug {
+    fn for_skill(self, namespace: &str, slug: &str) -> Result<Vec<Release>, String> {
+        self.namespace.matches(namespace, slug)?;
+        Ok(self.versions)
+    }
+}
+impl Namespace {
+    fn matches(&self, namespace: &str, slug: &str) -> Result<(), String> {
+        if self.handle != namespace || self.public_slug != slug {
             return Err("SkillHub returned versions for a different skill".into());
         }
-        Ok(serde_json::json!({"versions": self.versions}))
+        Ok(())
     }
 }
 
@@ -191,8 +243,9 @@ mod tests {
                 .for_skill(namespace, slug);
             assert_eq!(result.is_ok(), matched);
             if let Ok(result) = result {
-                assert_eq!(result["versions"][0]["version"], "2.1.0");
-                assert!(result["versions"][0].get("downloadUrl").is_none());
+                let reply = serde_json::to_value(result).unwrap();
+                assert_eq!(reply[0]["version"], "2.1.0");
+                assert!(reply[0].get("downloadUrl").is_none());
             }
         }
     }

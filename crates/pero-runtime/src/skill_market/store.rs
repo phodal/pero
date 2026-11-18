@@ -184,6 +184,15 @@ impl SkillMarketStore {
             }
         })
     }
+    pub fn prepare_skillhub(&self, release: SkillHubInstall) -> Result<super::hub_install::SkillHubAcquisition, String> {
+        super::hub_install::SkillHubAcquisition::begin(release, self.root.clone(), self.harness.clone(), self.control.clone())
+    }
+    pub fn complete_skillhub(&mut self, job: &super::hub_install::SkillHubAcquisition, version: SkillVersion) -> Result<serde_json::Value, String> {
+        job.publish(|| {
+            self.save(self.state.publish(version))?;
+            Ok(self.installed())
+        })
+    }
     fn save(&mut self, next: SkillMarketState) -> Result<(), String> {
         let path = self.root.join("state.json");
         let pending = self

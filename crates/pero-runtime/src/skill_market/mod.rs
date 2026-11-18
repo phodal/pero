@@ -2,6 +2,8 @@
 mod acquisition;
 mod acquisition_job;
 pub use acquisition_job::{AcquisitionKind, AcquisitionResult, SkillAcquisition};
+mod hub_install;
+pub use hub_install::SkillHubInstall;
 mod catalog;
 pub use catalog::sanitize_catalog;
 mod context;
@@ -26,6 +28,10 @@ pub struct SkillSource {
     pub resource_fingerprint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archive: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_id: Option<u64>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SkillLicense {
@@ -288,6 +294,13 @@ pub enum Request {
     },
     #[serde(rename = "skillhub-versions")]
     SkillHubVersions { publisher: String, slug: String },
+    #[serde(rename = "skillhub-install")]
+    SkillHubInstall {
+        publisher: String,
+        slug: String,
+        #[serde(rename = "versionId")]
+        version_id: u64,
+    },
     #[serde(rename = "install")]
     Install { id: String },
     #[serde(rename = "enable")]

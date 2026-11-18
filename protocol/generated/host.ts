@@ -163,6 +163,7 @@ export type SkillMarketOperation =
   | SkillMarketRead
   | SkillHubSearch
   | SkillHubVersions
+  | SkillHubInstall
   | SkillMarketEntryOperation
   | SkillMarketUpdateOperation
   | SkillMarketEnable
@@ -1960,6 +1961,12 @@ export interface SkillHubVersions {
   operation: "skillhub-versions";
   publisher: string;
   slug: string;
+}
+export interface SkillHubInstall {
+  operation: "skillhub-install";
+  publisher: string;
+  slug: string;
+  versionId: number;
 }
 export interface SkillMarketEntryOperation {
   operation: "install" | "remove" | "check-update";
