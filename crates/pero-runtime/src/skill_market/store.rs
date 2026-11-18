@@ -212,14 +212,22 @@ impl SkillMarketStore {
             })
             .filter(|saved| {
                 saved.adapter_version == version.adapter_version
-                    && saved.directory.join(".claude-plugin/plugin.json").is_file()
-                    && read_installed_context(saved).is_ok()
+                    && super::hub_install::snapshots_match(&version.directory, &saved.directory)
+                        .unwrap_or(false)
             });
+        let mut retain_snapshot = true;
         if let Some(saved) = existing {
-            version.directory = saved.directory.clone();
+            let fresh = std::mem::replace(&mut version.directory, saved.directory.clone());
+            if read_installed_context(&version).is_ok() {
+                retain_snapshot = false;
+            } else {
+                version.directory = fresh;
+            }
         }
-        job.publish(existing.is_none(), || {
-            read_installed_context(&version)?;
+        job.publish(retain_snapshot, || {
+            if retain_snapshot {
+                read_installed_context(&version)?;
+            }
             self.save(self.state.publish(version))?;
             Ok(self.installed())
         })
@@ -252,6 +260,12 @@ impl SkillMarketStore {
         let items=self.state.items.values().map(|item|{
             let mut value=serde_json::json!({"id":item.id,"revision":item.revision,"enabled":item.enabled,"selected":item.selected,"invocation":item.invocation,"entry":item.entry,"versions":item.versions.iter().map(|version|&version.revision).collect::<Vec<_>>()});
             super::catalog::sanitize_skill(&mut value["entry"]);
+            let release_names: BTreeMap<_, _> = item.versions.iter().filter_map(|version| {
+                version.entry.source.release.as_ref().map(|name| (&version.revision, name))
+            }).collect();
+            if !release_names.is_empty() {
+                value["releaseNames"] = serde_json::json!(release_names);
+            }
             if let Some(revision)=&item.previous_revision{value["previousRevision"]=serde_json::json!(revision);}
             value
         }).collect::<Vec<_>>();

@@ -4268,7 +4268,11 @@ export interface InstalledMarketSkill {
   invocation: string;
   previousRevision?: string;
   versions: string[];
+  releaseNames?: SkillMarketReleaseNames;
   entry?: AppDocumentSchema;
+}
+export interface SkillMarketReleaseNames {
+  [k: string]: string | undefined;
 }
 export interface SkillMarketUpdate {
   id: string;

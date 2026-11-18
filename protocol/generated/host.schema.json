@@ -9639,6 +9639,9 @@
             "type": "string"
           }
         },
+        "releaseNames": {
+          "$ref": "#/$defs/SkillMarketReleaseNames"
+        },
         "entry": {
           "$ref": "#/$defs/AppDocumentSchema"
         }
@@ -18077,6 +18080,14 @@
         "operation"
       ],
       "additionalProperties": false
+    },
+    "SkillMarketReleaseNames": {
+      "title": "SkillMarketReleaseNames",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "SkillMarketRollback": {
       "title": "SkillMarketRollback",

@@ -141,9 +141,10 @@ model SkillMarketCatalog {
   ...AppClosed;
 }
 model SkillMarketSelection { id: string; revision: string; ...AppClosed; }
+model SkillMarketReleaseNames is Record<string>;
 model InstalledMarketSkill {
   id: string; revision: string; enabled: boolean; selected: boolean; invocation: string;
-  previousRevision?: string; versions: string[]; entry?: AppDocumentSchema;
+  previousRevision?: string; versions: string[]; releaseNames?: SkillMarketReleaseNames; entry?: AppDocumentSchema;
   ...AppClosed;
 }
 model SkillMarketInstalled { items: InstalledMarketSkill[]; supportedAgent: "pero"; ...AppClosed; }

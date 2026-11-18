@@ -1,7 +1,7 @@
 //! One versioned SkillHub acquisition, published through the installed inventory.
 use super::*;
 use sha2::{Digest, Sha256};
-use std::{fs, process::Command};
+use std::{fs, io, path::Path, process::Command};
 
 #[derive(Clone)]
 pub struct SkillHubIdentity {
@@ -189,6 +189,32 @@ fn inventory_revision(version_id: u64, package_digest: &str) -> String {
     format!("{:x}", hash.finalize())
 }
 
+pub(super) fn snapshots_match(staged: &Path, retained: &Path) -> io::Result<bool> {
+    if !fs::symlink_metadata(retained)?.is_dir() {
+        return Ok(false);
+    }
+    let mut count = 0;
+    for entry in fs::read_dir(staged)? {
+        let entry = entry?;
+        count += 1;
+        let staged_path = entry.path();
+        let retained_path = retained.join(entry.file_name());
+        let staged_meta = entry.metadata()?;
+        let retained_meta = fs::symlink_metadata(&retained_path)?;
+        let matches = if staged_meta.is_dir() {
+            snapshots_match(&staged_path, &retained_path)?
+        } else {
+            retained_meta.is_file()
+                && staged_meta.len() == retained_meta.len()
+                && fs::read(staged_path)? == fs::read(retained_path)?
+        };
+        if !matches {
+            return Ok(false);
+        }
+    }
+    Ok(count == fs::read_dir(retained)?.count())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +225,23 @@ mod tests {
         assert_eq!(first, inventory_revision(17, &"a".repeat(64)));
         assert_ne!(first, inventory_revision(18, &"a".repeat(64)));
         assert_ne!(first, inventory_revision(17, &"b".repeat(64)));
+    }
+
+    #[test]
+    fn snapshot_match_includes_bundled_resources() {
+        let root = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let staged = root.join("staged");
+        let retained = root.join("retained");
+        for path in [&staged, &retained] {
+            fs::create_dir_all(path.join("references")).unwrap();
+            fs::write(path.join("references/notes.md"), "original").unwrap();
+        }
+        assert!(snapshots_match(&staged, &retained).unwrap());
+        fs::write(retained.join("references/notes.md"), "modified").unwrap();
+        assert!(!snapshots_match(&staged, &retained).unwrap());
+        fs::remove_file(retained.join("references/notes.md")).unwrap();
+        assert!(!snapshots_match(&staged, &retained).unwrap_or(false));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
