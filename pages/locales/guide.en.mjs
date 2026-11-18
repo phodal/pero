@@ -1,185 +1,173 @@
+import paper from './guide-paper.en.mjs';
+import research from './guide-research.en.mjs';
+import runtime from './guide-runtime.en.mjs';
+
 export default {
   overview: {
     title: 'Pero documentation',
     label: 'Overview',
-    description: 'Read papers, inspect data, run research Apps, and trace results back to their evidence in one desktop workbench. Start by importing a PDF.',
+    description: 'Read papers, inspect data, and record your research in one desktop workbench. Trace results back to their sources and recorded runs.',
     sections: [
       {
         id: 'where-to-run',
-        title: 'Choose where to start',
+        title: 'Choose where to run Pero',
         body: `
-          <p>Use the <strong>Electron desktop workbench</strong> with your own papers and data. Read sources, save annotations, and inspect datasets locally. Set up a model provider when you need an Agent.</p>
-          <p>Try task assignment and result review in the <a href="../#distributed">interactive browser demo</a>. It uses example data and simulated roles. Use the desktop workbench to follow the research steps in this guide.</p>`,
+          <p>Follow the tutorials in the <strong>Electron desktop workbench</strong>. You can read and annotate PDFs, inspect local data, and save notes on your computer. Configure a model provider when you want an Agent to analyze something. Set up a Compute connection when a method needs to run on another machine.</p>
+          <p>The <a href="../#distributed">interactive website demo</a> shows task assignment and result review with example data and simulated roles. The <a href="https://openpero.com/workbench/">browser workbench preview</a> shows the interface. Local Agents and research Apps require the desktop Host.</p>`,
+      },
+      {
+        id: 'continue-your-research',
+        title: 'Continue by research task',
+        body: `
+          <ul>
+            <li>Use <a href="{{data}}">Data</a> and six sample records to import a file, filter rows, save a view, and check a version.</li>
+            <li>Use <a href="{{notebook}}">Notebook</a> to save a revision with your observations and sources, then reopen or export it.</li>
+            <li>Use <a href="{{projects}}">Projects</a> to record a goal and link existing papers, research reports, and experiments.</li>
+            <li>Use <a href="{{compute}}">Compute</a> to identify the dependencies and execution location, then inspect the job status, logs, and artifacts.</li>
+            <li><a href="{{reference}}#read-a-result">Assess what a result supports</a> by checking sources, run records, independent verification, and researcher review.</li>
+          </ul>`,
       },
     ],
   },
   install: {
     title: 'Install and launch',
     label: 'Install and launch',
-    description: 'Download the Electron development preview for your operating system, or launch a build from source.',
+    description: 'Choose a desktop package for your system, verify the download, and prepare your first App. Build from source to try newer features.',
     sections: [
       {
         id: 'download',
-        title: 'Download the desktop workbench',
+        title: 'Choose a release and desktop package',
         body: `
-          <p>Open <a href="https://github.com/phodal/pero/releases">GitHub Releases</a> and read the notes and assets for your release. The <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">November 12, 2026 development preview</a> provides these Electron packages.</p>
-          <ul>
-            <li><strong>macOS Apple Silicon.</strong> Open <code>Pero-macos-arm64.dmg</code>, drag <code>Pero.app</code> into Applications, and open it from there.</li>
-            <li><strong>Windows x64.</strong> Extract <code>Pero-windows-x64.zip</code> in full, then open <code>Pero.exe</code> from the extracted folder.</li>
-            <li><strong>Linux x64.</strong> Extract <code>Pero-linux-x64.tar.gz</code> and run <code>./pero</code> in the extracted app folder. Your system needs the usual Electron desktop libraries.</li>
-          </ul>
-          <p>macOS packages are ad-hoc signed and unnotarized. Windows and Linux packages are unsigned. Check the archive against <code>SHA256SUMS</code> from the same release. If the operating system blocks launch, consult the release notes.</p>
-          <p>The same preview offers <strong>Pero Native</strong> for Apple Silicon with a separate profile. This guide uses the Electron workbench for first use. Consult your release notes for features available in the package you downloaded.</p>`,
+          <p>Open the development preview you want on <a href="https://github.com/phodal/pero/releases">GitHub Releases</a>. The filenames below are from the <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">November 12, 2026 preview</a>. Features marked as current source may be newer than your package. Consult its release notes.</p>
+          <table>
+            <thead><tr><th scope="col">Platform</th><th scope="col">Electron workbench</th><th scope="col">How to launch</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">macOS Apple Silicon</th><td><code>Pero-macos-arm64.dmg</code></td><td>Open the DMG, drag <code>Pero.app</code> to Applications, and launch it from there.</td></tr>
+              <tr><th scope="row">Windows x64</th><td><code>Pero-windows-x64.zip</code></td><td>Extract the whole archive into one directory, then open <code>Pero.exe</code>.</td></tr>
+              <tr><th scope="row">Linux x64</th><td><code>Pero-linux-x64.tar.gz</code></td><td>Extract the archive and run <code>./pero</code> in the app directory. Your system needs the Electron desktop libraries.</td></tr>
+            </tbody>
+          </table>
+          <p>The same release offers a separate Native package for macOS Apple Silicon. Electron and Native use separate profiles. This guide uses Electron for first launch. The macOS packages are ad-hoc signed and unnotarized. Windows and Linux development packages are unsigned. If your system blocks launch, verify the download source and consult the release notes.</p>`,
+      },
+      {
+        id: 'verify-download',
+        title: 'Verify the downloaded file',
+        body: `
+          <p>Download <code>SHA256SUMS</code> from the same release. Run the command for your system from the download directory. Compare the full digest with the entry for the <strong>same archive filename</strong>.</p>
+          <pre><code># macOS
+shasum -a 256 Pero-macos-arm64.dmg
+
+# Windows PowerShell
+Get-FileHash .\\Pero-windows-x64.zip -Algorithm SHA256
+
+# Linux
+sha256sum Pero-linux-x64.tar.gz</code></pre>
+          <p>If the digests match, continue with extraction or installation. If they differ, download the file again from the release and verify it. The build metadata identifies the source commit and target platform.</p>`,
       },
       {
         id: 'prepare-environment',
-        title: 'Prepare the App environment',
+        title: 'Launch and prepare the first App',
         body: `
           <ol>
-            <li>Open Pero and select <strong>Papers</strong> in the sidebar. If prompted, choose <strong>Prepare environment</strong>.</li>
-            <li>Wait for the environment to report ready. First-time setup may need internet access to download uv, CPython 3.12, and pinned App dependencies. If preparation fails, review the error details before retrying.</li>
-            <li>Continue to <a href="{{paper}}">read and annotate your first paper</a>. Importing and reading a local PDF requires no model account or API key.</li>
+            <li>Open the Electron workbench and choose <strong>Papers</strong> in the sidebar. If the App reports a missing environment, choose <strong>Prepare environment</strong>.</li>
+            <li>First-time preparation may download uv, CPython 3.12, and the App’s pinned dependencies. Wait for the environment to report ready. The default directory in a fresh profile is <code>~/.pero/environment/pero-python312</code>. An existing profile keeps its selected environment.</li>
+            <li>Open a selectable-text PDF and save a highlight to check that the reader works and saves annotations. Follow the <a href="{{paper}}#import-and-highlight">first paper tutorial</a>. Importing and reading a local PDF requires no model account, Task Center login, or PostgreSQL.</li>
           </ol>
-          <p>See <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">Python environment settings</a> for pre-provisioned virtual environments and offline setup.</p>`,
+          <p>For offline use, follow the <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">pre-provisioned environment instructions</a> to configure an absolute venv directory with its dependencies installed. See <a href="{{compute}}">Compute and environments</a> for preparation, inspection, and binding.</p>`,
+      },
+      {
+        id: 'startup-troubleshooting',
+        title: 'Diagnose launch and preparation failures',
+        body: `
+          <dl>
+            <dt>The application window never opens</dt><dd>Check the download digest, CPU architecture, and folder contents. On Linux, match any reported missing shared libraries to your distribution’s runtime dependencies.</dd>
+            <dt>The workbench opens but an App reports a missing environment</dt><dd>Start preparation from the App prompt. If it fails, read the details to distinguish a failed download, an invalid existing environment, and a failed App startup. Reopen the App once the environment reports ready.</dd>
+            <dt>An App, record, or setting appears to be missing</dt><dd>Confirm that you opened the intended Electron, Native, or development profile and that the feature shipped in your version. See the <a href="{{reference}}#data-and-cost">profile and data locations</a>.</dd>
+            <dt>Preparation succeeded but the App still fails</dt><dd>In recent source builds, look for <code>app-startup.jsonl</code> next to the Host settings. Match the request ID from the interface to the startup stage, error code, and exit status. Include the shareable record if you file an issue.</dd>
+          </dl>`,
       },
       {
         id: 'from-source',
         title: 'Launch from source',
         body: `
-          <p>Follow the <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">development guide</a> for Node.js, Go, Rust with the Wasm target, Electron, and the pinned GPUI Kit. Then run this command at the repository root.</p>
-          <pre><code>npm run dev:paper</code></pre>
-          <p>The command builds and opens Paper in a separate development profile. Use <code>npm run dev</code> to open the full workbench. Local reading and App computation require neither the separate Go control plane nor PostgreSQL.</p>`,
+          <p>Check the system prerequisites in the <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">development guide</a>. Current source uses Node.js 22.18+, Go 1.27.3, Rust stable, the Wasm target of <code>nightly-2026-10-28</code>, and a pinned GPUI Kit checkout. Run these POSIX shell commands from a clean Pero checkout, with no <code>gpui-kit</code> directory already beside it.</p>
+          <pre><code>npm ci
+node node_modules/electron/install.js
+rustup toolchain install stable --profile minimal
+rustup toolchain install nightly-2026-10-28 --profile minimal --target wasm32-unknown-unknown
+git -c core.autocrlf=false clone https://github.com/longbridge/gpui-kit.git ../gpui-kit
+git -C ../gpui-kit checkout --detach 7591a35eced761e3613c01e71ff04c10129dae1a
+export PERO_GPUI_KIT_PATH="$(cd ../gpui-kit &amp;&amp; pwd)"
+npm run dev</code></pre>
+          <p>The first build may download Rust dependencies, fonts, Wasm tooling, and App dependencies. A successful build opens the Electron workbench. Use <code>npm run dev:paper</code> to try Paper in a separate profile. Use <code>npm start</code> to open existing workbench outputs after a build.</p>`,
       },
     ],
   },
-  paper: {
-    title: 'Read your first paper',
-    label: 'Read your first paper',
-    description: 'Import a PDF and save an annotation. When you want further analysis, send a question and follow the citations back to the source.',
-    sections: [
-      {
-        id: 'import-and-highlight',
-        title: 'Import and save a highlight',
-        body: `
-          <p>Choose a PDF with selectable text. On first use, <a href="{{install}}#prepare-environment">prepare the App environment</a>.</p>
-          <ol>
-            <li>Open <strong>Papers</strong> from the sidebar and choose <strong>Add papers → PDF → Import PDF</strong>, or drop the file into the Paper window.</li>
-            <li>Select a sentence and choose <strong>Highlight</strong>. Open <strong>Annotations</strong> from the PDF context menu and inspect the saved location and quotation.</li>
-            <li>Return to the library and reopen the paper. Confirm the annotation still points to the right page. Paper saves annotations separately and retains the original PDF.</li>
-          </ol>
-          <p>This step requires no model. Text selection and search rely on the existing PDF text layer. If text is unavailable, use <strong>Capture area</strong> from the PDF context menu to save the location of a figure or table for review.</p>`,
-      },
-      {
-        id: 'ask-agent',
-        title: 'Ask an Agent about a passage',
-        body: `
-          <ol>
-            <li>For the built-in Agent, open <strong>Settings → Built-in Agent</strong> and enter the API URL, model, and key. External Agents use their own sign-in flows. Full-text PDF research requires an Agent with HTTP MCP support. See the <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">Agent setup guide</a>.</li>
-            <li>Click <strong>Ask AI</strong> in the reader, or select text and choose <strong>Discuss selection</strong>. Review the draft and any attached passage, then send. Your model provider may receive the question and selected text.</li>
-          </ol>
-          <blockquote><p>How do the authors describe when this method applies? Quote the source and list the limitations I should check.</p></blockquote>`,
-      },
-      {
-        id: 'check-citations',
-        title: 'Follow citations to the source',
-        body: `
-          <ol>
-            <li>After the report is saved, click the clock icon labeled <strong>Research record</strong> in the reader toolbar and open the report.</li>
-            <li>Click a citation and read the surrounding passage. When a quotation has multiple matches, choose the location relevant to the claim.</li>
-            <li>Compare the claim with the source and review any open questions. Use <strong>Continue from here</strong> to draft a follow-up and send it when ready.</li>
-          </ol>
-          <p>A citation locates a source passage. Check whether the passage supports the claim and whether the method applies to your own work.</p>`,
-      },
-      {
-        id: 'troubleshoot',
-        title: 'Troubleshooting',
-        body: `
-          <ul>
-            <li><strong>Agent fails to start or sign in.</strong> Check your Agent choice, credentials, and the error shown in the conversation. After signing in, review and resend the question.</li>
-            <li><strong>Full-text search returns no matches.</strong> Try the paper's terminology, narrow your question, or select a known passage in the reader. An empty result describes the current search.</li>
-            <li><strong>A study stops before submitting a report.</strong> Open the saved research record, review its findings and gaps, then choose <strong>Continue research</strong>.</li>
-          </ul>
-          <p>See the <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#pdf-reading">Paper guide</a> for more reading and retrieval options.</p>`,
-      },
-    ],
-  },
-  workflows: {
-    title: 'Research workflows',
-    label: 'Research workflows',
-    description: 'Inspect a dataset version, recheck a published result, or organize materials in a research project. Check the linked verification records for versions and coverage.',
-    sections: [
-      {
-        id: 'inspect-data',
-        title: 'Inspect a dataset version',
-        body: `
-          <ol>
-            <li>Save these <a href="https://raw.githubusercontent.com/phodal/pero/master/docs/examples/first-dataset.json">six synthetic records</a> as <code>first-dataset.json</code>. In <strong>Data</strong>, choose <strong>Add data</strong>, select the file, and confirm the import.</li>
-            <li>Open the dataset and choose <strong>Explore data</strong>. Confirm the six records and three fields, then check the selected version and SHA-256 under provenance.</li>
-            <li>Save a view to retain filters or chart settings. To append a revision, choose <strong>Add version</strong> on the existing entry. Importing the same filename from the library creates a separate dataset.</li>
-          </ol>
-          <p>Table inspection runs locally without a model. It supports UTF-8 CSV, TSV, JSON, and JSONL. Imports are limited to 10 MiB. See <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data versions, provenance, and checks</a>.</p>`,
-      },
-      {
-        id: 'recheck-a-result',
-        title: 'Recheck one result from Fisher’s paper',
-        body: `
-          <ol>
-            <li>In Paper, import the <a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">original Fisher (1936) PDF used for the case</a>. For those exact file bytes, the toolbar offers <strong>Select Fisher Table III result</strong>.</li>
-            <li>Review the original table, 100 input measurements, calculation, and comparison rule. Freeze the protocol and explicitly confirm a run. Compare the reported <strong>19.1434 cm²</strong> with the computed value, difference, and independent numerical check.</li>
-            <li>Export the evidence ZIP, extract it, and run the command below in the extracted directory. The independent check uses the Python standard library and requires no network or model.</li>
-          </ol>
-          <pre><code>python -I -S verify.py</code></pre>
-          <p>The recorded <code>REPRODUCED</code> verdict covers one value in the table. The paper-level verdict remains <code>NOT_ASSESSED</code>. See the <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11">Fisher case inputs and acceptance record</a>.</p>`,
-      },
-      {
-        id: 'organize-a-project',
-        title: 'Link material to a research project',
-        body: `
-          <p>Choose <strong>New research project</strong> and enter a name and research goal. You can also attach a local directory. Open <strong>Materials &amp; experiments → Link existing records</strong>, choose an enabled App, and link a saved paper, study, or experiment.</p>
-          <p>The project stores links to the original records. Open a link to see the record in its App. If the record changes, review it and update the linked revision when needed. See <a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md">research project behavior and verification</a>.</p>`,
-      },
-      {
-        id: 'remote-compute',
-        title: 'Prepare a remote computation',
-        body: `
-          <p>With an authorized SSH or Slurm environment, choose a connection in <strong>Compute</strong>, probe it, and prepare the bundled CPU midpoint quadrature method. Review the destination, frozen parameters, and requested resources before approving submission.</p>
-          <p>Return to the original attempt to observe status, read logs, and collect saved artifacts. Verification covers an actual loopback SSH server and a Slurm fixture. Real Slurm sites and other scientific methods need separate acceptance. See the <a href="https://github.com/phodal/pero/blob/master/apps/compute/README.md">Compute guide</a> and <a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">verification record</a>.</p>`,
-      },
-    ],
-  },
+  paper,
+  ...research,
+  ...runtime,
   reference: {
-    title: 'Concepts and reference',
+    title: 'Concepts, evidence, and troubleshooting',
     label: 'Concepts and reference',
-    description: 'See where data and execution are managed, and check which versions, platforms, and conditions a verification record covers.',
+    description: 'Find the right record, understand what a run can establish, and find where to investigate a problem.',
     sections: [
       {
         id: 'concepts',
-        title: 'Objects in the workbench',
+        title: 'Objects and records in the workbench',
         body: `
-          <dl>
-            <dt>Research project</dt><dd>Holds a research goal and links to App records, with an optional local directory.</dd>
-            <dt>App</dt><dd>Provides a domain interface, methods, and data. Paper holds papers and research reports. Data holds dataset versions.</dd>
-            <dt>Host and Agent session</dt><dd>The Host manages local Apps, credentials, Agent sessions, approvals, and cancellation. Review pending tool requests in the conversation.</dd>
-            <dt>Control plane and Worker</dt><dd>The optional control plane coordinates shared tasks. A separate Worker handles them in its configured execution environment. The services need their own deployment and authorization.</dd>
-          </dl>
-          <p>See the <a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">architecture guide</a> and <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App development guide</a> for ownership and integration details.</p>`,
+          <table>
+            <thead><tr><th scope="col">Object</th><th scope="col">What it records</th><th scope="col">Where to look</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Research project</th><td>A goal, optional local folder, and links to App records. Each App stores its own domain data.</td><td><a href="{{projects}}">Project overview and references</a></td></tr>
+              <tr><th scope="row">Research App</th><td>Objects specific to the App, such as a paper snapshot, dataset file version, notebook revision, or experiment attempt.</td><td><a href="{{workflows}}">App workflows and source records</a></td></tr>
+              <tr><th scope="row">Agent session</th><td>Messages, tool activity, and approvals. The local Host manages the session. You choose the Agent and workspace when it starts.</td><td><a href="{{agents}}">Conversation history and tools</a></td></tr>
+              <tr><th scope="row">Computation attempt</th><td>The method, inputs, execution environment, and the status, logs, or artifacts of a specific attempt. Fields depend on the workflow.</td><td><a href="{{compute}}">Compute records</a> or the App that owns the experiment</td></tr>
+              <tr><th scope="row">Shared task and Worker</th><td>The optional control plane coordinates shared tasks. An enrolled Worker executes in its configured environment.</td><td><a href="https://github.com/phodal/pero/blob/master/desktop/README.md#remote-tasks">Desktop remote tasks</a></td></tr>
+            </tbody>
+          </table>
+          <p>For example, a project link to a Paper report opens the original in Paper. To record the data you reviewed at that point, note the exact Data file version or save a Notebook revision with a reference.</p>`,
+      },
+      {
+        id: 'read-a-result',
+        title: 'Trace a conclusion back to evidence',
+        body: `
+          <ol>
+            <li><strong>Find the source.</strong> Follow a paper claim to the cited passage and check the context and units. For data, identify the exact file version, source, and SHA-256.</li>
+            <li><strong>Find the run.</strong> Check the input, method version, parameters, and environment. Open the logs and artifacts from that attempt. Keep the earlier attempt available when you rerun for comparison.</li>
+            <li><strong>Read the verification verdict.</strong> Check which output was evaluated, what rule was fixed before the run, and what an independent check recomputed. Record whether verification passed, found a mismatch, or was unavailable. A completed run establishes that the procedure ran.</li>
+            <li><strong>State the scope.</strong> The <a href="{{workflows}}#recheck-a-result">Fisher example</a> checks one value in Table III. <code>REPRODUCED</code> applies to that value. The whole-paper verdict is <code>NOT_ASSESSED</code>.</li>
+          </ol>
+          <p>A useful record for Fisher (1936) names the Table III result, the 100 reviewed inputs, the expected 19.1434 cm², and the tolerance of 0.00005 cm². The exported verification report contains the independent check.</p>`,
       },
       {
         id: 'data-and-cost',
-        title: 'Data, permissions, and costs',
+        title: 'Local data, permissions, and billing',
         body: `
           <ul>
-            <li>Apps store domain data on the machine where they run. Model providers, literature services, MCP connectors, or shared task services can receive selected data when you use them.</li>
-            <li>Local plugins and App backends run trusted code. Review where an App came from, the session's permissions, and the submitted content before using sensitive material.</li>
-            <li>Model and remote compute providers handle billing. Consult provider records for charges. Research step and time limits constrain the workflow.</li>
-          </ul>`,
+            <li><strong>Settings and data.</strong> The default Electron workbench stores Host settings in <code>~/.pero/config/runtime-settings.json</code> and App records in <code>~/.pero/app-data/</code>. Conversation history is in <code>sessions.jsonl</code> in Electron’s user-data directory. Native, standalone products, and isolated development profiles use their own locations.</li>
+            <li><strong>External requests.</strong> Reading a local file and running a local method can stay on your computer. Model requests, literature search, MCP, and shared task services may receive relevant questions, selected context, or tool arguments. Review drafts, attachments, and requested permissions before proceeding.</li>
+            <li><strong>Billing.</strong> Model and compute charges come from the provider’s usage records. Workflow step and time limits govern that execution. The interface shows usage when usage data is available.</li>
+          </ul>
+          <p>Use App export actions to share research records. Dataset versions, notebook revisions, and run evidence have their own export formats and scopes.</p>`,
       },
       {
         id: 'verification-and-help',
-        title: 'Verification and support',
+        title: 'Read acceptance records and diagnose problems',
         body: `
-          <p>The <a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">quality gates</a> record source checks, desktop runs, external services, and packaged release results by feature. When evaluating a scientific result, check its sources, run inputs, comparison rules, and independent review. The <a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">roadmap</a> covers planned team sync and shared research memory.</p>
-          <p>When reporting a problem in <a href="https://github.com/phodal/pero/issues">GitHub Issues</a>, include the version or source revision, platform, Electron or Native, reproduction steps, and any shareable error details. See the <a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">contributor guide</a> to make a code change.</p>`,
+          <p><strong>Identify where the failure occurred.</strong> Start with <a href="{{install}}#startup-troubleshooting">startup troubleshooting</a> if the workbench or an App cannot launch. For model errors, check <a href="{{agents}}">sign-in, credentials, and session settings</a>. When a submitted job produces no result, check <a href="{{compute}}">the connection, attempt state, logs, and artifacts</a>. If the conclusion is in question, follow the <a href="#read-a-result">source and verification checks</a>.</p>
+          <p>The <a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">acceptance levels</a> describe the conditions covered. L0 covers code and contract checks. L1 runs Desktop with an Agent fixture. L2 uses a real provider, environment, or service. L3 checks installation, upgrade, and operation of the signed package on the target system. Check the version, platform, sample, and remaining gaps in each record.</p>
+          <p>When filing a <a href="https://github.com/phodal/pero/issues">GitHub issue</a>, include the version or commit SHA, OS and architecture, Electron or Native, steps, expected and observed results, and any shareable error or request ID.</p>`,
+      },
+      {
+        id: 'developer-reference',
+        title: 'Development and deployment',
+        body: `
+          <dl>
+            <dt>Build Desktop and contribute changes</dt><dd>Follow <a href="{{install}}#from-source">source setup</a>. Use the <a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">contribution guide</a> and <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#verification">verification commands</a> for the area you change.</dd>
+            <dt>Develop an App</dt><dd>Start from an existing example under <code>apps/</code>. The <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App development contract</a> covers the manifest, Web panels, backend, environment, and declared permissions.</dd>
+            <dt>Deploy shared tasks</dt><dd>See <a href="https://github.com/phodal/pero/blob/master/server/README.md">control plane setup</a> for PostgreSQL, server configuration, and project access. Use the <a href="https://github.com/phodal/pero/blob/master/crates/pero-worker/README.md">Worker guide</a> to connect an execution machine.</dd>
+            <dt>Look up boundaries and plans</dt><dd>See the <a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">architecture</a>, <a href="https://github.com/phodal/pero/blob/master/docs/adr/README.md">decision records</a>, and <a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">roadmap</a>.</dd>
+          </dl>`,
       },
     ],
   },

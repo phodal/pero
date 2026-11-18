@@ -3,34 +3,36 @@ import path from 'node:path';
 import english from '../locales/guide.en.mjs';
 import chinese from '../locales/guide.zh-CN.mjs';
 
-const topics = {
-  overview: '',
-  install: 'install',
-  paper: 'paper',
-  workflows: 'workflows',
-  reference: 'reference',
-};
+const navigationGroups = [
+  ['overview', 'install', 'paper'],
+  ['workflows', 'data', 'notebook', 'projects'],
+  ['agents', 'compute', 'reference'],
+];
+const topics = navigationGroups.flat();
+const overviewTopics = ['install', 'paper', 'workflows', 'agents'];
 
 const locales = [
   {
     lang: 'zh-CN', directory: '', pages: chinese,
     docs: '文档', home: 'OpenPero 首页', skip: '跳到主要内容',
-    contents: '本页目录', start: '选择一个任务', dark: '深色模式',
+    contents: '本页目录', start: '从这里开始', dark: '深色模式',
+    navigation: ['开始使用', '科研应用', '配置与参考'],
     languageName: '中文',
   },
   {
     lang: 'en', directory: 'en', pages: english,
     docs: 'Docs', home: 'OpenPero home', skip: 'Skip to content',
-    contents: 'On this page', start: 'Choose a task', dark: 'Dark mode',
+    contents: 'On this page', start: 'Start here', dark: 'Dark mode',
+    navigation: ['Get started', 'Research Apps', 'Configuration and reference'],
     languageName: 'English',
   },
 ];
 
-const route = (locale, topic) => path.posix.join(locale.directory, 'docs', topics[topic]);
+const route = (locale, topic) => path.posix.join(locale.directory, 'docs', topic === 'overview' ? '' : topic);
 const directoryHref = (from, to) => `${path.posix.relative(from, to) || '.'}/`;
 
 export function buildGuide(root, output, escapeHtml) {
-  for (const topic of Object.keys(topics)) {
+  for (const topic of topics) {
     const sectionIds = chinese[topic].sections.map(({ id }) => id);
     if (new Set(sectionIds).size !== sectionIds.length ||
         sectionIds.join() !== english[topic].sections.map(({ id }) => id).join()) {
@@ -47,18 +49,20 @@ export function buildGuide(root, output, escapeHtml) {
 
   for (const locale of locales) {
     const other = locales.find(({ lang }) => lang !== locale.lang);
-    for (const topic of Object.keys(topics)) {
+    for (const topic of topics) {
       const page = locale.pages[topic];
       const folder = route(locale, topic);
       const home = directoryHref(folder, locale.directory || '.');
       const assets = directoryHref(folder, 'assets');
       const switchLanguage = directoryHref(folder, route(other, topic));
-      const links = Object.keys(topics).map((key) => ({
-        key, label: escapeHtml(locale.pages[key].label), description: escapeHtml(locale.pages[key].description),
-        href: directoryHref(folder, route(locale, key)),
-      }));
-      const navigation = links.map(({ key, href, label }) =>
-        `      <li><a href="${href}"${key === topic ? ' aria-current="page"' : ''}>${label}</a></li>`).join('\n');
+      const links = Object.fromEntries(topics.map((key) => [key, directoryHref(folder, route(locale, key))]));
+      const navigation = navigationGroups.map((group, index) => `
+      <div class="guide-nav-group">
+        <p>${locale.navigation[index]}</p>
+        <ul>
+${group.map((key) => `          <li><a href="${links[key]}"${key === topic ? ' aria-current="page"' : ''}>${escapeHtml(locale.pages[key].label)}</a></li>`).join('\n')}
+        </ul>
+      </div>`).join('');
       const outline = topic !== 'overview' && page.sections.length > 1 ? `
     <nav class="guide-outline" aria-label="${locale.contents}">
       <p aria-hidden="true">${locale.contents}</p>
@@ -70,7 +74,7 @@ ${page.sections.map(({ id, title }) => `        <li><a href="#${id}">${escapeHtm
       <section class="guide-start" aria-labelledby="choose-task">
         <h2 id="choose-task">${locale.start}</h2>
         <ul>
-${links.filter(({ key }) => key !== topic).map(({ href, label, description }) => `          <li><a href="${href}"><strong>${label}</strong><span>${description}</span></a></li>`).join('\n')}
+${overviewTopics.map((key) => `          <li><a href="${links[key]}"><strong>${escapeHtml(locale.pages[key].label)}</strong><span>${escapeHtml(locale.pages[key].description)}</span></a></li>`).join('\n')}
         </ul>
       </section>` : '';
       const sections = page.sections.map(({ id, title, body }) => `
@@ -78,9 +82,10 @@ ${links.filter(({ key }) => key !== topic).map(({ href, label, description }) =>
         <h2 id="${id}">${escapeHtml(title)}</h2>
         ${body.trim()}
       </section>`).join('\n').replace(/\{\{([a-z]+)\}\}/g, (_, key) => {
-        const link = links.find((entry) => entry.key === key);
-        if (!link) throw new Error(`Unknown guide link ${key} in ${topic}`);
-        return link.href;
+        if (key === 'assets') return assets;
+        if (key === 'examples') return directoryHref(folder, 'examples');
+        if (!Object.hasOwn(links, key)) throw new Error(`Unknown guide link ${key} in ${topic}`);
+        return links[key];
       });
       const title = escapeHtml(page.title);
       const description = escapeHtml(page.description);
@@ -116,9 +121,8 @@ ${locales.map((entry) => `  <link rel="alternate" hreflang="${entry.lang}" href=
     </div>
   </header>
   <div class="guide-shell guide-layout">
-    <nav class="guide-nav" aria-label="${locale.docs}"><ul>
-${navigation}
-    </ul></nav>
+    <nav class="guide-nav" aria-label="${locale.docs}">${navigation}
+    </nav>
     <main id="guide-main" class="guide-main${outline ? ' guide-main-with-outline' : ''}" tabindex="-1" aria-labelledby="guide-title">
       <header class="guide-intro">
         <h1 id="guide-title">${title}</h1>
@@ -129,6 +133,15 @@ ${navigation}
     </main>
   </div>
   <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
     const themeToggle = document.getElementById('guide-theme');
     const theme = document.documentElement.dataset;
     const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));

@@ -1,185 +1,173 @@
+import paper from './guide-paper.zh-CN.mjs';
+import research from './guide-research.zh-CN.mjs';
+import runtime from './guide-runtime.zh-CN.mjs';
+
 export default {
   overview: {
     title: 'Pero 文档',
     label: '概览',
-    description: '在桌面工作台里阅读论文、检视数据、运行科研 App，并沿着记录回查证据。第一次用 Pero，可以先导入一篇 PDF。',
+    description: '在同一个桌面工作台阅读论文、检查数据、记录研究过程，并回到原文和运行记录复核结果。',
     sections: [
       {
         id: 'where-to-run',
         title: '选择运行方式',
         body: `
-          <p><strong>Electron 桌面版</strong>适合从自己的论文和数据开始。阅读原文、保存标注和检视数据均可在本机完成；需要 Agent 时再配置模型服务。</p>
-          <p><a href="../#distributed">官网交互演示</a>可直接在浏览器里体验任务分配与结果复核。演示使用预设数据和模拟角色；跟随本文档的研究步骤请使用桌面工作台。</p>`,
+          <p>跟做文档里的教程请使用 <strong>Electron 桌面工作台</strong>。阅读 PDF、标注、查看本地数据和保存笔记可在本机完成。需要让 Agent 分析时，再配置模型服务。需要在另一台机器上运行方法时，再配置计算连接。</p>
+          <p><a href="../#distributed">官网交互演示</a>可以在浏览器里体验任务分配与结果复核。演示使用预设数据和模拟角色。<a href="https://openpero.com/workbench/">浏览器工作台预览</a>可查看工作台界面，运行本地 Agent 和领域 App 需要桌面宿主。</p>`,
+      },
+      {
+        id: 'continue-your-research',
+        title: '按研究任务继续',
+        body: `
+          <ul>
+            <li>用<a href="{{data}}">六条合成记录</a>练习导入、筛选、保存视图和核对版本。</li>
+            <li>在<a href="{{notebook}}">研究笔记</a>里保存一个修订，把观察和来源留在一起，再重新打开或导出。</li>
+            <li>在<a href="{{projects}}">研究项目</a>里写下目标，关联已有论文、研究记录和实验。</li>
+            <li><a href="{{compute}}">准备计算环境</a>，确认依赖与运行位置，再查看作业状态、日志和产物。</li>
+            <li>按<a href="{{reference}}#read-a-result">证据复核步骤</a>查看来源、运行记录、独立验证和研究者结论。</li>
+          </ul>`,
       },
     ],
   },
   install: {
     title: '安装与启动',
     label: '安装与启动',
-    description: '选择适合操作系统的 Electron 开发预览版，或按开发指南从源码启动。',
+    description: '选择对应系统的桌面包，校验下载，准备第一个 App 的环境。需要开发分支功能时，可以从源码启动。',
     sections: [
       {
         id: 'download',
-        title: '下载桌面版',
+        title: '选择版本和桌面包',
         body: `
-          <p>打开 <a href="https://github.com/phodal/pero/releases">GitHub Releases</a>，查看所选版本的说明和下载文件。下面的包名对应 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 开发预览版</a>。</p>
-          <ul>
-            <li><strong>macOS Apple Silicon</strong>。打开 <code>Pero-macos-arm64.dmg</code>，将 <code>Pero.app</code> 拖入「应用程序」，然后从那里打开。</li>
-            <li><strong>Windows x64</strong>。完整解压 <code>Pero-windows-x64.zip</code>，打开解压目录中的 <code>Pero.exe</code>。</li>
-            <li><strong>Linux x64</strong>。解压 <code>Pero-linux-x64.tar.gz</code>，在解压后的程序目录运行 <code>./pero</code>。系统需提供 Electron 所需的桌面库。</li>
-          </ul>
-          <p>macOS 包使用 ad-hoc 签名，尚未经公证。Windows 和 Linux 包未签名。下载后可用同一版本的 <code>SHA256SUMS</code> 核对文件摘要。如遇系统启动限制，请查看发布说明。</p>
-          <p>同一版本还提供 macOS Apple Silicon 的 <strong>Pero Native</strong>，使用独立配置。文档里的首次体验以 Electron 工作台为准。源码文档中的功能可能晚于你下载的版本，具体以该版本的说明为准。</p>`,
+          <p>在 <a href="https://github.com/phodal/pero/releases">GitHub Releases</a> 打开你要安装的开发预览版。以下文件名对应 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 开发预览版</a>。文档中标记为源码的功能可能晚于安装包，核对时以你的版本和对应发布说明为准。</p>
+          <table>
+            <thead><tr><th scope="col">平台</th><th scope="col">Electron 工作台</th><th scope="col">启动方式</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">macOS Apple Silicon</th><td><code>Pero-macos-arm64.dmg</code></td><td>打开 DMG，把 <code>Pero.app</code> 拖到「应用程序」，从那里启动。</td></tr>
+              <tr><th scope="row">Windows x64</th><td><code>Pero-windows-x64.zip</code></td><td>完整解压到同一个目录，再打开 <code>Pero.exe</code>。</td></tr>
+              <tr><th scope="row">Linux x64</th><td><code>Pero-linux-x64.tar.gz</code></td><td>解压后，在应用目录运行 <code>./pero</code>。需要系统提供 Electron 桌面库。</td></tr>
+            </tbody>
+          </table>
+          <p>同一版本还提供独立的 macOS Apple Silicon Native 包。Electron 和 Native 使用各自的配置。本文的首次启动路径以 Electron 为例。macOS 开发包采用 ad-hoc 签名且未经公证，Windows 和 Linux 开发包未签名。系统阻止启动时先核对发布说明和下载来源。</p>`,
+      },
+      {
+        id: 'verify-download',
+        title: '校验下载文件',
+        body: `
+          <p>从同一个发布条目下载 <code>SHA256SUMS</code>。在下载目录按系统运行一条命令，把输出的完整摘要与校验文件中<strong>同名归档</strong>的那行对照。</p>
+          <pre><code># macOS
+shasum -a 256 Pero-macos-arm64.dmg
+
+# Windows PowerShell
+Get-FileHash .\\Pero-windows-x64.zip -Algorithm SHA256
+
+# Linux
+sha256sum Pero-linux-x64.tar.gz</code></pre>
+          <p>摘要一致时继续解包或安装。摘要不一致时重新从发布条目下载并校验。发布条目里的构建信息可用于核对源码提交和目标平台。</p>`,
       },
       {
         id: 'prepare-environment',
-        title: '准备 App 环境',
+        title: '首次启动并准备 App 环境',
         body: `
           <ol>
-            <li>打开 Pero，在侧栏选择<strong>论文</strong>。遇到环境提示时，选择<strong>准备环境</strong>。</li>
-            <li>等待<strong>环境已就绪</strong>。首次准备可能需要联网下载 uv、CPython 3.12 和 App 的固定依赖。失败时先查看错误详情，再重试。</li>
-            <li>准备完成后，继续<a href="{{paper}}">阅读并标注第一篇论文</a>。导入和阅读本地 PDF 无需模型账号或 API Key。</li>
+            <li>打开 Electron 工作台。在侧栏选择<strong>论文</strong>。如果界面提示缺少运行环境，点击<strong>准备环境</strong>。</li>
+            <li>首次准备可能需要联网获取 uv、CPython 3.12 和 App 声明的固定依赖。等待界面显示环境就绪。新配置的默认环境目录为 <code>~/.pero/environment/pero-python312</code>，已有配置继续使用已选环境。</li>
+            <li>打开一份可选中文字的 PDF 并保存一处高亮，验证阅读器和保存流程。按<a href="{{paper}}#import-and-highlight">第一篇论文教程</a>操作即可。导入和阅读本地 PDF 无需模型账号、Task Center 登录或 PostgreSQL。</li>
           </ol>
-          <p>已准备好的虚拟环境和离线使用见 <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">Python 环境设置</a>。</p>`,
+          <p>需要预装依赖供离线使用时，按<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">预置环境说明</a>设置绝对 venv 目录。准备、检查和绑定环境的区别见<a href="{{compute}}">计算环境</a>。</p>`,
+      },
+      {
+        id: 'startup-troubleshooting',
+        title: '定位启动或准备失败',
+        body: `
+          <dl>
+            <dt>应用窗口打不开</dt><dd>检查下载摘要、CPU 架构和解压是否完整。Linux 如果报告缺少共享库，先检查报错中的库名和对应发行版运行依赖。</dd>
+            <dt>工作台能打开，App 报缺少环境</dt><dd>从 App 提示显式准备环境。失败时打开详情，区分下载失败、已有环境无效和 App 启动失败。看到就绪后再打开 App。</dd>
+            <dt>预期的 App、资料或设置没有出现</dt><dd>确认打开的是原来的 Electron、Native 或开发预览配置，并核对当前发布版本是否包含该功能。各 App 的领域数据位置见<a href="{{reference}}#data-and-cost">数据与配置</a>。</dd>
+            <dt>准备成功后仍启动失败</dt><dd>较新的源码构建可在 Host 设置文件旁查看 <code>app-startup.jsonl</code>，用界面的请求 ID 对照启动阶段、错误码和退出状态。报告问题时附上可分享的对应记录。</dd>
+          </dl>`,
       },
       {
         id: 'from-source',
         title: '从源码启动',
         body: `
-          <p>先按<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">开发指南</a>准备 Node.js、Go、Rust（含 Wasm 目标）、Electron 和固定版本的 GPUI Kit，再在仓库根目录执行下面的命令。</p>
-          <pre><code>npm run dev:paper</code></pre>
-          <p>这个命令构建并启动独立开发配置中的 Paper。打开完整工作台用 <code>npm run dev</code>。本地阅读和 App 计算无需启动独立的 Go 控制面或 PostgreSQL。</p>`,
+          <p>先核对<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">开发指南</a>中的系统依赖。当前源码需要 Node.js 22.18+、Go 1.27.3、Rust stable、<code>nightly-2026-10-28</code> 的 Wasm 目标，以及固定的 GPUI Kit。以下命令用于 POSIX shell，假设当前位于干净的 Pero 仓库根目录，且上一级没有 <code>gpui-kit</code> 目录。</p>
+          <pre><code>npm ci
+node node_modules/electron/install.js
+rustup toolchain install stable --profile minimal
+rustup toolchain install nightly-2026-10-28 --profile minimal --target wasm32-unknown-unknown
+git -c core.autocrlf=false clone https://github.com/longbridge/gpui-kit.git ../gpui-kit
+git -C ../gpui-kit checkout --detach 7591a35eced761e3613c01e71ff04c10129dae1a
+export PERO_GPUI_KIT_PATH="$(cd ../gpui-kit &amp;&amp; pwd)"
+npm run dev</code></pre>
+          <p>首次构建可能下载 Rust 依赖、字体、Wasm 工具和 App 依赖。成功时会打开 Electron 工作台。只想试 Paper 可运行 <code>npm run dev:paper</code>，它使用独立配置。构建过且无需重建时，可用 <code>npm start</code> 打开现有工作台产物。</p>`,
       },
     ],
   },
-  paper: {
-    title: '阅读第一篇论文',
-    label: '阅读第一篇论文',
-    description: '导入 PDF，保存一处原文标注。需要进一步分析时，再发送问题并逐条回查回答中的引用。',
-    sections: [
-      {
-        id: 'import-and-highlight',
-        title: '导入并保存标注',
-        body: `
-          <p>准备一份能选中文字的 PDF。首次打开请先完成<a href="{{install}}#prepare-environment">环境准备</a>。</p>
-          <ol>
-            <li>打开侧栏的<strong>论文</strong>，选择<strong>添加论文 → PDF → 导入 PDF</strong>，或把文件拖进 Paper 窗口。</li>
-            <li>在阅读器选中一句原文，点击<strong>高亮</strong>。通过 PDF 的右键菜单打开<strong>标注</strong>，检查刚保存的位置和选文。</li>
-            <li>返回文库再打开这篇论文，确认标注仍能回到原页。Paper 将标注单独保存，保留导入时的原始 PDF。</li>
-          </ol>
-          <p>这一步无需模型。选文与全文检索依赖 PDF 的文字层。若无法选中文本，可用 PDF 菜单的<strong>截取图片</strong>保留需要核对的图表位置。</p>`,
-      },
-      {
-        id: 'ask-agent',
-        title: '用选段向 Agent 提问',
-        body: `
-          <ol>
-            <li>使用内置 Agent 时，在<strong>设置 → 内置 Agent</strong>配置 API 地址、模型和 Key。外部 Agent 使用各自的登录方式。检索 PDF 全文需要支持 HTTP MCP 的 Agent。参见 <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">Agent 配置说明</a>。</li>
-            <li>在阅读器点击<strong>询问 AI</strong>，或选中文字后点击<strong>讨论选段</strong>。检查草稿和附带的选段，再主动发送。模型服务可能收到问题和选定的原文。</li>
-          </ol>
-          <blockquote><p>作者怎么描述这项方法的适用条件？请给出原文引用，并列出还需要核对的限制。</p></blockquote>`,
-      },
-      {
-        id: 'check-citations',
-        title: '回查引用和原文',
-        body: `
-          <ol>
-            <li>报告保存后，在阅读器工具栏点击时钟图标<strong>研究记录</strong>，打开报告。</li>
-            <li>点击一条引用，查看原文位置和上下文。有多个匹配时，选择与该条主张相关的位置。</li>
-            <li>对照主张、原文和报告里尚待核对的问题。点击<strong>从此处追问</strong>可以准备下一轮问题，再由你发送。</li>
-          </ol>
-          <p>引用定位可帮助核对原文。主张是否得到支持、方法能否复用，仍需研究者判断。</p>`,
-      },
-      {
-        id: 'troubleshoot',
-        title: '常见卡点',
-        body: `
-          <ul>
-            <li><strong>Agent 启动或登录失败。</strong>检查所选 Agent、凭据和会话里的错误。完成登录后，检查并重发问题。</li>
-            <li><strong>全文检索没有命中。</strong>换成论文使用的术语，缩小问题范围，或在原文中选定片段。空检索结果只表示本次没有匹配。</li>
-            <li><strong>研究停在报告提交前。</strong>打开保留的研究记录，查看已有发现和待核对项，再选择<strong>继续研究</strong>。</li>
-          </ul>
-          <p>更多阅读与检索方式见 <a href="https://github.com/phodal/pero/blob/master/apps/paper-agent/README.md#pdf-reading">Paper 使用说明</a>。</p>`,
-      },
-    ],
-  },
-  workflows: {
-    title: '科研工作流',
-    label: '科研工作流',
-    description: '检视一个数据版本、复核一个已发表的数值，或用研究项目整理材料。以下功能以相应源码版本和验证记录为准。',
-    sections: [
-      {
-        id: 'inspect-data',
-        title: '检视一个数据版本',
-        body: `
-          <ol>
-            <li>将<a href="https://raw.githubusercontent.com/phodal/pero/master/docs/examples/first-dataset.json">六条合成记录</a>保存为 <code>first-dataset.json</code>。在<strong>数据</strong>中选择<strong>导入数据</strong>，选择文件并确认导入。</li>
-            <li>打开该数据集并选择<strong>查看数据</strong>，确认有 6 条记录和 3 个字段。在来源信息中核对所选版本和 SHA-256。</li>
-            <li>需要记录筛选或图表设置时，保存视图。更新数据时，用已有条目的<strong>添加版本</strong>追加文件。在资料库再次导入同名文件会创建新条目。</li>
-          </ol>
-          <p>表格检视可以在本机完成，无需模型。支持 UTF-8 CSV、TSV、JSON 和 JSONL，导入上限为 10 MiB。详见 <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data 版本、来源与检查规则</a>。</p>`,
-      },
-      {
-        id: 'recheck-a-result',
-        title: '复核 Fisher 论文中的一个数值',
-        body: `
-          <ol>
-            <li>在 Paper 导入<a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">项目复核使用的 Fisher（1936）原始 PDF</a>。匹配该文件后，工具栏会提供 Fisher Table III 的结果选择入口。</li>
-            <li>查看原表、100 条输入测量值、计算方法和比较规则。冻结协议后，显式确认并运行一次。对照原文中的 <strong>19.1434 cm²</strong>、计算值、差值和独立数值检查。</li>
-            <li>导出证据 ZIP 并解压，在解压目录运行下方命令。独立检查只使用 Python 标准库，无需联网或调用模型。</li>
-          </ol>
-          <pre><code>python -I -S verify.py</code></pre>
-          <p>记录中的 <code>REPRODUCED</code> 对应该表的单个数值。整篇论文仍为 <code>NOT_ASSESSED</code>（未评估）。查看 <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11">Fisher 案例的输入与验收记录</a>。</p>`,
-      },
-      {
-        id: 'organize-a-project',
-        title: '把材料关联到研究项目',
-        body: `
-          <p>选择<strong>新建研究项目</strong>，填入项目名称和研究目标，可以按需关联本地目录。打开<strong>资料与实验 → 关联已有记录</strong>，选择已启用的 App，再关联保存的论文、研究记录或实验。</p>
-          <p>项目保存指向原记录的引用。之后从项目打开材料时，仍由对应 App 展示。若原记录版本有变化，可查看原记录后更新关联。详见<a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md">研究项目的功能与验证</a>。</p>`,
-      },
-      {
-        id: 'remote-compute',
-        title: '准备一次远程计算',
-        body: `
-          <p>有已授权的 SSH 或 Slurm 环境时，可在<strong>科学计算</strong>中选择连接，探测后准备内置的 CPU 中点求积方法。检查目标、固定参数和所需资源后，再显式批准提交。</p>
-          <p>用原尝试查看状态与日志，收集已保存的产物。当前验证覆盖实际 SSH 回环和 Slurm 测试替身。真实 Slurm 站点和其他科研方法需分别验收。入口和限制见 <a href="https://github.com/phodal/pero/blob/master/apps/compute/README.md">Compute 使用说明</a>和<a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">验证记录</a>。</p>`,
-      },
-    ],
-  },
+  paper,
+  ...research,
+  ...runtime,
   reference: {
-    title: '概念与参考',
+    title: '概念、证据与故障排查',
     label: '概念与参考',
-    description: '了解数据和执行由谁管理，以及怎样核对功能在什么版本、平台和条件下通过了验证。',
+    description: '知道记录保存在哪里、一次运行能证明什么，以及故障发生时该看哪一层。',
     sections: [
       {
         id: 'concepts',
-        title: '工作台中的对象',
+        title: '工作台里的对象和记录',
         body: `
-          <dl>
-            <dt>研究项目</dt><dd>保存研究目标和 App 记录引用，可按需关联本地目录。</dd>
-            <dt>App</dt><dd>提供一个领域的界面、方法与数据，例如 Paper 保存论文与研究报告，Data 保存数据版本。</dd>
-            <dt>Host 与 Agent 会话</dt><dd>Host 管理本机 App、凭据以及 Agent 的会话、审批和取消。使用工具前，可在对话里查看待审批的请求。</dd>
-            <dt>控制面与 Worker</dt><dd>可选控制面协调共享任务，独立 Worker 在所配置的执行环境中处理任务。相关服务需要单独部署和授权。</dd>
-          </dl>
-          <p>完整的职责与接入状态见<a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">架构文档</a>和 <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App 开发说明</a>。</p>`,
+          <table>
+            <thead><tr><th scope="col">对象</th><th scope="col">保存什么</th><th scope="col">到哪里查看</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">研究项目</th><td>目标、可选本地目录，以及指向 App 记录的关联。每个 App 保存自己的领域数据。</td><td><a href="{{projects}}">项目概览与资料关联</a></td></tr>
+              <tr><th scope="row">科研 App</th><td>论文快照、数据集文件版本、笔记修订或实验尝试，具体由 App 决定。</td><td><a href="{{workflows}}">各 App 工作流和原记录</a></td></tr>
+              <tr><th scope="row">Agent 会话</th><td>对话、工具和审批记录。会话由本机 Host 管理，启动时选定 Agent 和工作区。</td><td><a href="{{agents}}">对话历史和工具记录</a></td></tr>
+              <tr><th scope="row">计算尝试</th><td>方法、输入、运行环境及该次尝试的状态、日志或产物。具体字段取决于工作流。</td><td><a href="{{compute}}">计算记录</a>或实验所属 App</td></tr>
+              <tr><th scope="row">共享任务与 Worker</th><td>可选控制面协调协作任务，已登记的 Worker 在其环境执行。该部署用于共享任务。</td><td><a href="https://github.com/phodal/pero/blob/master/desktop/README.md#remote-tasks">Desktop 远程任务接入</a></td></tr>
+            </tbody>
+          </table>
+          <p>例如，在 Project 里关联 Paper 报告后，打开关联会回到 Paper 的原记录。希望固定当时看到的数据时，要记下 Data 的具体文件版本，或保存带引用的 Notebook 修订。</p>`,
+      },
+      {
+        id: 'read-a-result',
+        title: '从结论回查来源和验证',
+        body: `
+          <ol>
+            <li><strong>定位来源。</strong>论文主张回到引用段落，检查上下文和单位。数据回到明确的文件版本，查看来源和 SHA-256。</li>
+            <li><strong>找本次运行。</strong>对照输入、方法版本、参数和环境，打开同一次尝试的日志与产物。重新运行时记录新的尝试，保留旧结果以便比较。</li>
+            <li><strong>读验证结果。</strong>确认检查针对哪个输出、用什么预先定义的规则、哪部分由独立过程复算。执行正常只能证明运行完成。验证未执行、验证不匹配和已通过验证需要分别理解。</li>
+            <li><strong>写明结论范围。</strong>例如，<a href="{{workflows}}#recheck-a-result">Fisher 案例</a>复核的是 Table III 的一个数值。<code>REPRODUCED</code> 是该数值的判定，整篇论文仍为 <code>NOT_ASSESSED</code>。</li>
+          </ol>
+          <p>例如，Fisher（1936）的复核记录应写明 Table III 的具体条目、100 条核对过的输入、预期值 19.1434 cm² 和容差 0.00005 cm²。独立检查结果见导出的验证报告。</p>`,
       },
       {
         id: 'data-and-cost',
-        title: '数据、权限与费用',
+        title: '本地数据、权限与费用',
         body: `
           <ul>
-            <li>App 领域数据保存在运行它的机器上。调用模型、文献检索、MCP 连接器或共享任务服务时，相应外部服务可能收到选定的数据。</li>
-            <li>本地插件和 App 后端运行受信任的代码。打开敏感材料前，检查安装来源、会话权限和提交的内容。</li>
-            <li>模型和远程算力由各自的提供方计费。费用以提供方记录为准，研究操作次数或运行时间限制只约束工作流。</li>
-          </ul>`,
+            <li><strong>配置和数据。</strong>默认 Electron 工作台把 Host 设置保存在 <code>~/.pero/config/runtime-settings.json</code>，把 App 记录保存在 <code>~/.pero/app-data/</code>。会话历史保存在 Electron 用户数据里的 <code>sessions.jsonl</code>。独立产品、Native、开发和隔离配置的位置应按各自说明确认。</li>
+            <li><strong>外部请求。</strong>直接阅读本地文件和运行本地方法可以在本机完成。使用模型、文献搜索、MCP 或共享任务服务时，所选问题、上下文或工具参数可能发给相应服务。发送前可以检查草稿及附件，执行前查看实际请求和会话权限。</li>
+            <li><strong>费用。</strong>模型和远程算力以供应方的用量记录计费。工作流的步骤或时长限制约束本次运行的行为。界面只在收到用量数据时展示对应数据。</li>
+          </ul>
+          <p>交换研究记录时优先使用 App 的导出入口。版本对照、Notebook 修订和运行证据都有自己的导出范围，详见相应用法。</p>`,
       },
       {
         id: 'verification-and-help',
-        title: '验证范围与问题反馈',
+        title: '读懂验证记录并排查故障',
         body: `
-          <p><a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">质量门禁</a>记录各项功能的源码检查、真实桌面、外部服务和发布包验证。复核科学结果时，还需检查来源、运行输入、比较规则和独立验收。计划中的跨团队同步与共享研究记忆见<a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">路线图</a>。</p>
-          <p>反馈问题时，请在 <a href="https://github.com/phodal/pero/issues">GitHub Issues</a> 附上版本或源码提交、平台、Electron 或 Native、复现步骤和可分享的错误信息。代码贡献从<a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">贡献指南</a>开始。</p>`,
+          <p><strong>先定位故障发生在哪一层。</strong>桌面或 App 无法启动，从<a href="{{install}}#startup-troubleshooting">安装排错</a>开始。模型无法回复，看<a href="{{agents}}">登录、凭据和会话设置</a>。任务已提交但没有结果，检查<a href="{{compute}}">连接、尝试状态、日志和产物</a>。结果有疑问，从<a href="#read-a-result">来源与验证</a>回查。</p>
+          <p><a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">验收分级</a>以证据覆盖的条件为准。L0 是源码检查，L1 是实际桌面配测试 Agent，L2 涉及真实提供方、环境或外部服务，L3 是签名发布包在目标系统上的安装、升级和运行。查看记录时同时核对版本、系统、样例与未覆盖范围。</p>
+          <p>向 <a href="https://github.com/phodal/pero/issues">GitHub Issues</a> 提交问题时，附上版本或提交 SHA、操作系统和架构、Electron 或 Native、可复现步骤、预期与实际结果，以及可公开的错误和请求 ID。</p>`,
+      },
+      {
+        id: 'developer-reference',
+        title: '开发与部署入口',
+        body: `
+          <dl>
+            <dt>构建桌面与贡献代码</dt><dd>按<a href="{{install}}#from-source">源码安装</a>启动，按<a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">贡献指南</a>选择对应验证。完整命令和依赖见<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#verification">开发验证</a>。</dd>
+            <dt>开发 App</dt><dd>在 <code>apps/</code> 中选一个已有 App 作参照。App 的清单、Web 面板、后端、环境和声明式权限见<a href="https://github.com/phodal/pero/blob/master/apps/README.md">App 开发契约</a>。</dd>
+            <dt>部署共享任务</dt><dd>服务端配置、PostgreSQL 和项目授权见<a href="https://github.com/phodal/pero/blob/master/server/README.md">控制面文档</a>。执行机见<a href="https://github.com/phodal/pero/blob/master/crates/pero-worker/README.md">Worker 文档</a>。</dd>
+            <dt>查运行边界和计划</dt><dd>看<a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">架构</a>、<a href="https://github.com/phodal/pero/blob/master/docs/adr/README.md">决策记录</a>和<a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">路线图</a>。</dd>
+          </dl>`,
       },
     ],
   },

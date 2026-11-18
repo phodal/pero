@@ -14,10 +14,12 @@ generated files when changing the site.
 ## Official documentation
 
 The website navigation links to the Chinese guide at `/docs/` and the English
-guide at `/en/docs/`. Each page links to its counterpart in the other language.
-Edit the paired content in `locales/guide.zh-CN.mjs` and `locales/guide.en.mjs`.
-Keep topic keys and section IDs aligned so links remain stable. The guide uses
-the shared appearance palette and design dimensions.
+guide at `/en/docs/`. Language switching keeps the current topic and section.
+The overview, installation and reference live in the paired `locales/guide.*.mjs`
+files. Paper, research Apps and runtime guides live in the corresponding
+`guide-paper.*.mjs`, `guide-research.*.mjs` and `guide-runtime.*.mjs` pairs.
+Keep existing topic keys and section IDs stable and align any additions across
+languages. The guide uses the shared appearance palette and design dimensions.
 
 The [documentation research](DOCUMENTATION-RESEARCH.md) records the official
 docs reviewed and the decisions behind the first five topics.
