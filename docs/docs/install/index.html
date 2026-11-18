@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="选择适合操作系统的 Electron 开发预览版，或按开发指南从源码启动。">
+  <title>安装与启动 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/install/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/install/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/install/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/install/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档"><ul>
+      <li><a href="../">概览</a></li>
+      <li><a href="./" aria-current="page">安装与启动</a></li>
+      <li><a href="../paper/">阅读第一篇论文</a></li>
+      <li><a href="../workflows/">科研工作流</a></li>
+      <li><a href="../reference/">概念与参考</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">安装与启动</h1>
+        <p>选择适合操作系统的 Electron 开发预览版，或按开发指南从源码启动。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#download">下载桌面版</a></li>
+        <li><a href="#prepare-environment">准备 App 环境</a></li>
+        <li><a href="#from-source">从源码启动</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="download">
+        <h2 id="download">下载桌面版</h2>
+        <p>打开 <a href="https://github.com/phodal/pero/releases">GitHub Releases</a>，查看所选版本的说明和下载文件。下面的包名对应 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 开发预览版</a>。</p>
+          <ul>
+            <li><strong>macOS Apple Silicon</strong>。打开 <code>Pero-macos-arm64.dmg</code>，将 <code>Pero.app</code> 拖入「应用程序」，然后从那里打开。</li>
+            <li><strong>Windows x64</strong>。完整解压 <code>Pero-windows-x64.zip</code>，打开解压目录中的 <code>Pero.exe</code>。</li>
+            <li><strong>Linux x64</strong>。解压 <code>Pero-linux-x64.tar.gz</code>，在解压后的程序目录运行 <code>./pero</code>。系统需提供 Electron 所需的桌面库。</li>
+          </ul>
+          <p>macOS 包使用 ad-hoc 签名，尚未经公证。Windows 和 Linux 包未签名。下载后可用同一版本的 <code>SHA256SUMS</code> 核对文件摘要。如遇系统启动限制，请查看发布说明。</p>
+          <p>同一版本还提供 macOS Apple Silicon 的 <strong>Pero Native</strong>，使用独立配置。文档里的首次体验以 Electron 工作台为准。源码文档中的功能可能晚于你下载的版本，具体以该版本的说明为准。</p>
+      </section>
+
+      <section aria-labelledby="prepare-environment">
+        <h2 id="prepare-environment">准备 App 环境</h2>
+        <ol>
+            <li>打开 Pero，在侧栏选择<strong>论文</strong>。遇到环境提示时，选择<strong>准备环境</strong>。</li>
+            <li>等待<strong>环境已就绪</strong>。首次准备可能需要联网下载 uv、CPython 3.12 和 App 的固定依赖。失败时先查看错误详情，再重试。</li>
+            <li>准备完成后，继续<a href="../paper/">阅读并标注第一篇论文</a>。导入和阅读本地 PDF 无需模型账号或 API Key。</li>
+          </ol>
+          <p>已准备好的虚拟环境和离线使用见 <a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#python-environments-and-advanced-overrides">Python 环境设置</a>。</p>
+      </section>
+
+      <section aria-labelledby="from-source">
+        <h2 id="from-source">从源码启动</h2>
+        <p>先按<a href="https://github.com/phodal/pero/blob/master/DEVELOPMENT.md#desktop-from-source">开发指南</a>准备 Node.js、Go、Rust（含 Wasm 目标）、Electron 和固定版本的 GPUI Kit，再在仓库根目录执行下面的命令。</p>
+          <pre><code>npm run dev:paper</code></pre>
+          <p>这个命令构建并启动独立开发配置中的 Paper。打开完整工作台用 <code>npm run dev</code>。本地阅读和 App 计算无需启动独立的 Go 控制面或 PostgreSQL。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

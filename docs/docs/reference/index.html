@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="了解数据和执行由谁管理，以及怎样核对功能在什么版本、平台和条件下通过了验证。">
+  <title>概念与参考 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/reference/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/reference/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/reference/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/reference/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档"><ul>
+      <li><a href="../">概览</a></li>
+      <li><a href="../install/">安装与启动</a></li>
+      <li><a href="../paper/">阅读第一篇论文</a></li>
+      <li><a href="../workflows/">科研工作流</a></li>
+      <li><a href="./" aria-current="page">概念与参考</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">概念与参考</h1>
+        <p>了解数据和执行由谁管理，以及怎样核对功能在什么版本、平台和条件下通过了验证。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#concepts">工作台中的对象</a></li>
+        <li><a href="#data-and-cost">数据、权限与费用</a></li>
+        <li><a href="#verification-and-help">验证范围与问题反馈</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="concepts">
+        <h2 id="concepts">工作台中的对象</h2>
+        <dl>
+            <dt>研究项目</dt><dd>保存研究目标和 App 记录引用，可按需关联本地目录。</dd>
+            <dt>App</dt><dd>提供一个领域的界面、方法与数据，例如 Paper 保存论文与研究报告，Data 保存数据版本。</dd>
+            <dt>Host 与 Agent 会话</dt><dd>Host 管理本机 App、凭据以及 Agent 的会话、审批和取消。使用工具前，可在对话里查看待审批的请求。</dd>
+            <dt>控制面与 Worker</dt><dd>可选控制面协调共享任务，独立 Worker 在所配置的执行环境中处理任务。相关服务需要单独部署和授权。</dd>
+          </dl>
+          <p>完整的职责与接入状态见<a href="https://github.com/phodal/pero/blob/master/docs/ARCHITECTURE.md">架构文档</a>和 <a href="https://github.com/phodal/pero/blob/master/apps/README.md">App 开发说明</a>。</p>
+      </section>
+
+      <section aria-labelledby="data-and-cost">
+        <h2 id="data-and-cost">数据、权限与费用</h2>
+        <ul>
+            <li>App 领域数据保存在运行它的机器上。调用模型、文献检索、MCP 连接器或共享任务服务时，相应外部服务可能收到选定的数据。</li>
+            <li>本地插件和 App 后端运行受信任的代码。打开敏感材料前，检查安装来源、会话权限和提交的内容。</li>
+            <li>模型和远程算力由各自的提供方计费。费用以提供方记录为准，研究操作次数或运行时间限制只约束工作流。</li>
+          </ul>
+      </section>
+
+      <section aria-labelledby="verification-and-help">
+        <h2 id="verification-and-help">验证范围与问题反馈</h2>
+        <p><a href="https://github.com/phodal/pero/blob/master/docs/fitness/README.md#acceptance-levels">质量门禁</a>记录各项功能的源码检查、真实桌面、外部服务和发布包验证。复核科学结果时，还需检查来源、运行输入、比较规则和独立验收。计划中的跨团队同步与共享研究记忆见<a href="https://github.com/phodal/pero/blob/master/ROADMAP.md">路线图</a>。</p>
+          <p>反馈问题时，请在 <a href="https://github.com/phodal/pero/issues">GitHub Issues</a> 附上版本或源码提交、平台、Electron 或 Native、复现步骤和可分享的错误信息。代码贡献从<a href="https://github.com/phodal/pero/blob/master/CONTRIBUTING.md">贡献指南</a>开始。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

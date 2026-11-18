@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="检视一个数据版本、复核一个已发表的数值，或用研究项目整理材料。以下功能以相应源码版本和验证记录为准。">
+  <title>科研工作流 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/workflows/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/workflows/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/workflows/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/workflows/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档"><ul>
+      <li><a href="../">概览</a></li>
+      <li><a href="../install/">安装与启动</a></li>
+      <li><a href="../paper/">阅读第一篇论文</a></li>
+      <li><a href="./" aria-current="page">科研工作流</a></li>
+      <li><a href="../reference/">概念与参考</a></li>
+    </ul></nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">科研工作流</h1>
+        <p>检视一个数据版本、复核一个已发表的数值，或用研究项目整理材料。以下功能以相应源码版本和验证记录为准。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#inspect-data">检视一个数据版本</a></li>
+        <li><a href="#recheck-a-result">复核 Fisher 论文中的一个数值</a></li>
+        <li><a href="#organize-a-project">把材料关联到研究项目</a></li>
+        <li><a href="#remote-compute">准备一次远程计算</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="inspect-data">
+        <h2 id="inspect-data">检视一个数据版本</h2>
+        <ol>
+            <li>将<a href="https://raw.githubusercontent.com/phodal/pero/master/docs/examples/first-dataset.json">六条合成记录</a>保存为 <code>first-dataset.json</code>。在<strong>数据</strong>中选择<strong>导入数据</strong>，选择文件并确认导入。</li>
+            <li>打开该数据集并选择<strong>查看数据</strong>，确认有 6 条记录和 3 个字段。在来源信息中核对所选版本和 SHA-256。</li>
+            <li>需要记录筛选或图表设置时，保存视图。更新数据时，用已有条目的<strong>添加版本</strong>追加文件。在资料库再次导入同名文件会创建新条目。</li>
+          </ol>
+          <p>表格检视可以在本机完成，无需模型。支持 UTF-8 CSV、TSV、JSON 和 JSONL，导入上限为 10 MiB。详见 <a href="https://github.com/phodal/pero/blob/master/apps/data/README.md#inspection-and-saved-views">Data 版本、来源与检查规则</a>。</p>
+      </section>
+
+      <section aria-labelledby="recheck-a-result">
+        <h2 id="recheck-a-result">复核 Fisher 论文中的一个数值</h2>
+        <ol>
+            <li>在 Paper 导入<a href="https://lgross.utk.edu/Math589Fall2020/RAFisher1936measurementsFlowerTaxa.pdf">项目复核使用的 Fisher（1936）原始 PDF</a>。匹配该文件后，工具栏会提供 Fisher Table III 的结果选择入口。</li>
+            <li>查看原表、100 条输入测量值、计算方法和比较规则。冻结协议后，显式确认并运行一次。对照原文中的 <strong>19.1434 cm²</strong>、计算值、差值和独立数值检查。</li>
+            <li>导出证据 ZIP 并解压，在解压目录运行下方命令。独立检查只使用 Python 标准库，无需联网或调用模型。</li>
+          </ol>
+          <pre><code>python -I -S verify.py</code></pre>
+          <p>记录中的 <code>REPRODUCED</code> 对应该表的单个数值。整篇论文仍为 <code>NOT_ASSESSED</code>（未评估）。查看 <a href="https://github.com/phodal/pero/blob/master/docs/fitness/paper-fisher-reproduction.md#issue-77-closure-review--2026-11-11">Fisher 案例的输入与验收记录</a>。</p>
+      </section>
+
+      <section aria-labelledby="organize-a-project">
+        <h2 id="organize-a-project">把材料关联到研究项目</h2>
+        <p>选择<strong>新建研究项目</strong>，填入项目名称和研究目标，可以按需关联本地目录。打开<strong>资料与实验 → 关联已有记录</strong>，选择已启用的 App，再关联保存的论文、研究记录或实验。</p>
+          <p>项目保存指向原记录的引用。之后从项目打开材料时，仍由对应 App 展示。若原记录版本有变化，可查看原记录后更新关联。详见<a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md">研究项目的功能与验证</a>。</p>
+      </section>
+
+      <section aria-labelledby="remote-compute">
+        <h2 id="remote-compute">准备一次远程计算</h2>
+        <p>有已授权的 SSH 或 Slurm 环境时，可在<strong>科学计算</strong>中选择连接，探测后准备内置的 CPU 中点求积方法。检查目标、固定参数和所需资源后，再显式批准提交。</p>
+          <p>用原尝试查看状态与日志，收集已保存的产物。当前验证覆盖实际 SSH 回环和 Slurm 测试替身。真实 Slurm 站点和其他科研方法需分别验收。入口和限制见 <a href="https://github.com/phodal/pero/blob/master/apps/compute/README.md">Compute 使用说明</a>和<a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">验证记录</a>。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>
