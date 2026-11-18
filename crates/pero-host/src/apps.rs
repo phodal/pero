@@ -443,8 +443,13 @@ impl Apps {
                     return handoff.execute(request);
                 }
                 Request::Resolve { method, id, name } => {
-                    let _ = (method, id);
-                    serde_json::to_value(store.resolve_with_progress(&name, &mut progress)?)
+                    let _ = method;
+                    let started = std::time::Instant::now();
+                    let access = store.resolve_backend(&name, &mut progress).map_err(|failure| {
+                        crate::app_startup::record(self.settings.as_deref(), &name, &id, started.elapsed(), &failure);
+                        failure.to_string()
+                    })?;
+                    serde_json::to_value(access)
                 }
                 Request::ResolveStatic { method, id, name } => {
                     let _ = (method, id);

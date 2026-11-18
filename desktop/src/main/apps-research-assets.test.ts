@@ -9,6 +9,23 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 const { DesktopApps } = await import('./apps.ts');
 
+test('App proxy startup errors carry the Host request ID', async () => {
+  let resolveId: string | undefined;
+  const apps = new DesktopApps(command => {
+    const { id, action } = command as { id: string; action: string };
+    if (action === 'resolve') resolveId = id;
+    apps.accept({ version: 1, kind: 'apps_result', request_id: id, text: '',
+      data: action === 'apiaccess' ? { ok: true } : { ok: false, error: 'App backend stopped during startup' } });
+  }, () => assert.fail('Private Host result was published'), async () => undefined);
+  try {
+    const response = await apps.serve(new Request('pero-app://virtual-cell/api/task-package'));
+    assert.equal(response.status, 503);
+    assert.ok(resolveId);
+    assert.equal(response.headers.get('X-Pero-Request-Id'), resolveId);
+    assert.equal(await response.text(), 'App backend stopped during startup');
+  } finally { apps.close(); }
+});
+
 test('research assets keep the Host as the only cross-App authority', async () => {
   const commands: Record<string, unknown>[] = [];
   const apps = new DesktopApps(command => {

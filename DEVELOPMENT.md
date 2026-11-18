@@ -53,6 +53,8 @@ For a pre-provisioned or offline setup:
 
 See [App environment rules](apps/README.md#python-environments) for current source behavior. Products with `python: bundled` use the packaged interpreter after the Host checks the App's required version and dependencies. The Workbench applies its own profile's environment settings.
 
+For App startup failures, check `app-startup.jsonl` next to the Host's runtime settings. Each record carries the App name, request ID, startup stage, error code, elapsed time and any observed exit status. Electron error responses from Host resolution carry the same ID in `X-Pero-Request-Id`. The Host retains up to two 256 KiB files and excludes backend output and request bodies from these records.
+
 ### Native fresh-profile limitation
 
 In the November 4 Native package, initialization selects `~/.pero/environment/pero-python312`, but the Host derives its App root from `~/.pero/native/settings.json` when `PERO_APPS_ROOT` is unset. Its managed preparation target is therefore `~/.pero/native/environment/pero-python312`. If the selected shared environment does not exist, these different paths cause validation to reject the missing `pyvenv.cfg` before preparing a new environment. **Prepare environment is not a guaranteed clean-profile recovery for this Native package.** An existing working environment can hide this first-use problem.

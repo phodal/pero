@@ -1,7 +1,7 @@
 // Exercise the relocated packaged product with a clean profile and restricted system PATH.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { mkdtemp, mkdir, stat, writeFile, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, stat, writeFile, rename } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 const root = resolve(import.meta.dirname, '../..');
@@ -60,10 +60,17 @@ try {
   try {
     app = await launch(); page = await app.firstWindow();
     await expect(page.locator('.app-panel-status')).toContainText('Cannot start App Python backend', { timeout: 30000 });
+    const diagnostics = (await readFile(resolve(profile, 'app-startup.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    expect(diagnostics).toContainEqual(expect.objectContaining({
+      event: 'app_startup_failed',
+      app: 'virtual-cell',
+      request_id: expect.stringMatching(/^apps-/),
+      failure: expect.objectContaining({ stage: 'environment', code: 'environment_unavailable' }),
+    }));
   } finally { await rename(python + '.trial-backup', python); }
   await page.locator('.app-panel-status button').click();
   await expect(page.frameLocator('iframe').getByRole('tab', { name: '单细胞与扰动' })).toBeVisible({ timeout: 30000 });
-  checks.push('missing bundled Python shows startup error; restoring it and Retry recovers');
+  checks.push('missing bundled Python records the environment failure; restoring it and Retry recovers');
   expect(errors).toEqual([]);
   await writeFile(resolve(output, 'result.json'), JSON.stringify({ executablePath, checks, errors }, null, 2));
   console.log(checks);

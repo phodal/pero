@@ -74,7 +74,7 @@ server.serve_forever()
 const launch = async ({ builtins = '', installed = resolve(temp, 'installed') } = {}) => {
   const child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], {
     cwd: temp, stdio: ['pipe', 'pipe', 'inherit'],
-    env: { ...process.env, UV_OFFLINE: '1', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'),
+    env: { ...process.env, UV_OFFLINE: '1', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_APP_NODE: process.execPath,
       PERO_APPS_ROOT: installed, PERO_BUILTIN_APPS_ROOT: builtins },
   });
   const exited = new Promise(done => child.once('exit', done));
@@ -94,11 +94,11 @@ const launch = async ({ builtins = '', installed = resolve(temp, 'installed') } 
     const timer = setTimeout(() => reject(new Error('Host readiness timeout')), 10000); timer.unref();
   })]);
   return {
-    request: async (action, fields = {}) => {
+    request: async (action, fields = {}, timeoutMs = 10000) => {
       const input = { method: 'apps', id: crypto.randomUUID(), action, ...fields };
       assert(validateInput(input), ajv.errorsText(validateInput.errors));
       return new Promise((resolveReply, reject) => {
-        const timer = setTimeout(() => reject(new Error(`App ${action} timeout`)), 10000);
+        const timer = setTimeout(() => reject(new Error(`App ${action} timeout`)), timeoutMs);
         pending.set(input.id, result => { clearTimeout(timer); pending.delete(input.id); resolveReply(result); });
         child.stdin.write(`${JSON.stringify(input)}\n`);
       });
@@ -294,6 +294,31 @@ try {
   await assert.rejects(realpath(resolve(temp, 'environment')), { code: 'ENOENT' });
   await assert.rejects(realpath(resolve(temp, 'app-data/lab')), { code: 'ENOENT' });
   assert.equal(await readFile(resolve(temp, 'settings.json'), 'utf8'), '{}');
+
+  for (const [name, script, code, exitCode] of [
+    ['backend-exit', 'console.error("private fixture stderr"); process.exit(73);', 'backend_exited', 73],
+    ['backend-timeout', 'setInterval(() => {}, 60000);', 'readiness_timeout', null],
+  ]) {
+    const directory = resolve(temp, name);
+    await mkdir(resolve(directory, 'dist'), { recursive: true });
+    await writeFile(resolve(directory, 'dist/index.html'), '<h1>Readiness fixture</h1>');
+    await writeFile(resolve(directory, 'server.mjs'), script);
+    await writeFile(resolve(directory, 'app.json'), JSON.stringify({
+      schemaVersion: 1, name, version: '0.1.0', displayName: name,
+      contributes: { panels: [{ id: 'main', title: name, entry: 'dist/index.html' }] },
+      backend: { type: 'node', entry: 'server.mjs' },
+    }));
+    assert.equal((await host.request('install', { path: directory })).ok, true);
+    assert.equal((await host.request('enable', { name })).ok, true);
+    const id = crypto.randomUUID();
+    const result = await host.request('resolve', { id, name }, 20000);
+    assert.equal(result.ok, false);
+    const log = await readFile(resolve(temp, 'app-startup.jsonl'), 'utf8');
+    const receipt = log.trim().split('\n').map(line => JSON.parse(line)).find(entry => entry.request_id === id);
+    assert.equal(receipt?.app, name);
+    assert.deepEqual(receipt.failure, { stage: 'ready', code, exit_code: exitCode, signal: null });
+    assert(!log.includes('private fixture stderr'));
+  }
   assert.deepEqual(failures, []);
   console.log('App stdio wiring, generated contract, Python environments, incremental builtin discovery and retained disable/removal passed.');
 } finally {
