@@ -11,6 +11,6 @@ export type Skill = {
   verification: {content: string; runtime: string; notes: string[]};
 };
 export type Catalog = {schema_version: number; generated_at: string; issue_url: string; sources: unknown[]; skills: Skill[]; resources: unknown[]; exclusions: unknown[]; stats: Record<string, unknown>};
-export type Installed = {id: string; revision: string; enabled: boolean; selected: boolean; invocation?: string; previousRevision?: string; entry?: Skill};
+export type Installed = {id: string; revision: string; versions?: string[]; enabled: boolean; selected: boolean; invocation?: string; previousRevision?: string; entry?: Skill};
 export type Installations = {items: Installed[]; supportedAgent: string};
 export type Update = {id: string; currentRevision: string; latestRevision: string; latestSha256: string; updateAvailable: boolean};

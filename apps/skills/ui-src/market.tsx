@@ -1,7 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
 import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, LibraryHeader, ListRow, SearchField, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
-import {findSkills, groupSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
+import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
+import {SkillCard} from './skill-card';
+import {SkillHub} from './skillhub';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
 
 function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missing: React.ReactNode}) {
@@ -20,6 +22,9 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const [catalog, setCatalog] = useState<Catalog>(), [installed, setInstalled] = useState<Installations>();
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
   const [view, setView] = useState('discover'), [queryState, setQueryState] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
+  const [hubQuery, setHubQuery] = useState(''), [hubRefresh, setHubRefresh] = useState(0);
+  const [targetRevision, setTargetRevision] = useState('');
+  const hub = view === 'skillhub';
   const query = queryProp ?? queryState;
   const setQuery = (value: string) => { onQueryChange?.(value); if (queryProp === undefined) setQueryState(value); };
   const [selected, setSelected] = useState(''), [page, setPage] = useState(0), [detailTab,setDetailTab] = useState('overview');
@@ -60,14 +65,17 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const shown = findSkills(entries, {scope,query, category, view, installed:records, page, onlyReady, sort});
   const listed = entries.find(value => value.id === selected);
   const record = records.find(value => value.id === listed?.id);
+  const retained = record?.versions ?? [];
+  const chosenRevision = retained.includes(targetRevision) ? targetRevision : record?.revision ?? '';
+  const catalogRevision = catalog?.skills.find(value => value.id === listed?.id)?.source.commit;
   const item = listed;
   const itemBusy = busy[item?.id ?? ''];
   const update = updates[item?.id ?? ''];
   const categories = [...new Map(entries.map(value => [value.category, {value:value.category, label:categoryLabel(value)}])).values()].sort((a,b) => a.label.localeCompare(b.label, locale));
   const noCapability = !!permissions && !capability;
   function filter(change: () => void) { change(); setPage(0); }
-  function open(target:Skill) {setSelected(target.id);setDetailTab('overview');}
-  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,category,onlyReady,sort]);
+  function open(target:Skill) {setSelected(target.id);setDetailTab('overview');setTargetRevision('');}
+  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,hubQuery,category,onlyReady,sort]);
   useEffect(()=>{if(embedded)return;const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();searchInput.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[embedded,searchInput,selected]);
   async function useSkill(target:Skill, message='') {
     const saved=records.find(value=>value.id===target.id);
@@ -142,42 +150,51 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const running=Object.keys(busy).length;
   const missingEvidence=item ? <>{text('未明确列出，请查看','Not explicitly listed; review the')} <a href={item.source.url} target="_blank" rel="noreferrer">{text('技能原文','original skill')}</a>。</> : null;
 
-  const groups = sort === 'name' ? [{owner:'', items: shown.items}] : groupSkills(shown.items);
   const filtered = !!(query || category || scope || onlyReady);
   const clearFilters = () => filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);});
-  const viewTitle = view === 'installed' ? text('已安装','Installed') : text('发现技能','Discover');
+  const viewTitle = hub ? 'SkillHub' : view === 'installed' ? text('已安装','Installed') : text('发现技能','Discover');
   return <main className={embedded ? 'skills-market skills-market-embedded' : 'skills-market'}>
         <Tabs className="skills-frame" value={view} onValueChange={next=>filter(()=>setView(next))}>
           <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
             <TabsTrigger value="discover">{text('发现技能','Discover')}</TabsTrigger>
+            <TabsTrigger value="skillhub">SkillHub</TabsTrigger>
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
-          </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={loading} disabled={!capability} onClick={() => void load()}><Icon name="sync" size={14}/></IconButton>} />
-          <ContentPane id="skills-catalog" label={text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
-            header={<LibraryHeader density="compact" title={viewTitle} subtitle={catalog ? <span className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong> {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
+          </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={!hub && loading} disabled={!capability} onClick={() => hub ? setHubRefresh(value=>value+1) : void load()}><Icon name="sync" size={14}/></IconButton>} />
+          <ContentPane id="skills-catalog" label={hub ? 'SkillHub' : text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
+            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能与发布版本，在 SkillHub 查看来源与安装说明。','Browse community skills and releases. SkillHub provides source and installation instructions.') : catalog ? <span className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong> {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
             toolbar={<div className="skills-tools">
-            <SearchField ref={searchInput} aria-label={text('搜索技能','Search skills')} placeholder={text('搜索技能','Search skills')} value={query} onChange={event=>filter(()=>setQuery(event.target.value))}/>
+            <SearchField ref={searchInput} aria-label={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')}
+              placeholder={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')} value={hub ? hubQuery : query}
+              onChange={event=>hub ? setHubQuery(event.target.value) : filter(()=>setQuery(event.target.value))}/>
+            {!hub && <>
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>
             <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>filter(()=>setCategory(value))}/>
             <label className="skills-ready"><Checkbox checked={onlyReady} onCheckedChange={checked=>filter(()=>setOnlyReady(checked===true))}/>{text('可直接安装','Ready to install')}</label>
             <Select label={text('排序方式','Sort skills')} value={sort} options={[{value:'flow',label:text('按任务','Task')},{value:'name',label:text('按名称','Name')}]} onChange={value=>filter(()=>setSort(value))}/>
             {filtered && <Button variant="ghost" onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>}
+            </>}
           </div>}
             feedback={<div className="skills-status">
-            {loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
-            {error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}
+            {!hub&&loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
+            {!hub&&error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
           </div>}>
           <TabsContent value={view}>
-            {!catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
+            {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !catalog ? !loading&&!error&&!noCapability&&<Feedback>{text('正在等待 Host 目录。','Waiting for the Host catalog.')}</Feedback> : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
                 {catalog && <p className="skills-summary">{text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`)}</p>}
-                {shown.items.length ? groups.map(group => <div key={group.owner || '\0'} className="skills-source-group">{sort !== 'name' && <header className="skills-source-head"><h2>{group.owner || text('本地','Local')}</h2><span>{group.items.length}</span></header>}{group.items.map(value=>{
+                {shown.items.length ? <div className="skills-grid">{shown.items.map(value=>{
                   const saved=records.find(row=>row.id===value.id), pending=busy[value.id];
-                  const displayed=value;
-                  return <article key={value.id}>
-                    <ListRow className="skills-row" onOpen={()=>open(value)} title={<span className="skills-row-identity"><SkillGlyph skill={displayed}/><span className="skills-row-copy"><span className="skills-row-title"><span role="heading" aria-level={3}>{title(displayed)}</span>{saved&&<span className="skills-installed-label"><Icon name="check" size={12}/>{text('已安装','Installed')}</span>}{pending&&<span className="skills-pending-label">{text('处理中','Working')}</span>}{!pending&&outcomes[value.id]?.error&&<span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>}</span><span className="skills-row-description">{description(displayed)}</span><span className="skills-row-meta"><span className="skills-category">{categoryLabel(displayed)}</span><code>{displayed.name}</code><span className="skills-source-owner">{displayed.source.repository.split('/')[0]}</span></span></span></span>} trailing={<div className="skills-row-action">{primary(displayed,true)}</div>}/>
-                  </article>;
-                })}</div>) : <EmptyState icon={<EmptyIllustration kind={view==='installed'&&!query&&!category?'data':'search'} size="compact"/>} heading={view==='installed'&&!query&&!category?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={<Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
+                  const revision = saved?.revision || value.source.commit;
+                  const status = pending ? <span className="skills-pending-label">{text('处理中','Working')}</span>
+                    : outcomes[value.id]?.error ? <span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>
+                    : saved ? <span className="skills-installed-label"><Icon name="check" size={12}/>{text('已安装','Installed')}</span>
+                    : null;
+                  return <SkillCard key={value.id} name={title(value)} category={categoryLabel(value)} description={description(value)}
+                    publisher={value.source.repository} icon={glyphs[value.category] || 'skill'}
+                    version={{label:`Git ${revision.slice(0,8)}`, full:revision}} status={status}
+                    action={primary(value,true)} onOpen={()=>open(value)}/>;
+                })}</div> : <EmptyState icon={<EmptyIllustration kind={view==='installed'&&!query&&!category?'data':'search'} size="compact"/>} heading={view==='installed'&&!query&&!category?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={<Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
                 {shown.total>0&&<footer className="skills-pagination"><span>{text(`显示 ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)}，共 ${shown.total.toLocaleString(locale)} 项`,`Showing ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)} of ${shown.total.toLocaleString(locale)}`)}</span><div><Button aria-label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left" size={15}/></Button><span>{shown.page+1} / {shown.pages}</span><Button aria-label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right" size={15}/></Button></div></footer>}
               </section>
               <p className="skills-source-note"><Icon name="info" size={15}/>{text('目录保留固定来源与许可依据。安装成功不代表科研方法已经验证。','Sources and license evidence are preserved. Installation does not establish scientific validation.')}</p>
@@ -203,7 +220,26 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
           </TabsContent>
           <TabsContent value="examples"><ContentSection id="skill-examples" title={text('可以这样发起任务','Start a research task')}><p>{text('先在聊天中选中技能，再补充你的实际材料与要求。','Select the skill in Chat, then add your actual materials and requirements.')}</p>{zh&&copy(item)&&<><blockquote>{copy(item)?.example}</blockquote>{record&&<Button onClick={()=>void useSkill(item,copy(item)?.example)}>{text('带着示例去会话','Use example in chat')}<Icon name="arrow" size={14}/></Button>}</>}<SkillEvidence sections={item.examples} missing={missingEvidence}/></ContentSection></TabsContent>
           <TabsContent value="source"><ContentSection id="skill-source" title={text('来源信息','Source information')}><dl className="skills-facts"><dt>{text('仓库','Repository')}</dt><dd><a href={item.source.url} target="_blank" rel="noreferrer">{item.source.repository}<Icon name="open" size={13}/></a></dd><dt>{text('固定版本','Pinned revision')}</dt><dd><code>{item.source.commit}</code></dd><dt>{text('技能文件','Skill file')}</dt><dd><code>{item.source.path}</code></dd><dt>{text('许可依据','License evidence')}</dt><dd><a href={item.license.evidence_url||item.source.url} target="_blank" rel="noreferrer">{item.license.spdx||text('待核对','Unverified')}</a> · {({declared_in_skill:text('技能自身声明','Declared by the skill'),directory_license:text('技能目录许可证','Skill directory license'),reviewed_repository:text('已复审仓库许可适用范围','Reviewed repository license scope'),repository_only:text('仅有仓库声明','Repository declaration only')})[item.license.status as 'declared_in_skill'|'directory_license'|'reviewed_repository'|'repository_only']||text('尚无许可依据','No license evidence')}</dd></dl></ContentSection><ContentSection id="skill-original" title={text('原始说明','Original description')}><p className="skills-original-description">{item.description||text('来源未提供摘要。','No source summary.')}</p></ContentSection>
-            {record&&<ContentSection id="skill-version" title={text('版本管理','Version management')} actions={<div className="skills-version-actions"><Button disabled={!!itemBusy} onClick={()=>void operate('check-update',item)}>{text('检查更新','Check for updates')}</Button>{update?.updateAvailable&&<Button disabled={!!itemBusy} onClick={()=>void operate('update',item,{revision:update.latestRevision,sha256:update.latestSha256})}>{text('更新','Update')}</Button>}<Button disabled={!!itemBusy||!record.previousRevision} onClick={()=>void operate('rollback',item)}>{text('回退','Roll back')}</Button></div>}><dl className="skills-facts"><dt>{text('已安装版本','Installed revision')}</dt><dd><code>{record.revision}</code></dd>{record.invocation&&<><dt>{text('调用名称','Invocation')}</dt><dd><code>/{record.invocation}</code></dd></>}</dl>{updates[item.id]&&<Feedback>{text(updates[item.id].updateAvailable?`发现新版本 ${updates[item.id].latestRevision.slice(0,12)}`:'已是当前上游版本',updates[item.id].updateAvailable?`Update available: ${updates[item.id].latestRevision.slice(0,12)}`:'Already at the current upstream revision')}</Feedback>}</ContentSection>}
+            {record&&<ContentSection id="skill-version" title={text('版本管理','Version management')}>
+              <dl className="skills-facts">
+                <dt>{text('已安装版本','Installed revision')}</dt><dd><code>{record.revision}</code></dd>
+                {catalogRevision && catalogRevision !== record.revision && <><dt>{text('目录固定版本','Catalog revision')}</dt><dd><code>{catalogRevision}</code></dd></>}
+                {record.invocation&&<><dt>{text('调用名称','Invocation')}</dt><dd><code>/{record.invocation}</code></dd></>}
+              </dl>
+              {retained.length>1 && <div className="skills-version-actions">
+                <Select label={text('本地保留版本','Retained versions')} value={chosenRevision} disabled={!!itemBusy}
+                  options={retained.map(revision=>({value:revision,hint:revision,label:revision === record.revision
+                    ? text(`${revision.slice(0,12)} · 当前`,`${revision.slice(0,12)} · Current`) : revision.slice(0,12)}))}
+                  onChange={setTargetRevision}/>
+                <Button disabled={!!itemBusy || chosenRevision === record.revision} onClick={()=>void operate('rollback',item,{revision:chosenRevision})}>{text('切换版本','Switch version')}</Button>
+              </div>}
+              <div className="skills-version-actions">
+                <Button disabled={!!itemBusy} onClick={()=>void operate('check-update',item)}>{text('检查更新','Check for updates')}</Button>
+                {update?.updateAvailable && <Button disabled={!!itemBusy} onClick={()=>void operate('update',item,{revision:update.latestRevision,sha256:update.latestSha256})}>{text('更新','Update')}</Button>}
+                <Button disabled={!!itemBusy||!record.previousRevision} onClick={()=>void operate('rollback',item)}>{text('回退','Roll back')}</Button>
+              </div>
+              {update&&<Feedback>{update.updateAvailable ? text(`发现新版本 ${update.latestRevision.slice(0,12)}`,`Update available: ${update.latestRevision.slice(0,12)}`) : text('已是当前上游版本','Already at the current upstream revision')}</Feedback>}
+            </ContentSection>}
             {item.sources?.length>1&&<ContentSection id="skill-other-sources" title={text('其他来源','Other sources')}><ul>{item.sources.map((source,index)=><li key={index}><a href={source.url} target="_blank" rel="noreferrer">{source.repository} / {source.path}</a></li>)}</ul></ContentSection>}
           </TabsContent>
         </Tabs>

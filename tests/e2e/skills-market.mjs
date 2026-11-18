@@ -51,6 +51,7 @@ async function capture(name) {
 }
 async function select(label,value) {
   const trigger=frame.getByRole('button',{name:label,exact:true});
+  await expect(trigger).toBeEnabled();
   await trigger.press('ArrowDown');
   const list=frame.getByRole('listbox',{name:label,exact:true});
   await expect(list).toBeVisible();
@@ -76,14 +77,20 @@ try {
   await expect(frame.locator('.skills-catalog-total')).toContainText(catalog.skills.length.toLocaleString('en'));
   await expect(frame.getByRole('link',{name:'#156',exact:true})).toHaveCount(0);
   const rows = frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article');
+  const columns = await rows.evaluateAll(cards => {
+    const firstTop = cards[0].getBoundingClientRect().top;
+    return cards.filter(card => card.getBoundingClientRect().top === firstTop).length;
+  });
+  expect(columns).toBeGreaterThan(1);
   const firstRows = await rows.allTextContents();
   const firstEntries = [];
-  const displayedNames = await rows.locator('code').allTextContents();
+  const displayedNames = await rows.getByRole('heading').allTextContents();
   for (const [index,row] of firstRows.entries()) {
     const entry = catalog.skills.find(item=>item.name===displayedNames[index]);
     expect(entry,'Every visible row must identify an actual catalog entry').toBeTruthy();
     firstEntries.push(entry);
     expect(row).toContain(entry.name);
+    expect(row).toContain(`Git ${entry.source.commit.slice(0,8)}`);
   }
   expect(new Set(firstEntries.map(item=>item.category)).size).toBeGreaterThan(1);
   await capture('catalog-light');
@@ -112,7 +119,7 @@ try {
   await expect(rows.getByRole('button',{name:'View conditions',exact:true})).toHaveCount(0);
   await frame.getByRole('checkbox',{name:'Ready to install',exact:true}).press('Space');
   await select('Sort skills','Name');
-  const orderedNames = await rows.locator('code').allTextContents();
+  const orderedNames = await rows.getByRole('heading').allTextContents();
   expect(orderedNames).toEqual([...orderedNames].sort((a,b)=>a.localeCompare(b,'en',{numeric:true})));
   await rows.first().getByRole('button').first().press('Enter');
   const detail=frame.getByRole('dialog',{name:'Skill details',exact:true});
@@ -125,7 +132,7 @@ try {
   await capture('detail-light-keyboard');
   await detail.getByRole('button',{name:'Close details',exact:true}).press('Escape');
   await expect(detail).not.toBeVisible();
-  checks.push('actual Host, full catalog, 12-row paging, search recovery, categories, installable filtering, sort and explicit detail tabs/keyboard close');
+  checks.push(`actual Host, ${columns} cards per wide row, Git revisions on cards, 12-card paging, search recovery, categories, installable filtering, sorting and keyboard detail tabs`);
 
   await rename(catalogPath,`${catalogPath}.saved`);
   await frame.getByRole('button',{name:'Refresh',exact:true}).press('Enter');
@@ -138,6 +145,38 @@ try {
   await frame.getByRole('tab',{name:'Installed (0)',exact:true}).press('Enter');
   await expect(frame.getByText('No installed skills',{exact:true})).toBeVisible();
   checks.push('actual Host missing-catalog refresh failure retains content; restoring the file and retrying recovers; initial installed empty state');
+  if (process.env.PERO_SKILLS_MARKET_SKILLHUB === '1') {
+    await search('private-local-query-fixture');
+    await frame.getByRole('tab',{name:'SkillHub',exact:true}).press('Enter');
+    const hubSearch = frame.getByRole('searchbox',{name:'Search SkillHub',exact:true});
+    await expect(hubSearch).toHaveValue('');
+    await hubSearch.fill('find-skill-skillhub');
+    const hub = frame.getByRole('region',{name:'SkillHub results',exact:true});
+    const card = hub.getByRole('article').first();
+    await expect(card).toBeVisible({timeout:20000});
+    await expect(card.locator('.skills-card-version')).toHaveText(/^\d+\.\d+\.\d+/);
+    await capture('skillhub-search');
+    await card.getByRole('button',{name:'Versions',exact:true}).press('Enter');
+    const releases = frame.getByRole('dialog');
+    await expect(releases.getByRole('heading',{name:'Release history',exact:true})).toBeVisible();
+    await expect(releases.locator('.skills-release-list li').first()).toBeVisible({timeout:20000});
+    const identity = await releases.locator('.skills-card-publisher').textContent();
+    expect(identity).toMatch(/^@[^/]+\/[^/]+$/);
+    await expect(releases.getByRole('link',{name:'Open on SkillHub',exact:true})).toHaveAttribute('href', `https://skillhub.cn/skills/${identity.slice(1)}`);
+    await capture('skillhub-releases');
+    await releases.getByRole('button',{name:'Close',exact:true}).press('Escape');
+    const next = hub.getByRole('button',{name:'Next',exact:true});
+    await expect(next).toBeEnabled();
+    await next.press('Enter');
+    await expect(hub.locator('.skills-pagination span')).toHaveText(/^2 \/ /);
+    await expect(hub.getByRole('status')).toHaveText(/matches$/, {timeout:20000});
+    await hubSearch.fill('docx');
+    await expect(hub.locator('.skills-pagination span')).toHaveText(/^1 \/ /);
+    await hubSearch.fill('find-skill-skillhub');
+    await expect(hub.locator('.skills-pagination span')).toHaveText(/^1 \/ /);
+    await expect(hub.getByRole('status')).toHaveText(/matches$/, {timeout:20000});
+    checks.push('actual SkillHub search with an independent query, paging resets, release version, history and publisher source link');
+  }
   await app.close(); app = undefined;
 
   // A deliberately seeded local installation exercises UI persistence without
@@ -168,8 +207,15 @@ try {
   await expect(enabled).toBeChecked();
   await installedDetail.getByRole('tab',{name:'Source and version',exact:true}).press('Enter');
   await expect(installedDetail).toContainText(entry.description || entry.description_zh);
+  const installedRevision = installedDetail.locator('#skill-version dd:first-of-type code');
   await installedDetail.getByRole('button',{name:'Roll back',exact:true}).press('Enter');
-  await expect(installedDetail).toContainText(previous);
+  await expect(installedRevision).toHaveText(previous);
+  await select('Retained versions',revision.slice(0,12));
+  await installedDetail.getByRole('button',{name:'Switch version',exact:true}).press('Enter');
+  await expect(installedRevision).toHaveText(revision);
+  await select('Retained versions',previous.slice(0,12));
+  await installedDetail.getByRole('button',{name:'Switch version',exact:true}).press('Enter');
+  await expect(installedRevision).toHaveText(previous);
   await capture('installed-selection-light');
   // The detail drawer covers the workbench canvas. Close it before using the visible Settings control.
   await installedDetail.getByRole('button',{name:'Close details',exact:true}).press('Escape');
@@ -204,7 +250,7 @@ try {
   await expect(narrowDetail).toContainText(previous);
   expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await capture('installed-dark-narrow-zh');
-  checks.push('keyboard management of fixture installed metadata through actual Host enable/rollback, live zh/dark/narrow and no document overflow');
+  checks.push('keyboard management through actual Host enable, rollback and explicit retained-version switching in a Chinese dark narrow window');
   await frame.getByRole('tab',{name:'用途与条件',exact:true}).press('Enter');
   await frame.getByRole('button',{name:'移除本地安装',exact:true}).press('Enter');
   const dialog = frame.getByRole('dialog').last();
@@ -217,6 +263,12 @@ try {
   const saved = JSON.parse(await readFile(resolve(market,'state.json'),'utf8'));
   expect(saved.items).toEqual({});
   checks.push('remove confirmation/cancel and actual profile removal persistence');
+  await frame.getByRole('tab',{name:'发现技能',exact:true}).press('Enter');
+  const narrowGrid = frame.locator('.skills-grid');
+  await expect(narrowGrid.getByRole('article')).toHaveCount(12);
+  expect(await narrowGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length)).toBeLessThan(columns);
+  expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  await capture('catalog-dark-narrow-zh');
   expect(errors).toEqual([]);
   await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks,catalogSkills:catalog.skills.length,sourceCount:catalog.sources.length,limitations:['Only the Skills builtin is enabled; unrelated Apps are excluded from this suite. Installed management uses explicit local state fixtures; no third-party Git acquisition, model inference, scientific validation or Native/packaged acceptance in this suite.']},null,2));
   console.log(`Skills market Electron/Host UI passed: ${checks.length} groups, ${catalog.skills.length} real catalog entries.`);
