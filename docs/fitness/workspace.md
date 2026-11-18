@@ -1,5 +1,35 @@
 # Workspace content and shared Chat verification
 
+## Session history recovery — 2026-11-18
+
+Current Desktop clients request conversation summaries and the history of live
+sessions at startup. Closed conversations load their history when selected.
+The Host still rebuilds its existing journal projection at startup and serves
+the complete replay to clients that omit the new request option.
+
+`node tests/runtime/session-history-performance.mjs BASELINE_HOST CANDIDATE_HOST`
+compares real Host stdio with a fresh process and the same journal for both
+binaries. One selected closed conversation has 100 events in each workload.
+The script asserts that its recovered events match the legacy replay and reports
+the median of three runs per binary. These measurements end at the decoded Host
+response. UI rendering is measured separately.
+
+| Journal events | Host ready, legacy → catalog | First replay bytes, legacy → catalog | Selected history, legacy → catalog |
+| ---: | ---: | ---: | ---: |
+| 1,000 | 10.0 → 10.2 ms | 199,643 → 3,090 | 16.2 → 10.5 ms |
+| 10,000 | 47.5 → 52.0 ms | 2,029,163 → 30,270 | 75.9 → 17.1 ms |
+| 100,000 | 407.1 → 410.7 ms | 20,635,763 → 304,770 | 725.9 → 72.5 ms |
+
+These are macOS arm64 debug binaries. The selected body adds about 21 KB on the
+larger workload. Host readiness still includes the journal scan. Each selected
+body is returned as a complete conversation.
+
+The local macOS development Workbench opened both archived conversations from
+the damaged history fixture and preserved the original journal bytes. The
+Workbench session suite also passed live output, cancellation, approval, and
+draft retention on reload. The Host contract separately asked for the catalog
+midstream and matched all 1,000 ordered deltas across the replay and live tail.
+
 Date: 2026-10-29. Target: macOS arm64, development Electron build.
 Source: the working tree above `93044af`, including parallel App Chat/App Use
 work. These results are development acceptance, not signed-package or real-model
