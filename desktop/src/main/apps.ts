@@ -106,13 +106,13 @@ export class DesktopApps {
     this.pending.clear();
   }
 
-  private request<T>(action: string, fields: Record<string, unknown> = {}): Promise<T> {
+  private request<T>(action: string, fields: Record<string, unknown> = {}, timeout = 660000): Promise<T> {
     const id = `apps-${randomUUID()}`;
     return new Promise((resolveRequest, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error('The App request timed out. Check the App and retry.'));
-      }, 660000);
+      }, timeout);
       this.pending.set(id, { resolve: value => resolveRequest(value as T), reject, timer });
       try { this.write({ method: 'apps', id, action, ...fields }); }
       catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error); }
@@ -312,7 +312,9 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', {status:405});
         const body = await request.text();
         if (Buffer.byteLength(body) > 4096) return new Response('Request too large', {status:413});
-        const value = await this.request('skillsmarket', {name:url.hostname,request:JSON.parse(body)});
+        const input = JSON.parse(body);
+        const query = input?.operation === 'skillhub-search' || input?.operation === 'skillhub-versions';
+        const value = await this.request('skillsmarket', {name:url.hostname,request:input}, query ? 12000 : undefined);
         return Response.json(value, {headers:{'Cache-Control':'no-store'}});
       }
       if (url.pathname.startsWith('/api/')) await this.request('apiaccess', {name:url.hostname,path:url.pathname});
