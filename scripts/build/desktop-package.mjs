@@ -1,8 +1,10 @@
 // Build for the current OS. Release uses independent native runners in parallel.
 import { run } from '../lib/run.mjs';
 import { root } from '../lib/paths.mjs';
-await run(process.execPath, ['scripts/build/apps.mjs'], { env: { ...process.env, PERO_BUILD_RELEASE: '1' } });
-await run(process.execPath, ['scripts/build/wasm.mjs'], { env: { ...process.env, PERO_BUILD_RELEASE: '1' } });
+if (process.argv.includes('--macos') && process.platform !== 'darwin') {
+  throw new Error('macOS desktop packaging requires macOS.');
+}
+await run(process.execPath, ['scripts/build/workbench-apps.mjs'], { env: { ...process.env, PERO_BUILD_RELEASE: '1' } });
 await run(process.execPath, ['scripts/cargo.mjs', 'build', '--release', '--locked', '-p', 'pero-host', '-p', 'pero-worker']);
 await run(process.execPath, ['scripts/build/computer.mjs', '--release']);
 await run(process.execPath, ['scripts/build/connectors.mjs', '--release']);
