@@ -374,6 +374,22 @@ impl ChatPanel {
             .when(self.composer_state.open, |el| {
                 el.child(self.composer_picker_view(cx))
             })
+            .when_some(self.history_status, |el, status| {
+                let key = match (status.incomplete(), status.save_failure.is_some()) {
+                    (_, false) => "chat.history_incomplete",
+                    (false, true) => "chat.history_unsaved",
+                    (true, true) => "chat.history_incomplete_unsaved",
+                };
+                el.child(div().id("session-history-status").role(Role::Status)
+                    .mb(px(pero_theme::SPACE_8))
+                    .px(px(pero_theme::SPACE_8))
+                    .py(px(pero_theme::SPACE_4))
+                    .bg(p.warning_bg)
+                    .text_color(p.warning)
+                    .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
+                    .whitespace_normal()
+                    .child(self.t(key)))
+            })
             .when(self.error.is_some(), |el| {
                 el.child(
                     div()

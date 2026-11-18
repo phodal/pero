@@ -76,6 +76,7 @@ pub struct ChatPanel {
     pub locale: String,
     pub connected: bool,
     pub error: Option<String>,
+    pub(crate) history_status: Option<pero_contracts::session_history::SessionHistoryStatus>,
     pub composer: Entity<TextareaState>,
     pub chats: Vec<Conversation>,
     pub active_chat: Option<usize>,
@@ -163,6 +164,7 @@ impl ChatPanel {
             locale,
             connected: false,
             error: None,
+            history_status: None,
             composer,
             chats: vec![],
             active_chat: None,
@@ -393,6 +395,11 @@ impl ChatPanel {
                 self.locale = pero_contracts::i18n::normalize(&event.text).into();
                 gpui_kit::component::set_locale(&self.locale);
             }
+            "session_history_status" => {
+                if let Ok(status) = serde_json::from_value::<pero_contracts::session_history::SessionHistoryStatus>(event.data.clone()) {
+                    self.history_status = status.degraded().then_some(status);
+                }
+            }
             "app_scope" => {
                 if let Ok(scope) = serde_json::from_value::<Option<pero_contracts::AppChatScope>>(
                     event.data.clone(),
@@ -483,7 +490,7 @@ impl ChatPanel {
     /// Diagnostic projection used by both shells; never a second history store.
     pub fn snapshot(&self, cx: &App) -> Value {
         json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
+            "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "readableReplies":self.chats.iter().flat_map(|chat| chat.messages.iter().enumerate().filter_map(move |(index,_)| chat.reply_presentation(index).map(|reply| json!({"chat":chat.id,"index":index,"text":reply.summary})))).collect::<Vec<_>>(),

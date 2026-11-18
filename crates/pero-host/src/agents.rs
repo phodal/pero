@@ -19,9 +19,12 @@ mod mcp_settings;
 mod mcp_session;
 #[path = "project_agent.rs"]
 mod project_agent;
+#[path = "session_journal.rs"]
+mod session_journal;
+use session_journal::SessionJournal;
+use pero_contracts::session_history::{SessionHistorySaveFailure, SessionHistoryStatus};
 use std::{
     collections::HashMap,
-    io::{BufRead, Write},
     path::PathBuf,
     sync::{
         mpsc::{self, Sender},
@@ -44,6 +47,7 @@ pub struct Manager {
     connectors: Option<acp::ConnectorsEndpoint>,
     settings_path: Option<PathBuf>,
     history_path: PathBuf,
+    history_status: Arc<Mutex<SessionHistoryStatus>>,
     project_tools: Option<crate::project_tools::Broker>,
     automation_threads: std::collections::HashSet<String>,
     automation_tx: mpsc::SyncSender<automation_agent::AutomationReceipt>,
@@ -66,12 +70,12 @@ impl Manager {
         let history_file = std::env::var_os("PERO_HISTORY_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join("target/sessions.jsonl"));
-        let mut stored = pero_contracts::session_history::SessionHistory::default();
-        if let Ok(file) = std::fs::File::open(&history_file) {
-            for line in std::io::BufReader::new(file).split(b'\n').map_while(Result::ok) {
-                if let Ok(event) = serde_json::from_slice::<HostEvent>(&line) { stored.record(event); }
-            }
+        let (stored, mut journal, status) = SessionJournal::open(&history_file);
+        if status.degraded() {
+            eprintln!("Session history: {}", SessionJournal::status_event(status).data);
         }
+        let history_status = Arc::new(Mutex::new(status));
+        let writer_status = history_status.clone();
         let app_bindings = stored
             .events()
             .iter()
@@ -89,15 +93,6 @@ impl Manager {
         let run_writer=run_journal.clone();
         let history = Arc::new(Mutex::new(stored));
         let saved = history.clone();
-        if let Some(parent) = history_file.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let history_path = history_file.clone();
-        let mut journal = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(history_file)
-            .ok();
         let (tx, rx) = mpsc::channel::<HostEvent>();
         std::thread::spawn(move || {
             for mut event in rx {
@@ -145,8 +140,15 @@ impl Manager {
                             | "session_auth_error"
                             | "session_authenticated"
                     ) {
-                        if let Some(file) = journal.as_mut() {
-                            persisted=serde_json::to_writer(&mut *file, &event).map_err(|e|e.to_string()).and_then(|_|writeln!(file).map_err(|e|e.to_string()));
+                        persisted = journal.append(&event);
+                        if persisted.is_err() {
+                            let mut status = writer_status.lock().unwrap();
+                            if status.save_failure.is_none() {
+                                status.save_failure = Some(SessionHistorySaveFailure::Write);
+                                let warning = SessionJournal::status_event(*status);
+                                eprintln!("Session history: {}", warning.data);
+                                let _ = super::emit(warning);
+                            }
                         }
                     }
                     persistence=Some(persisted);
@@ -190,8 +192,15 @@ impl Manager {
             app_plugins: HashMap::new(),
             connectors: acp::ConnectorsEndpoint::from_environment(),
             settings_path,
-            history_path,
+            history_path: history_file,
+            history_status,
             project_tools: crate::project_tools::Broker::start().map_err(|error| eprintln!("Project tools: {error}")).ok(),
+        }
+    }
+    fn publish_history_status(&self) {
+        let status = *self.history_status.lock().unwrap();
+        if status.degraded() {
+            let _ = self.tx.send(SessionJournal::status_event(status));
         }
     }
     pub fn configure_harness(
@@ -343,6 +352,7 @@ impl Manager {
                     serde_json::json!(self.agents.iter().map(|a| a.public()).collect::<Vec<_>>()),
                 );
                 self.publish_workspace();
+                self.publish_history_status();
                 let events = self.visible_history();
                 let active: Vec<_> = self
                     .sessions

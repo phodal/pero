@@ -1,7 +1,32 @@
 //! Complete conversation replay, compacting only adjacent plain text deltas.
 use crate::HostEvent;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionHistoryStatus {
+    pub read_failed: bool,
+    pub malformed_records: u32,
+    pub save_failure: Option<SessionHistorySaveFailure>,
+}
+
+impl SessionHistoryStatus {
+    pub fn incomplete(&self) -> bool {
+        self.read_failed || self.malformed_records > 0
+    }
+
+    pub fn degraded(&self) -> bool {
+        self.incomplete() || self.save_failure.is_some()
+    }
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionHistorySaveFailure {
+    Open,
+    Write,
+}
 
 #[derive(Default)]
 pub struct SessionHistory {

@@ -258,6 +258,7 @@ export type HostEvent =
   | ReadyEvent
   | DisconnectedEvent
   | NoticeEvent
+  | SessionHistoryStatusEvent
   | EchoEvent
   | ErrorEvent
   | AgentsEvent
@@ -3340,6 +3341,18 @@ export interface NoticeEvent {
   request_id: string | null;
   text: string;
   message_key?: MessageKey;
+}
+export interface SessionHistoryStatusEvent {
+  kind: "session_history_status";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  data: SessionHistoryStatus;
+}
+export interface SessionHistoryStatus {
+  read_failed: boolean;
+  malformed_records: number;
+  save_failure: "open" | "write" | null;
 }
 export interface EchoEvent {
   kind: "echo";

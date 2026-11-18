@@ -8876,6 +8876,9 @@
           "$ref": "#/$defs/NoticeEvent"
         },
         {
+          "$ref": "#/$defs/SessionHistoryStatusEvent"
+        },
+        {
           "$ref": "#/$defs/EchoEvent"
         },
         {
@@ -16914,6 +16917,79 @@
         "request_id",
         "text",
         "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "SessionHistoryStatus": {
+      "title": "SessionHistoryStatus",
+      "type": "object",
+      "properties": {
+        "read_failed": {
+          "type": "boolean"
+        },
+        "malformed_records": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "save_failure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "write"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "read_failed",
+        "malformed_records",
+        "save_failure"
+      ],
+      "additionalProperties": false
+    },
+    "SessionHistoryStatusEvent": {
+      "title": "SessionHistoryStatusEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "session_history_status"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/SessionHistoryStatus"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "data"
       ],
       "additionalProperties": false
     },

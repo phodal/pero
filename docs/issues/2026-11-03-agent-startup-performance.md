@@ -284,6 +284,28 @@ Contracts, runtime, Host and Worker suites passed. External Agents without this
 extension retain standard ACP readiness and their explicit unobservable status;
 these checks do not claim independent verification of those Agents' mounts.
 
+## 2026-11-18 session history status
+
+The Host reports an unreadable journal, skipped records, and failures opening
+or writing the append stream. The per-profile warning reaches the conversation
+composer on renderer connection and on the first write failure. Available
+history and live conversation events remain readable. The diagnostic carries
+counts and stages without journal contents or the local path.
+
+The Host contract test recovers intact records around malformed JSON, invalid
+UTF-8, and a partial final row. Recovery preserves the source bytes. The next
+append begins on its own row. A directory in place of the file reports the
+open failure while a fixture Agent still completes a live turn. A separate
+macOS probe capped the file size with `RLIMIT_FSIZE`, observed a real write
+failure, and verified an intact 32 KiB journal prefix, a retained prior message,
+and delivery of a new live message.
+
+The Electron workbench test opened both intact conversations in a journal with
+6015 valid events and one malformed record. It retained the full long
+transcript, reasoning, tool evidence, and recent reply, and confirmed that the
+file was unchanged. The inspected `test-results/session-history/restored-conversation.png`
+shows the warning above the composer while recovered content remains visible.
+
 ## Implementation: complete compact history
 
 `SessionHistory` now owns replay and deletion. Host reads the journal in order

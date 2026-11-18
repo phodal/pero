@@ -33,7 +33,9 @@ record('user_message', recent, 'Recent question');
 update(recent, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Recent answer' } });
 record('turn_finished', recent);
 const history = resolve(temp, 'history.jsonl');
-await writeFile(history, events.map(event => JSON.stringify(event)).join('\n') + '\n');
+const rows = events.map(event => JSON.stringify(event));
+rows.splice(2, 0, '{damaged record}');
+await writeFile(history, rows.join('\n') + '\n');
 const digest = async () => createHash('sha256').update(await readFile(history)).digest('hex');
 const original = await digest();
 await writeFile(resolve(temp, 'agents.json'), JSON.stringify([{ id: 'fixture', name: 'Unavailable fixture', command: resolve(temp, 'absent-agent') }]));
@@ -45,19 +47,24 @@ try {
   const page = await app.firstWindow(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const state = () => page.evaluate(() => window.peroDiagnostics ? JSON.parse(window.peroDiagnostics.snapshot()) : {});
+  await page.waitForFunction(() => !document.getElementById('loading'), { timeout: 30000 });
+  await expect.poll(async () => (await state()).historyStatus, { timeout: 30000 }).toEqual({
+    read_failed: false, malformed_records: 1, save_failure: null,
+  });
+  await clickAppShortcut(page, 'sessions');
+  await clickSessionRow(page, old);
   await expect.poll(async () => (await state()).chats?.find(chat => chat.id === old)?.messages.length, { timeout: 30000 }).toBe(4);
   const chats = (await state()).chats, restored = chats.find(chat => chat.id === old);
   expect(restored.title).toBe('Restored long conversation');
   expect(restored.messages.map(message => message.text)).toEqual(['Restore this complete conversation', expected, 'Retained reasoning', 'Final result after tool evidence.']);
   expect(restored.tools[0].content).toContain('Original evidence remains separate.');
   expect(chats.some(chat => chat.id === gone)).toBe(false);
-  expect(chats.find(chat => chat.id === recent).messages.at(-1).text).toBe('Recent answer');
-  await page.waitForFunction(() => !document.getElementById('loading'));
-  await clickAppShortcut(page, 'sessions');
+  await clickSessionRow(page, recent);
+  await expect.poll(async () => (await state()).chats?.find(chat => chat.id === recent)?.messages.at(-1)?.text).toBe('Recent answer');
   await clickSessionRow(page, old);
   await page.screenshot({ path: resolve(out, 'restored-conversation.png') });
   expect(await digest()).toBe(original);
   expect(errors).toEqual([]);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, journalEvents: events.length, messages: restored.messages.length, tools: restored.tools.length, originalJournalUnchanged: true, errors }, null, 2));
-  console.log('Session history passed: >6000 deltas, full identities/text, tools/reasoning, deletion and unchanged journal.');
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, journalEvents: events.length, messages: restored.messages.length, tools: restored.tools.length, originalJournalUnchanged: true, historyStatus: (await state()).historyStatus, errors }, null, 2));
+  console.log('Session history passed: >6000 deltas, intact conversations, tools/reasoning, deletion, visible degradation and unchanged journal.');
 } finally { await app?.close(); await rm(temp, { recursive: true, force: true }); }

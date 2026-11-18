@@ -325,7 +325,7 @@ try {
   // recovers valid records without rewriting the source journal.
   const journal = readFileSync(env.PERO_HISTORY_PATH);
   const boundary = journal.indexOf(10) + 1;
-  const damaged = Buffer.concat([journal.subarray(0,boundary), Buffer.from([0xff,0xfe,10]), Buffer.from('{malformed}\n'), journal.subarray(boundary)]);
+  const damaged = Buffer.concat([journal.subarray(0,boundary), Buffer.from([0xff,0xfe,10]), Buffer.from('{malformed}\n'), journal.subarray(boundary), Buffer.from('{partial')]);
   writeFileSync(env.PERO_HISTORY_PATH, damaged);
   // A fresh Host replays the journal written above.
   // The ACP fixture reports failure without connecting to this inert endpoint.
@@ -339,6 +339,8 @@ try {
   await host.next('remote_settings_saved', e => e.request_id === 'remote-disconnect');
   if (preferences().remote_connection !== null || preferences().locale !== 'zh-CN') failures.push('Disconnect must retain a tombstone and preserve locale');
   host.send({ action: 'list_agents' });
+  const incomplete = await host.next('session_history_status');
+  if (!isDeepStrictEqual(incomplete.data, {read_failed:false,malformed_records:3,save_failure:null})) failures.push('damaged history did not report bounded recovery metadata');
   const replay = await host.next('replay');
   if (!replay.data.events.length) failures.push('replay after restart contained no events');
   if (replay.data.events.some(event => event.thread_id === thread || event.thread_id === 'delete-live')) failures.push('deleted thread was replayed');
@@ -351,6 +353,24 @@ try {
   if (!isDeepStrictEqual(builtin, {server:'pero-connectors',generation:3,status:'error',tools:[]})) failures.push('Host-bound optional Connector failure was hidden or exposed private fields');
   const publicSnapshot = JSON.stringify(builtinReady.data.peroMcp);
   if ([connectorUrl, connectorSecret, 'Authorization', 'headers'].some(value => publicSnapshot.includes(value))) failures.push('Connector transport or credentials reached the public runtime snapshot');
+  await host.stop();
+  const appended = readFileSync(env.PERO_HISTORY_PATH);
+  if (!appended.subarray(0, damaged.length).equals(damaged) || appended[damaged.length] !== 10) {
+    failures.push('appending after a partial history row did not preserve its framing');
+  }
+
+  const historyDirectory = resolve(temp, 'history-directory');
+  mkdirSync(historyDirectory);
+  host = startHost({PERO_HISTORY_PATH:historyDirectory});
+  await host.next('ready');
+  host.send({action:'list_agents'});
+  const unavailable = await host.next('session_history_status');
+  if (!isDeepStrictEqual(unavailable.data, {read_failed:true,malformed_records:0,save_failure:'open'})) failures.push('unavailable history did not report read and open failures');
+  host.send({action:'new_session',thread_id:'unsaved-conversation',agent_id:'fixture'});
+  await host.next('session_ready', event => event.thread_id === 'unsaved-conversation');
+  host.send({action:'prompt',thread_id:'unsaved-conversation',text:'Still visible without a writable journal'});
+  await host.next('user_message', event => event.thread_id === 'unsaved-conversation' && event.text === 'Still visible without a writable journal');
+  await host.next('turn_finished', event => event.thread_id === 'unsaved-conversation');
   await host.stop();
 } catch (error) {
   failures.push(String(error));

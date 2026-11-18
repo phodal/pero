@@ -413,6 +413,13 @@ model ReadyEvent { kind: "ready"; ...SystemEventBase }
 model DisconnectedEvent { kind: "disconnected"; ...SystemEventBase }
 /** Emitted by Electron from the Workbench menu. */
 model NoticeEvent { kind: "notice"; ...SystemEventBase }
+model SessionHistoryStatus {
+  read_failed: boolean;
+  malformed_records: uint32;
+  save_failure: "open" | "write" | null;
+  ...Closed;
+}
+model SessionHistoryStatusEvent { kind: "session_history_status"; ...EventBase; data: SessionHistoryStatus }
 model EchoEvent { kind: "echo"; ...EventBase }
 model ErrorEvent { kind: "error"; ...SystemEventBase }
 
@@ -603,6 +610,7 @@ union HostEvent {
   ReadyEvent,
   DisconnectedEvent,
   NoticeEvent,
+  SessionHistoryStatusEvent,
   EchoEvent,
   ErrorEvent,
   AgentsEvent,
