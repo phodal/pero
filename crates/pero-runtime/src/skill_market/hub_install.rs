@@ -162,10 +162,13 @@ impl SkillHubAcquisition {
 
     pub(super) fn publish<T>(
         &mut self,
+        retain_snapshot: bool,
         write: impl FnOnce() -> Result<T, String>,
     ) -> Result<T, String> {
         let result = self.control.publish(&self.id, write)?;
-        self.uncommitted = None;
+        if retain_snapshot {
+            self.uncommitted = None;
+        }
         Ok(result)
     }
 }
@@ -204,7 +207,7 @@ mod tests {
         let control = AcquisitionControl::default();
         let id = "skillhub:publisher/skill";
         let identity = SkillHubIdentity::new("publisher".into(), "skill".into()).unwrap();
-        for outcome in ["published", "cancelled", "write failed"] {
+        for outcome in ["published", "reused", "cancelled", "write failed"] {
             let mut job = SkillHubAcquisition::begin(
                 identity.clone(),
                 root.clone(),
@@ -219,7 +222,7 @@ mod tests {
             if outcome == "cancelled" {
                 control.cancel(id).unwrap();
             }
-            let result = job.publish(|| {
+            let result = job.publish(outcome != "reused", || {
                 assert_ne!(outcome, "cancelled");
                 if outcome == "write failed" {
                     Err("Write failed".into())
@@ -227,7 +230,7 @@ mod tests {
                     Ok(())
                 }
             });
-            assert_eq!(result.is_ok(), outcome == "published");
+            assert_eq!(result.is_ok(), matches!(outcome, "published" | "reused"));
             drop(job);
             assert_eq!(cache.exists(), outcome == "published");
             assert!(root.join("published").is_dir());

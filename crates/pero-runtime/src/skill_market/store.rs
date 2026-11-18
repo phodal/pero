@@ -198,9 +198,28 @@ impl SkillMarketStore {
     pub fn complete_skillhub(
         &mut self,
         job: &mut super::hub_install::SkillHubAcquisition,
-        version: SkillVersion,
+        mut version: SkillVersion,
     ) -> Result<serde_json::Value, String> {
-        job.publish(|| {
+        let existing = self
+            .state
+            .items
+            .get(&version.entry.id)
+            .and_then(|record| {
+                record
+                    .versions
+                    .iter()
+                    .find(|saved| saved.revision == version.revision)
+            })
+            .filter(|saved| {
+                saved.adapter_version == version.adapter_version
+                    && saved.directory.join(".claude-plugin/plugin.json").is_file()
+                    && read_installed_context(saved).is_ok()
+            });
+        if let Some(saved) = existing {
+            version.directory = saved.directory.clone();
+        }
+        job.publish(existing.is_none(), || {
+            read_installed_context(&version)?;
             self.save(self.state.publish(version))?;
             Ok(self.installed())
         })
