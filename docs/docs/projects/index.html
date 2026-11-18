@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="围绕一个研究问题保存目标和 App 材料引用，把同一项目的对话、审批与产物留在可回看的记录里。">
+  <title>用研究项目组织材料与对话 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/projects/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/projects/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/projects/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/projects/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="./" aria-current="page">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">用研究项目组织材料与对话</h1>
+        <p>围绕一个研究问题保存目标和 App 材料引用，把同一项目的对话、审批与产物留在可回看的记录里。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#create-project">创建可继续的研究项目</a></li>
+        <li><a href="#link-materials">关联材料并回到来源</a></li>
+        <li><a href="#project-agent">让 Project Agent 处理一个有界任务</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="create-project">
+        <h2 id="create-project">创建可继续的研究项目</h2>
+        <ol><li>打开侧栏<strong>项目</strong>，点击<strong>新建研究项目</strong>，输入项目名称和研究目标，例如“复核 Fisher 表 III 的组内平方和并逐项记录输入”。</li><li>若还要使用项目文件、工作区任务或委派文件检查，填入本地目录的完整路径。只整理 App 里的研究材料时可以留空。</li><li>点击<strong>保存项目</strong>。重新打开该项目，应能看到同一个目标和材料区。之后用<strong>编辑目标</strong>更新研究问题。</li></ol>
+      </section>
+
+      <section aria-labelledby="link-materials">
+        <h2 id="link-materials">关联材料并回到来源</h2>
+        <ol><li>先在 <a href="../paper/">Paper</a> 保存一篇论文或研究记录，或在 Control Lab、Lab 保存一项实验。</li><li>在项目右侧的<strong>概览</strong>找到<strong>资料与实验 → 关联已有记录</strong>，选择已启用的来源 App 与具体记录。也可从<strong>项目视图</strong>进入资料页。</li><li>点击关联记录确认能回到来源 App。如出现<strong>原记录已变化</strong>，先核对当前原记录再点<strong>更新关联版本</strong>。若记录不可用，项目仍保留引用，可以恢复来源或<strong>解除关联</strong>。</li></ol>
+          <p>项目保存的是关联关系和观察到的版本。修改或解除关联只改变项目记录。精确交接请同时保留来源 App 的版本号、内容摘要或试验归档。</p>
+      </section>
+
+      <section aria-labelledby="project-agent">
+        <h2 id="project-agent">让 Project Agent 处理一个有界任务</h2>
+        <p>当前源码包含 Project Agent。2026-11-12 的开发预览包发布时尚无该入口。准备<a href="../agents/">可用的 Agent 和工具</a>及一个本地目录，打开已保存的研究项目。点<strong>开始项目对话</strong>，在中央的主 Agent 对话中提交一个可检查的小任务。</p>
+          <blockquote><p>请委派一次只读检查，列出本项目目录用于组内平方和复核的输入文件，列出各自路径和 SHA-256。保留原文件，把未核对的项目单列。</p></blockquote>
+          <ol><li>若主 Agent 创建子会话，在侧栏打开它，检查任务范围和审批卡。按实际命令决定是否允许。</li><li>展开子会话的工具记录，查看实际命令、退出码与输出，检查是否只读取了预期的材料。Git 项目的委派工作保存在独立工作树中。需要合并时，先检查实际改动。</li><li>从项目 Agent 的控件选择<strong>汇总证据与结果</strong>，在主 Agent 对话中阅读依据、缺口和原始会话。在有用回复的消息操作中保存产物，再从项目的产物视图回查。</li></ol>
+          <p>刷新或重启后可从项目回到原会话、历史与已保存产物。尚未完成的指令需要人工判断后继续。读取失败时先刷新，保留原会话。开发版已用脚本化模型和实际本地执行验证上述流转，真实模型结果与科学验收请单独核对。</p>
+          <p>查看 <a href="https://github.com/phodal/pero/blob/master/docs/fitness/research-projects.md#merge-review-verification--2026-11-14">Project Agent 交互与重启验证</a>。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

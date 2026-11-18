@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="连接内置或外部 Agent，用一轮纯文本对话确认模型可用，再按任务添加工作目录、上下文和工具权限。">
+  <title>配置 Agent 与工具 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/agents/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/agents/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/agents/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/agents/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="./" aria-current="page">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">配置 Agent 与工具</h1>
+        <p>连接内置或外部 Agent，用一轮纯文本对话确认模型可用，再按任务添加工作目录、上下文和工具权限。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#built-in-agent">配置内置 Pero Agent</a></li>
+        <li><a href="#external-agents">连接外部 Agent</a></li>
+        <li><a href="#first-chat">跑通第一轮对话</a></li>
+        <li><a href="#workspace-and-approvals">检查工作目录和审批范围</a></li>
+        <li><a href="#mcp-connectors">添加 MCP 工具和连接器</a></li>
+        <li><a href="#troubleshoot-agent">排查登录、模型和工具问题</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="built-in-agent">
+        <h2 id="built-in-agent">配置内置 Pero Agent</h2>
+        <ol>
+            <li>打开 <strong>设置 → 内置 Agent</strong>。填写服务商提供的 <strong>API 地址</strong>、<strong>模型</strong>和 <strong>API Key</strong>。内置 Agent 的默认地址是 <code>https://api.deepseek.com</code>，默认模型是 <code>deepseek-chat</code>。地址使用 HTTPS，本机回环服务可用 HTTP。模型字段填写模型 ID。</li>
+            <li>点击<strong>保存</strong>，确认显示<strong>已保存</strong>。桌面版使用系统凭据存储加密密钥。以后修改地址或模型时，密钥留空可保留已保存的值。需要清除时，点击<strong>移除已保存密钥</strong>再确认。</li>
+            <li>打开<strong>新聊天</strong>，在输入框附近选择 <strong>Pero (DeepSeek)</strong>。新会话使用刚保存的配置。</li>
+          </ol>
+          <p>界面保存的配置优先于开发环境中的 <code>DEEPSEEK_*</code> 变量或 <code>.env</code>。已有会话继续使用创建时的配置。源码启动方式及配置目录见<a href="../install/#from-source">安装与启动</a>和 <a href="https://github.com/phodal/pero/blob/master/desktop/README.md#agents-and-conversations">桌面配置说明</a>。</p>
+      </section>
+
+      <section aria-labelledby="external-agents">
+        <h2 id="external-agents">连接外部 Agent</h2>
+        <p>Pero 用本地 ACP 适配器连接外部 Agent。<strong>设置 → 模型与 Agent</strong>可查看适配器是否可用。各 Agent 使用自己的登录和模型配置。</p>
+          <dl>
+            <dt>Codex、Claude</dt><dd>Electron 开发预览包装有这两个 ACP 适配器。从源码运行时，根目录的 <code>npm ci</code> 安装项目所用的适配器。按会话提示完成各自的登录方式，再选择该 Agent 提供的模型。</dd>
+            <dt>GitHub Copilot、Grok、Qoder、OpenCode</dt><dd>需要分别安装支持 ACP 的本地 CLI，并完成对应的登录或服务商配置。当前登记的可执行程序为 <code>copilot</code>、xAI 的 <code>grok-build</code> 或其安装目录中的 <code>grok</code>、<code>qodercli</code> 和 <code>opencode</code>。安装后重启 Pero 再检查选择器。</dd>
+          </dl>
+          <p>若提示<strong>请先在终端登录</strong>，完成该 Agent 的终端登录，回到会话点<strong>已登录，继续</strong>。其他登录方式按 Agent 显示的按钮操作。完成登录后，检查原问题并手动重发。</p>
+      </section>
+
+      <section aria-labelledby="first-chat">
+        <h2 id="first-chat">跑通第一轮对话</h2>
+        <ol>
+            <li>打开<strong>新聊天</strong>。通过输入区的文件夹按钮选择一个空的练习目录，再选已配置的 Agent。工作目录是该会话的本机执行目标，开始实际对话后如需切换目录或 Agent，请新建会话。</li>
+            <li>先发送一条无需工具和附件的短消息。若界面出现登录提示，按上节处理后手动重发。</li>
+          </ol>
+          <blockquote><p>请只回复 PERO_SETUP_OK。这次无需调用工具、读取或修改文件。</p></blockquote>
+          <p>收到约定文本即完成模型往返。<strong>已安装</strong>只说明适配器已找到，成功连接 ACP 也可能先于模型登录。模型回应后，可用<a href="../paper/#ask-agent">论文选段问答</a>进一步验证该 Agent 是否适用于科研任务。</p>
+      </section>
+
+      <section aria-labelledby="workspace-and-approvals">
+        <h2 id="workspace-and-approvals">检查工作目录和审批范围</h2>
+        <p>从专用目录开始。在输入框的上下文菜单选择需发送的文件，发送前检查草稿及引用。目录给本机 Agent 提供工具工作的基准，发送的内容以及后续工具读取结果可能进入所用模型服务。</p>
+          <ul>
+            <li>权限菜单按 Agent 能力显示。内置 Agent 提供<strong>仅可查看</strong>时，读取工作区可用，文件修改和命令会被拒绝。<strong>工作区内修改</strong>对写入要求确认，命令仍被拒绝。</li>
+            <li><strong>完全权限</strong>下文件修改和命令会请求确认，<strong>自动审查</strong>会自动放行。内置 Agent 这些模式下的命令没有操作系统级沙箱。各平台及外部 Agent 可能提供不同的权限模式。</li>
+            <li>出现<strong>需要你的授权</strong>时，展开相关工具，核对动作和目标。仅为当前动作授予一次权限（若 Agent 提供该选项），或拒绝并重新描述任务。可点<strong>停止</strong>请求结束活动回合，已完成的外部操作需到原系统核查。</li>
+          </ul>
+      </section>
+
+      <section aria-labelledby="mcp-connectors">
+        <h2 id="mcp-connectors">添加 MCP 工具和连接器</h2>
+        <ol>
+            <li>在工作台打开<strong>连接器</strong>，也可从应用目录打开。选择可信服务，按该项的配置表单保存并完成登录。若出现浏览器授权，核对账号与范围。凭据只填在连接器提供的专用字段，避免写进 URL、参数、配置示例或对话。</li>
+            <li>点击<strong>验证连接</strong>。显示<strong>验证通过</strong>时，服务完成了工具发现，验证连接随即释放。查看<strong>工具</strong>列表，勾选本次工作需要的工具并保存。目录卡片与已启用工具的实际能力以当前连接结果为准。</li>
+            <li>新建对话后使用该连接。Host 为每个会话固定当时的连接配置和工具许可。修改凭据或授权会让旧的连接器快照失效。完成变更后，在新会话用该服务文档中的只读操作验证结果。</li>
+          </ol>
+          <p>独立的每 Agent MCP 配置依赖适配器支持，与上面的连接器目录各自保存。全文检索等能力需要 Agent 支持相应 MCP 传输。工作台的连接器运行时面向 macOS 和 Linux，在 Windows 上会提示平台不受支持。更多见<a href="https://github.com/phodal/pero/blob/master/docs/adr/0025-connectors-app.md">连接器设计</a>与<a href="https://github.com/phodal/pero/blob/master/docs/fitness/connectors.md">平台验证记录</a>。</p>
+      </section>
+
+      <section aria-labelledby="troubleshoot-agent">
+        <h2 id="troubleshoot-agent">排查登录、模型和工具问题</h2>
+        <dl>
+            <dt>Agent 显示未安装或选择器中不可选</dt><dd>检查 CLI 或适配器是否安装在桌面进程能找到的位置，重启 Pero，再选择一次。</dd>
+            <dt>内置 Agent 需要 API Key，或设置保存失败</dt><dd>确认地址、模型 ID 以及密钥来自同一服务。若提示系统凭据存储不可用，先解锁系统凭据存储，重新打开 Desktop 并保存，再建会话试一次。</dd>
+            <dt>连接成功但模型拒绝请求</dt><dd>用该 Agent 的登录方式处理鉴权错误。若界面提供模型选择器，选账号有权限访问的模型。先用上面的纯文本提示确认模型回复，再添加工具。</dd>
+            <dt>工具不可用或调用被拒绝</dt><dd>先检查该连接的验证结果、工具是否被勾选，以及会话权限和 Agent 的传输支持。配置修改后新开会话。外部写入的结果若不明确，先核对原服务的操作记录再决定是否重复执行。</dd>
+          </dl>
+          <p>记录软件包版本、Agent 名称、可分享的错误消息与复现步骤。<a href="../reference/#verification-and-help">提交问题与核对验证范围</a>。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

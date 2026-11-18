@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="检查本机软件，为 App 或单次实验准备环境，并在明确授权后向 SSH 工作站或 Slurm 提交内置计算。">
+  <title>执行环境与远程计算 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/compute/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/compute/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/compute/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/compute/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="../notebook/">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="./" aria-current="page">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">执行环境与远程计算</h1>
+        <p>检查本机软件，为 App 或单次实验准备环境，并在明确授权后向 SSH 工作站或 Slurm 提交内置计算。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#inspect-software">先检查方法需要的软件</a></li>
+        <li><a href="#app-environment">安装并切换 App 服务环境</a></li>
+        <li><a href="#locked-compute-profile">为实验选择锁定计算环境</a></li>
+        <li><a href="#remote-connection">为 SSH 或 Slurm 配置连接</a></li>
+        <li><a href="#first-remote-run">运行一次可核对的求积示例</a></li>
+        <li><a href="#remote-recovery">恢复原执行与重收集证据</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="inspect-software">
+        <h2 id="inspect-software">先检查方法需要的软件</h2>
+        <p>打开侧栏的<strong>执行环境</strong>，如果入口未出现，在<strong>应用</strong>中启用它。也可以从 Paper 的复现面板或 Control Lab 的引擎可用性入口查看对应方法。</p>
+          <ol>
+            <li>打开<strong>软件检查</strong>，选择要用的方法，如 Control Lab 的 python-control。手动启动检查，查看方法所需软件、当前观察到的版本和缺失项。</li>
+            <li>记录方法以及检查结果。可导出带版本的观察记录。打开列表只读取已保存的信息，软件检查只观察配置所指的软件。</li>
+          </ol>
+          <p>版本匹配之后，还需要准备或选择环境，并在所属 App 单独运行实验。软件检查结果没有实验产物或结论。</p>
+      </section>
+
+      <section aria-labelledby="app-environment">
+        <h2 id="app-environment">安装并切换 App 服务环境</h2>
+        <ol>
+            <li>打开<strong>执行环境 → App 服务环境 → 创建环境</strong>，填写名称，选择方法，例如 Control Lab 的控制系统仿真。核对将安装的运行时和依赖，再点<strong>创建并准备</strong>。</li>
+            <li>等待<strong>准备完成</strong>。安装失败时展开<strong>安装日志</strong>，根据错误检查依赖获取或本机软件，再用<strong>重试</strong>继续。首次准备可能联网安装 Python 和方法依赖。</li>
+            <li>保存目标 App 中的工作，再点<strong>使用此环境 → 绑定并重启</strong>。此操作会重启 App 后端并停止该 App 正在进行的计算。看到<strong>当前使用</strong>后，到目标 App 中重新检查软件。Control 和 Circuit 共用 Control Lab 的服务环境。</li>
+          </ol>
+          <p>已绑定环境请通过创建新环境来变更依赖。只需阅读 Paper 时，可以直接完成<a href="../install/#prepare-environment">Paper 首次环境准备</a>。</p>
+      </section>
+
+      <section aria-labelledby="locked-compute-profile">
+        <h2 id="locked-compute-profile">为实验选择锁定计算环境</h2>
+        <p>在支持的 macOS arm64 或 Linux x64 构建中，<strong>执行环境 → 计算环境</strong>可为 Control Lab 或 PC-Gym 创建独立计算环境。选择方法，创建环境，再点击<strong>准备环境</strong>。准备成功后，可查看 <code>uv.lock</code> 对应的锁文件摘要及依赖内容摘要。</p>
+          <p>选择<strong>用于此方法计算</strong>后，新实验使用选定环境，App 服务继续运行。已有实验固定原环境。需要继续旧实验时选回原环境，也可在当前环境开始新实验。要重建已准备好的环境，用<strong>按同一锁重建</strong>生成独立副本。</p>
+          <p>准备记录包含安装与导入检查。正式计算仍从 Control Lab 或 Paper 的实验入口发起，按该方法的审批、运行和验收步骤进行。已经准备环境的证据和平台范围见<a href="https://github.com/phodal/pero/blob/master/apps/environments/README.md#locked-scientific-computation">计算环境说明</a>及<a href="https://github.com/phodal/pero/blob/master/docs/fitness/uv-scientific-production.md">验证记录</a>。</p>
+      </section>
+
+      <section aria-labelledby="remote-connection">
+        <h2 id="remote-connection">为 SSH 或 Slurm 配置连接</h2>
+        <p><strong>版本要求。</strong>以下远程提交、观察和收集流程对应当前源码。2026-11-12 预览包中的 Compute 只能保存集群配置、查看已有回执或导入报告。需要下列功能时，请使用包含远程执行的构建。<a href="../install/#from-source">从源码启动</a>。</p>
+          <ol>
+            <li>向站点管理员确认授权的 SSH 别名、主机身份及可写工作目录。在系统 OpenSSH 中配置免交互访问和已验证的 <code>known_hosts</code> 记录。应用使用系统 SSH 配置和 Agent，表单仅保存非密钥字段。</li>
+            <li>在<strong>科学计算</strong>的集群设置中点<strong>添加集群配置</strong>，填写名称、登录主机或 SSH 别名和远端绝对工作目录。选择 <strong>SSH 工作站</strong>或 <strong>Slurm / SSH</strong>。准备 Slurm 作业时分区为必填，账号按站点要求填写。工作目录需供登录节点和计算节点共同访问。</li>
+            <li>保存后打开<strong>远程执行</strong>，选择该连接并点击<strong>探测连接</strong>。看到<strong>已验证连接</strong>时，核对主机、观察到的平台与 Python，以及 Slurm 的集群身份。探测反映提交端所见的软件，实际分配节点信息随作业回执查看。</li>
+          </ol>
+          <p>登录侧需要可非交互访问的 Python 3。Slurm 还需站点的调度命令、节点上的 Python 3，以及账号对固定资源请求的授权。<a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md#reproduction-and-operations">站点检查项</a>。</p>
+      </section>
+
+      <section aria-labelledby="first-remote-run">
+        <h2 id="first-remote-run">运行一次可核对的求积示例</h2>
+        <ol>
+            <li>在<strong>远程执行</strong>设<strong>每次采样数</strong>为 <code>1000</code>，<strong>重复次数</strong>为 <code>1</code>，点<strong>准备并固定输入</strong>。内置 CPU 方法计算 0 至 1 上的 4 / (1 + x²) 积分。</li>
+            <li>检查<strong>已准备，等待批准</strong>状态，以及<strong>固定输入与目标</strong>中的尝试编号、远程目录和 SHA-256。使用 Slurm 时检查账号、分区、1 CPU、256 MiB、600 秒约束。准备会创建远程尝试目录。确认目标与参数后点<strong>批准并提交</strong>，此时才发起计算。</li>
+            <li>在<strong>已保存执行</strong>选中这次尝试，点<strong>读取原执行状态</strong>查看日志、已记录的退出码和 Slurm 作业标识。排队表示提交已入队，分配状态需随后观察。</li>
+            <li>执行结束后点<strong>收集并保存证据</strong>，再<strong>下载原始产物</strong>。成功时 <code>result.json</code> 的 <code>estimate</code> 约为 <code>3.1415927369</code>，与 π 的绝对误差约 <code>8.33e-8</code>，阈值为 <code>1e-6</code>，<code>checkPassed</code> 为 <code>true</code>。<code>scientificAcceptance</code> 保持 <code>unreviewed</code>。</li>
+          </ol>
+          <p>复制 <code>compute:&lt;attempt&gt;:&lt;sha256&gt;</code> 引用到研究记录，可定位这次在本机固定下来的原始字节。远端文件后续修改不会改变已收集内容。数值与回执只验证这次固定方法的执行。</p>
+      </section>
+
+      <section aria-labelledby="remote-recovery">
+        <h2 id="remote-recovery">恢复原执行与重收集证据</h2>
+        <dl>
+            <dt>探测失败或准备未完成</dt><dd>检查主机别名、系统 SSH 授权、工作目录权限或 Slurm 账号/分区。修正配置后再探测，准备未完成的尝试需重新准备。</dd>
+            <dt>已提交但未收到回执，或状态为「需要核对」</dt><dd>刷新已保存执行，再读取原执行。保留尝试编号与远程目录，请站点人员按原作业身份及提交时间核对后再决定下一步，避免重复提交。</dd>
+            <dt>已请求取消</dt><dd>继续读取原执行，等执行方确认停止。关闭 App 或退出 Pero 后，已提交的远程计算会继续，重新打开可继续观察原尝试。</dd>
+            <dt>收集不完整</dt><dd>先保存已有下载和固定引用。解决远程文件缺失或访问问题再点<strong>重试收集缺失证据</strong>。每份收集文件上限为 1 MiB，过大文件仍保存在远程目录。</dd>
+          </dl>
+          <p>开发构建的验证覆盖真实回环 SSH 与 Slurm 测试替身。这个流程提交内置 CPU 方法。真实 Slurm 站点仍待验收。<a href="https://github.com/phodal/pero/blob/master/docs/fitness/remote-compute.md">远程执行验证记录</a>。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>

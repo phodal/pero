@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="用笔记修订保存正文、表格公式和证据引用。先完成一个小算例，再把论文引用或试验记录附到结论旁。">
+  <title>记录方法与可复查的证据 · OpenPero</title>
+  <link rel="icon" href="../../assets/openpero-mark.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://openpero.com/docs/notebook/">
+  <link rel="alternate" hreflang="zh-CN" href="https://openpero.com/docs/notebook/">
+  <link rel="alternate" hreflang="en" href="https://openpero.com/en/docs/notebook/">
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('pero-theme'); } catch {}
+    document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+      ? savedTheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  </script>
+  <link rel="stylesheet" href="../../assets/guide.css">
+</head>
+<body>
+  <a class="guide-skip" href="#guide-main">跳到主要内容</a>
+  <header class="guide-header">
+    <div class="guide-shell guide-header-row">
+      <a class="guide-brand" href="../../" aria-label="OpenPero 首页"><img src="../../assets/openpero-mark.svg" width="27" height="27" alt="">OpenPero</a>
+      <span class="guide-header-label">文档</span>
+      <div class="guide-tools">
+        <a class="guide-github" href="https://github.com/phodal/pero">GitHub</a>
+        <a href="../../en/docs/notebook/" hreflang="en" lang="en">English</a>
+        <button type="button" id="guide-theme" aria-pressed="false" hidden>深色模式</button>
+      </div>
+    </div>
+  </header>
+  <div class="guide-shell guide-layout">
+    <nav class="guide-nav" aria-label="文档">
+      <div class="guide-nav-group">
+        <p>开始使用</p>
+        <ul>
+          <li><a href="../">概览</a></li>
+          <li><a href="../install/">安装与启动</a></li>
+          <li><a href="../paper/">论文阅读与研究</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>科研应用</p>
+        <ul>
+          <li><a href="../workflows/">科研工作流</a></li>
+          <li><a href="../data/">Data 数据</a></li>
+          <li><a href="./" aria-current="page">Notebook 笔记</a></li>
+          <li><a href="../projects/">研究项目</a></li>
+        </ul>
+      </div>
+      <div class="guide-nav-group">
+        <p>配置与参考</p>
+        <ul>
+          <li><a href="../agents/">Agent 与工具</a></li>
+          <li><a href="../compute/">执行环境与计算</a></li>
+          <li><a href="../reference/">概念与参考</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="guide-main" class="guide-main guide-main-with-outline" tabindex="-1" aria-labelledby="guide-title">
+      <header class="guide-intro">
+        <h1 id="guide-title">记录方法与可复查的证据</h1>
+        <p>用笔记修订保存正文、表格公式和证据引用。先完成一个小算例，再把论文引用或试验记录附到结论旁。</p>
+      </header>
+    <nav class="guide-outline" aria-label="本页目录">
+      <p aria-hidden="true">本页目录</p>
+      <ul>
+        <li><a href="#first-revision">创建第一条笔记修订</a></li>
+        <li><a href="#attach-evidence">把结论与原始记录放在一起</a></li>
+        <li><a href="#export-and-share">选对交付格式</a></li>
+        <li><a href="#publication">从已保存修订编译文稿</a></li>
+      </ul>
+    </nav>
+      <article class="guide-prose">
+      <section aria-labelledby="first-revision">
+        <h2 id="first-revision">创建第一条笔记修订</h2>
+        <ol>
+            <li>从工作台<strong>应用商店</strong>启用并打开 <strong>Notebook</strong>，选择<strong>新建笔记</strong>。填入标题 <code>表格与修订练习</code>，在正文记下输入 2 和乘数 6。</li>
+            <li>选择<strong>插入 → 电子表格</strong>。在 <code>A1</code> 输入 <code>2</code>，在 <code>B1</code> 输入 <code>=A1*6</code>，点击其他单元格以提交。<code>B1</code> 应显示 <code>12</code>，再次选中它可以检查公式。</li>
+            <li>点<strong>保存新修订</strong>，记下工具栏上的修订号。再把 <code>A1</code> 改成 <code>3</code> 并保存，应看到更高的修订号和 <code>B1 = 18</code>。</li>
+            <li>打开<strong>文件 → 修订历史</strong>，选中前一条修订，核对 <code>A1 = 2</code>、<code>B1 = 12</code>。点击<strong>返回当前笔记</strong>，确认当前是 <code>18</code>。关闭再打开笔记，应能回到已保存的修订。</li>
+          </ol>
+          <p>如果保存冲突，先用<strong>导出草稿</strong>保留自己的版本，再查看已保存的最新修订后整理差异。加载最新修订会放弃当前草稿。</p>
+      </section>
+
+      <section aria-labelledby="attach-evidence">
+        <h2 id="attach-evidence">把结论与原始记录放在一起</h2>
+        <ol>
+            <li>在笔记写下一个具体发现，标明指标、数据范围、单位和不确定性。</li>
+            <li>插入<strong>证据</strong>块。可粘贴已保存的 Paper 引用或段落链接。也可导入 Paper 报告 JSON，选择具体引用，然后附加快照。此处应保留原文摘录和对应的报告或位置标识。</li>
+            <li>若要记录试验，在 Control Lab 导出证据 JSON。在 Notebook 插入<strong>实验引用</strong>，导入该 JSON，选择具体试验并附加快照。打开原 App 核对该尝试的输入、结果与检查。</li>
+            <li>保存新修订。审阅时对照开发工作台中记录的笔记修订、来源版本和原文。原 App 新增结果后，历史笔记修订中的快照仍保持保存时的内容。</li>
+          </ol>
+          <p>笔记保存研究者选定的版本和证据，求解、来源更新与验证由原 App 持有。追问或复查时，可按<a href="../paper/#check-citations">原文回查</a>的方式核对关键主张。</p>
+      </section>
+
+      <section aria-labelledby="export-and-share">
+        <h2 id="export-and-share">选对交付格式</h2>
+        <ul>
+            <li>完整交接选择<strong>文件 → 导出当前 JSON</strong>，保留笔记文档和版本化证据。需要交付确切的历史内容时，先打开相应修订再导出。当前笔记的普通导出可包含尚未保存的改动。</li>
+            <li>交流正文可用 Markdown。需要在电子表格里继续使用数据与公式时，使用<strong>导出工作簿</strong>。XLSX 保留工作表、值和公式；笔记证据、图表及原书样式不在此交换范围内。</li>
+            <li>若要请 Agent 审阅，先保存修订，再选<strong>文件 → 询问 Agent</strong>。确认草稿所附条目与修订号，随后发送。结果中的判断应回到保存版本和原证据核对。</li>
+          </ul>
+          <p>工作表每页上限为 200 行、50 列，支持标量公式和同一笔记内的跨工作表引用。外部工作簿链接、网络函数和动态数组溢出不在支持范围内。详情见 <a href="https://github.com/phodal/pero/blob/master/apps/notebook/README.md#data-and-format-boundaries">Notebook 格式说明</a>与<a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook.md">工作台验证记录</a>。</p>
+      </section>
+
+      <section aria-labelledby="publication">
+        <h2 id="publication">从已保存修订编译文稿</h2>
+        <p>当前源码支持将已保存的 MyST 项目编译为 PDF。2026-11-12 的开发预览包发布时尚无该编译入口。需要已有的 MyST 文稿、可用的 Tectonic 引擎及预备好的包缓存。先保存包含文稿块的修订，在该块选<strong>将已保存修订编译为 PDF</strong>。在构建历史中检查确切修订号、编译日志和输出，再预览或下载。</p>
+          <p>修改数据或生成代码后，先重新生成并更新过期图件，再保存新修订。失败记录保留诊断和输入，上一份成功 PDF 仍可在历史中打开。编译成功只说明文稿能生成 PDF，科学结论依然需要复核。可跟做<a href="https://github.com/phodal/pero/blob/master/docs/fitness/notebook-publication.md">带编译命令和预期结果的 Fisher 文稿示例</a>。</p>
+      </section>
+      </article>
+    </main>
+  </div>
+  <script>
+    const languageLink = document.querySelector('.guide-tools a[hreflang]');
+    const languageUrl = new URL(languageLink.href);
+    const syncLanguage = () => {
+      languageUrl.hash = location.hash;
+      languageLink.href = languageUrl.href;
+    };
+    syncLanguage();
+    window.addEventListener('hashchange', syncLanguage);
+
+    const themeToggle = document.getElementById('guide-theme');
+    const theme = document.documentElement.dataset;
+    const syncTheme = () => themeToggle.setAttribute('aria-pressed', String(theme.theme === 'dark'));
+    syncTheme();
+    themeToggle.hidden = false;
+    themeToggle.addEventListener('click', () => {
+      theme.theme = theme.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('pero-theme', theme.theme); } catch {}
+      syncTheme();
+    });
+  </script>
+</body>
+</html>
