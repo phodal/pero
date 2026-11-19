@@ -75,14 +75,16 @@
       <article class="guide-prose">
       <section aria-labelledby="first-revision">
         <h2 id="first-revision">Create your first notebook revision</h2>
-        <p>The steps below were verified in a fresh profile of the <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">November 12, 2026 Electron preview</a> on Apple Silicon macOS.</p>
+        <p>The steps and screenshots below were verified in a fresh profile of the <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">November 12, 2026 Electron preview</a> on Apple Silicon macOS.</p>
           <ol>
             <li>Open <strong>Notebook</strong> in the workbench sidebar. It is already installed and enabled in this preview. If you see <strong>Environment not ready</strong>, select <strong>Prepare environment</strong> and wait for the <strong>New notebook</strong> button. The first launch may download Python and dependencies. If preparation stalls or fails, open <strong>Installation log</strong> before retrying.</li>
             <li>Choose <strong>New notebook</strong>, name it <code>Spreadsheet and revision practice</code>, and write down the input 2 and multiplier 6. The newly created notebook starts at <strong>Revision 1</strong>.</li>
             <li>Choose <strong>Insert → Spreadsheet</strong>. Type <code>2</code> in <code>A1</code> and <code>=A1*6</code> in <code>B1</code>. Select another cell to commit the formula. Once you leave <code>B1</code>, it should display the evaluated value <code>12</code>.</li>
             <li>Choose <strong>Save revision</strong>. The toolbar should report <strong>Revision 2</strong>. Change <code>A1</code> to <code>3</code>, leave the cell, and save again. Check for <strong>Revision 3</strong> and <code>B1 = 18</code>.</li>
           </ol>
-          <p>Open <strong>File → Revision history → Revision 2</strong>. The read-only view should show <code>A1 = 2</code> and <code>B1 = 12</code>. The sidebar still shows the current saved revision. Choose <strong>Return to current notebook</strong> to get back to Revision 3. Use <strong>Restore as draft</strong> only when you want to edit from the old content.</p>
+          <figure><a href="../../../assets/release-tutorials/notebook-revision-3.webp"><img src="../../../assets/release-tutorials/notebook-revision-3.webp" alt="Notebook Revision 3 with 3 in A1 and the calculated value 18 in B1" width="1488" height="917" loading="lazy"></a><figcaption>Released Electron workbench. Revision 3 shows the updated input and result.</figcaption></figure>
+          <p>Open <strong>File → Revision history → Revision 2</strong>. The read-only view should show <code>A1 = 2</code> and <code>B1 = 12</code>. Choose <strong>Return to current notebook</strong> to get back to Revision 3. Use <strong>Restore as draft</strong> only when you want to edit from the old content.</p>
+          <figure><a href="../../../assets/release-tutorials/notebook-revision-history.webp"><img src="../../../assets/release-tutorials/notebook-revision-history.webp" alt="Read-only Notebook Revision 2 with A1 equal to 2, B1 equal to 12 and a Return to current notebook button" width="1488" height="917" loading="lazy"></a><figcaption>Opening Revision 2 retains the earlier calculation. The sidebar still shows the current saved revision.</figcaption></figure>
           <p>To check persistence, close Pero, reopen Notebook, and select the saved entry. The release test reopened Revision 3 with <code>A1 = 3</code> and <code>B1 = 18</code>.</p>
           <p>If saving conflicts with another edit, choose <strong>Export draft</strong> to preserve your changes before reviewing the latest revision. Loading the latest revision discards the current draft.</p>
       </section>

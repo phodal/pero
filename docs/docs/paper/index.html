@@ -81,7 +81,8 @@
       <section aria-labelledby="release-environment">
         <h2 id="release-environment">使用 11 月 12 日预览包时先看这里</h2>
         <p>我们用 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">v0.1.0-dev.20261112</a> 的 macOS Apple Silicon Electron 包跟做。在干净配置中，点击<strong>准备环境</strong>后，页面停在<strong>环境未就绪</strong>。Host 找不到必需插件 <code>paper-autoresearch</code>。这个插件未打进 DMG，Python 安装也还没有开始。</p>
-        <p>本次验证从相同发布标签取出该插件，通过包内 Host 的 <code>plugininstall</code> 安装到隔离配置。重开原应用，点击<strong>准备环境</strong>后，依赖安装完成，论文库自动打开。<a href="https://github.com/phodal/pero/blob/v0.1.0-dev.20261112/apps/README.md#agent-plugins">发布标签的 Host 插件安装说明</a> · <a href="https://github.com/phodal/pero/tree/v0.1.0-dev.20261112/apps/paper-agent/agent-plugins/paper-autoresearch">同版本插件</a></p>
+        <p>本次验证从相同发布标签取出该插件，通过包内 Host 的 <code>plugininstall</code> 安装到隔离配置。重开原应用，点击<strong>准备环境</strong>后，依赖安装完成，论文库自动打开。后续截图来自恢复后的同一个发布包。<a href="https://github.com/phodal/pero/blob/v0.1.0-dev.20261112/apps/README.md#agent-plugins">发布标签的 Host 插件安装说明</a> · <a href="https://github.com/phodal/pero/tree/v0.1.0-dev.20261112/apps/paper-agent/agent-plugins/paper-autoresearch">同版本插件</a></p>
+        <figure><a href="../../assets/release-tutorials/paper-clean-prepare.webp"><img src="../../assets/release-tutorials/paper-clean-prepare.webp" alt="论文面板显示环境未就绪和准备环境按钮" width="1440" height="948" loading="lazy"></a><figcaption>在干净配置中点击后仍回到这个界面。界面为英文发布包。</figcaption></figure>
       </section>
 
       <section aria-labelledby="import-and-highlight">
@@ -93,6 +94,7 @@
           <li>在 PDF 区域右键打开<strong>标注</strong>，检查引文、页码和备注。回到文库重新打开论文，再点标注的页码。应跳回保存的原页和区域。</li>
         </ol>
         <p><strong>预期结果。</strong>将文件存为 <code>Meta-Harness-v1.pdf</code> 时，文库显示 <code>Meta-Harness-v1</code>。阅读器页码为 <strong>1 / 26</strong>，标注栏有一条指向第 1 页的记录。重新打开再点它，应回到摘要中的高亮区域，保留已填写的备注。这个过程无需模型账号或 API Key。</p>
+        <figure><a href="../../assets/release-tutorials/paper-04-highlight.webp"><img src="../../assets/release-tutorials/paper-04-highlight.webp" alt="真实 Paper 阅读器显示论文第一页的高亮、页码及备注" width="1440" height="948" loading="lazy"></a><figcaption>发布包恢复后，重新打开保存的高亮。截图中的论文为 <a href="https://arxiv.org/abs/2603.28052v1">Yoonho Lee 等人的 Meta-Harness（arXiv:2603.28052v1）</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>。</figcaption></figure>
       </section>
 
       <section aria-labelledby="reading-and-notes">
@@ -109,6 +111,7 @@
         <h2 id="find-sources">找回已保存的证据，再拓展文献</h2>
         <h3>在自己的文库中查找</h3>
         <p>返回文库，在<strong>搜索本地原文</strong>中输入 <code>agentic proposer</code> 并提交。测试返回 1 篇论文、12 个片段。首条结果指向第 14 页的参考文献。向下找到包含摘要原文的 <strong>PDF 第 1 页</strong>结果，点击后确认阅读器回到 <strong>1 / 26</strong>。展开<strong>快照详情</strong>可核对原文和文件摘要。检索可在本地完成，无需启动 Agent。</p>
+        <figure><a href="../../assets/release-tutorials/paper-05-search.webp"><img src="../../assets/release-tutorials/paper-05-search.webp" alt="本地原文搜索结果列出包含摘要的 PDF 第 1 页" width="1440" height="948" loading="lazy"></a><figcaption>发布包恢复后，通过本地检索找到第 1 页。截图中的论文为 <a href="https://arxiv.org/abs/2603.28052v1">Yoonho Lee 等人的 Meta-Harness（arXiv:2603.28052v1）</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>。</figcaption></figure>
         <h3>从公开服务找新来源</h3>
         <ol>
           <li>用<strong>添加论文</strong>搜索标题、关键词，或读取已知论文 ID。所选公共文献服务会收到搜索词。</li>
@@ -138,7 +141,9 @@
           <li>有<strong>证据矩阵</strong>时，逐格检查比较定义、值和引文。需要修订时点<strong>修改单元格</strong>并保存修改理由。原始报告保留，人工修改作为单独修订记录。</li>
           <li>用<strong>导出 Markdown</strong>交付可读报告，用<strong>导出 JSON</strong>保留结构化引用、输入版本和矩阵修订。也可以用<strong>打印 / PDF</strong>生成可阅读副本。日后重新打开已保存的报告无需再次调用模型。</li>
         </ol>
-        <p><strong>预期结果。</strong>本次使用 5.6 Sol 的报告保存了 3 节、13 条证据。第一条编号引用把阅读器定位到 <strong>4 / 26</strong>，高亮第 4 页的方法段。我们重启发布包后重新打开同一报告，再导出 Markdown 和 JSON，两个文件均保留报告标题，JSON 也保留了章节、原文片段和来源。应用仍显示「结论未验证」。</p>
+        <p><strong>预期结果。</strong>本次使用 5.6 Sol 的报告保存了 3 节、13 条证据。第一条编号引用把阅读器定位到 <strong>4 / 26</strong>，高亮第 4 页的方法段。我们重启发布包后重新打开同一报告，再导出 Markdown 和 JSON，两个文件均保留报告标题，JSON 也保留了章节、原文片段和来源。截图中的「结论未验证」提示仍然保留。</p>
+        <figure><a href="../../assets/release-tutorials/paper-07-report.webp"><img src="../../assets/release-tutorials/paper-07-report.webp" alt="发布包研究结果列表中显示报告已保存，旁边是报告正文及第 4 页引用" width="1440" height="948" loading="lazy"></a><figcaption>重启后，在「研究结果」中打开同一份报告。</figcaption></figure>
+        <figure><a href="../../assets/release-tutorials/paper-08-citation.webp"><img src="../../assets/release-tutorials/paper-08-citation.webp" alt="点击报告编号引用后，Paper 定位至 PDF 第 4 页并高亮方法段" width="1440" height="948" loading="lazy"></a><figcaption>第一条引用打开 PDF 第 4 页，高亮由 Pero 绘制。截图中的论文为 <a href="https://arxiv.org/abs/2603.28052v1">Yoonho Lee 等人的 Meta-Harness（arXiv:2603.28052v1）</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>。</figcaption></figure>
         <p>精确匹配确认引文能定位到已保存的来源。科学复核还要判断该原文是否支持这条主张，是否存在冲突，是否需要重算。<a href="../workflows/#recheck-a-result">跟做 Fisher 数值复核</a>可以完整走一遍独立验算和证据交接。</p>
       </section>
 

@@ -169,7 +169,7 @@ Local public-metadata evidence: `/tmp/pero-roadmap-release/public-6/verification
 
 The walkthrough used [v0.1.0-dev.20261112 Electron for macOS arm64](https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112) from source `360e7f0ea8f2b5ff7df345dc19f97a2af7dccdc9`. The DMG and build manifest matched the published `SHA256SUMS`. The DMG SHA-256 is `b812b3b8e0a88beb50c69eee27148b562976aebddb82568ae4b30d53185f75c2`. The copied `.app` passed `codesign --verify --deep --strict` and was an arm64 executable.
 
-The actual package ran on macOS 27.2.1. Each walkthrough launched the packaged executable with its own empty Desktop profile and a default managed CPython 3.12 binding within that profile. Electron window automation drove the product controls, selected the public input files, and captured the rendered interface. The App, Host, and storage came from the release. The walkthrough used the English interface.
+The actual package ran on macOS 27.2.1. Each walkthrough launched the packaged executable with its own empty Desktop profile and a default managed CPython 3.12 binding within that profile. Electron window automation drove the product controls, selected the public input files, and captured the rendered interface. The App, Host, and storage came from the release. The screenshots use the English interface in both documentation languages.
 
 | Tutorial | Observed result | Where the walkthrough needed care |
 | --- | --- | --- |
@@ -179,4 +179,4 @@ The actual package ran on macOS 27.2.1. Each walkthrough launched the packaged e
 
 After recovering Paper, the authenticated Codex integration rejected the first selected model for the test account. A supported model completed the public-PDF question and saved a report with three sections and 13 evidence entries. After restarting, **Research results** opened the report and the first evidence control returned to PDF page 4. The native download flow produced JSON and Markdown. The report still showed **Conclusions not verified**. This was one bounded question on the public sample. Autonomous research and scientific acceptance were outside the walk-through.
 
-Package walkthrough steps and expected results are included in the [Paper](https://openpero.com/docs/paper/), [Data](https://openpero.com/docs/data/), and [Notebook](https://openpero.com/docs/notebook/) tutorial sources. Windows, Linux, Native, upgrade, and Gatekeeper acceptance were outside this run.
+Visual evidence and expected results are included in the [Paper](https://openpero.com/docs/paper/), [Data](https://openpero.com/docs/data/), and [Notebook](https://openpero.com/docs/notebook/) tutorial sources. Windows, Linux, Native, upgrade, and Gatekeeper acceptance were outside this run.

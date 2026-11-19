@@ -63,7 +63,9 @@ export default {
             <li>在 <strong>Table</strong> 把 <strong>No filter</strong> 改为 <code>condition</code>，选择 <strong>Equals</strong>，输入 <code>treated</code> 后点 <strong>Apply</strong>。结果保留原始第 4–6 条的行号，<code>signal</code> 分别为 <code>1.3</code>、<code>1.4</code>、<code>1.5</code>。点击第 4 条右侧的 <strong>Source</strong>，会打开只读原始文件标签并选中该条记录。再点 <strong>Data</strong> 回到筛选结果。</li>
             <li>在 <strong>View name</strong> 输入 <code>Treated only</code> 并点击 <strong>Save view</strong>。界面会提示视图和检查结果已固定到这个版本。切到 <strong>Checks</strong>，检查范围仍是完整输入的 6 条记录，缺失字段、显式空值、空字符串和重复行计数均为 0。</li>
           </ol>
-          <p>要绘制两组，回到 <strong>Table</strong> 点 <strong>Clear filter</strong>。切到 <strong>Chart</strong>，选择 <strong>bar</strong> 和 <strong>Current aggregation</strong>，把 <strong>Group by</strong> 设为 <code>condition</code>、<strong>Measure</strong> 设为 <code>signal</code>、<strong>Aggregate</strong> 设为 <strong>Sum</strong>。展开 <strong>Chart data (2)</strong>，应看到 <code>control</code> 合计 <code>3.0</code>、<code>treated</code> 合计 <code>4.2</code>。换成 <strong>Count</strong> 时两组各为 <code>3</code>。图表中的分组顺序可能与原始文件不同。</p>`,
+          <figure><a href="{{assets}}release-tutorials/data-treated-filter.webp"><img src="{{assets}}release-tutorials/data-treated-filter.webp" alt="发布包 Data 表格应用了 condition 等于 treated，保留原始第 4 到 6 行" width="1360" height="938" loading="lazy"></a><figcaption>实测筛选结果保留原始行号。点击 Source 可查看该行在原始 JSON 中的位置。</figcaption></figure>
+          <p>要绘制两组，回到 <strong>Table</strong> 点 <strong>Clear filter</strong>。切到 <strong>Chart</strong>，选择 <strong>bar</strong> 和 <strong>Current aggregation</strong>，把 <strong>Group by</strong> 设为 <code>condition</code>、<strong>Measure</strong> 设为 <code>signal</code>、<strong>Aggregate</strong> 设为 <strong>Sum</strong>。展开 <strong>Chart data (2)</strong>，应看到 <code>control</code> 合计 <code>3.0</code>、<code>treated</code> 合计 <code>4.2</code>。换成 <strong>Count</strong> 时两组各为 <code>3</code>。</p>
+          <figure><a href="{{assets}}release-tutorials/data-chart-sum.webp"><img src="{{assets}}release-tutorials/data-chart-sum.webp" alt="发布包 Data 图表和聚合表，treated 合计 4.2，control 合计 3.0" width="1360" height="938" loading="lazy"></a><figcaption>清除筛选后，Chart data 表格显示两组的合计。图表中的组顺序可能与原始文件不同。</figcaption></figure>`,
       },
       {
         id: 'input-and-checks',
@@ -105,14 +107,16 @@ export default {
         id: 'first-revision',
         title: '创建第一条笔记修订',
         body: `
-          <p>以下步骤在 Apple Silicon macOS 上，使用 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 预览包</a>及全新配置验证。</p>
+          <p>以下步骤和截图在 Apple Silicon macOS 上，使用 <a href="https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261112">2026-11-12 Electron 预览包</a>及全新配置验证。</p>
           <ol>
             <li>在工作台侧栏打开 <strong>Notebook</strong>。此预览包已经安装并启用 Notebook。首次出现<strong>环境未就绪</strong>时，点击<strong>准备环境</strong>，等待<strong>新建笔记</strong>出现。首次准备可能需要下载 Python 和依赖。如果等待过久或安装失败，先展开<strong>安装日志</strong>查看进度或错误，再决定是否重试。</li>
             <li>选择<strong>新建笔记</strong>，填入标题 <code>表格与修订练习</code>，在正文记下输入 2 和乘数 6。新建笔记从<strong>修订 1</strong>开始。</li>
             <li>选择<strong>插入 → 电子表格</strong>。在 <code>A1</code> 输入 <code>2</code>，在 <code>B1</code> 输入 <code>=A1*6</code>。点击另一个单元格提交公式，离开 <code>B1</code> 后应看到计算值 <code>12</code>。</li>
             <li>点<strong>保存新修订</strong>，核对工具栏显示<strong>修订 2</strong>。再把 <code>A1</code> 改成 <code>3</code>，离开单元格后再次保存，核对<strong>修订 3</strong>及 <code>B1 = 18</code>。</li>
           </ol>
-          <p>打开<strong>文件 → 修订历史 → 修订 2</strong>。只读视图应显示 <code>A1 = 2</code>、<code>B1 = 12</code>。查看旧修订时，侧栏仍显示当前保存的修订号。点击<strong>返回当前笔记</strong>回到修订 3。需要基于旧内容重新编辑时，再用<strong>恢复为草稿</strong>。</p>
+          <figure><a href="{{assets}}release-tutorials/notebook-revision-3.webp"><img src="{{assets}}release-tutorials/notebook-revision-3.webp" alt="发布包的 Notebook 修订 3，A1 为 3，B1 的计算值为 18" width="1488" height="917" loading="lazy"></a><figcaption>发布包的英文界面。修订 3 显示更新后的输入与结果。</figcaption></figure>
+          <p>打开<strong>文件 → 修订历史 → 修订 2</strong>。只读视图应显示 <code>A1 = 2</code>、<code>B1 = 12</code>。点击<strong>返回当前笔记</strong>回到修订 3。需要基于旧内容重新编辑时，再用<strong>恢复为草稿</strong>。</p>
+          <figure><a href="{{assets}}release-tutorials/notebook-revision-history.webp"><img src="{{assets}}release-tutorials/notebook-revision-history.webp" alt="发布包打开的只读修订 2，A1 为 2，B1 为 12，顶部有返回当前笔记" width="1488" height="917" loading="lazy"></a><figcaption>打开旧修订时仍可查看原来的计算结果。侧栏保留当前已保存的修订号。</figcaption></figure>
           <p>要核对持久化，退出 Pero，重启后打开 Notebook 并选择已保存的笔记。实测仍为修订 3，<code>A1 = 3</code>、<code>B1 = 18</code>。</p>
           <p>如果保存冲突，先用<strong>导出草稿</strong>保留自己的版本，再查看已保存的最新修订后整理差异。加载最新修订会放弃当前草稿。</p>`,
       },
