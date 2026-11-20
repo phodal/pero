@@ -211,17 +211,19 @@ printed by the runner. Press Escape, then open **Projects → All project tasks
   dispatch request and rejects a claim by the compatible spare before starting
   the selected Worker. Observe `Agent finished` and the execution log for the
   first task. The runner checks for a saved ACP session event.
-- Wait for `Running on Research machine` on the second task. Use `Stop` and
-  `Stop execution`. Inspect the confirmation and observe `Stopped` after the
-  Worker confirms cleanup. The runner checks the same Run records
-  `cancelled` and the Worker exits zero. Press Enter only after checking the
-  window states.
+- Wait for the runner to confirm the ACP turn has started and for `Running on
+  Research machine` in the second task. Use `Stop` and `Stop execution`.
+  Inspect the confirmation and observe `Stopped` after the Worker confirms
+  cleanup. The runner checks the same Run records `cancelled` and the Worker
+  exits zero. Press Enter only after checking the window states.
 
 The DMG mode mounts the image read-only, copies the App out, detaches the
 image, verifies the copy with `codesign --verify --deep --strict`, then runs
 it from a temporary home outside the checkout. Its Worker comes from the
 installed bundle. Both modes use an ephemeral Native credential store and
 remove their application home, database schema and owned processes on exit.
+The runner also cleans up when interrupted or when the Native window closes
+before acceptance completes.
 Successful receipts and Native logs are written under
 `test-results/self-hosted-machines/{native-preview,native-installed}/`.
 
