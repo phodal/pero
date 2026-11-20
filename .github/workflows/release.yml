@@ -90,6 +90,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       sha: ${{ steps.pin.outputs.sha }}
+      worker: ${{ steps.worker.outputs.enabled }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -101,6 +102,18 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_SHA: ${{ inputs.sha }}
         run: node scripts/ci/deployment-gate.mjs pin-tag
+      - id: worker
+        name: Detect Worker packaging in the pinned source
+        env:
+          ADMITTED_SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$ADMITTED_SHA"
+          packaging=$(git ls-tree --name-only "$ADMITTED_SHA" -- scripts/release/worker.mjs)
+          if [[ -n "$packaging" ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+          fi
 
   gate:
     name: Require trusted CI for the tag commit
@@ -306,10 +319,64 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  worker:
+    name: Standalone Worker (Linux x64)
+    needs: [resolve, gate]
+    if: github.event_name == 'workflow_dispatch' && needs.resolve.outputs.worker == 'true' && needs.gate.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify admitted source and tag before building
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$RELEASE_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-linux-x64-pero-worker
+      - name: Checkout pinned GPUI snapshot for workspace lock resolution
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          git init --quiet "$kit"
+          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
+          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
+          git -C "$kit" checkout --detach FETCH_HEAD
+      - name: Build, verify, and stage the standalone Worker
+        run: |
+          node scripts/cargo.mjs build --locked --release -p pero-worker
+          node scripts/release/worker.mjs
+      - name: Upload verified Worker package
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.resolve.outputs.sha }}-pero-worker-linux-x64
+          path: target/release-assets/
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
-    if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && needs.build.result == 'success' && needs.resolve.result == 'success'
+    if: >-
+      always() && !cancelled() && github.event_name == 'workflow_dispatch' &&
+      needs.build.result == 'success' && needs.resolve.result == 'success' &&
+      ((needs.resolve.outputs.worker == 'true' && needs.worker.result == 'success') ||
+       (needs.resolve.outputs.worker == 'false' && needs.worker.result == 'skipped'))
     name: Publish all verified products together
-    needs: [build, resolve]
+    needs: [build, worker, resolve]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -321,6 +388,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GATE_REPOSITORY: ${{ github.repository }}
       GATE_TARGET_SHA: ${{ needs.resolve.outputs.sha }}
+      GATE_WORKER_PACKAGE: ${{ needs.resolve.outputs.worker }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -338,8 +406,6 @@ jobs:
           merge-multiple: true
 
       - name: Require every dispatch manifest to match its archive
-        env:
-          GATE_REQUIRED_ARCHIVES: Pero-macos-arm64.dmg,Pero-Native-macos-arm64.dmg,Pero-linux-x64.tar.gz,Pero-windows-x64.zip
         run: node scripts/ci/deployment-gate.mjs manifests release-assets
 
       - name: Verify combined checksums

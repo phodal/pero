@@ -16,13 +16,15 @@ import { fileURLToPath } from 'node:url';
 const rejectedConclusions = new Set(['failure', 'cancelled', 'timed_out', 'startup_failure', 'action_required', 'skipped', 'stale', 'neutral']);
 const linuxPushJob = 'Linux CI gate';
 const shaPattern = /^[0-9a-f]{40}$/;
+const workerReleaseArchive = 'Pero-Worker-linux-x64.tar.gz';
 
-/** Dispatch publication is the four native packages. Virtual Cell stays a canary. */
+/** Dispatch publication includes Desktop and the standalone Worker. Virtual Cell stays a canary. */
 export const dispatchReleaseArchives = Object.freeze([
   'Pero-macos-arm64.dmg',
   'Pero-Native-macos-arm64.dmg',
   'Pero-linux-x64.tar.gz',
   'Pero-windows-x64.zip',
+  workerReleaseArchive,
 ]);
 
 function reject(reason, extra = {}) {
@@ -345,7 +347,8 @@ function pagesCurrent() {
 
 function manifests() {
   const sha = process.env.GATE_TARGET_SHA || '';
-  const required = (process.env.GATE_REQUIRED_ARCHIVES || dispatchReleaseArchives.join(',')).split(',').map(name => name.trim()).filter(Boolean);
+  const archives = dispatchReleaseArchives.filter(name => name !== workerReleaseArchive || process.env.GATE_WORKER_PACKAGE !== 'false');
+  const required = (process.env.GATE_REQUIRED_ARCHIVES || archives.join(',')).split(',').map(name => name.trim()).filter(Boolean);
   const directory = resolve(process.argv[3] || 'release-assets');
   const entries = readdirSync(directory).map(name => {
     const bytes = readFileSync(resolve(directory, name));

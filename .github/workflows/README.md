@@ -8,7 +8,7 @@ There are five runnable entry points and one shared implementation file:
 | `ci-jobs.yml` | Reusable CI job families only; no automatic or manual trigger |
 | `acceptance.yml` | Path-scoped Paper checks, labeled sandbox acceptance, and explicitly selected manual diagnostics |
 | `computer-use.yml` | Explicitly selected manual native platform diagnostics |
-| `release.yml` | Tag publication, daily/manual package validation, and explicitly opted-in PR packaging |
+| `release.yml` | Tagged Desktop and Worker publication, daily/manual package validation, and explicitly opted-in PR packaging |
 | `pages.yml` | Existing successful-CI deployment and explicit rollback gate |
 
 Ordinary feature contracts belong in CI. Add jobs or suites to an existing
@@ -36,6 +36,10 @@ Worker/Host changes. New PR revisions cancel obsolete PR package attempts.
 Version tags, manual release, daily packaging, exact-SHA trust and publication
 gates retain their existing behavior; tagged releases are not cancelled by this
 PR-only policy.
+Tagged releases stage the Linux x86_64 Worker alongside Desktop after its
+archive has been extracted and its binary started on the native Linux runner.
+Historical tags that precede the Worker packager keep their Desktop-only asset
+set, as determined from the pinned source commit.
 
 `acceptance.yml` offers these manual suites:
 
