@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { setupSelfHostedMachines } from './self-hosted-machines-fixture.mjs';
 
 const [, , archiveArg, checksumsArg] = process.argv;
@@ -73,8 +73,10 @@ try {
     serverBinary: process.env.PERO_TEST_SERVER_BINARY,
     agentArgs: ['--composer', `--capture=${prompts}`],
   });
+  const archiveSnapshot = join(fixture.temp, basename(archive));
+  await copyFile(archive, archiveSnapshot);
   cancellation.signal.throwIfAborted();
-  execFileSync('sh', [resolve(root, 'deployment/worker/install.sh'), '--archive', archive, checksums], { stdio: 'inherit' });
+  execFileSync('sh', [resolve(root, 'deployment/worker/install.sh'), '--archive', archiveSnapshot, checksums], { stdio: 'inherit' });
   expect(property('LoadState')).toBe('not-found');
   await mkdir(configDir, { mode: 0o700, recursive: true });
   await copyFile(join(fixture.temp, 'worker.json'), join(configDir, 'worker.json'));
@@ -148,7 +150,7 @@ try {
   result = {
     platform: execFileSync('uname', ['-sm'], { encoding: 'utf8' }).trim(),
     systemd: systemctl('--version').split('\n')[0],
-    archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'),
+    archiveSha256: createHash('sha256').update(await readFile(archiveSnapshot)).digest('hex'),
     workerId, taskId: task.id, runId: queued.id, mainPid, agentPid,
     stoppedPids: pids, cgroupEmpty: true, recoveryExit: 0, promptAttempts: 1, finalRunStatus: 'reconcile',
   };
