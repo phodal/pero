@@ -4,7 +4,6 @@ import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { createServer } from 'node:net';
 import { createServer as createHTTPServer } from 'node:http';
 import { randomUUID, randomBytes } from 'node:crypto';
 
@@ -66,19 +65,22 @@ export async function setupSelfHostedMachines(database, {
     schemaCreated = true;
     const db = new URL(database);
     db.searchParams.set('search_path', namespace);
-    const port = await new Promise((done, reject) => {
-      const socket = createServer();
-      socket.once('error', reject);
-      socket.listen(0, '127.0.0.1', () => {
-        const port = socket.address().port;
-        socket.close(() => done(port));
-      });
-    });
-    const base = `http://127.0.0.1:${port}`;
     execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
     await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
     await writeFile(config, JSON.stringify({ workspaces: { repo: temp }, agents_file: agents }));
-    start(serverBin, [], { ...env, PERO_DATABASE_URL: db.href, PERO_OPERATOR_TOKEN: operator, PERO_LISTEN: `127.0.0.1:${port}`, PERO_LEASE_SECONDS: '12' });
+    const server = start(serverBin, [], {
+      ...env, PERO_DATABASE_URL: db.href, PERO_OPERATOR_TOKEN: operator,
+      PERO_LISTEN: '127.0.0.1:0', PERO_LEASE_SECONDS: '12',
+    });
+    let address;
+    await expect.poll(() => {
+      if (!server.pid || server.exitCode !== null || server.signalCode !== null) {
+        throw new Error('Go control plane exited before binding a loopback address');
+      }
+      address = /Pero control plane listening on (127\.0\.0\.1:[1-9]\d*)\r?\n/.exec(logs)?.[1];
+      return address;
+    }, { timeout: 15000 }).toBeDefined();
+    const base = `http://${address}`;
     await expect.poll(async () => { try { return (await fetch(base + '/healthz')).status; } catch { return 0; } }, { timeout: 15000 }).toBe(200);
     const request = async (path, method = 'GET', body, token = operator) => {
       const response = await fetch(base + path, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -141,7 +143,11 @@ export async function setupSelfHostedMachines(database, {
       startWorker, assertTarget, stop, close, creationAttempts, dispatches, logs: () => logs };
   } catch (error) {
     console.error(logs);
-    await close();
+    try {
+      await close();
+    } catch (cleanupError) {
+      console.error('Shared fixture cleanup failed', cleanupError);
+    }
     throw error;
   }
 }

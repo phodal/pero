@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -87,6 +88,10 @@ func run() error {
 		return err
 	}
 	server := &http.Server{Addr: listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
+	listener, err := net.Listen("tcp", listen)
+	if err != nil {
+		return err
+	}
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -110,8 +115,8 @@ func run() error {
 		defer done()
 		_ = server.Shutdown(shutdown)
 	}()
-	log.Printf("Pero control plane listening on %s", listen)
-	err = server.ListenAndServe()
+	log.Printf("Pero control plane listening on %s", listener.Addr())
+	err = server.Serve(listener)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

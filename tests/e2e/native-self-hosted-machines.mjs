@@ -12,14 +12,18 @@ const [mode, path, ...extra] = process.argv.slice(2);
 if (!path || extra.length || !['--preview', '--dmg'].includes(mode) || process.platform !== 'darwin') {
   throw new Error('On macOS, run with --preview <Pero Native.app> or --dmg <Pero-Native-macos-arm64.dmg>');
 }
+const packaged = mode === '--dmg';
+const out = resolve(root, 'test-results/self-hosted-machines', packaged ? 'native-installed' : 'native-preview');
+await rm(resolve(out, 'result.json'), { force: true });
 const database = process.env.PERO_TEST_DATABASE_URL;
 if (!database) throw new Error('Set PERO_TEST_DATABASE_URL to an isolated PostgreSQL database');
 const input = await realpath(path);
-const packaged = mode === '--dmg';
-const out = resolve(root, 'test-results/self-hosted-machines', packaged ? 'native-installed' : 'native-preview');
 const scratch = await mkdtemp(resolve(tmpdir(), 'pero-native-machines-'));
 const cancellation = new AbortController();
 const interrupt = signal => cancellation.abort(new Error(`Native acceptance interrupted by ${signal}`));
+const appExited = (code, signal) => {
+  cancellation.abort(new Error(`Native window closed before acceptance completed (${signal ?? code})`));
+};
 process.once('SIGINT', interrupt);
 process.once('SIGTERM', interrupt);
 let fixture;
@@ -27,7 +31,6 @@ let app;
 let appLog = '';
 let result;
 try {
-  await rm(resolve(out, 'result.json'), { force: true });
   let bundle = input;
   if (packaged) {
     const mount = resolve(scratch, 'mount');
@@ -54,9 +57,7 @@ try {
     PERO_NATIVE_EPHEMERAL_SECRETS: '1',
   };
   app = spawn(binary, [], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  app.once('exit', (code, signal) => {
-    cancellation.abort(new Error(`Native window closed before acceptance completed (${signal ?? code})`));
-  });
+  app.once('exit', appExited);
   for (const stream of [app.stdout, app.stderr]) stream.on('data', chunk => {
     appLog = (appLog + chunk.toString()).slice(-16000);
   });
@@ -148,15 +149,19 @@ try {
   console.error(fixture?.logs());
   throw error;
 } finally {
+  app?.removeListener('exit', appExited);
   try {
     await fixture?.stop(app);
-    await fixture?.close();
     await mkdir(out, { recursive: true });
     await writeFile(resolve(out, 'native.log'), appLog);
   } finally {
-    process.removeListener('SIGINT', interrupt);
-    process.removeListener('SIGTERM', interrupt);
-    await rm(scratch, { recursive: true, force: true });
+    try {
+      await fixture?.close();
+    } finally {
+      process.removeListener('SIGINT', interrupt);
+      process.removeListener('SIGTERM', interrupt);
+      await rm(scratch, { recursive: true, force: true });
+    }
   }
 }
 await writeFile(resolve(out, 'result.json'), JSON.stringify(result, null, 2) + '\n');
