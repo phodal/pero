@@ -4,6 +4,10 @@ The independent Rust Worker pulls one authorized Run at a time from the Go
 control plane and executes it through `pero-runtime`'s official ACP integration.
 It does not require Electron to remain open.
 
+For a headless Linux x86_64 install, see the
+[standalone Worker guide](../../deployment/worker/README.md), including the
+release archive, scoped enrollment and optional systemd user service.
+
 Build with `node scripts/cargo.mjs build -p pero-worker`. Configure these local
 environment variables, then run `target/debug/pero-worker` (`--once` checks the
 queue once and exits after at most one execution):

@@ -1,0 +1,18 @@
+[Unit]
+Description=Pero remote task Worker
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/pero-worker
+Environment=PERO_WORKER_CONFIG=%E/pero-worker/worker.json
+Environment=PERO_WORKER_STATE=%S/pero-worker/journal.json
+EnvironmentFile=%E/pero-worker/worker.env
+StateDirectory=pero-worker
+StateDirectoryMode=0700
+UMask=0077
+KillMode=control-group
+TimeoutStopSec=20s
+Restart=no
+
+[Install]
+WantedBy=default.target
