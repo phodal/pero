@@ -61,6 +61,9 @@ if [ -n "$release" ]; then
     --output "$archive" "$release/$asset"
   curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
     --output "$manifest" "$release/SHA256SUMS"
+else
+  cp -- "$archive" "$work/$asset"
+  archive="$work/$asset"
 fi
 
 expected=$(awk -v asset="$asset" '
