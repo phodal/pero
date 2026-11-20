@@ -2,102 +2,23 @@
 // ACP fixture proves transport/execution controls, not scientific acceptance.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { spawn, execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createServer } from 'node:net';
-import { createServer as createHTTPServer } from 'node:http';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { setupSelfHostedMachines } from './self-hosted-machines-fixture.mjs';
 
 export async function setup(database) {
-  if (!database) throw new Error('Set PERO_TEST_DATABASE_URL to an isolated PostgreSQL database');
-  const root = resolve(import.meta.dirname, '../..');
-  const out = resolve(root, 'test-results/self-hosted-machines/desktop');
-  const temp = await mkdtemp(resolve(tmpdir(), 'pero-machines-'));
-  await mkdir(out, { recursive: true });
-  const namespace = `machines_${randomUUID().replaceAll('-', '')}`;
-  execFileSync('psql', [database, '-v', 'ON_ERROR_STOP=1', '-c', `CREATE SCHEMA "${namespace}"`], { stdio: 'pipe' });
-  const db = new URL(database); db.searchParams.set('search_path', namespace);
-  const port = await new Promise(done => {
-    const socket = createServer(); socket.listen(0, '127.0.0.1', () => {
-      const port = socket.address().port; socket.close(() => done(port));
-    });
-  });
-  const base = `http://127.0.0.1:${port}`;
-  const operator = randomUUID();
-  const serverBin = resolve(temp, 'pero-server');
-  execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
-  const agents = resolve(temp, 'agents.json');
-  await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
-  await writeFile(resolve(temp, 'worker.json'), JSON.stringify({ workspaces: { repo: temp }, agents_file: agents }));
-  const children = [];
+  const fixture = await setupSelfHostedMachines(database);
+  const { root, out, temp, url, client, agents } = fixture;
+  const env = { ...fixture.env, PERO_CLOUD_URL: url, PERO_CLIENT_TOKEN: client.token,
+    PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: resolve(temp, 'settings.json'),
+    PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'zh-CN' };
   let app;
-  let proxy;
-  let dropCreationReply = true;
-  const creationAttempts = [];
-  let logs = '';
-  const start = (bin, args, env) => {
-    const child = spawn(bin, args, { cwd: temp, env, stdio: ['ignore', 'pipe', 'pipe'] });
-    child.stderr.on('data', data => { logs = (logs + data).slice(-16000); });
-    children.push(child);
-    return child;
-  };
-  const stop = async child => {
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
-    child.kill('SIGTERM');
-    await new Promise(done => {
-      const timeout = setTimeout(() => child.kill('SIGKILL'), 5000);
-      child.once('exit', () => { clearTimeout(timeout); done(); });
-    });
-  };
   const close = async () => {
-    if (app) await app.close();
-    if (proxy) { proxy.closeAllConnections(); await new Promise(done => proxy.close(done)); }
-    for (const child of children.reverse()) await stop(child);
-    execFileSync('psql', [database, '-v', 'ON_ERROR_STOP=1', '-c', `DROP SCHEMA "${namespace}" CASCADE`], { stdio: 'pipe' });
+    try { if (app) await app.close(); }
+    finally { await fixture.close(); }
   };
   try {
-    start(serverBin, [], { ...process.env, PERO_DATABASE_URL: db.href, PERO_OPERATOR_TOKEN: operator, PERO_LISTEN: `127.0.0.1:${port}`, PERO_LEASE_SECONDS: '12' });
-    await expect.poll(async () => { try { return (await fetch(base + '/healthz')).status; } catch { return 0; } }, { timeout: 15000 }).toBe(200);
-    const request = async (path, method = 'GET', body, token = operator) => {
-      const response = await fetch(base + path, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
-      const value = await response.json();
-      expect(response.ok, JSON.stringify(value)).toBe(true);
-      return value;
-    };
-    const client = await request('/api/v1/clients', 'POST', { name: 'Researcher', projects: ['team'] });
-    const enroll = async (name, agent) => request('/api/client/v1/workers', 'POST', {
-      name, device_id: randomUUID(), request_id: randomUUID(), enrollment_secret: randomBytes(32).toString('hex'),
-      projects: ['team'], capabilities: [{ project_id: 'team', workspace_key: 'repo', agent_id: agent }],
-    }, client.token);
-    const chosen = await enroll('Research machine', 'fixture');
-    const incompatible = await enroll('Other capability', 'other-agent');
-    const bystander = await enroll('Compatible spare', 'fixture');
-    const contact = await request('/api/worker/v1/claims', 'POST', { request_id: randomUUID(), instance_id: 'idle-observer' }, chosen.token);
-    expect(contact.run).toBeNull();
-    proxy = createHTTPServer(async (incoming, outgoing) => {
-      const chunks = [];
-      for await (const chunk of incoming) chunks.push(chunk);
-      const response = await fetch(base + incoming.url, {
-        method: incoming.method,
-        headers: { Authorization: incoming.headers.authorization || '', 'Content-Type': 'application/json',
-          ...(incoming.headers['idempotency-key'] ? { 'Idempotency-Key': incoming.headers['idempotency-key'] } : {}) },
-        ...(['GET','HEAD'].includes(incoming.method) ? {} : { body: Buffer.concat(chunks) }),
-      });
-      const body = Buffer.from(await response.arrayBuffer());
-      if (incoming.method === 'POST' && incoming.url === '/api/client/v1/tasks') {
-        creationAttempts.push({ key: incoming.headers['idempotency-key'], task: JSON.parse(body).id });
-        if (dropCreationReply) { dropCreationReply = false; outgoing.destroy(); return; }
-      }
-      outgoing.writeHead(response.status, { 'Content-Type': 'application/json' }); outgoing.end(body);
-    });
-    await new Promise(done => proxy.listen(0, '127.0.0.1', done));
-    const desktopURL = `http://127.0.0.1:${proxy.address().port}`;
-    const env = { ...process.env };
-    for (const key of Object.keys(env)) if (key.startsWith('PERO_')) delete env[key];
-    Object.assign(env, { PERO_CLOUD_URL: desktopURL, PERO_CLIENT_TOKEN: client.token, PERO_DESKTOP_DATA_DIR: resolve(temp, 'profile'), PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'history.jsonl'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'zh-CN' });
     app = await electron.launch({ executablePath: process.env.PERO_TEST_ELECTRON_EXECUTABLE, args: [resolve(root, 'desktop')], cwd: root, env });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 900));
     const page = await app.firstWindow();
@@ -109,18 +30,11 @@ export async function setup(database) {
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('remote-tasks').click());
     await expect.poll(async () => (await state()).remote.state.workers.length, { timeout: 15000 }).toBe(3);
     expect((await state()).remote.state.identity.role).toBe('client');
-    const assertTarget = async () => {
-      const attempt = await request('/api/worker/v1/claims', 'POST', { request_id: randomUUID(), instance_id: 'spare-observer' }, bystander.token);
-      expect(attempt.run).toBeNull();
-    };
-    const startWorker = () => start(resolve(root, 'target/debug/pero-worker'), ['--once'], {
-      ...env, PERO_WORKER_TOKEN: chosen.token, PERO_WORKER_CONFIG: resolve(temp, 'worker.json'), PERO_WORKER_STATE: resolve(temp, `worker-${randomUUID()}.json`),
-    });
     const frame = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
     const screenshot = async name => { await frame(); return page.screenshot({ path: resolve(out, `${name}.png`), scale: 'css' }); };
-    return { root, out, app, page, state, screenshot, request, chosen, incompatible, startWorker, assertTarget, stop, close, frame, creationAttempts, errors, logs: () => logs };
+    return { ...fixture, app, page, state, screenshot, close, frame, errors };
   } catch (error) {
-    console.error(logs);
+    console.error(fixture.logs());
     await close();
     throw error;
   }

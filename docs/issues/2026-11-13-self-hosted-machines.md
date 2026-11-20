@@ -23,7 +23,9 @@ Reuse the existing GPUI task form/detail and Worker page plus Electron/Native ad
 - [x] Idle and active Worker contacts update presence; expiration is evaluated by a pure domain rule.
 - [x] Project-scoped capability/status listings and existing execution controls remain correct.
 - [x] Electron client creation and Native adapter implementation/build.
-- [ ] Actual Native-window client creation and execution acceptance.
+- [x] Actual Native-window client creation and execution acceptance.
+- [x] Locally built macOS arm64 Native DMG, installed copy and bundled Worker.
+- [ ] Public release acceptance and old-client compatibility before rollout.
 - [x] Real Desktop creation, target selection, progress and cancellation; inspect light/dark/narrow states.
 
 ## Implementation and verification
@@ -52,11 +54,12 @@ English/dark and 1000px window screenshots were inspected. The busy Worker page
 was inspected in a separate probe. See the dated section of
 [remote dispatch verification](../fitness/remote-dispatch-verification.md).
 
-Native library tests passed (79); a real Native window and Native client's HTTP
-creation have not been accepted. This is deterministic ACP fixture execution,
-not a real-model/scientific or packaged-release acceptance. P1 does not deploy automatically on merge. General writable-agent approvals and persistent follow-up
-remain outside this slice. Release updated Desktop clients before enabling the
-new Worker response fields, since older clients have a closed response schema.
+At #224 merge, Native library tests passed (79), and the Native HTTP creation
+flow still needed a real-window run. This was deterministic ACP fixture
+execution. Public release and deployment are separate from merge. General
+writable-agent approvals and persistent follow-up remain outside this slice.
+Release updated Desktop clients before enabling the new Worker response fields,
+since older clients have a closed response schema.
 
 The user requested that screenshots remain local; no PNGs are committed or
 uploaded. Keep #223 open for integration/release acceptance; #219 remains the
@@ -75,3 +78,13 @@ The workflow/test/Paper sources are unchanged by this PR. Server Bazel and Go
 jobs pass. This records a baseline CI failure, not an all-green CI claim.
 Evidence is retained at `test-results/self-hosted-machines/ci/` in the main
 workspace. The temporary baseline worktree was removed after comparison.
+
+### Native and local installation acceptance — 2026-11-20
+
+The visible Native preview and the App copied from the locally built macOS
+arm64 DMG passed the same scoped task scenario against real Go/PostgreSQL.
+Both kept the draft after the first successful response was dropped, retried
+with the same task identity, excluded a compatible spare, showed the chosen
+machine running and displayed `Stopped` after cancellation. The installed
+scenario ran the Worker bundled in the DMG. See the
+[observations, commands and receipts](../fitness/remote-dispatch-verification.md#2026-11-20--native-scoped-task-acceptance-223).
