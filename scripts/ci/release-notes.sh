@@ -39,7 +39,7 @@ else
 fi
 
 cat > release-notes.md <<'EOF_NOTES'
-Pero Desktop development packages, built and launch-tested on native GitHub Actions runners.
+Pero development packages, built and launch-tested on native GitHub Actions runners.
 
 - Pero: macOS Apple Silicon DMG, Windows x64 portable ZIP, Linux x64 portable tar.gz.
 - Pero Native: separate macOS Apple Silicon DMG using GPUI and system WebKit, with bundled Host, Node and Apps; no source checkout needed. Native and Electron use separate data profiles.
@@ -52,6 +52,9 @@ Pero Desktop development packages, built and launch-tested on native GitHub Acti
 - Per-product build metadata and SHA256SUMS accompany every archive.
 EOF_NOTES
 {
+  if [[ "${GATE_WORKER_PACKAGE:-false}" == true ]]; then
+    echo '- Pero Worker: standalone Linux x86_64 archive for an enrolled execution machine, with a systemd user unit. Build and smoke baseline is Ubuntu 24.04.'
+  fi
   echo
   echo "Changes since ${base}:"
   echo

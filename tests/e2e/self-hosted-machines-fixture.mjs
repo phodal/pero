@@ -12,13 +12,15 @@ const root = resolve(import.meta.dirname, '../..');
 export async function setupSelfHostedMachines(database, {
   workerBinary = resolve(root, 'target/debug/pero-worker'),
   outputDirectory = resolve(root, 'test-results/self-hosted-machines/desktop'),
+  serverBinary,
+  agentArgs = [],
 } = {}) {
   if (!database) throw new Error('Set PERO_TEST_DATABASE_URL to an isolated PostgreSQL database');
   const temp = await mkdtemp(resolve(tmpdir(), 'pero-machines-'));
   const out = resolve(outputDirectory);
   const namespace = `machines_${randomUUID().replaceAll('-', '')}`;
   const operator = randomUUID();
-  const serverBin = resolve(temp, 'pero-server');
+  const serverBin = serverBinary ? resolve(serverBinary) : resolve(temp, 'pero-server');
   const agents = resolve(temp, 'agents.json');
   const config = resolve(temp, 'worker.json');
   const env = { ...process.env };
@@ -65,8 +67,8 @@ export async function setupSelfHostedMachines(database, {
     schemaCreated = true;
     const db = new URL(database);
     db.searchParams.set('search_path', namespace);
-    execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
-    await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
+    if (!serverBinary) execFileSync('go', ['build', '-o', serverBin, './cmd/server'], { cwd: resolve(root, 'server'), stdio: 'pipe' });
+    await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'ACP fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs'), ...agentArgs] }]));
     await writeFile(config, JSON.stringify({ workspaces: { repo: temp }, agents_file: agents }));
     const server = start(serverBin, [], {
       ...env, PERO_DATABASE_URL: db.href, PERO_OPERATOR_TOKEN: operator,

@@ -103,3 +103,18 @@ flowchart TB
 - [独立 Worker 与本机准入](https://github.com/phodal/pero/blob/c4f4ecdaf85b0a23dc3b04e1581bd680bba67b23/crates/pero-worker/README.md)
 - [ADR 0018：受信 Worker 与 Agent Sandbox](https://github.com/phodal/pero/blob/c4f4ecdaf85b0a23dc3b04e1581bd680bba67b23/docs/adr/0018-agent-sandbox-runtime.md)
 
+## 首个交付切片 — 2026-11-20
+
+Linux 实验室机器可以独立安装 `pero-worker`，由操作者发放项目范围的
+设备凭据，再配置本机工作区和 ACP Agent。Tag 发布沿用已有的精确源码和
+CI gate，增加 Linux x86_64 Worker 归档、构建元数据和校验和。安装器保存
+systemd 用户服务模板，启停由操作者明确执行。
+
+服务停止时由 systemd 清理该服务的 cgroup，Cloud 继续持有原 Run 与租约。
+重启时 Worker 用同一个 journal 对账，随后停在需要核查的状态。服务配置
+禁止自动重启，保留原来的人工核查边界。安装使用与复验入口见
+[独立 Worker 指南](../../deployment/worker/README.md)。
+
+后续切片是浏览器自助配对。它在现有注册前增加短时授权，Task/Run、HTTPS
+轮询、租约和执行机 ACP 继续由现有实现负责。
+

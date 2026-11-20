@@ -211,7 +211,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(release.jobs.publish.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(release.jobs.publish.steps[0].with['fetch-depth'], 0);
   assert.equal(release.jobs.dispatch.steps.some(step => step.uses?.startsWith('actions/checkout')), false);
-  assert.match(release.jobs.resolve.steps.at(-1).run, /deployment-gate\.mjs pin-tag/);
+  assert.match(release.jobs.resolve.steps.find(step => step.id === 'pin').run, /deployment-gate\.mjs pin-tag/);
+  assert.match(release.jobs.resolve.steps.find(step => step.id === 'worker').run, /git ls-tree --name-only "\$ADMITTED_SHA" -- scripts\/release\/worker\.mjs/);
   assert.match(release.jobs.gate.steps.at(-1).run, /deployment-gate\.mjs ci/);
   assert.equal(release.jobs.gate.permissions.actions, 'read');
   assert.equal(release.jobs.gate.permissions.contents, 'read');
@@ -223,7 +224,12 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.equal(download.with.pattern, 'release-${{ needs.resolve.outputs.sha }}-*');
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs manifests/);
   assert.equal(release.jobs.build.steps[0].with.ref, "${{ github.event_name == 'workflow_dispatch' && needs.resolve.outputs.sha || github.sha }}");
+  assert.deepEqual(release.jobs.worker.needs, ['resolve', 'gate']);
+  assert.match(release.jobs.worker.if, /needs\.resolve\.outputs\.worker == 'true'.*needs\.gate\.result == 'success'/);
+  assert.equal(release.jobs.worker.steps[0].with.ref, '${{ needs.resolve.outputs.sha }}');
   assert.match(release.jobs.publish.if, /needs.build.result == 'success'/);
+  assert.match(release.jobs.publish.if, /needs\.resolve\.outputs\.worker == 'true' && needs\.worker\.result == 'success'/);
+  assert.match(release.jobs.publish.if, /needs\.resolve\.outputs\.worker == 'false' && needs\.worker\.result == 'skipped'/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs pin-tag/);
   assert.match(release.jobs.publish.steps.map(step => step.run || '').join('\n'), /deployment-gate\.mjs ci/);
   const published = release.jobs.publish.steps.map(step => step.run || '').join('\n');
@@ -233,8 +239,8 @@ test('Pages builds the admitted SHA only after trusted CI, and Release republish
   assert.match(notesScript, /git log --format='- %h %s'/);
   assert.doesNotMatch(notesScript, /--max-count/);
   assert.doesNotMatch(notesScript, /AI4S migration is complete/);
-  const manifestStep = release.jobs.publish.steps.find(step => (step.run || '').includes('deployment-gate.mjs manifests'));
-  assert.equal(manifestStep.env.GATE_REQUIRED_ARCHIVES, dispatchReleaseArchives.join(','));
+  assert.equal(release.jobs.publish.env.GATE_WORKER_PACKAGE, '${{ needs.resolve.outputs.worker }}');
+  assert.ok(dispatchReleaseArchives.includes('Pero-Worker-linux-x64.tar.gz'));
   assert.ok(published.lastIndexOf('deployment-gate.mjs pin-tag') < published.indexOf('--draft=false'));
   assert.match(published, /--draft/);
   assert.equal(release.jobs.publish.permissions.contents, 'write');
