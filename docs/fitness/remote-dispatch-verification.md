@@ -176,3 +176,70 @@ persistent follow-up work remain separate. New clients accept old observation-fr
 responses; old clients with closed schemas need updating before the new server
 Worker fields are rolled out. Keep API contact observation separate from machine
 readiness and execution permission.
+
+## 2026-11-20 — Native scoped task acceptance (#223)
+
+The Native runner reuses the Electron scenario's loopback Go/PostgreSQL
+environment, scoped Client, targeted Worker, compatible spare, incompatible
+machine and ACP fixture. The HTTP proxy drops the first successful creation
+response after PostgreSQL has committed the task. It records each successful
+creation's idempotency key and task ID, and the Worker ID requested by the UI
+at dispatch. The window operator drives the actual GPUI controls while the
+runner checks the resulting API state and Worker exit.
+
+Run from macOS with an isolated `PERO_TEST_DATABASE_URL`, Node, Go and `psql`
+available. Build the preview and the distribution with the existing commands,
+then run the scenarios serially:
+
+```sh
+npm run build:macos-native
+node tests/e2e/native-self-hosted-machines.mjs --preview 'target/native/Pero Native.app'
+npm run package:macos-native
+node tests/e2e/native-self-hosted-machines.mjs --dmg /absolute/path/to/Pero-Native-macos-arm64.dmg
+```
+
+In the window, open **Settings → All settings… → GitHub Connector**, then
+connect as **Project client** with the loopback URL and disposable token
+printed by the runner. Press Escape, then open **Projects → All project tasks
+→ New task**. Follow the runner's task titles and instructions.
+
+- After the first error, inspect the retained title, instructions, completion
+  criteria and machine before retrying `Create draft`. The runner checks that
+  both requests used the same key and returned the same single, creator-claimed
+  task. The detail should open with the selected machine retained.
+- Delegate each task explicitly to `Research machine`. The runner checks the
+  dispatch request and rejects a claim by the compatible spare before starting
+  the selected Worker. Observe `Agent finished` and the execution log for the
+  first task. The runner checks for a saved ACP session event.
+- Wait for `Running on Research machine` on the second task. Use `Stop` and
+  `Stop execution`. Inspect the confirmation and observe `Stopped` after the
+  Worker confirms cleanup. The runner checks the same Run records
+  `cancelled` and the Worker exits zero. Press Enter only after checking the
+  window states.
+
+The DMG mode mounts the image read-only, copies the App out, detaches the
+image, verifies the copy with `codesign --verify --deep --strict`, then runs
+it from a temporary home outside the checkout. Its Worker comes from the
+installed bundle. Both modes use an ephemeral Native credential store and
+remove their application home, database schema and owned processes on exit.
+Successful receipts and Native logs are written under
+`test-results/self-hosted-machines/{native-preview,native-installed}/`.
+
+Observed on macOS 27.2.1 arm64, with runtime source `eedf6162a` and the
+acceptance-script changes in the working tree:
+
+| Surface | Observed result |
+| --- | --- |
+| Actual Native preview window | The connection error was visible with all inputs and the machine selection retained. Retry reached the claimed task. Progress and the execution log showed the first Run complete, then the second Run showed `Running on Research machine`, the explicit confirmation, `Stopping` and `Stopped`. |
+| Installed Native from local DMG | The failed submission retained the draft and machine, and retry recovered the same receipt. The copied App showed the completed log, running machine, stop confirmation and `Stopped`. The Worker came from the image, and the App resolved its bundled runtime from outside the checkout. |
+| Go/PostgreSQL and independent Worker | Each run created two tasks in total. The successful task retained 15 events. Both dispatches identified the selected Worker and excluded the compatible spare. The cancellation Run reached `cancelled` and its Worker exited zero. The temporary schemas were removed. |
+
+`npm run check`, `go -C server test -race ./...` against the isolated
+PostgreSQL instance, and the existing `node scripts/release/native-smoke.mjs`
+also passed. The local DMG is 81,646,896 bytes with SHA-256
+`12be4d4dcee19c8592643e647ab071522a07b5e45c8350c27c05007748c2cd86`.
+Image verification and the copied App's strict ad-hoc signature check passed.
+The temporary install location produced a macOS URL-handler registration
+warning. This run used the scoped token form and ephemeral credentials.
+It did not exercise GitHub OAuth callbacks, Keychain persistence, Gatekeeper
+or notarization, public release distribution, or production deployment.
