@@ -77,13 +77,13 @@ For foreground execution, set the runtime's four environment variables and run
 the installed binary directly. The `--once` option can acquire and execute one
 eligible Run. Keep the same journal for every invocation of this device. When
 switching from systemd to foreground, set `PERO_WORKER_STATE` to the same
-`${XDG_STATE_HOME:-$HOME/.local/state}/pero-worker/journal.json` path.
+`${XDG_STATE_HOME:-$HOME/.local/state}/pero-worker-state/journal.json` path.
 
 ## Start and stop with systemd
 
 After reviewing the saved unit, copy it into the configuration for your user
 manager. The unit creates a private journal directory under
-`${XDG_STATE_HOME:-$HOME/.local/state}/pero-worker`.
+`${XDG_STATE_HOME:-$HOME/.local/state}/pero-worker-state`.
 
 ```sh
 data_dir="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -140,6 +140,12 @@ turn had a live process in the unit's cgroup. Stopping the unit removed the
 Worker, executor and Agent processes, and the server marked the original Run
 `reconcile`. The service did not restart by itself. An explicit start exited
 zero after reconciling the original journal. The Agent recorded one prompt.
+
+The final run verified separate configuration and state directories. A bad
+checksum was rejected before a fresh install and before replacing an existing
+binary or template. systemd logged an ignored cgroup kill `EINVAL` during
+stop. `systemctl stop` returned successfully and all three recorded process
+IDs were absent afterward.
 
 The local package, checksums, build metadata and receipt are retained under
 `test-results/worker-service/`. This run used an isolated control plane and a
