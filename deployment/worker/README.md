@@ -125,9 +125,9 @@ node tests/e2e/worker-service.mjs \
 
 The test uses the real Go control plane, PostgreSQL and a deterministic ACP
 Agent. It observes an active turn and its process inside the service cgroup,
-stops the service, and checks that the same Run reaches `reconcile`. Starting
-the service again reconciles the original journal and leaves the Agent prompt
-with one recorded attempt. The receipt is written to
+stops the service, and checks that the cgroup is empty and the same Run reaches
+`reconcile`. The next service start reconciles the original journal and leaves
+one recorded Agent prompt attempt. The receipt is written to
 `test-results/worker-service/result.json`.
 
 ### Local acceptance on 2026-11-20

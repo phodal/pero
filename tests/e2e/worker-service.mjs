@@ -34,7 +34,12 @@ const journal = join(stateDir, 'journal.json');
 const prompts = join(configDir, 'prompts.jsonl');
 const systemctl = (...args) => execFileSync('systemctl', ['--user', ...args], { encoding: 'utf8', timeout: 30_000 }).trim();
 const property = name => systemctl('show', unit, '-p', name, '--value');
-const poll = { timeout: 30_000, intervals: [100, 250] };
+const cancellation = new AbortController();
+const interrupt = signal => cancellation.abort(new Error(`Worker service acceptance interrupted by ${signal}`));
+const poll = predicate => expect.poll(() => {
+  cancellation.signal.throwIfAborted();
+  return predicate();
+}, { timeout: 30_000, intervals: [100, 250] });
 
 await mkdir(out, { recursive: true });
 await rm(receipt, { force: true });
@@ -60,12 +65,15 @@ for (const [key, chosen, fallback] of [
 let fixture;
 let serviceLoaded = false;
 let result;
+process.once('SIGINT', interrupt);
+process.once('SIGTERM', interrupt);
 try {
   fixture = await setupSelfHostedMachines(process.env.PERO_TEST_DATABASE_URL, {
     outputDirectory: out,
     serverBinary: process.env.PERO_TEST_SERVER_BINARY,
     agentArgs: ['--composer', `--capture=${prompts}`],
   });
+  cancellation.signal.throwIfAborted();
   execFileSync('sh', [resolve(root, 'deployment/worker/install.sh'), '--archive', archive, checksums], { stdio: 'inherit' });
   expect(property('LoadState')).toBe('not-found');
   await mkdir(configDir, { mode: 0o700, recursive: true });
@@ -94,12 +102,12 @@ try {
   expect(queued.status).toBe('queued');
   await fixture.assertTarget();
   systemctl('start', unit);
-  await expect.poll(async () => (await detail()).events.some(event => event.kind === 'turn_started'), poll).toBe(true);
+  await poll(async () => (await detail()).events.some(event => event.kind === 'turn_started')).toBe(true);
   const active = await detail();
   expect(active.run).toMatchObject({ id: queued.id, worker_id: workerId, status: 'running' });
   expect((await lstat(configDir)).isDirectory()).toBe(true);
   expect((await lstat(stateDir)).isDirectory()).toBe(true);
-  await expect.poll(() => existsSync(prompts), poll).toBe(true);
+  await poll(() => existsSync(prompts)).toBe(true);
   const originalPrompt = await readFile(prompts, 'utf8');
   expect(originalPrompt.trim().split('\n')).toHaveLength(1);
   expect(JSON.parse(await readFile(journal, 'utf8')).active.run.id).toBe(queued.id);
@@ -108,22 +116,31 @@ try {
   expect(mainPid).toBeGreaterThan(0);
   const group = property('ControlGroup');
   expect(group).toMatch(/\/pero-worker\.service$/);
-  const pids = (await readFile(join('/sys/fs/cgroup', group, 'cgroup.procs'), 'utf8')).trim().split('\n').map(Number);
+  const cgroup = join('/sys/fs/cgroup', group);
+  const pids = (await readFile(join(cgroup, 'cgroup.procs'), 'utf8')).trim().split('\n').map(Number);
   const agentPid = pids.find(pid => readFileSync(`/proc/${pid}/cmdline`).includes('/tests/fixtures/acp-agent.mjs'));
   expect(pids).toContain(mainPid);
   expect(agentPid).toBeGreaterThan(0);
 
   systemctl('stop', unit);
-  await expect.poll(() => pids.filter(pid => existsSync(`/proc/${pid}`)), poll).toEqual([]);
+  await poll(() => pids.filter(pid => existsSync(`/proc/${pid}`))).toEqual([]);
+  await poll(async () => {
+    try {
+      return /^populated 0$/m.test(await readFile(join(cgroup, 'cgroup.events'), 'utf8'));
+    } catch (error) {
+      if (error.code === 'ENOENT') return true;
+      throw error;
+    }
+  }).toBe(true);
   expect(property('ActiveState')).toBe('inactive');
   expect(property('MainPID')).toBe('0');
-  await expect.poll(async () => (await detail()).run.status, poll).toBe('reconcile');
+  await poll(async () => (await detail()).run.status).toBe('reconcile');
   expect(property('ActiveState')).toBe('inactive');
   expect(property('NRestarts')).toBe('0');
   expect(JSON.parse(await readFile(journal, 'utf8')).active.run.id).toBe(queued.id);
 
   systemctl('start', unit);
-  await expect.poll(() => property('ActiveState'), poll).toBe('inactive');
+  await poll(() => property('ActiveState')).toBe('inactive');
   expect(property('ExecMainStatus')).toBe('0');
   expect(JSON.parse(await readFile(journal, 'utf8'))).toMatchObject({ active: null, pending_claim: null });
   expect(await readFile(prompts, 'utf8')).toBe(originalPrompt);
@@ -133,7 +150,7 @@ try {
     systemd: systemctl('--version').split('\n')[0],
     archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'),
     workerId, taskId: task.id, runId: queued.id, mainPid, agentPid,
-    stoppedPids: pids, recoveryExit: 0, promptAttempts: 1, finalRunStatus: 'reconcile',
+    stoppedPids: pids, cgroupEmpty: true, recoveryExit: 0, promptAttempts: 1, finalRunStatus: 'reconcile',
   };
 } finally {
   try {
@@ -143,8 +160,14 @@ try {
     }
     if (serviceLoaded) systemctl('daemon-reload');
   } finally {
-    await fixture?.close();
+    try {
+      await fixture?.close();
+    } finally {
+      process.removeListener('SIGINT', interrupt);
+      process.removeListener('SIGTERM', interrupt);
+    }
   }
 }
+cancellation.signal.throwIfAborted();
 await writeFile(receipt, JSON.stringify(result, null, 2) + '\n');
 console.log(`Installed Worker stopped its ACP process and reconciled only the original Run. Receipt: ${receipt}`);
