@@ -12,6 +12,26 @@ FIXTURE = Path(__file__).resolve().parents[3] / 'packages/notebook/test/fixtures
 
 
 class SnapshotContractTests(unittest.TestCase):
+    def test_fisher_evidence_and_finding_round_trip_with_exact_reference(self):
+        receipt = json.loads(FIXTURE.with_name('fisher-evidence-receipt.json').read_text())
+        snapshot = receipt['snapshot']
+        digest = receipt['id']
+        identity = snapshot['itemId']
+        source = dict(app='paper-agent', kind='fisher-attempt', id=identity, version=digest,
+                      locator=f"pero-app-location://paper-agent/main/fisher/{identity}/attempt/{snapshot['attemptId']}/receipt/{digest}")
+        finding = dict(type='finding', attrs=dict(blockId='finding', claim='Exact numeric result matched.',
+                                                  limitations='Paper not assessed.', evidenceIds=['source']))
+        def document(snap, reference):
+            evidence = dict(type='evidence', attrs=dict(blockId='source', label='Fisher', source=reference, snapshot=snap))
+            return dict(schemaVersion=1, title='Fisher reproduction', content=dict(type='doc', content=[evidence, finding]))
+        original = document(snapshot, source)
+        self.assertEqual(NotebookDocument.parse(original).wire(), original)
+        for changes in ({'exactNumerator': 5}, {'page': 3}, {'paperVerdict': 'PASS'}, {'exactDenominator': 2**53}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                NotebookDocument.parse(document({**snapshot, **changes}, source))
+        with self.assertRaises(ValueError):
+            NotebookDocument.parse(document(snapshot, {**source, 'locator': source['locator'] + '?latest=1'}))
+
     def test_portable_snapshot_shapes(self):
         fixture = json.loads(FIXTURE.read_text())
         for case in fixture['cases']:

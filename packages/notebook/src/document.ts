@@ -1,4 +1,5 @@
 import type { PaperCitationEvidence } from "./paper-evidence.ts";
+import type { FisherEvidenceSnapshot } from "./fisher-evidence.ts";
 import type { ControlEvidenceSnapshot } from "./control-evidence.ts";
 import type { TemplateOrigin } from "./templates.ts";
 import type { EntryIdentity, EntryNotice } from "./entry-record.ts";
@@ -33,7 +34,7 @@ export interface ScientificReference {
   locator: string;
 }
 
-export type ReferenceSnapshot = (PaperCitationEvidence & { kind: "paper-report" }) | ControlEvidenceSnapshot;
+export type ReferenceSnapshot = (PaperCitationEvidence & { kind: "paper-report" }) | ControlEvidenceSnapshot | FisherEvidenceSnapshot;
 
 /** Completeness of the recorded identity, not verification by the owning App. */
 export type ScientificReferenceState = "missing" | "partial" | "unpinned" | "pinned";

@@ -16,6 +16,7 @@
     "./spreadsheet-range": "./src/spreadsheet-range.ts",
     "./sheet-operations": "./src/sheet-operations.ts",
     "./paper-evidence": "./src/paper-evidence.ts",
+    "./fisher-evidence": "./src/fisher-evidence.ts",
     "./control-evidence": "./src/control-evidence.ts",
     "./science-sequence": "./src/science-sequence.ts",
     "./science-thermodynamics": "./src/science-thermodynamics.ts",
