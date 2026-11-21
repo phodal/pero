@@ -61,8 +61,9 @@ fn resource(app: &str, kind: &str, id: String, revision: String, title: String, 
     if id.len() != length || !id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
         return Err("App returned an invalid resource identity".into());
     }
-    let location = format!("pero-app-location://{app}/main/{kind}/{id}");
     let reference = ProjectResourceRef::new(app.into(), kind.into(), id, revision).map_err(|error| error.to_string())?;
+    let location = reference.notebook_revision_location()
+        .unwrap_or_else(|| format!("pero-app-location://{app}/main/{kind}/{}", reference.id));
     Ok(ProjectResourceSummary { reference, title, summary, status, verification: None, location })
 }
 
@@ -165,7 +166,7 @@ mod tests {
         let catalog:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"a".repeat(32),"title":"Actual saved notebook","revision":7,"updatedAt":"2026-11-09T00:00:00Z"}]})).unwrap();
         let row=catalog.resources().unwrap().remove(0);
         assert_eq!(row.reference.app,"notebook");assert_eq!(row.reference.kind,"entry");assert_eq!(row.reference.revision,"7");
-        assert_eq!(row.location,format!("pero-app-location://notebook/main/entry/{}","a".repeat(32)));
+        assert_eq!(row.location,format!("pero-app-location://notebook/main/entry/{}/revision/7","a".repeat(32)));
         assert_eq!(row.status,"saved");assert_eq!(row.verification,None);
         let invalid:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"../file","title":"Invalid","revision":1,"updatedAt":""}]})).unwrap();
         assert!(invalid.resources().is_err());

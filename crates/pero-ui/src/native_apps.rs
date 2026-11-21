@@ -212,9 +212,7 @@ impl NativeApps {
         std::thread::spawn(move || {
             if value["action"] == "apps_project_resources" {
                 let app = value["name"].as_str().unwrap_or("").to_string();
-                let result = if matches!(app.as_str(), "paper-agent" | "control-lab" | "lab") {
-                    this.request::<pero_contracts::project_resources::ProjectResourceCatalog>("projectresources", json!({"name":app}))
-                } else { Err(anyhow::anyhow!("This App has no project resource catalog")) };
+                let result = this.request::<pero_contracts::project_resources::ProjectResourceCatalog>("projectresources", json!({"name":app}));
                 let catalog = result.unwrap_or_else(|error| pero_contracts::project_resources::ProjectResourceCatalog { app, resources: Vec::new(), error: Some(error.to_string()) });
                 let mut event = HostEvent::new("project_resources", value["request_id"].as_str().map(str::to_string), String::new());
                 event.data = serde_json::to_value(catalog).expect("Public resource catalog");

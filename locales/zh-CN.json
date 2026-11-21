@@ -1043,6 +1043,7 @@
   "research.loading": "正在读取记录…",
   "research.retry": "重试",
   "research.missing": "原记录已删除或无法找到，项目仍保留关联引用。",
+  "research.notebook_changed": "有更新的修订。打开仍会显示已关联的修订。",
   "research.changed": "原记录已变化，当前显示最新内容；关联版本尚未更新。",
   "research.update_reference": "更新关联版本",
   "research.paper": "论文",

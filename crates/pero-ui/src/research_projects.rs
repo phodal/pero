@@ -569,6 +569,12 @@ impl Workbench {
         } else {
             "Lab"
         };
+        let href = if reference.is_notebook_entry() {
+            reference.notebook_revision_location()
+        } else {
+            current.map(|record| record.location.clone())
+        };
+        let open_label = format!("{} {title}", self.t("project.open"));
         let remove = reference.clone();
         div()
             .py(px(8.))
@@ -591,13 +597,12 @@ impl Workbench {
                             .font_weight(FontWeight::MEDIUM)
                             .child(title),
                     )
-                    .when_some(current, |el, record| {
-                        let href = record.location.clone();
+                    .when_some(href, |el, href| {
                         el.child(
                             Button::new(("resource-open", index))
                                 .ghost()
                                 .label(self.t("project.open"))
-                                .accessibility_label(format!("{} {}", self.t("project.open"), record.title))
+                                .accessibility_label(open_label)
                                 .relative()
                                 .child(self.view_bounds.projects.probe(format!("resource-open:{index}")))
                                 .on_click(
@@ -627,7 +632,7 @@ impl Workbench {
                     .gap(px(12.))
                     .text_size(px(12.))
                     .text_color(p.text_muted)
-                    .child(app_label)
+                    .child(if reference.is_notebook_entry() { format!("{app_label} · v{}", reference.revision) } else { app_label.to_string() })
                     .when_some(current, |el, record| {
                         let summary = match record.summary.as_str() {
                             "simulation" => self.t("research.simulation"),
@@ -688,7 +693,7 @@ impl Workbench {
                     div()
                         .text_color(p.warning)
                         .whitespace_normal()
-                        .child(self.t("research.changed")),
+                        .child(self.t(if reference.is_notebook_entry() { "research.notebook_changed" } else { "research.changed" })),
                 )
                 .child(
                     Button::new(("resource-update", index))

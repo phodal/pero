@@ -1043,6 +1043,7 @@
   "research.loading": "Loading records…",
   "research.retry": "Retry",
   "research.missing": "The original record is missing. Its reference remains in this project.",
+  "research.notebook_changed": "A newer revision is available. Open still shows the linked revision.",
   "research.changed": "The original record changed. Showing its latest content; the linked revision is unchanged.",
   "research.update_reference": "Update linked revision",
   "research.paper": "Paper",

@@ -47,8 +47,10 @@ acceptance.
 
 An observed catalog revision identifies the public record summary returned by
 its owning App. Except for paper content digests, it does not establish a
-frozen full source/result version. Reopening a link follows the current App
-record; a changed revision requires explicit project-reference update.
+frozen full source/result version. Paper and experiment links follow the owning
+App's current record. Notebook entry links instead open the exact saved revision
+read-only and do not fall back to the current entry. A changed revision requires
+an explicit project-reference update.
 
 No test in the deterministic evidence above establishes real-provider Agent
 execution, solver accuracy, reproducibility of a scientific claim, physical Lab
