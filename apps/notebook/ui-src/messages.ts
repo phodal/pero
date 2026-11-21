@@ -233,6 +233,7 @@ export const messages = {
   unsaved: { en: 'Unsaved changes', zh: '有未保存的更改' },
   saving: { en: 'Saving…', zh: '正在保存…' },
   revision: { en: 'Revision {number}', zh: '修订 {number}' },
+  revisionUnavailable: { en: 'Could not open linked revision {number}.', zh: '无法打开已关联的修订 {number}。' },
   history: { en: 'Revision history', zh: '修订历史' },
   backToDraft: { en: 'Return to current notebook', zh: '返回当前笔记' },
   discard: { en: 'Discard local draft', zh: '放弃本地草稿' },

@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { chromium, expect } from '@playwright/test';
 
 // Match the Workbench App sandbox: scripts and same-origin I/O, no native dialogs.
-test('Notebook deletion confirms inside the App sandbox and survives reload', { timeout: 60_000 }, async t => {
+test('Notebook links reopen saved revisions and deletion confirms inside the App sandbox', { timeout: 60_000 }, async t => {
   const app = resolve(import.meta.dirname, '..');
   const directory = await mkdtemp(resolve(tmpdir(), 'pero-notebook-delete-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -33,6 +33,14 @@ test('Notebook deletion confirms inside the App sandbox and survives reload', { 
     const response = await api('/api/entries', { method: 'POST', body: JSON.stringify({ title }) });
     assert.equal(response.status, 201);
     entries.push(await response.json());
+  }
+  const selectedPath = `/api/entries/${entries[1].id}`;
+  for (const [baseRevision, title] of [[1, 'Revision two'], [2, 'Linked revision three'], [3, 'Selected notebook']]) {
+    const response = await api(selectedPath, {
+      method: 'POST', body: JSON.stringify({ baseRevision, document: { ...entries[1].document, title } }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).revision, baseRevision + 1);
   }
   const files = new Map(await Promise.all([
     ['/', 'index.html', 'text/html'], ['/index.js', 'index.js', 'text/javascript'], ['/index.css', 'index.css', 'text/css'],
@@ -65,6 +73,21 @@ test('Notebook deletion confirms inside the App sandbox and survives reload', { 
   const title = page.getByRole('textbox', { name: 'Notebook title', exact: true });
   await rows.filter({ hasText: 'Selected notebook' }).locator('.pero-list-open').click();
   await expect(title).toHaveValue('Selected notebook');
+  const openRevision = revision => page.evaluate(({ id, revision }) => window.postMessage({
+    type: 'pero:app:location', location: `entry/${id}/revision/${revision}`,
+  }, location.origin), { id: entries[1].id, revision });
+  await openRevision(3);
+  await expect(title).toHaveValue('Linked revision three');
+  await expect(title).toHaveAttribute('readonly', '');
+  await expect(page.locator('.notebook-status')).toHaveText('Revision 3');
+  await page.getByRole('button', { name: 'Return to current notebook', exact: true }).click();
+  await expect(title).toHaveValue('Selected notebook');
+  await openRevision(99);
+  await expect(page.getByText(/Could not open linked revision 99/)).toBeVisible();
+  await expect(title).toHaveCount(0);
+  await page.getByRole('button', { name: 'Return to current notebook', exact: true }).click();
+  await expect(title).toHaveValue('Selected notebook');
+
   const openDelete = async name => {
     await rows.filter({ hasText: name }).getByRole('button', { name: 'Notebook actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
@@ -84,7 +107,6 @@ test('Notebook deletion confirms inside the App sandbox and survives reload', { 
   assert.deepEqual(deletions, []);
 
   // Failure retains the target and current editor, with an explicit retry.
-  const selectedPath = `/api/entries/${entries[1].id}`;
   await page.route('**' + selectedPath, route => route.request().method() === 'DELETE'
     ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Deletion temporarily unavailable' }) })
     : route.continue());
