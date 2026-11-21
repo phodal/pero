@@ -106,8 +106,20 @@ model NotebookSavedEntry {id:string;title:string;revision:string;...AppClosed}
 model NotebookProjectsReply {state?:string;summary?:string;projects?:NotebookProjectSummary[];entries?:NotebookSavedEntry[];...AppClosed}
 model ProjectResourcesApp { action: "projectresources"; name: AppName; ...RequestBase; }
 /** An App catalog observation; revisions do not claim complete experimental provenance. */
-model ProjectResourceReference { app: string; kind: string; id: string; revision: string; ...AppClosed; }
-model ProjectResourceSummary { reference: ProjectResourceReference; title: string; summary: string; status: string; verification?: string | null; location: string; ...AppClosed; }
+@minLength(1) @maxLength(128) @pattern("^[A-Za-z0-9_-]+$") scalar ProjectResourceId extends string;
+@minLength(1) @maxLength(128) @pattern("^[A-Za-z0-9._:-]+$") scalar ProjectObservedRevision extends string;
+model PaperProjectResourceRef { app: "paper-agent"; kind: "paper" | "study"; id: ProjectResourceId; revision: ProjectObservedRevision; ...AppClosed; }
+model ExperimentProjectResourceRef { app: "control-lab" | "lab"; kind: "experiment"; id: ProjectResourceId; revision: ProjectObservedRevision; ...AppClosed; }
+model NotebookEntryProjectResourceRef {
+  app: "notebook";
+  kind: "entry";
+  @pattern("^[a-f0-9]{32}$") id: string;
+  // Canonical decimal spelling of NotebookRevision (1..2147483647), kept as a string on Project links.
+  @pattern("^(?:[1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])$") revision: string;
+  ...AppClosed;
+}
+@oneOf union ProjectResourceRef { PaperProjectResourceRef, ExperimentProjectResourceRef, NotebookEntryProjectResourceRef }
+model ProjectResourceSummary { reference: ProjectResourceRef; title: string; summary: string; status: string; verification?: string | null; location: string; ...AppClosed; }
 model ProjectResourceCatalog { app: string; resources: ProjectResourceSummary[]; error?: string | null; ...AppClosed; }
 model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }
 /** User-managed inventory; skill instructions do not grant execution permissions. */
