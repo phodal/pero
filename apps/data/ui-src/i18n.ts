@@ -7,6 +7,8 @@ export const messages: AppMessages = {
   emptyDescription: { en: 'Add a dataset or model file. Keep original files and version history together.', zh: '导入数据集或模型文件，集中保存原始文件与版本记录。' },
   loading: { en: 'Loading data…', zh: '正在加载数据…' },
   unavailable: { en: 'Data is unavailable.', zh: '暂时无法加载数据。' },
+  invalidVersionLocation: { en: 'Invalid Data version link.', zh: '数据版本链接无效。' },
+  missingVersionLocation: { en: 'This exact Data version is not in the catalog. No other version was opened.', zh: '目录中不存在此数据版本，未打开其他版本。' },
   retry: { en: 'Retry', zh: '重试' },
   refresh: { en: 'Refresh', zh: '刷新' },
   close: { en: 'Close', zh: '关闭' },

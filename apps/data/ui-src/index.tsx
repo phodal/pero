@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppApiError, AppConversation, downloadFile, openDocument, useAppApi, useAppChat, useAppContext, useAppDataChanged, useAppI18n, useAppObject, useNavigate } from '@pero/app-sdk';
 import { AppFrame, Button, Checkbox, ContentPane, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, EmptyState, EmptyIllustration, Feedback, Icon, IconButton, LibraryHeader, ListRow, LoadingSkeleton, SkeletonBlock, SkeletonText, Progress, SearchField, Select, Split, SplitPane, contentLayout } from '@pero/app-sdk/ui';
-import { availabilityLabel, canInspect, emptyView, encodeBytes, fieldRule, formatBytes, formatDay, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
+import { availabilityLabel, canInspect, datasetVersionLocation, emptyView, encodeBytes, fieldRule, formatBytes, formatDay, parseDatasetVersionLocation, querySchema, retainSelection, sampleRows, summary, visibleDatasets,
   type CatalogState, type Dataset, type Inspection, type InspectionOutcome, type OkInspection, type SavedView, type Selection, type ViewSpec } from './model';
 import { ImportDialog, type ImportDetails } from './import';
 import { Workspace } from './workspace';
@@ -29,6 +29,7 @@ export default function Data() {
   const { t } = useAppI18n(messages);
   const [state, setState] = useState<CatalogState | null>(null);
   const [focus, setFocus] = useState<Focus>(focused(null, ''));
+  const [pinnedVersion, setPinnedVersion] = useState<Selection | null | undefined>(undefined);
   const [query, setQuery] = useState(''), [project, setProject] = useState(''), [kind, setKind] = useState(''), [archived, setArchived] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
@@ -44,8 +45,10 @@ export default function Data() {
   const libraryTitle = useRef<HTMLSpanElement>(null);
   const pending = useRef(false), requests = useRef(0), home = useRef(false);
   const visible = state ? visibleDatasets(state, query, project, archived, kind) : [];
-  const dataset = visible.find(item => item.id === focus.selection?.datasetId) ?? null;
-  const asset = dataset ? state?.assets.find(item => item.id === focus.selection?.assetId) ?? null : null;
+  const selection = pinnedVersion === undefined ? focus.selection : pinnedVersion;
+  const dataset = (pinnedVersion === undefined ? visible : state?.datasets)?.find(item =>
+    item.id === selection?.datasetId && item.versions.includes(selection.assetId)) ?? null;
+  const asset = dataset ? state?.assets.find(item => item.id === selection?.assetId) ?? null : null;
   const selectedId = dataset?.id, assetId = asset?.id;
   const inspectionScope = JSON.stringify([selectedId, assetId, asset?.sha256, asset?.availability, focus.parserVersion]);
   const sameInput = snapshot?.scope === inspectionScope ? snapshot : null;
@@ -89,6 +92,18 @@ export default function Data() {
 
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useAppDataChanged(() => refresh());
+  useEffect(() => {
+    const open = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
+      const version = parseDatasetVersionLocation(event.data.location);
+      setPinnedVersion(version);
+      setFocus(previous => focused(version, previous.parserVersion));
+      setSnapshot(null); setFieldSnapshot(null); setInspectionEpoch(value => value + 1);
+      setTab('overview'); setNotice(''); setError('');
+    };
+    window.addEventListener('message', open);
+    return () => window.removeEventListener('message', open);
+  }, []);
   const downloadStatus = state?.download ? `${state.download.id}:${state.download.status}` : '';
   useEffect(() => {
     const previous = seenDownload.current;
@@ -107,7 +122,7 @@ export default function Data() {
 
   useEffect(() => {
     if (!active) { setInspecting(false); return; }
-    if (!selectedId || !assetId || !asset || !canInspect(asset)) { setSnapshot(null); setFieldSnapshot(null); setInspecting(false); return; }
+    if (!selectedId || !assetId || !asset || (!pinnedVersion && !canInspect(asset))) { setSnapshot(null); setFieldSnapshot(null); setInspecting(false); return; }
     let current = true;
     setInspecting(true);
     void api.post<Inspection>('/api/inspect', { datasetId: selectedId, assetId, view: focus.view,
@@ -133,7 +148,7 @@ export default function Data() {
       if (cause instanceof AppApiError && [401, 403, 404, 409].includes(cause.status)) setFieldSnapshot(null);
     }).finally(() => { if (current) setInspecting(false); });
     return () => { current = false; };
-  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, inspectionEpoch, api]);
+  }, [active, selectedId, assetId, focus.view, focus.offset, focus.parserVersion, inspectionScope, inspectionEpoch, pinnedVersion, api]);
 
   async function perform(work: () => Promise<unknown>) {
     if (pending.current) return false;
@@ -144,6 +159,7 @@ export default function Data() {
 
   function choose(value: Dataset, version = value.versions[value.versions.length - 1]) {
     home.current = false;
+    setPinnedVersion(undefined);
     if (value.id !== focus.selection?.datasetId) setTab('overview');
     setFocus(focused({ datasetId: value.id, assetId: version }, state!.parserVersion));
     setNotice('');
@@ -228,12 +244,14 @@ export default function Data() {
   const openImport = () => { setError(''); setImportTarget(null); };
   const shareReference = () => {
     if (!dataset || !asset) return;
-    const body = JSON.stringify({ type: 'pero-dataset', datasetId: dataset.id, assetId: asset.id, name: dataset.name, sha256: asset.sha256, source: asset.source, revision: asset.revision }, null, 2);
+    const body = JSON.stringify({ type: 'pero-dataset', datasetId: dataset.id, assetId: asset.id,
+      locator: datasetVersionLocation({ datasetId: dataset.id, assetId: asset.id }), name: dataset.name, sha256: asset.sha256, source: asset.source, revision: asset.revision }, null, 2);
     void navigator.clipboard?.writeText(body).then(() => setNotice(t('shareCopied'))).catch(() => setNotice(''));
   };
   const openNotebook = () => { void navigate('/apps/notebook/main'); };
   const clearSelection = () => {
     home.current = true;
+    setPinnedVersion(undefined);
     setFocus(previous => ({ ...previous, selection: null }));
     setShowChat(false);
     libraryTitle.current?.focus();
@@ -271,6 +289,10 @@ export default function Data() {
           <Button disabled={busy} onClick={() => setHiddenDownloadId(download.id)}>{t('close')}</Button></>}
       {download.error ? <span>{download.error}</span> : null}
     </div> : null}
+    {state && pinnedVersion !== undefined && (!dataset || !asset) ? <Feedback kind="error" variant="block">
+      {t(pinnedVersion === null ? 'invalidVersionLocation' : 'missingVersionLocation')}
+      <Button onClick={clearSelection}>{t('close')}</Button>
+    </Feedback> : null}
     {loading ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton> : !state ? <Feedback kind="error" variant="block">{error || t('unavailable')} <Button onClick={() => void refresh(true)}>{t('retry')}</Button></Feedback>
       : !state.datasets.length ? <EmptyState className="data-first-use" icon={<EmptyIllustration kind="data" />} heading={<h2>{t('emptyHeading')}</h2>} description={t('emptyDescription')} />
       : <Split storageKey="pero.data.catalog-width" collapseBelow={contentLayout.collapseBelow}>
@@ -332,7 +354,7 @@ export default function Data() {
               canAsk={hostPresent()}
               onEdit={value => perform(async () => { adopt(await api.post<CatalogState>('/api/datasets/update', { datasetId: dataset.id, ...value })); setNotice(value.archived ? t('archivedNotice') : t('savedNotice')); })}
               onSave={name => { void perform(async () => { adopt(await api.post<CatalogState>('/api/views', { name, preview: { datasetId: dataset.id, assetId: asset.id, view: focus.view, parserVersion: focus.parserVersion } })); setNotice('View and checks saved against this exact version.'); }); }}
-              onOpen={(saved: SavedView) => { home.current = false; setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}
+              onOpen={(saved: SavedView) => { home.current = false; setPinnedVersion(undefined); setFocus({ selection: { datasetId: saved.datasetId, assetId: saved.assetId }, view: saved.view, offset: 0, parserVersion: saved.report.parserVersion }); setNotice('Opened the saved version and view. Current bytes are checked again.'); }}
               onExport={saved => { const source = state.assets.find(item => item.id === saved.assetId)!; downloadFile(`${saved.name.replace(/[^a-z0-9_-]+/gi, '-') || 'dataset'}-reference.json`, JSON.stringify({ schemaVersion: 1, type: 'pero-dataset-view', ...saved, source: { name: source.name, kind: source.kind, size: source.size, source: source.source, revision: source.revision, license: source.license, sha256: source.sha256, bundleId: source.bundleId, sourceId: source.sourceId } }, null, 2), 'application/json'); }}
               onRecord={row => void perform(() => loadSource(row))}
               objectActions={objectActions} onOpenNotebook={openNotebook} onDismiss={clearSelection} />

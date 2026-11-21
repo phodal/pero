@@ -48,6 +48,17 @@ export type CatalogState = {
   selectedDatasetId?: string; selectedAssetId?: string; savedViewId?: string;
 };
 export type Selection = { datasetId: string; assetId: string };
+
+// Data catalog versions use the asset ID, never an ordinal or "latest".
+export function parseDatasetVersionLocation(path: string): Selection | null {
+  const match = /^(?:pero-app-location:\/\/data\/main\/)?dataset\/(ds-[a-f0-9]{32})\/version\/([a-f0-9]{32})$/.exec(path);
+  return match && match[0] === path ? { datasetId: match[1], assetId: match[2] } : null;
+}
+
+export function datasetVersionLocation({ datasetId, assetId }: Selection): string {
+  return `pero-app-location://data/main/dataset/${datasetId}/version/${assetId}`;
+}
+
 export type InspectionRow = { row: number; pointer: string; line: number | null; cells: { kind: string; text: string; exact?: string; conversionError?: string }[] };
 export type OkInspection = {
   status: 'ok'; datasetId: string; assetId: string; sha256: string; report: Report;

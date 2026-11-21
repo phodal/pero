@@ -310,3 +310,45 @@ test('explicit CSV interpretation, issue evidence and pinned saved views survive
     throw error;
   }
 });
+
+test('Data version links open retained bytes and never fall back', async t => {
+  const { page, request, restart } = await fixture(t);
+  const add = (name, content, datasetId) => request('/api/import', {
+    name, kind: 'dataset', source: 'Local files', license: 'Unknown',
+    content: Buffer.from(content).toString('base64'), ...(datasetId ? { datasetId } : {}),
+  });
+  const old = await add('old.csv', 'value\noriginal\n');
+  const current = await add('latest.csv', 'value\nnewer\n', old.selectedDatasetId);
+  const other = await add('other.csv', 'value\nunrelated\n');
+  await restart();
+  const prefix = `dataset/${old.selectedDatasetId}/version/`;
+  const open = location => page.evaluate(location => {
+    window.postMessage({ type: 'pero:app:location', location }, '*');
+  }, location);
+  const table = page.getByRole('tab', { name: 'Table', exact: true });
+  const asset = old.assets.find(asset => asset.id === old.selectedAssetId);
+  await open(prefix + old.selectedAssetId);
+  await expect(page.getByRole('region', { name: 'Basic info', exact: true }).locator('code', { hasText: asset.sha256 })).toBeVisible();
+  await table.click();
+  await expect(page.getByRole('cell', { name: 'original', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'newer', exact: true })).toHaveCount(0);
+  for (const missing of [other.selectedAssetId, '0'.repeat(32)]) {
+    await open(prefix + missing);
+    await expect(page.getByText('This exact Data version is not in the catalog. No other version was opened.')).toBeVisible();
+    await expect(table).toHaveCount(0);
+  }
+  await open(prefix + 'latest');
+  await expect(page.getByText('Invalid Data version link.')).toBeVisible();
+  await expect(table).toHaveCount(0);
+  await writeFile(asset.location, 'value\nmodified\n'); // Same size as admitted content.
+  await open(prefix + old.selectedAssetId);
+  await expect(page.getByRole('alert').filter({ hasText: 'Original bytes no longer match the stored SHA-256' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'original', exact: true })).toHaveCount(0);
+  await rm(asset.location);
+  await open(prefix + old.selectedAssetId);
+  await expect(page.getByRole('alert').filter({ hasText: 'Original file is missing' })).toBeVisible();
+  await open(prefix + current.selectedAssetId);
+  await table.click();
+  await expect(page.getByRole('cell', { name: 'newer', exact: true })).toBeVisible();
+  await page.screenshot({ path: resolve(output, 'dataset-version-link.png'), fullPage: true });
+});

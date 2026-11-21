@@ -191,6 +191,20 @@ class CatalogWorkspaceTests(unittest.TestCase):
         self.assertNotEqual(reopened.inspect(request_for(reopened, second))['report'], before['report'])
         self.assertEqual((reopened.files / first.id).read_bytes(), b'id,value\n001,2\n002,\n001,2\n')
         self.assertNotIn('location', json.dumps(saved.public()))
+        foreign = import_into(reopened, name='foreign.csv')
+        for missing in (foreign.id, '0' * 32):
+            result = reopened.inspect(PreviewRequest.parse(dict(datasetId=dataset.id, assetId=missing)))
+            self.assertEqual((result['status'], result['assetId']), ('invalid', missing))
+            self.assertNotIn('rows', result)
+        original = reopened.files / first.id
+        original.write_bytes(b'X' * first.size)
+        for expected in ('changed', 'missing'):
+            result = reopened.inspect(request_for(reopened, first))
+            self.assertEqual((result['status'], result['assetId']), (expected, first.id))
+            self.assertNotIn('rows', result)
+            if expected == 'changed':
+                original.unlink()
+
 
     def test_legacy_migration_preserves_asset_and_bundle_ids_and_original_bytes(self):
         original = import_into(self.catalog)
