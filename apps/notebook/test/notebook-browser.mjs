@@ -167,7 +167,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const evidence = page.locator('.notebook-reference-panel');
   const paperExport = await readFile(resolve(app, '../../packages/notebook/test/fixtures/paper-report.json'));
   const owner = JSON.parse(paperExport);
-  await evidence.locator('input[type=file]').setInputFiles({
+  await evidence.getByLabel('Import Paper report JSON', { exact: true }).setInputFiles({
     name: 'paper-report.json', mimeType: 'application/json', buffer: paperExport,
   });
   await evidence.getByRole('button', { name: 'Choose a citation' }).click();
@@ -184,7 +184,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   const experimentTrigger = page.locator('[data-kind=experiment] .notebook-reference-trigger');
   await experimentTrigger.click();
   const experiment = page.locator('.notebook-reference-panel');
-  await experiment.locator('input[type=file]').setInputFiles({
+  await experiment.getByLabel('Import Control Lab export JSON', { exact: true }).setInputFiles({
     name: 'control-export.json', mimeType: 'application/json', buffer: controlExport,
   });
   await experiment.getByRole('button', { name: 'Choose a trial receipt' }).click();
@@ -239,7 +239,7 @@ test('Notebook saves an Excel workbook, cell evidence and revisions through its 
   await evidence.getByRole('button', { name: 'Block actions', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Edit reference', exact: true }).click();
   await expect(evidence.getByRole('button', { name: 'Import Paper report JSON' })).toBeVisible();
-  await evidence.locator('input[type=file]').setInputFiles({
+  await evidence.getByLabel('Import Paper report JSON', { exact: true }).setInputFiles({
     name: 'invalid-report.json', mimeType: 'application/json', buffer: Buffer.from('{invalid'),
   });
   await expect(evidence.getByText('Paper Agent export must be valid UTF-8 JSON.')).toBeVisible();

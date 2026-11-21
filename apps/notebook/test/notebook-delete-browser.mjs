@@ -77,8 +77,9 @@ test('Notebook links reopen saved revisions and deletion confirms inside the App
     type: 'pero:app:location', location: `entry/${id}/revision/${revision}`,
   }, location.origin), { id: entries[1].id, revision });
   await openRevision(3);
-  await expect(title).toHaveValue('Linked revision three');
-  await expect(title).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('heading', { level: 1, name: 'Linked revision three', exact: true })).toBeVisible();
+  await expect(title).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Notebook content', exact: true })).toHaveAttribute('contenteditable', 'false');
   await expect(page.locator('.notebook-status')).toHaveText('Revision 3');
   await page.getByRole('button', { name: 'Return to current notebook', exact: true }).click();
   await expect(title).toHaveValue('Selected notebook');
