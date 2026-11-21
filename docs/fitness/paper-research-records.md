@@ -258,3 +258,31 @@ initial unstaged-parser run failed two isolated subprocess checks; using the
 repository's existing packaging step resolved them without source changes.
 The exact legacy PC-Gym revision digest is also pinned against the unchanged
 baseline fixture. No real Fisher PDF run is included in these totals.
+
+## Original-PDF acceptance update — 2026-11-21 (#79)
+
+The earlier opt-in skips above are superseded by this Mac run on exact revision
+`f0c2d7a18d6a06e2aea9c9ec617ced67b8b36c7c`. The original 494,926-byte Fisher
+scan was recovered from the existing [Fisher browser CI artifact][fisher-ci-scan].
+Only the PDF bytes were reused, not its checker code or prior results. The input
+matched the fixed SHA-256
+`d3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740`.
+
+- **Fisher Python:** 21/21 passed with the original PDF and no skips.
+  The fresh numerical recomputation was exactly 95717/5000 (19.1434 cm²),
+  the within-species sum of squares. The whole paper remains
+  `NOT_ASSESSED`. The owner rejects changed or missing evidence and
+  does not substitute a newer attempt.
+- **Paper Python:** 386 tests, 382 passed, 4 skipped, exit 0.
+- **Chromium (Paper):** opened the original Table III region, froze and ran
+  the computation, and exercised both the refs-only Notebook JSON download
+  and the explicit standalone ZIP export.
+- **Local Host (Paper/Notebook/Project):** generated a fresh checked receipt,
+  saved it as Evidence cited by a Finding, and pinned Notebook revision 3.
+  After revision 4 was saved without the receipt, the Project still resolved
+  the exact Finding and Evidence in revision 3.
+
+These are local runtime and Paper browser checks, not a full Native GUI
+click-through or a cross-machine, cross-researcher handoff acceptance.
+
+[fisher-ci-scan]: https://github.com/phodal/pero/actions/runs/42361812076/artifacts/13570062658
