@@ -69,6 +69,7 @@ func run() (resultErr error) {
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
+	execServer := flag.String("shell-exec-server", "", "absolute Codex executable for the native foreground shell tool on macOS/Linux (stdio)")
 	enableShell := flag.Bool("enable-shell", false, "enable approved shell execution (Unix unsandboxed unless --sandbox supplied; Windows requires windows-acl; requires --workspace)")
 	scienceEnv := flag.Bool("science-env", false, "enable persistent python, repl, and r kernels in --workspace; repl host.mcp calls this agent's MCP tools; requires approval")
 	sciencePython := flag.String("science-python", "python3", "Python interpreter for the python and repl kernels")
@@ -127,6 +128,9 @@ func run() (resultErr error) {
 	}
 	if (*initOnly || *maintenance || *printMode) && *workspace == "" {
 		return errors.New("--init-only, --maintenance, and --print require --workspace")
+	}
+	if *execServer != "" && !*enableShell {
+		return errors.New("--shell-exec-server requires --enable-shell")
 	}
 	if (*enableShell || *enableResearchClone) && *workspace == "" {
 		return errors.New("--enable-shell / --enable-research-clone requires --workspace")
@@ -271,7 +275,7 @@ func run() (resultErr error) {
 		return err
 	}
 	if *workspace != "" {
-		nativeOptions := nativetools.Options{SpillStore: spillStore, Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, Sandbox: sandboxConfig, ClaudeTools: toolFormat == "claude", PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
+		nativeOptions := nativetools.Options{SpillStore: spillStore, Workspace: *workspace, EnableShell: *enableShell, EnableResearchClone: *enableResearchClone, Shell: *shellPath, ExecServer: *execServer, Sandbox: sandboxConfig, ClaudeTools: toolFormat == "claude", PDFRendererPath: *pdfRenderer, DeferToolLoading: *deferToolLoading, BashEnvFile: func(agent *harness.Agent) string {
 			if pluginHooks == nil {
 				return ""
 			}

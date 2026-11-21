@@ -68,3 +68,13 @@ mode. Native composition owns exact-agent handles, approval and durable startup
 intent. macOS real-process/race tests passed; Linux and Windows cross-compilation
 do not establish native runtime support. Windows and configured sandbox PTYs are
 unavailable.
+
+### Codex exec-server for foreground Shell
+
+With an operator-installed Codex CLI, pass
+`--enable-shell --tool-format native --shell-exec-server /absolute/path/to/codex`
+to `pero-agent-acp`. Each native foreground `shell` call gets a private
+`codex exec-server --listen stdio` process. Pero supplies the approved command,
+workspace, sandbox wrapper and environment, collects both output streams, and
+requests termination when the caller cancels. The default executor runs locally
+in Go. The opt-in transport was verified with codex-cli 0.154.0 on macOS arm64.

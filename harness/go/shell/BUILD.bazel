@@ -6,6 +6,7 @@ go_library(
         "claude_allow.go",
         "claude_output.go",
         "claude_status.go",
+        "exec_server.go",
         "file_capture.go",
         "local.go",
         "output.go",

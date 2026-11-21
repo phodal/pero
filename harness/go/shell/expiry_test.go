@@ -5,8 +5,11 @@ package shell
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -82,5 +85,49 @@ func TestTrustedExtendedTimeoutRetainsConfiguredCap(t *testing.T) {
 	}
 	if _, err := executor.Resolve(ExecRequest{Command: "true", OnExpiry: "unknown"}); err == nil {
 		t.Fatal("accepted unknown expiry")
+	}
+}
+
+// Opt-in real Codex transport, independent of the Rust Worker's process cleanup.
+func TestExecServerForegroundCancellation(t *testing.T) {
+	path := os.Getenv("PERO_TEST_CODEX_EXECUTABLE")
+	if path == "" {
+		t.Skip("set PERO_TEST_CODEX_EXECUTABLE to the installed Codex binary")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	executor, err := testExecutor(t, LocalOptions{OutputSink: writer}).WithExecServer(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var result RunResult
+	var runErr error
+	go func() {
+		defer close(done)
+		result, runErr = executor.Run(ctx, ExecSpec{Command: "/bin/sleep 60 & child=$!; echo $$ $child; wait $child", Timeout: 10 * time.Second})
+		writer.Close()
+	}()
+	// Both PIDs come from the running shell through process/output.
+	var parent, child int
+	if _, err := fmt.Fscanln(reader, &parent, &child); err != nil {
+		t.Fatal(err)
+	}
+	if parent < 1 || child < 1 {
+		t.Fatal("missing process identity")
+	}
+	cancel()
+	reader.Close()
+	<-done
+	if !errors.Is(runErr, context.Canceled) || !result.Aborted || result.TimedOut || result.CleanupUncertain || result.Stdout.Text != fmt.Sprintf("%d %d\n", parent, child) {
+		t.Fatalf("cancelled receipt: %+v, %v", result, runErr)
+	}
+	for _, pid := range []int{parent, child} {
+		if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+			t.Fatalf("process %d after cancellation: %v", pid, err)
+		}
 	}
 }

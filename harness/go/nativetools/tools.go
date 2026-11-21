@@ -20,6 +20,7 @@ import (
 )
 
 type Options struct {
+	ExecServer string
 	// SpillStore enables Session-owned readback of projected tool output.
 	SpillStore          *harness.LocalSpillStore
 	Sandbox             *sandbox.Config
@@ -127,6 +128,9 @@ type toolDefinition struct {
 func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, resultErr error) {
 	if h == nil {
 		return nil, errors.New("native tools require harness")
+	}
+	if opts.ExecServer != "" && (opts.ClaudeTools || !opts.EnableShell) {
+		return nil, errors.New("exec-server requires the native foreground shell tool")
 	}
 	if opts.Sandbox != nil {
 		if !opts.EnableShell {
@@ -241,6 +245,13 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 			}
 		}
 		if opts.EnableShell {
+			foreground := executor
+			if opts.ExecServer != "" {
+				foreground, err = executor.WithExecServer(opts.ExecServer)
+				if err != nil {
+					return nil, err
+				}
+			}
 			if opts.Sandbox != nil && opts.Sandbox.Backend != sandbox.BackendWindowsACL {
 				shellAdmission = func(c context.Context, request harness.ToolRequest) (*harness.NativeApprovalDescriptor, error) {
 					if request.Agent == nil {
@@ -293,11 +304,11 @@ func Mount(ctx context.Context, h *harness.Harness, opts Options) (app *App, res
 				if e := root.CheckCWD(root.Path()); e != nil {
 					return nil, e
 				}
-				spec, e := executor.Resolve(shell.ExecRequest{Command: a.Command, Workdir: root.Path(), Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
+				spec, e := foreground.Resolve(shell.ExecRequest{Command: a.Command, Workdir: root.Path(), Timeout: time.Duration(a.TimeoutMS) * time.Millisecond})
 				if e != nil {
 					return nil, e
 				}
-				result, runErr := executor.Run(c, spec)
+				result, runErr := foreground.Run(c, spec)
 				if runErr == nil && result.ExitCode != nil && *result.ExitCode != 0 && (!opts.ClaudeTools || !shell.ClaudeCommandSucceeded(spec.Command, result.ExitCode)) {
 					runErr = fmt.Errorf("shell exited with code %d", *result.ExitCode)
 				}

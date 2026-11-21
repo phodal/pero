@@ -50,6 +50,7 @@ type LocalOptions struct {
 }
 
 type LocalExecutor struct {
+	execServer                 string
 	sandbox                    *sandbox.Executor
 	windowsACL                 bool
 	shell, cwd                 string
@@ -288,6 +289,12 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 		result.ReadIsolated, result.NetworkIsolated = confined.ReadIsolated, confined.NetworkIsolated
 		env = e.sandbox.Environment()
 	}
+	if err := e.verifyWorkspace(); err != nil {
+		return result, err
+	}
+	if e.execServer != "" {
+		return e.runExecServer(executionCtx, cancel, spec, argv, env, result)
+	}
 	command := exec.Command(argv[0], argv[1:]...)
 	command.Dir, command.Env = spec.Workdir, env
 	// The Windows runner owns ACL rollback. EOF requests cooperative Job Object
@@ -310,9 +317,6 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 	}
 	command.WaitDelay = e.grace
 	configureProcess(command)
-	if err := e.verifyWorkspace(); err != nil {
-		return result, err
-	}
 	if cause := context.Cause(executionCtx); cause != nil {
 		result.TimedOut = errors.Is(cause, ErrTimeout)
 		result.Aborted = !result.TimedOut
