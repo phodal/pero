@@ -46,7 +46,7 @@ function CheckedFisherReceipt({ receipt, onSource }: { receipt: FisherNotebookRe
   const result = receipt.snapshot;
   return <section className="pa-fisher-reproduction" aria-label={t('title')}>
     <h3>{t('title')}</h3>
-    <Button variant="link" onClick={onSource}>{t('source')}</Button>
+    <Button variant="link" data-fisher-receipt-source={receipt.id} onClick={onSource}>{t('source')}</Button>
     <p>{t('result')}: <strong>{result.resultVerdict}</strong></p>
     <p>{t('exact')}: <strong>{result.exactNumerator}/{result.exactDenominator}</strong></p>
     <p>{t('independent')}: <strong>{result.numericRecomputation}</strong></p>

@@ -39,7 +39,7 @@ const api = { post: async (_path, body) => {
   throw Error('Unexpected action');
 } };
 try {
-  await build({ stdin: { contents: `import React,{act} from 'react';import{createRoot}from'react-dom/client';import{AppSdkProvider}from'@pero/app-sdk';import{FisherReproduction}from'${root}/apps/paper-agent/ui-src/fisher-reproduction';export{act};export function mount(api, initial, onSource = ()=>{}){const root=createRoot(document.getElementById('root'));root.render(<AppSdkProvider host={{info:{locale:'en',active:true}}}><FisherReproduction api={api} annotation={{id:'annotation'}} initial={initial} onSource={onSource}/></AppSdkProvider>);return root;}`, loader: 'tsx', resolveDir: root }, outfile: join(output, 'component.mjs'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), ...appSdkAliases(root) } });
+  await build({ stdin: { contents: `import React,{act} from 'react';import{createRoot}from'react-dom/client';import{AppSdkProvider}from'@pero/app-sdk';import{FisherReproduction}from'${root}/apps/paper-agent/ui-src/fisher-reproduction';import{PdfReaderNavigation}from'${root}/apps/paper-agent/ui-src/pdf-reader-navigation';export{act};export function mount(api, initial, onSource = ()=>{}, onNavigate = ()=>{}){const root=createRoot(document.getElementById('root'));root.render(<AppSdkProvider host={{info:{locale:'en',active:true}}}><PdfReaderNavigation view="pdf" receiptId={initial?.receipt?.id} onNavigate={onNavigate}><button>Ordinary reader navigation</button><FisherReproduction api={api} annotation={{id:'annotation'}} initial={initial} onSource={onSource}/></PdfReaderNavigation></AppSdkProvider>);return root;}`, loader: 'tsx', resolveDir: root }, outfile: join(output, 'component.mjs'), bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', alias: { react: resolve(root, 'apps/paper-agent/node_modules/react'), 'react-dom': resolve(root, 'apps/paper-agent/node_modules/react-dom'), ...appSdkAliases(root) } });
   const { act, mount } = await import(pathToFileURL(join(output, 'component.mjs')));
   let mounted;
   const render = async () => { await act(async () => { mounted = mount(api); }); };
@@ -97,13 +97,13 @@ try {
   items[0].attempts[0].report = { result_verdict: 'REPRODUCED', actual: 0, reason: 'mutable comparison fixture' };
   items[0].attempts[0].independent = { numeric_recomputation: 'FAIL', reason: 'mutable independent fixture' };
   const requestsBeforeOpen = requests.length;
-  let sourceOpened = 0;
+  let sourceOpened = 0, readerNavigation = 0;
   await act(async () => {
     mounted = mount(api, { itemId, attemptId, receipt: {
       schema: 'pero.fisher-notebook-evidence.v1', id: receiptId,
       snapshot: { itemId, attemptId, resultVerdict: 'MISMATCH', numericRecomputation: 'PASS',
         paperVerdict: 'NOT_ASSESSED', exactNumerator: 95717, exactDenominator: 5000 },
-    } }, () => sourceOpened++);
+    } }, () => sourceOpened++, () => readerNavigation++);
   });
   assert.match(text(), /Single-result verdict: MISMATCH/);
   assert.match(text(), /Independent numerical check: PASS/);
@@ -113,8 +113,17 @@ try {
   assert.doesNotMatch(text(), /REPRODUCED|FAIL|mutable/);
   assert.equal(button('Refresh status'), undefined);
   assert.equal(button('Confirm and run a new attempt'), undefined);
+  const source = button('View original Table III cell');
+  await act(async () => {
+    source.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
+    source.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    source.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+  });
   await click('View original Table III cell');
   assert.equal(sourceOpened, 1);
+  assert.equal(readerNavigation, 0, 'Ancestor must not invalidate the checked source action');
+  await click('Ordinary reader navigation');
+  assert.equal(readerNavigation, 1, 'Ordinary interactions still invalidate a reader reveal');
   assert.equal(requests.length, requestsBeforeOpen, 'A reopened receipt never reads mutable status or executes');
   await act(async () => mounted.unmount());
   console.log('PASS: same pinned Fisher attempt uses checked receipt, not mutable status, and cannot rerun.');

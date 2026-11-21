@@ -18,6 +18,7 @@ import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfS
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { FisherReproduction, FISHER_PDF_SHA256, isFisherSource } from './fisher-reproduction';
+import { PdfReaderNavigation } from './pdf-reader-navigation';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
 import { FigureSourceDialog, type FigureTarget } from './figure-reference';
@@ -106,10 +107,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     if (reading.document) { setMode('pdf'); return; }
     chrome.onSave();
   }
-  // Reader input (including portal toolbar events) supersedes a pending search
-  // reveal. Programmatic focus/scroll updates do not invalidate their own request.
-  return <div className="pa-pdf-reading" data-reader-view={view} onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
-    onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
+  return <PdfReaderNavigation view={view} receiptId={pdfFocus?.verification?.receipt?.id} onNavigate={chrome.onNavigate}>
     {!lockText && (chrome.toolbar ? createPortal(modes, chrome.toolbar) : <Toolbar>{modes}</Toolbar>)}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
@@ -123,7 +121,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     </div>
     {chrome.figure && ((view === 'pdf' && !figurePdf) || (view === 'tex' && !chrome.figure.preview)) && <Feedback kind="status"><span>{copy('unmatched')}</span><Button onClick={() => setFigureSourceOpen(true)}>{copy('source')}</Button></Feedback>}
     {figureSourceOpen && chrome.figure && <FigureSourceDialog api={api} reference={chrome.figure} onClose={() => setFigureSourceOpen(false)}/>}
-  </div>;
+  </PdfReaderNavigation>;
 }
 
 export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, fileUrl, readOnly = false, trailingActions }: {
