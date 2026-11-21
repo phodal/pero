@@ -163,7 +163,7 @@ class FisherAppTests(unittest.TestCase):
             record_command(reopened, draft([other], attempts=[reference]), NOW)
         with self.assertRaises(RecordInvalid):
             record_handoff(reopened, dict(recordId=record['id'], **reference, includeNotes=True))
-        artifact = self.home / 'fisher-bundles' / frozen['itemId'] / 'attempts' / result['attemptId'] / 'observations.json'
+        artifact = self.store.root / 'fisher-bundles' / frozen['itemId'] / 'attempts' / result['attemptId'] / 'observations.json'
         artifact.write_text('{}')
         with self.assertRaises(RecordInvalid):
             record_command(reopened, dict(operation='export', recordId=record['id']), NOW)
