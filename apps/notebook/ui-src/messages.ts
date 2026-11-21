@@ -302,7 +302,7 @@ export const messages = {
   importFisherEvidence: { en: 'Import Fisher evidence JSON', zh: '导入 Fisher 证据 JSON' },
   fisherReceiptTooLarge: { en: 'Fisher evidence JSON must be at most 4 KiB.', zh: 'Fisher 证据 JSON 不得超过 4 KiB。' },
   fisherEvidenceTitle: { en: 'Fisher numeric attempt', zh: 'Fisher 数值复算记录' },
-  fisherRecordedResult: { en: 'Recorded result: {verdict} · exact p = {numerator}/{denominator}', zh: '记录结果：{verdict} · 精确 p 值 = {numerator}/{denominator}' },
+  fisherRecordedResult: { en: 'Recorded result: {verdict} · exact sum of squares = {numerator}/{denominator} cm²', zh: '记录结果：{verdict} · 精确平方和 = {numerator}/{denominator} cm²' },
   fisherEvidenceScope: { en: 'This imported receipt records numeric recomputation PASS; the paper was not assessed. The receipt is not proof of provenance or scientific review.', zh: '导入的凭据记录数值复算通过，未评估论文本身。凭据不证明来源真实性，也不是科学评审。' },
   fisherAttemptId: { en: 'Attempt ID', zh: '复算记录 ID' },
   fisherObservationsDigest: { en: 'Observations SHA-256', zh: '观测值 SHA-256' },

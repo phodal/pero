@@ -26,13 +26,20 @@ test('Fisher receipt previews imported evidence and attaches only after the rese
     });
     return read;
   };
+  const settle = async (expected: RegExp) => {
+    const until = Date.now() + 4000;
+    while (!expected.test(document.body.textContent!) && Date.now() < until) {
+      await React.act(async () => new Promise<void>(resolve => setImmediate(resolve)));
+    }
+    assert.match(document.body.textContent!, expected);
+  };
   assert.equal(await choose('', 4097), false);
   assert.match(document.body.textContent!, /4 KiB/);
   assert.equal(await choose(JSON.stringify({ ...receipt, snapshot: { ...receipt.snapshot, exactNumerator: 7 } })), true);
-  assert.match(document.body.textContent!, /does not match its receipt digest/);
+  await settle(/does not match its receipt digest/);
   assert.deepEqual(attached, []);
   assert.equal(await choose(JSON.stringify(receipt)), true);
-  assert.match(document.body.textContent!, /exact p = 333\/10000/);
+  await settle(/exact sum of squares = 333\/10000 cm²/);
   assert.match(document.body.textContent!, /not proof of provenance or scientific review/);
   assert.deepEqual(attached, []);
   const attach = [...document.querySelectorAll('button')].find(button => button.textContent === 'Attach snapshot')!;
