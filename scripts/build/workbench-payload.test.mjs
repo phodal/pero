@@ -71,14 +71,14 @@ test('Builtin staging ships only each App’s declared CLI and skill additions',
       ...paperEntries, 'skills/molecular-report/SKILL.md', 'tools/unrelated.py', 'skills/paper-code-audit/references/private.md',
       'skills/other/SKILL.md', 'node_modules/private.js'];
     for (const path of files) {
-      mkdirSync(join(source, path, '..'), { recursive: true }); writeFileSync(join(source, path), path);
+      mkdirSync(join(source, path, '..'), { recursive: true }); writeFileSync(join(source, path), path === 'app.json' ? '{}' : path);
     }
     for (const app of ['paper-agent', 'scientific-viewer', 'other-app']) {
       const output = join(directory, app); stageBuiltinApp(source, app, output);
       for (const path of files) {
         const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path) || app === 'scientific-viewer' && path === 'skills/molecular-report/SKILL.md';
         assert.equal(existsSync(join(output, path)), included, `${app}: ${path}`);
-        if (included) assert.equal(readFileSync(join(output, path), 'utf8'), path);
+        if (included) assert.equal(readFileSync(join(output, path), 'utf8'), path === 'app.json' ? '{}' : path);
       }
     }
     for (const entry of paperEntries) {
@@ -140,5 +140,45 @@ test('Staged Paper CLI executes references-only commit and export using its stag
         assert.ok(readFileSync(resolve(path, '..', target), 'utf8').length > 0, `${entry}: ${target}`);
       }
     }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Builtin releases include the Agent Plugin dependencies declared by their Apps', async () => {
+  const { stageBuiltinApp, verifyBuiltinAppDependencies } = await import('./builtin-app-payload.mjs');
+  const { existsSync, symlinkSync } = await import('node:fs');
+  const directory = mkdtempSync(join(tmpdir(), 'pero-builtin-agent-plugins-'));
+  try {
+    const source = join(directory, 'source');
+    const payload = join(directory, 'payload');
+    const required = 'agent-plugins/paper-autoresearch';
+    const unrelated = 'agent-plugins/not-required';
+    for (const name of [required, unrelated]) mkdirSync(join(source, name), { recursive: true });
+    writeFileSync(join(source, 'app.json'), JSON.stringify({ requiresAgentPlugins: ['paper-autoresearch'] }));
+    writeFileSync(join(source, required, 'plugin.json'), JSON.stringify({
+      schemaVersion: 1, name: 'paper-autoresearch', version: '0.1.0', skills: ['SKILL.md'],
+      mcpServers: [{ name: 'paper-research', command: '{pluginRoot}/mcp.js', args: [], env: [] }],
+    }));
+    writeFileSync(join(source, required, 'mcp.js'), 'tool');
+    writeFileSync(join(source, required, 'SKILL.md'), 'research');
+    writeFileSync(join(source, unrelated, 'plugin.json'), JSON.stringify({ name: 'not-required' }));
+
+    stageBuiltinApp(source, 'test-app', payload);
+    assert.equal(readFileSync(join(payload, required, 'SKILL.md'), 'utf8'), 'research');
+    assert.equal(existsSync(join(payload, unrelated)), false);
+    verifyBuiltinAppDependencies(payload, 'test-app');
+    rmSync(join(payload, required, 'mcp.js'));
+    assert.throws(() => verifyBuiltinAppDependencies(payload, 'test-app'), /paper-autoresearch.*mcp.js/);
+    writeFileSync(join(payload, required, 'mcp.js'), 'tool');
+
+    rmSync(join(payload, required, 'SKILL.md'));
+    assert.throws(() => verifyBuiltinAppDependencies(payload, 'test-app'), /paper-autoresearch.*SKILL.md/);
+    if (process.platform !== 'win32') {
+      symlinkSync(join(source, required, 'SKILL.md'), join(payload, required, 'SKILL.md'));
+      assert.throws(() => verifyBuiltinAppDependencies(payload, 'test-app'), /paper-autoresearch.*SKILL.md/);
+      symlinkSync(source, join(directory, 'dev-app'));
+      assert.throws(() => verifyBuiltinAppDependencies(join(directory, 'dev-app'), 'test-app'), /needs its own App directory/);
+    }
+    rmSync(join(source, required, 'plugin.json'));
+    assert.throws(() => stageBuiltinApp(source, 'test-app', join(directory, 'incomplete')), /paper-autoresearch.*plugin.json/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

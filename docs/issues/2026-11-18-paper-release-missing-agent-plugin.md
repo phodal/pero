@@ -31,3 +31,22 @@ Release acceptance for a fix should prepare and open Papers in a clean profile
 using the next downloadable package, with no preinstalled plugin. The package
 under test and the versioned tutorial evidence are recorded in
 [release verification](../fitness/release-products.md).
+
+## Packaging fix evidence — 2026-11-21
+
+The shared builtin App stager now resolves `requiresAgentPlugins` from each App
+manifest and stages only those packages. Desktop release verification checks the
+actual staged App directories for matching plugin manifests, named Skills, and
+package-relative MCP entrypoints. It does not use an installed profile or a
+development checkout to fill missing packaged files. Regression cases cover a
+missing manifest, missing declared files, and symlinks to development inputs.
+
+On a Mac, the untouched cited package reproduced the missing-plugin error in an
+empty profile via its bundled Host. A separate local copy of that package,
+re-signed ad hoc after injecting only the newly staged plugin, passed strict
+signature verification. With no installed App or plugin and a warmed Python
+download cache, its bundled Host automatically installed the plugin, created a
+Python environment, and imported the same 26-page PDF with its original digest.
+The smoke used Host stdio and the loopback backend, not rendered Electron UI.
+This was not a from-source build, a new download, or Windows/Linux acceptance;
+the incident remains open pending the next release verification.

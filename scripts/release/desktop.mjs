@@ -5,6 +5,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Product } from '../../packages/product/product.ts';
+import { verifyBuiltinAppDependencies } from '../build/builtin-app-payload.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const taskCenter = 'https://app.openpero.com';
@@ -81,6 +82,7 @@ if (operation === 'prepare') {
     }
     execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
   }
+  for (const name of product.apps) verifyBuiltinAppDependencies(join(payload, 'apps', name), name);
   if (!existsSync(archive)) throw new Error('Missing native release archive.');
   if (process.platform === 'darwin' && !standalone && !native) {
     const size = JSON.parse(readFileSync(join(packageDir, 'size.json'), 'utf8'));
