@@ -222,3 +222,39 @@ screenshots under the same local evidence directory. The browser uses synthetic
 API responses; actual HTTP/storage checking is the separate Python suite.
 No real model call, human scientific review, Electron/Native or release-package
 acceptance was added. #79's lifecycle and cross-owner handoff gaps remain open.
+
+## Fisher attempt references — 2026-11-21 (#79, bounded slice)
+
+Research revisions can attach a completed Fisher Table III attempt using its
+existing item/attempt IDs. The recipe-tagged reference retains the actual frozen
+source region, specification and method identity, without inventing PC-Gym
+policy/profile/seed values. Existing PC-Gym record bodies retain their original
+serialization and IDs. The Fisher owner and standalone checker's artifact rules
+validate attachment and reference export; historical reads remain available if
+an artifact later becomes unavailable or changes. This does not promote a saved
+record to scientific verification. Method impact is recipe-specific.
+
+Default export is still a references-only index, with no notes or source bytes.
+The existing Fisher result view opens the pinned attempt (never substitutes the
+latest one if missing), and its existing explicit ZIP action remains the route
+to `python -I -S verify.py`. Fisher does not use the PC-Gym notes-inclusive
+research-handoff action. Failed/incomplete Fisher attempts, combined research
+notes ZIPs and cross-machine human acceptance remain follow-up scope.
+
+Local checks: record-family tests 17 run, 16 pass, 1 existing skip; Fisher tests
+21 run, 7 pass, 14 original-PDF opt-in skips. Added deterministic contracts cover
+recipe ownership, wrong paper/item/attempt, immutable reopen, reference-only
+export, recipe method impact and legacy PC-Gym representation. An additional
+original-PDF integration test covers genuine completion, restart, export and
+altered-artifact rejection, but was **not run**: the historical public fixture
+was absent and fetching its exact pinned public URL was blocked by network policy.
+No substitute PDF or fabricated execution was used. Paper TypeScript passes with
+existing Mac dependencies. Browser/Native navigation and scientific/cross-machine
+acceptance have not been exercised for this change.
+
+Full Paper Python rerun after packaging the canonical local source-parser and
+scientific-runtime modules: **386 run, 368 passed, 18 skipped** (exit 0). The
+initial unstaged-parser run failed two isolated subprocess checks; using the
+repository's existing packaging step resolved them without source changes.
+The exact legacy PC-Gym revision digest is also pinned against the unchanged
+baseline fixture. No real Fisher PDF run is included in these totals.

@@ -23,7 +23,7 @@ const endpoint = '/api/fisher/step';
 const resolved = (attempt: Attempt) => ['failed', 'input_mismatch', 'environment_failed', 'blocked', 'cancelled', 'denied'].includes(attempt.execution.status) || (attempt.execution.status === 'completed' && attempt.report !== null);
 
 /** Presents backend-owned immutable protocols and attempts; never executes on mount. */
-export function FisherReproduction({ api, annotation, onSource }: { api: Api; annotation: PdfAnnotation; onSource(): void }) {
+export function FisherReproduction({ api, annotation, onSource, initial }: { api: Api; annotation: PdfAnnotation; onSource(): void; initial?: { itemId: string; attemptId: string } }) {
   const { t } = useAppI18n({
     title: { zh: '复现 Fisher 表 III 的一个结果', en: 'Reproduce one Fisher Table III result' },
     scope: { zh: '仅重算一个已发表统计量。整篇论文：NOT_ASSESSED。', en: 'Numerical reanalysis of one published statistic. Whole paper: NOT_ASSESSED.' },
@@ -59,15 +59,15 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
   const pendingKey = `pero.fisher.pending.${annotation.id}`;
   const [pending, setPending] = useState<Pending | null>(() => { try { return JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null'); } catch { return null; } });
   const [requestAbsent, setRequestAbsent] = useState(false);
-  const [evidence, setEvidence] = useState<Evidence | null>(null), [itemId, setItemId] = useState(''), [attemptId, setAttemptId] = useState('');
+  const [evidence, setEvidence] = useState<Evidence | null>(null), [itemId, setItemId] = useState(initial?.itemId ?? ''), [attemptId, setAttemptId] = useState(initial?.attemptId ?? '');
   const [editing, setEditing] = useState(true), [confirmed, setConfirmed] = useState(false);
   const [mode, setMode] = useState<Comparison['mode']>('absolute'), [tolerance, setTolerance] = useState('0.00005');
   const [lower, setLower] = useState(''), [upper, setUpper] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [logs, setLogs] = useState<{ attemptId: string; text: string } | null>(null);
   const alive = useRef(true), operation = useRef(false), reading = useRef(false);
-  const selected = evidence?.items.find(row => row.itemId === itemId) ?? evidence?.items.at(-1);
-  const chosen = selected?.attempts.find(row => row.attemptId === attemptId) ?? selected?.attempts.at(-1);
+  const selected = evidence?.items.find(row => row.itemId === itemId) ?? (initial ? undefined : evidence?.items.at(-1));
+  const chosen = selected?.attempts.find(row => row.attemptId === attemptId) ?? (initial ? undefined : selected?.attempts.at(-1));
   const running = evidence?.items.some(row => row.attempts.some(attempt => !resolved(attempt)));
   const fail = (e: unknown) => { if (alive.current) setError(e instanceof Error ? e.message : String(e)); };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -77,7 +77,7 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
     try {
       const value = await api.post<Evidence>(endpoint, { action: 'status', annotationId: annotation.id });
       if (!alive.current) return;
-      setEvidence(value); setError('');
+      setEvidence(value); setError(initial && !value.items.some(item => item.itemId === initial.itemId && item.attempts.some(attempt => attempt.attemptId === initial.attemptId)) ? 'Pinned Fisher attempt is unavailable; no newer result was substituted.' : '');
       const stored: Pending | null = JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null');
       const receipt = stored && value.items.flatMap(row => row.attempts).find(attempt => attempt.execution.request_id === stored.requestId);
       setRequestAbsent(!!stored && !receipt);

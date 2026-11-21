@@ -316,7 +316,7 @@ export default function PaperAgent() {
     if (!paper) { onError(new Error(t('reproductionAttemptUnavailable'))); return; }
     setOpenHit(null);
     void revealPdf(paper, { documentId: attempt.documentId, page: attempt.page,
-      annotationId: attempt.annotationId, verification: { itemId: attempt.itemId, attemptId: attempt.attemptId } }).catch(onError);
+      annotationId: attempt.annotationId, verification: { itemId: attempt.itemId, attemptId: attempt.attemptId, recipe: attempt.recipe } }).catch(onError);
   }
   function reread(id: string) {
     const paper = library.papers.find(paper => paper.id === id);
