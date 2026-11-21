@@ -5,6 +5,8 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Product } from '../../packages/product/product.ts';
+import { verifyBuiltinAppDependencies } from '../build/builtin-app-payload.mjs';
+import { withMountedMacOSDmg } from '../lib/macos-dmg.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const taskCenter = 'https://app.openpero.com';
@@ -63,25 +65,34 @@ if (operation === 'prepare') {
   mkdirSync(resolve(root, 'desktop/dist'), { recursive: true });
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
 } else if (operation === 'verify') {
-  const metadata = JSON.parse(readFileSync(join(payload, 'desktop/dist/release.json'), 'utf8'));
-  if (metadata.sourceRevision !== revision || metadata.releaseTag !== tag || metadata.taskCenter !== (standalone ? null : taskCenter) || metadata.productId !== productId || metadata.platform !== process.platform || metadata.arch !== process.arch || metadata.buildProvider !== 'GitHub Actions') {
-    throw new Error('Packaged release metadata does not match this workflow.');
-  }
-  const main = native ? '' : readFileSync(join(payload, `desktop/dist/${standalone ? 'product' : 'main'}.cjs`), 'utf8');
-  if ((!standalone && !native && !main.includes(taskCenter)) || main.includes('tests/fixtures') || main.includes('contribution-fixture')) {
-    throw new Error('The packaged Desktop must use the online service and exclude fixture code.');
-  }
-  for (const name of ['tests', 'test-results', '.git', '.env', '.env.local', '.codex', '.claude', 'agents.local.json']) {
-    if (existsSync(join(payload, name))) throw new Error(`Unexpected private or test input in package: ${name}`);
-  }
-  if (process.platform === 'darwin') {
-    for (const executable of [native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host', ...(native ? ['Contents/Resources/app/bin/node'] : [])]) {
-      const arch = execFileSync('/usr/bin/lipo', ['-archs', join(app, executable)], { encoding: 'utf8' }).trim();
-      if (arch !== process.arch) throw new Error(`Unexpected packaged architecture: ${arch}`);
-    }
-    execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
-  }
   if (!existsSync(archive)) throw new Error('Missing native release archive.');
+  function verifyApp(app) {
+    const payload = join(app, process.platform === 'darwin' ? 'Contents/Resources/app' : 'resources/app');
+    const metadata = JSON.parse(readFileSync(join(payload, 'desktop/dist/release.json'), 'utf8'));
+    if (metadata.sourceRevision !== revision || metadata.releaseTag !== tag || metadata.taskCenter !== (standalone ? null : taskCenter) || metadata.productId !== productId || metadata.platform !== process.platform || metadata.arch !== process.arch || metadata.buildProvider !== 'GitHub Actions') {
+      throw new Error('Packaged release metadata does not match this workflow.');
+    }
+    const main = native ? '' : readFileSync(join(payload, `desktop/dist/${standalone ? 'product' : 'main'}.cjs`), 'utf8');
+    if ((!standalone && !native && !main.includes(taskCenter)) || main.includes('tests/fixtures') || main.includes('contribution-fixture')) {
+      throw new Error('The packaged Desktop must use the online service and exclude fixture code.');
+    }
+    for (const name of ['tests', 'test-results', '.git', '.env', '.env.local', '.codex', '.claude', 'agents.local.json']) {
+      if (existsSync(join(payload, name))) throw new Error(`Unexpected private or test input in package: ${name}`);
+    }
+    if (process.platform === 'darwin') {
+      for (const executable of [native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host', ...(native ? ['Contents/Resources/app/bin/node'] : [])]) {
+        const arch = execFileSync('/usr/bin/lipo', ['-archs', join(app, executable)], { encoding: 'utf8' }).trim();
+        if (arch !== process.arch) throw new Error(`Unexpected packaged architecture: ${arch}`);
+      }
+      execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'inherit' });
+    }
+    for (const name of product.apps) verifyBuiltinAppDependencies(join(payload, 'apps', name), name);
+    return metadata;
+  }
+  const stagedMetadata = verifyApp(app);
+  const metadata = process.platform === 'darwin'
+    ? withMountedMacOSDmg(archive, mount => verifyApp(join(mount, basename(app))))
+    : stagedMetadata;
   if (process.platform === 'darwin' && !standalone && !native) {
     const size = JSON.parse(readFileSync(join(packageDir, 'size.json'), 'utf8'));
     if (size.dmgBytes >= product.macosDownloadLimitBytes()) throw new Error('Pero DMG exceeds its approved download budget.');

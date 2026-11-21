@@ -40,6 +40,44 @@ export function deduplicatePayload(directory) {
   visit(directory);
 }
 
+/** Resolve the bundled packages a fresh Host profile needs; no profile fallback. */
+export function verifyBuiltinAppDependencies(directory, name) {
+  const appManifest = join(directory, 'app.json');
+  if (!lstatSync(directory, { throwIfNoEntry: false })?.isDirectory() ||
+    !lstatSync(appManifest, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error(`${name} payload needs its own App directory and app.json`);
+  }
+  const root = realpathSync(directory);
+  const manifest = JSON.parse(readFileSync(join(root, 'app.json'), 'utf8'));
+  const dependencies = manifest.requiresAgentPlugins === undefined ? [] : manifest.requiresAgentPlugins;
+  if (!Array.isArray(dependencies) || !dependencies.every(value =>
+    typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value))) {
+    throw new Error(`${name} payload has invalid requiresAgentPlugins`);
+  }
+  return dependencies.map(dependency => {
+    const entry = `agent-plugins/${dependency}`;
+    const packageRoot = join(root, entry);
+    const requiredFile = path => {
+      const file = resolve(packageRoot, path);
+      if (!file.startsWith(packageRoot + sep) || !lstatSync(file, { throwIfNoEntry: false })?.isFile() ||
+        realpathSync(file) !== file) {
+        throw new Error(`${name} payload requires a regular file inside its Agent Plugin ${dependency}: ${path}`);
+      }
+      return file;
+    };
+    const plugin = JSON.parse(readFileSync(requiredFile('plugin.json'), 'utf8'));
+    if (plugin.schemaVersion !== 1 || plugin.name !== dependency) {
+      throw new Error(`${name} payload Agent Plugin ${dependency} needs a matching v1 plugin.json`);
+    }
+    for (const skill of plugin.skills ?? []) requiredFile(skill);
+    for (const server of plugin.mcpServers ?? []) {
+      const prefix = '{pluginRoot}/';
+      if (server.command?.startsWith(prefix)) requiredFile(server.command.slice(prefix.length));
+    }
+    return entry;
+  });
+}
+
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
 export function stageBuiltinApp(source, name, destination) {
   const root = realpathSync(source);
@@ -53,7 +91,8 @@ export function stageBuiltinApp(source, name, destination) {
       throw new Error(`${name} payload requires a regular file inside its App: ${entry}`);
     }
   }
-  for (const entry of [...APP_ENTRIES, ...extra]) {
+  const plugins = verifyBuiltinAppDependencies(root, name);
+  for (const entry of [...APP_ENTRIES, ...extra, ...plugins]) {
     const path = resolve(root, entry);
     if (existsSync(path)) cpSync(path, join(destination, entry), { recursive: true, filter: path => !path.includes('__pycache__') });
   }
