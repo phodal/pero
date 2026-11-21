@@ -115,13 +115,15 @@ try {
   assert.equal(button('Confirm and run a new attempt'), undefined);
   const source = button('View original Table III cell');
   await act(async () => {
+    button('Ordinary reader navigation').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    source.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
     source.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
     source.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     source.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
   });
   await click('View original Table III cell');
   assert.equal(sourceOpened, 1);
-  assert.equal(readerNavigation, 0, 'Ancestor must not invalidate the checked source action');
+  assert.equal(readerNavigation, 0, 'Ancestor must not invalidate the checked source action or keyboard focus traversal');
   await click('Ordinary reader navigation');
   assert.equal(readerNavigation, 1, 'Ordinary interactions still invalidate a reader reveal');
   assert.equal(requests.length, requestsBeforeOpen, 'A reopened receipt never reads mutable status or executes');

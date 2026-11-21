@@ -7,7 +7,9 @@ export function PdfReaderNavigation({ view, receiptId, onNavigate, children }: {
 }) {
   const capture = (event: React.SyntheticEvent) => {
     const target = event.target instanceof Element ? event.target.closest('button[data-fisher-receipt-source]') : null;
-    const activates = event.type !== 'keydown' || ['Enter', ' '].includes((event as React.KeyboardEvent).key);
+    const key = event.type === 'keydown' ? (event as React.KeyboardEvent).key : undefined;
+    if (receiptId && key === 'Tab') return; // Focus traversal is not reader navigation.
+    const activates = key === undefined || key === 'Enter' || key === ' ';
     if (activates && receiptId && target?.getAttribute('data-fisher-receipt-source') === receiptId) return;
     onNavigate();
   };
