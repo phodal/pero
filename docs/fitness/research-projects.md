@@ -501,3 +501,35 @@ is listed or the catalog is unavailable. Data checks the retained file when
 opening, subject to its normal inspection bounds. Missing or changed bytes
 do not fall back to the latest asset. The catalog's recorded SHA and observed
 availability are not scientific verification.
+
+## Fisher evidence to a pinned Notebook Finding (#79)
+
+1. In Paper, open a completed Fisher Table III attempt and choose **Export
+   Notebook evidence JSON**. Paper checks the frozen attempt, exact source scan
+   and numerical recomputation. The receipt contains identifiers, digests and a
+   bounded numerical result, not PDF bytes, observations, notes or a program.
+2. In Notebook, insert an **Evidence** block, choose **Import Fisher evidence
+   JSON**, review the preview and **Attach snapshot**. Write your own **Finding**
+   and cite that Evidence block. Save the Notebook entry.
+3. Link that saved Notebook revision to the Project. Opening the Project link
+   keeps that revision read-only even after later saves. **Open Paper source**
+   resolves the exact attempt and its Table III region in Paper, not the latest
+   available attempt. Missing or changed evidence is reported rather than
+   substituted. The checked receipt view performs no new scientific run.
+
+The receipt digest detects changes to the captured values but is not a
+signature. Notebook imports a recorded snapshot; Paper checks it against local
+owner evidence again on reopen. The exact result, 19.1434 cm², is one numerical
+reanalysis; the whole paper remains **NOT_ASSESSED**. The receipt alone is not
+portable recomputation evidence: the standalone Fisher ZIP is the separate
+explicit export. Neither route grants scientific acceptance or user authority.
+
+On Phodal Studio (Mac), the opt-in Host contract used the original scan and
+installed Notebook/Data Apps, computed a fresh Fisher attempt, linked the
+Finding's saved revision to an actual local Project, and reopened that snapshot
+after saving a newer revision without the receipt. Reproduce with
+`PERO_APP_PYTHON` set to a prepared Notebook environment,
+`PERO_FISHER_PDF` to the byte-verified scan,
+`cargo build -p pero-host` and `node tests/contracts/app-canvas.mjs`.
+This is a local runtime contract plus component tests, not Native visual,
+second-machine or second-researcher acceptance.
