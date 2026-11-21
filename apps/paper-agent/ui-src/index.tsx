@@ -13,18 +13,23 @@ import { FigureSourceDialog, type FigureReference, type FigureTarget } from './f
 import { ResearchRecords } from './research-records';
 import { ResearchPrograms } from './research-programs';
 import type { ResearchAttempt } from './manual-records';
+import { isFisherSource } from './fisher-reproduction';
 import { Discovery, type DiscoveryOpening } from './discovery';
 import { DiscoverSearch } from './discover-search';
 import { WorkspaceNav, type LibraryScreen } from './workspace-nav';
 import { useLibraryData } from './library-data';
 import { loadShelf, openPaper, saveShelf, statusOf, withStatus, type Shelf, type ShelfFilter } from './shelf';
-import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
+import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfReading, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
 import './styles.css';
 import './workspace.css';
 import './library-papers.css';
 import './research-workspace.css';
 
 type WorkspaceScreen = 'library' | 'reading';
+type FisherNotebookReceipt = {
+  schema: 'pero.fisher-notebook-evidence.v1'; id: string;
+  snapshot: { paperId: string; documentId: string; annotationId: string; page: number; itemId: string; attemptId: string };
+};
 
 function focusVisibleSearch() {
   const root = document.querySelector('.pa-workbench');
@@ -250,9 +255,12 @@ export default function PaperAgent() {
     finally { if (mounted.current) setReadingBusy(false); }
   }
   async function revealPdf(paper: Paper, focus: PdfFocus) {
-    focusVersion.current++;
+    const focusRequest = ++focusVersion.current;
     setFigureTarget(null);
-    if (screen !== 'reading' || reading?.id !== paper.id) await read(paper, true, true);
+    if (screen !== 'reading' || reading?.id !== paper.id) {
+      if (!(await read(paper, true, true))) return;
+    }
+    if (!mounted.current || focusRequest !== focusVersion.current) return;
     setPdfFocus(focus);
     if (narrow) closeRecords();
   }
@@ -330,6 +338,38 @@ export default function PaperAgent() {
       const match=/^report\/([a-f0-9]{64})\/citation\/(\d+)$/.exec(event.data.location);
       const passage=/^report\/([a-f0-9]{64})\/passage\/([a-f0-9]{64})$/.exec(event.data.location);
       const figure=/^figure\/([a-f0-9]{64})\/([a-f0-9]{64})$/.exec(event.data.location);
+      const fisher = /^fisher\/([a-f0-9]{64})\/attempt\/([a-f0-9]{32})\/receipt\/([a-f0-9]{64})$/.exec(event.data.location);
+      if (fisher && fisher[0] === event.data.location) {
+        const [, itemId, attemptId, receiptId] = fisher;
+        const readRequest = readVersion.current, focusRequest = ++focusVersion.current;
+        const current = () => mounted.current && readRequest === readVersion.current && focusRequest === focusVersion.current;
+        void (async () => {
+          const receipt = await api.post<FisherNotebookReceipt>('/api/fisher/notebook-evidence', { itemId, attemptId, receiptId });
+          if (!current()) return;
+          const { snapshot } = receipt;
+          if (receipt.schema !== 'pero.fisher-notebook-evidence.v1' || receipt.id !== receiptId ||
+              snapshot.itemId !== itemId || snapshot.attemptId !== attemptId ||
+              ![snapshot.paperId, snapshot.documentId].every(value => /^[a-f0-9]{64}$/.test(value))) {
+            throw new Error('Saved Fisher receipt does not match this link.');
+          }
+          const [paper, pdf] = await Promise.all([
+            api.get<Paper>(`/api/papers/${snapshot.paperId}`),
+            api.get<PdfReading>(`/api/pdf/${snapshot.documentId}`),
+          ]);
+          if (!current()) return;
+          const annotation = pdf.annotations.find(value => value.id === snapshot.annotationId);
+          if (paper.id !== snapshot.paperId || pdf.document?.id !== snapshot.documentId ||
+              pdf.document.paperId !== paper.id || !annotation || annotation.paperId !== paper.id ||
+              annotation.documentId !== pdf.document.id || annotation.page !== snapshot.page ||
+              !isFisherSource(annotation, pdf.document.fileDigest)) {
+            throw new Error('The original Fisher source region is unavailable.');
+          }
+          setOpenHit(null); setError('');
+          await revealPdf(paper, { documentId: pdf.document.id, page: annotation.page, annotationId: annotation.id,
+            rects: annotation.rects, verification: { itemId, attemptId, recipe: 'fisher-1936-table3-sepal-length-v1' } });
+        })().catch(error => { if (current()) onError(error); });
+        return;
+      }
       if(!resource&&!match&&!figure&&!passage)return;
       void (async()=>{
         if(figure){
