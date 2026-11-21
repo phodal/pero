@@ -59,7 +59,10 @@ impl ProjectResourceRef {
 
     pub fn valid(&self) -> bool {
         if self.is_notebook_entry() {
-            return notebook_entry_id(&self.id) && notebook_revision(&self.revision);
+            return hex32(&self.id) && notebook_revision(&self.revision);
+        }
+        if self.is_data_dataset() {
+            return self.id.strip_prefix("ds-").is_some_and(hex32) && hex32(&self.revision);
         }
         matches!(
             (self.app.as_str(), self.kind.as_str()),
@@ -81,6 +84,17 @@ impl ProjectResourceRef {
     pub fn notebook_revision_location(&self) -> Option<String> {
         (self.is_notebook_entry() && self.valid()).then(|| format!(
             "pero-app-location://notebook/main/entry/{}/revision/{}", self.id, self.revision
+        ))
+    }
+
+    pub fn is_data_dataset(&self) -> bool {
+        self.app == "data" && self.kind == "dataset"
+    }
+
+    /// Keep the selected asset ID even if the catalog now advertises a newer one.
+    pub fn data_version_location(&self) -> Option<String> {
+        (self.is_data_dataset() && self.valid()).then(|| format!(
+            "pero-app-location://data/main/dataset/{}/version/{}", self.id, self.revision
         ))
     }
 
@@ -232,7 +246,7 @@ pub struct NotebookProjectLink {
 }
 impl NotebookProjectLink {
     pub fn validate(&self) -> Result<(), String> {
-        if !opaque_id(&self.project_id) || !notebook_entry_id(&self.entry_id)
+        if !opaque_id(&self.project_id) || !hex32(&self.entry_id)
             || !(1..=i32::MAX as u64).contains(&self.revision)
             || self.expected_revision.as_deref().is_some_and(|value| !notebook_revision(value)) {
             return Err("Choose a saved Notebook entry and an existing Host project".into());
@@ -256,7 +270,7 @@ impl NotebookProjectLink {
     }
 }
 
-fn notebook_entry_id(value: &str) -> bool {
+fn hex32(value: &str) -> bool {
     value.len() == 32 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
@@ -277,6 +291,24 @@ fn opaque_id(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_data_pin_uses_its_saved_asset_id_until_explicitly_replaced() {
+        let dataset_id = format!("ds-{}", "d".repeat(32));
+        let resource = |asset_id: String| ProjectResourceRef::new("data".into(), "dataset".into(), dataset_id.clone(), asset_id);
+        let old = resource("a".repeat(32)).unwrap();
+        let new = resource("b".repeat(32)).unwrap();
+        let mut project = ResearchProject::new("p".into(), "Project".into(), "".into(), None).unwrap();
+        project.attach(old.clone()).unwrap();
+        assert_eq!(project.resources[0].data_version_location(), Some(format!(
+            "pero-app-location://data/main/dataset/{dataset_id}/version/{}", old.revision)));
+        assert!(resource("latest".into()).is_err());
+        assert!(resource(String::new()).is_err());
+        assert!(ProjectResourceRef::new("data".into(), "dataset".into(), "a".repeat(32), "b".repeat(32)).is_err());
+        project.attach(new.clone()).unwrap();
+        assert_eq!(project.resources, vec![new]);
+    }
+
 
     #[test]
     fn notebook_material_opens_saved_revision_until_explicitly_relinked() {

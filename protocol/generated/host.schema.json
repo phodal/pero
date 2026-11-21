@@ -7290,6 +7290,39 @@
       ],
       "additionalProperties": false
     },
+    "DataDatasetProjectResourceRef": {
+      "title": "DataDatasetProjectResourceRef",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "const": "data"
+        },
+        "kind": {
+          "type": "string",
+          "const": "dataset"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 35,
+          "maxLength": 35,
+          "pattern": "^ds-[a-f0-9]{32}$"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "pattern": "^[a-f0-9]{32}$"
+        }
+      },
+      "required": [
+        "app",
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
     "DeclaredAppAction": {
       "title": "DeclaredAppAction",
       "type": "object",
@@ -13374,6 +13407,9 @@
         },
         {
           "$ref": "#/$defs/NotebookEntryProjectResourceRef"
+        },
+        {
+          "$ref": "#/$defs/DataDatasetProjectResourceRef"
         }
       ]
     },

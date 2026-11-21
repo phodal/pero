@@ -102,7 +102,10 @@ export type PullRequestRequest =
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
 export type ProjectResourceRef =
-  PaperProjectResourceRef | ExperimentProjectResourceRef | NotebookEntryProjectResourceRef;
+  | PaperProjectResourceRef
+  | ExperimentProjectResourceRef
+  | NotebookEntryProjectResourceRef
+  | DataDatasetProjectResourceRef;
 /**
  * An App catalog observation; revisions do not claim complete experimental provenance.
  */
@@ -1723,6 +1726,12 @@ export interface ExperimentProjectResourceRef {
 export interface NotebookEntryProjectResourceRef {
   app: "notebook";
   kind: "entry";
+  id: string;
+  revision: string;
+}
+export interface DataDatasetProjectResourceRef {
+  app: "data";
+  kind: "dataset";
   id: string;
   revision: string;
 }

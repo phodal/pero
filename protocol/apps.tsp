@@ -118,7 +118,14 @@ model NotebookEntryProjectResourceRef {
   @pattern("^(?:[1-9][0-9]{0,8}|1[0-9]{9}|20[0-9]{8}|21[0-3][0-9]{7}|214[0-6][0-9]{6}|2147[0-3][0-9]{5}|21474[0-7][0-9]{4}|214748[0-2][0-9]{3}|2147483[0-5][0-9]{2}|21474836[0-3][0-9]|214748364[0-7])$") revision: string;
   ...AppClosed;
 }
-@oneOf union ProjectResourceRef { PaperProjectResourceRef, ExperimentProjectResourceRef, NotebookEntryProjectResourceRef }
+model DataDatasetProjectResourceRef {
+  app: "data";
+  kind: "dataset";
+  @minLength(35) @maxLength(35) @pattern("^ds-[a-f0-9]{32}$") id: string;
+  @minLength(32) @maxLength(32) @pattern("^[a-f0-9]{32}$") revision: string;
+  ...AppClosed;
+}
+@oneOf union ProjectResourceRef { PaperProjectResourceRef, ExperimentProjectResourceRef, NotebookEntryProjectResourceRef, DataDatasetProjectResourceRef }
 model ProjectResourceSummary { reference: ProjectResourceRef; title: string; summary: string; status: string; verification?: string | null; location: string; ...AppClosed; }
 model ProjectResourceCatalog { app: string; resources: ProjectResourceSummary[]; error?: string | null; ...AppClosed; }
 model ConnectorsApp { action: "connectors"; name: AppName; ...RequestBase; }

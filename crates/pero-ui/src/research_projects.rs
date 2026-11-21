@@ -566,15 +566,26 @@ impl Workbench {
             "Control Lab"
         } else if reference.app == "notebook" {
             "Notebook"
+        } else if reference.is_data_dataset() {
+            self.t("nav.data")
         } else {
             "Lab"
         };
         let href = if reference.is_notebook_entry() {
             reference.notebook_revision_location()
+        } else if reference.is_data_dataset() {
+            reference.data_version_location()
         } else {
             current.map(|record| record.location.clone())
         };
         let open_label = format!("{} {title}", self.t("project.open"));
+        let linked_identity = if reference.is_notebook_entry() {
+            format!("{app_label} · v{}", reference.revision)
+        } else if reference.is_data_dataset() {
+            format!("{app_label} · {}", reference.revision.get(..12).unwrap_or(&reference.revision))
+        } else {
+            app_label.to_string()
+        };
         let remove = reference.clone();
         div()
             .py(px(8.))
@@ -632,8 +643,8 @@ impl Workbench {
                     .gap(px(12.))
                     .text_size(px(12.))
                     .text_color(p.text_muted)
-                    .child(if reference.is_notebook_entry() { format!("{app_label} · v{}", reference.revision) } else { app_label.to_string() })
-                    .when_some(current, |el, record| {
+                    .child(linked_identity)
+                    .when_some(current.filter(|_| !reference.is_data_dataset() || !changed), |el, record| {
                         let summary = match record.summary.as_str() {
                             "simulation" => self.t("research.simulation"),
                             "import" => "",
@@ -693,7 +704,7 @@ impl Workbench {
                     div()
                         .text_color(p.warning)
                         .whitespace_normal()
-                        .child(self.t(if reference.is_notebook_entry() { "research.notebook_changed" } else { "research.changed" })),
+                        .child(self.t(if reference.is_notebook_entry() || reference.is_data_dataset() { "research.pinned_changed" } else { "research.changed" })),
                 )
                 .child(
                     Button::new(("resource-update", index))
@@ -744,6 +755,7 @@ impl Workbench {
                         ("control-lab", "research.control"),
                         ("lab", "research.lab"),
                         ("notebook", "Notebook"),
+                        ("data", "nav.data"),
                     ]
                     .into_iter()
                     .map(|(app, label)| {
@@ -844,6 +856,8 @@ impl Workbench {
                                     "research.paper"
                                 } else if resource.reference.kind == "study" {
                                     "research.study"
+                                } else if resource.reference.is_data_dataset() {
+                                    "nav.data"
                                 } else {
                                     "research.experiment"
                                 },

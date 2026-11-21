@@ -486,3 +486,18 @@ standalone Virtual Cell release preparation failure is recorded in the existing
 Desktop release issue and predates this PR on another branch. Signed package,
 real-model/scientific and fresh Native GUI acceptance are not added by these
 merge review repairs.
+
+
+## Linked Data versions
+
+The Data picker reads only the installed, enabled Data App's private version
+catalog. It offers the latest version of each existing dataset; linking stores
+the dataset ID and that version's asset ID, not a moving alias or a filesystem
+path. A Project retains one linked version per dataset. A catalog refresh
+does not change it; **Update linked revision** is explicit.
+
+**Open** addresses the linked version in Data, even when a different version
+is listed or the catalog is unavailable. Data checks the retained file when
+opening, subject to its normal inspection bounds. Missing or changed bytes
+do not fall back to the latest asset. The catalog's recorded SHA and observed
+availability are not scientific verification.
