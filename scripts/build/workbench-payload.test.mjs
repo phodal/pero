@@ -4,6 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stageWorkbenchWeb } from './workbench-payload.mjs';
+// Register the macOS archive regressions in the existing product test entrypoint.
+import '../release/desktop.test.mjs';
 
 test('Payload deduplication preserves file contents, modes, URLs and symbolic links', async () => {
   const { deduplicatePayload } = await import('./builtin-app-payload.mjs');
