@@ -153,6 +153,10 @@ class FisherAppTests(unittest.TestCase):
             self.assertEqual(post(ids, route)[0], 409)
             original.write_bytes(original_bytes)
             saved_attempt = self.store.root / 'fisher-bundles' / ids['itemId'] / 'attempts' / ids['attemptId']
+            # Mutable display summaries are not evidence or receipt authority.
+            write_json(saved_attempt / 'comparison.json', dict(actual=0, result_verdict='MISMATCH'))
+            write_json(saved_attempt / 'independent.json', dict(numeric_recomputation='FAIL'))
+            self.assertEqual(post(dict(ids, receiptId=receipt['id']), route), (200, body))
             (saved_attempt / 'observations.json').write_text('{}')
             self.assertEqual(post(ids, route)[0], 409)
             logs = command(dict(action='logs', itemId=frozen['itemId'], attemptId=attempt['attemptId']))
