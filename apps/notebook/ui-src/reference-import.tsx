@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Disclosure, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
 import type { ScientificReference, ReferenceSnapshot } from '@pero/notebook';
+import { maxFisherReceiptBytes, readFisherEvidence } from '@pero/notebook/fisher-evidence';
 import { readControlEvidence } from '@pero/notebook/control-evidence';
 import { maxPaperReportBytes, readPaperEvidence } from '@pero/notebook/paper-evidence';
 import { messages } from './messages';
@@ -30,12 +31,16 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
   }, [pickerKey]);
   const selected = state.status === 'ready' && state.selection ? state.options[Number(state.selection)] : undefined;
 
-  const load = async (file: File) => {
+  const load = async (file: File, fisher = false) => {
     const id = ++request.current;
     setState({ status: 'loading' });
     try {
       let options: ImportedReference[];
-      if (paper) {
+      if (fisher) {
+        if (file.size > maxFisherReceiptBytes) throw new Error(t('fisherReceiptTooLarge'));
+        const receipt = await readFisherEvidence(await file.arrayBuffer());
+        options = [{ label: t('fisherEvidenceTitle'), ...receipt }];
+      } else if (paper) {
         if (file.size > maxPaperReportBytes) throw new Error(t('paperReportTooLarge'));
         const report = await readPaperEvidence(await file.arrayBuffer());
         options = report.citations.map(({ label, reference, evidence }) => ({
@@ -64,7 +69,7 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
   };
   const options = state.status === 'ready' ? state.options.map(({ label, snapshot }, index) => ({
     value: String(index),
-    label: snapshot.kind === 'paper-report' ? label : t('controlTrialOption', {
+    label: snapshot.kind !== 'control-receipt' ? label : t('controlTrialOption', {
       trial: snapshot.trialId.slice(0, 12), verdict: snapshot.verdict,
       phase: t(snapshot.phase === 'verification' ? 'controlVerificationPhase' : 'controlSearchPhase'),
     }),
@@ -74,8 +79,10 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
   return <div className="notebook-reference-import">
     <div className="notebook-reference-actions">
       <div ref={filePicker}>
-        <FilePicker key={pickerKey} compact label={t(paper ? 'importPaperReport' : 'importControlReceipt')} emptyLabel="" accept=".json,application/json"
+        <FilePicker key={`report-${pickerKey}`} compact label={t(paper ? 'importPaperReport' : 'importControlReceipt')} emptyLabel="" accept=".json,application/json"
           busy={state.status === 'loading'} disabled={state.status === 'ready'} onFile={file => void load(file)} />
+        {paper && <FilePicker key={`fisher-${pickerKey}`} compact label={t('importFisherEvidence')} emptyLabel="" accept=".json,application/json"
+          busy={state.status === 'loading'} disabled={state.status === 'ready'} onFile={file => void load(file, true)} />}
       </div>
       {state.status === 'loading' && <Button variant="ghost" onClick={reset}>{t('cancelImport')}</Button>}
     </div>
@@ -89,6 +96,7 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
         <strong>{selected.label}</strong>
         {selected.snapshot.kind === 'paper-report'
           ? <p>{selected.snapshot.quote.length > 240 ? `${selected.snapshot.quote.slice(0, 240)}…` : selected.snapshot.quote}</p>
+          : selected.snapshot.kind === 'fisher-attempt' ? <FisherResult snapshot={selected.snapshot} />
           : <span>{t('controlRecordedVerdict')} <Badge tone={verdictTone[selected.snapshot.verdict]}>{selected.snapshot.verdict}</Badge></span>}
       </div>}
       <div className="notebook-reference-actions">
@@ -97,6 +105,14 @@ export function ReferenceImport({ kind, replacing, onAttach }: {
       </div>
     </div>}
   </div>;
+}
+
+function FisherResult({ snapshot }: { snapshot: Extract<ReferenceSnapshot, { kind: 'fisher-attempt' }> }) {
+  const { t } = useAppI18n(messages);
+  return <>
+    <p>{t('fisherRecordedResult', { verdict: snapshot.resultVerdict, numerator: snapshot.exactNumerator, denominator: snapshot.exactDenominator })}</p>
+    <p className="notebook-note">{t('fisherEvidenceScope')}</p>
+  </>;
 }
 
 export function SnapshotDetails({ snapshot, source }: { snapshot: ReferenceSnapshot; source?: ReactNode }) {
@@ -113,6 +129,19 @@ export function SnapshotDetails({ snapshot, source }: { snapshot: ReferenceSnaps
         <div><dt>{t('paperQuoteOffsets')}</dt><dd><code>{snapshot.start}–{snapshot.end}</code></dd></div>
         <div><dt>{t('paperSourceDigest')}</dt><dd><code>{snapshot.fileDigest}</code></dd></div>
         <div><dt>{t('snapshotExportDigest')}</dt><dd><code>{snapshot.exportSha256}</code></dd></div>
+      </dl>
+    </Disclosure>
+  </div>;
+
+  if (snapshot.kind === 'fisher-attempt') return <div className="notebook-snapshot">
+    <FisherResult snapshot={snapshot} />
+    <Disclosure variant="inline" summary={t('snapshotDetails')}>
+      {source}
+      <p>{t('paperSnapshotPage', { page: snapshot.page })}</p>
+      <dl className="notebook-reference-details">
+        <div><dt>{t('fisherAttemptId')}</dt><dd><code>{snapshot.attemptId}</code></dd></div>
+        <div><dt>{t('paperSourceDigest')}</dt><dd><code>{snapshot.fileDigest}</code></dd></div>
+        <div><dt>{t('fisherObservationsDigest')}</dt><dd><code>{snapshot.observationsDigest}</code></dd></div>
       </dl>
     </Disclosure>
   </div>;

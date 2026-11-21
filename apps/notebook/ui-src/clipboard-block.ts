@@ -13,6 +13,7 @@ import type { Spreadsheet } from '@pero/notebook/spreadsheet';
 import { isStructuredTableAttributes } from '@pero/notebook/structured-table';
 import { spreadsheetLimits } from '@pero/notebook';
 import { isAttachmentAttributes } from '@pero/notebook/attachment';
+import { isFisherEvidenceReference, isFisherEvidenceSnapshot } from '@pero/notebook/fisher-evidence';
 import { isPaperCitationSnapshot } from '@pero/notebook/paper-evidence';
 import { isControlEvidenceSnapshot, parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { persistedBlockTypes } from '@pero/notebook/interchange';
@@ -103,10 +104,14 @@ export function isClipboardWidget(kind: string, attrs: Record<string, unknown>):
       if (!text(label, 200)) return false;
       if (source === null) return snapshot === null;
       if (!object(source) || Object.keys(source).length !== 5 ||
-          !['app', 'kind', 'id'].every(key => text(source[key], 1024) && !!source[key].trim()) ||
+          !text(source.app, 1024) || !source.app.trim() || !text(source.kind, 1024) || !source.kind.trim() ||
+          !text(source.id, 1024) || !source.id.trim() ||
           !text(source.version, 1024) || !text(source.locator, 1024)) return false;
       if (snapshot === null) return true;
       if (kind === 'evidence') {
+        if (isFisherEvidenceSnapshot(snapshot)) return isFisherEvidenceReference({
+          app: source.app, kind: source.kind, id: source.id, version: source.version, locator: source.locator,
+        }, snapshot);
         return isPaperCitationSnapshot(snapshot) && source.app === 'paper-agent' && source.kind === 'report-citation' &&
           source.id === snapshot.reportId && source.version === snapshot.reportId &&
           source.locator === `pero-app-location://paper-agent/main/report/${snapshot.reportId}/citation/${snapshot.citationIndex}`;

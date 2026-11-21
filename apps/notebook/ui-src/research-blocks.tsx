@@ -7,6 +7,7 @@ import { useNotebookContext, useReferenceInspector } from './notebook-context';
 import { Badge, Button, Checkbox, Disclosure, DropdownMenuItem, Feedback, Icon, Input, Textarea } from '@pero/app-sdk/ui';
 import { parsePaperCitation, scientificReferenceState, type ScientificReference, type ReferenceSnapshot } from '@pero/notebook';
 import { projectNotebook, readStoredReference } from '@pero/notebook/interchange';
+import { isFisherEvidenceReference } from '@pero/notebook/fisher-evidence';
 import { parseControlEvidenceLocation } from '@pero/notebook/control-evidence';
 import { BlockFrame } from './block-frame';
 import { notebookEvidence } from './evidence-model';
@@ -23,6 +24,7 @@ const referenceFields = [
 function ownerAction(source: ScientificReference | null) {
   if (!source || source.locator !== source.locator.trim()) return null;
   if (source.app === 'paper-agent') {
+    if (isFisherEvidenceReference(source)) return 'openPaperSource';
     const paper = parsePaperCitation(source.locator);
     if (paper && paper.id === source.id && paper.kind === source.kind && paper.version === source.version) return 'openPaperSource';
   }
