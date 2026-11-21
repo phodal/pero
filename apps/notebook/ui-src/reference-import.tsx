@@ -2,9 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { useAppI18n } from '@pero/app-sdk';
 import { Badge, Button, Disclosure, Feedback, FilePicker, Select } from '@pero/app-sdk/ui';
 import type { ScientificReference, ReferenceSnapshot } from '@pero/notebook';
-import { maxFisherReceiptBytes, readFisherEvidence } from '@pero/notebook/fisher-evidence';
 import { readControlEvidence } from '@pero/notebook/control-evidence';
-import { maxPaperReportBytes, readPaperEvidence } from '@pero/notebook/paper-evidence';
+import { maxPaperReportBytes, readPaperEvidence, maxFisherReceiptBytes, readFisherEvidence } from '@pero/notebook/paper-evidence';
 import { messages } from './messages';
 
 export type ImportedReference = { label: string; reference: ScientificReference; snapshot: ReferenceSnapshot };

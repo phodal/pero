@@ -1,5 +1,7 @@
 import type { ScientificReference } from "./document.ts";
 
+export { isFisherEvidenceReference, isFisherEvidenceSnapshot, maxFisherReceiptBytes, readFisherEvidence } from "./fisher-evidence.ts";
+
 export const maxPaperReportBytes = 2 * 1024 * 1024;
 
 const reportSchema = "pero.paper-agent-report.v1";
