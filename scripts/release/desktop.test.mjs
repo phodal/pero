@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { createMacOSDmg } from '../lib/macos-dmg.mjs';
+import { createMacOSDmg, withMountedMacOSDmg } from '../lib/macos-dmg.mjs';
 
 test('release verification rejects a DMG missing Paper’s plugin even when the staged App is valid', { skip: process.platform !== 'darwin' }, () => {
   const source = resolve(import.meta.dirname, '../..');
@@ -60,5 +60,56 @@ test('release verification rejects a DMG missing Paper’s plugin even when the 
     assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
     assert.equal(existsSync(checksums), true);
     assert.deepEqual(readdirSync(env.TMPDIR), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('disk image cleanup retries only its private mount and preserves the original failure', { skip: process.platform !== 'darwin' }, () => {
+  const root = mkdtempSync(join(tmpdir(), 'pero-release-cleanup-'));
+  try {
+    const archive = join(root, 'fixture.dmg');
+    const source = join(root, 'source');
+    mkdirSync(source);
+    writeFileSync(join(source, 'test.txt'), 'read-only disk image fixture');
+    createMacOSDmg(source, 'Cleanup Test', archive);
+    const original = new Error('verification failed');
+    const detached = new Error('simulated busy on detach');
+    for (const scenario of ['retry', 'partial attach', 'no mount', 'exhausted']) {
+      let mount, directoryDevice, failures = 0, inspected = false;
+      const invoke = (command, args, options) => {
+        if (args[0] === 'attach') {
+          mount = args.at(-1);
+          directoryDevice = statSync(mount).dev;
+          if (scenario === 'no mount') throw original;
+          const result = execFileSync(command, args, options);
+          if (scenario === 'partial attach') throw original;
+          return result;
+        }
+        assert.deepEqual(args, ['detach', mount]);
+        if (++failures === 1 || scenario === 'exhausted') throw detached;
+        return execFileSync(command, args, options);
+      };
+      try {
+        assert.throws(() => withMountedMacOSDmg(archive, () => {
+          inspected = true;
+          throw original;
+        }, invoke), error => {
+          if (scenario !== 'exhausted') return error === original;
+          assert.ok(error instanceof AggregateError);
+          assert.equal(error.cause, original);
+          assert.deepEqual(error.errors, [original, detached]);
+          return true;
+        });
+        assert.equal(inspected, scenario !== 'partial attach' && scenario !== 'no mount');
+        assert.equal(failures, scenario === 'exhausted' ? 3 : scenario === 'no mount' ? 0 : 2);
+        assert.equal(existsSync(mount), scenario === 'exhausted');
+      } finally {
+        // The all-retries-fail fixture deliberately leaves its own mount
+        // attached; release it even if one of the assertions above fails.
+        if (mount && existsSync(mount)) {
+          if (statSync(mount).dev !== directoryDevice) execFileSync('/usr/bin/hdiutil', ['detach', mount]);
+          rmdirSync(mount);
+        }
+      }
+    }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
