@@ -93,6 +93,22 @@ class ResearchAttempt:
 
 
 @dataclass(frozen=True)
+class FisherResearchAttempt:
+    """A pinned Fisher reference, without invented PC-Gym policy/profile/seed."""
+    paperId: str
+    documentId: str
+    annotationId: str
+    page: int
+    itemId: str
+    specId: str
+    attemptId: str
+    methodDigest: str
+    status: str
+    startedAt: str
+    recipe: str = 'fisher-1936-table3-sepal-length-v1'
+
+
+@dataclass(frozen=True)
 class DataVersion:
     datasetId: str
     versionId: str
@@ -127,7 +143,7 @@ class ResearchRecord:
     createdAt: str
     parentId: str | None = None
     review: ReviewDecision | None = None
-    attempts: tuple[ResearchAttempt, ...] = ()
+    attempts: tuple[ResearchAttempt | FisherResearchAttempt, ...] = ()
     dataVersions: tuple[DataVersion, ...] = ()
 
     @classmethod
@@ -187,7 +203,7 @@ class ResearchRecord:
                      tuple(SourceVersion(**{**item, 'structuredDocumentIds': tuple(item.get('structuredDocumentIds', ()))})
                            for item in value['sourceVersions']), value['createdAt'], value['parentId'],
                      ReviewDecision(**value['review']) if value['review'] else None,
-                     tuple(ResearchAttempt(**item) for item in value.get('attempts', ())),
+                     tuple((FisherResearchAttempt if item.get('recipe') == 'fisher-1936-table3-sepal-length-v1' else ResearchAttempt)(**item) for item in value.get('attempts', ())),
                      tuple(DataVersion(**item) for item in value.get('dataVersions', ())))
         if result.id != identity or value != result.to_dict():
             raise Invalid('Research revision identity check failed', 409)
@@ -215,14 +231,17 @@ class ResearchRecord:
                               pdfChanged=pdf_changed, structuredChanged=structured_changed,
                               reason='Saved source or reading artifact unavailable' if status == 'unknown' else
                               'Saved source or reading version differs' if status == 'changed' else 'Saved versions match'))
+        def method_for(attempt):
+            return method_digest.get(getattr(attempt, 'recipe', 'pcgym')) if isinstance(method_digest, dict) else method_digest
+
         changed_ids = {item['paperId'] for item in items if item['status'] == 'changed'}
         affected_attempts = tuple(item for item in self.attempts if item.paperId in changed_ids or
-                                  (method_digest and item.methodDigest != method_digest))
+                                  (method_for(item) and item.methodDigest != method_for(item)))
         return dict(recordId=self.id, items=items, execution='not_requested', upstreamStatus='unknown',
                     affectedAttempts=[asdict(item) for item in affected_attempts],
                     affectedReportIds=list(dict.fromkeys(item.reportId for item in self.evidence if item.paperId in changed_ids and item.reportId)),
                     dataStatus='generated_by_attempt' if self.attempts else 'not_tracked',
-                    methodStatus=('changed' if any(item.methodDigest != method_digest for item in self.attempts) else 'unchanged')
+                    methodStatus=('changed' if any(item.methodDigest != method_for(item) for item in self.attempts) else 'unchanged')
                     if method_digest and self.attempts else 'not_tracked')
 
     def selection(self, paper_ids, now):

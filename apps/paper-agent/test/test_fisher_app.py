@@ -134,6 +134,41 @@ class FisherAppTests(unittest.TestCase):
             server.shutdown(); worker.join(timeout=3); server.server_close()
             self.store.program_jobs.close()
 
+    def test_research_revision_pins_fisher_attempt_without_pcgym_fields(self):
+        from paper_agent.research_record_commands import record_command, record_handoff
+        from paper_agent.model import Invalid as RecordInvalid
+        from test_research_records import draft
+        _, frozen = self.freeze()
+        result = self.app.command(self.run_command(frozen), NOW)
+        paper = self.store.paper(self.document.paper_id)
+        rows = record_command(self.store, dict(operation='attempts', paperIds=[paper.id]), NOW)['attempts']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['recipe'], 'fisher-1936-table3-sepal-length-v1')
+        self.assertTrue({'policy', 'profile', 'seed'}.isdisjoint(rows[0]))
+        reference = dict(itemId=frozen['itemId'], attemptId=result['attemptId'])
+        record = record_command(self.store, draft([paper], attempts=[reference]), NOW)
+        reopened = ResearchStore(self.home)
+        self.assertEqual(record_command(reopened, dict(operation='read', recordId=record['id']), NOW)['attempts'], rows)
+        index = record_command(reopened, dict(operation='export', recordId=record['id']), NOW)
+        self.assertEqual(index['attempts'], rows)
+        self.assertNotIn('question', index)
+        self.assertEqual(index['verification'], 'not_run')
+        self.assertEqual(record_command(reopened, dict(operation='impact', recordId=record['id']), NOW)['methodStatus'], 'unchanged')
+        for invalid in [dict(reference, attemptId='0' * 32), dict(reference, itemId='0' * 64)]:
+            with self.assertRaises(RecordInvalid):
+                record_command(reopened, draft([paper], attempts=[invalid]), NOW)
+        other = reopened.save_paper(PaperSnapshot.from_reading(dict(source='import', sourceId='other',
+            title='Other paper', url='https://example.org/other', contentKind='full-text', content='Synthetic unrelated paper'), NOW))
+        with self.assertRaises(RecordInvalid):
+            record_command(reopened, draft([other], attempts=[reference]), NOW)
+        with self.assertRaises(RecordInvalid):
+            record_handoff(reopened, dict(recordId=record['id'], **reference, includeNotes=True))
+        artifact = self.home / 'fisher-bundles' / frozen['itemId'] / 'attempts' / result['attemptId'] / 'observations.json'
+        artifact.write_text('{}')
+        with self.assertRaises(RecordInvalid):
+            record_command(reopened, dict(operation='export', recordId=record['id']), NOW)
+        self.assertEqual(record_command(reopened, dict(operation='read', recordId=record['id']), NOW)['attempts'], rows)
+
     def test_changed_policy_is_a_new_frozen_item_and_mismatch_is_not_execution_failure(self):
         selected, first = self.freeze()
         _, second = self.freeze(dict(mode='bounds', lower=0, upper=1))
