@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Checkbox, Disclosure, Feedback, Input, Select, Table } from '@pero/app-sdk/ui';
-import type { Api, PdfAnnotation } from './types';
+import type { Api, FisherNotebookReceipt, PdfAnnotation } from './types';
 import './fisher-reproduction.css';
 
 export const FISHER_PDF_SHA256 = 'd3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740';
@@ -22,8 +22,41 @@ type Evidence = { case: string; scope: string; items: Item[]; data?: { sha256: s
 const endpoint = '/api/fisher/step';
 const resolved = (attempt: Attempt) => ['failed', 'input_mismatch', 'environment_failed', 'blocked', 'cancelled', 'denied'].includes(attempt.execution.status) || (attempt.execution.status === 'completed' && attempt.report !== null);
 
+type FisherPanelProps = {
+  api: Api; annotation: PdfAnnotation; onSource(): void;
+  initial?: { itemId: string; attemptId: string; receipt?: FisherNotebookReceipt };
+};
+
+/** A Notebook link displays only the owner's revalidated receipt, never live summaries. */
+export function FisherReproduction(props: FisherPanelProps) {
+  const receipt = props.initial?.receipt;
+  return receipt ? <CheckedFisherReceipt receipt={receipt} onSource={props.onSource} /> : <LiveFisherReproduction {...props} />;
+}
+
+function CheckedFisherReceipt({ receipt, onSource }: { receipt: FisherNotebookReceipt; onSource(): void }) {
+  const { t } = useAppI18n({
+    title: { zh: '已核验的 Fisher 表 III 凭据', en: 'Checked Fisher Table III receipt' },
+    source: { zh: '查看表 III 原始单元格', en: 'View original Table III cell' },
+    result: { zh: '单个结果判定', en: 'Single-result verdict' },
+    exact: { zh: '独立精确结果（cm²）', en: 'Independent exact result (cm²)' },
+    independent: { zh: '独立数值核验', en: 'Independent numerical check' },
+    paper: { zh: '整篇论文', en: 'Whole paper' },
+    receipt: { zh: '凭据标识', en: 'Receipt ID' },
+  });
+  const result = receipt.snapshot;
+  return <section className="pa-fisher-reproduction" aria-label={t('title')}>
+    <h3>{t('title')}</h3>
+    <Button variant="link" onClick={onSource}>{t('source')}</Button>
+    <p>{t('result')}: <strong>{result.resultVerdict}</strong></p>
+    <p>{t('exact')}: <strong>{result.exactNumerator}/{result.exactDenominator}</strong></p>
+    <p>{t('independent')}: <strong>{result.numericRecomputation}</strong></p>
+    <p>{t('paper')}: <strong>{result.paperVerdict}</strong></p>
+    <p>{t('receipt')}: <code>{receipt.id}</code></p>
+  </section>;
+}
+
 /** Presents backend-owned immutable protocols and attempts; never executes on mount. */
-export function FisherReproduction({ api, annotation, onSource, initial }: { api: Api; annotation: PdfAnnotation; onSource(): void; initial?: { itemId: string; attemptId: string } }) {
+function LiveFisherReproduction({ api, annotation, onSource, initial }: FisherPanelProps) {
   const { t } = useAppI18n({
     title: { zh: '复现 Fisher 表 III 的一个结果', en: 'Reproduce one Fisher Table III result' },
     scope: { zh: '仅重算一个已发表统计量。整篇论文：NOT_ASSESSED。', en: 'Numerical reanalysis of one published statistic. Whole paper: NOT_ASSESSED.' },

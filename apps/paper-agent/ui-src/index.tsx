@@ -19,17 +19,14 @@ import { DiscoverSearch } from './discover-search';
 import { WorkspaceNav, type LibraryScreen } from './workspace-nav';
 import { useLibraryData } from './library-data';
 import { loadShelf, openPaper, saveShelf, statusOf, withStatus, type Shelf, type ShelfFilter } from './shelf';
-import type { EvidenceLocation, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfReading, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
+import type { EvidenceLocation, FisherNotebookReceipt, Intent, Library, LocalSearchHit, Paper, PdfAnnotation, PdfFocus, PdfReading, PdfSource, SavedDiscovery, StudySummary, PaperResearchSelection, TextFocus, ReaderLocation } from './types';
 import './styles.css';
 import './workspace.css';
 import './library-papers.css';
 import './research-workspace.css';
 
 type WorkspaceScreen = 'library' | 'reading';
-type FisherNotebookReceipt = {
-  schema: 'pero.fisher-notebook-evidence.v1'; id: string;
-  snapshot: { paperId: string; documentId: string; annotationId: string; page: number; itemId: string; attemptId: string };
-};
+
 
 function focusVisibleSearch() {
   const root = document.querySelector('.pa-workbench');
@@ -366,7 +363,7 @@ export default function PaperAgent() {
           }
           setOpenHit(null); setError('');
           await revealPdf(paper, { documentId: pdf.document.id, page: annotation.page, annotationId: annotation.id,
-            rects: annotation.rects, verification: { itemId, attemptId, recipe: 'fisher-1936-table3-sepal-length-v1' } });
+            rects: annotation.rects, verification: { itemId, attemptId, recipe: 'fisher-1936-table3-sepal-length-v1', receipt } });
         })().catch(error => { if (current()) onError(error); });
         return;
       }
