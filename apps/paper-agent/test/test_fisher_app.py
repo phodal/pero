@@ -18,7 +18,7 @@ from paper_agent.fisher_result import (FisherCommand, PDF_SHA256, PDF_URL, RESUL
     SOURCE_NOTE, DOI)
 from paper_agent.fisher_app import FisherApp
 from paper_agent.http import handler
-from paper_agent.model import PaperSnapshot
+from paper_agent.model import PaperSnapshot, digest
 from paper_agent.pcgym import read_json, write_json
 from paper_agent.pcgym_domain import Invalid
 from paper_agent.pdf import PdfDocument
@@ -126,6 +126,35 @@ class FisherAppTests(unittest.TestCase):
                                      capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(checked.stdout)['exact_numerator'], 95717)
             self.assertEqual(json.loads(checked.stdout)['exact_denominator'], 5000)
+            route = '/api/fisher/notebook-evidence'
+            ids = dict(itemId=frozen['itemId'], attemptId=attempt['attemptId'])
+            status, body = post(ids, route)
+            self.assertEqual(status, 200, body)
+            receipt = json.loads(body)
+            self.assertEqual(receipt['schema'], 'pero.fisher-notebook-evidence.v1')
+            snapshot = receipt['snapshot']
+            self.assertEqual(receipt['id'], digest(snapshot))
+            self.assertEqual(snapshot, dict(kind='fisher-attempt', **ids,
+                paperId=self.document.paper_id, documentId=self.document.id,
+                annotationId=selected['id'], page=4, fileDigest=PDF_SHA256,
+                observationsDigest=attempt['execution']['observations_sha256'],
+                exactNumerator=95717, exactDenominator=5000, resultVerdict='REPRODUCED',
+                numericRecomputation='PASS', paperVerdict='NOT_ASSESSED'))
+            self.assertEqual(post(dict(ids, receiptId=receipt['id']), route), (200, body))
+            self.assertEqual(post(dict(ids, receiptId='0'*64), route)[0], 409)
+            self.assertEqual(post(dict(ids, attemptId='0'*32), route)[0], 409)
+            self.assertEqual(post(dict(ids, attemptId='../x'), route)[0], 400)
+            self.assertEqual(post(ids, route, token='wrong')[0], 401)
+            original = self.store.root / 'pdf-files' / (PDF_SHA256 + '.pdf')
+            original_bytes = original.read_bytes()
+            original.write_bytes(b'Changed local source')
+            self.assertEqual(post(ids, route)[0], 409)
+            original.unlink()
+            self.assertEqual(post(ids, route)[0], 409)
+            original.write_bytes(original_bytes)
+            saved_attempt = self.store.root / 'fisher-bundles' / ids['itemId'] / 'attempts' / ids['attemptId']
+            (saved_attempt / 'observations.json').write_text('{}')
+            self.assertEqual(post(ids, route)[0], 409)
             logs = command(dict(action='logs', itemId=frozen['itemId'], attemptId=attempt['attemptId']))
             self.assertIn('numeric_recomputation', logs['text'])
             # Existing PC-Gym public start still cannot bypass its Host authority.

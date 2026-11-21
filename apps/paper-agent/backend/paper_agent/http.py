@@ -276,6 +276,9 @@ def handler(store, secret, literature=None, now=utc_now, pdf_files=None, thumbna
                         if data.get('action') == 'export':
                             raise Invalid('Use the Fisher evidence archive route')
                         return self.reply(200, fisher.command(data, now()))
+                    if path == '/api/fisher/notebook-evidence':
+                        from .fisher_records import notebook_evidence
+                        return self.reply(200, notebook_evidence(store, data))
                     if path == '/api/fisher/evidence-archive':
                         reproduction_fields(data, ('itemId', 'attemptId'))
                         return self.binary(200, fisher.command(dict(action='export', **data), now()), 'application/zip')
