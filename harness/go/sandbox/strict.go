@@ -233,7 +233,9 @@ func strictBwrapProfile(policy Policy, mounts []strictMount, workspace bool) []s
 // lookup grants. Only runtime files and the isolated candidate are readable.
 // Scratch must stay in the owned workspace on macOS; there is no host /tmp grant.
 func strictSeatbeltProfile(policy Policy, mounts []strictMount, workspace bool) string {
-	forms := []string{"(version 1)", "(deny default)", "(deny network*)", "(allow process-exec)", "(allow process-fork)", `(allow file-read-metadata (literal "/"))`, `(allow file-read* file-write* (literal "/dev/null"))`}
+	// dyld opens the root directory as an openat base on macOS 27.
+	// The literal matches only the directory itself, never its descendants.
+	forms := []string{"(version 1)", "(deny default)", "(deny network*)", "(allow process-exec)", "(allow process-fork)", `(allow file-read-metadata file-read-data (literal "/"))`, `(allow file-read* file-write* (literal "/dev/null"))`}
 	for _, mount := range mounts {
 		forms = append(forms, "(allow file-read* file-map-executable (subpath "+sbplString(mount.source)+") (subpath "+sbplString(mount.destination)+"))")
 	}
