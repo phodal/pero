@@ -40,6 +40,10 @@ actual staged App directories for matching plugin manifests, named Skills, and
 package-relative MCP entrypoints. It does not use an installed profile or a
 development checkout to fill missing packaged files. Regression cases cover a
 missing manifest, missing declared files, and symlinks to development inputs.
+On macOS the release gate also remounts the finished DMG read-only before
+issuing checksums and applies the same checks to its enclosed App. A regression
+uses a healthy staged App beside a signed DMG missing the plugin: verification
+rejects that image, then accepts a rebuilt image containing the plugin.
 
 On a Mac, the untouched cited package reproduced the missing-plugin error in an
 empty profile via its bundled Host. A separate local copy of that package,
