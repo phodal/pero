@@ -245,3 +245,33 @@ The temporary install location produced a macOS URL-handler registration
 warning. This run used the scoped token form and ephemeral credentials.
 It did not exercise GitHub OAuth callbacks, Keychain persistence, Gatekeeper
 or notarization, public release distribution, or production deployment.
+
+## Go harness with Codex exec-server, 2026-11-21
+
+A macOS 27.2.1 arm64 development Electron client dispatched a Run to the
+independent Rust Worker. The Worker launched the SHA256-pinned Go ACP harness
+in its native shell approval configuration. A loopback model selected two real
+Shell calls. The harness started codex-cli 0.154.0 over private stdio for each.
+
+- The first Shell read a random marker from the workspace. The sandbox denied
+  reading a sibling file. The model-side tool receipt and persisted Run event
+  agreed on exit code 0, stdout and stderr, including newlines.
+- The second Shell printed a different marker and started a 120-second sleep.
+  OS process inspection confirmed the live exec-server → Bash → sleep chain.
+  Clicking Stop and confirming in Electron produced a persisted `cancelled`
+  Run with summary `Cancellation requested by Cloud`. All three PIDs disappeared.
+- The second call's partial stdout did not reach the persisted Run events.
+  The native foreground tool emits its ACP tool result at completion, and the
+  Worker leaves its event-consumption loop when a renewal reports cancellation.
+  The direct Go transport test independently observed partial stdout and confirmed
+  shell and child exit after cancelling the Go context without the Worker.
+
+Run `node tests/e2e/exec-server-shell.mjs` with a built development Desktop,
+`PERO_TEST_DATABASE_URL` for loopback PostgreSQL and
+`PERO_TEST_CODEX_EXECUTABLE` set to the installed Codex binary. By default the
+fixture uses the development Host and Worker under `target/debug`;
+`PERO_HOST_EXECUTABLE` and `PERO_WORKER_BIN` can select built binaries.
+This run used Host and Worker binaries from the local #223 package acceptance.
+Screenshots and the machine-readable receipt are in `test-results/exec-server-shell/`.
+The direct check runs with the same Codex variable and
+`go -C harness/go test -race ./shell -run TestExecServerForegroundCancellation`.

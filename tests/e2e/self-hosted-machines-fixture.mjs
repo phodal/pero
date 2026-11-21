@@ -137,9 +137,9 @@ export async function setupSelfHostedMachines(database, {
       const attempt = await request('/api/worker/v1/claims', 'POST', { request_id: randomUUID(), instance_id: 'spare-observer' }, bystander.token);
       expect(attempt.run).toBeNull();
     };
-    const startWorker = () => start(resolve(workerBinary), ['--once'], {
+    const startWorker = (configPath = config) => start(resolve(workerBinary), ['--once'], {
       ...env, PERO_CLOUD_URL: url, PERO_WORKER_TOKEN: chosen.token,
-      PERO_WORKER_CONFIG: config, PERO_WORKER_STATE: resolve(temp, `worker-${randomUUID()}.json`),
+      PERO_WORKER_CONFIG: configPath, PERO_WORKER_STATE: resolve(temp, `worker-${randomUUID()}.json`),
     });
     return { root, out, base, url, temp, env, agents, client, request, chosen, incompatible, bystander,
       startWorker, assertTarget, stop, close, creationAttempts, dispatches, logs: () => logs };
