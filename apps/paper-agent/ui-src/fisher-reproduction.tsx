@@ -54,6 +54,8 @@ export function FisherReproduction({ api, annotation, onSource, initial }: { api
     environmentRecovery: { zh: '环境与冻结方案不一致，尚未计算结果。请恢复原运行环境，或核对当前环境后建立新方案；旧方案与记录会保留。', en: 'The environment differs from the frozen protocol; no result was computed. Restore the frozen environment, or review the current environment and create a new protocol. Earlier records are retained.' },
     mismatchRecovery: { zh: '计算已完成，但实际值不满足冻结的比较规则。请核对原始输入、方法和日志；重跑沿用相同规则。', en: 'Computation completed, but the actual value does not satisfy the frozen comparison rule. Review the source inputs, method and logs; rerunning keeps the same rule.' },
     annotationMissing: { zh: '数值检查与证据回写不同：结果标注尚未确认保存，交接流程不完整。可查看日志定位原因。', en: 'Numerical verification and evidence write-back are separate: the result annotation has not been confirmed saved. The handoff workflow is incomplete; inspect the logs.' },
+    notebookExport: { zh: '导出笔记证据 JSON', en: 'Export Notebook evidence JSON' },
+    notebookScope: { zh: '只包含固定引用和数值结果。请在 Notebook 的证据块导入，再将其引用到研究发现。', en: 'Contains pinned references and numerical results only. Import it into a Notebook Evidence block and cite that block in a Finding.' },
     archive: { zh: '包含原始 PDF、数据、冻结方案、运行证据与可独立运行的核验器。', en: 'Includes original PDF, data, frozen protocol, execution evidence and a standalone verifier.' },
   });
   const pendingKey = `pero.fisher.pending.${annotation.id}`;
@@ -139,6 +141,17 @@ export function FisherReproduction({ api, annotation, onSource, initial }: { api
     } catch (e) { fail(e); }
     finally { operation.current = false; if (alive.current) setBusy(false); }
   }
+  async function exportNotebookEvidence() {
+    if (!selected || !chosen || operation.current) return;
+    operation.current = true; setBusy(true); setError('');
+    try {
+      const receipt = await api.post<{ id: string }>('/api/fisher/notebook-evidence', {
+        itemId: selected.itemId, attemptId: chosen.attemptId,
+      });
+      if (alive.current) downloadFile(`fisher-evidence-${receipt.id.slice(0, 12)}.json`, JSON.stringify(receipt, null, 2), 'application/json');
+    } catch (e) { fail(e); }
+    finally { operation.current = false; if (alive.current) setBusy(false); }
+  }
   return <section className="pa-fisher-reproduction" aria-label={t('title')}>
     <h3>{t('title')}</h3><p>{t('scope')}</p>
     <Button variant="link" onClick={onSource}>{t('source')}</Button>
@@ -176,7 +189,8 @@ export function FisherReproduction({ api, annotation, onSource, initial }: { api
         {chosen.execution.status === 'completed' && chosen.report && (!chosen.annotation || chosen.report.annotation_status === 'failed' || chosen.report.workflow_status === 'incomplete') && <Feedback kind="warning">{t('annotationMissing')}</Feedback>}
         <p>{t('scope')}</p><Button variant="ghost" onClick={() => void readLogs()}>{t('logs')}</Button>
         {logs?.attemptId === chosen.attemptId && <pre tabIndex={0}>{logs.text}</pre>}
-        {chosen.execution.status === 'completed' && chosen.report && <><Button disabled={busy} onClick={() => void exportArchive()}>{t('export')}</Button><p>{t('archive')}</p></>}
+        {chosen.execution.status === 'completed' && chosen.report && <><Button disabled={busy} onClick={() => void exportArchive()}>{t('export')}</Button><p>{t('archive')}</p>
+          <Button disabled={busy} onClick={() => void exportNotebookEvidence()}>{t('notebookExport')}</Button><p>{t('notebookScope')}</p></>}
       </section>}
     </>}
   </section>;
