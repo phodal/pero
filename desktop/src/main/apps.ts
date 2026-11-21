@@ -179,7 +179,6 @@ export class DesktopApps {
       const request_id = typeof command.request_id === 'string' ? command.request_id : null;
       let catalog: ProjectResourceCatalog;
       try {
-        if (!['paper-agent', 'control-lab', 'lab'].includes(app)) throw new Error('This App has no project resource catalog');
         catalog = await this.request<ProjectResourceCatalog>('projectresources', { name: app });
       } catch (error) {
         catalog = { app, resources: [], error: (error as Error).message };

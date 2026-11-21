@@ -293,6 +293,27 @@ def _control_snapshot(snapshot, source):
         raise ValueError('Imported check values do not match their report digest')
 
 
+def _fisher_snapshot(snapshot, source):
+    digests = ('itemId', 'paperId', 'documentId', 'annotationId', 'fileDigest', 'observationsDigest')
+    fields(snapshot, {*digests, 'kind', 'attemptId', 'page', 'exactNumerator',
+                      'exactDenominator', 'resultVerdict', 'numericRecomputation', 'paperVerdict'})
+    _digests(snapshot, digests)
+    attempt = snapshot['attemptId']
+    if not isinstance(attempt, str) or not RUN_ID.fullmatch(attempt):
+        raise ValueError('Invalid imported Fisher attempt ID')
+    integer(snapshot['page'], 'Fisher source page', 4, minimum=4)
+    integer(snapshot['exactNumerator'], 'Fisher numerator', 2**53 - 1)
+    integer(snapshot['exactDenominator'], 'Fisher denominator', 2**53 - 1)
+    if (snapshot['resultVerdict'] not in ('REPRODUCED', 'MISMATCH') or
+            snapshot['numericRecomputation'] != 'PASS' or snapshot['paperVerdict'] != 'NOT_ASSESSED'):
+        raise ValueError('Invalid imported Fisher verdict')
+    digest = sha256(json.dumps(snapshot, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    item = snapshot['itemId']
+    locator = f'pero-app-location://paper-agent/main/fisher/{item}/attempt/{attempt}/receipt/{digest}'
+    if source != dict(app='paper-agent', kind='fisher-attempt', id=item, version=digest, locator=locator):
+        raise ValueError('Fisher snapshot does not match its receipt digest and source reference')
+
+
 def _snapshot(kind, snapshot, source):
     if snapshot is None:
         return
@@ -300,6 +321,8 @@ def _snapshot(kind, snapshot, source):
         raise ValueError('Imported snapshot requires its source reference')
     if kind == 'evidence' and snapshot.get('kind') == 'paper-report':
         _paper_snapshot(snapshot, source)
+    elif kind == 'evidence' and snapshot.get('kind') == 'fisher-attempt':
+        _fisher_snapshot(snapshot, source)
     elif kind == 'experiment' and snapshot.get('kind') == 'control-receipt':
         _control_snapshot(snapshot, source)
     else:

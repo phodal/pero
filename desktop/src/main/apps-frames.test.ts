@@ -50,6 +50,26 @@ test('Host SDK context carries installed view discovery without backend resoluti
   } finally { apps.close(); }
 });
 
+test('Desktop requests the Notebook resource catalog from the common Host owner', async () => {
+  const entryId = 'a'.repeat(32);
+  const catalog = { app: 'notebook', resources: [{
+    reference: { app: 'notebook', kind: 'entry', id: entryId, revision: '4' },
+    title: 'Notebook head', summary: '', status: 'saved',
+    location: `pero-app-location://notebook/main/entry/${entryId}/revision/4`,
+  }] };
+  const events: unknown[] = [];
+  const apps = new DesktopApps(value => {
+    const request = value as { id: string; name: string; action: string };
+    assert.equal(request.action, 'projectresources');
+    assert.equal(request.name, 'notebook');
+    apps.accept({ version: 1, kind: 'apps_result', request_id: request.id, text: '', data: { ok: true, value: catalog } });
+  }, value => events.push(value), async () => undefined);
+  try {
+    await apps.command({ action: 'apps_project_resources', name: 'notebook', request_id: 'materials' });
+    assert.deepEqual(events, [{ version: 1, kind: 'project_resources', request_id: 'materials', text: '', data: catalog }]);
+  } finally { apps.close(); }
+});
+
 test('App assets keep declared frame origins and allow same-app ancestors only for bundled reader frames', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pero-app-frames-'));
   const assets = ['index.html', 'artifact.html', '_reader/reader.html', '_paper-reader/frame.html',

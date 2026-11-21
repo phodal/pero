@@ -4,6 +4,7 @@ from .model import Invalid, digest, sequence
 from .paper_documents import PaperDocuments
 from .pcgym_sources import pipeline_digest
 from .research_records import ResearchRecord, SourceVersion
+from .fisher_records import fisher_attempts, check_fisher_reference
 from .research_resources import ArxivPaper
 
 
@@ -31,6 +32,8 @@ def record_handoff(store, value):
     # The explicit handoff includes research notes and one attempt's numeric outputs.
     # Linked reports, other attempts and full original documents are referenced by identity.
     record_command(store, dict(operation='export', recordId=record.id), None)
+    if getattr(attempt, 'recipe', None):
+        raise Invalid('Fisher research revisions currently export references only; use the existing Fisher evidence archive for the pinned attempt', 409)
     return store.pcgym.evidence_archive(attempt.itemId, attempt.attemptId, research_record=record.to_dict())
 
 
@@ -69,7 +72,7 @@ def record_command(store, value, now, *, data_versions=None):
         papers = tuple(paper(identity) for identity in ids)
         parent = read_record(store, value['parentId']) if value.get('parentId') is not None else None
         record = ResearchRecord.create(value, papers, now, sources=tuple(source_version(store, item) for item in papers),
-                                       available_attempts=store.pcgym.research_attempts(ids) if value.get('attempts') else (),
+                                       available_attempts=(*store.pcgym.research_attempts(ids), *fisher_attempts(store, ids)) if value.get('attempts') else (),
                                        data_versions=data_versions if data_versions is not None else parent.dataVersions if parent else ())
         for link in record.evidence:
             evidence(link)
@@ -79,7 +82,7 @@ def record_command(store, value, now, *, data_versions=None):
         if set(value) != {'operation', 'paperIds'}:
             raise Invalid('Choose saved papers for the attempt list')
         ids = tuple(paper(identity).id for identity in sequence(value['paperIds'], 32, 'saved papers'))
-        return dict(attempts=[asdict(item) for item in store.pcgym.research_attempts(ids)])
+        return dict(attempts=[asdict(item) for item in (*store.pcgym.research_attempts(ids), *fisher_attempts(store, ids))])
     allowed = {'operation'} if operation == 'list' else {'operation', 'recordId', 'paperIds'} if operation == 'select' else {'operation', 'recordId'}
     if set(value) - allowed or operation not in ('list', 'read', 'impact', 'select', 'export'):
         raise Invalid('Choose create, list, read, impact, select, attempts or export')
@@ -102,6 +105,9 @@ def record_command(store, value, now, *, data_versions=None):
                 raise Invalid('Frozen source digest mismatch', 409)
         for link in record.evidence:
             evidence(link)
+        for attempt in record.attempts:
+            if getattr(attempt, 'recipe', None):
+                check_fisher_reference(store, attempt)
         return record.export_index()
     if operation == 'select':
         selection = record.selection(value.get('paperIds'), now)
@@ -127,7 +133,13 @@ def record_command(store, value, now, *, data_versions=None):
             works[item.id] = ArxivPaper.from_snapshot(item)
         except Invalid:
             pass  # An unresolved work cannot link versions across source IDs.
-    return dict(record.impact(tuple(papers), tuple(current_sources), works, pipeline_digest() if record.attempts else None),
+    from .fisher_reproduction import pipeline_digest as fisher_digest
+    methods = {}
+    for attempt in record.attempts:
+        recipe = getattr(attempt, 'recipe', 'pcgym')
+        if recipe not in methods:
+            methods[recipe] = fisher_digest() if recipe != 'pcgym' else pipeline_digest()
+    return dict(record.impact(tuple(papers), tuple(current_sources), works, methods),
                 unavailablePaperIds=unavailable)
 
 

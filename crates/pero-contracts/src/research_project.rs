@@ -58,9 +58,15 @@ impl ProjectResourceRef {
     }
 
     pub fn valid(&self) -> bool {
+        if self.is_notebook_entry() {
+            return hex32(&self.id) && notebook_revision(&self.revision);
+        }
+        if self.is_data_dataset() {
+            return self.id.strip_prefix("ds-").is_some_and(hex32) && hex32(&self.revision);
+        }
         matches!(
             (self.app.as_str(), self.kind.as_str()),
-            ("paper-agent", "paper" | "study") | ("control-lab" | "lab", "experiment") | ("notebook", "entry")
+            ("paper-agent", "paper" | "study") | ("control-lab" | "lab", "experiment")
         ) && opaque_id(&self.id)
             && !self.revision.is_empty()
             && self.revision.len() <= 128
@@ -68,6 +74,28 @@ impl ProjectResourceRef {
                 .revision
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b"._:-".contains(&b))
+    }
+
+    pub fn is_notebook_entry(&self) -> bool {
+        self.app == "notebook" && self.kind == "entry"
+    }
+
+    /// A Notebook reference resolves its saved revision, independent of a live catalog.
+    pub fn notebook_revision_location(&self) -> Option<String> {
+        (self.is_notebook_entry() && self.valid()).then(|| format!(
+            "pero-app-location://notebook/main/entry/{}/revision/{}", self.id, self.revision
+        ))
+    }
+
+    pub fn is_data_dataset(&self) -> bool {
+        self.app == "data" && self.kind == "dataset"
+    }
+
+    /// Keep the selected asset ID even if the catalog now advertises a newer one.
+    pub fn data_version_location(&self) -> Option<String> {
+        (self.is_data_dataset() && self.valid()).then(|| format!(
+            "pero-app-location://data/main/dataset/{}/version/{}", self.id, self.revision
+        ))
     }
 
     fn same_object(&self, other: &Self) -> bool {
@@ -218,9 +246,9 @@ pub struct NotebookProjectLink {
 }
 impl NotebookProjectLink {
     pub fn validate(&self) -> Result<(), String> {
-        if !opaque_id(&self.project_id) || self.entry_id.len() != 32 ||
-            !self.entry_id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) ||
-            self.revision == 0 || self.revision > 2_147_483_647 || self.expected_revision.as_ref().is_some_and(|value| value.parse::<u64>().map_or(true, |revision| revision == 0)) {
+        if !opaque_id(&self.project_id) || !hex32(&self.entry_id)
+            || !(1..=i32::MAX as u64).contains(&self.revision)
+            || self.expected_revision.as_deref().is_some_and(|value| !notebook_revision(value)) {
             return Err("Choose a saved Notebook entry and an existing Host project".into());
         }
         if self.read_only { return Err("Read-only Notebook views cannot change project associations".into()); }
@@ -242,6 +270,16 @@ impl NotebookProjectLink {
     }
 }
 
+fn hex32(value: &str) -> bool {
+    value.len() == 32 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+fn notebook_revision(value: &str) -> bool {
+    !value.starts_with('0')
+        && value.bytes().all(|b| b.is_ascii_digit())
+        && value.parse::<i32>().is_ok_and(|revision| revision > 0)
+}
+
 fn opaque_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -253,6 +291,48 @@ fn opaque_id(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_data_pin_uses_its_saved_asset_id_until_explicitly_replaced() {
+        let dataset_id = format!("ds-{}", "d".repeat(32));
+        let resource = |asset_id: String| ProjectResourceRef::new("data".into(), "dataset".into(), dataset_id.clone(), asset_id);
+        let old = resource("a".repeat(32)).unwrap();
+        let new = resource("b".repeat(32)).unwrap();
+        let mut project = ResearchProject::new("p".into(), "Project".into(), "".into(), None).unwrap();
+        project.attach(old.clone()).unwrap();
+        assert_eq!(project.resources[0].data_version_location(), Some(format!(
+            "pero-app-location://data/main/dataset/{dataset_id}/version/{}", old.revision)));
+        assert!(resource("latest".into()).is_err());
+        assert!(resource(String::new()).is_err());
+        assert!(ProjectResourceRef::new("data".into(), "dataset".into(), "a".repeat(32), "b".repeat(32)).is_err());
+        project.attach(new.clone()).unwrap();
+        assert_eq!(project.resources, vec![new]);
+    }
+
+
+    #[test]
+    fn notebook_material_opens_saved_revision_until_explicitly_relinked() {
+        let id = "a".repeat(32);
+        let mut project = ResearchProject::new("project".into(), "Pinned Notebook".into(), "".into(), None).unwrap();
+        let reference = |revision: &str| ProjectResourceRef::new("notebook".into(), "entry".into(), id.clone(), revision.into());
+        let saved = reference("3").unwrap();
+        project.attach(saved).unwrap();
+        let latest = reference("4").unwrap();
+        assert_ne!(latest.revision, project.resources[0].revision);
+        for (pinned, tail) in [(project.resources[0].clone(), "3"), (latest.clone(), "4")] {
+            let location = pinned.notebook_revision_location().unwrap();
+            assert_eq!(crate::app_chat::AppLocation::parse(&location).unwrap().location,
+                format!("entry/{id}/revision/{tail}"));
+        }
+        project.attach(latest).unwrap();
+        assert_eq!(project.resources.len(), 1);
+        assert_eq!(project.resources[0].revision, "4");
+        for revision in ["0", "03", "latest", "2147483648", "3/../4"] {
+            assert!(reference(revision).is_err(), "Accepted invalid revision {revision}");
+        }
+        assert!(reference("2147483647").is_ok());
+        assert!(ProjectResourceRef::new("notebook".into(), "entry".into(), "opaque".into(), "3".into()).is_err());
+    }
 
     #[test]
     fn notebook_project_associations_preserve_other_owners_and_reject_stale_choices() {

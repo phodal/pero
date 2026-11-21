@@ -77,6 +77,7 @@ function Notebook() {
   const [busy, setBusy] = useState<'create' | 'save' | 'history' | 'reload' | 'agent' | 'delete' | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [openError, setOpenError] = useState('');
+  const [openingRevision, setOpeningRevision] = useState<{ revision: number; error?: string } | null>(null);
   const [error, setError] = useState('');
   const [replacementNotice, setReplacementNotice] = useState('');
   const [retry, setRetry] = useState(0);
@@ -119,7 +120,7 @@ function Notebook() {
       if (entries === null || handledLink.current === hash || !link || !/^[a-f0-9]{32}$/.test(link.entryId)) return;
       handledLink.current = hash;
       navigationRequest.current++;
-      setSelected(link.entryId); setSnapshot(null); setHistory(null); setOpenError('');
+      setSelected(link.entryId); setSnapshot(null); setHistory(null); setOpenError(''); setOpeningRevision(null);
       if (!entries.some(entry => entry.id === link.entryId)) void refresh();
     };
     followLink(); window.addEventListener('hashchange', followLink);
@@ -141,7 +142,7 @@ function Notebook() {
   }, []);
 
   useEffect(() => {
-    if (!selected || !active) return;
+    if (!selected || !active || snapshot || openingRevision) return;
     let live = true;
     setOpenError('');
     void api.get<NotebookEntry>(endpoint(selected)).then(async entry => {
@@ -166,7 +167,7 @@ function Notebook() {
       } });
     }).catch(cause => { if (live) setOpenError(messageOf(cause)); });
     return () => { live = false; };
-  }, [selected, api, retry, adopt, active]);
+  }, [selected, api, retry, adopt, active, snapshot, openingRevision]);
 
   useEffect(() => {
     if (!Object.values(drafts).some(draft => !draft.durable)) return;
@@ -219,9 +220,10 @@ function Notebook() {
     });
   };
   const choose = (id: string) => {
-    if (id === selected) return;
+    if (id === selected && !openingRevision) return;
+    navigationRequest.current++;
     setSelected(id); setReplacementNotice('');
-    setSnapshot(null);
+    setSnapshot(null); setOpeningRevision(null);
     setHistory(null);
     setError('');
     setOpenError('');
@@ -238,7 +240,7 @@ function Notebook() {
         return;
       }
       navigationRequest.current++;
-      setSelected(match[1]); setSnapshot(null); setHistory(null); setError(''); setOpenError('');
+      setSelected(match[1]); setSnapshot(null); setHistory(null); setError(''); setOpenError(''); setOpeningRevision(null);
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
@@ -305,11 +307,18 @@ function Notebook() {
     const openRevision = (event: Event) => {
       const target = (event as CustomEvent<{ entryId?: unknown; revision?: unknown }>).detail;
       if (!target || typeof target.entryId !== 'string' || !/^[a-f0-9]{32}$/.test(target.entryId) || !Number.isSafeInteger(target.revision) || Number(target.revision) < 1) return;
-      const request = ++navigationRequest.current;
-      void api.get<NotebookEntry>(`${endpoint(target.entryId)}/revisions/${target.revision}`).then(entry => {
+      const request = ++navigationRequest.current, revision = Number(target.revision);
+      setOpeningRevision({ revision });
+      setError(''); setReplacementNotice('');
+      void api.get<NotebookEntry>(`${endpoint(target.entryId)}/revisions/${revision}`).then(entry => {
         if (request !== navigationRequest.current) return;
-        choose(entry.id); setSnapshot(readEntry(entry));
-      }).catch(cause => { if (request === navigationRequest.current) setError(messageOf(cause)); });
+        if (entry.id !== target.entryId || entry.revision !== revision) throw new Error('Notebook returned a different saved revision');
+        const saved = readEntry(entry);
+        setSelected(saved.id); setHistory(null); setOpenError('');
+        setSnapshot(saved); setOpeningRevision(null);
+      }).catch(cause => {
+        if (request === navigationRequest.current) setOpeningRevision({ revision, error: messageOf(cause) });
+      });
     };
     window.addEventListener(NOTEBOOK_SEARCH_OPEN_EVENT, openRevision);
     return () => { navigationRequest.current++; window.removeEventListener(NOTEBOOK_SEARCH_OPEN_EVENT, openRevision); };
@@ -410,7 +419,13 @@ function Notebook() {
     {catalogError && <Feedback kind="error" variant="block">{catalogError} <Button onClick={() => void refresh()}>{t('retry')}</Button></Feedback>}
     {error && !removing && <Feedback kind="error" variant="block">{error}</Feedback>}
     {replacementNotice && <Feedback kind="success" variant="block">{replacementNotice}</Feedback>}
-    {!entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
+    {openingRevision?.error && <Feedback kind="error" variant="block">
+      {t('revisionUnavailable', { number: openingRevision.revision })} {openingRevision.error}
+      <Button onClick={() => { setOpeningRevision(null); setSnapshot(null); }}>{t('backToDraft')}</Button>
+    </Feedback>}
+    {openingRevision && !openingRevision.error
+      ? <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>
+      : openingRevision ? null : !entries ? (catalogError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
       : entries.length === 0 ? <EmptyState className="notebook-empty" icon={<Icon name="notebook" size={32} />} heading={t('noNotebooks')} />
       : <Split className="notebook-split" storageKey="pero.notebook.list-width" collapseBelow={650}>
         {navigationOpen && <SplitPane as="aside" id="notebook-list" aria-label={t('notebooks')} size={240} min={175} className="notebook-nav">
@@ -479,7 +494,7 @@ function Notebook() {
                 <Button busy={busy === 'reload'} onClick={() => { if (window.confirm(t('discardDraftConfirm'))) void loadLatest(); }}>{t('loadLatest')}</Button>
               </Feedback>}
             </>}>
-          {!navigationOpen && (!shown || !draft || !current) && <div>
+          {!navigationOpen && (!shown || !draft || (!snapshot && !current)) && <div>
             <IconButton label={t('notebooks')} title={t('expandNotebooks')} aria-expanded={false} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>
           </div>}
@@ -498,8 +513,8 @@ function Notebook() {
                   <time dateTime={revision.updatedAt}>{new Date(revision.updatedAt).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en')}</time>
                 </li>)}</ul>
               </section>}
-              <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current.editorEpoch}`}
-                dirty={!snapshot && current.dirty}
+              <NotebookEditor key={snapshot ? `${snapshot.id}:revision:${snapshot.revision}` : `${selected}:draft:${current?.editorEpoch}`}
+                dirty={!snapshot && !!current?.dirty}
                 savedDocument={shown.document}
                 takeInitialFocus={() => {
                   if (pendingBodyFocus.current !== shown.id) return false;
@@ -510,16 +525,16 @@ function Notebook() {
                   navigation: !navigationOpen && <IconButton className="notebook-library-toggle" label={t('notebooks')} title={t('expandNotebooks')}
                     aria-expanded={false} aria-controls="notebook-list" onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>,
                   updatedAt: shown.updatedAt,
-                  status: `${t('revision', { number: shown.revision })}${!snapshot && current.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
-                  onSave: snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },
+                  status: `${t('revision', { number: shown.revision })}${!snapshot && current?.dirty ? ` · ${busy === 'save' ? t('saving') : current.durable ? t('draftStored') : current.storageError ? t('draftNotStored') : t('draftStoring')}` : ''}`,
+                  onSave: snapshot ? undefined : () => { if (current?.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); },
                   saveBusy: busy === 'save',
-                  saveDisabled: !current.dirty || current.newer || current.recoveryProtected || !!busy,
+                  saveDisabled: !current?.dirty || current.newer || current.recoveryProtected || !!busy,
                   onHistory: snapshot ? undefined : () => void showHistory(),
                   snapshot: !!snapshot,
                   barUtilities, createCommand: createNotebook('ghost'), barHost,
                   onBack: () => setSnapshot(null),
                   onRestore: () => {
-                    if (!snapshot) return;
+                    if (!snapshot || !current) return;
                     try {
                       const restored = transitionDocument(current.history, { type: 'restore', document: snapshot.document });
                       setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history: restored,
@@ -527,20 +542,20 @@ function Notebook() {
                       setSnapshot(null);
                     } catch (cause) { setError(messageOf(cause)); }
                   },
-                  restoreDisabled: !!busy || current.newer,
-                  propertyTools: <NotebookHome embedded onClose={() => {}} key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && current.dirty} readonly={!!snapshot || !!busy}
+                  restoreDisabled: !!busy || !current || current.newer,
+                  propertyTools: <NotebookHome embedded onClose={() => {}} key={`home:${shown.id}:${shown.revision}`} entry={shown} document={draft} dirty={!snapshot && !!current?.dirty} readonly={!!snapshot || !!busy}
                       onOpenEntry={id => { if (!busy) choose(id); }} onMetadata={metadata => updateDraft({ metadata })} />,
                   fileTools: <>
                     {window.parent !== window && <Button variant="ghost" disabled={!!busy} onClick={() => void ask(shown)}><Icon name="agent" /> {t('askAgent')}</Button>}
 
-                    <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && current.dirty} />
-                    <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={current.dirty} readonly={!!snapshot || !!busy}
+                    <NotebookPrintTools key={`print:${shown.id}:${shown.revision}`} document={draft} entryId={shown.id} revision={shown.revision} dirty={!snapshot && !!current?.dirty} />
+                    <WorksheetAmendments key={`amend:${shown.id}:${shown.revision}`} entry={shown} dirty={!!current?.dirty} readonly={!!snapshot || !!busy}
                       onCommitted={entry => { adopt(readEntry(entry)); updateList(entry); }} />
                   </>,
                 }}
-                historyControls={{ canUndo: !!current.history.past.length, canRedo: !!current.history.future.length, undo: () => applyHistory({ type: 'undo' }), redo: () => applyHistory({ type: 'redo' }) }}
-                onSave={snapshot ? undefined : () => { if (current.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); }}
-                onReplaceDocument={snapshot ? undefined : document => {
+                historyControls={{ canUndo: !!current?.history.past.length, canRedo: !!current?.history.future.length, undo: () => applyHistory({ type: 'undo' }), redo: () => applyHistory({ type: 'redo' }) }}
+                onSave={snapshot ? undefined : () => { if (current?.dirty && !current.newer && !current.recoveryProtected && !busy) void save(current); }}
+                onReplaceDocument={snapshot || !current ? undefined : document => {
                   const history = transitionDocument(current.history, { type: 'restore', document });
                   setReplacementNotice(t('documentReplaced'));
                   setDrafts(previous => ({ ...previous, [selected]: { ...previous[selected], history, document: history.present, dirty: true, durable: false,

@@ -79,7 +79,7 @@ export function ResearchWatch({ recordId, versions, reports, onAttempt }: { reco
         {reports.find(report => report.id === id)?.title ?? t('unavailable')}
       </li>)}</ul></>}
       {!!update.result.affectedAttempts.length && <><h4>{t('attempts')}</h4><ul>{update.result.affectedAttempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}>
-        <Button variant="ghost" onClick={() => onAttempt(attempt)}>{attempt.profile} / {attempt.policy} / {attempt.attemptId.slice(0, 8)}</Button>
+        <Button variant="ghost" onClick={() => onAttempt(attempt)}>{attempt.recipe ? 'Fisher Table III' : `${attempt.profile} / ${attempt.policy}`} / {attempt.attemptId.slice(0, 8)}</Button>
       </li>)}</ul></>}
     </>}
   </section>;

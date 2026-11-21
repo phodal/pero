@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { downloadFile, useAppI18n } from '@pero/app-sdk';
 import { Button, Checkbox, Disclosure, Feedback, Input, Select, Table } from '@pero/app-sdk/ui';
-import type { Api, PdfAnnotation } from './types';
+import type { Api, FisherNotebookReceipt, PdfAnnotation } from './types';
 import './fisher-reproduction.css';
 
 export const FISHER_PDF_SHA256 = 'd3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740';
@@ -22,8 +22,41 @@ type Evidence = { case: string; scope: string; items: Item[]; data?: { sha256: s
 const endpoint = '/api/fisher/step';
 const resolved = (attempt: Attempt) => ['failed', 'input_mismatch', 'environment_failed', 'blocked', 'cancelled', 'denied'].includes(attempt.execution.status) || (attempt.execution.status === 'completed' && attempt.report !== null);
 
+type FisherPanelProps = {
+  api: Api; annotation: PdfAnnotation; onSource(): void;
+  initial?: { itemId: string; attemptId: string; receipt?: FisherNotebookReceipt };
+};
+
+/** A Notebook link displays only the owner's revalidated receipt, never live summaries. */
+export function FisherReproduction(props: FisherPanelProps) {
+  const receipt = props.initial?.receipt;
+  return receipt ? <CheckedFisherReceipt receipt={receipt} onSource={props.onSource} /> : <LiveFisherReproduction {...props} />;
+}
+
+function CheckedFisherReceipt({ receipt, onSource }: { receipt: FisherNotebookReceipt; onSource(): void }) {
+  const { t } = useAppI18n({
+    title: { zh: '已核验的 Fisher 表 III 凭据', en: 'Checked Fisher Table III receipt' },
+    source: { zh: '查看表 III 原始单元格', en: 'View original Table III cell' },
+    result: { zh: '单个结果判定', en: 'Single-result verdict' },
+    exact: { zh: '独立精确结果（cm²）', en: 'Independent exact result (cm²)' },
+    independent: { zh: '独立数值核验', en: 'Independent numerical check' },
+    paper: { zh: '整篇论文', en: 'Whole paper' },
+    receipt: { zh: '凭据标识', en: 'Receipt ID' },
+  });
+  const result = receipt.snapshot;
+  return <section className="pa-fisher-reproduction" aria-label={t('title')}>
+    <h3>{t('title')}</h3>
+    <Button variant="link" data-fisher-receipt-source={receipt.id} onClick={onSource}>{t('source')}</Button>
+    <p>{t('result')}: <strong>{result.resultVerdict}</strong></p>
+    <p>{t('exact')}: <strong>{result.exactNumerator}/{result.exactDenominator}</strong></p>
+    <p>{t('independent')}: <strong>{result.numericRecomputation}</strong></p>
+    <p>{t('paper')}: <strong>{result.paperVerdict}</strong></p>
+    <p>{t('receipt')}: <code>{receipt.id}</code></p>
+  </section>;
+}
+
 /** Presents backend-owned immutable protocols and attempts; never executes on mount. */
-export function FisherReproduction({ api, annotation, onSource }: { api: Api; annotation: PdfAnnotation; onSource(): void }) {
+function LiveFisherReproduction({ api, annotation, onSource, initial }: FisherPanelProps) {
   const { t } = useAppI18n({
     title: { zh: '复现 Fisher 表 III 的一个结果', en: 'Reproduce one Fisher Table III result' },
     scope: { zh: '仅重算一个已发表统计量。整篇论文：NOT_ASSESSED。', en: 'Numerical reanalysis of one published statistic. Whole paper: NOT_ASSESSED.' },
@@ -54,20 +87,22 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
     environmentRecovery: { zh: '环境与冻结方案不一致，尚未计算结果。请恢复原运行环境，或核对当前环境后建立新方案；旧方案与记录会保留。', en: 'The environment differs from the frozen protocol; no result was computed. Restore the frozen environment, or review the current environment and create a new protocol. Earlier records are retained.' },
     mismatchRecovery: { zh: '计算已完成，但实际值不满足冻结的比较规则。请核对原始输入、方法和日志；重跑沿用相同规则。', en: 'Computation completed, but the actual value does not satisfy the frozen comparison rule. Review the source inputs, method and logs; rerunning keeps the same rule.' },
     annotationMissing: { zh: '数值检查与证据回写不同：结果标注尚未确认保存，交接流程不完整。可查看日志定位原因。', en: 'Numerical verification and evidence write-back are separate: the result annotation has not been confirmed saved. The handoff workflow is incomplete; inspect the logs.' },
+    notebookExport: { zh: '导出笔记证据 JSON', en: 'Export Notebook evidence JSON' },
+    notebookScope: { zh: '只包含固定引用和数值结果。请在 Notebook 的证据块导入，再将其引用到研究发现。', en: 'Contains pinned references and numerical results only. Import it into a Notebook Evidence block and cite that block in a Finding.' },
     archive: { zh: '包含原始 PDF、数据、冻结方案、运行证据与可独立运行的核验器。', en: 'Includes original PDF, data, frozen protocol, execution evidence and a standalone verifier.' },
   });
   const pendingKey = `pero.fisher.pending.${annotation.id}`;
   const [pending, setPending] = useState<Pending | null>(() => { try { return JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null'); } catch { return null; } });
   const [requestAbsent, setRequestAbsent] = useState(false);
-  const [evidence, setEvidence] = useState<Evidence | null>(null), [itemId, setItemId] = useState(''), [attemptId, setAttemptId] = useState('');
+  const [evidence, setEvidence] = useState<Evidence | null>(null), [itemId, setItemId] = useState(initial?.itemId ?? ''), [attemptId, setAttemptId] = useState(initial?.attemptId ?? '');
   const [editing, setEditing] = useState(true), [confirmed, setConfirmed] = useState(false);
   const [mode, setMode] = useState<Comparison['mode']>('absolute'), [tolerance, setTolerance] = useState('0.00005');
   const [lower, setLower] = useState(''), [upper, setUpper] = useState('');
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [logs, setLogs] = useState<{ attemptId: string; text: string } | null>(null);
   const alive = useRef(true), operation = useRef(false), reading = useRef(false);
-  const selected = evidence?.items.find(row => row.itemId === itemId) ?? evidence?.items.at(-1);
-  const chosen = selected?.attempts.find(row => row.attemptId === attemptId) ?? selected?.attempts.at(-1);
+  const selected = evidence?.items.find(row => row.itemId === itemId) ?? (initial ? undefined : evidence?.items.at(-1));
+  const chosen = selected?.attempts.find(row => row.attemptId === attemptId) ?? (initial ? undefined : selected?.attempts.at(-1));
   const running = evidence?.items.some(row => row.attempts.some(attempt => !resolved(attempt)));
   const fail = (e: unknown) => { if (alive.current) setError(e instanceof Error ? e.message : String(e)); };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -77,7 +112,7 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
     try {
       const value = await api.post<Evidence>(endpoint, { action: 'status', annotationId: annotation.id });
       if (!alive.current) return;
-      setEvidence(value); setError('');
+      setEvidence(value); setError(initial && !value.items.some(item => item.itemId === initial.itemId && item.attempts.some(attempt => attempt.attemptId === initial.attemptId)) ? 'Pinned Fisher attempt is unavailable; no newer result was substituted.' : '');
       const stored: Pending | null = JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null');
       const receipt = stored && value.items.flatMap(row => row.attempts).find(attempt => attempt.execution.request_id === stored.requestId);
       setRequestAbsent(!!stored && !receipt);
@@ -139,6 +174,17 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
     } catch (e) { fail(e); }
     finally { operation.current = false; if (alive.current) setBusy(false); }
   }
+  async function exportNotebookEvidence() {
+    if (!selected || !chosen || operation.current) return;
+    operation.current = true; setBusy(true); setError('');
+    try {
+      const receipt = await api.post<{ id: string }>('/api/fisher/notebook-evidence', {
+        itemId: selected.itemId, attemptId: chosen.attemptId,
+      });
+      if (alive.current) downloadFile(`fisher-evidence-${receipt.id.slice(0, 12)}.json`, JSON.stringify(receipt, null, 2), 'application/json');
+    } catch (e) { fail(e); }
+    finally { operation.current = false; if (alive.current) setBusy(false); }
+  }
   return <section className="pa-fisher-reproduction" aria-label={t('title')}>
     <h3>{t('title')}</h3><p>{t('scope')}</p>
     <Button variant="link" onClick={onSource}>{t('source')}</Button>
@@ -176,7 +222,8 @@ export function FisherReproduction({ api, annotation, onSource }: { api: Api; an
         {chosen.execution.status === 'completed' && chosen.report && (!chosen.annotation || chosen.report.annotation_status === 'failed' || chosen.report.workflow_status === 'incomplete') && <Feedback kind="warning">{t('annotationMissing')}</Feedback>}
         <p>{t('scope')}</p><Button variant="ghost" onClick={() => void readLogs()}>{t('logs')}</Button>
         {logs?.attemptId === chosen.attemptId && <pre tabIndex={0}>{logs.text}</pre>}
-        {chosen.execution.status === 'completed' && chosen.report && <><Button disabled={busy} onClick={() => void exportArchive()}>{t('export')}</Button><p>{t('archive')}</p></>}
+        {chosen.execution.status === 'completed' && chosen.report && <><Button disabled={busy} onClick={() => void exportArchive()}>{t('export')}</Button><p>{t('archive')}</p>
+          <Button disabled={busy} onClick={() => void exportNotebookEvidence()}>{t('notebookExport')}</Button><p>{t('notebookScope')}</p></>}
       </section>}
     </>}
   </section>;

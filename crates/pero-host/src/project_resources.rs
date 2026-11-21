@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use std::{io::Read, time::Duration};
 
+const DATA_VERSIONS_PATH: &str = "/internal/research-versions";
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 
 pub(crate) struct ProjectResources {
@@ -14,7 +15,7 @@ pub(crate) struct ProjectResources {
 
 impl ProjectResources {
     pub(crate) fn resolve(store: &mut AppStore, name: &AppName, progress: &mut impl FnMut(AppPreparation)) -> Result<Self, String> {
-        if !matches!(name.as_str(), "paper-agent" | "control-lab" | "lab" | "notebook") {
+        if !matches!(name.as_str(), "paper-agent" | "control-lab" | "lab" | "notebook" | "data") {
             return Err("This App has no project resource catalog".into());
         }
         // Resolving never installs or enables an App. Its existing backend may start.
@@ -32,6 +33,7 @@ impl ProjectResources {
             "paper-agent" => get::<PaperLibrary>(&client, &self.backend, "/api/library")?.resources()?,
             "control-lab" => get::<ControlCatalog>(&client, &self.backend, "/api/experiments")?.resources()?,
             "notebook" => get::<NotebookCatalog>(&client, &self.backend, "/api/entries")?.resources()?,
+            "data" => get::<Vec<DataDataset>>(&client, &self.backend, DATA_VERSIONS_PATH)?.into_iter().map(DataDataset::latest_resource).collect::<Result<_, _>>()?,
             "lab" => get::<LabCatalog>(&client, &self.backend, "/api/state")?.resources()?,
             _ => unreachable!("App catalog was selected at the boundary"),
         };
@@ -40,8 +42,9 @@ impl ProjectResources {
 }
 
 fn get<T: DeserializeOwned>(client: &reqwest::blocking::Client, backend: &BackendAccess, path: &str) -> Result<T, String> {
-    let response = client.get(format!("{}{path}", backend.url))
-        .header("X-Pero-App-Token", &backend.token).send()
+    let request = client.get(format!("{}{path}", backend.url)).header("X-Pero-App-Token", &backend.token);
+    let request = if path == DATA_VERSIONS_PATH { request.header("X-Pero-Research-Internal", "1") } else { request };
+    let response = request.send()
         .map_err(|_| "App resources are unavailable or timed out; retry")?;
     if !response.status().is_success() {
         return Err(format!("App resource request was refused (HTTP {})", response.status().as_u16()));
@@ -61,9 +64,40 @@ fn resource(app: &str, kind: &str, id: String, revision: String, title: String, 
     if id.len() != length || !id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
         return Err("App returned an invalid resource identity".into());
     }
-    let location = format!("pero-app-location://{app}/main/{kind}/{id}");
     let reference = ProjectResourceRef::new(app.into(), kind.into(), id, revision).map_err(|error| error.to_string())?;
+    let location = reference.notebook_revision_location()
+        .unwrap_or_else(|| format!("pero-app-location://{app}/main/{kind}/{}", reference.id));
     Ok(ProjectResourceSummary { reference, title, summary, status, verification: None, location })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DataDataset { dataset_id: String, name: String, archived: bool, versions: Vec<DataVersion> }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DataVersion { version_id: String, sha256: String, availability: DataAvailability }
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum DataAvailability { Present, Missing, Changed }
+
+impl DataDataset {
+    fn latest_resource(self) -> Result<ProjectResourceSummary, String> {
+        let version = self.versions.into_iter().last().ok_or("Dataset has no saved versions")?;
+        if version.sha256.len() != 64 || !version.sha256.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            return Err("Data returned an invalid asset digest".into());
+        }
+        let reference = ProjectResourceRef::new("data".into(), "dataset".into(), self.dataset_id, version.version_id)
+            .map_err(|error| error.to_string())?;
+        let location = reference.data_version_location().ok_or("Data returned an invalid asset location")?;
+        let status = match version.availability {
+            DataAvailability::Present if self.archived => "archived",
+            DataAvailability::Present => "stored",
+            DataAvailability::Missing => "missing",
+            DataAvailability::Changed => "changed",
+        }.to_owned();
+        Ok(ProjectResourceSummary { reference, title: self.name, summary: format!("SHA-256 {}", version.sha256),
+            status, verification: None, location })
+    }
 }
 
 #[derive(Deserialize)]
@@ -161,11 +195,46 @@ mod tests {
     use std::io::{BufRead, BufReader, Write};
 
     #[test]
+    fn data_resource_read_uses_private_route_and_does_not_hide_missing_versions() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let id = format!("ds-{}", "d".repeat(32));
+        let newest = "b".repeat(32);
+        let body = json!([{"datasetId":id,"name":"Measurements","archived":false,"versions":[
+            {"versionId":"a".repeat(32),"sha256":"c".repeat(64),"availability":"present"},
+            {"versionId":newest,"sha256":"d".repeat(64),"availability":"missing"}
+        ]}]).to_string();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            assert_eq!(line, "GET /internal/research-versions HTTP/1.1\r\n");
+            let mut headers = String::new();
+            loop { line.clear(); reader.read_line(&mut line).unwrap(); if line == "\r\n" { break; } headers.push_str(&line.to_ascii_lowercase()); }
+            assert!(headers.contains("x-pero-app-token: private-token"));
+            assert!(headers.contains("x-pero-research-internal: 1"));
+            write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        });
+        let catalog = ProjectResources { app: "data".into(), backend: BackendAccess { url: format!("http://{address}"), token: "private-token".into(), reproduction_token: None } }.read().unwrap();
+        server.join().unwrap();
+        let row = &catalog.resources[0];
+        assert_eq!(row.reference.revision, newest);
+        assert_eq!(row.status, "missing");
+        assert_eq!(row.verification, None);
+        assert_eq!(row.location, format!("pero-app-location://data/main/dataset/{id}/version/{newest}"));
+        let public = serde_json::to_string(&catalog).unwrap();
+        assert!(!public.contains("private-token") && !public.contains(&address.to_string()));
+        let absent: DataDataset = serde_json::from_value(json!({"datasetId":id,"name":"Absent","archived":false,"versions":[]})).unwrap();
+        assert!(absent.latest_resource().is_err());
+    }
+
+    #[test]
     fn notebook_catalog_retains_real_saved_revisions_and_owner_navigation() {
         let catalog:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"a".repeat(32),"title":"Actual saved notebook","revision":7,"updatedAt":"2026-11-09T00:00:00Z"}]})).unwrap();
         let row=catalog.resources().unwrap().remove(0);
         assert_eq!(row.reference.app,"notebook");assert_eq!(row.reference.kind,"entry");assert_eq!(row.reference.revision,"7");
-        assert_eq!(row.location,format!("pero-app-location://notebook/main/entry/{}","a".repeat(32)));
+        assert_eq!(row.location,format!("pero-app-location://notebook/main/entry/{}/revision/7","a".repeat(32)));
         assert_eq!(row.status,"saved");assert_eq!(row.verification,None);
         let invalid:NotebookCatalog=serde_json::from_value(json!({"entries":[{"id":"../file","title":"Invalid","revision":1,"updatedAt":""}]})).unwrap();
         assert!(invalid.resources().is_err());

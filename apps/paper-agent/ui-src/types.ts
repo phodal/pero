@@ -45,7 +45,15 @@ export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfDocument = { id: string; paperId: string; fileDigest: string; sourceUrl: string; pages: { number: number; width: number; height: number; text: string }[]; createdAt: string };
 export type PdfAnnotation = { id: string; documentId: string; paperId: string; page: number; kind: 'highlight' | 'figure'; rects: PdfRect[]; quote: string; note: string; createdAt: string };
 export type PdfReading = { document: PdfDocument | null; annotations: PdfAnnotation[]; originalUrl?: string | null };
-export type PdfFocus = { documentId: string; page: number; annotationId?: string; rects?: PdfRect[]; verification?: { itemId: string; attemptId: string } };
+export type FisherNotebookReceipt = {
+  schema: 'pero.fisher-notebook-evidence.v1'; id: string;
+  snapshot: {
+    paperId: string; documentId: string; annotationId: string; page: number; itemId: string; attemptId: string;
+    exactNumerator: number; exactDenominator: number; resultVerdict: 'REPRODUCED' | 'MISMATCH';
+    numericRecomputation: 'PASS'; paperVerdict: 'NOT_ASSESSED';
+  };
+};
+export type PdfFocus = { documentId: string; page: number; annotationId?: string; rects?: PdfRect[]; verification?: { itemId: string; attemptId: string; recipe?: 'fisher-1936-table3-sepal-length-v1'; receipt?: FisherNotebookReceipt } };
 export type TextFocus = { start: number; end: number; token: number };
 export type PdfSource = { documentId: string; page: number; fileDigest: string; rects?: PdfRect[]; paperId?: string; texPreviewId?: string };
 export type ReaderLocation = { representation: 'read' | 'original'; paperId: string } | (PdfSource & {

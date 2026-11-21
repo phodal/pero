@@ -47,8 +47,10 @@ acceptance.
 
 An observed catalog revision identifies the public record summary returned by
 its owning App. Except for paper content digests, it does not establish a
-frozen full source/result version. Reopening a link follows the current App
-record; a changed revision requires explicit project-reference update.
+frozen full source/result version. Paper and experiment links follow the owning
+App's current record. Notebook entry links instead open the exact saved revision
+read-only and do not fall back to the current entry. A changed revision requires
+an explicit project-reference update.
 
 No test in the deterministic evidence above establishes real-provider Agent
 execution, solver accuracy, reproducibility of a scientific claim, physical Lab
@@ -484,3 +486,50 @@ standalone Virtual Cell release preparation failure is recorded in the existing
 Desktop release issue and predates this PR on another branch. Signed package,
 real-model/scientific and fresh Native GUI acceptance are not added by these
 merge review repairs.
+
+
+## Linked Data versions
+
+The Data picker reads only the installed, enabled Data App's private version
+catalog. It offers the latest version of each existing dataset; linking stores
+the dataset ID and that version's asset ID, not a moving alias or a filesystem
+path. A Project retains one linked version per dataset. A catalog refresh
+does not change it; **Update linked revision** is explicit.
+
+**Open** addresses the linked version in Data, even when a different version
+is listed or the catalog is unavailable. Data checks the retained file when
+opening, subject to its normal inspection bounds. Missing or changed bytes
+do not fall back to the latest asset. The catalog's recorded SHA and observed
+availability are not scientific verification.
+
+## Fisher evidence to a pinned Notebook Finding (#79)
+
+1. In Paper, open a completed Fisher Table III attempt and choose **Export
+   Notebook evidence JSON**. Paper checks the frozen attempt, exact source scan
+   and numerical recomputation. The receipt contains identifiers, digests and a
+   bounded numerical result, not PDF bytes, observations, notes or a program.
+2. In Notebook, insert an **Evidence** block, choose **Import Fisher evidence
+   JSON**, review the preview and **Attach snapshot**. Write your own **Finding**
+   and cite that Evidence block. Save the Notebook entry.
+3. Link that saved Notebook revision to the Project. Opening the Project link
+   keeps that revision read-only even after later saves. **Open Paper source**
+   resolves the exact attempt and its Table III region in Paper, not the latest
+   available attempt. Missing or changed evidence is reported rather than
+   substituted. The checked receipt view performs no new scientific run.
+
+The receipt digest detects changes to the captured values but is not a
+signature. Notebook imports a recorded snapshot; Paper checks it against local
+owner evidence again on reopen. The exact result, 19.1434 cm², is one numerical
+reanalysis; the whole paper remains **NOT_ASSESSED**. The receipt alone is not
+portable recomputation evidence: the standalone Fisher ZIP is the separate
+explicit export. Neither route grants scientific acceptance or user authority.
+
+On Phodal Studio (Mac), the opt-in Host contract used the original scan and
+installed Notebook/Data Apps, computed a fresh Fisher attempt, linked the
+Finding's saved revision to an actual local Project, and reopened that snapshot
+after saving a newer revision without the receipt. Reproduce with
+`PERO_APP_PYTHON` set to a prepared Notebook environment,
+`PERO_FISHER_PDF` to the byte-verified scan,
+`cargo build -p pero-host` and `node tests/contracts/app-canvas.mjs`.
+This is a local runtime contract plus component tests, not Native visual,
+second-machine or second-researcher acceptance.

@@ -5,6 +5,12 @@ import { scientificReferenceState, type NotebookEntry, type NotebookEntrySummary
 import { notebookContentRoots } from '@pero/notebook/workspace';
 import type { ImportedReference } from './reference-import';
 
+function snapshotText(snapshot: ReferenceSnapshot) {
+  if (snapshot.kind === 'paper-report') return snapshot.quote;
+  if (snapshot.kind === 'fisher-attempt') return snapshot.resultVerdict;
+  return snapshot.verdict;
+}
+
 const messages = {
   notebook: { en: 'Saved notebook', zh: '已保存的笔记' },
   choose: { en: 'Choose a notebook', zh: '选择笔记' },
@@ -49,7 +55,7 @@ export function SavedReferencePicker({ kind, replacing, onAttach }: {
         if (node.type === kind) {
           const snapshot = node.attrs?.snapshot as ReferenceSnapshot | null;
           const reference = node.attrs?.source as ScientificReference | null;
-          if (snapshot?.kind === (kind === 'evidence' ? 'paper-report' : 'control-receipt') && scientificReferenceState(reference) === 'pinned') {
+          if (snapshot && (kind === 'evidence' ? snapshot.kind !== 'control-receipt' : snapshot.kind === 'control-receipt') && scientificReferenceState(reference) === 'pinned') {
             saved.push({ label: String(node.attrs?.label || summary.title), reference: reference!, snapshot });
           }
         }
@@ -70,9 +76,9 @@ export function SavedReferencePicker({ kind, replacing, onAttach }: {
     {!busy && !error && (!entries.length || (entryId && !options.length)) && <p className="notebook-note">{t(entries.length ? 'empty' : 'none')}</p>}
     {!!options.length && <Select label={t('source')} placeholder={t('select')} value={selection} onChange={setSelection} showHint
       options={options.map((item, index) => ({ value: String(index), label: item.label,
-        hint: item.snapshot.kind === 'paper-report' ? item.snapshot.quote.slice(0, 160) : item.snapshot.verdict }))} />}
+        hint: snapshotText(item.snapshot).slice(0, 160) }))} />}
     {selected && <div className="notebook-reference-preview"><strong>{selected.label}</strong><p>
-      {selected.snapshot.kind === 'paper-report' ? selected.snapshot.quote : selected.snapshot.verdict}
+      {snapshotText(selected.snapshot)}
     </p><Button variant="primary" onClick={() => onAttach(selected)}>{t(replacing ? 'replace' : 'attach')}</Button></div>}
   </div>;
 }

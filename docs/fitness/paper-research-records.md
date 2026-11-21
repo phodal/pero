@@ -222,3 +222,67 @@ screenshots under the same local evidence directory. The browser uses synthetic
 API responses; actual HTTP/storage checking is the separate Python suite.
 No real model call, human scientific review, Electron/Native or release-package
 acceptance was added. #79's lifecycle and cross-owner handoff gaps remain open.
+
+## Fisher attempt references — 2026-11-21 (#79, bounded slice)
+
+Research revisions can attach a completed Fisher Table III attempt using its
+existing item/attempt IDs. The recipe-tagged reference retains the actual frozen
+source region, specification and method identity, without inventing PC-Gym
+policy/profile/seed values. Existing PC-Gym record bodies retain their original
+serialization and IDs. The Fisher owner and standalone checker's artifact rules
+validate attachment and reference export; historical reads remain available if
+an artifact later becomes unavailable or changes. This does not promote a saved
+record to scientific verification. Method impact is recipe-specific.
+
+Default export is still a references-only index, with no notes or source bytes.
+The existing Fisher result view opens the pinned attempt (never substitutes the
+latest one if missing), and its existing explicit ZIP action remains the route
+to `python -I -S verify.py`. Fisher does not use the PC-Gym notes-inclusive
+research-handoff action. Failed/incomplete Fisher attempts, combined research
+notes ZIPs and cross-machine human acceptance remain follow-up scope.
+
+Local checks: record-family tests 17 run, 16 pass, 1 existing skip; Fisher tests
+21 run, 7 pass, 14 original-PDF opt-in skips. Added deterministic contracts cover
+recipe ownership, wrong paper/item/attempt, immutable reopen, reference-only
+export, recipe method impact and legacy PC-Gym representation. An additional
+original-PDF integration test covers genuine completion, restart, export and
+altered-artifact rejection, but was **not run**: the historical public fixture
+was absent and fetching its exact pinned public URL was blocked by network policy.
+No substitute PDF or fabricated execution was used. Paper TypeScript passes with
+existing Mac dependencies. Browser/Native navigation and scientific/cross-machine
+acceptance have not been exercised for this change.
+
+Full Paper Python rerun after packaging the canonical local source-parser and
+scientific-runtime modules: **386 run, 368 passed, 18 skipped** (exit 0). The
+initial unstaged-parser run failed two isolated subprocess checks; using the
+repository's existing packaging step resolved them without source changes.
+The exact legacy PC-Gym revision digest is also pinned against the unchanged
+baseline fixture. No real Fisher PDF run is included in these totals.
+
+## Original-PDF acceptance update — 2026-11-21 (#79)
+
+The earlier opt-in skips above are superseded by this Mac run on exact revision
+`f0c2d7a18d6a06e2aea9c9ec617ced67b8b36c7c`. The original 494,926-byte Fisher
+scan was recovered from the existing [Fisher browser CI artifact][fisher-ci-scan].
+Only the PDF bytes were reused, not its checker code or prior results. The input
+matched the fixed SHA-256
+`d3a49aaa4f2d283931544f58cb12b1174f537642b83def7ae9119a1d8717b740`.
+
+- **Fisher Python:** 21/21 passed with the original PDF and no skips.
+  The fresh numerical recomputation was exactly 95717/5000 (19.1434 cm²),
+  the within-species sum of squares. The whole paper remains
+  `NOT_ASSESSED`. The owner rejects changed or missing evidence and
+  does not substitute a newer attempt.
+- **Paper Python:** 386 tests, 382 passed, 4 skipped, exit 0.
+- **Chromium (Paper):** opened the original Table III region, froze and ran
+  the computation, and exercised both the refs-only Notebook JSON download
+  and the explicit standalone ZIP export.
+- **Local Host (Paper/Notebook/Project):** generated a fresh checked receipt,
+  saved it as Evidence cited by a Finding, and pinned Notebook revision 3.
+  After revision 4 was saved without the receipt, the Project still resolved
+  the exact Finding and Evidence in revision 3.
+
+These are local runtime and Paper browser checks, not a full Native GUI
+click-through or a cross-machine, cross-researcher handoff acceptance.
+
+[fisher-ci-scan]: https://github.com/phodal/pero/actions/runs/42361812076/artifacts/13570062658

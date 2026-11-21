@@ -239,8 +239,7 @@ model TypographyPreferences {
   @minValue(12) @maxValue(24) code_size?: uint8 | null;
   ...Closed
 }
-model ProjectResourceRef { app: "paper-agent" | "control-lab" | "lab"; kind: "paper" | "study" | "experiment"; @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(128) revision: string; ...Closed }
-model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: ProjectResourceRef[]; ...Closed }
+model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: Pero.Apps.ProjectResourceRef[]; ...Closed }
 model WorkbenchPreferences { shortcuts?: Pero.Shortcuts.ShortcutOverrides; accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }

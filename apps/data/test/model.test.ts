@@ -133,3 +133,17 @@ test('file capabilities distinguish supported tables from models and opaque file
   assert.equal(canInspect({ kind: 'model', format: 'json' }), false);
   assert.equal(canInspect({ kind: 'dataset', format: 'bin' }), false);
 });
+
+test('a dataset version locator admits asset IDs but never latest or arbitrary paths', async () => {
+  const { datasetVersionLocation, parseDatasetVersionLocation } = await import('../ui-src/model.ts');
+  const selection = { datasetId: 'ds-' + 'a'.repeat(32), assetId: 'b'.repeat(32) };
+  const route = `dataset/${selection.datasetId}/version/${selection.assetId}`;
+  const locator = datasetVersionLocation(selection);
+  assert.equal(locator, 'pero-app-location://data/main/' + route);
+  assert.deepEqual(parseDatasetVersionLocation(locator), selection);
+  assert.deepEqual(parseDatasetVersionLocation(route), selection);
+  for (const invalid of [route + '\n', route + '/extra', route + '?v=2', route.replace(selection.assetId, 'latest'),
+    route.replace(selection.assetId, '2'), locator.replace('/main/', '/other/'), 'dataset/' + selection.datasetId]) {
+    assert.equal(parseDatasetVersionLocation(invalid), null, invalid);
+  }
+});

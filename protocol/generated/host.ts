@@ -101,6 +101,16 @@ export type PullRequestRequest =
   | PullRequestAddDiscussion;
 export type LocalWorkerRequest = LocalWorkerStartCommand | LocalWorkerStopCommand | LocalWorkerGetCommand;
 export type KeySequence = string;
+export type ProjectResourceRef =
+  | PaperProjectResourceRef
+  | ExperimentProjectResourceRef
+  | NotebookEntryProjectResourceRef
+  | DataDatasetProjectResourceRef;
+/**
+ * An App catalog observation; revisions do not claim complete experimental provenance.
+ */
+export type ProjectResourceId = string;
+export type ProjectObservedRevision = string;
 export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
@@ -1701,9 +1711,27 @@ export interface ResearchProject {
    */
   resources: ProjectResourceRef[];
 }
-export interface ProjectResourceRef {
-  app: "paper-agent" | "control-lab" | "lab";
-  kind: "paper" | "study" | "experiment";
+export interface PaperProjectResourceRef {
+  app: "paper-agent";
+  kind: "paper" | "study";
+  id: ProjectResourceId;
+  revision: ProjectObservedRevision;
+}
+export interface ExperimentProjectResourceRef {
+  app: "control-lab" | "lab";
+  kind: "experiment";
+  id: ProjectResourceId;
+  revision: ProjectObservedRevision;
+}
+export interface NotebookEntryProjectResourceRef {
+  app: "notebook";
+  kind: "entry";
+  id: string;
+  revision: string;
+}
+export interface DataDatasetProjectResourceRef {
+  app: "data";
+  kind: "dataset";
   id: string;
   revision: string;
 }
@@ -4468,21 +4496,12 @@ export interface ProjectResourceCatalog {
   error?: string | null;
 }
 export interface ProjectResourceSummary {
-  reference: ProjectResourceReference;
+  reference: ProjectResourceRef;
   title: string;
   summary: string;
   status: string;
   verification?: string | null;
   location: string;
-}
-/**
- * An App catalog observation; revisions do not claim complete experimental provenance.
- */
-export interface ProjectResourceReference {
-  app: string;
-  kind: string;
-  id: string;
-  revision: string;
 }
 export interface AppAgentInfo {
   available: boolean;

@@ -29,6 +29,14 @@ existing bytes and IDs do not change. A normal import creates a separate dataset
 even when its filename matches. Repeated explicit imports create separate files
 or versions, not automatic content deduplication.
 
+**Share reference** copies the selected asset ID, its admitted SHA-256, and a
+Workbench link of the form `pero-app-location://data/main/dataset/<datasetId>/version/<assetId>`.
+Opening the link selects that retained version, even if a newer one exists
+or the dataset has been archived. A missing, invalid, or changed version never
+opens a different version in its place. The existing inspection limits still
+apply; the link does not grant access to another profile or verify scientific claims.
+
+
 A project reference is editable organizational metadata, **not** a Host-validated
 project identity, tenant boundary or access grant. Archiving hides a dataset and
 is reversible; it retains originals, saved views and download receipts and **does

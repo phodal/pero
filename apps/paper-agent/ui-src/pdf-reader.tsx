@@ -18,6 +18,7 @@ import type { Api, Paper, PdfAnnotation, PdfDocument, PdfFocus, PdfReading, PdfS
 import type { Translator } from './i18n';
 import { Reproduction, reproductionPolicy } from './reproduction';
 import { FisherReproduction, FISHER_PDF_SHA256, isFisherSource } from './fisher-reproduction';
+import { PdfReaderNavigation } from './pdf-reader-navigation';
 import { loadReaderState, persistedSelection, saveReaderState, type PdfReaderState } from './reader-state';
 import { TexReader } from './tex-reader';
 import { FigureSourceDialog, type FigureTarget } from './figure-reference';
@@ -106,10 +107,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     if (reading.document) { setMode('pdf'); return; }
     chrome.onSave();
   }
-  // Reader input (including portal toolbar events) supersedes a pending search
-  // reveal. Programmatic focus/scroll updates do not invalidate their own request.
-  return <div className="pa-pdf-reading" data-reader-view={view} onPointerDownCapture={chrome.onNavigate} onClickCapture={chrome.onNavigate}
-    onKeyDownCapture={chrome.onNavigate} onWheelCapture={chrome.onNavigate} onChangeCapture={chrome.onNavigate}>
+  return <PdfReaderNavigation view={view} receiptId={pdfFocus?.verification?.receipt?.id} onNavigate={chrome.onNavigate}>
     {!lockText && (chrome.toolbar ? createPortal(modes, chrome.toolbar) : <Toolbar>{modes}</Toolbar>)}
     {error && <Feedback kind="error"><span>{error}</span><Button onClick={() => setLookupAttempt(value => value + 1)} disabled={busy}>{t('retry')}</Button>{paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer">{t('original')}</a>}</Feedback>}
     {busy && <p className="pa-loading" role="status">{t('loading')}</p>}
@@ -123,7 +121,7 @@ export function PdfReader({ paper, api, focus, lockText, t, onDiscuss, onMatrixA
     </div>
     {chrome.figure && ((view === 'pdf' && !figurePdf) || (view === 'tex' && !chrome.figure.preview)) && <Feedback kind="status"><span>{copy('unmatched')}</span><Button onClick={() => setFigureSourceOpen(true)}>{copy('source')}</Button></Feedback>}
     {figureSourceOpen && chrome.figure && <FigureSourceDialog api={api} reference={chrome.figure} onClose={() => setFigureSourceOpen(false)}/>}
-  </div>;
+  </PdfReaderNavigation>;
 }
 
 export function PdfViewer({ document, annotations, api, focus, t, onSaved, onDiscuss, onMatrixAdded, chrome, onText, active, readLabel, fileUrl, readOnly = false, trailingActions }: {
@@ -305,7 +303,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       const rect = focus.rects?.[0], page = document.pages[focus.page - 1];
       scroll.scrollToPage({ pageNumber: focus.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
       setTarget(focus.annotationId ?? '');
-      if (focus.verification && focus.annotationId) { setNotes(true); setVerificationAnnotation(focus.annotationId); }
+      if (focus.verification && focus.annotationId) { setNotes(true); if (focus.verification.recipe) { setVerificationAnnotation(''); setFisherAnnotation(focus.annotationId); } else { setFisherAnnotation(''); setVerificationAnnotation(focus.annotationId); } }
       setLayoutSource(null);
     };
     const stopLayout = scrollCapability.onLayoutReady(event => { if (event.documentId === documentId) apply(); });
@@ -338,9 +336,9 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
       await save({ kind: 'highlight', page: part.pageIndex + 1, quote, rects });
     } catch (e) { fail(e); }
   }
-  function go(annotation: PdfAnnotation) {
+  function go(annotation: PdfAnnotation, retainFocus = false) {
     setLayoutSource(null);
-    chrome.onNavigate();
+    if (!retainFocus) chrome.onNavigate();
     const rect = annotation.rects[0], page = document.pages[annotation.page - 1];
     scroll?.scrollToPage({ pageNumber: annotation.page, behavior: 'auto', ...(rect ? { pageCoordinates: { x: rect.x * page.width, y: rect.y * page.height }, alignY: 50 } : {}) });
     setTarget(annotation.id);
@@ -414,7 +412,7 @@ function PdfPages({ document, documentId, annotations, api, focus, t, onSaved, o
           </PagePointerProvider>
         </div>}/>
       </Viewport>
-      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'figure' && <Button variant="ghost" aria-expanded={numericAnnotation === annotation.id} onClick={() => { go(annotation); setNumericAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{numericT('values')}</Button>}{isFisherSource(annotation, document.fileDigest) && <Button variant="ghost" aria-expanded={fisherAnnotation === annotation.id} onClick={() => { go(annotation); setFisherAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{fisherT('verify')}</Button>}{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{fisherAnnotation === annotation.id && <FisherReproduction key={annotation.id} api={api} annotation={annotation} onSource={() => go(annotation)}/>} {numericAnnotation === annotation.id && <NumericValues key={annotation.id} api={api} annotation={annotation} onSource={() => go(annotation)} onLayoutSource={goLayout}/>} {verificationAnnotation === annotation.id && <Reproduction key={focus?.annotationId === annotation.id ? focus.verification?.attemptId ?? annotation.id : annotation.id} api={api} annotation={annotation} initial={focus?.annotationId === annotation.id ? focus.verification : undefined} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return; if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
+      {notes && <aside className="pa-pdf-notes" aria-label={t('pdfNotes')}><Toolbar><h2>{t('pdfNotes')}</h2><Button variant="ghost" aria-label={t('closeAnnotations')} onClick={() => setNotes(false)}>×</Button></Toolbar>{!annotations.length && <p>{t('pdfNoNotes')}</p>}{annotations.map(annotation => <article key={annotation.id} data-note-id={annotation.id}><Button variant="ghost" onClick={() => go(annotation)}>{t('pdfPage')} {annotation.page} ↗</Button>{annotation.kind === 'figure' ? <><img src={`/api/annotations/${annotation.id}/image`} alt={`${t('pdfFigure')} · ${t('pdfPage')} ${annotation.page}`}/><div className="pa-actions"><Button onClick={() => void copyImage(annotation)}>{t('pdfCopyImage')}</Button><a href={`/api/annotations/${annotation.id}/image`} download={`figure-${annotation.page}.png`}>{t('pdfDownload')}</a></div></> : <blockquote>{annotation.quote}</blockquote>}{annotation.note && <p>{annotation.note}</p>}<div className="pa-actions"><Button variant="ghost" onClick={() => setMatrixAnnotation(annotation.id)}>{t('pdfAddMatrix')}</Button>{annotation.kind === 'figure' && <Button variant="ghost" aria-expanded={numericAnnotation === annotation.id} onClick={() => { go(annotation); setNumericAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{numericT('values')}</Button>}{isFisherSource(annotation, document.fileDigest) && <Button variant="ghost" aria-expanded={fisherAnnotation === annotation.id} onClick={() => { go(annotation); setFisherAnnotation(current => current === annotation.id ? '' : annotation.id); }}>{fisherT('verify')}</Button>}{annotation.kind === 'highlight' && reproductionPolicy(annotation.quote) && <Button variant="ghost" aria-expanded={verificationAnnotation === annotation.id} onClick={() => setVerificationAnnotation(current => current === annotation.id ? '' : annotation.id)}>{t('reproductionVerify')}</Button>}</div>{fisherAnnotation === annotation.id && <FisherReproduction key={focus?.annotationId === annotation.id ? focus.verification?.attemptId ?? annotation.id : annotation.id} initial={focus?.annotationId === annotation.id && focus.verification?.recipe ? focus.verification : undefined} api={api} annotation={annotation} onSource={() => go(annotation, focus?.annotationId === annotation.id && !!focus.verification?.receipt)}/>} {numericAnnotation === annotation.id && <NumericValues key={annotation.id} api={api} annotation={annotation} onSource={() => go(annotation)} onLayoutSource={goLayout}/>} {verificationAnnotation === annotation.id && <Reproduction key={focus?.annotationId === annotation.id ? focus.verification?.attemptId ?? annotation.id : annotation.id} api={api} annotation={annotation} initial={focus?.annotationId === annotation.id ? focus.verification : undefined} t={t}/>} {matrixAnnotation === annotation.id && <div className="pa-pdf-matrix-field" role="group" aria-label={t('pdfColumn')} onKeyDown={event => { if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return; if (event.key === 'Enter' && column.trim() && !busy) { event.preventDefault(); void addToMatrix(); } if (event.key === 'Escape') setMatrixAnnotation(''); }}><Input aria-label={t('pdfColumn')} value={column} maxLength={80} onChange={event => setColumn(event.target.value)}/><Button onClick={() => void addToMatrix()} disabled={busy || !column.trim()}>{t('pdfAddMatrix')}</Button></div>}</article>)}</aside>}
     </div>
     {pageText && <div className="pa-pdf-page-text"><Toolbar><h2>{t('pdfPageText')}</h2>{onDiscuss && <Button onClick={() => { const page = document.pages[(scrollState.currentPage || 1) - 1]; setPageText(false); onDiscuss(page.text, { documentId: document.id, fileDigest: document.fileDigest, page: page.number }); }}>{t('discussPage')}</Button>}<Button onClick={() => setPageText(false)}>{t('close')}</Button></Toolbar><pre tabIndex={0}>{document.pages[(scrollState.currentPage || 1) - 1]?.text}</pre></div>}
   </section></PdfActions>;

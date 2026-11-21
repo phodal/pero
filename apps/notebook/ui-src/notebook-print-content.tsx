@@ -487,6 +487,10 @@ function referenceRecord(kind: string, attrs: Record<string, unknown>, t: PrintT
     if (typeof snapshot.page === 'number' && Number.isFinite(snapshot.page)) lines.push(t('printPage', { page: displayNumber(snapshot.page) }));
     if (textOf(snapshot.reportId)) lines.push(t('printReport', { id: shortIdentity(snapshot.reportId) }));
     if (typeof snapshot.occurrences === 'number' && snapshot.occurrences > 1) lines.push(t('printOccurrences', { count: snapshot.occurrences }));
+  } else if (snapshot?.kind === 'fisher-attempt') {
+    lines.push(t('fisherRecordedResult', { verdict: textOf(snapshot.resultVerdict),
+      numerator: String(snapshot.exactNumerator), denominator: String(snapshot.exactDenominator) }));
+    lines.push(t('fisherEvidenceScope'));
   } else if (snapshot?.kind === 'control-receipt') {
     if (textOf(snapshot.verdict)) lines.push(textOf(snapshot.verdict));
     if (textOf(snapshot.phase)) lines.push(t('printPhase', { phase: textOf(snapshot.phase) }));

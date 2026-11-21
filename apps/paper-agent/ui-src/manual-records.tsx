@@ -12,7 +12,7 @@ import { SavedSourceEvidenceReport } from './saved-source-evidence-report';
 
 type Decision = { paperId: string; decision: 'include' | 'exclude' | 'pending'; reason: string };
 export type ResearchAttempt = { paperId: string; documentId: string; annotationId: string; page: number;
-  itemId: string; attemptId: string; profile: string; policy: string; seed: number; status: string; startedAt: string };
+  itemId: string; attemptId: string; recipe?: 'fisher-1936-table3-sepal-length-v1'; profile?: string; policy?: string; seed?: number; status: string; startedAt: string };
 type RecordRevision = {
   id: string; parentId?: string | null; question: string; scope: string; inclusion: string; exclusion: string;
   paperIds: string[]; decisions: Decision[]; evidence: Evidence[]; createdAt: string;
@@ -107,7 +107,7 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }
   const visible = records.filter(record => !paper || record.paperIds.includes(paper.id));
   const title = (id: string) => library.papers.find(item => item.id === id)?.title ?? 'Unavailable paper';
   const valid = question.trim() && scope.trim() && inclusion.trim() && exclusion.trim() && decisions.length && decisions.every(item => item.reason.trim());
-  const attemptLabel = (attempt: ResearchAttempt) => `${attempt.profile} / ${attempt.policy}, seed ${attempt.seed} / ${attempt.status} / ${attempt.startedAt}`;
+  const attemptLabel = (attempt: ResearchAttempt) => `${attempt.recipe ? 'Fisher Table III' : `${attempt.profile} / ${attempt.policy}, seed ${attempt.seed}`} / ${attempt.status} / ${attempt.startedAt}`;
   return <section className="pa-manual-records" aria-label="Question and scope"><h3>Question and scope</h3>
     <DataEvidence api={api} library={library} onCite={onCite} paperId={paper?.id} />
     {loading && <p role="status">Loading records…</p>}
@@ -209,9 +209,9 @@ export function ManualRecords({ api, library, paper, onRead, onAttempt, onCite }
       {!!opened.attempts?.length && <Disclosure variant="inline" defaultOpen summary={<>Execution history</>}>
         <ul>{opened.attempts.map(attempt => <li key={`${attempt.itemId}/${attempt.attemptId}`}><p>{attemptLabel(attempt)}</p>
           <Button variant="ghost" disabled={busy} onClick={() => onAttempt(attempt)}>Open result in PDF</Button>
-          {attempt.status === 'completed' && <Button disabled={busy || !handoffNotes} onClick={() => void act(() => exportHandoff(opened, attempt))}>Export research handoff</Button>}
+          {!attempt.recipe && attempt.status === 'completed' && <Button disabled={busy || !handoffNotes} onClick={() => void act(() => exportHandoff(opened, attempt))}>Export research handoff</Button>}
         </li>)}</ul>
-        {opened.attempts.some(attempt => attempt.status === 'completed') && <label className="pa-manual-choice">
+        {opened.attempts.some(attempt => !attempt.recipe && attempt.status === 'completed') && <label className="pa-manual-choice">
           <Checkbox checked={handoffNotes} disabled={busy} onCheckedChange={checked => setHandoffNotes(checked === true)}/>
           <span>Include this revision’s notes, the bound PDF excerpt, and the selected attempt’s numeric evidence.</span>
         </label>}

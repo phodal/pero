@@ -1,0 +1,20 @@
+{
+  "schema": "pero.fisher-notebook-evidence.v1",
+  "id": "f2d378aee00f227b7bad0dd1afe55027d4955af5817ba66e55b20a26fda67cbf",
+  "snapshot": {
+    "kind": "fisher-attempt",
+    "itemId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "attemptId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "paperId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "documentId": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "annotationId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "page": 4,
+    "fileDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "observationsDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "exactNumerator": 333,
+    "exactDenominator": 10000,
+    "resultVerdict": "REPRODUCED",
+    "numericRecomputation": "PASS",
+    "paperVerdict": "NOT_ASSESSED"
+  }
+}
