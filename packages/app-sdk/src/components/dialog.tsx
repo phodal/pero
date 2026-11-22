@@ -13,6 +13,8 @@ type DialogBase = Omit<React.ComponentPropsWithoutRef<'dialog'>, 'title' | 'onSu
   size?: 'sm' | 'md' | 'lg';
   /** Right-edge detail surface; retains the modal's focus, Escape and restore behavior. */
   presentation?: 'modal' | 'drawer';
+  /** In a managed App, dim and block the workspace around the App panel. */
+  scope?: 'panel' | 'window';
   /** Close intent. Staying mounted refuses the close. */
   onClose: () => void;
   /** When set, the frame is a native form so Enter and footer submit keep FormData and validation. */
@@ -62,6 +64,8 @@ function classes(...names: Array<string | false | undefined>) {
   return names.filter(Boolean).join(' ');
 }
 
+const windowDialogs = new WeakMap<Window, number>();
+
 function showModal(dialog: HTMLDialogElement) {
   if (dialog.open) return;
   try {
@@ -81,7 +85,7 @@ function showModal(dialog: HTMLDialogElement) {
  * node is still connected. Callers render conditionally or pass `open`.
  */
 export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog({
-  title, size = 'md', presentation = 'modal', className, onClose, onSubmit, footer, footerStart, initialFocus,
+  title, size = 'md', presentation = 'modal', scope = 'panel', className, onClose, onSubmit, footer, footerStart, initialFocus,
   closeLabel, closeButton = true, open = true, restoreFocus = true, dismissOnBackdrop = false, unstyled = false,
   frameClassName, headerClassName, bodyClassName, footerClassName, closeButtonClassName, children,
   onKeyDown, onCancel, onClick, ...rest
@@ -109,6 +113,13 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     const doc = dialog.ownerDocument;
     const previous = doc.activeElement instanceof doc.defaultView!.HTMLElement ? doc.activeElement : null;
     showModal(dialog);
+    const frame = doc.defaultView!;
+    const windowScoped = scope === 'window';
+    if (windowScoped) {
+      const count = windowDialogs.get(frame) ?? 0;
+      windowDialogs.set(frame, count + 1);
+      if (count === 0) frame.parent.postMessage({type:'pero:app:window-modal', open:true}, '*');
+    }
     const selector = initialFocusRef.current ?? DEFAULT_INITIAL_FOCUS;
     const focusQuiet = (node: HTMLElement) => {
       try { node.focus({ preventScroll: true, focusVisible: false } as FocusOptions); }
@@ -131,6 +142,11 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     return () => {
       const activeBeforeClose = doc.activeElement instanceof doc.defaultView!.HTMLElement ? doc.activeElement : null;
       if (dialog.open) dialog.close();
+      if (windowScoped) {
+        const count = windowDialogs.get(frame)! - 1;
+        windowDialogs.set(frame, count);
+        if (count === 0) frame.parent.postMessage({type:'pero:app:window-modal', open:false}, '*');
+      }
       // Native restoration preserves an editor's selection. Opting out suppresses
       // our explicit focus replay, rather than replacing DOM focus methods.
       if (!restoreFocusRef.current || !dialog.isConnected) return;
@@ -143,7 +159,7 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
       }
       if (previous?.isConnected && doc.activeElement !== previous) previous.focus();
     };
-  }, [open]);
+  }, [open, scope]);
 
   const requestEscapeClose = () => {
     if (escapeSeen.current) return;
@@ -170,6 +186,7 @@ export const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog
     className={classes('pero-ui-dialog', className)}
     data-size={size}
     data-presentation={presentation}
+    data-scope={scope}
     data-unstyled={unstyled || undefined}
     aria-labelledby={rest['aria-labelledby'] ?? titleId}
     onKeyDown={event => {

@@ -275,3 +275,22 @@ test('dialog is a native modal with refusal, escape, form, focus and backdrop bo
   assert.equal(document.querySelector('#quiet .pero-ui-dialog-close'), null);
   assert.equal(document.querySelector('#quiet .pero-ui-dialog-foot'), null);
 });
+
+
+test('window scope stays active until its last dialog closes', async t => {
+  const { React, ui, render, dom } = await createUiRuntime(t, 'dialog');
+  const { Dialog } = ui;
+  const { createElement: h } = React;
+  installDialogElements(dom.window);
+  const messages = [];
+  t.mock.method(dom.window, 'postMessage', message => messages.push(message));
+  const dialog = (key, scope, open = true) => h(Dialog, { key, scope, open, title: key, closeLabel: 'Close', onClose() {} });
+  await render([dialog('panel', 'panel'), dialog('first', 'window'), dialog('second', 'window')]);
+  await render([dialog('panel', 'panel'), dialog('first', 'window', false), dialog('second', 'window')]);
+  assert.deepEqual(messages, [{type:'pero:app:window-modal', open:true}]);
+  await render([dialog('panel', 'panel')]);
+  assert.deepEqual(messages, [
+    {type:'pero:app:window-modal', open:true},
+    {type:'pero:app:window-modal', open:false},
+  ]);
+});

@@ -62,7 +62,8 @@ export const uiStyles = `
 .pero-ui-dialog:not([data-unstyled])[data-size=lg] { width: min(720px, calc(100vw - 32px)); }
 .pero-ui-dialog:not([data-unstyled])[data-presentation=drawer] { inset:0 0 0 auto; margin:0; width:min(580px,100vw); max-width:100vw; height:100dvh; max-height:100dvh; border:0; border-left:var(--pero-border-width-thin,1px) solid var(--pero-border); border-radius:0; }
 .pero-ui-dialog:not([data-unstyled])[open] { display: flex; flex-direction: column; }
-.pero-ui-dialog:not([data-unstyled])::backdrop { background: var(--pero-domain-app-sdk-backdrop-bg, #0005); backdrop-filter: blur(2px); }
+.pero-ui-dialog:not([data-unstyled])::backdrop { background: var(--pero-modal-backdrop, #0005); backdrop-filter: blur(2px); }
+.pero-ui-dialog[data-scope=window]::backdrop { backdrop-filter: none; }
 .pero-ui-dialog *, .pero-ui-dialog *::before, .pero-ui-dialog *::after { box-sizing: border-box; }
 .pero-ui-dialog:focus, .pero-ui-dialog:focus-visible { outline: none; }
 .pero-ui-dialog:not([data-unstyled]) .pero-ui-dialog-frame { display: flex; flex-direction: column; flex: 1; min-height: 0; margin: 0; background: transparent; }

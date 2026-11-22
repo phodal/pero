@@ -157,6 +157,11 @@ import { Sidebar, SidebarGroup, SidebarRow, WindowTitlebar, LibraryHeader } from
 `Sidebar` 不规定宽度；交给宿主的 Split。`WindowTitlebar` 不带标题属性；
 `leading`、`tabs`、`actions` 是内容插槽。`LibraryHeader` 的副标题只有提供时才出现。
 
+在受管 App 中，`<Dialog scope="window" … />` 可让 Workbench 遮住窗口其余内容。
+宿主负责 App 面板外的遮罩与交互，弹窗的表单、焦点和 Escape 仍由 App SDK 管理。
+默认 `scope="panel"`，适用于只影响当前面板的操作。独立页面和旧宿主使用面板内遮罩。
+共享色值 `--pero-modal-backdrop` 来自设计契约，也可在 SDK 样式中使用。
+
 ## 交互目录
 
 目录导入上面的真实组件和 App SDK 控件，包含折叠侧栏、可调分栏、搜索空状态、
