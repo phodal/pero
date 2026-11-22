@@ -7,8 +7,9 @@ use crate::{
     },
 };
 use crate::{
-    layout::{ChatPlacement, WorkspaceLayout},
+    layout::{ChatPlacement, SurfaceStacking, WorkspaceLayout},
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
+    workspace_view::ChatDockDrag,
 };
 use gpui_kit::{
     component::{Sizable, WindowExt, button::*},
@@ -168,18 +169,33 @@ impl Workbench {
             }))
     }
 
-    fn resize_layout_at(&mut self, position: Point<Pixels>, window: &Window, cx: &mut Context<Self>) {
+    fn resize_layout_at(&mut self, position: Point<Pixels>, released: bool, window: &Window, cx: &mut Context<Self>) {
         self.resize_document_pane(position, cx);
         if self.resizing_sessions {
             let x: f32 = position.x.into();
             self.preferences.layout.resize_sessions(x - self.layout.sidebar_width);
             cx.notify();
         }
-        if self.resizing_chat {
+        if let Some(drag) = &self.chat_dock_drag {
             let width: f32 = window.viewport_size().width.into();
-            let x: f32 = position.x.into();
-            self.preferences.layout.resize_chat(width - x);
-            cx.notify();
+            match drag {
+                ChatDockDrag::Guide(guide) => {
+                    let (layout, offset) = guide.read(cx).preview_layout(
+                        position.x, width, self.layout, self.preferences.layout,
+                    );
+                    if released {
+                        if offset != px(0.) {
+                            self.preferences.layout = layout;
+                        }
+                    } else {
+                        guide.update(cx, |guide, cx| guide.move_to(offset, cx));
+                    }
+                }
+                ChatDockDrag::Live => {
+                    self.preferences.layout.resize_chat(width - f32::from(position.x));
+                    cx.notify();
+                }
+            }
         }
         if self.resizing_sidebar {
             let viewport: f32 = window.viewport_size().width.into();
@@ -199,23 +215,22 @@ impl Workbench {
             window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
                 if !phase.capture() { return; }
                 let _ = move_owner.update(cx, |this, cx| {
-                    if !this.resizing_sidebar && !this.resizing_chat && !this.resizing_sessions && this.pane_resize.is_none() { return; }
-                    this.resize_layout_at(event.position, window, cx);
+                    if !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    this.resize_layout_at(event.position, false, window, cx);
                     cx.stop_propagation();
                 });
             });
             window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
                 if !phase.capture() || event.button != MouseButton::Left { return; }
                 let _ = owner.update(cx, |this, cx| {
-                    if !this.resizing_sidebar && !this.resizing_chat && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    if !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
                     // AppKit can deliver release before the next overlay frame.
-                    this.resize_layout_at(event.position, window, cx);
+                    this.resize_layout_at(event.position, true, window, cx);
                     if this.pane_resize.take().is_some() {
                         this.queue_workspace_checkpoint(cx);
                         cx.notify();
                     }
-                    if this.resizing_chat {
-                        this.resizing_chat = false;
+                    if this.chat_dock_drag.take().is_some() {
                         this.save_preferences(this.preferences.clone(), cx);
                         cx.notify();
                     }
@@ -329,7 +344,7 @@ impl Render for Workbench {
             && !(self.navigation.page() == WorkbenchPage::Conversation
                 && self.tab != ConversationTab::Chat);
         let pane_layout = self.navigation.pane_layout().filter(|_| pane_tree);
-        let resizing = self.resizing_sidebar || self.resizing_chat || self.resizing_sessions || self.pane_resize.is_some();
+        let resizing = self.resizing_sidebar || self.chat_dock_drag.is_some() || self.resizing_sessions || self.pane_resize.is_some();
         let window_overlay = self.spotlight.is_some()
             || self.settings_panel.is_some()
             || window.has_active_dialog(cx);
@@ -351,14 +366,7 @@ impl Render for Workbench {
                 || gpui_kit::component::GlobalState::is_in_deferred_context(cx),
             chat_dock_menu,
             resizing,
-            if cfg!(all(
-                not(target_family = "wasm"),
-                any(target_os = "macos", target_os = "linux")
-            )) {
-                crate::layout::SurfaceStacking::Composited
-            } else {
-                crate::layout::SurfaceStacking::AboveWorkbench
-            },
+            SurfaceStacking::CURRENT,
         );
         let mut layout = WorkspaceLayout::resolve(
             width,
@@ -899,7 +907,7 @@ impl Render for Workbench {
             })
             .when(resizing, |el| {
                 // A transparent input layer retains the drag in GPUI while the
-                // native App continues painting below it at its updated bounds.
+                // native App continues painting below it.
                 el.child(deferred(div().id("layout-drag-input").absolute().top_0().left_0().w(window.viewport_size().width).h(window.viewport_size().height).occlude()
                     .cursor(if self.pane_resize.as_ref().is_some_and(|resize| resize.axis == pero_contracts::workspace_panes::PaneAxis::Vertical) {
                         CursorStyle::ResizeUpDown

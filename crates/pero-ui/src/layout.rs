@@ -18,6 +18,17 @@ pub(crate) enum SurfaceStacking {
     Composited,
 }
 
+impl SurfaceStacking {
+    pub(crate) const CURRENT: Self = if cfg!(all(
+        not(target_family = "wasm"),
+        any(target_os = "macos", target_os = "linux")
+    )) {
+        Self::Composited
+    } else {
+        Self::AboveWorkbench
+    };
+}
+
 /// Collapsed sidebar. Wide enough for one icon, narrower than the macOS traffic lights.
 pub(crate) const SIDEBAR_RAIL: f32 = 48.;
 
@@ -139,7 +150,7 @@ impl WorkspaceLayout {
         preferred.clamp(min, max)
     }
 
-    fn dock_width(available: f32, narrow: bool, preferences: &LayoutPreferences) -> f32 {
+    pub(crate) fn dock_width(available: f32, narrow: bool, preferences: &LayoutPreferences) -> f32 {
         if narrow {
             available
         } else {

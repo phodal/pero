@@ -251,6 +251,7 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
     let mut last=Value::Null;
     let mut logged=99;
     let mut library=Value::Null;
+    let mut resize=Value::Null;
     let real_model=std::env::var("PERO_NATIVE_PAPER_AGENT").ok().as_deref()==Some("pero");
     let question=if real_model {"这篇论文的核心方法与评估局限是什么？请阅读原文，保存带精确引用的研究报告。"} else {"What does this synthetic source establish?"};
     for _ in 0..(if real_model {1800}else{400}) {
@@ -263,7 +264,7 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 }
             }
             1=>{
-                let ready=query(root,"paper-agent","!!document.querySelector('.pa-library-screen .pero-ui-page-header button')",cx).await.unwrap_or(Value::Null);
+                let ready=query(root,"paper-agent",r#"!!document.querySelector('.pa-library-screen button[aria-label="Refresh"]:not(:disabled)')"#,cx).await.unwrap_or(Value::Null);
                 if ready==true {
                     let pdf=std::fs::read(std::env::var("PERO_NATIVE_PAPER_PDF")?)?;
                     query(root,"paper-agent",&format!("window.paperProbePdf={}",json!(pdf)),cx).await?;
@@ -282,13 +283,13 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 }
             }
             2=>{
-                let clicked=query(root,"paper-agent",r#"(()=>{const button=document.querySelector('.pa-library-list .pero-list-open');if(!button)return false;button.click();return true;})()"#,cx).await?;
+                let clicked=query(root,"paper-agent",r#"(()=>{const button=document.querySelector('.pa-library-list .pero-list-open');if(!button)return false;button.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));return true;})()"#,cx).await?;
                 if clicked==true {stage=3;}
             }
             3=>{
                 let active=window.update(cx,|_,window,cx|{if window.is_window_active(){true}else{window.activate_window();cx.activate(true);false}})?;
                 if !active {cx.background_executor().timer(Duration::from_millis(150)).await;continue;}
-                let clicked=query(root,"paper-agent",r#"(()=>{const button=[...document.querySelectorAll('.pa-reading-bar button')].find(b=>b.textContent==='Ask');if(!button||button.disabled)return false;button.click();return true;})()"#,cx).await?;
+                let clicked=query(root,"paper-agent",r#"(()=>{const button=[...document.querySelectorAll('.pa-reading-bar button')].find(b=>b.textContent.trim()==='Ask AI');if(!button||button.disabled)return false;button.click();return true;})()"#,cx).await?;
                 if clicked==true {stage=4;}
             }
             4=>{
@@ -299,6 +300,14 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 if last["attachments"].as_array().is_some_and(|a|!a.is_empty()) {
                     anyhow::ensure!(last["scope"]["app"]=="paper-agent","Wrong Chat scope: {last}");
                     anyhow::ensure!(last["chats"][0]["messages"].as_array().is_some_and(|m|m.is_empty()),"App must not send a question implicitly");
+                    if crate::layout::SurfaceStacking::CURRENT == crate::layout::SurfaceStacking::Composited {
+                        let ready = query(root, "paper-agent", "!!document.querySelector('.pa-pdf-page img')?.naturalWidth", cx).await?;
+                        if ready != true {
+                            cx.background_executor().timer(Duration::from_millis(150)).await;
+                            continue;
+                        }
+                        resize = verify_paper_chat_resize(root, window, cx).await?;
+                    }
                     let _=window.update(cx,|_,_window,cx|root.update(cx,|root,cx|root.chat.update(cx,|chat,cx|{
                         chat.compose(question.into(),cx);
                     })))?;
@@ -350,7 +359,7 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
             8=>{
                 let highlighted=query(root,"paper-agent","!!document.querySelector('[data-citation-region=\"true\"]')",cx).await.unwrap_or(Value::Null);
                 if highlighted==true {
-                    return Ok(json!({"passed":true,"realModel":real_model,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events, reopens the App and highlights PDF"],"library":library,"chat":last}));
+                    return Ok(json!({"passed":true,"realModel":real_model,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events, reopens the App and highlights PDF"],"resize":resize,"library":library,"chat":last}));
                 }
             }
             _=>unreachable!(),
@@ -358,4 +367,63 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
         cx.background_executor().timer(Duration::from_millis(150)).await;
     }
     anyhow::bail!("Native Paper Chat timed out at stage {stage}: {last}")
+}
+
+async fn verify_paper_chat_resize(
+    root: &Entity<Workbench>,
+    window: AnyWindowHandle,
+    cx: &mut AsyncApp,
+) -> anyhow::Result<Value> {
+    const METRICS: &str = "({width: innerWidth, page: document.querySelector('.pa-pdf-page-input input')?.value, widths: window.paperResizeWidths})";
+    let before = query(root, "paper-agent", &format!(
+        "(()=>{{window.paperResizeWidths=[]; addEventListener('resize', () => window.paperResizeWidths.push(innerWidth)); return {METRICS};}})()"
+    ), cx).await?;
+    let chat_width = cx.update(|cx| root.read(cx).layout.chat_width);
+    let grab = window.update(cx, |_, window, cx| {
+        let position = point(window.viewport_size().width - px(chat_width) + px(2.), px(240.));
+        window.dispatch_event(PlatformInput::MouseDown(MouseDownEvent {
+            button: MouseButton::Left, position, click_count: 1, ..Default::default()
+        }), cx);
+        position
+    })?;
+
+    for distance in [24., 48., 72.] {
+        let (drawn, frame) = async_channel::bounded(1);
+        window.update(cx, |_, window, cx| {
+            window.dispatch_event(PlatformInput::MouseMove(MouseMoveEvent {
+                pressed_button: Some(MouseButton::Left),
+                position: point(grab.x - px(distance), grab.y),
+                modifiers: Modifiers::default(),
+            }), cx);
+            window.on_next_frame(move |_, _| { let _ = drawn.try_send(()); });
+        })?;
+        frame.recv().await?;
+        let during = query(root, "paper-agent", METRICS, cx).await?;
+        anyhow::ensure!(during == before, "PDF viewport changed during the drag: {before} → {during}");
+        anyhow::ensure!(cx.update(|cx| root.read(cx).layout.chat_width) == chat_width,
+            "Chat changed size before the divider was released");
+    }
+
+    // Release beyond the final move so the check covers the exact release coordinate.
+    window.update(cx, |_, window, cx| {
+        window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent {
+            button: MouseButton::Left, position: point(grab.x - px(84.), grab.y),
+            click_count: 1, ..Default::default()
+        }), cx);
+    })?;
+    let width = before["width"].as_i64().ok_or_else(|| anyhow::anyhow!("Missing initial PDF width"))?;
+    let mut after = Value::Null;
+    for _ in 0..50 {
+        after = query(root, "paper-agent", METRICS, cx).await?;
+        let saved = cx.update(|cx| {
+            let root = root.read(cx);
+            root.layout.chat_width == chat_width + 84.
+                && root.preferences_status == crate::settings_menu::PreferenceSaveState::Saved
+        });
+        if saved && after["widths"] == json!([width - 84]) && after["page"] == before["page"] {
+            return Ok(json!({"before":before,"after":after,"dragSamples":3,"chatWidth":chat_width+84.}));
+        }
+        cx.background_executor().timer(Duration::from_millis(100)).await;
+    }
+    anyhow::bail!("PDF viewport or saved Chat width did not settle after release: {before} → {after}")
 }

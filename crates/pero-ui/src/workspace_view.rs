@@ -1,7 +1,7 @@
 //! Workbench content selection and the single shared conversation dock.
 use crate::{
     app::Workbench,
-    layout::ChatPlacement,
+    layout::{ChatPlacement, SurfaceStacking, WorkspaceLayout},
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem, WorkspaceRoute},
 };
 use gpui_kit::{
@@ -9,7 +9,56 @@ use gpui_kit::{
     prelude::*,
     *,
 };
+use pero_contracts::workbench::LayoutPreferences;
 use serde_json::json;
+
+pub(crate) enum ChatDockDrag {
+    Live,
+    Guide(Entity<ChatDockGuide>),
+}
+
+pub(crate) struct ChatDockGuide {
+    start_x: Pixels,
+    start_width: f32,
+    offset: Pixels,
+}
+
+impl ChatDockGuide {
+    pub(crate) fn preview_layout(
+        &self,
+        x: Pixels,
+        viewport: f32,
+        layout: WorkspaceLayout,
+        mut preferences: LayoutPreferences,
+    ) -> (LayoutPreferences, Pixels) {
+        preferences.resize_chat(self.start_width + f32::from(self.start_x - x));
+        let width = WorkspaceLayout::dock_width(
+            viewport - layout.sidebar_width,
+            layout.narrow,
+            &preferences,
+        );
+        (preferences, px(layout.chat_width - width))
+    }
+
+    pub(crate) fn move_to(&mut self, offset: Pixels, cx: &mut Context<Self>) {
+        if self.offset != offset {
+            self.offset = offset;
+            cx.notify();
+        }
+    }
+}
+
+impl Render for ChatDockGuide {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .absolute()
+            .left(self.offset)
+            .top_0()
+            .h_full()
+            .w(px(1.))
+            .bg(pero_theme::UiAppearance::global(cx).palette.focus)
+    }
+}
 
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
@@ -675,6 +724,10 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let guide = match &self.chat_dock_drag {
+            Some(ChatDockDrag::Guide(guide)) => Some(guide.clone()),
+            _ => None,
+        };
         div()
             .id("workspace-chat-panel")
             .flex()
@@ -702,7 +755,7 @@ impl Workbench {
                         .w(px(4.))
                         .h_full()
                         .child(div().absolute().left_0().top_0().w(px(1.)).h_full()
-                            .when(self.chat_resize_focus.is_focused(window), |el| el.bg(p.focus)))
+                            .when(guide.is_none() && self.chat_resize_focus.is_focused(window), |el| el.bg(p.focus)))
                         .cursor(CursorStyle::ResizeLeftRight)
                         .on_mouse_down(
                             MouseButton::Left,
@@ -713,7 +766,19 @@ impl Workbench {
                                         pero_contracts::workbench::LayoutPreferences::default().chat_width());
                                     this.save_preferences(this.preferences.clone(), cx);
                                 } else {
-                                    this.resizing_chat = true;
+                                    // Keep the composited document and Chat at their current sizes
+                                    // while the independently painted guide follows the pointer.
+                                    this.chat_dock_drag = Some(if SurfaceStacking::CURRENT == SurfaceStacking::Composited
+                                        && this.layout.embedded_surface_visible
+                                    {
+                                        ChatDockDrag::Guide(cx.new(|_| ChatDockGuide {
+                                            start_x: event.position.x,
+                                            start_width: this.layout.chat_width,
+                                            offset: px(0.),
+                                        }))
+                                    } else {
+                                        ChatDockDrag::Live
+                                    });
                                 }
                                 cx.stop_propagation();
                                 cx.notify();
@@ -731,6 +796,9 @@ impl Workbench {
                             cx.stop_propagation();
                         })),
                 )
+            })
+            .when_some(guide, |el, guide| {
+                el.child(deferred(guide).with_priority(gpui_kit::base::POPUP_PRIORITY))
             })
     }
 

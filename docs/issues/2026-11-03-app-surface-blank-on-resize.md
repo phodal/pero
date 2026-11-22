@@ -58,3 +58,22 @@ preference/checkpoint owners still save the final sizes. Splitter feedback is a
 The layout policy tests include composited and uncomposited resize coverage as
 well as an actual overlay during a drag. Native visible-window verification is
 recorded in `packages/pero-design/VERIFICATION.md` after the rebuilt preview run.
+
+## Native Paper and Chat drag performance, 2026-11-22
+
+With the PDF reader next to docked Chat, each pointer move changed both
+column widths. The retained WebView received those geometry changes while
+the PDF reader was laying out pages and Chat was reflowing.
+
+For a composited embedded surface, the Chat splitter now moves an independent
+1px guide over the visible panes. Release applies the pointer's final position
+using the existing width limits and Host preference save. The shared splitter
+still supports keyboard resizing and double-click reset.
+
+On macOS arm64, the Native development build at `9040d9d04` with this patch
+ran the Paper Chat probe with a disposable profile and a 26-page synthetic PDF. Across
+three drag samples the WebView stayed at 760px. Release widened Chat from 420px
+to 504px and emitted one WebView resize to 676px. The PDF stayed on page 1 and
+the Host acknowledged the saved width. A separate two-page run captured the
+window at two drag positions and showed the moving guide over a visible PDF
+and Chat draft. The Wasm target passed `cargo check`.
