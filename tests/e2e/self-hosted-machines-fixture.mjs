@@ -14,6 +14,7 @@ export async function setupSelfHostedMachines(database, {
   outputDirectory = resolve(root, 'test-results/self-hosted-machines/desktop'),
   serverBinary,
   agentArgs = [],
+  beforeWorkerRequest,
 } = {}) {
   if (!database) throw new Error('Set PERO_TEST_DATABASE_URL to an isolated PostgreSQL database');
   const temp = await mkdtemp(resolve(tmpdir(), 'pero-machines-'));
@@ -106,7 +107,15 @@ export async function setupSelfHostedMachines(database, {
         const chunks = [];
         for await (const chunk of incoming) chunks.push(chunk);
         const requestBody = Buffer.concat(chunks);
-        const response = await fetch(base + incoming.url, {
+        if (beforeWorkerRequest && incoming.method === 'POST' && incoming.url.startsWith('/api/worker/v1/runs/')) {
+        const errorStatus = await beforeWorkerRequest(incoming.url, JSON.parse(requestBody));
+        if (errorStatus) {
+          outgoing.writeHead(errorStatus, { 'Content-Type': 'application/json' });
+          outgoing.end(JSON.stringify({ error: 'Injected Worker request failure' }));
+          return;
+        }
+      }
+      const response = await fetch(base + incoming.url, {
           method: incoming.method,
           headers: { Authorization: incoming.headers.authorization || '', 'Content-Type': 'application/json',
             ...(incoming.headers['idempotency-key'] ? { 'Idempotency-Key': incoming.headers['idempotency-key'] } : {}) },
@@ -137,9 +146,9 @@ export async function setupSelfHostedMachines(database, {
       const attempt = await request('/api/worker/v1/claims', 'POST', { request_id: randomUUID(), instance_id: 'spare-observer' }, bystander.token);
       expect(attempt.run).toBeNull();
     };
-    const startWorker = (configPath = config) => start(resolve(workerBinary), ['--once'], {
+    const startWorker = (configPath = config, statePath = resolve(temp, `worker-${randomUUID()}.json`)) => start(resolve(workerBinary), ['--once'], {
       ...env, PERO_CLOUD_URL: url, PERO_WORKER_TOKEN: chosen.token,
-      PERO_WORKER_CONFIG: configPath, PERO_WORKER_STATE: resolve(temp, `worker-${randomUUID()}.json`),
+      PERO_WORKER_CONFIG: configPath, PERO_WORKER_STATE: statePath,
     });
     return { root, out, base, url, temp, env, agents, client, request, chosen, incompatible, bystander,
       startWorker, assertTarget, stop, close, creationAttempts, dispatches, logs: () => logs };

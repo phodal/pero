@@ -13,9 +13,26 @@ if (process.platform !== 'darwin') throw new Error('This fixture provisions a ma
 const codex = await realpath(process.env.PERO_TEST_CODEX_EXECUTABLE);
 const root = resolve(import.meta.dirname, '../..');
 const version = execFileSync(codex, ['--version'], { encoding: 'utf8' }).trim();
+const restart = process.argv.includes('--restart');
+let statePath, blockedUpload;
+const completionAttempts = [];
+const isCleanup = event => event.data?.toolCallId === 'shell-2' && event.data?.status === 'failed';
 const test = await setupSelfHostedMachines(process.env.PERO_TEST_DATABASE_URL, {
-  workerBinary: process.env.PERO_WORKER_BIN, outputDirectory: resolve(root, 'test-results/exec-server-shell'),
+  workerBinary: process.env.PERO_WORKER_BIN,
+  outputDirectory: resolve(root, 'test-results', restart ? 'exec-server-shell-restart' : 'exec-server-shell'),
+  beforeWorkerRequest: restart ? async (route, body) => {
+    if (route.endsWith('/events') && !blockedUpload && body.events.some(isCleanup)) {
+      blockedUpload = body;
+      return 503;
+    }
+    if (route.endsWith('/complete')) {
+      const { active } = JSON.parse(await readFile(statePath, 'utf8'));
+      completionAttempts.push({ generation: body.generation, instance: body.instance_id, outcome: body.outcome,
+        acknowledged: active.acknowledged, lastSequence: active.events.at(-1)?.seq });
+    }
+  } : undefined,
 });
+statePath = resolve(test.temp, 'exec-server-worker.json');
 const privateDir = await mkdtemp(resolve(homedir(), '.pero-exec-server-test-'));
 const workspace = resolve(privateDir, 'workspace');
 const marker = randomUUID();
@@ -91,7 +108,7 @@ try {
     }
     return Boolean((await snapshot()).activeTabBounds);
   }).toBe(true);
-  test.startWorker(config);
+  const worker = test.startWorker(config, statePath);
   const pidFile = resolve(workspace, 'pids');
   await expect.poll(async () => readFile(pidFile, 'utf8').catch(() => ''), { timeout: 30000 }).toMatch(/^\d+ \d+\n$/);
   const [shell, child] = (await readFile(pidFile, 'utf8')).trim().split(' ').map(Number);
@@ -117,13 +134,34 @@ try {
   }).toBe(taskId);
   await page.screenshot({ path: resolve(test.out, 'cancel-confirmation.png') });
   await page.mouse.click(580, 373);
+  if (restart) {
+    // In --once mode the injected upload failure exits the Worker after its
+    // cancelled outcome and cleanup output have been saved in the same journal.
+    await expect.poll(() => worker.exitCode, { timeout: 20000 }).toBe(1);
+    expect(blockedUpload?.events.some(isCleanup)).toBe(true);
+    const { active } = JSON.parse(await readFile(statePath, 'utf8'));
+    expect(active.result.outcome).toBe('cancelled');
+    expect(active.events.find(isCleanup).seq).toBeGreaterThan(active.acknowledged);
+    const pending = await detail();
+    expect(pending.run.status).toBe('cancel_requested');
+    expect(pending.events.some(isCleanup)).toBe(false);
+    expect(completionAttempts).toEqual([]);
+
+    const restarted = test.startWorker(config, statePath);
+    await expect.poll(() => restarted.exitCode, { timeout: 10000 }).toBe(0);
+    expect(completionAttempts).toEqual([{
+      generation: active.run.generation, instance: active.run.instance_id,
+      outcome: 'cancelled', acknowledged: active.events.at(-1).seq, lastSequence: active.events.at(-1).seq,
+    }]);
+    expect(calls).toBe(2);
+  }
   await expect.poll(async () => (await detail()).run.status, { timeout: 20000 }).toBe('cancelled');
   const final = await detail();
   expect(final.task.state).toBe('cancelled');
   expect(final.run.summary).toBe('Cancellation requested by Cloud');
   const storedOutput = final.events.find(e => e.data?.toolCallId === 'shell-1' && e.data?.status === 'completed');
   expect(JSON.parse(storedOutput.data.content[0].content.text)).toEqual(first);
-  const partial = final.events.find(e => e.data?.toolCallId === 'shell-2' && e.data?.status === 'failed');
+  const partial = final.events.find(isCleanup);
   const stdout = `partial-out-${marker}\nterm-out-${marker}\n`;
   const stderr = `partial-err-${marker}\nterm-err-${marker}\n`;
   expect(partial?.text).toBe(`stdout\n${stdout}stderr\n${stderr.trimEnd()}`);
@@ -148,9 +186,9 @@ try {
   await frame();
   await page.screenshot({ path: resolve(test.out, 'cancelled.png') });
   const report = { version, run: final.run, events: final.events, shellReceipts, pids, processes: { executor, agent, broker, shell, child }, liveAfterCancel: pids.filter(alive),
-    partialOutputInRun: true, cleanupOutputInRun: true, liveAtCleanup, marker };
+    partialOutputInRun: true, cleanupOutputInRun: true, liveAtCleanup, restart, completionAttempts, marker };
   await writeFile(resolve(test.out, 'result.json'), JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ run: final.run.id, status: final.run.status, pids, cleanupOutputInRun: report.cleanupOutputInRun }));
+  console.log(JSON.stringify({ run: final.run.id, status: final.run.status, pids, restart, cleanupOutputInRun: report.cleanupOutputInRun }));
 } catch (error) {
   if (page) await page.screenshot({ path: resolve(test.out, 'failure.png') });
   if (taskId) console.error(JSON.stringify(await test.request('/api/client/v1/tasks/' + taskId, 'GET', undefined, test.client.token)).slice(-10000));

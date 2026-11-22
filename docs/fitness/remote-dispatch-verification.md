@@ -306,3 +306,21 @@ itself settled as `cancelled`. OS checks confirmed that the Worker executor,
 Go Agent, Codex 0.154.0 exec-server, Bash, and the SIGTERM-ignoring child had
 exited. The direct real-Codex Go test also checks that cancellation waits for
 the configured grace and captures both streams without Worker supervision.
+
+### Worker restart before event upload, 2026-11-22
+
+Run the same fixture with `node tests/e2e/exec-server-shell.mjs --restart`.
+The loopback proxy rejects the first batch containing the SIGTERM cleanup
+receipt before forwarding it to the real control plane. The first Worker
+exits with a saved `cancelled` outcome and unacknowledged events. The Run is
+still `cancel_requested` in PostgreSQL. The fixture restarts the Worker with
+the same journal and checks its persisted acknowledgement at the completion
+request boundary.
+
+The previous Worker submitted completion while events 10–13 were still
+unacknowledged. The fixed Worker acknowledged event 13 before submitting
+`cancelled`, reused the original Run instance and generation, and made no
+additional model calls. Refreshing Desktop showed the recovered stdout and
+stderr, including both SIGTERM cleanup markers. The restarted Worker exited
+successfully and all five execution PIDs were gone. Evidence is under
+`test-results/exec-server-shell-restart/`.
