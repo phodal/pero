@@ -1,0 +1,15 @@
+**
+!Cargo.toml
+!crates
+!crates/pero-contracts
+!crates/pero-contracts/**
+!locales
+!locales/**
+!use
+!use/computer
+!use/computer/**
+!environments
+!environments/linux-desktop
+!environments/linux-desktop/desktop.sh
+**/target
+**/.DS_Store

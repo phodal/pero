@@ -8,6 +8,7 @@ import type { ComputerRequest, ComputerControl } from '../../../protocol/generat
 import type { ComputerAction, ComputerActionReceipt } from '../../../protocol/generated/computer-action';
 import type { ComputerResponse, ComputerUseState } from '../../../protocol/generated/computer-response';
 import { ComputerClient, ComputerFailure } from './computer-client.ts';
+import type { LinuxComputerRoute } from './linux-desktop.ts';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(requestSchema);
@@ -41,16 +42,24 @@ export const COMPUTER_TOOL = {
 };
 
 type Journal = { action: ComputerAction; receipt?: ComputerActionReceipt };
+type ComputerControls = {
+  args?: string[];
+  save?(enabled: boolean): Promise<void>;
+  permissions?(): Promise<void>;
+  status?(): ComputerUseState['status'];
+};
 /** Desktop owner of the native connection, evidence and uncertain-action receipts. */
 export class DesktopComputer {
   private client: ComputerClient;
   private root: string;
   private emit: (event: object) => void;
-  private controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> };
+  private controls: ComputerControls;
   private controller = new AbortController();
   private pending = new Map<string, { action: ComputerAction; promise: Promise<ComputerActionReceipt> }>();
+  linuxRoute?: (thread: string) => LinuxComputerRoute | undefined;
+  get enabled() { return this.state.enabled; }
   private state: ComputerUseState = { enabled: false, running: false, status: { available: false, accessibility: 'not_detected', screen_recording: 'not_detected', message: '' } };
-  constructor(binary: string, root: string, emit: (event: object) => void, controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> } = {}) { this.root = root; this.emit = emit; this.controls = controls; this.client = new ComputerClient(binary, controls.args); }
+  constructor(binary: string, root: string, emit: (event: object) => void, controls: ComputerControls = {}) { this.root = root; this.emit = emit; this.controls = controls; this.client = new ComputerClient(binary, controls.args); }
   private publish() { this.emit({ version: 1, kind: 'computer_state', request_id: null, text: '', data: this.state }); }
   async restore(enabled: boolean) {
     this.state.enabled = enabled;
@@ -59,9 +68,13 @@ export class DesktopComputer {
   }
   async status(): Promise<ComputerUseState> {
     try {
-      const result = await this.client.request('desktop-status', { operation: 'status' }, new AbortController().signal);
-      if (result.kind !== 'status') throw new Error('Native desktop status was not returned');
-      this.state.status = result.status; this.state.error = null;
+      if (this.controls.status) this.state.status = this.controls.status();
+      else {
+        const result = await this.client.request('desktop-status', { operation: 'status' }, new AbortController().signal);
+        if (result.kind !== 'status') throw new Error('Native desktop status was not returned');
+        this.state.status = result.status;
+      }
+      this.state.error = null;
     } catch (error) {
       this.state.status = { available: false, accessibility: 'not_detected', screen_recording: 'not_detected', message: '' };
       this.state.error = error instanceof Error ? error.message : String(error);
@@ -128,7 +141,7 @@ export class DesktopComputer {
   private unknown(action: ComputerAction, code: 'failed' | 'timeout' | 'cancelled', message: string): ComputerActionReceipt {
     return { request_id: action.request_id, target: action.target, observation_id: action.observation_id, outcome: { status: 'unknown', error: { code, message } } };
   }
-  private async act(thread: string, action: ComputerAction, signal: AbortSignal): Promise<ComputerActionReceipt> {
+  private async act(thread: string, action: ComputerAction, signal: AbortSignal, client: ComputerClient): Promise<ComputerActionReceipt> {
     const key = `${thread}\0${action.request_id}`;
     const pending = this.pending.get(key);
     if (pending) {
@@ -145,7 +158,7 @@ export class DesktopComputer {
       await this.record(thread, { action });
       let receipt: ComputerActionReceipt;
       try {
-        const response = await this.client.request(thread, { operation: 'act', action }, signal);
+        const response = await client.request(thread, { operation: 'act', action }, signal);
         if (response.kind !== 'receipt') throw new Error('Native input returned no execution receipt');
         receipt = response.receipt;
       } catch (error) {
@@ -161,7 +174,6 @@ export class DesktopComputer {
   async call(thread: string, raw: unknown, signal: AbortSignal): Promise<ComputerResponse> {
     if (!validRequest(raw)) throw new ComputerFailure({ code: 'invalid_request', message: ajv.errorsText(validRequest.errors) });
     const value = raw as ComputerRequest;
-    if (value.operation === 'status') return { kind: 'status', status: (await this.status()).status };
     if (value.operation === 'receipt') {
       const pending = this.pending.get(`${thread}\0${value.request_id}`);
       if (pending) return { kind: 'receipt', receipt: await pending.promise };
@@ -169,14 +181,19 @@ export class DesktopComputer {
       if (!previous) throw new ComputerFailure({ code: 'invalid_request', message: 'No input with that request_id belongs to this conversation' });
       return { kind: 'receipt', receipt: previous.receipt || this.unknown(previous.action, 'failed', 'Native input has no confirmed result. Observe before continuing.') };
     }
-    if (value.operation === 'stop') { await this.stop(); return { kind: 'stopped' }; }
+    const route = this.linuxRoute?.(thread);
+    if (!route && value.operation === 'status') return { kind: 'status', status: (await this.status()).status };
+    if (!route && value.operation === 'stop') { await this.stop(); return { kind: 'stopped' }; }
     if (!this.state.enabled) throw new ComputerFailure({ code: 'permission_required', message: 'Enable Computer Use in Settings first.' });
-    const bounded = AbortSignal.any([signal, this.controller.signal]);
+    if (route && 'reason' in route) throw new ComputerFailure({ code: 'permission_required', message: route.reason });
+    const client = route?.client ?? this.client;
+    const bounded = AbortSignal.any(route ? [signal, this.controller.signal, route.signal] : [signal, this.controller.signal]);
     bounded.throwIfAborted();
+    if (value.operation === 'stop') { await client.stop(); return { kind: 'stopped' }; }
     this.state.running = true; this.publish();
     try {
-      if (value.operation === 'act') return { kind: 'receipt', receipt: await this.act(thread, value.action, bounded) };
-      const result = await this.client.request(thread, value, bounded);
+      if (value.operation === 'act') return { kind: 'receipt', receipt: await this.act(thread, value.action, bounded, client) };
+      const result = await client.request(thread, value, bounded);
       if (result.kind === 'observation' && result.image && result.observation.screenshot) {
         const image = result.observation.screenshot;
         const directory = join(this.directory(thread), 'images');

@@ -1,0 +1,6 @@
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body) system-ui, sans-serif; }
+header { padding: var(--pero-spacing-3) var(--pero-spacing-4); }
+h1 { margin: 0; font: var(--pero-font-title) system-ui, sans-serif; }
+p { margin: var(--pero-spacing-1) 0 0; }
+main { flex: 1; min-height: 0; overflow: hidden; }
