@@ -41,6 +41,7 @@ async function previewFixture(t) {
     '../lib/paths.mjs': { root },
     '../lib/run.mjs': { run: async (command, args) => { commands.push([command, ...args]); } },
     '../build/harness.mjs': { buildHarness: async () => {} },
+    '../build/computer-app.mjs': { stageComputerApp() {} },
   };
   const module = new SourceTextModule(readFileSync(new URL('../../scripts/dev/native.mjs', import.meta.url), 'utf8'), { context });
   await module.link(specifier => {
