@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BookOpen, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2, SunMoon } from 'lucide-react';
 import { Sidebar, SidebarGroup, SidebarRow, WindowTitlebar, LibraryHeader, ListRow, SearchField, SettingsGroup, SettingsRow, Composer, typePx } from '../src';
 import { Button } from '../../app-sdk/src/components/button';
+import { CatalogCard } from '../../app-sdk/src/components/card';
 import { Input, FilePicker } from '../../app-sdk/src/components/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../app-sdk/src/components/tabs';
 import { Split, SplitPane } from '../../app-sdk/src/components/split';
@@ -57,7 +58,7 @@ function Catalog() {
             {screen === '标签与控件' && <WorkbenchExample/>}
             {screen === '标题与列表' && <>
               <SearchField id="catalog-search" aria-label="搜索论文" placeholder="搜索论文…" value={query} onChange={e => setQuery(e.target.value)}/>
-              <Tabs defaultValue="catalog"><TabsList variant="navigation" aria-label="服务视图"><TabsTrigger value="catalog">服务目录</TabsTrigger><TabsTrigger value="installed">已安装连接 1</TabsTrigger></TabsList><TabsContent value="catalog"><p>搜索服务与能力</p></TabsContent><TabsContent value="installed"><p>管理已有连接</p></TabsContent></Tabs>
+              <Tabs defaultValue="catalog"><TabsList variant="navigation" aria-label="服务视图"><TabsTrigger value="catalog">服务目录</TabsTrigger><TabsTrigger value="installed">已安装连接 1</TabsTrigger></TabsList><TabsContent value="catalog"><div className="pero-catalog-grid"><CatalogCard icon={<BookOpen size={18}/>} title="文献服务" subtitle="机构账号授权" description="检索论文与引用记录。" action={<Button onClick={() => setMessage('已打开文献服务示例')}>查看要求</Button>}/></div></TabsContent><TabsContent value="installed"><p>管理已有连接</p></TabsContent></Tabs>
               <Tabs defaultValue="papers"><TabsList aria-label="资料类别"><TabsTrigger value="papers">论文</TabsTrigger><TabsTrigger value="notes">研究记录</TabsTrigger></TabsList><TabsContent value="papers">
                 {['scGPT','GEARS'].filter(t => t.toLowerCase().includes(query.toLowerCase())).map(title => <ListRow key={title} title={title} meta="Paper" current={selected === title} onOpen={() => { setSelected(title); setMessage('已选择 ' + title); }} trailing={<Button variant="ghost" onClick={() => setMessage(title + ' 已加入当前任务上下文')}>加入上下文</Button>}/>)}
                 {!['scGPT','GEARS'].some(t => t.toLowerCase().includes(query.toLowerCase())) && <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} heading="没有匹配论文" actions={<Button onClick={() => setQuery('')}>清除搜索</Button>}/>}

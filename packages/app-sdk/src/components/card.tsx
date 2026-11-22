@@ -1,6 +1,7 @@
 // Upstream attribution and license: packages/app-sdk/NOTICE.md.
 import React, { forwardRef } from 'react';
 import { Slot } from '@radix-ui/react-slot';
+import { Button } from './button';
 import { ensureUiStyles } from './ui-styles';
 
 export type CardProps = React.ComponentPropsWithoutRef<'div'> & {
@@ -40,3 +41,35 @@ export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(function C
     {actions != null && actions !== false && <div className="pero-ui-card-actions" data-unstyled={unstyled || undefined}>{actions}</div>}
   </div>;
 });
+
+/** A directory entry keeps identity and prerequisites above the preview, with independent actions below. */
+export function CatalogCard({ icon, title, subtitle, description, detail, metadata, status, action, onOpen, className }: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  description: string;
+  detail?: React.ReactNode;
+  metadata?: React.ReactNode;
+  status?: React.ReactNode;
+  action?: React.ReactNode;
+  onOpen?: () => void;
+  className?: string;
+}) {
+  return <Card asChild className={`pero-catalog-card ${className ?? ''}`}>
+    <article>
+      <header className="pero-catalog-identity">
+        <span className="pero-catalog-icon" aria-hidden="true">{icon}</span>
+        <div className="pero-catalog-heading">
+          <div className="pero-catalog-title">
+            <h3>{onOpen ? <Button variant="ghost" onClick={onOpen}>{title}</Button> : title}</h3>
+            {detail}
+          </div>
+          <span className="pero-catalog-subtitle" title={subtitle}>{subtitle}</span>
+        </div>
+      </header>
+      <p className="pero-catalog-description" title={description}>{description}</p>
+      {metadata && <div className="pero-catalog-metadata">{metadata}</div>}
+      <footer className="pero-catalog-actions">{status}{action}</footer>
+    </article>
+  </Card>;
+}

@@ -123,3 +123,63 @@ button:disabled, input:disabled, select:disabled { cursor: default; opacity: .5;
 .pero-standalone-document > header button { font: inherit; min-height: var(--pero-icon-button); padding: 0 var(--pero-spacing-2); color: inherit; background: transparent; border: 0; border-radius: var(--pero-radius-button); }
 .pero-standalone-document-body { position: relative; flex: 1; min-height: 0; background: var(--pero-material-reading); }
 .pero-standalone-document-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+.pero-catalog-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pero-spacing-2);
+}
+.pero-catalog-tools .pero-search-field { flex: 1 1 16rem; min-width: min(100%, 12rem); max-width: none; }
+.pero-catalog-tools .pero-select-trigger { max-width: 100%; }
+.pero-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--pero-spacing-3);
+}
+.pero-catalog-card.pero-ui-card {
+  --pero-card-padding: var(--pero-spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pero-spacing-3);
+  min-width: 0;
+}
+.pero-catalog-identity, .pero-catalog-title, .pero-catalog-metadata, .pero-catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--pero-spacing-2);
+  min-width: 0;
+}
+.pero-catalog-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--pero-radius-selection);
+  background: var(--pero-accent-soft);
+  color: var(--pero-accent-text);
+}
+.pero-catalog-heading { flex: 1; min-width: 0; }
+.pero-catalog-title h3 { margin: 0; overflow-wrap: anywhere; font-size: var(--pero-font-body); line-height: 1.35; }
+.pero-catalog-title h3 > .pero-ui-button[data-variant=ghost] {
+  height: auto; min-height: 0; padding: 0; text-align: start; white-space: normal;
+  font: inherit; line-height: inherit; color: inherit;
+}
+.pero-catalog-subtitle, .pero-catalog-description, .pero-catalog-metadata, .pero-catalog-actions {
+  font-size: var(--pero-font-caption);
+  color: var(--pero-text-muted);
+}
+.pero-catalog-subtitle { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: var(--pero-spacing-1); }
+.pero-catalog-description {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.pero-catalog-metadata { justify-content: space-between; }
+.pero-catalog-actions { flex-wrap: wrap; margin-top: auto; }
+.pero-catalog-actions > :last-child { margin-inline-start: auto; }

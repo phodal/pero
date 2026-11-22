@@ -16,7 +16,7 @@ export { Select, type SelectProps, type SelectOption } from './select';
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuLabel, DropdownMenuGroup, type DropdownMenuProps, type DropdownMenuTriggerProps, type DropdownMenuContentProps, type DropdownMenuItemProps, type DropdownMenuCheckboxItemProps, type DropdownMenuRadioGroupProps, type DropdownMenuRadioItemProps, type DropdownMenuSeparatorProps, type DropdownMenuSubProps, type DropdownMenuSubTriggerProps, type DropdownMenuSubContentProps, type DropdownMenuLabelProps, type DropdownMenuGroupProps } from './dropdown-menu';
 export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuCheckboxItem, ContextMenuRadioGroup, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent, type ContextMenuProps, type ContextMenuTriggerProps, type ContextMenuContentProps, type ContextMenuItemProps, type ContextMenuCheckboxItemProps, type ContextMenuRadioGroupProps, type ContextMenuRadioItemProps, type ContextMenuSeparatorProps, type ContextMenuSubProps, type ContextMenuSubTriggerProps, type ContextMenuSubContentProps } from './context-menu';
 export { Disclosure, type DisclosureProps } from './disclosure';
-export { Card, CardHeader, type CardProps, type CardHeaderProps } from './card';
+export { Card, CardHeader, CatalogCard, type CardProps, type CardHeaderProps } from './card';
 
 export { Icon, iconFamily, type IconProps, type IconGlyph, type UiIconName, type ShellIconName } from './icon';
 
