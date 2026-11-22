@@ -144,6 +144,10 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        #[cfg(not(target_family = "wasm"))]
+        if self.native_window_modal(cx).is_some() {
+            return;
+        }
         self.workspace_focus.focus(window, cx);
         window.dispatch_action(action(command), cx);
     }

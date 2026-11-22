@@ -18,13 +18,13 @@ export type AppSurface = { visible: boolean; name?: string; panel?: string; left
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
 type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;embedded?:boolean;presenceExpiry?:ReturnType<typeof setTimeout>};
-type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; contextKey?: string; dispose(): void };
+type Frame = { documents:AppDocuments; element: HTMLIFrameElement; name: string; panel: string; ready: boolean; windowModal?: boolean; failed: boolean; timer: ReturnType<typeof setTimeout>; contextKey?: string; dispose(): void };
 type AppUsePresence = { scope: { app: string; panel: string }; title?: string; standing: string[]; tasks: { id: string; actions: string[]; expiresAt: number }[] };
 export type AppChatSlot = { scope: { app: string; panel: string }; rect: { x: number; y: number; width: number; height: number } };
 type SlotRequest = { frame: Frame; id: string; rect: AppChatSlot['rect'] };
 
 /** Retains App documents across navigation; GPUI owns selection and layout. */
-export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>,onExamples?:(json:string)=>void,mcpSettings?:(input:unknown)=>Promise<unknown>) {
+export function mountAppSurfaces(command: (value: object) => Promise<void>, onChat?: (context: { name: string; panel: string; text?: string;options?:unknown }) => void|Promise<unknown>, onDocument?:(value:ReturnType<AppDocuments['admit']>)=>void,onFocus?:(pane:number)=>void,onChatSlot?:(slot:AppChatSlot|null)=>boolean|Promise<boolean>,onExamples?:(json:string)=>void,mcpSettings?:(input:unknown)=>Promise<unknown>, onWindowModal?:(open:boolean)=>void) {
   const frames = new Map<string, Frame>();
   const examples=mountAppExamples((scope,request)=>frames.get(`${scope.app}:${scope.panel}`)?.element.contentWindow?.postMessage(request,'*'),onExamples);
   window.peroColumnHeader = json => {
@@ -45,7 +45,13 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   region.id = 'pero-app-surface';
   region.setAttribute('aria-label', 'App');
   region.hidden = true;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'app-window-backdrop';
+  backdrop.hidden = true;
+  backdrop.addEventListener('pointerdown', event => event.preventDefault());
+  region.append(backdrop);
   document.body.append(region);
+  let modalFrame: Frame | undefined;
   let surface: AppSurface = { visible: false, dark: false, locale: 'en' };
   const preparation = mountAppPreparation(command, () => normalizeLocale(surface.locale) === 'zh-CN');
   let chatOverlay: {x:number;y:number;width:number;height:number}|null = null;
@@ -88,7 +94,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     const identity=key(name,panel);let slot=mounts.get(identity);if(slot)return slot;
     const element=document.createElement('section');element.className='app-panel-surface';element.setAttribute('aria-label',name);
     const status=document.createElement('div');status.className='app-panel-status';
-    const useStatus=document.createElement('div');useStatus.hidden=true;useStatus.setAttribute('aria-label','App Use');
+    const useStatus=document.createElement('div');useStatus.className='app-panel-use-status';useStatus.hidden=true;useStatus.setAttribute('aria-label','App Use');
     useStatus.style.cssText='position:absolute;bottom:0;left:0;right:0;display:none;flex-wrap:wrap;gap:6px 12px;padding:5px 10px;box-sizing:border-box;border-top:1px solid var(--pero-border);background:var(--pero-surface);color:var(--pero-text);font:12px system-ui';
     element.append(status,useStatus);region.append(element);
     slot={region:element,status,useStatus,surface:{...surface,name,panel,visible:false},error:''};mounts.set(identity,slot);return slot;
@@ -276,6 +282,17 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
       frame.element.setAttribute('aria-hidden', shown ? 'false' : 'true');
       context(frame);
     }
+    const hadModal = !!modalFrame;
+    modalFrame = [...frames.values()].find(frame =>
+      frame.windowModal && frame.ready && mounts.get(key(frame.name, frame.panel))?.surface.visible);
+    backdrop.hidden = !modalFrame;
+    region.classList.toggle('app-window-modal', !!modalFrame);
+    for (const slot of mounts.values()) {
+      const owner = !!modalFrame && active(slot) === modalFrame;
+      slot.region.classList.toggle('app-window-modal-owner', owner);
+      slot.region.inert = !!modalFrame && !owner;
+    }
+    if (hadModal !== !!modalFrame) onWindowModal?.(!!modalFrame);
     reconcileSlot();
   };
   const focus=()=>{
@@ -288,6 +305,14 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('message', event => {
     const frame = [...frames.values()].find(frame => frame.element.contentWindow === event.source);
     if (!frame) return;
+    if (event.data?.type === 'pero:app:window-modal') {
+      const url = new URL(frame.element.src);
+      if (event.origin !== `${url.protocol}//${url.host}` || typeof event.data.open !== 'boolean') return;
+      if (event.data.open && (modalFrame && modalFrame !== frame || !mounts.get(key(frame.name, frame.panel))?.surface.visible)) return;
+      frame.windowModal = event.data.open;
+      update();
+      return;
+    }
     if (event.data?.type === 'pero:app:panel-slot') {
       const url = new URL(frame.element.src);
       if (frame.name !== 'notebook' || event.origin !== `${url.protocol}//${url.host}`) return;
@@ -413,6 +438,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   });
   const pendingLocations=new Map<string,string>();
   return {
+    get windowModal() { return !!modalFrame; },
     openLocation(app:string,panel:string,location:string) {const identity=key(app,panel),frame=frames.get(identity);if(frame?.ready)frame.element.contentWindow?.postMessage({type:'pero:app:location',location},'*');else pendingLocations.set(identity,location);},
     overlayMatches(rect: AppChatSlot['rect']) {
       if (chatOverlaySuspended || !chatOverlay) return false;
@@ -500,9 +526,10 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
         presence.set(JSON.stringify([event.thread_id, value.scope.app, value.scope.panel]), { ...value, thread: event.thread_id }); for(const slot of mounts.values())renderPresence(slot);
       } else if (event.kind === 'disconnected') {
         for (const frame of frames.values()) { clearTimeout(frame.timer); frame.dispose(); frame.element.remove(); }
-        frames.clear(); slotRequests.clear(); reconcileSlot();
-        presence.clear(); for(const slot of mounts.values())renderPresence(slot);
-        for(const slot of mounts.values())if(slot.surface.visible){slot.error=translate(normalizeLocale(surface.locale),'error.connection');renderStatus(slot);}
+        frames.clear(); slotRequests.clear();
+        presence.clear();
+        for(const slot of mounts.values())if(slot.surface.visible)slot.error=translate(normalizeLocale(surface.locale),'error.connection');
+        update();
       }
     },
   };

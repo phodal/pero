@@ -21,12 +21,24 @@ impl Workbench {
             self.navigation.pane_layout().is_some_and(|layout| layout.active_items().iter().any(|leaf| leaf.route == WorkspaceRoute::Content(item.clone())))
         } else { self.navigation.current() == Some(item) }
     }
-    pub(crate) fn native_app_presented(&self, item: &WorkspaceItem) -> bool {
+    fn native_app_available(&self, item: &WorkspaceItem) -> bool {
         self.app_item_visible(item) || self.native_panel_slots.values().any(|slot| {
             item == &WorkspaceItem::App { name: slot.app.clone(), panel: slot.panel.clone() } && slot.rect.is_some() &&
                 self.app_item_visible(&WorkspaceItem::App { name: slot.owner.app.clone(), panel: slot.owner.panel.clone() })
         })
     }
+    pub(crate) fn native_window_modal(&self, cx: &App) -> Option<WorkspaceItem> {
+        self.native_app_pages.iter().find_map(|((name, panel), page)| {
+            let item = WorkspaceItem::App { name: name.clone(), panel: panel.clone() };
+            let page = page.view.read(cx);
+            (page.window_modal && page.failure().is_none() && self.native_app_available(&item)).then_some(item)
+        })
+    }
+
+    pub(crate) fn native_app_presented(&self, item: &WorkspaceItem, cx: &App) -> bool {
+        self.native_app_available(item) && self.native_window_modal(cx).is_none_or(|owner| &owner == item)
+    }
+
     pub(crate) fn native_panel_owner(&self, item: &WorkspaceItem) -> Option<WorkspaceItem> {
         self.native_panel_slots.values().find(|slot| slot.rect.is_some() && item == &WorkspaceItem::App { name: slot.app.clone(), panel: slot.panel.clone() })
             .map(|slot| WorkspaceItem::App { name: slot.owner.app.clone(), panel: slot.owner.panel.clone() })

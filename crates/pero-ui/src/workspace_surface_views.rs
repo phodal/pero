@@ -258,7 +258,7 @@ impl Workbench {
                         .children(
                             self.native_web_pages
                                 .get(id)
-                                .filter(|_| self.layout.embedded_surface_visible)
+                                .filter(|_| self.layout.embedded_surface_visible && self.native_window_modal(cx).is_none())
                                 .map(|page| page.view.clone()),
                         )
                         .into_any_element()

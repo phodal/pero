@@ -91,6 +91,7 @@ try {
     },
     deliver:(thread_id,contexts,text,replace)=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text,data:{thread_id,contexts,replace}})),
   });
+  let webSurfaces: object = {action:'web_surfaces', surfaces:[]};
   const apps = mountAppSurfaces(async value=>{
     if ('action' in value && value.action === 'skill_chat_open') {
       receive_host_event(JSON.stringify({version:1,kind:'skill_chat_open',request_id:null,text:'',data:value})); return;
@@ -145,6 +146,10 @@ try {
       sessionCommand: command => window.pero!.sessionCommand(command),
       onEvent: callback => window.pero!.onEvent(callback),
     }, input, admitAgents(JSON.parse(snapshot()).agents), `app-mcp-${crypto.randomUUID()}`);
+  }, open => {
+    // Browser tabs use Electron child views, which sit above the rendered backdrop.
+    void window.pero?.webCommand(open ? {action:'web_surfaces', surfaces:[]} : webSurfaces)
+      .catch(error => console.error(error));
   });
   window.peroAppUseRevoke = async(thread,scope) => {await window.pero!.appUseCommand({action:'revoke',thread_id:thread,scope});};
   window.peroOpenAppLocation = input => {const value=JSON.parse(input);apps.openLocation(value.app,value.panel,value.location);};
@@ -166,6 +171,7 @@ try {
     automationOperations.event(event);
     if (event.kind === 'automation_operations_open') return;
     if (event.kind === 'settings') { locale = normalizeLocale(event.text); updateDocument(); }
+    if (event.kind === 'shortcut_command' && apps.windowModal) return;
     receive_host_event(JSON.stringify(event));
     if (event.kind === 'workbench_settings') applyAppearance(JSON.parse(snapshot()).appearance);
     apps.event(event);
@@ -178,7 +184,12 @@ try {
     const command = JSON.parse(json);
     if(command.action==='artifact_compose_result'){artifactPreview.reply(command.id,command.error);return;}
     if(command.action==='automation_open'){onEvent({version:1,kind:'automation_open',request_id:null,text:''});return;}
-    if(typeof command.action==='string'&&command.action.startsWith('web_')) {if(window.pero)void window.pero.webCommand(command).catch(()=>onEvent({version:1,kind:'web_error',request_id:null,text:t('error.connection')}));else onEvent({version:1,kind:'web_error',request_id:null,text:t('error.browser')});return;}
+    if(typeof command.action==='string'&&command.action.startsWith('web_')) {
+      if (command.action === 'web_surface' || command.action === 'web_surfaces') {
+        webSurfaces = command;
+        if (apps.windowModal) return;
+      }
+      if(window.pero)void window.pero.webCommand(command).catch(()=>onEvent({version:1,kind:'web_error',request_id:null,text:t('error.connection')}));else onEvent({version:1,kind:'web_error',request_id:null,text:t('error.browser')});return;}
     if(command.action==='cancel_read_result'){cancelContentResult(command.request_id);return;}
     if(command.action==='read_result'){void loadContentResult(command,request=>window.pero?window.pero.readContent(request):Promise.reject(new Error(t('error.browser'))),onEvent);return;}
     if(command.action==='app_context_preview'){previewContext(command.reference,context=>receive_host_event(JSON.stringify({version:1,kind:'compose_context',request_id:null,text:'',data:{thread_id:command.thread_id,contexts:[context]}})));return;}

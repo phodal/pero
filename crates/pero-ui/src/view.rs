@@ -411,8 +411,12 @@ impl Render for Workbench {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
         self.layout = layout;
+        #[cfg(not(target_family = "wasm"))]
+        let app_window_modal = self.native_window_modal(cx);
         let project_conversation = self.project_agent_active();
         self.chat.update(cx,|chat,cx| {
+            #[cfg(not(target_family = "wasm"))]
+            let covered = covered || app_window_modal.is_some();
             chat.set_artifact_surface_covered(covered,cx);
             chat.external_resource_navigation = project_conversation;
             let docked = layout.chat == ChatPlacement::Dock;
@@ -449,7 +453,7 @@ impl Render for Workbench {
         #[cfg(not(target_family = "wasm"))]
         self.sync_web_surface(None, cx);
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        div()
+        let workbench = div()
             .id("workbench")
             .relative()
             .map(|el| self.shortcut_handlers(el, cx))
@@ -912,6 +916,26 @@ impl Render for Workbench {
                     .cursor(if self.pane_resize.as_ref().is_some_and(|resize| resize.axis == pero_contracts::workspace_panes::PaneAxis::Vertical) {
                         CursorStyle::ResizeUpDown
                     } else { CursorStyle::ResizeLeftRight })).with_priority(gpui_kit::base::POPUP_PRIORITY))
-            })
+            });
+        #[cfg(not(target_family = "wasm"))]
+        let workbench = workbench.when_some(app_window_modal, |el, owner| {
+            let WorkspaceItem::App { name, panel } = owner else { return el; };
+            let page = self.native_app_pages[&(name, panel)].view.clone();
+            el.child(div().id("app-window-backdrop").absolute().inset_0().occlude().bg(Rgba {
+                r: 0.,
+                g: 0.,
+                b: 0.,
+                a: pero_theme::MODAL_BACKDROP_OPACITY,
+            }).on_any_mouse_down(move |_, window, cx| {
+                let page = page.clone();
+                window.defer(cx, move |_, cx| {
+                    let page = page.read(cx);
+                    if page.window_modal {
+                        page.focus(cx);
+                    }
+                });
+            }))
+        });
+        workbench
     }
 }

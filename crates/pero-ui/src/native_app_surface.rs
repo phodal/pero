@@ -34,6 +34,7 @@ pub(crate) struct NativeAppPage {
     view: Option<Entity<WebView>>,
     pub(crate) error: Option<String>,
     ready: bool,
+    pub(crate) window_modal: bool,
     opening: Opening,
     shortcuts: pero_contracts::shortcuts::ShortcutMenu,
     location: Option<String>,
@@ -50,7 +51,7 @@ addEventListener('message',event=>{
  if(event.source!==window)return;
  const message=event.data;
  if(!message||typeof message.type!=='string')return;
- if(message.type==='pero:app:panel-slot'||message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:artifact:inline-action'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
+ if(message.type==='pero:app:panel-slot'||message.type==='pero:app:sdk'||message.type==='pero:app:examples'||message.type==='pero:app:ready'||message.type==='pero:app:window-modal'||message.type==='pero:app:chat'||message.type==='pero:artifact:compose'||message.type==='pero:artifact:select'||message.type==='pero:artifact:inline-action'||message.type==='pero:app-use:result'||message.type==='pero:app:open-session')window.ipc.postMessage(JSON.stringify(message));
  if(message.type==='pero:app:chat-slot')window.postMessage({type:'pero:app:chat-slot-result',id:message.id,active:false},'*');
 });
 addEventListener('pointerdown',()=>window.ipc.postMessage('{"type":"focus"}'),true);
@@ -204,6 +205,7 @@ impl NativeAppPage {
             view,
             error,
             ready: false,
+            window_modal: false,
             opening: Opening::Cover,
             location:None,
             context: Value::Null,
@@ -252,6 +254,11 @@ impl NativeAppPage {
     pub fn navigate(&mut self, location:String, cx:&App) {
         if self.ready {self.send(json!({"type":"pero:app:location","location":location}),cx);}
         else {self.location=Some(location);}
+    }
+    pub(crate) fn focus(&self, cx: &App) {
+        if let Some(view) = &self.view {
+            let _ = view.read(cx).raw().focus();
+        }
     }
     pub fn insert_text(&self, text: &str, cx: &App) -> bool {
         let Some(view) = &self.view else {
@@ -494,7 +501,21 @@ impl Workbench {
         let subscription = cx.subscribe_in(&view, window, move |this, view, event: &NativeAppMessage, window, cx| {
             let message = &event.0;
             let item = WorkspaceItem::App { name: scope.app.clone(), panel: scope.panel.clone() };
-            if message["type"] == "pero:shortcut" && this.native_app_presented(&item) {
+            if message["type"] == "pero:app:window-modal" {
+                if let Some(open) = message["open"].as_bool() {
+                    if !open || this.native_app_presented(&item, cx) {
+                        view.update(cx, |page, cx| {
+                            page.window_modal = open;
+                            if open && window.is_window_active() {
+                                page.focus(cx);
+                            }
+                        });
+                        cx.notify();
+                    }
+                }
+                return;
+            }
+            if message["type"] == "pero:shortcut" && this.native_app_presented(&item, cx) {
                 if let Ok(command)=serde_json::from_value::<pero_contracts::shortcuts::CommandId>(message["command"].clone()) {
                     if command.application_entry() {this.execute_shortcut(command,window,cx);}
                 }
@@ -504,7 +525,7 @@ impl Workbench {
             if message["type"] == "pero:app:sdk" {
                 let mut deferred = false;
                 let result = (|| -> anyhow::Result<()> {
-                    anyhow::ensure!(this.native_app_presented(&item), "Open the App before using Host presentation");
+                    anyhow::ensure!(this.native_app_presented(&item, cx), "Open the App before using Host presentation");
                     let input = &message["input"];
                     match message["operation"].as_str() {
                         Some("mcp-settings") => {
@@ -581,12 +602,12 @@ impl Workbench {
                     }
                 }
             }
-            if message["type"] == "pero:app:open-session" && scope.app=="automations" && this.native_app_presented(&item) {
+            if message["type"] == "pero:app:open-session" && scope.app=="automations" && this.native_app_presented(&item, cx) {
                 if let Some(id)=message["sessionId"].as_str() {this.open_automation_session(id,cx);}
             }
             if message["type"] == "pero:app:chat" {
                 let result = (|| -> anyhow::Result<String> {
-                    anyhow::ensure!(this.native_app_presented(&item), "Show the App before opening its conversation");
+                    anyhow::ensure!(this.native_app_presented(&item, cx), "Show the App before opening its conversation");
                     this.chat.update(cx, |chat,cx| {
                         chat.open_app_draft(scope.clone(),cx);
                         Ok(chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone())
@@ -653,7 +674,7 @@ impl Workbench {
                 name: name.clone(),
                 panel: panel.clone(),
             };
-            let active = self.native_app_presented(&item);
+            let active = self.native_app_presented(&item, cx);
             page.view.update(cx, |view,cx| view.sync(json!({"active":active,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),cx));
         }
     }

@@ -7,6 +7,11 @@ body > input, body > textarea { font-size: var(--pero-font-body); }
 #pero-app-surface { position: fixed; z-index: 2; background: var(--pero-material-chrome); overflow: hidden; }
 #pero-app-surface[hidden], #pero-app-surface .app-panel-surface[hidden], #pero-app-surface iframe[hidden], .app-panel-status[hidden] { display: none; }
 #pero-app-surface iframe { display: block; width: 100%; height: 100%; border: 0; }
+#pero-app-surface.app-window-modal { z-index: 110; }
+.app-window-backdrop { position: fixed; inset: 0; z-index: 1; background: var(--pero-modal-backdrop); pointer-events: auto; -webkit-app-region: no-drag; }
+.app-window-backdrop[hidden] { display: none; }
+.app-window-modal-owner { z-index: 2; }
+.app-window-modal-owner .app-panel-use-status { visibility: hidden; }
 .app-panel-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; overflow: auto; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); padding: var(--pero-spacing-6); }
 .app-panel-status-card {
   box-sizing: border-box;
