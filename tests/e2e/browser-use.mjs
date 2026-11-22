@@ -822,24 +822,36 @@ try {
   await writeFile(resolve(output, 'browser-viewport.png'), capture);
   await page.screenshot({ path: resolve(output, 'workbench.png') });
   await app.close();
+  app = undefined;
+  page = undefined;
+  const restoredIds = [controlsUrl, tabId];
+  const { session: checkpoint } = JSON.parse(await readFile(resolve(temp, 'settings.workspace/session.json'), 'utf8'));
+  expect(checkpoint.web.filter(tab => restoredIds.includes(tab.id)), 'Both Web tabs were saved before restart')
+    .toEqual(expect.arrayContaining(restoredIds.map(id => expect.objectContaining({ id, url: controlsUrl }))));
   app = await launch();
   page = await app.firstWindow();
-  await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
+  await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'), undefined, { timeout: 15000 });
   await expect.poll(async () => {
-    const docs=(await state()).webDocuments;
-    return [controlsUrl,tabId].map(id=>docs.find(item=>item.id===id)?.observation);
-  }).toEqual([0,1].map(()=>expect.objectContaining({url:controlsUrl,load:{kind:'ready'}})));
+    const docs = (await state()).webDocuments;
+    return restoredIds.map(id => docs.find(item => item.id === id)?.observation);
+  }, { message: 'Restore both saved tab identities after restarting Electron', timeout: 10000 })
+    .toEqual(restoredIds.map(() => expect.objectContaining({ url: controlsUrl, load: { kind: 'ready' } })));
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');
 } catch (error) {
   if (page) {
-    await page.screenshot({ path: resolve(output, 'failure.png') });
-    await writeFile(resolve(output, 'failure-state.json'), await page.evaluate(() => window.peroDiagnostics?.snapshot() || '{}'));
+    const capture = Promise.allSettled([
+      page.screenshot({ path: resolve(output, 'failure.png'), timeout: 2000 }),
+      page.evaluate(() => window.peroDiagnostics?.snapshot() || '{}')
+        .then(snapshot => writeFile(resolve(output, 'failure-state.json'), snapshot)),
+    ]);
+    const { setTimeout: delay } = await import('node:timers/promises');
+    await Promise.race([capture, delay(2500, undefined, { ref: false })]);
   }
   throw error;
 } finally {

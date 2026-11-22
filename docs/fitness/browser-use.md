@@ -40,6 +40,14 @@ Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试�
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
 
+## Electron restart regression
+
+Run `npm run test:browser-use` from a source checkout to build the Host,
+Workbench Wasm, web renderer and Electron bundle before running the regression.
+Use `PERO_CONTENT_TEST_ROOT` for an already staged build. The suite checks that
+two tabs with the same URL are checkpointed under separate IDs, reappear under
+those IDs after restart, and restore independent Chromium form values.
+
 ## Electron Runtime
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
