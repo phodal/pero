@@ -25,6 +25,7 @@ const [ready] = await once(lines, 'line', { signal: AbortSignal.timeout(10_000) 
 const url = `http://127.0.0.1:${ready.match(/(\d+)$/)[1]}`;
 let desktop, browser, viewer, guest;
 const errors = [];
+const diagnostics = [];
 try {
   await mkdir(output, { recursive: true });
   expect((await fetch(url + '/api/pair', { method: 'POST' })).status).toBe(401);
@@ -39,6 +40,7 @@ try {
   viewer = await opened;
   await focusPage(viewer);
   viewer.on('pageerror', error => errors.push(error.message));
+  viewer.on('console', message => { if (message.type() === 'error') diagnostics.push(message.text()); });
   const button = name => viewer.getByRole('button', { name, exact: true });
   const frame = () => expect(viewer.locator('.framebuffer')).toHaveAttribute('data-frame', 'connected', { timeout: 20_000 });
   await button('Start desktop').click();
@@ -55,6 +57,7 @@ try {
     const link = await viewer.getByLabel('One-time pairing link').inputValue();
     const page = await browser.newPage({ viewport: { width: 960, height: 720 } });
     page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') diagnostics.push(message.text()); });
     if (fallback) await page.addInitScript(() => { globalThis.RTCPeerConnection = undefined; });
     await page.goto(link);
     await expect(page.getByRole('status')).toHaveText(fallback ? 'You have control · Relay' : 'Viewing only · WebRTC', { timeout: 20_000 });
@@ -91,6 +94,9 @@ try {
     ice: process.env.PERO_DESKTOP_TURN_ONLY === '1' ? 'TURN only' : 'default', relay: 'controlled input',
     fileContent: 'PairedVNC', linkReuse: 'rejected', disconnect: 'control returned' }, null, 2));
   console.log('Paired desktop passed: real WebRTC, opaque one-time links, relay fallback, saved input, and control release.');
+} catch (error) {
+  if (diagnostics.length) console.error(diagnostics);
+  throw error;
 } finally {
   await browser?.close();
   await desktop?.close();

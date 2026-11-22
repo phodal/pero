@@ -37,6 +37,7 @@ export function connectPair(pair: Pair, role: 'owner' | 'viewer',
   let mode: Mode | undefined;
   let channel: RfbChannel | undefined;
   let viewOnly = true;
+  const waitingCandidates: RTCIceCandidateInit[] = [];
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
   let announced = false;
@@ -104,15 +105,22 @@ export function connectPair(pair: Pair, role: 'owner' | 'viewer',
         case 'offer':
           if (role === 'viewer' && peer && !mode) {
             await peer.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
+            for (const candidate of waitingCandidates.splice(0)) await peer.addIceCandidate(candidate);
             await peer.setLocalDescription(await peer.createAnswer());
             send({ kind: 'answer', sdp: peer.localDescription?.sdp });
           }
           break;
         case 'answer':
-          if (role === 'owner' && !mode) await peer?.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+          if (role === 'owner' && peer && !mode) {
+            await peer.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+            for (const candidate of waitingCandidates.splice(0)) await peer.addIceCandidate(candidate);
+          }
           break;
         case 'ice':
-          if (!mode) await peer?.addIceCandidate(signal.candidate);
+          if (!mode && peer) {
+            if (peer.remoteDescription) await peer.addIceCandidate(signal.candidate);
+            else if (waitingCandidates.length < 64) waitingCandidates.push(signal.candidate);
+          }
           break;
         case 'transport':
           if (role === 'viewer' && !mode && (signal.mode === 'webrtc' || signal.mode === 'relay')) {
