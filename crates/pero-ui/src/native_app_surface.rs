@@ -419,6 +419,11 @@ impl Workbench {
         }
     }
     pub(crate) fn native_app_rpc(&mut self,event:HostEvent,_window:&mut Window,cx:&mut Context<Self>) {
+        #[cfg(target_os="macos")]
+        if event.data["action"] == "browser" {
+            self.native_browser_rpc(event, _window, cx);
+            return;
+        }
         let id=event.request_id.unwrap_or_default();
         let input=event.data;
         let apps=crate::native::apps();

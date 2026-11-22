@@ -7,6 +7,7 @@ import { DesktopComputer } from '../../../desktop/src/main/computer.ts';
 import { DesktopAppUse } from '../../../desktop/src/main/app-use-mcp.ts';
 import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { join, dirname } from 'node:path';
+import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { ConnectorMcp } from './mcp.ts';
 
 // stdout carries private protocol replies; management diagnostics use stderr.
@@ -41,13 +42,17 @@ const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'co
       await computer.restore(enabled);
     },
   });
+const browser = process.platform === 'darwin'
+  ? new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }),
+    join(dirname(root), 'browser-use-evidence'))
+  : undefined;
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),
   page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
 }, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
-  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))));
+  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), browser);
 
 let closing;
 const close = () => closing ??= (async () => {

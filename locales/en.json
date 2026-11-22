@@ -6,6 +6,7 @@
   "browser_use.grant_detail": "The selected chat can read and operate this tab on the listed site while the tab is visible. Stop access anytime from Workbench → Stop Browser Use.",
   "browser_use.menu_allow": "Allow Browser Use for This Tab…",
   "browser_use.menu_revoke": "Stop Browser Use",
+  "browser_use.native_grant_detail": "The selected chat can read and operate this tab on the listed site while the tab is visible. Click Browser Use allowed in the tab toolbar to stop access.",
   "browser_use.select_tab_and_chat": "Open an ordinary chat, then select a loaded HTTP or HTTPS tab.",
   "browser_use.unavailable": "Browser Use is unavailable",
   "artifacts.view_options": "View options",

@@ -104,6 +104,10 @@ pub mod native;
 mod native_distribution;
 #[cfg(all(feature="native",not(target_family="wasm")))]
 pub(crate) mod native_web;
+#[cfg(all(feature="native",target_os="macos"))]
+mod native_browser;
+#[cfg(all(feature = "native", feature = "native-probe", target_os = "macos"))]
+mod native_browser_probe;
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]
 mod native_web_probe;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]

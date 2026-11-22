@@ -390,6 +390,18 @@ impl Workbench {
                 })));
         }
         if let Some(page) = current {
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            if page.html.is_none() {
+                let id = page.id.clone();
+                let allowed = self.native_browser_granted(&id, cx);
+                let can_allow = matches!(page.observation.load, WebLoad::Ready) && self.browser_thread(cx).is_some();
+                toolbar = toolbar.child(
+                    Button::new("web-browser-access").ghost().small().disabled(!allowed && !can_allow)
+                        .label(self.t(if allowed { "browser_use.authorized" } else { "browser_use.menu_allow" }))
+                        .tooltip(self.t(if allowed { "browser_use.menu_revoke" } else { "browser_use.select_tab_and_chat" }))
+                        .on_click(cx.listener(move |this, _, window, cx| this.native_browser_toggle(&id, window, cx))),
+                );
+            }
             match &page.observation.load {
                 WebLoad::Loading => {
                     toolbar = toolbar.child(div().text_size(px(12.)).child(self.t("web.loading")))

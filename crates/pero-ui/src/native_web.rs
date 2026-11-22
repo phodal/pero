@@ -21,6 +21,10 @@ pub struct NativeWebPage {
     generation: u64,
     active: bool,
     focused: bool,
+    #[cfg(target_os = "macos")]
+    browser_destination: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+    #[cfg(target_os = "macos")]
+    pub(super) browser_grant: Option<crate::native_browser::WebGrant>,
 }
 impl EventEmitter<NativeWebChanged> for NativeWebPage {}
 impl EventEmitter<NativeWebPopup> for NativeWebPage {}
@@ -35,6 +39,10 @@ impl NativeWebPage {
             generation: 0,
             active: true,
             focused: false,
+            #[cfg(target_os = "macos")]
+            browser_destination: Default::default(),
+            #[cfg(target_os = "macos")]
+            browser_grant: None,
         };
         this.mount(window, cx);
         if this.view.is_some() {
@@ -59,6 +67,8 @@ impl NativeWebPage {
         let titles = self.sender.clone();
         let popups = self.sender.clone();
         let focus = self.sender.clone();
+        #[cfg(target_os = "macos")]
+        let destination = self.browser_destination.clone();
         let inline = self.document.html.is_some();
         let builder = wry::WebViewBuilder::new();
         let builder = if let Some(html) = &self.document.html {
@@ -70,6 +80,13 @@ impl NativeWebPage {
             .with_initialization_script_for_main_only("addEventListener('pointerdown',()=>window.ipc.postMessage('focus'),true);addEventListener('focus',()=>window.ipc.postMessage('focus'),true);",true)
             .with_ipc_handler(move |request| {if request.body()=="focus" {let _=focus.try_send(Update::Focus);}})
             .with_navigation_handler(move |uri| {
+                #[cfg(target_os = "macos")]
+                if let Some(origin) = destination.borrow().as_ref() {
+                    if crate::native_browser::origin(&uri).as_ref() != Some(origin) {
+                        let _ = navigation.try_send(Update::Failed("The destination redirected outside the authorized site.".into()));
+                        return false;
+                    }
+                }
                 if inline && uri == "about:blank" {
                     return true;
                 }
@@ -115,6 +132,8 @@ impl NativeWebPage {
                     this.document.observation.load = WebLoad::Failed(
                         "The page did not finish loading. Reload to try again.".into(),
                     );
+                    #[cfg(target_os = "macos")]
+                    this.browser_destination.borrow_mut().take();
                     this.changed(cx);
                 }
             });
@@ -166,6 +185,10 @@ impl NativeWebPage {
                     return;
                 };
                 self.document.observation.url = address;
+                #[cfg(target_os = "macos")]
+                if self.browser_grant.as_ref().is_some_and(|grant| !grant.matches(self.document.observation.url.as_str())) {
+                    self.browser_grant = None;
+                }
                 match event {
                     wry::PageLoadEvent::Started => self.start_load(cx),
                     // Finished describes rendering; it does not certify an HTTP 2xx response.
@@ -179,10 +202,28 @@ impl NativeWebPage {
             },
             Update::Failed(error) => self.document.observation.load = WebLoad::Failed(error),
         }
+        #[cfg(target_os = "macos")]
+        if !matches!(self.document.observation.load, WebLoad::Loading) {
+            self.browser_destination.borrow_mut().take();
+        }
         self.changed(cx);
     }
+    #[cfg(target_os = "macos")]
+    pub(super) fn browser_navigate(&mut self, address: WebAddress, origin: String, cx: &mut Context<Self>) {
+        self.browser_destination.replace(Some(origin));
+        self.load_address(address, cx);
+    }
     pub fn navigate(&mut self, address: WebAddress, cx: &mut Context<Self>) {
+        #[cfg(target_os = "macos")]
+        self.browser_destination.borrow_mut().take();
+        self.load_address(address, cx);
+    }
+    fn load_address(&mut self, address: WebAddress, cx: &mut Context<Self>) {
         self.document.observation.url = address.into();
+        #[cfg(target_os = "macos")]
+        if self.browser_grant.as_ref().is_some_and(|grant| !grant.matches(self.document.observation.url.as_str())) {
+            self.browser_grant = None;
+        }
         if self.view.is_some() {
             self.start_load(cx);
         }
@@ -195,6 +236,10 @@ impl NativeWebPage {
                 self.document.observation.load = WebLoad::Failed(error.to_string());
             }
         }
+        #[cfg(target_os = "macos")]
+        if !matches!(self.document.observation.load, WebLoad::Loading) {
+            self.browser_destination.borrow_mut().take();
+        }
         self.changed(cx);
     }
     pub fn control(&mut self, action: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -206,6 +251,8 @@ impl NativeWebPage {
             self.changed(cx);
             return;
         }
+        #[cfg(target_os = "macos")]
+        self.browser_destination.borrow_mut().take();
         self.start_load(cx);
         if let Some(view) = &self.view {
             let result = view.update(cx, |view, _| match action {
@@ -223,6 +270,16 @@ impl NativeWebPage {
         self.view.as_ref().ok_or_else(|| anyhow::anyhow!("Native view is unavailable"))?
             .read(cx).raw().evaluate_script(&format!("window.postMessage({message}, location.origin)"))?;
         Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    pub(super) fn browser_view<'a>(&self, cx: &'a App) -> anyhow::Result<(&'a wry::WebView, u64)> {
+        let view = self.view.as_ref().ok_or_else(|| anyhow::anyhow!("Native Web tab is unavailable"))?.read(cx);
+        anyhow::ensure!(
+            view.visible() && crate::native_browser::window_visible(view.raw())
+                && matches!(self.document.observation.load, WebLoad::Ready),
+            "Show the authorized Web tab and wait for the page to finish loading."
+        );
+        Ok((view.raw(), self.generation))
     }
     #[cfg(feature = "native-probe")]
     pub fn inspect(

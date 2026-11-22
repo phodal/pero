@@ -6,6 +6,7 @@
   "browser_use.grant_detail": "当前聊天可在标签页可见时读取和操作此站点。可随时通过「工作台 → 停止浏览器操作」撤销。",
   "browser_use.menu_allow": "允许操作此浏览器标签页…",
   "browser_use.menu_revoke": "停止浏览器操作",
+  "browser_use.native_grant_detail": "当前聊天可在标签页可见时读取和操作此站点。点击标签页工具栏中的「已允许 Agent 操作」可撤销。",
   "browser_use.select_tab_and_chat": "打开一个普通聊天，然后选中已加载的 HTTP 或 HTTPS 标签页。",
   "browser_use.unavailable": "浏览器操作暂不可用",
   "artifacts.view_options": "显示选项",
