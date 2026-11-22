@@ -8,13 +8,16 @@ const virtualKey = {
 } as const;
 export type BrowserKey = keyof typeof virtualKey;
 export const BROWSER_KEYS = Object.keys(virtualKey) as BrowserKey[];
+export const BROWSER_MODIFIERS = ['Alt', 'Control', 'Meta', 'Shift'] as const;
+type BrowserModifier = typeof BROWSER_MODIFIERS[number];
 
 export type ViewportPoint = { x: number; y: number };
 export type BrowserInput =
   | { kind: 'click'; point: ViewportPoint }
   | { kind: 'dblclick'; point: ViewportPoint; checkSecondClick(): Promise<void> }
   | { kind: 'hover'; point: ViewportPoint }
-  | { kind: 'press'; key: BrowserKey }
+  | { kind: 'press'; key: string; modifiers?: BrowserModifier[] }
+  | { kind: 'typeSequentially'; text: string; checkTarget(): Promise<void> }
   | { kind: 'scroll'; point: ViewportPoint; deltaX: number; deltaY: number };
 
 /** Fixed browser commands for this WebContents only. This attachment never adopts DevTools. */
@@ -36,13 +39,24 @@ export async function dispatchBrowserInput(contents: WebContents, input: Browser
       }
     } else if (input.kind === 'hover') {
       await client.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', ...input.point });
-    } else if (input.kind === 'press') {
-      const key = { key: input.key === 'Space' ? ' ' : input.key, code: input.key, windowsVirtualKeyCode: virtualKey[input.key] };
-      try {
-        await client.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', ...key, ...(input.key === 'Space' && { text: ' ' }) });
-      } finally {
-        if (!contents.isDestroyed() && client.isAttached())
-          await client.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+    } else if (input.kind === 'press' || input.kind === 'typeSequentially') {
+      const keys = input.kind === 'press' ? [input.key] : [...input.text];
+      const modifiers = input.kind === 'press' ? BROWSER_MODIFIERS.reduce((mask, key, index) =>
+        mask | (input.modifiers?.includes(key) ? 1 << index : 0), 0) : 0;
+      for (const [index, value] of keys.entries()) {
+        if (index && input.kind === 'typeSequentially') await input.checkTarget();
+        const upper = value.toUpperCase();
+        const namedKey = virtualKey[value as BrowserKey];
+        const space = value === ' ' || value === 'Space';
+        const key = space ? ' ' : modifiers & 8 && !namedKey ? upper : value;
+        const payload = { key, modifiers, code: space ? 'Space' : namedKey ? value : /^[0-9]$/.test(value) ? `Digit${value}` : `Key${upper}`,
+          windowsVirtualKeyCode: space ? 32 : namedKey ?? upper.charCodeAt(0) };
+        try {
+          await client.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', ...payload,
+            ...(key.length === 1 && !(modifiers & 7) && { text: key }) });
+        } finally {
+          if (!contents.isDestroyed() && client.isAttached()) await client.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...payload });
+        }
       }
     } else {
       await client.sendCommand('Input.dispatchMouseEvent', {

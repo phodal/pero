@@ -9,7 +9,7 @@ type FormState = {
   valueTruncated?: true;
   options?: { value: string; name: string; selected: boolean; disabled: boolean }[];
 };
-type ElementAction = 'click' | 'dblclick' | 'hover' | 'fill' | 'press' | 'setChecked' | 'selectOption' | 'upload' | 'download';
+type ElementAction = 'click' | 'dblclick' | 'hover' | 'fill' | 'press' | 'typeSequentially' | 'scrollIntoView' | 'setChecked' | 'selectOption' | 'upload' | 'download';
 
 export type BrowserNode = {
   role?: string;
@@ -22,9 +22,10 @@ export type BrowserNode = {
 
 export type DocumentCommand =
   | ({ observation: string } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
-  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick'> | 'scroll' }>
+  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick' | 'typeSequentially'> | 'scroll' }>
   | (Extract<BrowserRequest, { action: 'dblclick' }> & { recheck?: true })
-  | { action: 'upload'; ref: string; file: { name: string; mediaType: string; base64: string } };
+  | (Extract<BrowserRequest, { action: 'typeSequentially' }> & { recheck?: true })
+  | { action: 'upload'; ref: string; files: { name: string; mediaType: string; base64: string }[] };
 
 export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean;
@@ -85,14 +86,15 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return fields;
   };
 
-  function walk(doc: Document) {
+  function walk(doc: Document, scope?: Element) {
     const nodes: Element[] = [];
-    const pending: Element[] = doc.body ? [doc.body] : [];
+    const pending: Element[] = scope ? [scope] : doc.body ? [doc.body] : [];
     while (pending.length && nodes.length < 3000) {
       const node = pending.pop()!;
       nodes.push(node);
       if ([...frameTags, 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'].includes(node.tagName)) continue;
-      const children = (node.shadowRoot || node).children;
+      const assigned = tag(node, 'slot') ? node.assignedElements({ flatten: true }) : [];
+      const children = assigned.length ? assigned : (node.shadowRoot || node).children;
       for (let i = Math.min(children.length, 3001 - pending.length - nodes.length) - 1; i >= 0; i--) pending.push(children[i]);
     }
     return { nodes, truncated: pending.length > 0 };
@@ -158,7 +160,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const isControl = clickable(node, nodeRole) || editable(node) || checkable(node) || tag(node, 'select') ||
         /^(button|textbox|searchbox|checkbox|radio|switch|combobox|listbox)$/.test(nodeRole);
       if (clickable(node, nodeRole)) actions.push('click');
-      if (editable(node)) actions.push('fill');
+      if (editable(node)) actions.push('fill', 'typeSequentially');
       if (actions.length && html(node) && (node.tabIndex >= 0 || node.hasAttribute('tabindex'))) actions.push('press');
       if (checkable(node) && !disabled(node)) actions.push('setChecked');
       if (tag(node, 'select') && !disabled(node)) actions.push('selectOption');
@@ -171,6 +173,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const entry: BrowserNode = { ...(nodeRole && { role: nodeRole }), ...(nodeName && { name: nodeName }),
         ...(text && text !== nodeName && { text }), ...(isControl && { state: state(node) }) };
       if (actions.length && html(node)) {
+        actions.push('scrollIntoView');
         entry.ref = `${observationId}:${nodes.length + 1}`;
         entry.actions = actions;
         targets.set(entry.ref, { node, role: nodeRole, name: nodeName });
@@ -186,19 +189,29 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
         if (publicNode(node) && isVisible(node)) describe(node);
       }
     } else {
-      const locator: Locator = command.locator;
-      const candidates = visited.nodes.filter(node => {
+      const matchesLocator = (node: Element, locator: Locator) => {
         if (!publicNode(node)) return false;
         if (locator.by === 'role') return role(node) === locator.role &&
           (locator.name === undefined || name(node, true) === normalize(locator.name));
         if (locator.by === 'label') return semantics.label(node) === normalize(locator.value);
         if (locator.by === 'testId') return node.getAttribute('data-testid') === locator.value;
+        if (locator.by === 'placeholder') return normalize(node.getAttribute('placeholder')) === normalize(locator.value);
         return semantics.text(node, false) === normalize(locator.value) &&
           !Array.from(node.children).some(child => semantics.text(child, false) === normalize(locator.value));
-      });
+      };
+      let search = visited;
+      if (command.within) {
+        const within = command.within;
+        const scopes = visited.nodes.filter(node => isVisible(node) && matchesLocator(node, within));
+        if (scopes.length > 1 || visited.truncated) return reject('The locator scope is ambiguous.');
+        if (!scopes.length) return command.action === 'wait' ? { kind: 'pending' } : reject('The locator scope was not found.');
+        search = walk(doc, scopes[0]);
+        search.nodes.shift();
+      }
+      const candidates = search.nodes.filter(node => matchesLocator(node, command.locator));
       const waitingForHidden = command.action === 'wait' && command.condition.kind === 'hidden';
       const matches = waitingForHidden ? candidates : candidates.filter(isVisible);
-      if (matches.length > 1 || visited.truncated) return reject('The locator is ambiguous. Use a more specific locator or frame.');
+      if (matches.length > 1 || search.truncated) return reject('The locator is ambiguous. Use a more specific locator or frame.');
       const node = matches[0];
       const shown = !!node && (!waitingForHidden || isVisible(node));
       if (command.action === 'locate' && !shown) return reject('The locator did not match a visible element.');
@@ -267,15 +280,22 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return reject('The reference is stale. Observe the tab again.');
 
   const node = target.node;
+  if (command.action === 'scrollIntoView') {
+    node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    return { kind: 'dispatched' };
+  }
   const change = () => {
     node.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     node.dispatchEvent(new Event('change', { bubbles: true }));
   };
   if (command.action === 'upload') {
     if (!fileInput(node) || disabled(node)) return reject('Choose an enabled file input.');
-    const bytes = Uint8Array.from(atob(command.file.base64), byte => byte.charCodeAt(0));
+    if (!node.multiple && command.files.length > 1) return reject('The file input accepts one attachment.');
     const transfer = new DataTransfer();
-    transfer.items.add(new File([bytes], command.file.name, { type: command.file.mediaType }));
+    for (const file of command.files) {
+      const bytes = Uint8Array.from(atob(file.base64), byte => byte.charCodeAt(0));
+      transfer.items.add(new File([bytes], file.name, { type: file.mediaType }));
+    }
     node.files = transfer.files;
     change();
     return { kind: 'dispatched' };
@@ -334,6 +354,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return reject('The target is unavailable for that pointer input.');
   if (command.action === 'press' && !clickable(node, target.role) && !editable(node))
     return reject('The target is unavailable for a key press.');
+  if (command.action === 'typeSequentially' && !editable(node)) return reject('The target is not an editable plain-text field.');
   if (command.action === 'click' || command.action === 'dblclick' || command.action === 'download' ||
       (command.action === 'press' && (command.key === 'Enter' || command.key === 'Space'))) {
     const inScope = (url: string) => {
@@ -366,8 +387,8 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       return reject('This form leaves the authorized tab or site.');
   }
 
-  if (command.action === 'press') {
-    node.focus({ preventScroll: true });
+  if (command.action === 'press' || command.action === 'typeSequentially') {
+    if (command.action === 'press' || !command.recheck) node.focus({ preventScroll: true });
     const root = node.getRootNode();
     if (!semantics.rootWithIds(root) || root.activeElement !== node)
       return reject('The observed element could not receive keyboard focus.');
@@ -376,6 +397,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (!semantics.rootWithIds(parentRoot) || parentRoot.activeElement !== element)
         return reject('The iframe could not receive keyboard focus.');
     }
+    if (command.action === 'typeSequentially') world.peroBrowserObservation = observation;
     return { kind: 'focused' };
   }
 

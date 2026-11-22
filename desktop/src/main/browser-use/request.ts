@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { BROWSER_KEYS } from './input.ts';
+import { BROWSER_KEYS, BROWSER_MODIFIERS } from './input.ts';
 
 const ref = z.string().regex(/^[a-f0-9-]{36}:\d{1,3}$/);
+const fileRef = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const label = z.string().trim().min(1).max(256);
 const optionValue = z.string().max(512);
 const tab = { tabId: z.string().min(1).max(4096).optional() };
@@ -12,6 +13,7 @@ const locator = z.discriminatedUnion('by', [
   z.strictObject({ by: z.literal('label'), value: label }),
   z.strictObject({ by: z.literal('text'), value: label }),
   z.strictObject({ by: z.literal('testId'), value: label }),
+  z.strictObject({ by: z.literal('placeholder'), value: label }),
 ]);
 const condition = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('visible') }),
@@ -31,18 +33,22 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('forward') }),
   z.strictObject({ ...tab, action: z.literal('reload') }),
   z.strictObject({ ...tab, action: z.literal('files') }),
-  z.strictObject({ ...tab, action: z.literal('upload'), ref, fileRef: z.string().regex(/^sha256:[a-f0-9]{64}$/) }),
+  z.strictObject({ ...tab, action: z.literal('upload'), ref, fileRef: fileRef.optional(), fileRefs: z.array(fileRef).min(1).max(8).optional() })
+    .refine(value => !!value.fileRef !== !!value.fileRefs, 'Choose exactly one of fileRef and fileRefs.'),
   z.strictObject({ ...tab, action: z.literal('download'), ref }),
   z.strictObject({ ...tab, action: z.literal('status') }),
   z.strictObject({ ...tab, action: z.literal('observe'), frame }),
-  z.strictObject({ ...tab, action: z.literal('locate'), locator, frame }),
-  z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, condition,
+  z.strictObject({ ...tab, action: z.literal('locate'), locator, frame, within: locator.optional() }),
+  z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, within: locator.optional(), condition,
     timeoutMs: z.number().int().min(1).max(10000).optional() }),
   z.strictObject({ ...tab, action: z.literal('click'), ref, expectPopup: z.boolean().optional() }),
   z.strictObject({ ...tab, action: z.literal('dblclick'), ref }),
   z.strictObject({ ...tab, action: z.literal('hover'), ref }),
   z.strictObject({ ...tab, action: z.literal('fill'), ref, text: z.string().max(4096) }),
-  z.strictObject({ ...tab, action: z.literal('press'), ref, key: z.enum(BROWSER_KEYS) }),
+  z.strictObject({ ...tab, action: z.literal('press'), ref, key: z.union([z.enum(BROWSER_KEYS), z.string().regex(/^[a-zA-Z0-9]$/)]),
+    modifiers: z.array(z.enum(BROWSER_MODIFIERS)).max(4).optional() }),
+  z.strictObject({ ...tab, action: z.literal('typeSequentially'), ref, text: z.string().regex(/^[a-zA-Z0-9 ]{1,160}$/) }),
+  z.strictObject({ ...tab, action: z.literal('scrollIntoView'), ref }),
   z.strictObject({ ...tab, action: z.literal('setChecked'), ref, checked: z.boolean() }),
   z.strictObject({ ...tab, action: z.literal('selectOption'), ref, value: z.union([optionValue, z.array(optionValue).max(64)]) }),
   z.strictObject({

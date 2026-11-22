@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
+import { browserFiles, browserInputCommands, browserInputFrame, browserInputPage, verifyBrowserInputs } from '../fixtures/browser-use-inputs.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
@@ -16,6 +17,8 @@ await mkdir(workspace);
 const attachmentText = 'A file chosen in the Pero composer.\n';
 const attachment = resolve(workspace, 'browser-input.txt');
 await writeFile(attachment, attachmentText);
+const batchFiles = browserFiles.map(({ name }) => resolve(workspace, name));
+await Promise.all(batchFiles.map((path, index) => writeFile(path, browserFiles[index].text)));
 const downloadText = 'status,value\nverified,7\n';
 const linkedBlobText = 'source,城市\nlink,上海\n';
 const scriptedBlobText = 'source,城市\nbutton,南京\n';
@@ -44,6 +47,14 @@ const site = await serve(async (request, response) => {
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreign.origin });
     response.end();
+    return;
+  }
+  if (request.url === '/batch-frame') {
+    response.end(browserInputFrame);
+    return;
+  }
+  if (request.url === '/batch-inputs') {
+    response.end(browserInputPage);
     return;
   }
   if (request.url === '/files') {
@@ -768,6 +779,23 @@ try {
   expect(noDownload).not.toHaveProperty('transfer');
   expect((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-'))).toEqual([]);
 
+  await clickNewChat(page);
+  const batchUrl = site.origin + '/batch-inputs';
+  await open(batchUrl);
+  await confirm(1);
+  await expect.poll(async () => (await document(batchUrl))?.observation.notice).toBe('Browser Use allowed');
+  for (const [index, path] of batchFiles.entries()) {
+    await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled:false, filePaths:[path] }); }, path);
+    const batchAttach = (await state()).composerBounds.context;
+    await page.mouse.click(batchAttach.x + batchAttach.width / 2, batchAttach.y + batchAttach.height / 2);
+    for (let i=0; i<2; i++) await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await state()).attachments.length).toBe(index + 1);
+  }
+  await expect.poll(async () => (await state()).attachments).toEqual(browserFiles.map(({ name }) => name));
+  const batchInputs = await prompt(browserInputCommands);
+  verifyBrowserInputs(batchInputs);
+
   const evidence = resolve(profile, 'browser-use-evidence');
   const directory = createHash('sha256').update(thread.id).digest('hex');
   const names = await readdir(resolve(evidence, directory));
@@ -804,7 +832,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

@@ -54,6 +54,14 @@ export class AppInputs {
     if (!file) throw new AppUseError('APP_FILE_FOREIGN', 'The selected file does not belong to this conversation.');
     return file;
   }
+  browserFiles(thread: string, refs: string[]) {
+    const files = refs.map(ref => this.selected(thread, ref));
+    if (new Set(refs).size !== refs.length)
+      throw new AppUseError('APP_FILE_REFERENCE', 'Choose each conversation attachment only once.');
+    if (files.length > 1 && files.reduce((size, file) => size + file.data.length, 0) > 10 * 1024 * 1024)
+      throw new AppUseError('APP_FILE_REFERENCE', 'Choose attachments totaling at most 10 MiB for one multiple upload.');
+    return files.map(({ name, mediaType, data }) => ({ name, mediaType, base64: data.toString('base64') }));
+  }
   async resolve(
     task: AppUseTask,
     schema: unknown,

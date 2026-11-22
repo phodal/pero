@@ -25,9 +25,12 @@ async function run(commands) {
   for (const { name, ...args } of commands) {
     if (name) {
       args.ref = observed?.nodes.find(node => node.name === name)?.ref;
-      assert.ok(args.ref, `No observed ref for ${name}`);
+      if (!args.ref) {
+        results.push({ error: `No observed ref for ${name}`, isError: true });
+        continue;
+      }
     }
-    if (args.action === 'upload' && !args.fileRef) args.fileRef = selectedFiles?.[0]?.ref;
+    if (args.action === 'upload' && !args.fileRef && !args.fileRefs) args.fileRef = selectedFiles?.[0]?.ref;
     if (args.action === 'scroll' && !args.observationId) args.observationId = observed?.observationId;
     const result = await rpc('tools/call', { name: 'browser_use', arguments: args });
     const text = result.content[0].text;

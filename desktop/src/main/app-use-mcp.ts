@@ -19,7 +19,7 @@ import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 import { AppAgentPluginBinding } from './app-agent-plugin.ts';
 import { DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL, parseArtifactDelivery, parseArtifactPresentation, type ArtifactDeliveryPort } from './artifact-delivery.ts';
-import { BROWSER_TOOL, type BrowserUse } from './browser-use/browser-use.ts';
+import type { BrowserUsePort } from './browser-use/browser-use.ts';
 
 type Event = {
   version: number;
@@ -84,7 +84,7 @@ export class DesktopAppUse {
   readonly computer?: DesktopComputer;
   private readonly uiAvailable: boolean;
   private readonly inspector?: NotebookInspector;
-  private readonly browser?: BrowserUse;
+  private readonly browser?: BrowserUsePort;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -96,7 +96,7 @@ export class DesktopAppUse {
     computer?: DesktopComputer,
     deliverArtifact?: ArtifactDeliveryPort,
     inspector?: NotebookInspector,
-    browser?: BrowserUse,
+    browser?: BrowserUsePort,
   ) {
     this.deliverArtifact = deliverArtifact;
     this.inspector = inspector;
@@ -327,7 +327,7 @@ export class DesktopAppUse {
               ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:this.inspector?.supports(d) || false},...(this.inspector?.supports(d)?{title:'Notebook Inspector',_meta:{ui:{resourceUri:NotebookInspector.uri}}}:{}),description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
-              ...(this.browser ? [BROWSER_TOOL] : []),
+              ...(this.browser ? [this.browser.tool] : []),
               ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL] : []),
               {
                 name: 'content_read',
@@ -448,7 +448,7 @@ export class DesktopAppUse {
             return this.browser!.call(thread, message.params.arguments, signal, this.inputs,
               this.authority.conversationWorkspace(thread), this.deliverArtifact);
           }, controller.signal);
-          if (value.kind === 'screenshot') {
+          if (value.kind === 'screenshot' && Buffer.isBuffer(value.png)) {
             result = {content:[
               {type:'text',text:await this.results.select(thread,{kind:value.kind,receipt:value.receipt})},
               {type:'image',data:value.png.toString('base64'),mimeType:'image/png'},
