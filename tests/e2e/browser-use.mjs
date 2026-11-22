@@ -17,6 +17,8 @@ const attachmentText = 'A file chosen in the Pero composer.\n';
 const attachment = resolve(workspace, 'browser-input.txt');
 await writeFile(attachment, attachmentText);
 const downloadText = 'status,value\nverified,7\n';
+const linkedBlobText = 'source,城市\nlink,上海\n';
+const scriptedBlobText = 'source,城市\nbutton,南京\n';
 let uploaded, filePageLoads = 0;
 const output = resolve(source, 'test-results/browser-use');
 await mkdir(output, { recursive: true });
@@ -55,7 +57,7 @@ const site = await serve(async (request, response) => {
       <a href="/redirect" download>Cross-origin download</a>`);
     return;
   }
-  if (request.url === '/download-entry') {
+  if (request.url.split('?', 1)[0] === '/download-entry') {
     response.writeHead(302, {Location:'/report.csv'});
     response.end();
     return;
@@ -69,6 +71,41 @@ const site = await serve(async (request, response) => {
     response.setHeader('Content-Type', 'text/csv');
     response.setHeader('Content-Disposition', 'attachment; filename="report.csv"');
     response.end(downloadText);
+    return;
+  }
+  if (request.url === '/popup-target') {
+    response.end('<title>Page opened tab</title><h1>Opened by the page</h1>');
+    return;
+  }
+  if (request.url === '/page-effects') {
+    response.end(`<!doctype html><title>Browser page effects</title>
+      <a href="/popup-target" target="_blank">Open target blank</a>
+      <button id="script-popup">Open from script</button>
+      <button id="foreign-popup">Open foreign site</button>
+      <p><a id="linked-blob" download="linked-blob.csv">Save linked Blob</a></p>
+      <button id="script-blob">Generate Blob report</button>
+      <button id="large-blob">Generate oversized Blob</button>
+      <form action="/download-entry"><button>Submit HTTP download</button></form>
+      <button id="no-download" onclick="location.href='/popup-target'">Navigate instead</button>
+      <script>
+        document.querySelector('#script-popup').onclick = () => setTimeout(() => window.open('/popup-target', '_blank'), 150);
+        document.querySelector('#foreign-popup').onclick = () => window.open(${JSON.stringify(foreign.origin)}, '_blank');
+        const blob = text => URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+        document.querySelector('#linked-blob').href = blob(${JSON.stringify(linkedBlobText)});
+        function download(text, name) {
+          const link = document.createElement('a');
+          link.href = blob(text);
+          link.download = name;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(link.href), 0);
+        }
+        document.querySelector('#script-blob').onclick = event => {
+          if (event.isTrusted) download(${JSON.stringify(scriptedBlobText)}, 'scripted-blob.csv');
+        };
+        document.querySelector('#large-blob').onclick = () => download('x'.repeat(10 * 1024 * 1024 + 1), 'large-blob.csv');
+      </script>`);
     return;
   }
   if (request.url === '/received' && request.method === 'POST') {
@@ -671,6 +708,66 @@ try {
   expect(remaining.tabs.map(tab=>tab.tabId)).toEqual(expect.arrayContaining([controlsUrl,tabId]));
   expect(remaining.tabs.map(tab=>tab.tabId)).not.toContain(scratch.tabId);
 
+  const effectsUrl = site.origin + '/page-effects';
+  const popupUrl = site.origin + '/popup-target';
+  await open(effectsUrl);
+  await confirm(1);
+  await expect.poll(async () => (await document(effectsUrl))?.observation.notice).toBe('Browser Use allowed');
+  const effectsThread = await active();
+  const effectsEvidence = resolve(profile, 'browser-use-evidence', createHash('sha256').update(effectsThread.id).digest('hex'));
+  const target = (name, role = 'button') => ({ action: 'locate', locator: { by: 'role', role, name } });
+  const [, linkPopup] = await prompt([target('Open target blank', 'link'), { action: 'click', name: 'Open target blank', expectPopup: true }]);
+  expect(linkPopup).toMatchObject({ outcome: 'dispatched', popup: { kind: 'tabOpened', authorized: false, tabId: expect.stringMatching(/^web-tab:/) } });
+  const popupId = linkPopup.popup.tabId;
+  await expect.poll(async () => (await document(popupId))?.observation).toMatchObject({ url: popupUrl, load: { kind: 'ready' } });
+  const [unauthorizedPopup, refusedPopup, popupTabs] = await prompt([
+    { action: 'status', tabId: popupId }, { action: 'observe', tabId: popupId }, { action: 'tabs' },
+  ]);
+  expect(unauthorizedPopup).toMatchObject({ authorized: false });
+  expect(refusedPopup).toMatchObject({ isError: true, error: expect.stringContaining('Allow a Web tab') });
+  expect(popupTabs.tabs.map(tab => tab.tabId)).not.toContain(popupId);
+  await confirm(1);
+  await expect.poll(async () => (await document(popupId))?.observation.notice).toBe('Browser Use allowed');
+  expect((await prompt([{ action: 'observe', tabId: popupId }]))[0]).toMatchObject({ url: popupUrl, title: 'Page opened tab' });
+  expect(JSON.parse(await readFile(resolve(effectsEvidence, linkPopup.receiptId + '.result.json'), 'utf8'))).toMatchObject({ popup: linkPopup.popup });
+
+  await open(effectsUrl);
+  const [, scriptPopup] = await prompt([target('Open from script'), { action: 'click', name: 'Open from script', expectPopup: true }]);
+  expect(scriptPopup).toMatchObject({ outcome: 'dispatched', popup: { kind: 'tabOpened', authorized: false } });
+  expect(scriptPopup.popup.tabId).not.toBe(popupId);
+  await expect.poll(async () => (await document(scriptPopup.popup.tabId))?.observation).toMatchObject({ url: popupUrl, load: { kind: 'ready' } });
+  await open(effectsUrl);
+  const beforeForeignPopup = foreignHits;
+  const [, blockedPopup] = await prompt([target('Open foreign site'), { action: 'click', name: 'Open foreign site', expectPopup: true }]);
+  expect(blockedPopup).toMatchObject({ outcome: 'dispatched', popup: { kind: 'blocked', reason: expect.stringContaining('outside the authorized site') } });
+  expect(foreignHits).toBe(beforeForeignPopup);
+
+  const triggerDownload = async (name, role) => (await prompt([target(name, role), { action: 'download', name }]))[1];
+  const linkedBlob = await triggerDownload('Save linked Blob', 'link');
+  const oversizedBlob = await triggerDownload('Generate oversized Blob');
+  const scriptedBlob = await triggerDownload('Generate Blob report');
+  const httpEvent = await triggerDownload('Submit HTTP download');
+  expect(oversizedBlob).toMatchObject({ isError: true, reason: expect.stringContaining('exceeds 10 MiB') });
+  expect(oversizedBlob).not.toHaveProperty('transfer');
+  expect(linkedBlob.transfer?.url).toMatch(/^blob:/);
+  expect(scriptedBlob.transfer?.url).toMatch(/^blob:/);
+  expect(httpEvent.transfer?.url).toBe(site.origin + '/report.csv');
+  for (const [receipt, filename, expected] of [[linkedBlob, 'linked-blob.csv', linkedBlobText],
+    [scriptedBlob, 'scripted-blob.csv', scriptedBlobText], [httpEvent, 'report.csv', downloadText]]) {
+    expect(receipt).toMatchObject({ outcome: 'dispatched', transfer: { bytes: Buffer.byteLength(expected) } });
+    const registered = receipt.transfer.artifactReceipt.artifact;
+    expect(registered.thread_id).toBe(effectsThread.id);
+    const hash = createHash('sha256').update(expected).digest('hex');
+    expect(registered.versions[0]).toMatchObject({ filename, version: 1, sha256: hash });
+    expect(await readFile(resolve(temp, 'settings.artifacts', threadDigest, 'snapshots', hash + '.bin'))).toEqual(Buffer.from(expected));
+    await expect.poll(async () => (await state()).artifacts?.items?.map(item => item.id) || []).toContain(registered.id);
+    expect(JSON.parse(await readFile(resolve(effectsEvidence, receipt.receiptId + '.result.json'), 'utf8'))).toMatchObject({ transfer: receipt.transfer });
+  }
+  const noDownload = await triggerDownload('Navigate instead');
+  expect(noDownload).toMatchObject({ outcome: 'unknown', isError: true, reason: expect.stringContaining('page navigated') });
+  expect(noDownload).not.toHaveProperty('transfer');
+  expect((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-'))).toEqual([]);
+
   const evidence = resolve(profile, 'browser-use-evidence');
   const directory = createHash('sha256').update(thread.id).digest('hex');
   const names = await readdir(resolve(evidence, directory));
@@ -707,7 +804,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

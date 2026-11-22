@@ -38,7 +38,7 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('locate'), locator, frame }),
   z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, condition,
     timeoutMs: z.number().int().min(1).max(10000).optional() }),
-  z.strictObject({ ...tab, action: z.literal('click'), ref }),
+  z.strictObject({ ...tab, action: z.literal('click'), ref, expectPopup: z.boolean().optional() }),
   z.strictObject({ ...tab, action: z.literal('dblclick'), ref }),
   z.strictObject({ ...tab, action: z.literal('hover'), ref }),
   z.strictObject({ ...tab, action: z.literal('fill'), ref, text: z.string().max(4096) }),

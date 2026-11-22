@@ -30,7 +30,7 @@ export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean;
     frame?: FrameSelector[]; frameUrl?: string; frames: { selector: FrameSelector; sameOrigin: boolean }[] }
   | { kind: 'dispatched' | 'focused' | 'pending' }
-  | { kind: 'point'; point: ViewportPoint }
+  | { kind: 'point'; point: ViewportPoint; downloadUrl?: string }
   | { kind: 'download'; url: string; name?: string }
   | { kind: 'rejected'; reason: string };
 
@@ -163,7 +163,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (checkable(node) && !disabled(node)) actions.push('setChecked');
       if (tag(node, 'select') && !disabled(node)) actions.push('selectOption');
       if (fileInput(node) && !disabled(node)) actions.push('upload');
-      if (tag(node, 'a') && node.hasAttribute('href')) actions.push('download');
+      if ((tag(node, 'a') && node.hasAttribute('href')) || (nodeRole === 'button' && clickable(node, nodeRole))) actions.push('download');
       if (pointerTarget(node, nodeRole, nodeName)) {
         actions.push('hover');
         if (!disabled(node)) actions.push('dblclick');
@@ -280,9 +280,16 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     change();
     return { kind: 'dispatched' };
   }
+  let downloadUrl: string | undefined;
   if (command.action === 'download') {
-    if (!tag(node, 'a') || !node.hasAttribute('href')) return reject('Choose an observed download link.');
-    return { kind: 'download', url: node.href, name: node.download || undefined };
+    if (tag(node, 'a') && node.hasAttribute('href') && !disabled(node)) {
+      if (!node.href.startsWith('blob:')) return { kind: 'download', url: node.href, name: node.download || undefined };
+      if (!URL.canParse(node.href) || new URL(node.href).origin !== origin || !node.hasAttribute('download'))
+        return reject('Choose a same-origin Blob link with a download attribute.');
+      downloadUrl = node.href;
+    } else if (target.role !== 'button' || !clickable(node, target.role)) {
+      return reject('Choose an observed download link or enabled button.');
+    }
   }
   if (command.action === 'fill') {
     if (!editable(node)) return reject('The target is not an editable plain-text field.');
@@ -327,7 +334,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return reject('The target is unavailable for that pointer input.');
   if (command.action === 'press' && !clickable(node, target.role) && !editable(node))
     return reject('The target is unavailable for a key press.');
-  if (command.action === 'click' || command.action === 'dblclick' ||
+  if (command.action === 'click' || command.action === 'dblclick' || command.action === 'download' ||
       (command.action === 'press' && (command.key === 'Enter' || command.key === 'Space'))) {
     const inScope = (url: string) => {
       if (!URL.canParse(url, doc.baseURI)) return false;
@@ -348,8 +355,12 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
         .find(element => element.form === implicitForm && ['submit', 'image'].includes(element.type));
     const form = submit?.form || implicitForm;
     const baseTarget = doc.querySelector('base[target]')?.getAttribute('target') || '_self';
-    if (link && (link.hasAttribute('download') || (link.target || baseTarget).toLowerCase() !== '_self' || !inScope(link.href)))
-      return reject('This link leaves the authorized tab or site.');
+    if (link) {
+      const target = (link.target || baseTarget).toLowerCase();
+      const popup = target === '_blank' && (command.action === 'click' || command.action === 'press');
+      if ((target !== '_self' && !popup) || (downloadUrl ? link.href !== downloadUrl : link.hasAttribute('download') || !inScope(link.href)))
+        return reject('This link leaves the authorized tab or site.');
+    }
     if (form && ((submit?.getAttribute('formtarget') || form.target || baseTarget).toLowerCase() !== '_self' ||
         !inScope(submit?.getAttribute('formaction') ?? form.action)))
       return reject('This form leaves the authorized tab or site.');
@@ -378,7 +389,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const translated = topPoint(point, chain);
       if (!translated) return reject('The iframe is covered or transformed.');
       if (command.action === 'dblclick' && !command.recheck) world.peroBrowserObservation = observation;
-      return { kind: 'point', point: translated };
+      return { kind: 'point', point: translated, ...(downloadUrl && { downloadUrl }) };
     }
     if (sensitive(hit) || fileInput(hit) || frameTags.includes(hit.tagName) || clickable(hit, role(hit)) || editable(hit)) break;
   }

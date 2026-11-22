@@ -53,17 +53,25 @@ if it leaves the origin.
   `open` creates a new instance of a same-origin URL, even if the URL is
   already open. The new instance needs its own user approval. Chromium history
   and form state are restored per instance when reopening the workspace.
+- `click` can also open a same-origin HTTP(S) tab through a `target="_blank"`
+  link or a page call to `window.open(url)`. Set `expectPopup: true` to wait up
+  to five seconds for the popup. The click receipt records the first observed
+  popup and returns the independent `tabId` with `authorized: false` when it
+  opens. The user must then grant that tab from the Workbench menu.
 - `back`, `forward` and `reload` use the selected instance's Chromium history.
   Each operation checks the origin and yields a receipt for the destination.
 - `files` lists the conversation's frozen attachments. `upload` sets one of
   these files on an observed file input using its `fileRef`. Submitting the
   form remains a separate action. Supported attachments follow the existing
   Composer and Host file-reference rules.
-- `download` reads an observed same-origin link using that tab's Chromium
-  session. It follows same-origin redirects and accepts up to 10 MiB. The
-  existing Host Artifact delivery freezes the download in the current
-  conversation and returns its version and digest. The temporary staging file
-  is removed after delivery.
+- `download` fetches an observed same-origin HTTP(S) link using the tab's
+  Chromium session and follows same-origin redirects. It can also click an
+  observed Blob link with a `download` attribute, or a button that starts a
+  native Chromium download. Native events must come from the authorized tab
+  and initiator origin. The captured source URLs must stay on that origin.
+  The operation waits up to 20 seconds and accepts up to 10 MiB. The existing
+  Host Artifact delivery freezes the download in the current conversation and
+  returns its version and digest. Desktop removes temporary staging files.
 
 ### Locators, forms and frame scope
 
@@ -180,6 +188,21 @@ the fixture's background pixels on the Retina display and the dimensions and
 SHA-256 in the MCP receipt and saved record. The suite also verified refusal
 after revocation, outside the viewport and on a page with a foreign frame.
 The captured region is at `test-results/browser-use/browser-clip.png`.
+
+The fifth batch was exercised on `3dca970b4` with a rebuilt Desktop main
+bundle and the real Electron, Rust Host and ACP fixture. A `target="_blank"`
+link and a delayed `window.open` created distinct tabs at the same URL. An
+observation of the new tab failed before its own approval and succeeded after
+approval. The foreign popup was refused before the other server received a
+request.
+
+The fixture exercised a direct Blob link, a button that created and revoked a
+Blob URL, and a form that produced an HTTP attachment after a same-origin
+redirect. The Workbench listed all three Artifacts. The suite verified the
+frozen bytes and SHA-256 for each, including the UTF-8 Blob payloads, and matched
+the saved Browser Use receipts to the Host receipts. An oversized Blob and an
+action that navigated away without downloading produced no Artifact. The
+workspace had no remaining download staging directories.
 
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model

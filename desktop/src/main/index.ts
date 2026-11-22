@@ -235,9 +235,11 @@ app.whenReady().then(async () => {
     permissions: computerPermissions,
   });
   globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
-  browserUse = new BrowserUse(resolve(app.getPath('userData'), 'browser-use-evidence'), url => {
+  browserUse = new BrowserUse(resolve(app.getPath('userData'), 'browser-use-evidence'), async url => {
     if (!webPages) throw new Error('Web views are unavailable.');
-    return webPages.openNewTab(url, new URL(url).origin);
+    const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
+    await ready;
+    return tabId;
   }, options => net.request(options));
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),browserUse);
   const appUseEnvironment = await appUse.start();

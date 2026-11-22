@@ -4,9 +4,9 @@ import type {WebCommand,WebDocument,SurfaceBounds,WebSurfaceSlot} from '../../..
 import {WebAddress} from '../../../packages/content-source/web-address.ts';
 import {WebLocation,inlineHtml} from '../../../packages/content-source/web-location.ts';
 import {WebSessions,restorePage,type WebPageState} from './web-sessions.ts';
-import type {BrowserTab} from './browser-use/browser-use.ts';
+import type {BrowserTab,PageEffects} from './browser-use/browser-use.ts';
 type Event={version:1;kind:string;request_id:null;text:string;data?:unknown};
-type Page={view:WebContentsView;document:WebDocument;browserAuthorization?:string};
+type Page={view:WebContentsView;document:WebDocument;browserAuthorization?:string;effects?:PageEffects};
 
 /** Browser engines own navigation; GPUI supplies selected sources and measured slots. */
 export class WebPages {
@@ -40,8 +40,9 @@ export class WebPages {
       const page=[...this.pages.values()].find(page=>page.view.webContents.mainFrame===request.frame?.top);
       if(page)this.notice(page,'The operating-system screen picker is unavailable.');
     },{useSystemPicker:true});
-    this.partition.on('will-download',(_event,item,contents)=>{
+    this.partition.on('will-download',(event,item,contents)=>{
       const page=[...this.pages.values()].find(page=>page.view.webContents===contents);
+      if(page?.effects?.download){page.effects.download(event,item);return;}
       item.setSaveDialogOptions({title:'Save download',defaultPath:item.getFilename()});
       item.on('updated',()=>{if(page)this.notice(page,`Downloading ${item.getFilename()}: ${item.getReceivedBytes()} / ${item.getTotalBytes()} bytes`);});
       item.once('done',(_event,state)=>{if(page)this.notice(page,state==='completed'?`Saved ${item.getSavePath()}`:`Download ${state}`);});
@@ -112,8 +113,14 @@ export class WebPages {
     };
     contents.on('will-navigate',navigation);contents.on('will-redirect',navigation);
     contents.setWindowOpenHandler(({url})=>{
-      try {const address=WebAddress.parse(url);void this.openNewTab(address.text);}
-      catch {this.notice(page,'This popup cannot be opened as an HTTP or HTTPS page.');}
+      const effects=page.effects;
+      try {
+        const address=effects?effects.approvePopup(url):WebAddress.parse(url).text;
+        if(!address){effects?.popup({kind:'blocked',reason:'The new tab is outside the authorized site.'});return {action:'deny'};}
+        const {tabId,ready}=this.openNewTab(address,effects?new URL(address).origin:undefined);
+        effects?.popup({kind:'tabOpened',tabId,authorized:false});
+        void ready.catch(error=>this.error(String(error)));
+      } catch {this.notice(page,'This popup cannot be opened as an HTTP or HTTPS page.');}
       return {action:'deny'};
     });
     this.emit(restored?'web_state':'web_opened',page);
@@ -158,11 +165,10 @@ export class WebPages {
     this.focusedSurface=focused;
   }
 
-  async openNewTab(url:string,initialOrigin?:string) {
+  openNewTab(url:string,initialOrigin?:string) {
     const document=this.urlDocument(WebAddress.parse(url));
     document.id='web-tab:'+randomUUID();
-    await this.open(document,false,initialOrigin);
-    return document.id;
+    return {tabId:document.id,ready:this.open(document,false,initialOrigin)};
   }
   focusedBrowserTab(authorizationNotice?:string): BrowserTab | undefined {
     const id=this.focusedSurface;
@@ -176,6 +182,10 @@ export class WebPages {
       visible:()=>!this.window.isDestroyed()&&!this.window.isMinimized()&&this.pages.get(id)===page&&page.view.getVisible(),
       activate:()=>this.emit('web_opened',page),
       close:()=>this.command({action:'web_close',id}),
+      trackEffects:effects=>{
+        page.effects=effects;
+        return ()=>{if(page.effects===effects)delete page.effects;};
+      },
       authorizationChanged:active=>{
         page.browserAuthorization=active?authorizationNotice:undefined;
         if(!contents.isDestroyed())this.emit('web_state',page);
