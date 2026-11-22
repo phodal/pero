@@ -13,6 +13,11 @@ export function domSemantics() {
     const root = node.getRootNode();
     return node.assignedSlot || node.parentElement || (root.nodeType === 11 && rootWithIds(root) ? (root as ShadowRoot).host : null);
   };
+  function editingHost(node: Element): node is HTMLElement {
+    if (!html(node) || !node.hasAttribute('contenteditable') || !node.isContentEditable) return false;
+    const ancestor = parent(node);
+    return !ancestor || !html(ancestor) || !ancestor.isContentEditable;
+  }
   function children(node: Node): Node[] {
     if (node.nodeType === 1 && tag(node as Element, 'slot')) {
       const assigned = (node as HTMLSlotElement).assignedNodes({ flatten: true });
@@ -44,6 +49,7 @@ export function domSemantics() {
   function role(node: Element): string {
     const explicit = (node.getAttribute('role') || '').split(/\s+/).find(value => roles.has(value));
     if (explicit) return explicit;
+    if (editingHost(node)) return 'textbox';
     const elementTag = node.tagName;
     if (tag(node, 'input')) return ({ checkbox: 'checkbox', radio: 'radio', number: 'spinbutton', range: 'slider', button: 'button', submit: 'button', reset: 'button', image: 'button', search: node.hasAttribute('list') ? 'combobox' : 'searchbox', email: 'textbox', tel: 'textbox', url: 'textbox', text: node.hasAttribute('list') ? 'combobox' : 'textbox' } as Record<string, string>)[node.type] || '';
     if (elementTag === 'A' || elementTag === 'AREA') return node.hasAttribute('href') ? 'link' : '';
@@ -95,5 +101,5 @@ export function domSemantics() {
       ((tag(node, 'input') || tag(node, 'textarea') || tag(node, 'button') || tag(node, 'select')) && !!node.labels?.length);
     return hasLabel ? name(node, true) : undefined;
   }
-  return { normalize, parent, hidden, visible, text, role, name, label, tag, html, rootWithIds };
+  return { normalize, parent, hidden, visible, text, role, name, label, tag, html, rootWithIds, editingHost };
 }

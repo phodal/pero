@@ -80,6 +80,51 @@ const site = await serve(async (request, response) => {
     response.end('<title>Upload receipt</title><p>Upload received</p>');
     return;
   }
+  if (request.url === '/interactions') {
+    response.end(`<!doctype html><title>Browser interactions</title>
+      <style>
+        body { margin: 0; }
+        #capture { position: absolute; left: 16px; top: 8px; width: 356px; height: 116px;
+          background: #2468b4; color: white; font: 16px sans-serif; }
+        #capture p { margin: 12px; }
+        main { padding: 132px 24px 16px; font: 16px sans-serif; }
+        [contenteditable] { border: 1px solid; width: 260px; margin: 6px 0; }
+        .stack { position: relative; width: 200px; height: 32px; margin: 6px 0; }
+        .stack > * { position: absolute; inset: 0; }
+      </style>
+      <div id="capture"><p>Browser Use interactions</p>
+        <p data-testid="hover-result">Awaiting hover</p><p data-testid="double-result">Awaiting double-click</p></div>
+      <main>
+        <span data-testid="hover-target" aria-label="Hover target">Hover target</span> <button id="double">Open details</button>
+        <div class="stack"><button id="under">Underlying action</button><button id="remove">Replace on click</button></div>
+        <div class="stack"><button>Covered action</button><div aria-hidden="true" style="background: #ddd"></div></div>
+        <label>Modes <select id="modes" multiple>
+          <option value="alpha">Alpha</option><option value="beta" selected>Beta</option><option value="gamma">Gamma</option>
+          <optgroup label="Unavailable" disabled><option value="blocked">Blocked</option></optgroup>
+          <option value="repeat">Repeat one</option><option value="repeat">Repeat two</option>
+        </select></label>
+        <div contenteditable="true" id="editor" aria-label="Editable note"><strong>Initial note</strong></div>
+        <div contenteditable="true" id="read-only" aria-label="Read-only note" aria-readonly="true">Keep this text</div>
+      </main>
+      <script>
+        const metrics = window.interactionEvents = { clickDetails: [], underlyingClicks: 0, selectionInputs: 0, selectionChanges: 0, edits: 0 };
+        document.querySelector('[data-testid=hover-target]').addEventListener('mouseenter', event => {
+          if (event.isTrusted) document.querySelector('[data-testid=hover-result]').textContent = 'Trusted hover';
+        });
+        const button = document.querySelector('#double');
+        button.addEventListener('click', event => { if (event.isTrusted) metrics.clickDetails.push(event.detail); });
+        button.addEventListener('dblclick', event => {
+          if (event.isTrusted) document.querySelector('[data-testid=double-result]').textContent = 'Trusted double-click';
+        });
+        document.querySelector('#remove').addEventListener('click', event => { if (event.isTrusted) event.target.remove(); });
+        document.querySelector('#under').addEventListener('click', () => metrics.underlyingClicks++);
+        const modes = document.querySelector('#modes');
+        modes.addEventListener('input', () => metrics.selectionInputs++);
+        modes.addEventListener('change', () => metrics.selectionChanges++);
+        document.querySelector('#editor').addEventListener('input', () => metrics.edits++);
+      </script>`);
+    return;
+  }
   if (request.url === '/controls') {
     response.end(`<title>Browser controls</title>
       <label><input id="archive" type="checkbox">Include archived</label>
@@ -301,9 +346,12 @@ try {
     { action: 'click', ref: observedKey.nodes.find(node => node.name === 'Apply draft').ref },
     { action: 'press', ref: observedKey.nodes.find(node => node.name === 'Page draft').ref, key: 'Enter' },
     { action: 'scroll', observationId: observedKey.observationId, deltaX: 0, deltaY: 620 },
+    { action: 'hover', ref: observedKey.nodes.find(node => node.name === 'Apply draft').ref },
+    { action: 'dblclick', ref: observedKey.nodes.find(node => node.name === 'Apply draft').ref },
+    { action: 'screenshot', clip: { x: 0, y: 0, width: 10, height: 10 } },
   ]);
   expect(unauthorized).toEqual({ authorized: false, isError: false });
-  expect(denied).toEqual(Array(5).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('Allow a Web tab') })));
+  expect(denied).toEqual(Array(8).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('Allow a Web tab') })));
 
   await confirm(1);
   await expect.poll(async () => (await document(original))?.observation.notice).toBe('Browser Use allowed');
@@ -329,9 +377,102 @@ try {
   await open(framed);
   await confirm(1);
   await expect.poll(async () => (await document(framed))?.observation.notice).toBe('Browser Use allowed');
-  expect(await prompt([{ action: 'screenshot' }])).toEqual([
-    expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') }),
+  expect(await prompt([{ action: 'screenshot' },
+    { action: 'screenshot', clip: { x: 0, y: 0, width: 10, height: 10 } }])).toEqual(
+    Array(2).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') })));
+
+  const interactionsUrl = site.origin + '/interactions';
+  await open(interactionsUrl);
+  await confirm(1);
+  await expect.poll(async () => (await document(interactionsUrl))?.observation.notice).toBe('Browser Use allowed');
+  const interactionThread = await active();
+  const locateInteraction = name => ({ action: 'locate', locator: { by: 'role', role: 'button', name } });
+  const readInteraction = expression => app.evaluate(({ webContents }, { url, expression }) => webContents
+    .getAllWebContents().find(view => view.getURL() === url).executeJavaScript(expression), { url: interactionsUrl, expression });
+  const scale = await readInteraction('window.devicePixelRatio');
+  const clip = { x: Math.round(24 * scale), y: Math.round(16 * scale),
+    width: Math.round(340 * scale), height: Math.round(100 * scale) };
+  const pointer = await prompt([
+    { action: 'locate', locator: { by: 'testId', value: 'hover-target' } }, { action: 'hover', name: 'Hover target' },
+    { action: 'hover', name: 'Hover target' },
+    { action: 'wait', locator: { by: 'testId', value: 'hover-result' }, condition: { kind: 'text', value: 'Trusted hover' } },
+    locateInteraction('Covered action'), { action: 'hover', name: 'Covered action' },
+    locateInteraction('Open details'), { action: 'dblclick', name: 'Open details' },
+    { action: 'wait', locator: { by: 'testId', value: 'double-result' }, condition: { kind: 'text', value: 'Trusted double-click' } },
+    locateInteraction('Replace on click'), { action: 'dblclick', name: 'Replace on click' },
+    { action: 'screenshot', clip }, { action: 'screenshot', clip: { ...clip, x: 1000000 } },
   ]);
+  expect(Array.isArray(pointer), JSON.stringify(pointer)).toBe(true);
+  const [hoveredTarget, hover, staleHover, hoverResult, , covered, doubleTarget, double, doubleResult, , replaced, cropped, outsideClip] = pointer;
+  expect(hoveredTarget.nodes[0].actions).toContain('hover');
+  expect(hover).toMatchObject({ outcome: 'dispatched', verified: false });
+  expect(staleHover).toMatchObject({ isError: true, error: expect.stringContaining('stale') });
+  expect(hoverResult).toMatchObject({ matched: true });
+  expect(covered).toMatchObject({ isError: true, outcome: 'rejected', reason: expect.stringContaining('covered') });
+  expect(doubleTarget.nodes[0].actions).toContain('dblclick');
+  expect(double).toMatchObject({ outcome: 'dispatched', verified: false });
+  expect(doubleResult).toMatchObject({ matched: true });
+  expect(replaced).toMatchObject({ outcome: 'unknown', verified: false });
+  expect(await readInteraction('window.interactionEvents')).toMatchObject({ clickDetails: [1, 2], underlyingClicks: 0 });
+  expect(cropped).toMatchObject({ kind: 'screenshot', isError: false, receipt: { ...cropped.pixels, clip } });
+  expect(cropped.pixels).toMatchObject({ width: clip.width, height: clip.height });
+  expect(outsideClip).toMatchObject({ isError: true, error: expect.stringContaining('inside the visible viewport') });
+
+  const interactionEvidence = resolve(profile, 'browser-use-evidence', createHash('sha256').update(interactionThread.id).digest('hex'));
+  for (const [observation, receipt, action] of [[hoveredTarget, hover, 'hover'], [doubleTarget, double, 'dblclick']]) {
+    expect(JSON.parse(await readFile(resolve(interactionEvidence, receipt.receiptId + '.intent.json'), 'utf8'))).toMatchObject({
+      action, observationId: observation.observationId, ref: observation.nodes[0].ref, tabId: interactionsUrl,
+    });
+  }
+  expect(JSON.parse(await readFile(resolve(interactionEvidence, cropped.receipt.id + '.json'), 'utf8'))).toEqual(cropped.receipt);
+  const croppedPng = await readFile(resolve(interactionEvidence, cropped.receipt.id + '.png'));
+  expect(createHash('sha256').update(croppedPng).digest('hex')).toBe(cropped.pixels.sha256);
+  await writeFile(resolve(output, 'browser-clip.png'), croppedPng);
+  const corners = await app.evaluate(({ nativeImage }, png) => {
+    const pixels = nativeImage.createFromBuffer(Buffer.from(png, 'base64')).toBitmap();
+    return [...pixels.subarray(0, 4), ...pixels.subarray(-4)];
+  }, croppedPng.toString('base64'));
+  // NativeImage decodes into the display color space, which may round a channel by one.
+  const marker = [180, 104, 36, 255];
+  for (const [index, channel] of corners.entries())
+    expect(Math.abs(channel - marker[index % marker.length])).toBeLessThanOrEqual(2);
+
+  const modes = { action: 'locate', locator: { by: 'role', role: 'listbox', name: 'Modes' } };
+  const note = { by: 'role', role: 'textbox', name: 'Editable note' };
+  const noteText = 'Literal <b>markup</b>\nSecond line';
+  const edits = await prompt([
+    modes, { action: 'selectOption', name: 'Modes', value: ['alpha', 'gamma'] },
+    modes, { action: 'selectOption', name: 'Modes', value: ['gamma', 'alpha'] },
+    modes, { action: 'selectOption', name: 'Modes', value: ['beta', 'blocked'] },
+    modes, { action: 'selectOption', name: 'Modes', value: ['repeat'] }, modes,
+    { action: 'locate', locator: note }, { action: 'fill', name: 'Editable note', text: noteText },
+    { action: 'wait', locator: note, condition: { kind: 'value', value: noteText } },
+    { action: 'locate', locator: { by: 'label', value: 'Read-only note' } },
+    { action: 'fill', name: 'Read-only note', text: 'Should not change' },
+  ]);
+  expect(Array.isArray(edits), JSON.stringify(edits)).toBe(true);
+  const [initialModes, chosen, , repeated, , disabledOption, , ambiguousOption, selectedModes, , edited, editedNote, , readOnlyFill] = edits;
+  expect(initialModes.nodes[0].actions).toContain('selectOption');
+  expect(chosen).toMatchObject({ outcome: 'dispatched' });
+  expect(repeated).toMatchObject({ outcome: 'dispatched' });
+  expect(disabledOption).toMatchObject({ outcome: 'rejected' });
+  expect(ambiguousOption).toMatchObject({ outcome: 'rejected' });
+  expect(selectedModes.nodes[0].state.options.filter(option => option.selected).map(option => option.value)).toEqual(['alpha', 'gamma']);
+  expect(edited).toMatchObject({ outcome: 'dispatched' });
+  expect(editedNote).toMatchObject({ matched: true, nodes: [{ state: { value: noteText } }] });
+  expect(readOnlyFill).toMatchObject({ outcome: 'rejected' });
+  expect(await readInteraction(`({
+    events: window.interactionEvents,
+    selected: Array.from(document.querySelector('#modes').selectedOptions, option => option.value),
+    text: document.querySelector('#editor').innerText,
+    bold: document.querySelector('#editor b, #editor strong') !== null,
+    readOnly: document.querySelector('#read-only').innerText,
+  })`)).toMatchObject({ events: { selectionInputs: 1, selectionChanges: 1, edits: 1 }, selected: ['alpha', 'gamma'],
+    text: noteText, bold: false, readOnly: 'Keep this text' });
+  expect(JSON.parse(await readFile(resolve(interactionEvidence, edited.receiptId + '.intent.json'), 'utf8'))).not.toHaveProperty('text');
+  const [, cleared, empty] = await prompt([modes, { action: 'selectOption', name: 'Modes', value: [] }, modes]);
+  expect(cleared).toMatchObject({ outcome: 'dispatched' });
+  expect(empty.nodes[0].state.options.some(option => option.selected)).toBe(false);
 
   const controlsUrl = site.origin + '/controls';
   await open(controlsUrl);
@@ -566,7 +707,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, form, frame, history, uploaded, transfers, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

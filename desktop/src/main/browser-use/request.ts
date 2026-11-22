@@ -3,6 +3,7 @@ import { BROWSER_KEYS } from './input.ts';
 
 const ref = z.string().regex(/^[a-f0-9-]{36}:\d{1,3}$/);
 const label = z.string().trim().min(1).max(256);
+const optionValue = z.string().max(512);
 const tab = { tabId: z.string().min(1).max(4096).optional() };
 const frameSelector = z.strictObject({ by: z.enum(['title', 'testId']), value: label });
 const frame = z.array(frameSelector).max(4).optional();
@@ -38,16 +39,21 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, condition,
     timeoutMs: z.number().int().min(1).max(10000).optional() }),
   z.strictObject({ ...tab, action: z.literal('click'), ref }),
+  z.strictObject({ ...tab, action: z.literal('dblclick'), ref }),
+  z.strictObject({ ...tab, action: z.literal('hover'), ref }),
   z.strictObject({ ...tab, action: z.literal('fill'), ref, text: z.string().max(4096) }),
   z.strictObject({ ...tab, action: z.literal('press'), ref, key: z.enum(BROWSER_KEYS) }),
   z.strictObject({ ...tab, action: z.literal('setChecked'), ref, checked: z.boolean() }),
-  z.strictObject({ ...tab, action: z.literal('selectOption'), ref, value: z.string().max(512) }),
+  z.strictObject({ ...tab, action: z.literal('selectOption'), ref, value: z.union([optionValue, z.array(optionValue).max(64)]) }),
   z.strictObject({
     ...tab, action: z.literal('scroll'), observationId: z.uuid(),
     deltaX: z.number().int().min(-2000).max(2000),
     deltaY: z.number().int().min(-2000).max(2000),
   }),
-  z.strictObject({ ...tab, action: z.literal('screenshot') }),
+  z.strictObject({ ...tab, action: z.literal('screenshot'), clip: z.strictObject({
+    x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
+    width: z.number().int().positive(), height: z.number().int().positive(),
+  }).optional() }),
   z.strictObject({ ...tab, action: z.literal('navigate'), url: z.string().max(4096) }),
 ]);
 

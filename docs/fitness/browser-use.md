@@ -28,12 +28,13 @@ Pero's Electron Desktop build. `WebPages` owns the existing
 `WebContentsView`; Rust Host owns the ACP session and its approval policy.
 The existing authenticated Desktop MCP connection carries `browser_use`.
 
-The tool supports status, document observation, trusted Chromium pointer
-clicks, named keyboard input, viewport wheel scrolling, viewport screenshots,
-plain-text filling and same-origin navigation. Observation issues opaque refs
-to the current document. Input consumes the observation. A click rechecks the
-node's identity and semantic label and hit-tests its visible point before left
-button dispatch. A press focuses an observed element and sends a named key
+The tool supports status, document observation, trusted Chromium clicks,
+double-clicks and hover, named keyboard input, viewport wheel scrolling,
+viewport screenshots, plain-text filling and same-origin navigation.
+Observation issues opaque refs to the current document. Input consumes the
+observation. Pointer actions recheck the node's identity and semantic label
+and hit-test its visible point. `dblclick` checks the same target and point
+again after the first click. A press focuses an observed element and sends a named key
 such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
 ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
 attachment for fixed input commands. The tool accepts page content as data.
@@ -76,8 +77,12 @@ if it leaves the origin.
   Trusted pointer input translates through the visible frame bounds.
 - Form state exposes disabled status, checked or mixed state, safe text values,
   and bounded option metadata. `setChecked` updates native checkboxes and can
-  select a radio. `selectOption` requires one enabled option in a native single
-  select. Mutations dispatch input and change events when the value changes.
+  select a radio. `selectOption` accepts a value or an array of up to 64 values
+  in `value`. It replaces the selection, and an empty array clears a native
+  multiple select. A single select requires exactly one enabled option. All
+  requested values must be unique and refer to enabled, unambiguous options.
+  `fill` writes plain text to native inputs and editable `contenteditable`
+  hosts. It preserves line breaks and treats markup as text.
 - `wait` uses the same locator and accepts visible, hidden, enabled, checked,
   exact value and exact text conditions. The default deadline is five seconds
   and the maximum is ten. A match returns the observation. A timeout returns
@@ -97,8 +102,10 @@ The Desktop profile stores observation JSON and paired intent/result records
 under `browser-use-evidence/`. An action receipt links the observation and
 reference used, or records the navigation destination. A viewport screenshot
 returns MCP image content and stores the same PNG with dimensions, byte count
-and SHA-256 in its receipt. Capture requires that every frame have the approved
-origin. The fill intent omits the input text. Later observations can include text the page itself
+and SHA-256 in its receipt. The optional `clip` records `{x, y, width, height}`
+in image pixels relative to the top-left of the viewport. The full rectangle
+must fit inside the visible viewport. Both capture modes require that every
+frame have the approved origin. The fill intent omits the input text. Later observations can include text the page itself
 renders. A dispatch receipt records that the operation was delivered, and a
 separate observation can check the page effect. Session deletion removes the
 associated evidence.
@@ -160,6 +167,19 @@ the Artifact receipt, and the Workbench listed it. The suite compared the
 stored snapshot bytes with the expected CSV and verified the receipt's
 SHA-256 and staging cleanup. The foreign server received no requests from
 the blocked new-tab and download redirects.
+
+The fourth batch was exercised on `0fd0bf0d3` using a freshly built Desktop
+main bundle and the same real Electron, Rust Host and ACP fixture. The page
+observed a trusted hover and a trusted double-click with click details `1`
+and `2`. A covered target was refused. When the first click removed the
+target, the underlying button received no click. The suite verified
+multiple selection, clearing, idempotence and refusal of disabled or
+ambiguous options. It confirmed the editing host received literal multiline
+text and the read-only host kept its original text. The clipped PNG matched
+the fixture's background pixels on the Retina display and the dimensions and
+SHA-256 in the MCP receipt and saved record. The suite also verified refusal
+after revocation, outside the viewport and on a page with a foreign frame.
+The captured region is at `test-results/browser-use/browser-clip.png`.
 
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model

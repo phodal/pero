@@ -9,7 +9,7 @@ type FormState = {
   valueTruncated?: true;
   options?: { value: string; name: string; selected: boolean; disabled: boolean }[];
 };
-type ElementAction = 'click' | 'fill' | 'press' | 'setChecked' | 'selectOption' | 'upload' | 'download';
+type ElementAction = 'click' | 'dblclick' | 'hover' | 'fill' | 'press' | 'setChecked' | 'selectOption' | 'upload' | 'download';
 
 export type BrowserNode = {
   role?: string;
@@ -22,7 +22,8 @@ export type BrowserNode = {
 
 export type DocumentCommand =
   | ({ observation: string } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
-  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload'> | 'scroll' }>
+  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick'> | 'scroll' }>
+  | (Extract<BrowserRequest, { action: 'dblclick' }> & { recheck?: true })
   | { action: 'upload'; ref: string; file: { name: string; mediaType: string; base64: string } };
 
 export type DocumentResult =
@@ -43,7 +44,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   const reject = (reason: string): DocumentResult => ({ kind: 'rejected', reason });
   if (location.origin !== origin) return reject('The page left the authorized site.');
 
-  const { tag, html, hidden, visible, role, name, normalize } = semantics;
+  const { tag, html, hidden, visible, role, name, normalize, editingHost } = semantics;
   const frameTags = ['IFRAME', 'FRAME', 'OBJECT', 'EMBED'];
   const sensitive = (node: Element) => tag(node, 'input') &&
     (['password', 'hidden'].includes(node.type) ||
@@ -52,15 +53,19 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   const plainText = (node: Element): node is HTMLInputElement | HTMLTextAreaElement =>
     (tag(node, 'textarea') || (tag(node, 'input') && ['text', 'search', 'email', 'tel', 'url'].includes(node.type))) &&
     !sensitive(node);
-  const editable = (node: Element): node is HTMLInputElement | HTMLTextAreaElement =>
-    plainText(node) && !node.readOnly && !disabled(node);
-  const fieldValue = (node: Element) => plainText(node) || tag(node, 'select') ? node.value : undefined;
+  const editable = (node: Element) => !disabled(node) &&
+    ((plainText(node) && !node.readOnly) || (editingHost(node) && node.getAttribute('aria-readonly') !== 'true'));
+  const fieldValue = (node: Element) => plainText(node) || tag(node, 'select') ? node.value :
+    editingHost(node) ? node.innerText : undefined;
   const fileInput = (node: Element): node is HTMLInputElement => tag(node,'input') && node.type === 'file';
   const checkable = (node: Element): node is HTMLInputElement =>
     tag(node, 'input') && ['checkbox', 'radio'].includes(node.type);
   const clickable = (node: Element, nodeRole: string) =>
     html(node) && !fileInput(node) && !sensitive(node) && !disabled(node) &&
     ['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'menuitem'].includes(nodeRole);
+  const pointerTarget = (node: Element, nodeRole: string, nodeName: string) =>
+    html(node) && !fileInput(node) && !sensitive(node) && (nodeRole || nodeName || node.hasAttribute('data-testid') ||
+      Array.from(node.childNodes).some(child => child.nodeType === 3 && child.nodeValue?.trim()));
   const state = (node: Element): FormState => {
     const fields: FormState = { disabled: disabled(node) };
     if (checkable(node)) fields.checked = node.indeterminate ? 'mixed' : node.checked;
@@ -156,9 +161,13 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (editable(node)) actions.push('fill');
       if (actions.length && html(node) && (node.tabIndex >= 0 || node.hasAttribute('tabindex'))) actions.push('press');
       if (checkable(node) && !disabled(node)) actions.push('setChecked');
-      if (tag(node, 'select') && !node.multiple && !disabled(node)) actions.push('selectOption');
+      if (tag(node, 'select') && !disabled(node)) actions.push('selectOption');
       if (fileInput(node) && !disabled(node)) actions.push('upload');
       if (tag(node, 'a') && node.hasAttribute('href')) actions.push('download');
+      if (pointerTarget(node, nodeRole, nodeName)) {
+        actions.push('hover');
+        if (!disabled(node)) actions.push('dblclick');
+      }
       const entry: BrowserNode = { ...(nodeRole && { role: nodeRole }), ...(nodeName && { name: nodeName }),
         ...(text && text !== nodeName && { text }), ...(isControl && { state: state(node) }) };
       if (actions.length && html(node)) {
@@ -277,8 +286,11 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   }
   if (command.action === 'fill') {
     if (!editable(node)) return reject('The target is not an editable plain-text field.');
-    const prototype = tag(node, 'textarea') ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(node, command.text);
+    if (editingHost(node)) node.innerText = command.text;
+    else {
+      const prototype = tag(node, 'textarea') ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(node, command.text);
+    }
     change();
     return { kind: 'dispatched' };
   }
@@ -293,20 +305,30 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return { kind: 'dispatched' };
   }
   if (command.action === 'selectOption') {
-    if (!tag(node, 'select') || node.multiple || disabled(node)) return reject('The target is not an enabled single select.');
-    const options = Array.from(node.options).filter(option => option.value === command.value);
-    if (options.length !== 1 || disabled(options[0])) return reject('The option is missing, ambiguous or disabled.');
-    if (!options[0].selected) {
-      options[0].selected = true;
+    if (!tag(node, 'select') || disabled(node)) return reject('The target is not an enabled select.');
+    const values = Array.isArray(command.value) ? command.value : [command.value];
+    if (!node.multiple && values.length !== 1) return reject('A single select requires exactly one option.');
+    const wanted = new Set(values);
+    const options = Array.from(node.options);
+    const matches = options.filter(option => wanted.has(option.value));
+    if (matches.length !== values.length || new Set(matches.map(option => option.value)).size !== values.length || matches.some(disabled))
+      return reject('An option is missing, ambiguous or disabled.');
+    if (options.some(option => option.selected !== wanted.has(option.value))) {
+      if (node.multiple) for (const option of options) option.selected = wanted.has(option.value);
+      else matches[0].selected = true;
       change();
     }
     return { kind: 'dispatched' };
   }
 
   if (command.action === 'click' && !clickable(node, target.role)) return reject('The target is unavailable for a click.');
+  if ((command.action === 'hover' || command.action === 'dblclick') &&
+      (!pointerTarget(node, target.role, target.name) || (command.action === 'dblclick' && disabled(node))))
+    return reject('The target is unavailable for that pointer input.');
   if (command.action === 'press' && !clickable(node, target.role) && !editable(node))
     return reject('The target is unavailable for a key press.');
-  if (command.action === 'click' || command.key === 'Enter' || command.key === 'Space') {
+  if (command.action === 'click' || command.action === 'dblclick' ||
+      (command.action === 'press' && (command.key === 'Enter' || command.key === 'Space'))) {
     const inScope = (url: string) => {
       if (!URL.canParse(url, doc.baseURI)) return false;
       const target = new URL(url, doc.baseURI);
@@ -354,7 +376,9 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   for (let hit = hitAt(doc, point); hit; hit = semantics.parent(hit)) {
     if (hit === node) {
       const translated = topPoint(point, chain);
-      return translated ? { kind: 'point', point: translated } : reject('The iframe is covered or transformed.');
+      if (!translated) return reject('The iframe is covered or transformed.');
+      if (command.action === 'dblclick' && !command.recheck) world.peroBrowserObservation = observation;
+      return { kind: 'point', point: translated };
     }
     if (sensitive(hit) || fileInput(hit) || frameTags.includes(hit.tagName) || clickable(hit, role(hit)) || editable(hit)) break;
   }
