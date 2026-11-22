@@ -89,10 +89,21 @@ if (operation === 'prepare') {
     for (const name of product.apps) verifyBuiltinAppDependencies(join(payload, 'apps', name), name);
     return metadata;
   }
-  const stagedMetadata = verifyApp(app);
-  const metadata = process.platform === 'darwin'
-    ? withMountedMacOSDmg(archive, mount => verifyApp(join(mount, basename(app))))
-    : stagedMetadata;
+  function verifyMacPayload(directory) {
+    if (native) {
+      const helper = join(directory, 'Pero Computer Use.app');
+      const identifier = execFileSync('/usr/bin/plutil', ['-extract', 'CFBundleIdentifier', 'raw', join(helper, 'Contents/Info.plist')], { encoding: 'utf8' }).trim();
+      const version = execFileSync('/usr/bin/plutil', ['-extract', 'CFBundleShortVersionString', 'raw', join(helper, 'Contents/Info.plist')], { encoding: 'utf8' }).trim();
+      const arch = execFileSync('/usr/bin/lipo', ['-archs', join(helper, 'Contents/MacOS/pero-computer')], { encoding: 'utf8' }).trim();
+      if (identifier !== 'com.openpero.computer-use' || version !== product.version || arch !== process.arch) {
+        throw new Error('The Native DMG does not contain the expected Computer Use helper.');
+      }
+      execFileSync('/usr/bin/codesign', ['--verify', '--strict', helper], { stdio: 'inherit' });
+    }
+    return verifyApp(join(directory, basename(app)));
+  }
+  const stagedMetadata = process.platform === 'darwin' ? verifyMacPayload(packageDir) : verifyApp(app);
+  const metadata = process.platform === 'darwin' ? withMountedMacOSDmg(archive, verifyMacPayload) : stagedMetadata;
   if (process.platform === 'darwin' && !standalone && !native) {
     const size = JSON.parse(readFileSync(join(packageDir, 'size.json'), 'utf8'));
     if (size.dmgBytes >= product.macosDownloadLimitBytes()) throw new Error('Pero DMG exceeds its approved download budget.');

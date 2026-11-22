@@ -7,6 +7,7 @@ import { writeIcns } from '../lib/macos-icon.mjs';
 import { root } from '../lib/paths.mjs';
 import { run } from '../lib/run.mjs';
 import { buildHarness } from '../build/harness.mjs';
+import { stageComputerApp } from '../build/computer-app.mjs';
 
 if (process.platform !== 'darwin') throw new Error('This preview is for macOS.');
 if (process.argv.slice(2).some(arg => arg !== '--build-only')) throw new Error('Usage: npm run dev:native [-- --build-only]');
@@ -79,6 +80,10 @@ async function cycle() {
         cpSync(resolve(root, 'harness/go/charts/python', name), resolve(dataCore, name));
       await buildHarness();
       await run(process.execPath, ['scripts/build/connectors.mjs']);
+      await run(process.execPath, ['scripts/build/computer.mjs']);
+      stageComputerApp(resolve(root, 'target/debug/Pero Computer Use.app'), resolve(root, 'target/debug/pero-computer'), {
+        identifier: 'com.openpero.computer-use.preview', version: '0.1.0', icon,
+      });
       await run('cargo', cargoArgs(['build', '--locked', '-p', 'pero-host', '-p', 'pero-worker']));
       await run('cargo', cargoArgs(['+nightly-2026-10-28', 'build', '--locked', '-p', 'pero-ui', '--features', 'native', '--bin', 'pero-native']));
     } catch (error) {
