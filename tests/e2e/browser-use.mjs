@@ -173,7 +173,10 @@ try {
     const input = (await state()).composerBounds.input;
     expect(input?.width).toBeGreaterThan(0);
     await page.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
-    await page.keyboard.insertText(JSON.stringify(commands));
+    await expect.poll(async () => (await state()).composerFocused).toBe(true);
+    const text = JSON.stringify(commands);
+    await page.keyboard.insertText(text);
+    await expect.poll(async () => (await state()).composer).toContain(text);
     await page.keyboard.press('Enter');
     let response;
     await expect.poll(async () => {
