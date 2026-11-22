@@ -356,7 +356,11 @@ the source checkout and a system Node installation are not required. Native
 data lives in `~/.pero/native`, separately from Electron and the local preview.
 Python App environments are prepared on first use; coding CLIs and their login
 remain user-installed. Native cloud contribution workspace preparation remains
-unavailable. macOS packages are ad-hoc signed and not notarized.
+unavailable. Builds use ad-hoc signing by default. Set
+`PERO_MACOS_SIGN_IDENTITY` to a Developer ID Application identity to sign both
+Native and its Computer Use app. This build does not notarize them.
+Copy both `Pero Native.app` and `Pero Computer Use.app` from the DMG into the
+same Applications directory.
 
 Release CI builds Native and Electron as separate macOS assets of the same
 prerelease. Both must pass their actual packaged launch checks before publication.
@@ -436,6 +440,12 @@ Use Open permissions for the application that launches Desktop. macOS may
 require a full quit/reopen after granting Accessibility and Screen & System
 Audio Recording; macOS 27 also labels access under Device Control and Data
 Access. Preflight is advisory, so an observed window is the actual access check.
+
+In Pero Native, open each of the two macOS privacy panes from the Computer Use
+settings. Drag `Pero Computer Use.app` into each permission list and enable it.
+**Show Helper in Finder** opens the same signed bundle for the system list's
+Add fallback. Grant access to this helper so the launched worker receives it.
+Refresh the Pero settings after granting, and quit and reopen if macOS requests it.
 
 Ask the selected Agent to operate an application using `computer_use`. The
 Agent lists targets, observes the selected window, sends typed input and

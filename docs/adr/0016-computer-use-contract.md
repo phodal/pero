@@ -192,8 +192,27 @@ same helper, MCP tool, menu controls and provenance. The native runtime now sele
 A shared owner handles opaque references, observation consumption and geometry
 admission. Platform modules declare their supported observation/action pairs;
 Windows background input is UIA invocation only, and Linux X11 supports pixel
-observation and explicit foreground input. Pure Wayland returns unsupported. The standalone GPUI native
-preview does not own the Electron bridge and does not expose these controls.
+observation and explicit foreground input. Pure Wayland returns unsupported.
+Pero Native starts the same Computer Use owner in its existing MCP sidecar.
+The Native workbench forwards conversation selection and cancellation to that
+sidecar, and the Host persists its enable/stop setting in the Native profile.
+On macOS Native launches the independently signed `Pero Computer Use.app`
+(`com.openpero.computer-use`) through Launch Services. The helper connects
+back to a Unix socket in an owner-only temporary directory and runs the same
+NDJSON worker. The Desktop sends EOF for cancellation and waits for the
+launched app to exit. Library, driver and model request contracts are unchanged.
+Electron and the development CLI continue to use private stdio.
+
+The macOS DMG contains two sibling applications. Native launches the helper
+installed beside it. This location preserves the helper's TCC identity for
+both Accessibility and Screen Recording. In a nested bundle, macOS 27.2.1
+attributed Screen Capture to the outer app while Accessibility used the
+helper. Settings opens each privacy pane and offers the sibling bundle as a
+native file drag. The user grants both permissions in System Settings. Both the
+outer app and the helper support a Developer ID identity in the build. Local
+ad-hoc signatures support testing an unchanged installed copy across restarts;
+they do not prove update continuity. Development previews use a separate bundle
+identifier.
 
 ## Verification boundary
 

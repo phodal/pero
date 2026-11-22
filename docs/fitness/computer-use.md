@@ -207,3 +207,100 @@ and independent callback effects are used for verification.
 
 The macOS capability expansion, new native action matrix and framework-specific
 effects are recorded in [computer-use-macos.md](computer-use-macos.md).
+
+
+## Pero Native and real Pero (DeepSeek), 2026-11-22
+
+The GPUI workbench uses the shared runtime through its existing App Use MCP
+sidecar. The Native settings page exposes enable, refresh, stop and separate
+macOS links for Accessibility and Screen Recording. The Host owns the
+persisted Native switch, which starts off. This development run used the
+checkout's native driver.
+
+Verified on macOS 27.2.1 in the development Native GPUI workbench at
+`3dca970b4` plus the Computer Use changes. The running Native Preview settings
+were inspected in light and dark appearance. The Accessibility and Screen
+Recording links opened Device Control and Data Access and Screen & System
+Audio Recording respectively. The direct-launch acceptance profile used
+existing macOS grants. The separately launched preview showed both permission
+preflights as not detected during the UI inspection.
+
+An opt-in run used the actual built-in Pero (DeepSeek), Native Chat and Host
+rather than a scripted agent. The first run passed after a tool-schema
+correction by the agent. A repeat stopped at argument validation because the
+agent sent a worker-style wrapper. Publishing the generated operation and
+request fields at the top level of the MCP schema resolved that ambiguity.
+The final run completed all five calls in order: status, targets, observe,
+act, observe. It identified the owned AppKit fixture, produced two 1200 × 944
+JPEGs with matching byte counts and SHA-256 digests, and performed one
+background AX press with an executed receipt. The fixture independently
+recorded Count=1. The live AX values and inspected JPEG show that result.
+The model used AX and screenshot metadata. The configured text model did
+not receive screenshot pixels as vision input. Settings enabled and stopped
+the runtime through the Native panel, and Stop persisted the disabled state
+to the isolated profile.
+
+```sh
+node scripts/build/computer.mjs
+node scripts/build/connectors.mjs
+node scripts/cargo.mjs +nightly-2026-10-28 build --locked -p pero-ui --features native-probe --bin pero-native
+PERO_NATIVE_COMPUTER_DEEPSEEK=1 node tests/e2e/native-computer.mjs
+```
+
+The test preserves evidence in `target/computer-verification/pero-native-deepseek/`
+by default. Set `PERO_COMPUTER_RESULTS` to retain separate runs. The final
+local evidence is under `target/computer-verification/final/pero-native-deepseek/`.
+This run did not exercise granting new macOS permissions, the global emergency
+shortcut, or signed release installation.
+
+## Signed macOS helper and installed-package authorization, 2026-11-22
+
+Native launches `Pero Computer Use.app` through Launch Services and sends the
+existing NDJSON requests over a private Unix socket. It waits for helper exit
+on Stop. The DMG installs Native and the helper beside each other. The helper
+has its own bundle identifier, `com.openpero.computer-use`, and signature.
+The Native settings offers the actual installed bundle as a macOS file drag,
+separate privacy links, and a Finder fallback.
+
+On macOS 27.2.1, the initial DMG test recorded both permissions as not detected.
+After user-authorized setup, the initially nested helper could read AX but
+could not capture the test window. System TCC logs attributed Accessibility to
+the helper and Screen Capture to the outer Native bundle. Installing the same
+signed helper beside Native corrected the attribution. Two new helper
+processes each reported both grants, and each exited before the next launch.
+No macOS permission database was modified outside System Settings.
+
+The local package uses separate ad-hoc signatures because the machine has no
+Developer ID signing identity. The test establishes same-bundle process
+restart behavior. Developer ID signing, notarization and grant continuity
+across signed updates are separate checks.
+
+
+The corrected arm64 DMG contained both signed top-level apps. The mounted
+apps passed strict signature checks, and the installed helper's designated
+requirement matched the helper in the image. After the Native app and worker
+exited, the same installed app relaunched with Accessibility and Screen
+Recording granted. The macOS Add picker was used to grant Screen Recording
+to the helper. The installed Settings drag source was inspected in the
+running app; dropping it directly into System Settings was not separately
+exercised.
+
+The installed Native workbench ran the built-in Pero (DeepSeek) against the
+owned AppKit fixture. The tool sequence was status, targets, observe, act,
+observe. The standalone helper returned two 1200 × 944 JPEGs with verified
+hashes and an executed background semantic press. The fixture independently
+recorded one callback and Count=1, also visible in the final image. The
+configured model verified AX values and capture metadata. Local evidence is
+under `target/computer-verification/installed/`.
+
+The final image rerun also checks that the sidecar shuts down without a broken
+pipe and then starts Native with both grants still in effect. It uses an
+isolated Native profile and ordinary installed binaries for the permission
+read. The provider run uses the installer's opt-in Native probe to submit
+the fixture prompt and checks the actual receipts and fixture callback.
+
+```sh
+node scripts/release/native-smoke.mjs
+PERO_NATIVE_COMPUTER_INSTALLED_APP="$HOME/Applications/Pero Native.app" \
+  PERO_NATIVE_COMPUTER_DEEPSEEK=1 node tests/e2e/native-computer.mjs
+```
