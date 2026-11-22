@@ -13,7 +13,8 @@ grant ends. **Workbench → Stop Browser Use** revokes it.
 
 The grant belongs to the selected conversation, the live tab instance and its
 exact origin, including the scheme and port. It applies while the tab is in a
-visible workspace pane and the conversation is selected and running. Closing
+visible workspace pane and the conversation is selected and running. A hidden
+authorized tab can be listed, selected, or closed from the same conversation. Closing
 the tab or conversation, cancelling from Chat, leaving the origin, or
 resetting the Desktop connection revokes the grant. A different tab on the
 same origin needs its own approval. The grant is in memory.
@@ -36,11 +37,32 @@ button dispatch. A press focuses an observed element and sends a named key
 such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
 ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
 attachment for fixed input commands. The tool accepts page content as data.
-Observation omits password, file, hidden and credential-autocomplete inputs.
+Observation omits password, hidden and credential-autocomplete inputs. For a
+visible file input it exposes an actionable reference and label without any
+selected filenames or local paths.
 Direct navigation rejects foreign origins and cancels
 cross-origin HTTP redirects before the foreign site receives a request.
 A navigation initiated independently by the page or the user ends the grant
 if it leaves the origin.
+
+### Independent tabs, history and files
+
+- `tabs` lists only instances authorized for this conversation. Use `tabId`
+  to select an instance, `activate` to show it, and `closeTab` to close it.
+  `open` creates a new instance of a same-origin URL, even if the URL is
+  already open. The new instance needs its own user approval. Chromium history
+  and form state are restored per instance when reopening the workspace.
+- `back`, `forward` and `reload` use the selected instance's Chromium history.
+  Each operation checks the origin and yields a receipt for the destination.
+- `files` lists the conversation's frozen attachments. `upload` sets one of
+  these files on an observed file input using its `fileRef`. Submitting the
+  form remains a separate action. Supported attachments follow the existing
+  Composer and Host file-reference rules.
+- `download` reads an observed same-origin link using that tab's Chromium
+  session. It follows same-origin redirects and accepts up to 10 MiB. The
+  existing Host Artifact delivery freezes the download in the current
+  conversation and returns its version and digest. The temporary staging file
+  is removed after delivery.
 
 ### Locators, forms and frame scope
 
@@ -122,6 +144,22 @@ hidden and timeout outcomes, and the nested iframe's fill, trusted Enter and
 trusted click. It reads Chromium state independently, rejects the cross-origin
 frame, rejects an old reference after a same-URL frame reload, and checks the
 saved frame path and URL in the action receipt.
+
+The independent tab, history and file changes on `6e00033de` were exercised
+with a freshly built Workbench renderer and Rust Host. Two tabs at the same
+URL kept different select values before and after restarting Electron.
+The suite exercises activation, closing one tab, backward and forward
+navigation, and a reload verified by a second HTTP request. It checks the
+per-tab approval boundary and rejects history entries on another origin.
+
+The Composer attachment arrived at the loopback server with its original
+filename and bytes in Chromium's multipart form submission. A reference
+absent from the conversation was rejected. The same-origin download followed
+a redirect and used the tab's Chromium session cookie. The real Host emitted
+the Artifact receipt, and the Workbench listed it. The suite compared the
+stored snapshot bytes with the expected CSV and verified the receipt's
+SHA-256 and staging cleanup. The foreign server received no requests from
+the blocked new-tab and download redirects.
 
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model

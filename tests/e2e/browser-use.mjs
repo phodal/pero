@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
@@ -11,6 +11,13 @@ const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-browser-use-'));
 const profile = resolve(temp, 'profile');
+const workspace = resolve(temp, 'workspace');
+await mkdir(workspace);
+const attachmentText = 'A file chosen in the Pero composer.\n';
+const attachment = resolve(workspace, 'browser-input.txt');
+await writeFile(attachment, attachmentText);
+const downloadText = 'status,value\nverified,7\n';
+let uploaded, filePageLoads = 0;
 const output = resolve(source, 'test-results/browser-use');
 await mkdir(output, { recursive: true });
 const agent = 'browser-use-fixture';
@@ -30,11 +37,47 @@ const foreign = await serve((_request, response) => {
   foreignHits++;
   response.end('Foreign tab');
 });
-const site = await serve((request, response) => {
+const site = await serve(async (request, response) => {
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreign.origin });
     response.end();
+    return;
+  }
+  if (request.url === '/files') {
+    filePageLoads++;
+    response.setHeader('Set-Cookie','pero_browser_fixture=ready; Path=/');
+    response.end(`<title>Browser files</title>
+      <form action="/received" method="post" enctype="multipart/form-data">
+        <label>Upload source <input name="source" type="file"></label><button>Send attachment</button>
+      </form>
+      <a href="/download-entry" download>Report download</a>
+      <a href="/redirect" download>Cross-origin download</a>`);
+    return;
+  }
+  if (request.url === '/download-entry') {
+    response.writeHead(302, {Location:'/report.csv'});
+    response.end();
+    return;
+  }
+  if (request.url === '/report.csv') {
+    if (!request.headers.cookie?.includes('pero_browser_fixture=ready')) {
+      response.writeHead(401);
+      response.end('Expected a cookie from the existing Chromium session.');
+      return;
+    }
+    response.setHeader('Content-Type', 'text/csv');
+    response.setHeader('Content-Disposition', 'attachment; filename="report.csv"');
+    response.end(downloadText);
+    return;
+  }
+  if (request.url === '/received' && request.method === 'POST') {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = new Request('http://127.0.0.1/upload', {method:'POST', headers:request.headers, body:Buffer.concat(chunks)});
+    const file = (await body.formData()).get('source');
+    uploaded = {name:file.name, text:await file.text()};
+    response.end('<title>Upload receipt</title><p>Upload received</p>');
     return;
   }
   if (request.url === '/controls') {
@@ -113,11 +156,12 @@ const site = await serve((request, response) => {
 const original = site.origin + '/';
 let app, page;
 try {
-  app = await electron.launch({
+  const launch = () => electron.launch({
     args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root,
     env: { ...process.env, PERO_DESKTOP_DATA_DIR: profile, PERO_SETTINGS_PATH: settings,
       PERO_AGENTS_FILE: agents, PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_LOCALE: 'en', PERO_APPS_ROOT: resolve(temp, 'apps') },
   });
+  app = await launch();
   page = await app.firstWindow();
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1600, 1000));
@@ -162,6 +206,9 @@ try {
     await expect.poll(() => app.evaluate(() => globalThis.browserUsePrompt?.detail)).toContain(site.origin);
   };
 
+  await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled:false, filePaths:[path] }); }, workspace);
+  await page.evaluate(() => window.pero.chooseWorkspace());
+  await expect.poll(async () => (await state()).workspace).toBe(await realpath(workspace));
   await clickNewChat(page);
   await open(original);
   if (!(await state()).chatVisible) await menu('toggle_chat');
@@ -266,6 +313,11 @@ try {
   await expect.poll(async () => (await document(original))?.observation.load.kind).toBe('ready');
   await confirm(1);
   await expect.poll(async () => (await document(original))?.observation.notice).toBe('Browser Use allowed');
+  const beforeHistoryRefusal = foreignHits;
+  expect(await prompt([{action:'back'}])).toEqual([
+    expect.objectContaining({ outcome:'rejected', reason:expect.stringContaining('outside the authorized site') }),
+  ]);
+  expect(foreignHits).toBe(beforeHistoryRefusal);
   await browserCommand({ action: 'web_close', id: original });
   await expect.poll(async () => await document(original) ?? null).toBe(null);
   expect(await prompt([{ action: 'status' }])).toEqual([{ authorized: false, isError: false }]);
@@ -372,6 +424,109 @@ try {
     expect.objectContaining({ isError: true, outcome: 'rejected', reason: expect.stringContaining('iframe changed') }),
   ]);
 
+  const [duplicateTab] = await prompt([{ action: 'open', tabId: controlsUrl, url: controlsUrl }]);
+  expect(duplicateTab).toMatchObject({ kind:'tabOpened', authorized:false, tabId:expect.stringMatching(/^web-tab:/) });
+  const tabId = duplicateTab.tabId;
+  await expect.poll(async () => (await document(tabId))?.observation.load.kind).toBe('ready');
+  const [beforeApproval, unknownTab] = await prompt([{ action: 'tabs' }, { action: 'status', tabId }]);
+  expect(beforeApproval.tabs.map(tab => tab.tabId)).toContain(controlsUrl);
+  expect(beforeApproval.tabs.map(tab => tab.tabId)).not.toContain(tabId);
+  expect(unknownTab).toEqual({ authorized:false, isError:false });
+  await confirm(1);
+  await expect.poll(async () => (await document(tabId))?.observation.notice).toBe('Browser Use allowed');
+  const [both, distinctValue, activate] = await prompt([
+    { action: 'tabs' }, { action: 'locate', tabId, locator: mode }, { action: 'activate', tabId:controlsUrl },
+  ]);
+  expect(both.tabs).toEqual(expect.arrayContaining([
+    expect.objectContaining({ tabId, url:controlsUrl }), expect.objectContaining({ tabId:controlsUrl, url:controlsUrl }),
+  ]));
+  expect(distinctValue.nodes[0]).toMatchObject({ state: { value:'basic' } });
+  expect(activate).toMatchObject({ kind:'tabActivated', tabId:controlsUrl });
+  await expect.poll(async () => (await state()).activeContent?.value).toBe(controlsUrl);
+  expect((await prompt([{ action:'locate', tabId:controlsUrl, locator:mode }]))[0].nodes[0]).toMatchObject({ state:{ value:'full' } });
+  await prompt([{ action:'activate', tabId }]);
+  await expect.poll(async () => (await state()).activeContent?.value).toBe(tabId);
+
+  const filesUrl = site.origin + '/files';
+  const history = await prompt([
+    { action:'navigate', tabId, url:filesUrl }, { action:'back', tabId },
+    { action:'forward', tabId }, { action:'reload', tabId },
+  ]);
+  expect(history).toEqual([
+    expect.objectContaining({ outcome:'dispatched' }),
+    expect.objectContaining({ outcome:'dispatched', url:controlsUrl }),
+    expect.objectContaining({ outcome:'dispatched', url:filesUrl }),
+    expect.objectContaining({ outcome:'dispatched', url:filesUrl }),
+  ]);
+  expect(filePageLoads).toBeGreaterThanOrEqual(2);
+  expect((await document(controlsUrl)).observation.url).toBe(controlsUrl);
+
+  await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled:false, filePaths:[path] }); }, attachment);
+  const attach = (await state()).composerBounds.context;
+  await page.mouse.click(attach.x + attach.width / 2, attach.y + attach.height / 2);
+  // This fixture does not advertise images, so the Image entry is disabled.
+  for (let i=0; i<2; i++) await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).attachments).toEqual(['browser-input.txt']);
+  const fileThread = await active();
+  const beforeDownload = foreignHits;
+  const transfers = await prompt([
+    { action:'files', tabId },
+    { action:'locate', tabId, locator:{by:'label',value:'Upload source'} },
+    { action:'upload', tabId, name:'Upload source', fileRef:'sha256:'+'0'.repeat(64) },
+    { action:'upload', tabId, name:'Upload source' },
+    { action:'locate', tabId, locator:{by:'role',role:'link',name:'Cross-origin download'} },
+    { action:'download', tabId, name:'Cross-origin download' },
+    { action:'locate', tabId, locator:{by:'role',role:'link',name:'Report download'} },
+    { action:'download', tabId, name:'Report download' },
+    { action:'locate', tabId, locator:{by:'role',role:'button',name:'Send attachment'} },
+    { action:'click', tabId, name:'Send attachment' },
+  ]);
+  expect(Array.isArray(transfers), JSON.stringify(transfers)).toBe(true);
+  expect(transfers[0].files).toEqual([expect.objectContaining({
+    name:'browser-input.txt', ref:'sha256:'+createHash('sha256').update(attachmentText).digest('hex'),
+  })]);
+  expect(transfers[2]).toMatchObject({ isError:true, error:expect.stringContaining('does not belong') });
+  expect(transfers[3]).toMatchObject({ outcome:'dispatched' });
+  expect(transfers[5]).toMatchObject({ isError:true, reason:expect.stringContaining('outside the authorized site') });
+  expect(foreignHits).toBe(beforeDownload);
+  const downloadable = transfers[7];
+  expect(downloadable).toMatchObject({ outcome:'dispatched', transfer:{ bytes:Buffer.byteLength(downloadText), url:site.origin+'/report.csv' } });
+  expect(transfers[9]).toMatchObject({ outcome:'dispatched' });
+  await expect.poll(() => uploaded).toEqual({name:'browser-input.txt', text:attachmentText});
+  await expect.poll(async () => (await document(tabId))?.observation.title).toBe('Upload receipt');
+  const artifact = downloadable.transfer.artifactReceipt.artifact;
+  const version = artifact.versions[0];
+  expect(version).toMatchObject({ filename:'report.csv', version:1, sha256:createHash('sha256').update(downloadText).digest('hex') });
+  expect(artifact.thread_id).toBe(fileThread.id);
+  const threadDigest=createHash('sha256').update(fileThread.id).digest('hex');
+  expect(await readFile(resolve(temp,'settings.artifacts',threadDigest,'snapshots',version.sha256+'.bin'),'utf8')).toBe(downloadText);
+  expect((await readdir(workspace)).filter(name=>name.startsWith('.pero-browser-download-'))).toEqual([]);
+  await expect.poll(async () => (await state()).artifacts?.items?.map(item => item.id)||[]).toContain(artifact.id);
+  const [backToFiles, backToControls] = await prompt([{action:'back',tabId},{action:'back',tabId}]);
+  expect(backToFiles).toMatchObject({url:filesUrl});
+  expect(backToControls).toMatchObject({url:controlsUrl});
+
+  const beforeOpenRefusal = foreignHits;
+  const [blockedTab] = await prompt([{action:'open',tabId,url:site.origin+'/redirect'}]);
+  expect(blockedTab).toMatchObject({kind:'tabOpened',authorized:false});
+  await expect.poll(async () => (await document(blockedTab.tabId))?.observation.load).toMatchObject({
+    kind:'failed', message:expect.stringContaining('outside the authorized site'),
+  });
+  expect(foreignHits).toBe(beforeOpenRefusal);
+  await browserCommand({action:'web_close',id:blockedTab.tabId});
+  await expect.poll(() => document(blockedTab.tabId)).toBeUndefined();
+  await expect.poll(async () => (await state()).activeContent?.value).toBe(tabId);
+
+  const [scratch] = await prompt([{action:'open',tabId,url:site.origin+'/scratch'}]);
+  await expect.poll(async () => (await document(scratch.tabId))?.observation.load.kind).toBe('ready');
+  await confirm(1);
+  await expect.poll(async () => (await document(scratch.tabId))?.observation.notice).toBe('Browser Use allowed');
+  const [closed, remaining] = await prompt([{action:'closeTab',tabId:scratch.tabId},{action:'tabs'}]);
+  expect(closed).toMatchObject({kind:'tabClosed',tabId:scratch.tabId});
+  expect(remaining.tabs.map(tab=>tab.tabId)).toEqual(expect.arrayContaining([controlsUrl,tabId]));
+  expect(remaining.tabs.map(tab=>tab.tabId)).not.toContain(scratch.tabId);
+
   const evidence = resolve(profile, 'browser-use-evidence');
   const directory = createHash('sha256').update(thread.id).digest('hex');
   const names = await readdir(resolve(evidence, directory));
@@ -397,7 +552,18 @@ try {
   expect(createHash('sha256').update(capture).digest('hex')).toBe(screenshot.pixels.sha256);
   await writeFile(resolve(output, 'browser-viewport.png'), capture);
   await page.screenshot({ path: resolve(output, 'workbench.png') });
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, form, frame, foreignHits }, null, 2));
+  await app.close();
+  app = await launch();
+  page = await app.firstWindow();
+  await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
+  await expect.poll(async () => {
+    const docs=(await state()).webDocuments;
+    return [controlsUrl,tabId].map(id=>docs.find(item=>item.id===id)?.observation);
+  }).toEqual([0,1].map(()=>expect.objectContaining({url:controlsUrl,load:{kind:'ready'}})));
+  const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
+    .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
+  expect(restoredModes.sort()).toEqual(['basic','full']);
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, form, frame, history, uploaded, transfers, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

@@ -20,17 +20,19 @@ async function rpc(method, params) {
 async function run(commands) {
   const catalog = await rpc('tools/list', {});
   assert.ok(catalog.tools.some(tool => tool.name === 'browser_use'));
-  let observed;
+  let observed, selectedFiles;
   const results = [];
   for (const { name, ...args } of commands) {
     if (name) {
       args.ref = observed?.nodes.find(node => node.name === name)?.ref;
       assert.ok(args.ref, `No observed ref for ${name}`);
     }
+    if (args.action === 'upload' && !args.fileRef) args.fileRef = selectedFiles?.[0]?.ref;
     if (args.action === 'scroll' && !args.observationId) args.observationId = observed?.observationId;
     const result = await rpc('tools/call', { name: 'browser_use', arguments: args });
     const text = result.content[0].text;
     const value = text.startsWith('{') ? await appUseContent(text, rpc) : { error: text };
+    if (value.kind === 'files' && !result.isError) selectedFiles = value.files;
     if (value.kind === 'observation' && !result.isError) observed = value;
     const image = result.content.find(item => item.type === 'image');
     let pixels;
@@ -57,7 +59,8 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   } else if (method === 'session/prompt') {
     let result;
     try {
-      result = await run(JSON.parse(params.prompt.find(block => block.type === 'text').text));
+      const text = params.prompt.find(block => block.type === 'text' && block.text.includes('[{"action"')).text;
+      result = await run(JSON.parse(text.slice(text.indexOf('[{"action"'))));
     } catch (error) {
       result = { error: error.message };
     }
