@@ -304,3 +304,28 @@ node scripts/release/native-smoke.mjs
 PERO_NATIVE_COMPUTER_INSTALLED_APP="$HOME/Applications/Pero Native.app" \
   PERO_NATIVE_COMPUTER_DEEPSEEK=1 node tests/e2e/native-computer.mjs
 ```
+
+## Managed Linux desktop via Colima, 2026-11-22
+
+The [Linux desktop image](../../environments/linux-desktop/README.md) was built
+in the dedicated `pero-remote-desktop` Colima Docker engine on arm64 macOS. The
+standalone runner reached X11 and both private RFB listeners, and returned an
+available Linux/X11 status from the Pero Computer Use stdio stream.
+
+`node tests/e2e/linux-desktop.mjs` drives the development Electron menu and
+viewer with the real Rust Host, a scripted ACP agent, the real Linux driver
+and noVNC. It verifies that viewing cannot change the editor, the agent can
+type, and taking control denies the agent while human keyboard input works.
+Returning control rejects the old observation and the agent resumes with a
+fresh runtime. An independent read inside the guest returns
+`Agent-Human-Resumed` from the saved file. Closing the viewer releases human
+control. Disconnecting the chat denies further GUI access for that chat.
+The test supplies both responses to the native stop confirmation, verifies
+removal only on confirmation, restarts the desktop, and observes a deliberate
+container exit without redirecting the chat to the host display.
+
+The running viewer was checked in light mode and in a 460 px dark window.
+Screenshots and the result are in `test-results/linux-desktop/`. The test
+uses a scripted ACP agent and a development Electron build. Provider-driven
+Linux GUI actions, signed packages, and a Native workbench viewer are outside
+this evidence.

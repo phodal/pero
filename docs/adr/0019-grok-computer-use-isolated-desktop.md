@@ -4,6 +4,12 @@ This ADR follows the Grok-style cloud isolated desktop plus human handoff patter
 
 Status: proposed (design only, no implementation), 2026-10-30.
 
+2026-11-22 implementation scope. The Electron workbench has a local Docker
+variant for macOS/Colima and explicitly selected Unix Docker sockets. See the
+[standalone environment](../../environments/linux-desktop/README.md) for the
+delivered runtime and product entry point. The broader design below describes
+its original Linux-host proposal.
+
 Builds on [0016: Computer Use v1 contract](0016-computer-use-contract.md).
 Scope: Linux Desktop hosts only. This document describes a generic, publicly documented pattern (Xvfb/Xvnc,
 a window manager, XTest input, x11vnc/TigerVNC, websockify/noVNC). It is not a
