@@ -120,3 +120,25 @@ override a subsequent page change or switch to text, and another explicit
 click still reveals the citation. The suite also covered saved research records,
 PDF selection and citations across restart. Result and screenshots are under
 `test-results/paper-search-reopen-full/`. The run used a fixture PDF and agent.
+
+## Biber recovery and TeX failure panel, 2026-11-22
+
+Verified in the macOS arm64 Native Preview from `9040d9d04` with the local
+Paper Agent changes. The selected paper was *Language Models Need Sleep*
+(arXiv `2606.03979v2`), with approved source archive
+`572c194bed52592cc62eaf3e126f926b050dcd9f98ece5b9ee238127042d779d`.
+
+- Without Biber, the real attempt failed at the bibliography pass. Native
+  showed the localized cause, `main.tex`, and source and retry actions in
+  the reader. The log expanded into a scrollable region while the header
+  stayed visible. The source dialog opened `main.tex` and Escape returned to
+  the same failure and expanded log.
+- Tectonic 0.17.0 ran the compatible Biber 2.17 in the existing compiler
+  sandbox. The Native reader rendered page 1 of the resulting 26-page PDF.
+  Text extraction confirmed the References section, and the stored preview
+  has a SyncTeX digest. Font glyph and typesetting warnings remain in the
+  compiler output.
+- The Python suite reported 369 passes and 18 skips. All 34 Paper Agent JS
+  tests, TypeScript typechecking, and the App bundle build passed.
+  This pass inspected the Native light layout. Dark and narrow windows,
+  Electron, and signed release packaging were outside the verification.

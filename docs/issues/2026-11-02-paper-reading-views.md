@@ -56,3 +56,16 @@ to the library worked. A loopback browser verified the same navigation at
 The isolated Electron import and saved-text search journeys passed. The full
 suite stopped at a PDF highlight quote assertion that also fails with the
 previous App bundle. Screenshots are in `test-results/paper-outline/`.
+
+## TeX failure and bibliography recovery, 2026-11-22
+
+*Language Models Need Sleep* (arXiv 2606.03979v2) failed during the Biber pass.
+The local runner admitted Tectonic alone and there was no compatible Biber
+installed. The reader put the warning-heavy compiler output in inline
+`Feedback` at the top of the canvas and clipped the last error.
+
+The TeX reader now uses block `Feedback` and a separate SDK `Disclosure`
+for the bounded log. The source dialog remains available from the failure
+panel and closing the dialog preserves the failure. The compiler permits the
+selected Biber executable and its prepared runtime alongside Tectonic.
+See [local verification](../fitness/paper-reading-views.md#biber-recovery-and-tex-failure-panel-2026-11-22).

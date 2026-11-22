@@ -417,9 +417,17 @@ closing it restores the reading view without moving the toolbar.
 
 The current runner requires macOS and Tectonic (`brew install tectonic`). It runs
 with shell escape disabled and filesystem restrictions, retains a package cache,
-and limits each attempt to 180 seconds. The first attempt can need package
-downloads; failed attempts expose diagnostics and a retry. Compiler warnings stay
-visible and their details are available in the source inspector.
+and limits each Tectonic invocation to 180 seconds. The first attempt can need
+package downloads. A failed attempt shows the cause and main file, with actions
+to retry, inspect the source, or expand the compiler log. Successful previews
+surface compiler warnings in the source inspector.
+
+Projects using BibLaTeX's Biber backend need a compatible standalone Biber on
+the App's PATH. Name it `tectonic-biber` to select it ahead of the system
+`biber`. Tectonic 0.17.0's default BibLaTeX 3.17 bundle works with Biber 2.17.
+On Apple Silicon, extract the arm64 slice of the official universal archive
+with `lipo -thin arm64` and place it in `~/.local/bin/tectonic-biber` for
+Native Preview. [Biber 2.17 for macOS](https://sourceforge.net/projects/biblatex-biber/files/biblatex-biber/2.17/binaries/MacOS/).
 
 Generated PDFs and their source archive/entry/engine identities are stored under
 `tex-previews` and `tex-preview-files`, separately from original PDF evidence.

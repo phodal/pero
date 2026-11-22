@@ -65,16 +65,46 @@ class TexRequest:
 
 
 @dataclass(frozen=True)
+class TexFailure:
+    message: str
+    code: str = 'compile_failed'
+    diagnostics: str = ''
+
+    @classmethod
+    def from_compiler(cls, diagnostics, *, biber_available, timed_out):
+        if timed_out:
+            return cls('TeX compilation exceeded 180 seconds.', 'timeout', diagnostics)
+        if not biber_available and 'note: Running external tool biber ...' in diagnostics:
+            return cls('A compatible Biber executable is required to build the bibliography.',
+                       'biber_unavailable', diagnostics)
+        lines = diagnostics.splitlines()
+        biber_error = next((line.removeprefix('ERROR - ').strip() for line in lines
+                            if line.startswith('ERROR - ')), '')
+        if biber_error:
+            code = 'biber_version' if 'control file version' in biber_error else 'compile_failed'
+            return cls(biber_error[:700], code, diagnostics)
+        errors = [line.removeprefix('error: ').strip() for line in lines if line.startswith('error: ')]
+        message = next((line for line in errors if ': ' in line), errors[-1] if errors else '')
+        return cls(message[:700] or 'The compiler did not produce a PDF.', diagnostics=diagnostics)
+
+
+class TexCompileError(Invalid):
+    def __init__(self, failure: TexFailure):
+        super().__init__(failure.message, 422)
+        self.failure = failure
+
+
+@dataclass(frozen=True)
 class TexCompilation:
     id: str
     status: str = 'running'
     preview_id: str | None = None
-    error: str = ''
+    failure: TexFailure | None = None
 
-    def finish(self, preview_id=None, error=''):
-        if self.status != 'running' or bool(preview_id) == bool(error):
+    def finish(self, preview_id=None, failure: TexFailure | None = None):
+        if self.status != 'running' or bool(preview_id) == bool(failure):
             raise Invalid('A running TeX compilation finishes with either a preview or an error.')
-        return replace(self, status='failed' if error else 'complete', preview_id=preview_id, error=error)
+        return replace(self, status='failed' if failure else 'complete', preview_id=preview_id, failure=failure)
 
 
 @dataclass(frozen=True)
@@ -139,8 +169,10 @@ class TexPreviews:
             try:
                 preview = self.compile(paper_id, request, now)
                 self.compilations[identity] = job.finish(preview_id=preview.id)
+            except TexCompileError as error:
+                self.compilations[identity] = job.finish(failure=error.failure)
             except Exception as error:
-                self.compilations[identity] = job.finish(error=str(error))
+                self.compilations[identity] = job.finish(failure=TexFailure(str(error)))
 
         threading.Thread(target=typeset, daemon=True, name='paper-tex-preview').start()
         return self.status(identity)
@@ -149,7 +181,9 @@ class TexPreviews:
         job = self.compilations.get(identity)
         if job is None:
             raise Invalid('TeX compilation was interrupted. Reopen the preview or retry.', 409)
-        return dict(id=job.id, status=job.status, error=job.error,
+        failure = job.failure
+        return dict(id=job.id, status=job.status, error=failure.message if failure else '',
+                    errorCode=failure.code if failure else None, diagnostics=failure.diagnostics if failure else '',
                     preview=self.record(job.preview_id).to_dict() if job.preview_id else None)
 
     def sources(self, paper_id):
@@ -217,7 +251,37 @@ class TexPreviews:
         cache = (self.store.root / 'tex-engine-cache').resolve()
         cache.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='pero-tex-') as directory:
-            root = Path(directory).resolve()
+            scratch = Path(directory).resolve()
+            root = scratch / 'project'
+            root.mkdir()
+            biber_runtime = scratch / 'biber-runtime'
+            search_path = os.pathsep.join([os.environ.get('PATH', os.defpath),
+                                           '/opt/homebrew/bin', '/usr/local/bin', '/Library/TeX/texbin'])
+            biber_path = shutil.which('tectonic-biber', path=search_path) or shutil.which('biber', path=search_path)
+            biber = Path(biber_path) if biber_path and Path(biber_path).is_absolute() else None
+            executables = [binary]
+            env = {k: v for k, v in os.environ.items() if k.lower() in
+                   ('https_proxy', 'http_proxy', 'all_proxy', 'no_proxy', 'ssl_cert_file')}
+            env.update(HOME=str(cache), XDG_CACHE_HOME=str(cache), TMPDIR=str(root),
+                       TECTONIC_UNTRUSTED_MODE='1', PATH=os.defpath)
+            if biber:
+                # Standalone Biber unpacks its Perl runtime before re-executing.
+                # Initialize it before staging the source, outside the writable project.
+                biber_runtime.mkdir()
+                biber_env = dict(env, PATH=os.defpath, PAR_GLOBAL_TEMP=str(biber_runtime))
+                try:
+                    probe = subprocess.run([str(biber), '--version'], cwd=biber_runtime, env=biber_env,
+                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+                    if probe.returncode:
+                        biber = None
+                except (OSError, subprocess.TimeoutExpired):
+                    biber = None
+                if biber:
+                    env.update(PATH=str(biber.parent), PAR_GLOBAL_TEMP=str(biber_runtime))
+                    executables.append(str(biber.resolve()))
+                    for path in (biber_runtime / biber.name, biber_runtime / 'thin' / biber.name):
+                        if path.is_file():
+                            executables.append(str(path.resolve()))
             for member in project.files:
                 path = root / member.path
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -226,26 +290,34 @@ class TexPreviews:
             output.mkdir()
             # The compiler sees the staged project and its package cache, not the
             # user's files. Tectonic's untrusted mode also disables shell escape.
+            executable_rules = ' '.join(f'(literal {json.dumps(path)})' for path in executables)
+            # PAR opens this lock even when the prepared runtime is already present.
+            lock_rule = f'(literal {json.dumps(str(biber_runtime / "inc.lock"))})' if biber else ''
             profile = ('(version 1) (allow default) (deny file-write*) '
-                f'(allow file-write* (subpath {json.dumps(str(root))}) (subpath {json.dumps(str(cache))}) (literal "/dev/null")) '
+                f'(allow file-write* (subpath {json.dumps(str(root))}) (subpath {json.dumps(str(cache))}) (literal "/dev/null") {lock_rule}) '
                 '(deny file-read* (subpath "/Users")) '
-                f'(allow file-read* (subpath {json.dumps(str(root))}) (subpath {json.dumps(str(cache))})) '
-                f'(deny process-exec) (allow process-exec (literal {json.dumps(binary)}))')
-            env = {k: v for k, v in os.environ.items() if k.lower() in
-                   ('path', 'https_proxy', 'http_proxy', 'all_proxy', 'no_proxy', 'ssl_cert_file')}
-            env.update(HOME=str(cache), XDG_CACHE_HOME=str(cache), TMPDIR=str(root), TECTONIC_UNTRUSTED_MODE='1')
+                f'(allow file-read* (subpath {json.dumps(str(scratch))}) (subpath {json.dumps(str(cache))}) {executable_rules}) '
+                f'(deny process-exec) (allow process-exec {executable_rules})')
             with (root / 'compiler.log').open('w+b') as log:
                 try:
                     result = subprocess.run(['/usr/bin/sandbox-exec', '-p', profile, binary,
                         '--untrusted', '--synctex', '--keep-logs', '--outdir', str(output), Path(entry.path).name],
                         cwd=root / Path(entry.path).parent, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=180)
-                except subprocess.TimeoutExpired as error:
-                    raise Invalid('TeX compilation exceeded 180 seconds. Inspect the source and retry.', 422) from error
-                log.seek(max(0, log.tell() - 4800))
-                diagnostics = log.read().decode('utf-8', errors='replace')
+                except subprocess.TimeoutExpired:
+                    result = None
+                size = log.seek(0, os.SEEK_END)
+                log.seek(0)
+                if size > 32_768:
+                    start = log.read(8192).rpartition(b'\n')[0]
+                    log.seek(size - 24_576)
+                    end = log.read().partition(b'\n')[2]
+                    diagnostics = (start + b'\n\n[...]\n\n' + end).decode('utf-8', errors='replace')
+                else:
+                    diagnostics = log.read().decode('utf-8', errors='replace')
             pdf = output / (Path(entry.path).stem + '.pdf')
-            if result.returncode or not pdf.is_file():
-                raise Invalid('TeX compilation failed.\n' + diagnostics, 422)
+            if result is None or result.returncode or not pdf.is_file():
+                raise TexCompileError(TexFailure.from_compiler(diagnostics, biber_available=bool(biber),
+                                                               timed_out=result is None))
             if pdf.stat().st_size > 32 * 1024 * 1024:
                 raise Invalid('Compiled TeX PDF exceeds 32 MiB.', 413)
             data = pdf.read_bytes()
