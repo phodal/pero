@@ -21,7 +21,15 @@ const workspace = resolve(privateDir, 'workspace');
 const marker = randomUUID();
 const commands = [
   'if { read -r token < ../outside; } 2>/dev/null; then exit 13; fi; read -r token < marker; printf "out-%s\\n" "$token"; printf "err-%s\\n" "$token" >&2',
-  'read -r token < marker; printf "partial-out-%s\\n" "$token"; printf "partial-err-%s\\n" "$token" >&2; /bin/sleep 120 & child=$!; printf "%s %s\\n" "$$" "$child" > pids; wait "$child"',
+  `read -r token < marker
+trap 'printf "term-out-%s\\n" "$token"; jobs -pr > live-at-cleanup; printf "term-err-%s\\n" "$token" >&2; exit 23' TERM
+printf "partial-out-%s\\n" "$token"
+printf "partial-err-%s\\n" "$token" >&2
+(trap '' TERM; printf ready > child-ready; exec /bin/sleep 120) &
+child=$!
+until [[ -s child-ready ]]; do /bin/sleep 0.01; done
+printf "%s %s\\n" "$$" "$child" > pids
+wait "$child"`,
 ];
 const shellReceipts = [];
 let calls = 0;
@@ -67,6 +75,7 @@ try {
   const snapshot = () => page.evaluate(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()));
   await expect.poll(async () => (await snapshot())?.ready, { timeout: 60000 }).toBe(true);
   const desktop = cmd => page.evaluate(value => window.pero.remoteCommand(value), cmd);
+  const frame = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   const task = await test.request('/api/client/v1/tasks', 'POST', { title: 'Exec-server shell', prompt: 'Run the shell checks',
     acceptance: 'Capture output and cancel', project_id: 'team', workspace_key: 'repo', agent_id: 'fixture' }, test.client.token);
   taskId = task.id;
@@ -75,7 +84,13 @@ try {
   expect((await detail()).run.status).toBe('queued');
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('remote-tasks').click());
   await expect.poll(async () => (await snapshot()).remote.state.tasks.some(t => t.id === taskId)).toBe(true);
-  await page.mouse.click(400, 283);
+  await expect.poll(async () => {
+    if (!(await snapshot()).activeTabBounds) {
+      await page.mouse.click(400, 283);
+      await frame();
+    }
+    return Boolean((await snapshot()).activeTabBounds);
+  }).toBe(true);
   test.startWorker(config);
   const pidFile = resolve(workspace, 'pids');
   await expect.poll(async () => readFile(pidFile, 'utf8').catch(() => ''), { timeout: 30000 }).toMatch(/^\d+ \d+\n$/);
@@ -93,8 +108,13 @@ try {
     stdout: { text: 'out-' + marker + '\n', truncated: false },
     stderr: { text: 'err-' + marker + '\n', truncated: false } });
   await expect.poll(async () => (await snapshot()).remote.state.detail?.run?.status).toBe('running');
-  await page.mouse.click(307, 373);
-  await expect.poll(async () => (await snapshot()).remote.confirm_cancel).toBe(taskId);
+  await expect.poll(async () => {
+    if (!(await snapshot()).remote.confirm_cancel) {
+      await page.mouse.click(307, 373);
+      await frame();
+    }
+    return (await snapshot()).remote.confirm_cancel;
+  }).toBe(taskId);
   await page.screenshot({ path: resolve(test.out, 'cancel-confirmation.png') });
   await page.mouse.click(580, 373);
   await expect.poll(async () => (await detail()).run.status, { timeout: 20000 }).toBe('cancelled');
@@ -104,11 +124,15 @@ try {
   const storedOutput = final.events.find(e => e.data?.toolCallId === 'shell-1' && e.data?.status === 'completed');
   expect(JSON.parse(storedOutput.data.content[0].content.text)).toEqual(first);
   const partial = final.events.find(e => e.data?.toolCallId === 'shell-2' && e.data?.status === 'failed');
-  expect(partial?.text).toBe(`stdout\npartial-out-${marker}\nstderr\npartial-err-${marker}`);
+  const stdout = `partial-out-${marker}\nterm-out-${marker}\n`;
+  const stderr = `partial-err-${marker}\nterm-err-${marker}\n`;
+  expect(partial?.text).toBe(`stdout\n${stdout}stderr\n${stderr.trimEnd()}`);
+  const liveAtCleanup = (await readFile(resolve(workspace, 'live-at-cleanup'), 'utf8')).trim().split(/\s+/).map(Number);
+  expect(liveAtCleanup).toContain(child);
   expect(JSON.parse(partial.data.content[0].content.text).result).toMatchObject({
-    aborted: true, timedOut: false,
-    stdout: { text: 'partial-out-' + marker + '\n', truncated: false },
-    stderr: { text: 'partial-err-' + marker + '\n', truncated: false },
+    exitCode: 23, aborted: true, timedOut: false,
+    stdout: { text: stdout, truncated: false },
+    stderr: { text: stderr, truncated: false },
   });
   expect(final.run.worker_id).toBe(test.chosen.worker.id);
   const pids = [executor, agent, broker, shell, child];
@@ -119,11 +143,14 @@ try {
   await desktop({ action: 'remote_refresh' });
   await expect.poll(async () => (await snapshot()).remote.state.detail?.events
     .find(e => e.seq === partial.seq)?.text).toBe(partial.text);
+  await page.mouse.move(850, 740);
+  await page.mouse.wheel(0, 100);
+  await frame();
   await page.screenshot({ path: resolve(test.out, 'cancelled.png') });
   const report = { version, run: final.run, events: final.events, shellReceipts, pids, processes: { executor, agent, broker, shell, child }, liveAfterCancel: pids.filter(alive),
-    partialOutputInRun: true, marker };
+    partialOutputInRun: true, cleanupOutputInRun: true, liveAtCleanup, marker };
   await writeFile(resolve(test.out, 'result.json'), JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ run: final.run.id, status: final.run.status, pids, partialOutputInRun: report.partialOutputInRun }));
+  console.log(JSON.stringify({ run: final.run.id, status: final.run.status, pids, cleanupOutputInRun: report.cleanupOutputInRun }));
 } catch (error) {
   if (page) await page.screenshot({ path: resolve(test.out, 'failure.png') });
   if (taskId) console.error(JSON.stringify(await test.request('/api/client/v1/tasks/' + taskId, 'GET', undefined, test.client.token)).slice(-10000));

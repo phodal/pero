@@ -291,3 +291,18 @@ After clicking Stop and confirming, the saved Run and Desktop showed
 PostgreSQL. The execution log showed stdout and stderr separately. OS process
 checks found that the Worker executor, Go Agent, exec-server, Bash and sleep
 had all exited. The model tool choices were supplied by the loopback fixture.
+
+### SIGTERM before forced cleanup, 2026-11-22
+
+The macOS Desktop fixture now waits until the Shell has installed its SIGTERM
+trap and its child has set SIGTERM to ignore. After the Desktop stop
+confirmation, the trap writes both output streams, records the still-running
+child, and exits with status 23. The Go harness continues collecting output
+through its 200 ms native Shell grace and escalates to SIGKILL.
+
+The Run detail returned both pre-cancel and cleanup output from PostgreSQL
+after refresh, along with exit code 23 and an aborted Shell receipt. The Run
+itself settled as `cancelled`. OS checks confirmed that the Worker executor,
+Go Agent, Codex 0.154.0 exec-server, Bash, and the SIGTERM-ignoring child had
+exited. The direct real-Codex Go test also checks that cancellation waits for
+the configured grace and captures both streams without Worker supervision.
