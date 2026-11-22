@@ -2,7 +2,6 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
 import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, LibraryHeader, ListRow, SearchField, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
-import {SkillCard} from './skill-card';
 import {SkillHub, SkillHubHistory, skillHubId, type SkillHubInstallFailure} from './skillhub';
 import type {SkillHubEntry} from '../../../protocol/generated/host';
 import type {Catalog, EvidenceSection, Installations, Skill, Update} from './types';
@@ -14,7 +13,10 @@ function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missi
 const glyphs:Record<string,string> = {writing:'quote',literature:'skill',statistics:'simulation',visualization:'palette','research-design':'light',presentation:'browser',ai:'circuit',data:'table','scientific-computing':'protein',laboratory:'microscope',workflow:'nodes',documents:'document',review:'checklist'};
 function SkillGlyph({skill}:{skill:Skill}) {return <span className="skills-glyph"><Icon name={glyphs[skill.category] || 'skill'} size={20}/></span>;}
 
-export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange, searchRef }: { embedded?: boolean; query?: string; onQueryChange?: (value: string) => void; searchRef?: React.RefObject<HTMLInputElement | null> } = {}) {
+export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false, searchRef }: {
+  embedded?: boolean;
+  searchRef?: React.RefObject<HTMLInputElement | null>;
+} = {}) {
   const {locale, permissions} = useAppContext(), capability = useHostCapability('skills');
   const zh = locale === 'zh-CN', text = (cn: string, en: string) => zh ? cn : en;
   const title = (item: Skill) => zh ? copy(item)?.title || item.title_zh || item.name : item.name;
@@ -25,14 +27,13 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const [inventoryLoading, setInventoryLoading] = useState(false), [inventoryError, setInventoryError] = useState('');
   const [hubFailures, setHubFailures] = useState<Record<string, SkillHubInstallFailure[]>>({});
   const [hubHistory, setHubHistory] = useState<{item: SkillHubEntry; versionId?: number}>();
-  const [view, setView] = useState('discover'), [queryState, setQueryState] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
+  const [view, setView] = useState('discover'), [query, setQuery] = useState(''), [category, setCategory] = useState(''), [scope, setScope] = useState('');
   const [hubQuery, setHubQuery] = useState(''), [hubRefresh, setHubRefresh] = useState(0);
   const [targetRevision, setTargetRevision] = useState('');
   const hub = view === 'skillhub';
   const viewingInstalled = view === 'installed';
-  const query = queryProp ?? queryState;
-  const setQuery = (value: string) => { onQueryChange?.(value); if (queryProp === undefined) setQueryState(value); };
-  const [selected, setSelected] = useState(''), [page, setPage] = useState(0), [detailTab,setDetailTab] = useState('overview');
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState(''), [detailTab,setDetailTab] = useState('overview');
   const [onlyReady,setOnlyReady] = useState(false), [sort,setSort] = useState('flow'), [queueOpen,setQueueOpen] = useState(true), [opening,setOpening] = useState('');
   const search = useRef<HTMLInputElement>(null), scroller = useRef<HTMLDivElement>(null);
   const searchInput = searchRef ?? search;
@@ -86,7 +87,9 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
     for (const item of installed?.items ?? []) if (item.entry && !ids.has(item.id)) { values.push(item.entry); ids.add(item.id); }
     return values;
   }, [catalog, installed]);
-  const shown = hub ? undefined : findSkills(entries, {scope,query, category, view, installed:records, page, onlyReady, sort});
+  const shown = useMemo(() => hub ? undefined : findSkills(entries, {
+    scope, query, category, view, installed: installed?.items, page, onlyReady, sort,
+  }), [hub, entries, scope, query, category, view, installed, page, onlyReady, sort]);
   const listed = entries.find(value => value.id === selected);
   const record = records.find(value => value.id === listed?.id);
   const retained = record?.versions ?? [];
@@ -97,7 +100,6 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const update = updates[item?.id ?? ''];
   const categories = hub ? [] : [...new Map(entries.map(value => [value.category, {value:value.category, label:categoryLabel(value)}])).values()].sort((a,b) => a.label.localeCompare(b.label, locale));
   const noCapability = !!permissions && !capability;
-  function filter(change: () => void) { change(); setPage(0); }
   function open(target:Skill) {setSelected(target.id);setDetailTab('overview');setTargetRevision('');}
   function mergeInstalled(result: Installations, id: string) {
     installedEpoch.current++;
@@ -122,7 +124,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
       setBusy(previous => {const next={...previous};delete next[id];return next;});
     }
   }
-  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,query,hubQuery,category,onlyReady,sort]);
+  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=0;},[view,page,scope,query,hubQuery,category,onlyReady,sort]);
   useEffect(()=>{if(embedded)return;const handle=(event:KeyboardEvent)=>{if((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='k' && !selected){event.preventDefault();searchInput.current?.focus();}};window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);},[embedded,searchInput,selected]);
   async function useSkill(target:Skill, message='') {
     const saved=records.find(value=>value.id===target.id);
@@ -198,26 +200,30 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
   const missingEvidence=item ? <>{text('未明确列出，请查看','Not explicitly listed; review the')} <a href={item.source.url} target="_blank" rel="noreferrer">{text('技能原文','original skill')}</a>。</> : null;
 
   const filtered = !!(query || category || scope || onlyReady);
-  const clearFilters = () => filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);});
+  function changeFilter<T>(setValue: (value:T) => void, value:T) {
+    setPage(0);
+    setValue(value);
+  }
+  const clearFilters = () => {setPage(0);setQuery('');setCategory('');setScope('');setOnlyReady(false);};
   const viewTitle = hub ? 'SkillHub' : view === 'installed' ? text('已安装','Installed') : text('发现技能','Discover');
   return <main className={embedded ? 'skills-market skills-market-embedded' : 'skills-market'}>
-        <Tabs className="skills-frame" value={view} onValueChange={next=>filter(()=>setView(next))}>
+        <Tabs className="skills-frame" value={view} onValueChange={value=>changeFilter(setView,value)}>
           <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
             <TabsTrigger value="discover">{text('发现技能','Discover')}</TabsTrigger>
             <TabsTrigger value="skillhub">SkillHub</TabsTrigger>
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
-          </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={!hub && (viewingInstalled ? inventoryLoading : loading)} disabled={!capability} onClick={() => hub ? setHubRefresh(value=>value+1) : viewingInstalled ? void loadInstalled() : void load()}><Icon name="sync" size={14}/></IconButton>} />
-          <ContentPane id="skills-catalog" label={hub ? 'SkillHub' : text('技能列表','Skill results')} as="div" surface="list" inset="regular" scroll="pane" bodyRef={scroller}
-            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能并选择要安装的发布版本。','Browse community skills and choose a release to install.') : catalog ? <span className="skills-catalog-total"><strong>{catalog.skills.length.toLocaleString(locale)}</strong> {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
-            toolbar={<div className="skills-tools">
+          </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={!hub && (viewingInstalled ? inventoryLoading : loading)} disabled={!capability} onClick={() => hub ? setHubRefresh(value=>value+1) : viewingInstalled ? void loadInstalled() : void load()}><Icon name="refresh" size={14}/></IconButton>} />
+          <ContentPane id="skills-catalog" label={hub ? 'SkillHub' : text('技能列表','Skill results')} as="div" surface="list" inset="compact" scroll="pane" bodyRef={scroller}
+            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能并选择要安装的发布版本。','Browse community skills and choose a release to install.') : (viewingInstalled ? installed : catalog) && shown ? <span className="skills-catalog-total"><strong>{shown.total.toLocaleString(locale)} {filtered ? text('项匹配', shown.total===1?'match':'matches') : text('项技能', shown.total===1?'skill':'skills')}</strong> · {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
+            toolbar={<div className="pero-catalog-tools">
             <SearchField ref={searchInput} aria-label={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')}
               placeholder={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')} value={hub ? hubQuery : query}
-              onChange={event=>hub ? setHubQuery(event.target.value) : filter(()=>setQuery(event.target.value))}/>
+              onChange={event=>hub ? setHubQuery(event.target.value) : changeFilter(setQuery,event.target.value)}/>
             {!hub && <>
-            <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>filter(()=>setScope(value))}/>
-            <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>filter(()=>setCategory(value))}/>
-            <label className="skills-ready"><Checkbox checked={onlyReady} onCheckedChange={checked=>filter(()=>setOnlyReady(checked===true))}/>{text('可直接安装','Ready to install')}</label>
-            <Select label={text('排序方式','Sort skills')} value={sort} options={[{value:'flow',label:text('按任务','Task')},{value:'name',label:text('按名称','Name')}]} onChange={value=>filter(()=>setSort(value))}/>
+            <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>changeFilter(setScope,value)}/>
+            <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>changeFilter(setCategory,value)}/>
+            <label className="skills-ready"><Checkbox checked={onlyReady} onCheckedChange={checked=>changeFilter(setOnlyReady,checked===true)}/>{text('可直接安装','Ready to install')}</label>
+            <Select label={text('排序方式','Sort skills')} value={sort} options={[{value:'flow',label:text('按任务','Task')},{value:'name',label:text('按名称','Name')}]} onChange={value=>changeFilter(setSort,value)}/>
             {filtered && <Button variant="ghost" onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>}
             </>}
           </div>}
@@ -227,26 +233,38 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
             {inventoryError&&<Feedback kind="error">{text('无法读取已安装技能。','Could not load installed skills.')} {inventoryError} <Button variant="link" disabled={inventoryLoading} onClick={()=>void loadInstalled()}>{text('重试','Retry inventory')}</Button></Feedback>}
             {(hub || viewingInstalled) && inventoryLoading && !installed && <Feedback>{text('正在读取已安装技能…','Loading installed skills…')}</Feedback>}
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
-          </div>}>
+          </div>}
+            footer={shown && shown.pages > 1 && <nav className="skills-pagination" aria-label={text('技能分页','Skill pages')}>
+              <span>{text(`显示 ${shown.start+1}–${shown.start+shown.items.length} 项`, `Showing ${shown.start+1}–${shown.start+shown.items.length}`)}</span>
+              <div>
+                <IconButton label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left"/></IconButton>
+                <span>{shown.page+1} / {shown.pages}</span>
+                <IconButton label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right"/></IconButton>
+              </div>
+            </nav>}>
           <TabsContent value={view}>
             {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} installed={installed} busy={busy} onOpen={item=>setHubHistory({item,versionId:hubFailures[skillHubId(item)]?.at(-1)?.versionId})} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !shown || (viewingInstalled ? !installed : !catalog) ? null : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
-                <p className="skills-summary">{text(`${shown.total.toLocaleString(locale)} 项匹配`, `${shown.total.toLocaleString(locale)} matches`)}</p>
-                {shown.items.length ? <div className="skills-grid">{shown.items.map(value=>{
+                {shown.items.length ? <ul className="skills-directory">{shown.items.map(value=>{
                   const saved=records.find(row=>row.id===value.id), pending=busy[value.id];
                   const revision = saved?.revision || value.source.commit;
                   const status = pending ? <span className="skills-pending-label">{text('处理中','Working')}</span>
                     : outcomes[value.id]?.error ? <span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>
                     : saved ? <span className="skills-installed-label"><Icon name="check" size={12}/>{text('已安装','Installed')}</span>
                     : null;
-                  return <SkillCard key={value.id} name={title(value)} category={categoryLabel(value)} description={description(value)}
-                    publisher={value.source.repository} icon={glyphs[value.category] || 'skill'}
-                    version={{label:value.source.release || `Git ${revision.slice(0,8)}`, full:revision}} status={status}
-                    action={primary(value,true)} onOpen={()=>open(value)}/>;
-                })}</div> : <EmptyState icon={<EmptyIllustration kind={viewingInstalled && records.length === 0 ?'data':'search'} size="compact"/>} heading={viewingInstalled && records.length === 0 ?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={viewingInstalled && records.length > 0
+                  return <li key={value.id}><ListRow onOpen={()=>open(value)}
+                    title={<><span className="skills-result-name" title={title(value)}>{title(value)}</span><span className="skills-result-category">{categoryLabel(value)}</span></>}
+                    meta={description(value)}
+                    trailing={<>
+                      <div className="skills-result-source">
+                        <span className="skills-card-publisher" title={value.source.repository}>{value.source.repository}</span>
+                        <span className="skills-card-version" title={revision}>{value.source.release || `Git ${revision.slice(0,8)}`}</span>
+                      </div>
+                      <div className="skills-result-action">{status}{primary(value,true)}</div>
+                    </>}/></li>;
+                })}</ul> : <EmptyState icon={<EmptyIllustration kind={viewingInstalled && records.length === 0 ?'data':'search'} size="compact"/>} heading={viewingInstalled && records.length === 0 ?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={viewingInstalled && records.length > 0
                   ? <Button onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>
-                  : <Button onClick={()=>filter(()=>{setQuery('');setCategory('');setScope('');setOnlyReady(false);setView('discover');})}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
-                {shown.total>0&&<footer className="skills-pagination"><span>{text(`显示 ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)}，共 ${shown.total.toLocaleString(locale)} 项`,`Showing ${shown.page*12+1}–${Math.min(shown.page*12+12,shown.total)} of ${shown.total.toLocaleString(locale)}`)}</span><div><Button aria-label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left" size={15}/></Button><span>{shown.page+1} / {shown.pages}</span><Button aria-label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right" size={15}/></Button></div></footer>}
+                  : <Button onClick={()=>{clearFilters();setView('discover');}}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
               </section>
               <p className="skills-source-note"><Icon name="info" size={15}/>{text('目录保留固定来源与许可依据。安装成功不代表科研方法已经验证。','Sources and license evidence are preserved. Installation does not establish scientific validation.')}</p>
             </div>}
@@ -270,7 +288,7 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
         if (!name) return null;
         const openFailure = failure ? ()=>{
           setHubHistory({item:failure.item, versionId:failure.versionId});
-          filter(()=>setView('skillhub'));
+          setView('skillhub');
         } : undefined;
         const message = pending ? pending.notice || text(
           pending.cancelling?'正在等待取消完成。':'正在获取或核对所选技能，请稍候。',
@@ -342,4 +360,4 @@ export function SkillsMarket({ embedded = false, query: queryProp, onQueryChange
     </Dialog>}
     {removing&&<Dialog title={text(`移除 ${title(removing)}？`,`Remove ${title(removing)}?`)} closeLabel={text('关闭','Close')} size="sm" onClose={()=>setRemoving(undefined)} footer={<><Button onClick={()=>setRemoving(undefined)}>{text('取消','Cancel')}</Button><Button variant="danger" disabled={!!busy[removing.id]} onClick={()=>{const target=removing;setRemoving(undefined);void operate('remove',target);}}>{text('移除','Remove')}</Button></>}><p>{text('将从已安装列表和后续会话选择中移除。已有会话仍绑定原快照，不会被中途替换或清除。','Remove from installed skills and future session selection. Existing sessions retain their original snapshot.')}</p></Dialog>}
   </main>;
-}
+});

@@ -168,7 +168,7 @@ export function SkillHub({query, refresh, onPageChange, installed, busy, onOpen}
         setError(false);
       }}>{visiblePage === page ? text('保留当前页','Keep current page') : text(`返回第 ${visiblePage} 页`,`Return to page ${visiblePage}`)}</Button>}
     </Feedback>}
-    {result?.items.length ? <div className="skills-grid">
+    {result?.items.length ? <div className="pero-catalog-grid">
       {result.items.map(item=><SkillCard key={`${item.publisher}/${item.slug}`} name={item.name}
         publisher={`@${item.publisher}`} icon="skill" description={description(item,text)}
         version={{label:item.version || text('无发布版本','Unversioned'),full:item.version}}

@@ -22,13 +22,16 @@ test('installed view, category and search compose without dropping disabled inst
   assert.deepEqual(findSkills(skills, {view:'installed', installed, query:'no-match'}).items, []);
 });
 
-test('bounded pages retain all matches and clamp page after filtering', () => {
-  const data = Array.from({length:95}, (_, i) => ({...skills[0],id:String(i)}));
-  const first = findSkills(data, {page:0}), third = findSkills(data, {page:7}), last = findSkills(data, {page:99});
-  assert.equal(first.items.length,12); assert.equal(third.items.length,11);
-  assert.equal(first.total,95); assert.equal(last.page,7); assert.equal(last.pages,8);
-  assert.equal(new Set(Array.from({length:8},(_,page)=>findSkills(data,{page}).items).flat().map(item=>item.id)).size,95);
-  assert.equal(findSkills([], {page:4}).page,0);
+test('paging covers the entire filtered catalog once and clamps a stale page', () => {
+  const data = Array.from({length:95}, (_, i) => ({...skills[i % 2], id:String(i)}));
+  const first = findSkills(data, {query:'Bayesian'});
+  const last = findSkills(data, {query:'Bayesian', page:99});
+  assert.equal(first.total, 47);
+  assert.equal(first.items.length, 24);
+  assert.equal(last.page, 1);
+  assert.equal(last.start, 24);
+  assert.deepEqual([...first.items, ...last.items].map(item => item.id).sort(),
+    data.filter(item => item.name === 'statistics').map(item => item.id).sort());
 });
 
 test('discovery orders skill names across categories instead of inheriting collection order', () => {
