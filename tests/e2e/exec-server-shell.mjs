@@ -21,7 +21,7 @@ const workspace = resolve(privateDir, 'workspace');
 const marker = randomUUID();
 const commands = [
   'if { read -r token < ../outside; } 2>/dev/null; then exit 13; fi; read -r token < marker; printf "out-%s\\n" "$token"; printf "err-%s\\n" "$token" >&2',
-  'read -r token < marker; printf "partial-%s\\n" "$token"; /bin/sleep 120 & child=$!; printf "%s %s\\n" "$$" "$child" > pids; wait "$child"',
+  'read -r token < marker; printf "partial-out-%s\\n" "$token"; printf "partial-err-%s\\n" "$token" >&2; /bin/sleep 120 & child=$!; printf "%s %s\\n" "$$" "$child" > pids; wait "$child"',
 ];
 const shellReceipts = [];
 let calls = 0;
@@ -84,6 +84,10 @@ try {
   expect(Number(ps(child, 'ppid'))).toBe(shell);
   const broker = Number(ps(shell, 'ppid'));
   expect(ps(broker, 'command')).toContain(codex + ' exec-server');
+  const agent = Number(ps(broker, 'ppid'));
+  expect(ps(agent, 'command')).toContain(binary);
+  const executor = Number(ps(agent, 'ppid'));
+  expect(ps(executor, 'command')).toContain('pero-worker --execute');
   const first = JSON.parse(shellReceipts[0]);
   expect(first).toMatchObject({ exitCode: 0, enforcement: 'full', readIsolated: true, networkIsolated: true,
     stdout: { text: 'out-' + marker + '\n', truncated: false },
@@ -99,15 +103,25 @@ try {
   expect(final.run.summary).toBe('Cancellation requested by Cloud');
   const storedOutput = final.events.find(e => e.data?.toolCallId === 'shell-1' && e.data?.status === 'completed');
   expect(JSON.parse(storedOutput.data.content[0].content.text)).toEqual(first);
+  const partial = final.events.find(e => e.data?.toolCallId === 'shell-2' && e.data?.status === 'failed');
+  expect(partial?.text).toBe(`stdout\npartial-out-${marker}\nstderr\npartial-err-${marker}`);
+  expect(JSON.parse(partial.data.content[0].content.text).result).toMatchObject({
+    aborted: true, timedOut: false,
+    stdout: { text: 'partial-out-' + marker + '\n', truncated: false },
+    stderr: { text: 'partial-err-' + marker + '\n', truncated: false },
+  });
   expect(final.run.worker_id).toBe(test.chosen.worker.id);
-  const pids = [broker, shell, child];
+  const pids = [executor, agent, broker, shell, child];
   const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { if (e.code === 'ESRCH') return false; throw e; } };
   await expect.poll(() => pids.filter(alive), { timeout: 5000 }).toEqual([]);
 
   await expect.poll(async () => (await snapshot()).remote.state.detail?.run?.status).toBe('cancelled');
+  await desktop({ action: 'remote_refresh' });
+  await expect.poll(async () => (await snapshot()).remote.state.detail?.events
+    .find(e => e.seq === partial.seq)?.text).toBe(partial.text);
   await page.screenshot({ path: resolve(test.out, 'cancelled.png') });
-  const report = { version, run: final.run, events: final.events, shellReceipts, pids, liveAfterCancel: pids.filter(alive),
-    partialOutputInRun: JSON.stringify(final.events).includes('partial-' + marker), marker };
+  const report = { version, run: final.run, events: final.events, shellReceipts, pids, processes: { executor, agent, broker, shell, child }, liveAfterCancel: pids.filter(alive),
+    partialOutputInRun: true, marker };
   await writeFile(resolve(test.out, 'result.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ run: final.run.id, status: final.run.status, pids, partialOutputInRun: report.partialOutputInRun }));
 } catch (error) {

@@ -275,3 +275,19 @@ This run used Host and Worker binaries from the local #223 package acceptance.
 Screenshots and the machine-readable receipt are in `test-results/exec-server-shell/`.
 The direct check runs with the same Codex variable and
 `go -C harness/go test -race ./shell -run TestExecServerForegroundCancellation`.
+
+### Cancellation retains Shell output, 2026-11-22
+
+The Worker now forwards cancellation to ACP, collects its final events for a
+bounded grace period, and flushes its journal before completing the Run. The
+existing Run event text displays stdout and stderr from the cancelled Shell.
+The full bounded Shell result remains in the ACP event data, including its
+abort status and stream truncation flags.
+
+Repeated the fixture on macOS arm64 with a freshly built Worker and Go ACP
+harness, the existing development Electron and Host, and real Codex 0.154.0.
+After clicking Stop and confirming, the saved Run and Desktop showed
+`cancelled`. Refreshing Desktop reloaded the exact two output markers from
+PostgreSQL. The execution log showed stdout and stderr separately. OS process
+checks found that the Worker executor, Go Agent, exec-server, Bash and sleep
+had all exited. The model tool choices were supplied by the loopback fixture.
