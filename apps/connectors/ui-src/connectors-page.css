@@ -7,8 +7,6 @@
 .point-connectors-search-tools{display:flex;align-items:center;gap:var(--pero-spacing-3);flex-wrap:wrap}
 .pero-content-toolbar .point-connectors-search-tools{margin:0}
 .point-connectors-search-tools .pero-search-field{flex:1;min-width:min(100%,16rem);max-width:none}
-.point-connectors-filter-count{margin-inline-start:6px;font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
-.pero-ui-toggle-item[data-state=on] .point-connectors-filter-count{color:var(--pero-accent-text)}
 #connectors-capabilities{margin-bottom:var(--pero-spacing-4)}
 .point-connectors-guides{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
 .point-connectors-guide{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:0;padding:10px 12px;text-align:left;white-space:normal;border:var(--pero-border-width-thin,1px) solid var(--pero-border);border-radius:var(--pero-radius-xl,12px);background:var(--pero-surface);color:inherit;font:inherit;cursor:pointer}
@@ -37,28 +35,9 @@
 .point-connectors-page>[role=alert],.point-connectors-page>.point-page-note,.point-connectors-page>.point-connectors-notice{margin:8px 16px 0}
 .point-connectors-page>.skills-market,.point-connectors-page>.pero-ui-tabs-content{flex:1;min-height:0;display:flex;flex-direction:column}
 .point-connectors-page .pero-content-pane{flex:1;min-height:0}
-.point-connectors-grid{display:flex;flex-direction:column;gap:0}
 @container connectors (max-width:520px){.point-connectors-guides{grid-template-columns:1fr}}
-.point-connectors-page .point-connectors-tile{--pero-card-padding:8px 2px;display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0;border:0;border-radius:0;box-shadow:none;background:transparent;border-bottom:0.5px solid var(--pero-border)}
-.point-connectors-page .point-connectors-tile.pero-ui-card:hover{background:var(--pero-surface-hover)}
-.point-connectors-tile-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.point-connectors-tile-action{flex:none}
-.point-connectors-tile .point-connectors-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
 .point-connectors-logo{display:block;width:22px;height:22px;object-fit:contain}
-.point-connectors-card{border:var(--pero-border-width-thin, 1px) solid var(--pero-border);border-radius:var(--pero-radius-panel);padding:var(--pero-spacing-4);display:flex;flex-direction:column;gap:var(--pero-spacing-2)}
-.point-connectors-card-head{display:flex;align-items:center;gap:6px;min-width:0}
-.point-connectors-symbol{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--pero-radius-selection);background:var(--pero-surface-hover);flex:none}
-/* Preserve official brand colors on a neutral plate, including dark marks. */
-.point-connectors-symbol:has(>.point-connectors-logo){background:#fff;box-shadow:inset 0 0 0 1px var(--pero-border)}
-.point-connectors-card-title{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--pero-font-ui);font-weight:var(--pero-font-weight-medium);line-height:var(--pero-line-height-normal)}
-.point-connectors-card-meta,.point-connectors-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.point-connectors-card-meta{font-size:var(--pero-font-caption);color:var(--pero-text-muted)}
-.point-connectors-summary{font-size:var(--pero-font-caption);color:var(--pero-text-muted);margin:0}
-.point-connectors-card-actions{display:flex;flex:none;gap:var(--pero-spacing-2);align-items:center}
-@container (max-width:240px){
-  .point-connectors-page .point-connectors-tile{flex-direction:column;align-items:stretch}
-  .point-connectors-card-actions{justify-content:flex-end}
-}
+.point-connectors-tile .pero-catalog-icon:has(>.point-connectors-logo){background:#fff;box-shadow:inset 0 0 0 1px var(--pero-border)}
 .point-connectors-row-card{display:flex;align-items:center;gap:var(--pero-spacing-3)}
 .point-connectors-row-copy{flex:1;min-width:0}
 .point-connectors-row-title{display:flex;align-items:center;gap:var(--pero-spacing-2);flex-wrap:wrap}

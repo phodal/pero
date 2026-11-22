@@ -1,6 +1,6 @@
 /** Connectors uses the SDK controls. This module only re-exports them. */
 export {
-  AppBar, Button, Card, Checkbox, ContentPane, ContentSection, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  AppBar, Button, Card, CatalogCard, Checkbox, ContentPane, ContentSection, Dialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
   RadioGroup, RadioGroupItem,
   EmptyIllustration, EmptyState, Feedback, Field, Icon, IconButton, InfoTip, Input, LibraryHeader, ListRow, LoadingSkeleton, SearchField, Select, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger,
   Textarea, ToggleGroup, ToggleGroupItem, Toolbar,
