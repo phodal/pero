@@ -81,3 +81,12 @@ in `test-results/native-webview/result.json`. The development Electron
 Workbench also passed the renderer and Host readiness probe with one built-in
 App. The full Electron acceptance matrix, packaged Native app and visual
 acceptance remain unverified for this repair.
+
+## 2026-11-22 App 语言跟随
+
+在中文 macOS Native 开发壳中观察到「自定义」面板使用英文。Electron 复现时从
+宿主消息读到的旧调色板缺少 `chart-1` 至 `chart-6`。AppProvider 连同语言、
+主题模式和活动状态一起丢弃了消息。SDK 现在从相应明暗主题补齐旧版图表颜色；
+可选外观快照无效时，仍接收有效的独立语言和活动字段。
+回归覆盖旧版调色板、无效颜色、字号及后续语言变化。使用旧壳和重建的 App
+复验了 Native 的中文首次打开，以及 Electron 的英文切换中文与深色窄窗。

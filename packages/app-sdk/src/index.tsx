@@ -45,7 +45,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const value = event.data.context;
       if (!value || !['en', 'zh-CN'].includes(value.locale) || typeof value.dark !== 'boolean' || typeof value.active !== 'boolean') return;
       const appearance = readAppearance(value.appearance);
-      if (value.appearance !== undefined && !appearance) return;
+      // Locale, activity and theme mode stay usable when an optional palette is incompatible.
       setContext(previous => {
         if (
           previous.locale === value.locale

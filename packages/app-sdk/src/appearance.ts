@@ -17,8 +17,15 @@ export function readAppearance(value: unknown): AppearanceSnapshot | undefined {
     const size = candidate.typography[key as keyof AppearanceSnapshot['typography']];
     return Number.isInteger(size) && size >= 12 && size <= 24;
   })) return;
-  if (!candidate.palette || !Object.keys(themes.light).every(key => /^#[0-9a-f]{6}$/i.test(candidate.palette[key as keyof typeof themes.light]))) return;
-  return candidate;
+  if (!candidate.palette || typeof candidate.palette !== 'object') return;
+  const defaults = candidate.dark ? themes.dark : themes.light;
+  const palette = { ...candidate.palette };
+  for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
+    // Older desktops predate the categorical chart roles.
+    if (!(key in palette) && key.startsWith('chart-')) palette[key] = defaults[key];
+    if (!/^#[0-9a-f]{6}$/i.test(palette[key])) return;
+  }
+  return { ...candidate, palette };
 }
 
 /** Project the resolved Rust appearance; web surfaces do not resolve accents. */
