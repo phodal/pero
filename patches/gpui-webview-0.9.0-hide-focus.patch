@@ -1,0 +1,34 @@
+diff --git a/crates/webview/src/lib.rs b/crates/webview/src/lib.rs
+--- a/crates/webview/src/lib.rs
++++ b/crates/webview/src/lib.rs
+@@ -240,7 +240,10 @@ impl WebView {
+     /// Set visibility and report native errors without discarding the loaded page.
+     pub fn set_visible(&self, visible: bool) -> wry::Result<()> {
++        let release_focus = !visible && self.visible.get();
++        #[cfg(target_os = "macos")]
++        let release_focus = release_focus && macos::owns_focus(&self.webview);
+         // A focus error must not leave a closing native view covering the window.
+-        let focus_result = if !visible && self.visible.get() {
++        let focus_result = if release_focus {
+             self.webview.focus_parent()
+         } else {
+             Ok(())
+diff --git a/crates/webview/src/macos.rs b/crates/webview/src/macos.rs
+--- a/crates/webview/src/macos.rs
++++ b/crates/webview/src/macos.rs
+@@ -3,3 +3,15 @@
++/// Hiding one WebView must preserve focus in an already focused sibling.
++pub(crate) fn owns_focus(webview: &wry::WebView) -> bool {
++    use objc2_app_kit::NSView;
++    use wry::WebViewExtMacOS as _;
++
++    let view = webview.webview();
++    view.window()
++        .and_then(|window| window.firstResponder())
++        .and_then(|responder| responder.downcast::<NSView>().ok())
++        .is_some_and(|responder| responder.isDescendantOf(&view))
++}
++
+ /// Give the page an appearance of its own; `None` inherits the window's again.
+ pub(crate) fn set_theme(webview: &wry::WebView, theme: wry::Theme) {
+     use objc2_app_kit::{

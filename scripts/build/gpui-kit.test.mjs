@@ -55,7 +55,8 @@ test('patched Kit retains its own workspace and leaves the source immutable', t 
     ['gpui-base-0.9.0-edit-events', 'search patched', 'both patched'],
     ['gpui-base-0.9.0-html-flow-identity', 'both patched', 'html patched'],
     ['gpui-component-0.9.0-menu-height', 'html patched', 'menu patched'],
-    ['gpui-component-0.9.0-diff-header-viewport', 'menu patched', 'all patched'],
+    ['gpui-component-0.9.0-diff-header-viewport', 'menu patched', 'viewport patched'],
+    ['gpui-webview-0.9.0-hide-focus', 'viewport patched', 'all patched'],
   ]) {
     const actual = name === 'gpui-component-0.9.0-diff-header-viewport'
       ? readFileSync(new URL(`../../patches/${name}.patch`, import.meta.url), 'utf8') : '';
