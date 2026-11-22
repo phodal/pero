@@ -58,7 +58,12 @@ try {
   return {status:response.status,value:response.ok?await response.json():undefined};
  };
  assert.equal((await rpc('tools/list',{},'thread','bad')).status,403);
- const tools=(await rpc('tools/list',{})).value.result.tools;assert.ok(tools.some(tool=>tool.name==='computer_use'));
+ const tools=(await rpc('tools/list',{})).value.result.tools;
+ const computerTool=tools.find(tool=>tool.name==='computer_use');
+ assert.ok(computerTool);
+ assert.deepEqual(computerTool.inputSchema.required,['operation']);
+ assert(computerTool.inputSchema.properties.operation.enum.includes('status'));
+ assert.deepEqual(Object.keys(computerTool.inputSchema.properties).sort(), ['action','application','operation','options','request_id','target']);
  const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false,JSON.stringify(status.value));
  const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
  selected='foreign';const stale=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}});assert.ok(stale.value.error||stale.value.result?.isError);
