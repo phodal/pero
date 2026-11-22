@@ -672,3 +672,11 @@ compilation, one panel-region test and five Desktop transport tests passed durin
 implementation. The final activity-retention/error-presentation adjustments were
 not rerun after the user's direct-commit instruction. Signed distributions,
 other operating systems and other Apps' complete workflows remain unverified.
+
+## App Canvas block menu in Native — 2026-11-22
+
+The [repair record](../issues/2026-11-22-notebook-app-canvas-menu.md) captures
+the before-and-after check on a live Automations canvas. In the rebuilt macOS
+Native Preview, Block actions stayed open, Escape restored trigger focus,
+outside clicks dismissed the menu, and collapsing and expanding the block
+preserved the embedded calendar selection.
