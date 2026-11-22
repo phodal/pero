@@ -329,3 +329,31 @@ Screenshots and the result are in `test-results/linux-desktop/`. The test
 uses a scripted ACP agent and a development Electron build. Provider-driven
 Linux GUI actions, signed packages, and a Native workbench viewer are outside
 this evidence.
+
+### SSH Host and paired-viewer follow-up
+
+The SSH lanes use the Colima Linux machine's real OpenSSH server and a Host
+binary built for Linux arm64. The Electron workbench opens a remote PTY,
+independently verifies the file it writes, then opens that file through the
+Host. The existing VNC endpoint displays pixels through an SSH tunnel.
+The managed display works through a separate SSH launcher and a scripted
+Python ACP process on Linux calls Computer Use through the dynamically
+forwarded, authenticated MCP endpoint.
+
+The paired-viewer lane runs real Electron, Chromium, the loopback relay,
+and the Colima guest. It checks one-use pairing, read-only RFB over WebRTC,
+an intentionally forced WebSocket fallback with keyboard input, a guest
+file saved with that input, and release on disconnect. It also passed
+with relay-only ICE and a real coturn instance. Public TLS deployment,
+separate physical devices, signed Desktop, and a live model provider
+were not part of this acceptance.
+
+```sh
+npm run build:desktop
+node tests/e2e/linux-desktop.mjs
+node tests/e2e/linux-desktop-shared.mjs
+# Point these fixture variables at an already running disposable SSH host and its VNC port.
+PERO_SSH_CONFIG=/path/to/verified/ssh.config \
+  PERO_TEST_SSH_PROFILE=/path/to/fixture/profile.json \
+  PERO_TEST_SSH_VNC_PORT=5901 node tests/e2e/linux-desktop-ssh.mjs
+```
