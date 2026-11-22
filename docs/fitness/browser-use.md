@@ -4,9 +4,9 @@ date: 2026-11-22
 level: local-runtime
 ---
 
-# Electron Browser Use
+# Browser Use
 
-Open an ordinary Workbench chat and an HTTP(S) Web tab. Select **Workbench →
+In Electron, open an ordinary Workbench chat and an HTTP(S) Web tab. Select **Workbench →
 Allow Browser Use for This Tab…**. The confirmation shows the site origin and
 the live tab title. The toolbar displays **Browser Use allowed** until the
 grant ends. **Workbench → Stop Browser Use** revokes it.
@@ -19,7 +19,28 @@ the tab or conversation, cancelling from Chat, leaving the origin, or
 resetting the Desktop connection revokes the grant. A different tab on the
 same origin needs its own approval. The grant is in memory.
 
-## Runtime
+## macOS Pero Native
+
+保留一个普通聊天，在工作台打开 HTTP(S) Web 标签并显示聊天栏。在标签工具栏选择 **允许操作此浏览器标签页…**，
+确认当前聊天与站点。允许后，点击同一个位置的 **已允许 Agent 操作** 撤销。
+聊天内的 Agent 通过 `browser_use` 操作工作台内的网页。
+
+Native 支持标签清单、观察、定位、条件等待、同源 iframe、同源地址导航、可信鼠标与键盘
+输入、表单操作和会话附件上传。第六批的容器限定、placeholder 和插槽定位、滚入视口、
+修饰键、逐键输入及多文件上传同时用于 Native 和 Electron。逐键输入接受英文字母、
+数字与空格。它在每次按键间检查焦点，`fill` 可一次填写其他纯文本。
+
+Electron 提供工具级的标签创建和管理、历史遍历、滚轮、截图及网页下载和弹窗回执，
+包括 Blob 下载。Native 的这些工具能力留待对应的 WebKit 接入。
+
+Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
+并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
+同源地址返回的跨源重定向。验收覆盖新增能力、可信单击和双击与悬停、两个真实附件内容、
+授权前后的工具状态和本地回执。Electron 的全量验收也运行同一组第六批场景。
+运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
+`node tests/e2e/native-browser-use.mjs`。
+
+## Electron Runtime
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
 `browser/src/browser-dom-semantics.mjs` and the isolated-world approach from

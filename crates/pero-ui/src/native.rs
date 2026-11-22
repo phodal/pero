@@ -148,7 +148,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
-    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer"));
+    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser"));
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
