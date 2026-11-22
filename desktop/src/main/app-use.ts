@@ -239,6 +239,15 @@ export class AppUse {
     return `${thread}\0${scope.app}\0${scope.panel}`;
   }
   isBoundedResearch(thread: string) { return boundedResearchApp(this.sessions.get(thread)?.scope?.app); }
+  isOrdinaryConversation(thread: string) {
+    const session = this.sessions.get(thread);
+    return !!session && !session.closed && !session.scope;
+  }
+  async selectedOrdinaryConversation() {
+    const thread = await this.ports.selectedThread();
+    // A new ordinary draft acquires its Host session on first send.
+    return thread && (!this.sessions.has(thread) || this.isOrdinaryConversation(thread)) ? thread : undefined;
+  }
   canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
   requireRunningSession(thread: string) {
     const session = this.sessions.get(thread);

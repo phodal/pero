@@ -4,8 +4,9 @@ import type {WebCommand,WebDocument,SurfaceBounds,WebSurfaceSlot} from '../../..
 import {WebAddress} from '../../../packages/content-source/web-address.ts';
 import {WebLocation,inlineHtml} from '../../../packages/content-source/web-location.ts';
 import {WebSessions,restorePage,type WebPageState} from './web-sessions.ts';
+import type {BrowserTab} from './browser-use/browser-use.ts';
 type Event={version:1;kind:string;request_id:null;text:string;data?:unknown};
-type Page={view:WebContentsView;document:WebDocument};
+type Page={view:WebContentsView;document:WebDocument;browserAuthorization?:string};
 
 /** Browser engines own navigation; GPUI supplies selected sources and measured slots. */
 export class WebPages {
@@ -52,7 +53,8 @@ export class WebPages {
     const contents=page.view.webContents;
     page.document.observation.can_back=contents.navigationHistory.canGoBack();
     page.document.observation.can_forward=contents.navigationHistory.canGoForward();
-    this.send({version:1,kind,request_id:null,text:'',data:page.document});
+    const data=page.browserAuthorization ? {...page.document,observation:{...page.document.observation,notice:page.browserAuthorization}} : page.document;
+    this.send({version:1,kind,request_id:null,text:'',data});
   }
   private fail(page:Page,message:string) {page.document.observation.load={kind:'failed',message};this.emit('web_state',page);}
   private navigate(page:Page,address:WebAddress) {
@@ -140,6 +142,21 @@ export class WebPages {
     this.focusedSurface=focused;
   }
 
+  focusedBrowserTab(authorizationNotice?:string): BrowserTab | undefined {
+    const id=this.focusedSurface;
+    if(!id)return;
+    const page=this.pages.get(id);
+    if(!page||page.document.html||this.ownsMcp(page.view.webContents.getURL()))return;
+    const contents=page.view.webContents;
+    return {
+      contents,
+      visible:()=>!this.window.isDestroyed()&&!this.window.isMinimized()&&this.pages.get(id)===page&&page.view.getVisible(),
+      authorizationChanged:active=>{
+        page.browserAuthorization=active?authorizationNotice:undefined;
+        if(!contents.isDestroyed())this.emit('web_state',page);
+      },
+    };
+  }
   async checkpoint(){await this.sessions.save(new Map([...this.pages].map(([id,page])=>[id,page.view.webContents])));}
   async prepareClose(owns:(url:string)=>boolean){for(const page of this.pages.values())if(owns(page.view.webContents.getURL()))await page.view.webContents.executeJavaScript('window.peroMcpTeardown?.()');}
   async command(input:unknown) {

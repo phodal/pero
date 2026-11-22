@@ -19,6 +19,7 @@ import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 import { AppAgentPluginBinding } from './app-agent-plugin.ts';
 import { DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL, parseArtifactDelivery, parseArtifactPresentation, type ArtifactDeliveryPort } from './artifact-delivery.ts';
+import { BROWSER_TOOL, type BrowserUse } from './browser-use/browser-use.ts';
 
 type Event = {
   version: number;
@@ -83,6 +84,7 @@ export class DesktopAppUse {
   readonly computer?: DesktopComputer;
   private readonly uiAvailable: boolean;
   private readonly inspector?: NotebookInspector;
+  private readonly browser?: BrowserUse;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -94,9 +96,11 @@ export class DesktopAppUse {
     computer?: DesktopComputer,
     deliverArtifact?: ArtifactDeliveryPort,
     inspector?: NotebookInspector,
+    browser?: BrowserUse,
   ) {
     this.deliverArtifact = deliverArtifact;
     this.inspector = inspector;
+    this.browser = browser;
     this.computer = computer;
     this.uiAvailable = typeof surface === 'function';
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
@@ -187,7 +191,7 @@ export class DesktopAppUse {
       && this.plugins.has(event.thread_id)) this.plugins.set(event.thread_id, null);
     if (event.kind === 'disconnected')
       for (const thread of this.plugins.keys()) this.plugins.set(thread, null);
-    if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); }
+    if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); this.browser?.revoke(); }
     const rejected = ['session_error', 'session_auth_required', 'session_auth_error', 'command_rejected'].includes(event.kind);
     if (rejected && !event.thread_id) { this.goals.revokeAll(); this.submitted.clear(); }
     if (event.kind === 'user_message' && event.thread_id) {
@@ -211,18 +215,24 @@ export class DesktopAppUse {
     if (event.kind === 'session_deleted' && event.thread_id) {
       this.inputs.forget(event.thread_id);
       void this.computer?.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove desktop evidence: ${String(error)}`}));
+      void this.browser?.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove browser evidence: ${String(error)}`}));
       void this.results.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove result artifacts: ${String(error)}`}));
     }
     if (event.thread_id && event.kind === 'session_deleted') this.goals.forget(event.thread_id);
     if (event.thread_id && (event.kind === 'session_closed' || rejected ||
         (event.kind === 'turn_finished' && (event.text?.toLowerCase() === 'cancelled' || (event.data as { stopReason?: string })?.stopReason === 'cancelled')))) this.goals.revoke(event.thread_id);
+    if (event.thread_id && ['session_closed', 'session_error', 'session_deleted'].includes(event.kind))
+      this.browser?.revoke(event.thread_id);
     if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind))) this.submitted.delete(event.thread_id);
     this.authority.accept(event);
   }
   command(value: { action?: string; thread_id?: string }) {
     if (value.thread_id && ['close', 'delete'].includes(value.action || '')
       && this.plugins.has(value.thread_id)) this.plugins.set(value.thread_id, null);
-    if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) this.goals.revoke(value.thread_id);
+    if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) {
+      this.goals.revoke(value.thread_id);
+      this.browser?.revoke(value.thread_id);
+    }
     this.authority.command(value);
   }
   async input(app: string, token: string) {
@@ -235,6 +245,7 @@ export class DesktopAppUse {
     this.inputs.forget();
     this.goals.forget();
     this.submitted.clear();
+    this.browser?.revoke();
     this.authority.reset(true);
   }
   async close() {
@@ -316,6 +327,7 @@ export class DesktopAppUse {
               ...(this.writes ? this.pluginWrites(thread, await this.writes.describe()).filter(d=>`app__${d.app}__${d.name}`.length<=64).map(d=>({name:`app__${d.app}__${d.name}`,annotations:{readOnlyHint:this.inspector?.supports(d) || false},...(this.inspector?.supports(d)?{title:'Notebook Inspector',_meta:{ui:{resourceUri:NotebookInspector.uri}}}:{}),description:d.description,inputSchema:d.schema})) : []),
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
+              ...(this.browser ? [BROWSER_TOOL] : []),
               ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL] : []),
               {
                 name: 'content_read',
@@ -429,6 +441,13 @@ export class DesktopAppUse {
         else if (message.method?.startsWith('notifications/')) {
           response.writeHead(202).end();
           return;
+        } else if (message.method === 'tools/call' && message.params?.name === 'browser_use' && this.browser) {
+          const value = await this.authority.access(thread, undefined, (_scope, signal) => {
+            if (!this.authority.isOrdinaryConversation(thread))
+              throw new AppUseError('BROWSER_SCOPE', 'Browser Use is available in ordinary Workbench conversations.');
+            return this.browser!.call(thread, message.params.arguments, signal);
+          }, controller.signal);
+          result = {content:[{type:'text',text:await this.results.select(thread,value)}],isError:'outcome' in value&&value.outcome!=='dispatched'};
         } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
           const value = await this.authority.access(thread, undefined, (_scope, signal) => {
             if (this.goals.has(thread) || this.authority.isBoundedResearch(thread))

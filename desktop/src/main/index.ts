@@ -16,6 +16,7 @@ import { DesktopApps } from './apps';
 import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
+import {BrowserUse} from './browser-use/browser-use.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
 import {McpSessionPanels} from './mcp-session-panels.ts';
@@ -60,6 +61,7 @@ let closeWorkspaceForQuit: (() => Promise<void>) | undefined;
 let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
+let browserUse: BrowserUse | undefined;
 let webPages:WebPages|undefined;
 let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
@@ -149,6 +151,28 @@ const changeLocale = (value: string) => {
   host.stdin.write(JSON.stringify({ method: 'settings.locale', locale: value }) + '\n');
 };
 let shortcutMenu: ShortcutMenu = {entries:[]};
+async function allowBrowserUse() {
+  const browser = browserUse;
+  try {
+    const tab = webPages?.focusedBrowserTab(t('browser_use.authorized'));
+    const candidate = tab && browser?.candidate(tab);
+    const thread = await appUse?.authority.selectedOrdinaryConversation();
+    if (!browser || !tab || !candidate || !thread) throw new Error(t('browser_use.select_tab_and_chat'));
+    const answer = await dialog.showMessageBox(window, {
+      type: 'question', message: t('browser_use.allow_tab'),
+      detail: [candidate.origin, candidate.title, '', t('browser_use.grant_detail')].join('\n'),
+      buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
+    });
+    if (answer.response !== 1) return;
+    if (webPages?.focusedBrowserTab()?.contents !== tab.contents ||
+        await appUse?.authority.selectedOrdinaryConversation() !== thread) throw new Error(t('browser_use.select_tab_and_chat'));
+    browser.allow(thread, tab, candidate.origin);
+  } catch (error) {
+    if (!window.isDestroyed()) await dialog.showMessageBox(window, {
+      type: 'info', message: t('browser_use.unavailable'), detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 function updateMenus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Pero', submenu: [{ role: 'about', label: t('menu.about') }, { type: 'separator' }, { role: 'quit', label: t('menu.quit') }] },
@@ -164,6 +188,8 @@ function updateMenus() {
         registerAccelerator: false,
         click: () => send({version:1,kind:'shortcut_command',request_id:null,text:'',data:entry.command}),
       })),
+      { id: 'browser-use-allow', label: t('browser_use.menu_allow'), click: () => { void allowBrowserUse(); } },
+      { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
       {id:'session-mcp',label:t('mcp.session_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'session'}})},
       {id:'standalone-mcp',label:t('mcp.standalone_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'standalone'}})},
       { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) },
@@ -209,7 +235,8 @@ app.whenReady().then(async () => {
     permissions: computerPermissions,
   });
   globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname));
+  browserUse = new BrowserUse(resolve(app.getPath('userData'), 'browser-use-evidence'));
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),browserUse);
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
   if (process.platform === 'darwin' || process.platform === 'linux') {
