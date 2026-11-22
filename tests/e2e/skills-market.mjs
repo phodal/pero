@@ -2,6 +2,7 @@
 // Management starts from explicit fixture state; Git acquisition is tested separately.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
+import {connectorSections} from '../../apps/connectors/ui-src/connector-categories.mjs';
 import {clickAppShortcut, clickNewChat, setAppearance} from './sidebar-controls.mjs';
 import {mkdtemp, mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -41,7 +42,7 @@ async function open() {
   await clickAppShortcut(page,'connectors');
   frame = page.frameLocator('iframe[title="connectors"]');
   await expect(frame.getByRole('heading',{name:'Discover',exact:true})).toBeVisible({timeout:30000});
-  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12,{timeout:30000});
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem')).toHaveCount(24,{timeout:30000});
   await expect(frame.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
 }
 async function capture(name) {
@@ -70,48 +71,68 @@ try {
   await open();
   // A detail inspection is an explicit action and leaves the catalog available.
   await expect(frame.getByRole('dialog')).toHaveCount(0);
-  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem').first().getByRole('button').first().press('Enter');
   await expect(frame.getByRole('dialog',{name:'Skill details',exact:true})).toBeVisible();
   await frame.getByRole('button',{name:'Close details',exact:true}).press('Enter');
   expect(await frame.locator('body').evaluate(() => typeof window.pero)).toBe('undefined');
   await expect(frame.locator('.skills-catalog-total')).toContainText(catalog.skills.length.toLocaleString('en'));
   await expect(frame.getByRole('link',{name:'#156',exact:true})).toHaveCount(0);
-  const rows = frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article');
-  const columns = await rows.evaluateAll(cards => {
-    const firstTop = cards[0].getBoundingClientRect().top;
-    return cards.filter(card => card.getBoundingClientRect().top === firstTop).length;
-  });
-  expect(columns).toBeGreaterThan(1);
-  const firstRows = await rows.allTextContents();
-  const firstEntries = [];
-  const displayedNames = await rows.getByRole('heading').allTextContents();
-  for (const [index,row] of firstRows.entries()) {
-    const entry = catalog.skills.find(item=>item.name===displayedNames[index]);
-    expect(entry,'Every visible row must identify an actual catalog entry').toBeTruthy();
-    firstEntries.push(entry);
-    expect(row).toContain(entry.name);
-    expect(row).toContain(`Git ${entry.source.commit.slice(0,8)}`);
-  }
-  expect(new Set(firstEntries.map(item=>item.category)).size).toBeGreaterThan(1);
+  const rows = frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem');
+  const titles = rows.locator('.skills-result-name');
+  const firstTitle = await titles.first().textContent();
+  await frame.getByRole('button',{name:'Next',exact:true}).press('Enter');
+  expect(await titles.first().textContent()).not.toBe(firstTitle);
+  await expect(frame.getByRole('navigation',{name:'Skill pages'})).toContainText('Showing 25–48');
+  await frame.getByRole('button',{name:'Previous',exact:true}).press('Enter');
+  await expect(titles.first()).toHaveText(firstTitle);
+  await expect(rows.first().locator('.skills-card-version')).toHaveText(/^Git [a-f0-9]{8}$/);
   await capture('catalog-light');
+  await search('scientific-writing');
+  await frame.getByRole('tab',{name:'MCPs',exact:true}).press('Enter');
+  const services = frame.locator('#connectors-catalog article');
+  const serviceSnapshot = await frame.locator('body').evaluate(async () => (await fetch('/host/connectors', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operation:'snapshot'}),
+  })).json());
+  expect(serviceSnapshot.ok).toBe(true);
+  const shelves = connectorSections(serviceSnapshot.directory,'en');
+  const serviceCount = shelves.reduce((total, shelf) => total + shelf.entries.length, 0);
+  expect(serviceCount).toBeGreaterThan(0);
+  await expect(services).toHaveCount(serviceCount);
+  await capture('mcp-light');
+  await services.last().scrollIntoViewIfNeeded();
+  await expect(services.last()).toBeInViewport();
+  const shelf = shelves.find(shelf => shelf.entries.some(entry => entry.providerId === 'github'));
+  await select('Service category', `${shelf.label} · ${shelf.entries.length}`);
+  await expect(services).toHaveCount(shelf.entries.length);
+  await frame.getByRole('searchbox',{name:'Search',exact:true}).fill('GitHub');
+  await expect(services).toHaveCount(1);
+  await services.getByRole('button',{name:'Add connection'}).click();
+  await expect(frame.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await frame.getByRole('button',{name:'Clear filters',exact:true}).click();
+  await expect(services).toHaveCount(serviceCount);
+  await frame.getByRole('tab',{name:'Skills',exact:true}).press('Enter');
+  await expect(rows).toHaveCount(24);
+  checks.push(`Skills opens a bounded page and MCP opens the entire directory. ${serviceCount} MCP services, category and search intersection, configuration entry and reset verified.`);
   await select('Skill scope','General');
   const generalCount = catalog.skills.filter(item=>item.kind==='general_skill'||item.discovery_scopes?.includes('general')).length;
-  await expect(frame.locator('.skills-summary')).toContainText(`${generalCount} matches`);
+  await expect(frame.locator('.skills-catalog-total')).toContainText(`${generalCount.toLocaleString('en')} matches`);
   await capture('general-light');
   await select('Skill scope','Research');
-  await expect(frame.locator('.skills-summary')).toContainText(`${catalog.skills.filter(item=>item.kind!=='general_skill').length.toLocaleString('en')} matches`);
+  await expect(frame.locator('.skills-catalog-total')).toContainText(`${catalog.skills.filter(item=>item.kind!=='general_skill').length.toLocaleString('en')} matches`);
   await select('Skill scope','All');
-  const firstName = await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').getByRole('heading').first().textContent();
-  await frame.getByRole('button',{name:'Next',exact:true}).press('Enter');
-  expect(await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').getByRole('heading').first().textContent()).not.toBe(firstName);
-  await frame.getByRole('button',{name:'Previous',exact:true}).press('Enter');
+  await rows.last().scrollIntoViewIfNeeded();
+  await expect(rows.last()).toBeInViewport();
+  await rows.last().getByRole('button').first().press('Enter');
+  await expect(frame.getByRole('dialog',{name:'Skill details',exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
   await search('not-a-research-skill-156');
   await expect(frame.getByText('No matching skills',{exact:true})).toBeVisible();
   await frame.getByRole('button',{name:'Browse all skills',exact:true}).press('Enter');
-  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12);
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem')).toHaveCount(24);
   const category = catalog.skills.find(item => item.category)?.category;
   await select('Task category',category.replace(/[-_]/g,' '));
-  await expect(frame.locator('.skills-summary')).toContainText(`${catalog.skills.filter(item=>item.category===category).length.toLocaleString('en')} matches`);
+  await expect(frame.locator('.skills-catalog-total')).toContainText(`${catalog.skills.filter(item=>item.category===category).length.toLocaleString('en')} matches`);
   await select('Task category','All categories');
   await frame.getByRole('checkbox',{name:'Ready to install',exact:true}).press('Space');
   const readyRows = await rows.allTextContents();
@@ -119,7 +140,7 @@ try {
   await expect(rows.getByRole('button',{name:'View conditions',exact:true})).toHaveCount(0);
   await frame.getByRole('checkbox',{name:'Ready to install',exact:true}).press('Space');
   await select('Sort skills','Name');
-  const orderedNames = await rows.getByRole('heading').allTextContents();
+  const orderedNames = await titles.allTextContents();
   expect(orderedNames).toEqual([...orderedNames].sort((a,b)=>a.localeCompare(b,'en',{numeric:true})));
   await rows.first().getByRole('button').first().press('Enter');
   const detail=frame.getByRole('dialog',{name:'Skill details',exact:true});
@@ -132,12 +153,12 @@ try {
   await capture('detail-light-keyboard');
   await detail.getByRole('button',{name:'Close details',exact:true}).press('Escape');
   await expect(detail).not.toBeVisible();
-  checks.push(`actual Host, ${columns} cards per wide row, Git revisions on cards, 12-card paging, search recovery, categories, installable filtering, sorting and keyboard detail tabs`);
+  checks.push(`actual Host, 24-row skill pages, fixed revisions, full-catalog filtering, search recovery, categories, installable filtering, sorting and keyboard detail tabs`);
 
   await rename(catalogPath,`${catalogPath}.saved`);
   await frame.getByRole('button',{name:'Refresh',exact:true}).press('Enter');
   await expect(frame.getByRole('alert')).toContainText('Skill catalog is unavailable');
-  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article')).toHaveCount(12);
+  await expect(frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem')).toHaveCount(24);
   await capture('refresh-error-retained');
   await rename(`${catalogPath}.saved`,catalogPath);
   await frame.getByRole('button',{name:'Retry',exact:true}).press('Enter');
@@ -350,7 +371,7 @@ try {
   const installedTab = frame.getByRole('tab',{name:'Installed (1)',exact:true});
   await installedTab.focus(); await installedTab.press('Enter');
   await expect(installedTab).toHaveAttribute('aria-selected','true');
-  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'Skill results',exact:true}).getByRole('listitem').first().getByRole('button').first().press('Enter');
   const installedDetail=frame.getByRole('dialog',{name:'Skill details',exact:true});
   await expect(installedDetail.getByRole('heading',{name:entry.name,exact:true})).toBeVisible();
   for (const label of ['Inputs','Outputs','Dependencies']) await expect(installedDetail.getByRole('heading',{name:label,exact:true})).toBeVisible();
@@ -396,7 +417,7 @@ try {
   if (!aligned) throw new Error('canvas size did not match the settings control check');
   await setAppearance(page,'dark');
   await app.evaluate(({Menu})=>Menu.getApplicationMenu().getMenuItemById('locale-zh-CN').click());
-  await frame.getByRole('region',{name:'技能列表',exact:true}).getByRole('article').first().getByRole('button').first().press('Enter');
+  await frame.getByRole('region',{name:'技能列表',exact:true}).getByRole('listitem').first().getByRole('button').first().press('Enter');
   const narrowDetail = frame.getByRole('dialog',{name:'技能详情',exact:true});
   await expect(narrowDetail.getByRole('tab',{name:'来源与版本',exact:true})).toBeVisible();
   await narrowDetail.getByRole('tab',{name:'来源与版本',exact:true}).press('Enter');
@@ -420,22 +441,25 @@ try {
   checks.push('remove confirmation/cancel and actual profile removal persistence');
   await frame.getByRole('tab',{name:'发现技能',exact:true}).press('Enter');
   await frame.getByRole('button',{name:'清除已完成任务',exact:true}).press('Enter');
-  const narrowGrid = frame.locator('.skills-grid');
-  await expect(narrowGrid.getByRole('article')).toHaveCount(12);
-  expect(await narrowGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length)).toBeLessThan(columns);
-  expect(await narrowGrid.evaluate(node => {
+  const narrowList = frame.locator('.skills-directory');
+  await expect(narrowList.getByRole('listitem')).toHaveCount(24);
+  expect(await narrowList.evaluate(node => {
     const pane = node.closest('.pero-content-body');
     const left = pane.getBoundingClientRect().left + pane.clientLeft;
     const right = left + pane.clientWidth;
-    return [...node.querySelectorAll('article')].every(card => {
+    return [...node.querySelectorAll('li')].every(card => {
       const bounds = card.getBoundingClientRect();
       return bounds.left >= left - 1 && bounds.right <= right + 1;
     });
   })).toBe(true);
   expect(await frame.locator('html').evaluate(node=>node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await capture('catalog-dark-narrow-zh');
+  await frame.getByRole('tab',{name:'MCP',exact:true}).press('Enter');
+  await expect(frame.locator('#connectors-catalog article')).toHaveCount(serviceCount);
+  await capture('mcp-dark-narrow-zh');
+  expect(await frame.locator('html').evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   expect(errors).toEqual([]);
-  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks,catalogSkills:catalog.skills.length,sourceCount:catalog.sources.length,limitations:['Only the Skills builtin is enabled; unrelated Apps are excluded from this suite. Installed management uses explicit local state fixtures; no third-party Git acquisition, model inference, scientific validation or Native/packaged acceptance in this suite.']},null,2));
+  await writeFile(resolve(out,'result.json'),JSON.stringify({passed:true,checks,catalogSkills:catalog.skills.length,sourceCount:catalog.sources.length,limitations:['The Customize builtin provides the Skills and MCP views. Installed management uses explicit local state fixtures; no third-party Git acquisition, model inference, scientific validation or Native/packaged acceptance in this suite.']},null,2));
   console.log(`Skills market Electron/Host UI passed: ${checks.length} groups, ${catalog.skills.length} real catalog entries.`);
 } catch (error) {
   if (page) await capture('failure').catch(()=>{});
