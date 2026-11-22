@@ -33,6 +33,8 @@
   "linux_desktop.vnc_target": "VNC 目标",
   "linux_desktop.ssh_workbench": "打开 SSH 工作台…",
   "linux_desktop.attach_host": "连接此主机的桌面",
+  "linux_desktop.ssh_confirm": "在这台 SSH 机器上启动 Pero Host？",
+  "linux_desktop.ready_host": "远端 Linux 桌面已连接。",
   "linux_desktop.shared": "已连接配对设备",
   "linux_desktop.await_peer": "正在等待配对设备",
   "linux_desktop.pair_link": "一次性配对链接",

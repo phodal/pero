@@ -204,10 +204,14 @@ function updateMenus() {
         void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));
       } }] : []),
       ...(process.platform !== 'win32' ? [{ id: 'ssh-workbench', label: t('linux_desktop.ssh_workbench'), click: () => {
-        void dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'Pero SSH profile', extensions: ['json'] }] }).then(({ filePaths }) => {
+        void dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'Pero SSH profile', extensions: ['json'] }] }).then(async ({ filePaths }) => {
           const profile = filePaths[0];
           if (!profile) return;
-          readSshHostProfile(profile);
+          const destination = readSshHostProfile(profile);
+          const approved = await dialog.showMessageBox(window, { type: 'question', message: t('linux_desktop.ssh_confirm'),
+            detail: [destination.host, destination.workspace, destination.executable, destination.desktop].filter(Boolean).join('\n'),
+            buttons: [t('linux_desktop.cancel'), t('linux_desktop.connect')], defaultId: 0, cancelId: 0, noLink: true });
+          if (approved.response !== 1) return;
           const env: NodeJS.ProcessEnv = { ...process.env, PERO_REMOTE_HOST_PROFILE: profile };
           delete env.PERO_DESKTOP_DATA_DIR;
           const workbench = spawn(process.execPath, app.isPackaged ? [] : [resolve(root, 'desktop')], { detached: true, stdio: 'ignore', env });
@@ -258,7 +262,12 @@ app.whenReady().then(async () => {
   const hostEnvironment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_')));
   computer = new DesktopComputer(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-computer${process.platform === 'win32' ? '.exe' : ''}`), resolve(app.getPath('userData'),'computer-use'), send, {
     save: enabled => savePreference('settings.computer',{enabled}),
-    permissions: computerPermissions,
+    ...(sshProfile ? { status: () => {
+      const state = linuxDesktop?.session.state;
+      const available = Boolean(state?.remoteManaged && (state.phase === 'watching' || state.phase === 'controlling'));
+      return { available, accessibility: 'unsupported' as const, screen_recording: 'unsupported' as const,
+        message: t(available ? 'linux_desktop.ready_host' : 'linux_desktop.attach_host') };
+    } } : { permissions: computerPermissions }),
   });
   if (process.platform !== 'win32') {
     linuxDesktop = new LinuxDesktopWindow(__dirname, computer, () => locale, async () => appUse?.authority.selectedOrdinaryConversation(), sshProfile);

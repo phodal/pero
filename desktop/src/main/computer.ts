@@ -42,18 +42,24 @@ export const COMPUTER_TOOL = {
 };
 
 type Journal = { action: ComputerAction; receipt?: ComputerActionReceipt };
+type ComputerControls = {
+  args?: string[];
+  save?(enabled: boolean): Promise<void>;
+  permissions?(): Promise<void>;
+  status?(): ComputerUseState['status'];
+};
 /** Desktop owner of the native connection, evidence and uncertain-action receipts. */
 export class DesktopComputer {
   private client: ComputerClient;
   private root: string;
   private emit: (event: object) => void;
-  private controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> };
+  private controls: ComputerControls;
   private controller = new AbortController();
   private pending = new Map<string, { action: ComputerAction; promise: Promise<ComputerActionReceipt> }>();
   linuxRoute?: (thread: string) => LinuxComputerRoute | undefined;
   get enabled() { return this.state.enabled; }
   private state: ComputerUseState = { enabled: false, running: false, status: { available: false, accessibility: 'not_detected', screen_recording: 'not_detected', message: '' } };
-  constructor(binary: string, root: string, emit: (event: object) => void, controls: { args?: string[]; save?(enabled: boolean): Promise<void>; permissions?(): Promise<void> } = {}) { this.root = root; this.emit = emit; this.controls = controls; this.client = new ComputerClient(binary, controls.args); }
+  constructor(binary: string, root: string, emit: (event: object) => void, controls: ComputerControls = {}) { this.root = root; this.emit = emit; this.controls = controls; this.client = new ComputerClient(binary, controls.args); }
   private publish() { this.emit({ version: 1, kind: 'computer_state', request_id: null, text: '', data: this.state }); }
   async restore(enabled: boolean) {
     this.state.enabled = enabled;
@@ -62,9 +68,13 @@ export class DesktopComputer {
   }
   async status(): Promise<ComputerUseState> {
     try {
-      const result = await this.client.request('desktop-status', { operation: 'status' }, new AbortController().signal);
-      if (result.kind !== 'status') throw new Error('Native desktop status was not returned');
-      this.state.status = result.status; this.state.error = null;
+      if (this.controls.status) this.state.status = this.controls.status();
+      else {
+        const result = await this.client.request('desktop-status', { operation: 'status' }, new AbortController().signal);
+        if (result.kind !== 'status') throw new Error('Native desktop status was not returned');
+        this.state.status = result.status;
+      }
+      this.state.error = null;
     } catch (error) {
       this.state.status = { available: false, accessibility: 'not_detected', screen_recording: 'not_detected', message: '' };
       this.state.error = error instanceof Error ? error.message : String(error);

@@ -33,6 +33,8 @@
   "linux_desktop.vnc_target": "VNC target",
   "linux_desktop.ssh_workbench": "Open SSH Workbench…",
   "linux_desktop.attach_host": "Connect this host's desktop",
+  "linux_desktop.ssh_confirm": "Start the Pero Host on this SSH machine?",
+  "linux_desktop.ready_host": "The remote Linux desktop is connected.",
   "linux_desktop.shared": "Paired device connected",
   "linux_desktop.await_peer": "Waiting for a paired device",
   "linux_desktop.pair_link": "One-time pairing link",
