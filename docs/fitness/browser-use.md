@@ -27,21 +27,27 @@ Pero's Electron Desktop build. `WebPages` owns the existing
 `WebContentsView`; Rust Host owns the ACP session and its approval policy.
 The existing authenticated Desktop MCP connection carries `browser_use`.
 
-The tool supports status, main-document observation, a semantic click, filling
-a plain-text field and same-origin navigation. Observation issues opaque refs
-to the current document. A click or fill consumes the observation. The action
-rechecks the node's current identity, visibility and semantic label. Page
-content is data. The tool has no browser-wide inventory, caller-provided
-selectors or script execution. Observation omits nested frames and password,
-file and hidden fields. Direct navigation rejects foreign origins and cancels
+The tool supports status, main-document observation, trusted Chromium pointer
+clicks, named keyboard input, viewport wheel scrolling, viewport screenshots,
+plain-text filling and same-origin navigation. Observation issues opaque refs
+to the current document. Input consumes the observation. A click rechecks the
+node's identity and semantic label and hit-tests its visible point before left
+button dispatch. A press focuses an observed element and sends a named key
+such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
+ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
+attachment for fixed input commands. The tool accepts page content as data.
+Observation omits nested frames and password, file and hidden fields.
+Direct navigation rejects foreign origins and cancels
 cross-origin HTTP redirects before the foreign site receives a request.
 A navigation initiated independently by the page or the user ends the grant
 if it leaves the origin.
 
 The Desktop profile stores observation JSON and paired intent/result records
 under `browser-use-evidence/`. An action receipt links the observation and
-reference used, or records the navigation destination. The fill intent omits
-the input text. Later page observations can include text the page itself
+reference used, or records the navigation destination. A viewport screenshot
+returns MCP image content and stores the same PNG with dimensions, byte count
+and SHA-256 in its receipt. Capture requires that every frame have the approved
+origin. The fill intent omits the input text. Later observations can include text the page itself
 renders. A dispatch receipt records that the operation was delivered, and a
 separate observation can check the page effect. Session deletion removes the
 associated evidence.
@@ -67,6 +73,16 @@ Electron's renderer capture does not composite the separate browser child.
 The older `web-documents.mjs` suite timed out at its coordinate-based click
 back to the conversation. The same failure reproduced with an isolated
 Desktop bundle built from unmodified `0e892f6d5`, using the same renderer and Host.
+
+The trusted-input and screenshot changes on `9161142dc` passed the same
+Electron/Host/ACP suite using an isolated Desktop bundle. The local page only
+changes the result after both a trusted pointer-down and a trusted click. A
+trusted Enter updates a separate status, and Chromium reports a positive
+scroll position after the wheel command. The fixture verifies stale-input
+refusal, denial of Enter on a cross-origin form, refusal of all four operations
+after revocation and denial of capture on a page embedding a foreign-origin frame. The MCP PNG
+and the saved PNG match the receipt hash. The inspected viewport capture is
+at `test-results/browser-use/browser-viewport.png`.
 
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model

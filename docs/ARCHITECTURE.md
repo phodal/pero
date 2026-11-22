@@ -140,7 +140,8 @@ Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、
 
 Electron Browser Use 通过同一个经过认证的 MCP 连接提供 `browser_use`。工作台
 显式授权选中会话访问一个可见的 HTTP(S) 标签和站点来源；`WebPages` 继续拥有浏览器
-实例和导航。页面在隔离世界内提供受限观察和动作，Desktop 保存本地观察和操作回执。
+实例和导航。隔离世界提供受限观察和目标解析，Desktop 在获准的 Chromium 标签派发
+指针、键盘和滚轮事件，并保存本地观察、截图和操作回执。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 
 Paper App 的提问、选区与比较通过 SDK 冻结引用进入共享 Chat 草稿，用户提交后在

@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -36,13 +37,33 @@ const site = await serve((request, response) => {
     response.end();
     return;
   }
+  if (request.url === '/framed') {
+    response.end(`<title>Other origin frame</title><iframe src="${foreign.origin}"></iframe>`);
+    return;
+  }
   response.end(request.url === '/next' ? '<title>Destination</title><h1>Destination</h1>' : `
     <title>Browser Use fixture</title><h1>Browser Use fixture</h1>
     <label for="draft">Page draft</label><input id="draft">
     <input type="password" aria-label="Secret field" value="inaccessible-secret">
-    <button onclick="document.querySelector('output').textContent=document.querySelector('#draft').value">Apply draft</button>
+    <button id="apply">Apply draft</button>
     <output></output><a href="${foreign.origin}">Other site</a>
-    <iframe srcdoc="<p>Nested document text</p>"></iframe>`);
+    <p id="keyboard">No key yet</p>
+    <form><label for="foreign">Foreign submission</label><input id="foreign">
+      <button formaction="${foreign.origin}">Send elsewhere</button>
+    </form>
+    <iframe srcdoc="<p>Nested document text</p>"></iframe>
+    <div style="height:3000px" aria-hidden="true"></div>
+    <script>
+      const draft = document.querySelector('#draft');
+      let trustedPointer = false;
+      document.querySelector('#apply').addEventListener('pointerdown', event => { trustedPointer = event.isTrusted; });
+      document.querySelector('#apply').addEventListener('click', event => {
+        if (trustedPointer && event.isTrusted) document.querySelector('output').textContent = draft.value;
+      });
+      draft.addEventListener('keydown', event => {
+        if (event.isTrusted && event.key === 'Enter') document.querySelector('#keyboard').textContent = 'Enter: ' + draft.value;
+      });
+    </script>`);
 });
 const original = site.origin + '/';
 let app, page;
@@ -132,6 +153,28 @@ try {
   }, original);
   expect(displayed).toBe('Pero verified');
 
+  const input = await prompt([
+    { action: 'observe' }, { action: 'press', name: 'Foreign submission', key: 'Enter' },
+    { action: 'observe' }, { action: 'press', name: 'Page draft', key: 'Enter' },
+    { action: 'press', name: 'Page draft', key: 'Enter' }, { action: 'observe' },
+    { action: 'screenshot' }, { action: 'scroll', deltaX: 0, deltaY: 620 }, { action: 'scroll', deltaX: 0, deltaY: 620 },
+  ]);
+  const [, foreignPress, , enter, stalePress, observedKey, screenshot, scroll, staleScroll] = input;
+  expect(foreignPress).toMatchObject({ outcome: 'rejected', reason: expect.stringContaining('form leaves') });
+  expect(enter).toMatchObject({ outcome: 'dispatched', verified: false });
+  expect(stalePress).toMatchObject({ isError: true, error: expect.stringContaining('stale') });
+  expect(observedKey.nodes).toEqual(expect.arrayContaining([expect.objectContaining({ text: 'Enter: Pero verified' })]));
+  expect(screenshot).toMatchObject({ kind: 'screenshot', isError: false, receipt: screenshot.pixels });
+  expect(screenshot.pixels.bytes).toBeGreaterThan(1000);
+  expect(scroll).toMatchObject({ outcome: 'dispatched', verified: false });
+  expect(staleScroll).toMatchObject({ isError: true, error: expect.stringContaining('stale') });
+  let scrollY;
+  await expect.poll(async () => {
+    scrollY = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .find(view => view.getURL() === url).executeJavaScript('window.scrollY'), original);
+    return scrollY;
+  }).toBeGreaterThan(0);
+
   const navigation = await prompt([
     { action: 'navigate', url: site.origin + '/redirect' }, { action: 'navigate', url: site.origin + '/next' },
     { action: 'observe' },
@@ -158,9 +201,14 @@ try {
   await expect.poll(async () => (await state()).activeContent?.value).toBe(original);
   await menu('browser-use-revoke');
   await expect.poll(async () => (await document(original))?.observation.notice ?? null).toBe(null);
-  expect(await prompt([{ action: 'status' }, { action: 'observe' }])).toEqual([
-    { authorized: false, isError: false }, expect.objectContaining({ isError: true }),
+  const [unauthorized, ...denied] = await prompt([
+    { action: 'status' }, { action: 'observe' }, { action: 'screenshot' },
+    { action: 'click', ref: observedKey.nodes.find(node => node.name === 'Apply draft').ref },
+    { action: 'press', ref: observedKey.nodes.find(node => node.name === 'Page draft').ref, key: 'Enter' },
+    { action: 'scroll', observationId: observedKey.observationId, deltaX: 0, deltaY: 620 },
   ]);
+  expect(unauthorized).toEqual({ authorized: false, isError: false });
+  expect(denied).toEqual(Array(5).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('Allow a Web tab') })));
 
   await confirm(1);
   await expect.poll(async () => (await document(original))?.observation.notice).toBe('Browser Use allowed');
@@ -176,19 +224,37 @@ try {
   await browserCommand({ action: 'web_close', id: original });
   await expect.poll(async () => await document(original) ?? null).toBe(null);
   expect(await prompt([{ action: 'status' }])).toEqual([{ authorized: false, isError: false }]);
+
+  const framed = site.origin + '/framed';
+  await open(framed);
+  await confirm(1);
+  await expect.poll(async () => (await document(framed))?.observation.notice).toBe('Browser Use allowed');
+  expect(await prompt([{ action: 'screenshot' }])).toEqual([
+    expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') }),
+  ]);
+
   const evidence = resolve(profile, 'browser-use-evidence');
-  const [directory] = await readdir(evidence);
+  const directory = createHash('sha256').update(thread.id).digest('hex');
   const names = await readdir(resolve(evidence, directory));
-  const saved = await Promise.all(names.map(name => readFile(resolve(evidence, directory, name), 'utf8').then(JSON.parse)));
+  const saved = await Promise.all(names.filter(name => name.endsWith('.json'))
+    .map(name => readFile(resolve(evidence, directory, name), 'utf8').then(JSON.parse)));
   const fill = actions[2].receiptId;
   expect(saved).toEqual(expect.arrayContaining([
     expect.objectContaining({ id: fill, observationId: actions[1].observationId, thread: thread.id, action: 'fill' }),
     expect.objectContaining({ id: fill, outcome: 'dispatched' }),
     expect.objectContaining({ id: actions[1].observationId, outcome: expect.objectContaining({ kind: 'observation' }) }),
+    expect.objectContaining({ id: enter.receiptId, action: 'press', key: 'Enter' }),
+    expect.objectContaining({ id: enter.receiptId, outcome: 'dispatched' }),
+    expect.objectContaining({ id: scroll.receiptId, action: 'scroll', observationId: observedKey.observationId, deltaY: 620 }),
+    expect.objectContaining({ id: scroll.receiptId, outcome: 'dispatched' }),
   ]));
   expect(saved.find(record => record.id === fill && record.action === 'fill')).not.toHaveProperty('text');
+  expect(saved).toContainEqual(screenshot.receipt);
+  const capture = await readFile(resolve(evidence, directory, screenshot.receipt.id + '.png'));
+  expect(createHash('sha256').update(capture).digest('hex')).toBe(screenshot.pixels.sha256);
+  await writeFile(resolve(output, 'browser-viewport.png'), capture);
   await page.screenshot({ path: resolve(output, 'workbench.png') });
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, navigation, displayed, foreignHitsAfterUserNavigation: foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

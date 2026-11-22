@@ -1,5 +1,6 @@
 // Deterministic ACP client for the real, session-bound Desktop MCP endpoint.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import readline from 'node:readline';
 import { appUseContent } from './app-use-content.mjs';
 const send = value => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value }) + '\n');
@@ -26,11 +27,21 @@ async function run(commands) {
       args.ref = observed?.nodes.find(node => node.name === name)?.ref;
       assert.ok(args.ref, `No observed ref for ${name}`);
     }
+    if (args.action === 'scroll' && !args.observationId) args.observationId = observed?.observationId;
     const result = await rpc('tools/call', { name: 'browser_use', arguments: args });
     const text = result.content[0].text;
     const value = text.startsWith('{') ? await appUseContent(text, rpc) : { error: text };
     if (args.action === 'observe' && !result.isError) observed = value;
-    results.push({ ...value, isError: result.isError });
+    const image = result.content.find(item => item.type === 'image');
+    let pixels;
+    if (args.action === 'screenshot' && !result.isError) {
+      assert.equal(image?.mimeType, 'image/png');
+      const png = Buffer.from(image.data, 'base64');
+      assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+      pixels = { bytes: png.length, sha256: createHash('sha256').update(png).digest('hex'),
+        width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+    }
+    results.push({ ...value, isError: result.isError, ...(pixels && { pixels }) });
   }
   return results;
 }

@@ -447,7 +447,14 @@ export class DesktopAppUse {
               throw new AppUseError('BROWSER_SCOPE', 'Browser Use is available in ordinary Workbench conversations.');
             return this.browser!.call(thread, message.params.arguments, signal);
           }, controller.signal);
-          result = {content:[{type:'text',text:await this.results.select(thread,value)}],isError:'outcome' in value&&value.outcome!=='dispatched'};
+          if (value.kind === 'screenshot') {
+            result = {content:[
+              {type:'text',text:await this.results.select(thread,{kind:value.kind,receipt:value.receipt})},
+              {type:'image',data:value.png.toString('base64'),mimeType:'image/png'},
+            ],isError:false};
+          } else {
+            result = {content:[{type:'text',text:await this.results.select(thread,value)}],isError:'outcome' in value&&value.outcome!=='dispatched'};
+          }
         } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
           const value = await this.authority.access(thread, undefined, (_scope, signal) => {
             if (this.goals.has(thread) || this.authority.isBoundedResearch(thread))

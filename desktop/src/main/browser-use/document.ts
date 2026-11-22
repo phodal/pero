@@ -1,28 +1,32 @@
 import { domSemantics } from './dom-semantics.ts';
+import type { BrowserKey, ViewportPoint } from './input.ts';
 
 export type BrowserNode = {
   role?: string;
   name?: string;
   text?: string;
   ref?: string;
-  actions?: ('click' | 'fill')[];
+  actions?: ('click' | 'fill' | 'press')[];
 };
 
 export type DocumentCommand =
   | { action: 'observe'; observation: string }
   | { action: 'click'; ref: string }
+  | { action: 'press'; ref: string; key: BrowserKey }
+  | { action: 'scroll'; observationId: string }
   | { action: 'fill'; ref: string; text: string };
 
 export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean }
-  | { kind: 'dispatched' }
+  | { kind: 'dispatched' | 'focused' }
+  | { kind: 'point'; point: ViewportPoint }
   | { kind: 'rejected'; reason: string };
 
 // Serialized together with the Point-derived DOM semantics into an Electron
 // isolated world. Refs hold DOM identity in that world, never a caller selector.
 function useDocument(origin: string, command: DocumentCommand, semantics: ReturnType<typeof domSemantics>): DocumentResult {
   type Target = { node: HTMLElement; role: string; name: string };
-  type Observation = { url: string; targets: Map<string, Target> };
+  type Observation = { id: string; url: string; targets: Map<string, Target> };
   const world = globalThis as typeof globalThis & { peroBrowserObservation?: Observation };
   const reject = (reason: string): DocumentResult => ({ kind: 'rejected', reason });
   if (location.origin !== origin) return reject('The page left the authorized site.');
@@ -41,6 +45,16 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return target.origin === origin && !target.username && !target.password && ['https:', 'http:'].includes(target.protocol);
   };
 
+  function hitAt({ x, y }: ViewportPoint): Element | null {
+    let hit = document.elementFromPoint(x, y);
+    while (hit?.shadowRoot) {
+      const nested = hit.shadowRoot.elementFromPoint(x, y);
+      if (!nested || nested === hit) break;
+      hit = nested;
+    }
+    return hit;
+  }
+
   if (command.action === 'observe') {
     const targets = new Map<string, Target>();
     const nodes: BrowserNode[] = [];
@@ -57,6 +71,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const actions: NonNullable<BrowserNode['actions']> = [];
       if (canClick(node, role)) actions.push('click');
       if (canFill(node)) actions.push('fill');
+      if (actions.length && node instanceof HTMLElement && (node.tabIndex >= 0 || node.hasAttribute('tabindex'))) actions.push('press');
       const name = role ? semantics.name(node).slice(0, 160) : '';
       const text = semantics.normalize(Array.from(node.childNodes)
         .filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.nodeValue).join(' ')).slice(0, 240);
@@ -69,12 +84,23 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       }
       nodes.push(entry);
     }
-    world.peroBrowserObservation = { url: location.href, targets };
+    world.peroBrowserObservation = { id: command.observation, url: location.href, targets };
     return { kind: 'observation', url: location.href, title: document.title.slice(0, 200), nodes, truncated: pending.length > 0 || scanned >= 3000 };
   }
 
   const observation = world.peroBrowserObservation;
   delete world.peroBrowserObservation;
+  if (command.action === 'scroll') {
+    if (observation?.id !== command.observationId || observation.url !== location.href)
+      return reject('The observation is stale. Observe the tab again.');
+    for (const [x, y] of [[.5, .5], [.25, .5], [.75, .5], [.5, .25], [.5, .75]]) {
+      const point = { x: Math.floor(innerWidth * x), y: Math.floor(innerHeight * y) };
+      const hit = hitAt(point);
+      if (hit && !['IFRAME', 'FRAME', 'OBJECT', 'EMBED'].includes(hit.tagName))
+        return { kind: 'point', point };
+    }
+    return reject('The page viewport has no main-document scroll target.');
+  }
   const target = observation?.targets.get(command.ref);
   if (!target || observation?.url !== location.href || !target.node.isConnected ||
       semantics.hidden(target.node) || !semantics.visible(target.node) ||
@@ -91,20 +117,56 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return { kind: 'dispatched' };
   }
 
-  if (!canClick(node, target.role)) return reject('The target is unavailable for a click.');
-  const link = node.closest<HTMLAnchorElement>('a[href]');
-  const control = node.closest('button, input');
-  const submit = (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) &&
-    ['submit', 'image'].includes(control.type) ? control : undefined;
-  const form = submit?.form;
-  const baseTarget = document.querySelector('base[target]')?.getAttribute('target') || '_self';
-  if (link && (link.hasAttribute('download') || (link.target || baseTarget).toLowerCase() !== '_self' || !inScope(link.href)))
-    return reject('This link leaves the authorized tab or site.');
-  if (form && ((submit?.getAttribute('formtarget') || form.target || baseTarget).toLowerCase() !== '_self' ||
-      !inScope(submit?.getAttribute('formaction') ?? form.action)))
-    return reject('This form leaves the authorized tab or site.');
-  node.click();
-  return { kind: 'dispatched' };
+  const clickable = canClick(node, target.role);
+  if (command.action === 'click' && !clickable) return reject('The target is unavailable for a click.');
+  if (command.action === 'press' && (!clickable && !canFill(node)))
+    return reject('The target is unavailable for a key press.');
+  if (command.action === 'click' || command.key === 'Enter' || command.key === 'Space') {
+    // Check native link activation and form submission before sending input.
+    let parent: Element | null = node;
+    let link: HTMLAnchorElement | undefined;
+    let control: HTMLInputElement | HTMLButtonElement | undefined;
+    while (parent) {
+      if (!link && parent instanceof HTMLAnchorElement && parent.hasAttribute('href')) link = parent;
+      if (!control && (parent instanceof HTMLInputElement || parent instanceof HTMLButtonElement)) control = parent;
+      parent = semantics.parent(parent);
+    }
+    let submit = control && ['submit', 'image'].includes(control.type) ? control : undefined;
+    const implicitForm = command.action === 'press' && command.key === 'Enter' && control instanceof HTMLInputElement
+      ? control.form : null;
+    if (!submit && implicitForm) {
+      submit = Array.from(document.querySelectorAll('button, input')).find((element): element is HTMLButtonElement | HTMLInputElement =>
+        (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) &&
+        element.form === implicitForm && ['submit', 'image'].includes(element.type));
+    }
+    const form = submit?.form || implicitForm;
+    const baseTarget = document.querySelector('base[target]')?.getAttribute('target') || '_self';
+    if (link && (link.hasAttribute('download') || (link.target || baseTarget).toLowerCase() !== '_self' || !inScope(link.href)))
+      return reject('This link leaves the authorized tab or site.');
+    if (form && ((submit?.getAttribute('formtarget') || form.target || baseTarget).toLowerCase() !== '_self' ||
+        !inScope(submit?.getAttribute('formaction') ?? form.action)))
+      return reject('This form leaves the authorized tab or site.');
+  }
+
+  if (command.action === 'press') {
+    node.focus({ preventScroll: true });
+    const root = node.getRootNode();
+    if (!(root instanceof Document || root instanceof ShadowRoot) || root.activeElement !== node)
+      return reject('The observed element could not receive keyboard focus.');
+    return { kind: 'focused' };
+  }
+
+  const rect = node.getBoundingClientRect();
+  const left = Math.max(0, rect.left), right = Math.min(rect.right, innerWidth);
+  const top = Math.max(0, rect.top), bottom = Math.min(rect.bottom, innerHeight);
+  if (right <= left || bottom <= top) return reject('The element is outside the viewport. Scroll and observe again.');
+  const point = { x: (left + right) / 2, y: (top + bottom) / 2 };
+  for (let hit = hitAt(point); hit; hit = semantics.parent(hit)) {
+    if (hit === node) return { kind: 'point', point };
+    if (sensitive(hit) || ['IFRAME', 'FRAME', 'OBJECT', 'EMBED'].includes(hit.tagName) ||
+        canClick(hit, semantics.role(hit)) || canFill(hit)) break;
+  }
+  return reject('The element is covered or cannot receive pointer input.');
 }
 
 export function documentScript(origin: string, command: DocumentCommand) {
