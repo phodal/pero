@@ -31,7 +31,7 @@ async function run(commands) {
     const result = await rpc('tools/call', { name: 'browser_use', arguments: args });
     const text = result.content[0].text;
     const value = text.startsWith('{') ? await appUseContent(text, rpc) : { error: text };
-    if (args.action === 'observe' && !result.isError) observed = value;
+    if (value.kind === 'observation' && !result.isError) observed = value;
     const image = result.content.find(item => item.type === 'image');
     let pixels;
     if (args.action === 'screenshot' && !result.isError) {

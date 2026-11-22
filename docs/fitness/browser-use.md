@@ -27,7 +27,7 @@ Pero's Electron Desktop build. `WebPages` owns the existing
 `WebContentsView`; Rust Host owns the ACP session and its approval policy.
 The existing authenticated Desktop MCP connection carries `browser_use`.
 
-The tool supports status, main-document observation, trusted Chromium pointer
+The tool supports status, document observation, trusted Chromium pointer
 clicks, named keyboard input, viewport wheel scrolling, viewport screenshots,
 plain-text filling and same-origin navigation. Observation issues opaque refs
 to the current document. Input consumes the observation. A click rechecks the
@@ -36,11 +36,40 @@ button dispatch. A press focuses an observed element and sends a named key
 such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
 ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
 attachment for fixed input commands. The tool accepts page content as data.
-Observation omits nested frames and password, file and hidden fields.
+Observation omits password, file, hidden and credential-autocomplete inputs.
 Direct navigation rejects foreign origins and cancels
 cross-origin HTTP redirects before the foreign site receives a request.
 A navigation initiated independently by the page or the user ends the grant
 if it leaves the origin.
+
+### Locators, forms and frame scope
+
+- `locate` takes an exact role and optional accessible name, label, text, or
+  test ID. It requires a unique visible match. An actionable result carries an
+  opaque reference for the current observation.
+- `observe` lists visible iframes with a title or test ID. Pass their selectors
+  in the `frame` path on `observe`, `locate` or `wait` to read the same-origin
+  document. Paths support up to four iframe levels. References bind the actual
+  nested document. A frame reload invalidates them even at the same URL.
+  Trusted pointer input translates through the visible frame bounds.
+- Form state exposes disabled status, checked or mixed state, safe text values,
+  and bounded option metadata. `setChecked` updates native checkboxes and can
+  select a radio. `selectOption` requires one enabled option in a native single
+  select. Mutations dispatch input and change events when the value changes.
+- `wait` uses the same locator and accepts visible, hidden, enabled, checked,
+  exact value and exact text conditions. The default deadline is five seconds
+  and the maximum is ten. A match returns the observation. A timeout returns
+  `matched: false` with a receipt and no actionable reference.
+
+For example, locate the Mode combobox in the Details frame:
+
+```json
+{
+  "action": "locate",
+  "frame": [{"by": "title", "value": "Details"}],
+  "locator": {"by": "role", "role": "combobox", "name": "Mode"}
+}
+```
 
 The Desktop profile stores observation JSON and paired intent/result records
 under `browser-use-evidence/`. An action receipt links the observation and
@@ -83,6 +112,16 @@ refusal, denial of Enter on a cross-origin form, refusal of all four operations
 after revocation and denial of capture on a page embedding a foreign-origin frame. The MCP PNG
 and the saved PNG match the receipt hash. The inspected viewport capture is
 at `test-results/browser-use/browser-viewport.png`.
+
+The locator, form, wait and iframe changes on `284cf5cd1` passed the same
+Electron/Host/ACP suite using an isolated Desktop bundle. The suite verifies
+exact role, label, text and test-ID matches, duplicate refusal, checkbox
+state and idempotence, disabled-option refusal, selection and value readback,
+waiting for an initially disabled control and asynchronously updated text,
+hidden and timeout outcomes, and the nested iframe's fill, trusted Enter and
+trusted click. It reads Chromium state independently, rejects the cross-origin
+frame, rejects an old reference after a same-URL frame reload, and checks the
+saved frame path and URL in the action receipt.
 
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model

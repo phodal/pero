@@ -140,7 +140,8 @@ Host 内置 `/app-use` 工作流，完整回执保存会话、任务、实例、
 
 Electron Browser Use 通过同一个经过认证的 MCP 连接提供 `browser_use`。工作台
 显式授权选中会话访问一个可见的 HTTP(S) 标签和站点来源；`WebPages` 继续拥有浏览器
-实例和导航。隔离世界提供受限观察和目标解析，Desktop 在获准的 Chromium 标签派发
+实例和导航。隔离世界提供受限观察、语义定位、表单状态和同源 iframe 操作。
+定位与条件等待返回绑定当前文档的观察引用。Desktop 在获准的 Chromium 标签派发
 指针、键盘和滚轮事件，并保存本地观察、截图和操作回执。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 

@@ -37,6 +37,51 @@ const site = await serve((request, response) => {
     response.end();
     return;
   }
+  if (request.url === '/controls') {
+    response.end(`<title>Browser controls</title>
+      <label><input id="archive" type="checkbox">Include archived</label>
+      <label>Mode <select id="mode">
+        <option value="basic">Basic</option><option value="full">Full</option><option value="blocked" disabled>Unavailable</option>
+      </select></label>
+      <button data-testid="defer">Start deferred update</button>
+      <p data-testid="status">Pending</p>
+      <button>Duplicate</button><button>Duplicate</button>
+      <button data-testid="available" disabled>Available later</button>
+      <iframe title="Details" src="/details" style="display:block;width:520px;height:280px;border:4px solid black"></iframe>
+      <iframe title="Outside" src="${foreign.origin}"></iframe>
+      <script>
+        window.checkboxChanges = 0;
+        document.querySelector('#archive').addEventListener('change', () => { window.checkboxChanges++; });
+        document.querySelector('[data-testid=defer]').addEventListener('click', () => setTimeout(() => {
+          document.querySelector('[data-testid=status]').textContent = 'Deferred ready';
+          document.querySelector('[data-testid=available]').disabled = false;
+        }, 450));
+      </script>`);
+    return;
+  }
+  if (request.url === '/details') {
+    response.end('<title>Details</title><iframe data-testid="nested-frame" src="/nested" style="width:450px;height:205px;border:3px solid black"></iframe>');
+    return;
+  }
+  if (request.url === '/nested') {
+    response.end(`<title>Nested details</title>
+      <label for="detail">Detail draft</label><input id="detail">
+      <button id="apply-detail">Apply detail</button><p data-testid="detail-status">Not applied</p><p data-testid="detail-key">No key</p>
+      <script>
+        let pointed = false;
+        const detail = document.querySelector('#detail');
+        detail.addEventListener('keydown', event => {
+          if (event.isTrusted && event.key === 'Enter') document.querySelector('[data-testid=detail-key]').textContent = 'Frame Enter';
+        });
+        const button = document.querySelector('#apply-detail');
+        button.addEventListener('pointerdown', event => pointed = event.isTrusted);
+        button.addEventListener('click', event => {
+          if (pointed && event.isTrusted) document.querySelector('[data-testid=detail-status]').textContent =
+            'Applied: ' + document.querySelector('#detail').value;
+        });
+      </script>`);
+    return;
+  }
   if (request.url === '/framed') {
     response.end(`<title>Other origin frame</title><iframe src="${foreign.origin}"></iframe>`);
     return;
@@ -233,6 +278,100 @@ try {
     expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') }),
   ]);
 
+  const controlsUrl = site.origin + '/controls';
+  await open(controlsUrl);
+  await confirm(1);
+  await expect.poll(async () => (await document(controlsUrl))?.observation.notice).toBe('Browser Use allowed');
+  const formThread = await active();
+  const archive = { by: 'label', value: 'Include archived' };
+  const mode = { by: 'role', role: 'combobox', name: 'Mode' };
+  const status = { by: 'testId', value: 'status' };
+  const available = { by: 'testId', value: 'available' };
+  const form = await prompt([
+    { action: 'observe' },
+    { action: 'locate', locator: { by: 'role', role: 'button', name: 'Duplicate' } },
+    { action: 'locate', locator: archive }, { action: 'setChecked', name: 'Include archived', checked: true },
+    { action: 'wait', locator: archive, condition: { kind: 'checked', value: true } },
+    { action: 'setChecked', name: 'Include archived', checked: true },
+    { action: 'locate', locator: mode }, { action: 'selectOption', name: 'Mode', value: 'blocked' },
+    { action: 'locate', locator: mode }, { action: 'selectOption', name: 'Mode', value: 'full' },
+    { action: 'wait', locator: mode, condition: { kind: 'value', value: 'full' } },
+    { action: 'locate', locator: available },
+    { action: 'locate', locator: { by: 'testId', value: 'defer' } }, { action: 'click', name: 'Start deferred update' },
+    { action: 'wait', locator: available, condition: { kind: 'enabled' } },
+    { action: 'wait', locator: status, condition: { kind: 'text', value: 'Deferred ready' } },
+    { action: 'locate', locator: { by: 'text', value: 'Deferred ready' } },
+    { action: 'wait', locator: { by: 'testId', value: 'missing' }, condition: { kind: 'visible' }, timeoutMs: 150 },
+    { action: 'wait', locator: { by: 'testId', value: 'missing' }, condition: { kind: 'hidden' } },
+  ]);
+  expect(Array.isArray(form), JSON.stringify(form)).toBe(true);
+  const [layout, duplicate, unchecked, set, checked, repeatSet, menuOptions, blockedOption, , select,
+    selected, disabledControl, , , enabled, ready, readyText, timedOut, hidden] = form;
+  expect(layout.frames).toEqual([
+    { selector: { by: 'title', value: 'Details' }, sameOrigin: true },
+    { selector: { by: 'title', value: 'Outside' }, sameOrigin: false },
+  ]);
+  expect(duplicate).toMatchObject({ isError: true, error: expect.stringContaining('ambiguous') });
+  expect(unchecked.nodes[0]).toMatchObject({ state: { checked: false, disabled: false } });
+  expect(set).toMatchObject({ outcome: 'dispatched' });
+  expect(checked).toMatchObject({ matched: true, nodes: [expect.objectContaining({ state: { checked: true, disabled: false } })] });
+  expect(repeatSet).toMatchObject({ outcome: 'dispatched' });
+  expect(menuOptions.nodes[0].state.options).toEqual(expect.arrayContaining([expect.objectContaining({ value: 'blocked', disabled: true })]));
+  expect(blockedOption).toMatchObject({ outcome: 'rejected', reason: expect.stringContaining('disabled') });
+  expect(select).toMatchObject({ outcome: 'dispatched' });
+  expect(selected).toMatchObject({ matched: true, nodes: [expect.objectContaining({ state: expect.objectContaining({ value: 'full' }) })] });
+  expect(disabledControl.nodes[0]).toMatchObject({ state: { disabled: true } });
+  expect(enabled).toMatchObject({ matched: true, nodes: [expect.objectContaining({ state: { disabled: false } })] });
+  expect(ready).toMatchObject({ matched: true, nodes: [expect.objectContaining({ text: 'Deferred ready' })] });
+  expect(readyText.nodes[0]).toMatchObject({ text: 'Deferred ready' });
+  expect(timedOut).toMatchObject({ kind: 'waitTimeout', matched: false, timeoutMs: 150 });
+  expect(timedOut).not.toHaveProperty('observationId');
+  expect(hidden).toMatchObject({ matched: true, nodes: [] });
+
+  const outer = [{ by: 'title', value: 'Details' }];
+  const framedPath = [...outer, { by: 'testId', value: 'nested-frame' }];
+  const detail = { by: 'label', value: 'Detail draft' };
+  const applyDetail = { by: 'role', role: 'button', name: 'Apply detail' };
+  const frame = await prompt([
+    { action: 'observe', frame: outer },
+    { action: 'locate', frame: framedPath, locator: detail }, { action: 'fill', name: 'Detail draft', text: 'Inside frame' },
+    { action: 'wait', frame: framedPath, locator: detail, condition: { kind: 'value', value: 'Inside frame' } },
+    { action: 'press', name: 'Detail draft', key: 'Enter' },
+    { action: 'wait', frame: framedPath, locator: { by: 'testId', value: 'detail-key' }, condition: { kind: 'text', value: 'Frame Enter' } },
+    { action: 'locate', frame: framedPath, locator: applyDetail }, { action: 'click', name: 'Apply detail' },
+    { action: 'wait', frame: framedPath, locator: { by: 'testId', value: 'detail-status' }, condition: { kind: 'text', value: 'Applied: Inside frame' } },
+    { action: 'observe', frame: [{ by: 'title', value: 'Outside' }] },
+  ]);
+  expect(Array.isArray(frame), JSON.stringify(frame)).toBe(true);
+  const [outerPage, draft, filled, draftValue, framePress, frameKey, locatedClick, frameClick, frameResult, foreignFrame] = frame;
+  expect(outerPage).toMatchObject({ title: 'Details', frame: outer, frames: [{ selector: framedPath[1], sameOrigin: true }] });
+  expect(draft).toMatchObject({ frame: framedPath, frameUrl: site.origin + '/nested' });
+  expect(filled).toMatchObject({ outcome: 'dispatched' });
+  expect(draftValue).toMatchObject({ matched: true });
+  expect(framePress).toMatchObject({ outcome: 'dispatched' });
+  expect(frameKey).toMatchObject({ matched: true, nodes: [expect.objectContaining({ text: 'Frame Enter' })] });
+  expect(frameClick).toMatchObject({ outcome: 'dispatched' });
+  expect(frameResult).toMatchObject({ matched: true, nodes: [expect.objectContaining({ text: 'Applied: Inside frame' })] });
+  expect(foreignFrame).toMatchObject({ isError: true, error: expect.stringContaining('outside the authorized origin') });
+
+  const readControls = expression => app.evaluate(({ webContents }, { url, expression }) => webContents
+    .getAllWebContents().find(view => view.getURL() === url).executeJavaScript(expression), { url: controlsUrl, expression });
+  expect(await readControls(`({
+    checked: document.querySelector('#archive').checked,
+    changes: window.checkboxChanges,
+    mode: document.querySelector('#mode').value,
+    applied: document.querySelector('[title=Details]').contentDocument
+      .querySelector('[data-testid=nested-frame]').contentDocument.querySelector('[data-testid=detail-status]').textContent
+  })`)).toEqual({ checked: true, changes: 1, mode: 'full', applied: 'Applied: Inside frame' });
+  const [oldFrame] = await prompt([{ action: 'locate', frame: framedPath, locator: applyDetail }]);
+  await readControls(`document.querySelector('[title=Details]').contentDocument
+    .querySelector('[data-testid=nested-frame]').contentWindow.location.reload()`);
+  await expect.poll(() => readControls(`document.querySelector('[title=Details]').contentDocument
+    .querySelector('[data-testid=nested-frame]').contentDocument.querySelector('[data-testid=detail-status]')?.textContent`)).toBe('Not applied');
+  expect(await prompt([{ action: 'click', ref: oldFrame.nodes[0].ref }])).toEqual([
+    expect.objectContaining({ isError: true, outcome: 'rejected', reason: expect.stringContaining('iframe changed') }),
+  ]);
+
   const evidence = resolve(profile, 'browser-use-evidence');
   const directory = createHash('sha256').update(thread.id).digest('hex');
   const names = await readdir(resolve(evidence, directory));
@@ -250,11 +389,15 @@ try {
   ]));
   expect(saved.find(record => record.id === fill && record.action === 'fill')).not.toHaveProperty('text');
   expect(saved).toContainEqual(screenshot.receipt);
+  const frameReceipts = resolve(evidence, createHash('sha256').update(formThread.id).digest('hex'));
+  expect(JSON.parse(await readFile(resolve(frameReceipts, frameClick.receiptId + '.intent.json'), 'utf8'))).toMatchObject({
+    action: 'click', observationId: locatedClick.observationId, frame: framedPath, frameUrl: site.origin + '/nested',
+  });
   const capture = await readFile(resolve(evidence, directory, screenshot.receipt.id + '.png'));
   expect(createHash('sha256').update(capture).digest('hex')).toBe(screenshot.pixels.sha256);
   await writeFile(resolve(output, 'browser-viewport.png'), capture);
   await page.screenshot({ path: resolve(output, 'workbench.png') });
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, actions, input, navigation, displayed, scrollY, denied, form, frame, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');
