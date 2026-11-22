@@ -59,6 +59,9 @@ export const designContract = {
   "navigation": {
     "selectedOpacity": 0.1
   },
+  "modal": {
+    "backdropOpacity": 0.33
+  },
   "colors": {
     "page": {
       "light": "#F7F9FC",
@@ -145,4 +148,4 @@ export const designContract = {
     "h6Gap": "1/1"
   }
 } as const;
-export const { space, typePx, typeWeight, radii, metrics, navigation, colors: colorRoles, chatProse } = designContract;
+export const { space, typePx, typeWeight, radii, metrics, navigation, modal, colors: colorRoles, chatProse } = designContract;

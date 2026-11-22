@@ -77,6 +77,10 @@ function contractOf(schema) {
   const radii = props(defs.Radii);
   const metrics = props(defs.Metrics);
   const navigation = props(defs.NavigationStyle);
+  const modal = props(defs.ModalStyle);
+  if (!(modal.backdropOpacity > 0 && modal.backdropOpacity < 1)) {
+    throw new Error("ModalStyle.backdropOpacity must be between zero and one");
+  }
   if (!Number.isFinite(navigation.selectedOpacity) || navigation.selectedOpacity <= 0 || navigation.selectedOpacity >= 1) {
     throw new Error("NavigationStyle.selectedOpacity must be between zero and one");
   }
@@ -106,7 +110,7 @@ function contractOf(schema) {
   }
   const chatProse = props(defs.ChatProse);
   if (!chatProse || Object.keys(chatProse).length === 0) throw new Error('Design contract is missing ChatProse');
-  return { space, typePx, typeWeight, radii, metrics, navigation, colors, chatProse };
+  return { space, typePx, typeWeight, radii, metrics, navigation, modal, colors, chatProse };
 }
 
 function proseRatio(value, name) {
@@ -137,7 +141,7 @@ function proseTokens(prose) {
 const px = value => `${value}px`;
 
 function cssOf(contract) {
-  const { space, typePx, radii, metrics, navigation, colors, chatProse } = contract;
+  const { space, typePx, radii, metrics, navigation, modal, colors, chatProse } = contract;
   const decl = (name, value) => `  --${name}: ${value};`;
   const lines = [
     decl('pero-spacing-1', px(space.space4)),
@@ -155,6 +159,7 @@ function cssOf(contract) {
     decl('pero-font-label', `max(12px, calc(${px(typePx.label)} * var(--pero-font-scale, 1)))`),
     decl('pero-radius-bubble', px(radii.bubble)),
     decl('pero-radius-panel', px(radii.panel)),
+    decl('pero-modal-backdrop', `rgb(0 0 0 / ${modal.backdropOpacity})`),
     decl('pero-navigation-selected', `color-mix(in srgb,var(--pero-text) ${navigation.selectedOpacity * 100}%,transparent)`),
     decl('pero-radius-selection', px(radii.selection)),
     decl('pero-radius-button', px(radii.button)),
@@ -203,11 +208,11 @@ function cssOf(contract) {
 
 function tsOf(contract) {
   const body = JSON.stringify(contract, null, 2);
-  return `/** ${banner} */\nexport const designContract = ${body} as const;\nexport const { space, typePx, typeWeight, radii, metrics, navigation, colors: colorRoles, chatProse } = designContract;\n`;
+  return `/** ${banner} */\nexport const designContract = ${body} as const;\nexport const { space, typePx, typeWeight, radii, metrics, navigation, modal, colors: colorRoles, chatProse } = designContract;\n`;
 }
 
 function rustOf(contract) {
-  const { space, typePx, typeWeight, radii, metrics, navigation, colors, chatProse } = contract;
+  const { space, typePx, typeWeight, radii, metrics, navigation, modal, colors, chatProse } = contract;
   const num = (name, value) => `pub const ${name}: f32 = ${Number.isInteger(value) ? `${value}.` : value};`;
   const text = (name, value) => `pub const ${name}: &str = ${JSON.stringify(value)};`;
   const lines = [
@@ -229,6 +234,7 @@ function rustOf(contract) {
     text('WEIGHT_LIST_TITLE', typeWeight.listTitle),
     text('WEIGHT_BODY', typeWeight.body),
     num('RADIUS_BUBBLE', radii.bubble),
+    num('MODAL_BACKDROP_OPACITY', modal.backdropOpacity),
     num('NAVIGATION_SELECTED_OPACITY', navigation.selectedOpacity),
     num('RADIUS_PANEL', radii.panel),
     num('RADIUS_SELECTION', radii.selection),

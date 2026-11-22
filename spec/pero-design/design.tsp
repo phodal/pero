@@ -92,6 +92,9 @@ model ChatProse {
 /** Neutral persistent navigation fill; keyboard focus stays independent. */
 model NavigationStyle { selectedOpacity: 0.1; }
 
+/** Dims the background of a modal in both the App and its workspace. */
+model ModalStyle { backdropOpacity: 0.33; }
+
 model Metrics {
   /** Window controls and content tabs share one bar, without a repeated page title. */
   windowTitlebar: 42;

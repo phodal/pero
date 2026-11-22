@@ -15,6 +15,7 @@
   --pero-font-label: max(12px, calc(12px * var(--pero-font-scale, 1)));
   --pero-radius-bubble: 20px;
   --pero-radius-panel: 12px;
+  --pero-modal-backdrop: rgb(0 0 0 / 0.33);
   --pero-navigation-selected: color-mix(in srgb,var(--pero-text) 10%,transparent);
   --pero-radius-selection: 8px;
   --pero-radius-button: 6px;

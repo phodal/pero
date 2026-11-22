@@ -18,6 +18,7 @@ pub const WEIGHT_HEADING: &str = "semibold";
 pub const WEIGHT_LIST_TITLE: &str = "medium";
 pub const WEIGHT_BODY: &str = "regular";
 pub const RADIUS_BUBBLE: f32 = 20.;
+pub const MODAL_BACKDROP_OPACITY: f32 = 0.33;
 pub const NAVIGATION_SELECTED_OPACITY: f32 = 0.1;
 pub const RADIUS_PANEL: f32 = 12.;
 pub const RADIUS_SELECTION: f32 = 8.;
