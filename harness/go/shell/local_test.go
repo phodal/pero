@@ -50,14 +50,15 @@ func runCommand(t *testing.T, e *LocalExecutor, ctx context.Context, command str
 func TestForegroundOutputExitAndEnvironment(t *testing.T) {
 	t.Setenv("UNUSUAL_PRIVATE_VALUE", "fixture-must-not-inherit")
 	t.Setenv("BASH_ENV", "/definitely/not/used")
-	e := testExecutor(t, LocalOptions{})
-	r, err := runCommand(t, e, context.Background(), `printf 'hello'; printf 'warning' >&2; printf '%s' "${UNUSUAL_PRIVATE_VALUE-unset}"; exit 7`)
-	if err != nil || r.ExitCode == nil || *r.ExitCode != 7 || r.Stdout.Text != "hellounset" || r.Stderr.Text != "warning" {
-		t.Fatalf("result=%+v err=%v", r, err)
-	}
-	if r.Aborted || r.TimedOut {
-		t.Fatal(r)
-	}
+	testForegroundBackends(t, LocalOptions{}, func(t *testing.T, e *LocalExecutor) {
+		r, err := runCommand(t, e, context.Background(), `printf 'hello'; printf 'warning' >&2; printf '%s' "${UNUSUAL_PRIVATE_VALUE-unset}"; exit 7`)
+		if err != nil || r.ExitCode == nil || *r.ExitCode != 7 || r.Stdout.Text != "hellounset" || r.Stderr.Text != "warning" {
+			t.Fatalf("result=%+v err=%v", r, err)
+		}
+		if r.Aborted || r.TimedOut {
+			t.Fatal(r)
+		}
+	})
 }
 
 func TestTrustedPluginEnvironmentIsExplicit(t *testing.T) {
@@ -69,37 +70,76 @@ func TestTrustedPluginEnvironmentIsExplicit(t *testing.T) {
 	}
 }
 func TestOutputCapsBothStreams(t *testing.T) {
-	e := testExecutor(t, LocalOptions{MaxOutputBytes: 128})
-	r, err := runCommand(t, e, context.Background(), `for ((i=0;i<5000;i++)); do printf 1234567890; printf abcdefghij >&2; done`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !r.Stdout.Truncated || !r.Stderr.Truncated || len(r.Stdout.Text) > 128 || len(r.Stderr.Text) > 128 {
-		t.Fatal(r)
-	}
+	testForegroundBackends(t, LocalOptions{MaxOutputBytes: 128}, func(t *testing.T, e *LocalExecutor) {
+		r, err := runCommand(t, e, context.Background(), `for ((i=0;i<5000;i++)); do printf 1234567890; printf abcdefghij >&2; done`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !r.Stdout.Truncated || !r.Stderr.Truncated || len(r.Stdout.Text) > 128 || len(r.Stderr.Text) > 128 {
+			t.Fatal(r)
+		}
+	})
 }
 func TestTimeoutAndCallerCancellation(t *testing.T) {
-	e := testExecutor(t, LocalOptions{Timeout: 60 * time.Millisecond})
-	started := time.Now()
-	r, err := runCommand(t, e, context.Background(), `trap '' TERM; sleep 30`)
-	if !errors.Is(err, ErrTimeout) || !r.TimedOut || r.Aborted || time.Since(started) > 2*time.Second {
-		t.Fatalf("result=%+v err=%v elapsed=%v", r, err, time.Since(started))
-	}
-	e = testExecutor(t, LocalOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Millisecond)
-	defer cancel()
-	started = time.Now()
-	r, err = runCommand(t, e, ctx, `trap '' TERM; sleep 30`)
-	if !errors.Is(err, context.DeadlineExceeded) || !r.Aborted || r.TimedOut || time.Since(started) > 2*time.Second {
-		t.Fatalf("result=%+v err=%v", r, err)
-	}
+	t.Run("shell timeout", func(t *testing.T) {
+		testForegroundBackends(t, LocalOptions{Timeout: 60 * time.Millisecond}, func(t *testing.T, e *LocalExecutor) {
+			started := time.Now()
+			r, err := runCommand(t, e, t.Context(), `trap '' TERM; sleep 30`)
+			if !errors.Is(err, ErrTimeout) || !r.TimedOut || r.Aborted || time.Since(started) > 2*time.Second {
+				t.Fatalf("result=%+v err=%v elapsed=%v", r, err, time.Since(started))
+			}
+		})
+	})
+	t.Run("caller deadline", func(t *testing.T) {
+		testForegroundBackends(t, LocalOptions{}, func(t *testing.T, e *LocalExecutor) {
+			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Millisecond)
+			defer cancel()
+			r, err := runCommand(t, e, ctx, `trap '' TERM; sleep 30`)
+			if !errors.Is(err, context.DeadlineExceeded) || !r.Aborted || r.TimedOut {
+				t.Fatalf("result=%+v err=%v", r, err)
+			}
+		})
+	})
 }
+func testForegroundBackends(t *testing.T, options LocalOptions, check func(*testing.T, *LocalExecutor)) {
+	t.Helper()
+	t.Run("local", func(t *testing.T) {
+		check(t, testExecutor(t, options))
+	})
+	t.Run("exec-server", func(t *testing.T) {
+		codex := os.Getenv("PERO_TEST_CODEX_EXECUTABLE")
+		if codex == "" {
+			t.Skip("set PERO_TEST_CODEX_EXECUTABLE to the installed Codex binary")
+		}
+		executor, err := testExecutor(t, options).WithExecServer(codex)
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, executor)
+	})
+}
+
 func TestChildHoldingPipesCannotHoldWaitForever(t *testing.T) {
-	e := testExecutor(t, LocalOptions{})
-	started := time.Now()
-	r, err := runCommand(t, e, context.Background(), `(trap '' TERM; sleep 30) & printf finished`)
-	if !errors.Is(err, exec.ErrWaitDelay) || r.Stdout.Text != "finished" || time.Since(started) > 2*time.Second {
-		t.Fatalf("result=%+v err=%v elapsed=%v", r, err, time.Since(started))
+	for _, tc := range []struct {
+		name string
+		exit string
+		code int
+		want error
+	}{
+		{name: "successful exit", exit: "exit 0", want: exec.ErrWaitDelay},
+		{name: "nonzero exit", exit: "exit 7", code: 7},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testForegroundBackends(t, LocalOptions{}, func(t *testing.T, e *LocalExecutor) {
+				started := time.Now()
+				r, err := runCommand(t, e, t.Context(), `(trap '' TERM; sleep 30) & printf finished; `+tc.exit)
+				if !errors.Is(err, tc.want) || r.Stdout.Text != "finished" ||
+					r.ExitCode == nil || *r.ExitCode != tc.code || r.TimedOut || r.Aborted || r.CleanupUncertain ||
+					time.Since(started) > 2*time.Second {
+					t.Fatalf("result=%+v err=%v elapsed=%v", r, err, time.Since(started))
+				}
+			})
+		})
 	}
 }
 func TestResolveAndRunRejectBoundaryBypass(t *testing.T) {
@@ -128,16 +168,17 @@ func TestExplicitEnvironmentRejectsSecretAndStartupVariables(t *testing.T) {
 	}
 }
 func TestPreCancelledDoesNotSpawn(t *testing.T) {
-	e := testExecutor(t, LocalOptions{})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	r, err := runCommand(t, e, ctx, `printf bad > spawned`)
-	if !errors.Is(err, context.Canceled) || !r.Aborted {
-		t.Fatalf("result=%+v err=%v", r, err)
-	}
-	if _, err := os.Stat(filepath.Join(e.cwd, "spawned")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("cancelled request spawned")
-	}
+	testForegroundBackends(t, LocalOptions{}, func(t *testing.T, e *LocalExecutor) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		r, err := runCommand(t, e, ctx, `printf bad > spawned`)
+		if !errors.Is(err, context.Canceled) || !r.Aborted {
+			t.Fatalf("result=%+v err=%v", r, err)
+		}
+		if _, err := os.Stat(filepath.Join(e.cwd, "spawned")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("cancelled request spawned")
+		}
+	})
 }
 func TestTailWriterRetainsBoundedTail(t *testing.T) {
 	w := newTailWriter(5)

@@ -78,3 +78,11 @@ to `pero-agent-acp`. Each native foreground `shell` call gets a private
 workspace, sandbox wrapper and environment, collects both output streams, and
 requests termination when the caller cancels. The default executor runs locally
 in Go. The opt-in transport was verified with codex-cli 0.154.0 on macOS arm64.
+
+Both backends use the same foreground timeout, bounded output tails and
+post-exit pipe grace. A child holding an output pipe open after the Shell exits
+triggers cleanup at the end of that grace. Codex reports a numeric exit status
+for both explicit exits and signal termination. The exec-server receipt keeps
+that number and leaves the signal field empty. Cancellation through Codex
+requests immediate termination. The local Go backend sends SIGTERM before its
+forced-kill grace.

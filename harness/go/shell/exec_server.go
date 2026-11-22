@@ -83,6 +83,7 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 		return result, err
 	}
 	done := make(chan struct{})
+	drainExpired := false
 	defer func() {
 		close(done)
 		input.Close()
@@ -92,6 +93,10 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 		timer.Stop()
 		if waitErr != nil {
 			err = errors.Join(err, fmt.Errorf("exec-server exit: %w", waitErr))
+		} else if drainExpired {
+			// Closing the owning stdio connection reaps the process group
+			// even when process/terminate considers the leader already exited.
+			receipt.CleanupUncertain = false
 		}
 	}()
 	encoder := json.NewEncoder(input)
@@ -137,7 +142,7 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 		}
 	}()
 	cancelled := ctx.Done()
-	var deadline <-chan time.Time
+	var deadline, drainDeadline <-chan time.Time
 	for {
 		select {
 		case <-cancelled:
@@ -153,6 +158,13 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 			deadline = timer.C
 		case <-deadline:
 			return result, errors.New("exec-server did not confirm termination")
+		case <-drainDeadline:
+			drainExpired = true
+			// Match exec.Cmd: a nonzero exit remains the primary result.
+			if *result.ExitCode == 0 && context.Cause(ctx) == nil {
+				return result, fmt.Errorf("shell: wait for command: %w", exec.ErrWaitDelay)
+			}
+			return result, nil
 		case err := <-readErr:
 			return result, err
 		case msg := <-events:
@@ -206,7 +218,13 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 						_, _ = sink.Write(msg.Params.Chunk)
 					}
 				case "process/exited":
+					if msg.Params.ExitCode == nil {
+						return result, errors.New("exec-server missing exit code")
+					}
 					result.ExitCode = msg.Params.ExitCode
+					drain := time.NewTimer(e.grace)
+					defer drain.Stop()
+					drainDeadline = drain.C
 				case "process/closed":
 					if result.ExitCode == nil {
 						return result, errors.New("exec-server missing exit receipt")
