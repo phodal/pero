@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.openpero.desktop",
   "name": "Pero",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "shell": "workbench",
   "apps": [
     "insights",

@@ -423,9 +423,13 @@ jobs:
           # Keeping the release drafted until that pin succeeds stops a moved
           # tag from becoming a public release. The undraft call itself is not
           # atomic with the tag, so that last window remains.
+          prerelease=false
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            prerelease=true
+          fi
           draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
           if [[ -z "$draft" ]]; then
-            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Pero $RELEASE_TAG" --notes-file release-notes.md
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease="$prerelease" --title "Pero $RELEASE_TAG" --notes-file release-notes.md
           elif [[ "$draft" != true ]]; then
             echo 'A published release already exists; refusing to replace its packages.' >&2
             exit 1
@@ -435,4 +439,4 @@ jobs:
           node scripts/ci/deployment-gate.mjs pin-tag
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           node scripts/ci/deployment-gate.mjs pin-tag
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease=true
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease"
