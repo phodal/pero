@@ -4,9 +4,12 @@ main { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height:
 header, footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--pero-spacing-3); padding: var(--pero-spacing-3) var(--pero-spacing-4); }
 header { grid-row: 1; }
 h1 { margin: 0; font: var(--pero-font-title) system-ui, sans-serif; font-weight: 600; }
-.actions { display: flex; gap: var(--pero-spacing-2); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--pero-spacing-2); }
 .problem { grid-row: 2; margin: 0 var(--pero-spacing-4) var(--pero-spacing-2); }
 .display { grid-row: 3; position: relative; overflow: hidden; background: var(--pero-paper); border-block: 1px solid var(--pero-line); }
 .framebuffer, .display-message { position: absolute; inset: 0; }
 .display-message { display: grid; align-content: center; justify-items: center; gap: var(--pero-spacing-3); padding: var(--pero-spacing-4); text-align: center; color: var(--pero-muted); }
+.connection { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: var(--pero-spacing-2); text-align: start; }
+.connection label { display: grid; gap: var(--pero-spacing-1); min-width: 0; }
+.connection input[type="number"] { width: 6rem; }
 footer { grid-row: 4; color: var(--pero-muted); }

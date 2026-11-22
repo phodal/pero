@@ -6,6 +6,9 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { WebSocketServer, createWebSocketStream } from 'ws';
 import type { LinuxDesktopGuest } from './linux-desktop-guest.ts';
+import type { SshDesktop, SshManagedDesktop } from './ssh-desktop.ts';
+
+type VncSource = LinuxDesktopGuest | SshDesktop | SshManagedDesktop;
 
 /** One private viewer origin, with a fresh RFB endpoint after every handoff. */
 export class LinuxDesktopVnc {
@@ -13,10 +16,10 @@ export class LinuxDesktopVnc {
   private readonly sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false });
   private readonly http;
   private origin = '';
-  private target?: { guest: LinuxDesktopGuest; control: boolean; path: string };
+  private target?: { guest: VncSource; control: boolean; path: string };
   private client?: { close(): void; done: Promise<void> };
 
-  constructor(assets: string) {
+  constructor(assets: string, relay?: string) {
     const files = new Map([
       ['', ['linux-desktop.html', 'text/html; charset=utf-8']],
       ['linux-desktop.js', ['linux-desktop.js', 'text/javascript; charset=utf-8']],
@@ -30,7 +33,7 @@ export class LinuxDesktopVnc {
         const bytes = await readFile(join(assets, file[0]));
         response.writeHead(200, {
           'content-type': file[1], 'cache-control': 'no-store', 'referrer-policy': 'no-referrer',
-          'content-security-policy': "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'",
+          'content-security-policy': `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'${relay ? ' ' + relay.replace(/^http/, 'ws') : ''}; frame-ancestors 'none'`,
         }).end(bytes);
       } catch { response.writeHead(404).end(); }
     });
@@ -72,7 +75,7 @@ export class LinuxDesktopVnc {
     return this.origin + this.path;
   }
 
-  expose(guest: LinuxDesktopGuest, control: boolean) {
+  expose(guest: VncSource, control: boolean) {
     this.target = { guest, control, path: `${this.path}rfb/${randomUUID()}` };
   }
 

@@ -7,7 +7,7 @@ import { app, BrowserWindow, ipcMain, Menu, protocol, nativeTheme, net, dialog, 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { resolve, sep, delimiter, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeLocale, translate, type Locale, type MessageKey } from '../../../locales';
@@ -28,6 +28,7 @@ import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
 import { LinuxDesktopWindow } from './linux-desktop-window.ts';
+import { openSshHost, readSshHostProfile } from './ssh-host.ts';
 import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
 import { bindAppFrameEditing } from './frame-editing.ts';
@@ -51,6 +52,11 @@ app.on('second-instance', (_event, argv) => {
   if (url && acceptDeepLink) acceptDeepLink(url);
 });
 protocol.registerSchemesAsPrivileged(['pero', 'pero-app', 'pero-html'].map(scheme => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } })));
+const sshProfilePath = process.env.PERO_REMOTE_HOST_PROFILE;
+if (sshProfilePath && !process.env.PERO_DESKTOP_DATA_DIR) {
+  const profileId = createHash('sha256').update(sshProfilePath).digest('hex').slice(0, 24);
+  process.env.PERO_DESKTOP_DATA_DIR = resolve(app.getPath('userData'), 'remote-hosts', profileId);
+}
 if (process.env.PERO_DESKTOP_DATA_DIR) {
   mkdirSync(process.env.PERO_DESKTOP_DATA_DIR, { recursive: true });
   app.setPath('userData', process.env.PERO_DESKTOP_DATA_DIR);
@@ -77,6 +83,7 @@ const mcpRpc=new McpSessionRpc(request=>{
 });
 let computer: DesktopComputer | undefined;
 let linuxDesktop: LinuxDesktopWindow | undefined;
+let sshProfile: ReturnType<typeof readSshHostProfile> | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
 let localExecution: LocalExecutionController | undefined;
@@ -196,6 +203,18 @@ function updateMenus() {
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
         void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));
       } }] : []),
+      ...(process.platform !== 'win32' ? [{ id: 'ssh-workbench', label: t('linux_desktop.ssh_workbench'), click: () => {
+        void dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'Pero SSH profile', extensions: ['json'] }] }).then(({ filePaths }) => {
+          const profile = filePaths[0];
+          if (!profile) return;
+          readSshHostProfile(profile);
+          const env: NodeJS.ProcessEnv = { ...process.env, PERO_REMOTE_HOST_PROFILE: profile };
+          delete env.PERO_DESKTOP_DATA_DIR;
+          const workbench = spawn(process.execPath, app.isPackaged ? [] : [resolve(root, 'desktop')], { detached: true, stdio: 'ignore', env });
+          workbench.on('error', error => dialog.showErrorBox(t('linux_desktop.ssh_workbench'), String(error)));
+          workbench.unref();
+        }).catch(error => dialog.showErrorBox(t('linux_desktop.ssh_workbench'), String(error)));
+      } }] : []),
       {id:'session-mcp',label:t('mcp.session_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'session'}})},
       {id:'standalone-mcp',label:t('mcp.standalone_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'standalone'}})},
       { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) },
@@ -207,10 +226,11 @@ function updateMenus() {
       { id: 'locale-en', label: 'English', type: 'radio', checked: locale === 'en', click: () => changeLocale('en') },
     ] },
   ]));
-  if (window && !window.isDestroyed()) window.setTitle(t('window.title'));
+  if (window && !window.isDestroyed()) window.setTitle(sshProfile ? `${t('window.title')} · ${sshProfile.host}` : t('window.title'));
 }
 
 app.whenReady().then(async () => {
+  if (sshProfilePath) sshProfile = readSshHostProfile(sshProfilePath);
   locale = normalizeLocale(process.env.PERO_LOCALE || app.getLocale());
   if (app.isPackaged) app.setAsDefaultProtocolClient('pero');
   else if (process.platform === 'win32' && process.argv[1]) app.setAsDefaultProtocolClient('pero', process.execPath, [resolve(process.argv[1])]);
@@ -241,8 +261,9 @@ app.whenReady().then(async () => {
     permissions: computerPermissions,
   });
   if (process.platform !== 'win32') {
-    linuxDesktop = new LinuxDesktopWindow(__dirname, computer, () => locale, async () => appUse?.authority.selectedOrdinaryConversation());
-    computer.linuxRoute = thread => linuxDesktop?.session.route(thread);
+    linuxDesktop = new LinuxDesktopWindow(__dirname, computer, () => locale, async () => appUse?.authority.selectedOrdinaryConversation(), sshProfile);
+    computer.linuxRoute = thread => linuxDesktop?.session.route(thread) ??
+      (sshProfile ? { reason: 'Connect this conversation to a remote Linux desktop before using Computer Use.' } : undefined);
     nativeTheme.on('updated', () => linuxDesktop?.publish());
   }
   globalShortcut.register('CommandOrControl+Shift+Escape', () => {
@@ -254,7 +275,7 @@ app.whenReady().then(async () => {
     await ready;
     return tabId;
   }, options => net.request(options));
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),browserUse);
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),sshProfile ? undefined : browserUse);
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
   if (process.platform === 'darwin' || process.platform === 'linux') {
@@ -282,7 +303,8 @@ app.whenReady().then(async () => {
   } else {
     apps.connectors = async () => ({ ok: false, code: 'MCP_PLATFORM_UNSUPPORTED' });
   }
-  host = spawn(process.env.PERO_HOST_EXECUTABLE || resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
+  host = sshProfile ? await openSshHost(sshProfile, appUseEnvironment) :
+    spawn(process.env.PERO_HOST_EXECUTABLE || resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-host${process.platform === 'win32' ? '.exe' : ''}`), ['--stdio'], { cwd: app.isPackaged ? app.getPath('home') : root, stdio: 'pipe', env: {
     ...hostEnvironment, ...harness.environment(), ...appUseEnvironment, ...connectorEnvironment, PATH: [resolve(root,'bin'),resolve(root,'node_modules/.bin'),process.env.PATH,resolve(app.getPath('home'),'.opencode/bin'),'/opt/homebrew/bin',resolve(app.getPath('home'),'.local/bin')].filter(Boolean).join(delimiter), PERO_LOCALE: locale,
     PERO_AGENT_ROOT: root,
     ...(app.isPackaged ? { PERO_ADAPTER_NODE: process.execPath } : {}),
@@ -507,6 +529,10 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('pero:workspace', async (sender) => {
     trusted(sender);
+    if (sshProfile) {
+      host.stdin.write(JSON.stringify({ action: 'workspace', path: sshProfile.workspace }) + '\n');
+      return;
+    }
     const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
     if (!selected.canceled && selected.filePaths[0]) host.stdin.write(JSON.stringify({action:'workspace',path:selected.filePaths[0]})+'\n');
   });
@@ -528,6 +554,7 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({ ...testWindowOptions, width: 1488, height: 1086, minWidth: 1000, minHeight: 680,
     title: t('window.title'), backgroundColor: '#F7F9FC',
     webPreferences: { ...testWindowOptions.webPreferences, preload: resolve(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  if (sshProfile) window.on('page-title-updated', event => event.preventDefault());
   webPages=new WebPages(window,send,resolve(app.getPath('userData'),'web-sessions.json'),url=>!!mcpHost?.ownsPanel(url)||!!mcpSessions?.ownsPanel(url));
   mcpHost=new McpHost(resolve(dirname(runtimeSettingsPath),'mcp-servers.json'),__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}));
   mcpSessions=new McpSessionPanels(mcpRpc,__dirname,url=>shell.openExternal(url),binding=>send({version:1,kind:'mcp_app_opened',request_id:null,thread_id:binding.thread_id,text:'',data:binding}),selection=>{const {thread_id,...data}=selection;send({version:1,kind:'mcp_resource_selected',request_id:null,thread_id,text:'',data});});
@@ -583,6 +610,9 @@ app.whenReady().then(async () => {
   const initialLink = pendingDeepLink || process.argv.find(deepLink);
   if (initialLink) acceptDeepLink(initialLink);
   pendingDeepLink = undefined;
+}).catch(error => {
+  dialog.showErrorBox(t('window.title'), error instanceof Error ? error.message : String(error));
+  app.exit(1);
 });
 app.on('window-all-closed', () => app.quit());
 let shuttingDown = false;

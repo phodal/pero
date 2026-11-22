@@ -5,22 +5,40 @@ import { LinuxDesktopVnc } from './linux-desktop-vnc.ts';
 import { testWindowOptions } from './test-display.ts';
 import { translate, type Locale } from '../../../locales/index.ts';
 import { join } from 'node:path';
+import { sshVncProfile } from './ssh-desktop.ts';
+import type { SshHostProfile } from './ssh-host.ts';
+import { createDesktopPair, relayOrigin } from './linux-desktop-share.ts';
 
 export class LinuxDesktopWindow {
   readonly session: LinuxDesktop;
   private url?: Promise<string>;
   private window?: BrowserWindow;
+  private relay = relayOrigin();
 
   constructor(private assets: string, private computer: DesktopComputer, private locale: () => Locale,
-    private selectedThread: () => Promise<string | undefined>) {
-    this.session = new LinuxDesktop(new LinuxDesktopVnc(assets), () => computer.enabled, () => this.publish());
-    ipcMain.handle('pero:linux-desktop', async (event, action: unknown) => {
+    private selectedThread: () => Promise<string | undefined>, private ssh?: SshHostProfile) {
+    this.session = new LinuxDesktop(new LinuxDesktopVnc(assets, this.relay), () => computer.enabled, () => this.publish());
+    ipcMain.handle('pero:linux-desktop', async (event, action: unknown, value: unknown) => {
       const window = this.window;
       if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
           event.senderFrame?.url !== await this.url) throw new Error('Untrusted Linux desktop viewer');
       switch (action) {
         case 'state': break;
-        case 'start': await this.session.start(); break;
+        case 'start':
+          if (this.ssh && !this.ssh.desktop) throw new Error('This SSH profile does not configure a managed Linux desktop.');
+          await this.session.start(this.ssh?.desktop ? { host: this.ssh.host, launcher: this.ssh.desktop } : undefined); break;
+        case 'connect': await this.session.connect(sshVncProfile.parse(value)); break;
+        case 'share': {
+          if (!this.relay) throw new Error('Configure a desktop relay first.');
+          const { endpoint, viewOnly } = await this.session.share();
+          try {
+            return { ...this.snapshot(), pair: { ...await createDesktopPair(viewOnly, this.relay), endpoint } };
+          } catch (error) {
+            await this.session.endShare();
+            throw error;
+          }
+        }
+        case 'end-share': await this.session.endShare(); break;
         case 'takeover': await this.session.handoff(true); break;
         case 'return': await this.session.handoff(false); break;
         case 'enable': await this.computer.command({ action: 'computer_set', enabled: true }); break;
@@ -32,6 +50,7 @@ export class LinuxDesktopWindow {
         }
         case 'detach': await this.session.detach(); break;
         case 'stop': {
+          if (this.session.state.external || this.session.state.remoteManaged) { await this.session.stop(); break; }
           const t = (key: Parameters<typeof translate>[1]) => translate(this.locale(), key);
           const answer = await dialog.showMessageBox(window, { type: 'warning', message: t('linux_desktop.discard'),
             buttons: [t('linux_desktop.cancel'), t('linux_desktop.stop')], cancelId: 0, defaultId: 0, noLink: true });
@@ -44,7 +63,8 @@ export class LinuxDesktopWindow {
     });
   }
 
-  private snapshot() { return { ...this.session.state, locale: this.locale(), dark: nativeTheme.shouldUseDarkColors }; }
+  private snapshot() { return { ...this.session.state, locale: this.locale(), dark: nativeTheme.shouldUseDarkColors,
+    sshHost: this.ssh && { host: this.ssh.host, managed: Boolean(this.ssh.desktop) }, relayAvailable: !!this.relay }; }
   publish() {
     if (this.window && !this.window.isDestroyed()) this.window.webContents.send('pero:linux-desktop-state', this.snapshot());
   }
