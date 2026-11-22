@@ -109,9 +109,9 @@ func (e *LocalExecutor) StartTerminal(ctx context.Context, request ExecRequest, 
 		var waitErr error
 		select {
 		case waitErr = <-waitDone:
-			killProcessGroup(command.Process)
+			processGroup(command.Process.Pid).kill()
 		case <-owner.Done():
-			terminateProcess(command.Process, e.grace)
+			processGroup(command.Process.Pid).terminate(e.grace)
 			waitErr = <-waitDone
 		}
 		timer.Stop()

@@ -99,7 +99,8 @@ func TestExecServerForegroundCancellation(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
-	executor, err := testExecutor(t, LocalOptions{OutputSink: writer}).WithExecServer(path)
+	const grace = 200 * time.Millisecond
+	executor, err := testExecutor(t, LocalOptions{Grace: grace, OutputSink: writer}).WithExecServer(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,14 @@ func TestExecServerForegroundCancellation(t *testing.T) {
 	var runErr error
 	go func() {
 		defer close(done)
-		result, runErr = executor.Run(ctx, ExecSpec{Command: "/bin/sleep 60 & child=$!; echo $$ $child; wait $child", Timeout: 10 * time.Second})
+		result, runErr = executor.Run(ctx, ExecSpec{Command: `
+trap 'printf "cleanup stdout\n"; printf "cleanup stderr\n" >&2; exit 23' TERM
+(trap '' TERM; printf ready > child-ready; exec /bin/sleep 60) &
+child=$!
+until [[ -s child-ready ]]; do /bin/sleep 0.01; done
+echo $$ $child
+wait "$child"
+`, Timeout: 10 * time.Second})
 		writer.Close()
 	}()
 	// Both PIDs come from the running shell through process/output.
@@ -119,10 +127,19 @@ func TestExecServerForegroundCancellation(t *testing.T) {
 	if parent < 1 || child < 1 {
 		t.Fatal("missing process identity")
 	}
+	cancelledAt := time.Now()
 	cancel()
-	reader.Close()
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		t.Fatal(err)
+	}
 	<-done
-	if !errors.Is(runErr, context.Canceled) || !result.Aborted || result.TimedOut || result.CleanupUncertain || result.Stdout.Text != fmt.Sprintf("%d %d\n", parent, child) {
+	if time.Since(cancelledAt) < grace {
+		t.Fatal("cancellation returned before the termination grace elapsed")
+	}
+	if !errors.Is(runErr, context.Canceled) || !result.Aborted || result.TimedOut || result.CleanupUncertain ||
+		result.ExitCode == nil || *result.ExitCode != 23 ||
+		result.Stdout.Text != fmt.Sprintf("%d %d\ncleanup stdout\n", parent, child) ||
+		result.Stderr.Text != "cleanup stderr\n" {
 		t.Fatalf("cancelled receipt: %+v, %v", result, runErr)
 	}
 	for _, pid := range []int{parent, child} {

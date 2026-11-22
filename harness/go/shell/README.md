@@ -83,6 +83,10 @@ Both backends use the same foreground timeout, bounded output tails and
 post-exit pipe grace. A child holding an output pipe open after the Shell exits
 triggers cleanup at the end of that grace. Codex reports a numeric exit status
 for both explicit exits and signal termination. The exec-server receipt keeps
-that number and leaves the signal field empty. Cancellation through Codex
-requests immediate termination. The local Go backend sends SIGTERM before its
-forced-kill grace.
+that number and leaves the signal field empty.
+
+On Linux and macOS, cancellation uses `/bin/ps` to identify the exec-server's
+owned process group. Both foreground backends send SIGTERM, allow the configured
+grace for cleanup output, and send SIGKILL to any remaining group members.
+The private broker's termination request handles cancellation when its process
+group cannot be identified, including during startup.

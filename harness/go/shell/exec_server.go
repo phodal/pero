@@ -142,21 +142,45 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 		}
 	}()
 	cancelled := ctx.Done()
-	var deadline, drainDeadline <-chan time.Time
+	var cleanupDeadline, drainDeadline <-chan time.Time
+	var termDone <-chan struct{}
+	// Once escalation starts, join it before closing the broker, including on
+	// protocol errors. The broker owns the output pipes throughout the grace.
+	defer func() {
+		if termDone != nil {
+			<-termDone
+		}
+	}()
 	for {
 		select {
 		case <-cancelled:
 			if !startSent {
 				return result, nil
 			}
+			cancelled = nil
+			if group := execServerProcessGroup(broker.Process.Pid); group > 1 {
+				drainDeadline = nil
+				finished := make(chan struct{})
+				termDone = finished
+				go func() {
+					defer close(finished)
+					group.terminate(e.grace)
+				}()
+				continue
+			}
+			// Startup or exit can race process discovery. Let the broker stop
+			// its logical process when no owned group can be identified.
 			if err := send(3, "process/terminate", map[string]string{"processId": "shell"}); err != nil {
 				return result, err
 			}
-			cancelled = nil
-			timer := time.NewTimer(time.Second)
-			defer timer.Stop()
-			deadline = timer.C
-		case <-deadline:
+			cleanupDeadline = time.After(time.Second)
+		case <-termDone:
+			termDone = nil
+			if closed {
+				return result, nil
+			}
+			cleanupDeadline = time.After(time.Second)
+		case <-cleanupDeadline:
 			return result, errors.New("exec-server did not confirm termination")
 		case <-drainDeadline:
 			drainExpired = true
@@ -222,15 +246,19 @@ func (e *LocalExecutor) runExecServer(ctx context.Context, cancel context.Cancel
 						return result, errors.New("exec-server missing exit code")
 					}
 					result.ExitCode = msg.Params.ExitCode
-					drain := time.NewTimer(e.grace)
-					defer drain.Stop()
-					drainDeadline = drain.C
+					if termDone == nil && cleanupDeadline == nil {
+						drain := time.NewTimer(e.grace)
+						defer drain.Stop()
+						drainDeadline = drain.C
+					}
 				case "process/closed":
 					if result.ExitCode == nil {
 						return result, errors.New("exec-server missing exit receipt")
 					}
 					closed = true
-					return result, nil
+					if termDone == nil {
+						return result, nil
+					}
 				}
 			}
 		}

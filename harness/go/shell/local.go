@@ -338,7 +338,7 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 		select {
 		case <-executionCtx.Done():
 			if controlWrite == nil {
-				terminateProcess(command.Process, e.grace)
+				processGroup(command.Process.Pid).terminate(e.grace)
 				return
 			}
 			_ = controlWrite.Close()
@@ -351,7 +351,7 @@ func (e *LocalExecutor) Run(ctx context.Context, spec ExecSpec) (RunResult, erro
 				_ = command.Process.Kill()
 			}
 		case <-done:
-			killProcessGroup(command.Process)
+			processGroup(command.Process.Pid).kill()
 		}
 	}()
 	waitErr := command.Wait()
