@@ -73,7 +73,77 @@ fn complete(control: &Control, journal: &mut Journal) -> Result<(), CloudFailure
     }
 }
 
-fn recover(control: &Control, journal: &mut Journal) -> Result<bool, CloudFailure> {
+fn settle(control: &Control, journal: &mut Journal, once: bool) -> Result<(), CloudFailure> {
+    let run_id = journal.state.active.as_ref().ok_or("Missing Run journal")?.run.id.clone();
+    // Once execution stops, retain and upload its complete evidence before completion.
+    let mut backoff = ReconnectBackoff::default();
+    while journal
+        .state
+        .active
+        .as_ref()
+        .is_some_and(|active| active.acknowledged < active.events.last().map_or(0, |e| e.seq))
+    {
+        let active = journal.state.active.as_ref().unwrap();
+        if let Err(error) = control.renew(&active.run) {
+            // Lease expiry may already have produced a terminal reconcile state.
+            if control
+                .inspect(&active.run)
+                .is_ok_and(|current| terminal(&current.status))
+            {
+                return clear(journal).map_err(Into::into);
+            }
+            if error.retryable && !once {
+                let delay = backoff.failed().as_secs();
+                progress(
+                    LocalWorkerStatus::Offline,
+                    &format!("Execution stopped; reconnecting to upload events in {delay}s"),
+                    Some(run_id.clone()),
+                );
+                std::thread::sleep(Duration::from_secs(delay));
+                continue;
+            }
+            return Err(error.retained());
+        }
+        let acknowledged = match control.flush(journal.state.active.as_ref().unwrap()) {
+            Ok(acknowledged) => {
+                backoff = ReconnectBackoff::default();
+                acknowledged
+            }
+            Err(error) if error.retryable && !once => {
+                let delay = backoff.failed().as_secs();
+                progress(
+                    LocalWorkerStatus::Offline,
+                    &format!("Execution stopped; retaining events for upload in {delay}s"),
+                    Some(run_id.clone()),
+                );
+                std::thread::sleep(Duration::from_secs(delay));
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        journal.state.active.as_mut().unwrap().acknowledged = acknowledged;
+        journal.save()?;
+    }
+    backoff = ReconnectBackoff::default();
+    loop {
+        match complete(control, journal) {
+            Ok(()) => break,
+            Err(error) if error.retryable && !once => {
+                let delay = backoff.failed().as_secs();
+                progress(
+                    LocalWorkerStatus::Offline,
+                    &format!("Execution stopped; uploading its retained result in {delay}s"),
+                    Some(run_id.clone()),
+                );
+                std::thread::sleep(Duration::from_secs(delay));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+fn recover(control: &Control, journal: &mut Journal, once: bool) -> Result<bool, CloudFailure> {
     let mut needs_review = false;
     // A lost claim response is recovered using the ORIGINAL process instance and key.
     if let Some(claim) = &journal.state.pending_claim {
@@ -116,7 +186,7 @@ fn recover(control: &Control, journal: &mut Journal) -> Result<bool, CloudFailur
             ));
             journal.save()?;
         }
-        complete(control, journal)?;
+        settle(control, journal, once)?;
     }
     Ok(needs_review)
 }
@@ -176,7 +246,7 @@ fn run() -> Result<(), String> {
     let once = std::env::args().any(|arg| arg == "--once");
     let mut backoff = ReconnectBackoff::default();
     let recovered = loop {
-        match recover(&control, &mut journal) {
+        match recover(&control, &mut journal, once) {
             Ok(needs_review) => break needs_review,
             Err(error) if error.retryable && !once => {
                 let delay = backoff.failed().as_secs();
@@ -312,71 +382,7 @@ fn run() -> Result<(), String> {
         let stop_message = result.summary.clone();
         journal.state.active.as_mut().unwrap().result = Some(result);
         journal.save()?;
-        // Once execution stops, retain and upload its complete evidence before completion.
-        backoff = ReconnectBackoff::default();
-        while journal
-            .state
-            .active
-            .as_ref()
-            .is_some_and(|active| active.acknowledged < active.events.last().map_or(0, |e| e.seq))
-        {
-            let active = journal.state.active.as_ref().unwrap();
-            if let Err(error) = control.renew(&active.run) {
-                // Lease expiry may already have produced a terminal reconcile state.
-                if control
-                    .inspect(&active.run)
-                    .is_ok_and(|current| terminal(&current.status))
-                {
-                    break;
-                }
-                if error.retryable && !once {
-                    let delay = backoff.failed().as_secs();
-                    progress(
-                        LocalWorkerStatus::Offline,
-                        &format!("Execution stopped; reconnecting to upload events in {delay}s"),
-                        Some(run.id.clone()),
-                    );
-                    std::thread::sleep(Duration::from_secs(delay));
-                    continue;
-                }
-                return Err(format!("{error}; stopped Run retained for reconciliation"));
-            }
-            let acknowledged = match control.flush(journal.state.active.as_ref().unwrap()) {
-                Ok(acknowledged) => {
-                    backoff = ReconnectBackoff::default();
-                    acknowledged
-                }
-                Err(error) if error.retryable && !once => {
-                    let delay = backoff.failed().as_secs();
-                    progress(
-                        LocalWorkerStatus::Offline,
-                        &format!("Execution stopped; retaining events for upload in {delay}s"),
-                        Some(run.id.clone()),
-                    );
-                    std::thread::sleep(Duration::from_secs(delay));
-                    continue;
-                }
-                Err(error) => return Err(error.into()),
-            };
-            journal.state.active.as_mut().unwrap().acknowledged = acknowledged;
-            journal.save()?;
-        }
-        backoff = ReconnectBackoff::default();
-        loop {
-            match complete(&control, &mut journal) {
-                Ok(()) => break,
-                Err(error) if error.retryable && !once => {
-                    let delay = backoff.failed().as_secs();
-                    progress(
-                        LocalWorkerStatus::Offline,
-                        &format!("Execution stopped; uploading its retained result in {delay}s"),
-                        Some(run.id.clone()),
-                    );
-                    std::thread::sleep(Duration::from_secs(delay));
-                }
-                Err(error) => return Err(error.into()),
-            }
-        }
+        settle(&control, &mut journal, once)?;
         if stop {
             return Err(format!(
                 "{stop_message}; Worker stopped receiving tasks; resolve locally before restarting"
