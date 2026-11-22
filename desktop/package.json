@@ -1,4 +1,14 @@
 {
-  "name": "@pero/desktop", "private": true, "type": "module",
-  "main": "dist/main.cjs", "scripts": { "start": "electron ." }
+  "name": "@pero/desktop",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@novnc/novnc": "1.7.0",
+    "@types/ws": "8.18.1",
+    "ws": "8.21.0"
+  }
 }
