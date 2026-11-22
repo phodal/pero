@@ -26,6 +26,7 @@ if (!test) {
       bundle: true, format: 'esm', platform: 'node',
       banner: { js: 'import { createRequire as __peroRequire } from "node:module"; const require = __peroRequire(import.meta.url);' } });
   }
+  cpSync(resolve(root, 'desktop/src/main/repl/python-kernel.py'), resolve(source, 'helpers/python-repl.py'));
   await build({ entryPoints: [resolve(source, 'src/native.mjs')], outfile: resolve(source, 'helpers/pero-connectors-host.mjs'),
     bundle: true, format: 'esm', platform: 'node',
     banner: { js: 'import { createRequire as __peroRequire } from "node:module"; const require = __peroRequire(import.meta.url);' } });
