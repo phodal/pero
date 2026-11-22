@@ -120,6 +120,8 @@ mod native_harness;
 mod native_secrets;
 #[cfg(all(feature = "native", not(target_family = "wasm")))]
 mod native_connectors;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_computer_hotkey;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod workspace;
@@ -187,6 +189,8 @@ mod artifact_preview;
 
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]
 mod native_app_probe;
+#[cfg(all(feature = "native-probe", target_os = "macos"))]
+mod native_computer_probe;
 #[cfg(all(feature = "native-probe", not(target_family = "wasm")))]
 mod native_connector_probe;
 

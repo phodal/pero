@@ -34,6 +34,8 @@ pub(crate) fn attach(
     cx.spawn(async move |cx| {
         let outcome = match std::env::args().nth(3).as_deref() {
             Some("startup") => verify_startup(&root, cx).await,
+            #[cfg(target_os = "macos")]
+            Some("computer") => crate::native_computer_probe::verify(&root, window, cx).await,
             Some("paper-chat") => verify_paper_chat(&root,window,cx).await,
             Some("docling-origin") => verify_docling_origin(&root,cx).await,
             _ => verify(&root, window, cx).await,

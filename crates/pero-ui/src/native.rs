@@ -15,6 +15,9 @@ use std::{
 thread_local! {
     static APPS: RefCell<Option<crate::native_apps::NativeApps>> = const { RefCell::new(None) };
     static COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
+    #[cfg(target_os = "macos")]
+    static COMPUTER_APP: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    static CONNECTORS: RefCell<Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>> = const { RefCell::new(None) };
     static HOST_COMMANDS: RefCell<Option<mpsc::Sender<String>>> = const { RefCell::new(None) };
 }
 
@@ -60,6 +63,16 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             Ok(())
         });
     }
+    if matches!(action, "app_use_selection" | "prompt" | "cancel" | "close" | "delete") {
+        CONNECTORS.with(|slot| {
+            if let Some(owner) = slot.borrow().as_ref().and_then(std::sync::Weak::upgrade) {
+                let _ = owner.conversation_command(&value);
+            }
+        });
+        if action == "app_use_selection" {
+            return Ok(());
+        }
+    }
     let controller = action.starts_with("remote_")
         || action.starts_with("local_worker_")
         || action.starts_with("choose_")
@@ -75,6 +88,17 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             .ok_or("Native Host is unavailable")?
             .send(json.to_string())
             .map_err(|error| error.to_string())
+    })
+}
+#[cfg(target_os = "macos")]
+pub(crate) fn computer_app() -> Option<PathBuf> {
+    COMPUTER_APP.with(|slot| slot.borrow().clone())
+}
+pub(super) fn computer_control(control: pero_contracts::computer_runtime::ComputerControl) -> Result<(), String> {
+    CONNECTORS.with(|slot| {
+        slot.borrow().as_ref().and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| "Computer Use runtime is unavailable".to_string())?
+            .computer(control).map_err(|error| error.to_string())
     })
 }
 pub(crate) fn apps() -> crate::native_apps::NativeApps {
@@ -124,7 +148,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
-    let paper_chat_probe = app_probe && std::env::args().nth(3).as_deref()==Some("paper-chat");
+    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer"));
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -188,8 +212,10 @@ pub fn run() -> anyhow::Result<()> {
     }
     let product: NativeProduct =
         serde_json::from_slice(&std::fs::read(root.join("products/pero.json"))?)?;
+    #[cfg(target_os = "macos")]
+    COMPUTER_APP.with(|slot| *slot.borrow_mut() = Some(distribution.computer.clone()));
     let (connector_owner, connector_environment) =
-        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable, node.as_deref()) {
+        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable, node.as_deref(), &distribution.computer) {
             Ok((owner, environment)) => (Some(owner), environment),
             Err(error) => {
                 eprintln!("Native Connectors: {error:#}");
@@ -243,6 +269,7 @@ pub fn run() -> anyhow::Result<()> {
     );
     if let Some(owner) = &connector_owner {
         owner.bind(app_client.clone());
+        CONNECTORS.with(|slot| *slot.borrow_mut() = Some(std::sync::Arc::downgrade(owner)));
     }
     APPS.with(|slot| *slot.borrow_mut() = Some(app_client.clone()));
     let writer_events = events.clone();
@@ -439,6 +466,12 @@ pub fn run() -> anyhow::Result<()> {
                 .send(serde_json::json!({"action":"native_login_callback","url":url}).to_string());
         }
     });
+    #[cfg(target_os = "macos")]
+    let _computer_stop = connector_owner.as_ref().filter(|_| !app_probe && !verifying_installation)
+        .and_then(|_| match crate::native_computer_hotkey::ComputerStopHotKey::register() {
+            Ok(hotkey) => Some(hotkey),
+            Err(error) => { eprintln!("Computer Use: {error:#}"); None }
+        });
     app.run(move |cx| {
         let registration = if app_probe || verifying_installation { None } else { Some(cx.register_url_scheme("pero")) };
         cx.spawn(async move |_cx| {
@@ -466,7 +499,7 @@ pub fn run() -> anyhow::Result<()> {
         let system_dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         pero_theme::ResolvedAppearance::resolve(&Default::default(), system_dark, &palettes).install(cx);
         let mut options = gpui_kit::component::TitleBar::window_options();
-        options.show = (!app_probe || paper_chat_probe) && !verifying_installation;
+        options.show = (!app_probe || visible_app_probe) && !verifying_installation;
         options.focus = options.show;
         options.window_bounds = Some(WindowBounds::Windowed(Bounds::centered(
             None,
@@ -510,6 +543,7 @@ pub fn run() -> anyhow::Result<()> {
         let view = view.downgrade();
         cx.spawn(async move |cx| {
             let (mut host_ready, mut harness_ready, mut apps_ready) = (false, false, false);
+            let mut computer_check = None;
             while let Ok(event) = received.recv().await {
                 if event.kind == "native_docling_confirmation" {
                     if let Ok(prompt) = serde_json::from_value::<crate::native_docling::Prompt>(event.data) {
@@ -534,6 +568,13 @@ pub fn run() -> anyhow::Result<()> {
                         "ready" => host_ready = true,
                         "agents" => harness_ready = event.data.as_array().is_some_and(|agents| agents.iter().any(|agent| agent["id"] == "pero" && agent["available"] == true)),
                         "apps_catalog" => apps_ready = event.data.as_array().is_some_and(|apps| included_apps.iter().all(|name| apps.iter().any(|app| app["name"].as_str() == Some(name)))),
+                        "computer_state" => {
+                            if let Ok(state) = serde_json::from_value::<pero_contracts::computer_runtime::ComputerUseState>(event.data.clone())
+                                && (state.status.available || state.error.is_some())
+                            {
+                                computer_check = Some(state);
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -625,8 +666,8 @@ pub fn run() -> anyhow::Result<()> {
                     eprintln!("Native UI delivery: {error}");
                     break;
                 }
-                if verifying_installation && host_ready && harness_ready && apps_ready {
-                    let receipt = serde_json::json!({"passed":true,"root":installation_root,"hostReady":true,"harnessReady":true,"apps":included_apps});
+                if verifying_installation && host_ready && harness_ready && apps_ready && let Some(computer) = &computer_check {
+                    let receipt = serde_json::json!({"passed":computer.status.available,"root":installation_root,"hostReady":true,"harnessReady":true,"apps":included_apps,"computer":computer});
                     if let Err(error) = std::fs::write(installation_receipt.as_ref().unwrap(), receipt.to_string()) {
                         eprintln!("Installation receipt: {error}");
                         std::process::exit(1);
@@ -649,7 +690,7 @@ pub fn run() -> anyhow::Result<()> {
             }
         })
         .detach();
-        if (!app_probe || paper_chat_probe) && !verifying_installation { cx.activate(true); }
+        if (!app_probe || visible_app_probe) && !verifying_installation { cx.activate(true); }
     });
     if let Some(owner) = &connector_owner {
         owner.close();

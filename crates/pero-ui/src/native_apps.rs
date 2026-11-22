@@ -94,6 +94,12 @@ impl NativeApps {
         self.cancel_docling_confirmation();
     }
     pub fn accept(&self, event: &HostEvent) -> bool {
+        if matches!(event.kind.as_str(), "computer_settings" | "computer_settings_error") {
+            if let Some(sender) = self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
+                let _ = sender.send(Reply { ok: event.kind == "computer_settings", value: None, error: None });
+            }
+            return true;
+        }
         if event.kind == "artifact_snapshot_result" {
             if let Some(sender)=self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
                 let reply=serde_json::from_value(event.data.clone()).unwrap_or(Reply {ok:false,value:None,error:Some("Invalid artifact snapshot reply".into())});
@@ -135,12 +141,7 @@ impl NativeApps {
         command["method"] = json!("artifacts");
         command["action"] = json!(action);
         command["request_id"] = json!(id);
-        let (sender, receiver) = mpsc::channel();
-        self.pending.lock().unwrap().insert(id.clone(), sender);
-        let result = self.host.send(command.to_string()).map_err(anyhow::Error::from)
-            .and_then(|_| Ok(receiver.recv_timeout(Duration::from_secs(30))?));
-        self.pending.lock().unwrap().remove(&id);
-        let reply = result?;
+        let reply = self.host_reply(id, command, Duration::from_secs(30))?;
         anyhow::ensure!(reply.ok, "{}", reply.error.unwrap_or_else(|| "Artifact delivery failed".into()));
         Ok(reply.value.unwrap_or(Value::Null))
     }
@@ -150,23 +151,7 @@ impl NativeApps {
         command["method"] = json!("apps");
         command["action"] = json!(action);
         command["id"] = json!(id);
-        let (sender, receiver) = mpsc::channel();
-        {
-            let mut pending = self.pending.lock().unwrap();
-            anyhow::ensure!(!self.disconnected.load(Ordering::Acquire), "Native Host is unavailable");
-            pending.insert(id.clone(), sender);
-        }
-        let reply = self
-            .host
-            .send(command.to_string())
-            .map_err(anyhow::Error::from)
-            .and_then(|_| {
-                receiver
-                    .recv_timeout(Duration::from_secs(660))
-                    .map_err(anyhow::Error::from)
-            });
-        self.pending.lock().unwrap().remove(&id);
-        let reply = reply?;
+        let reply = self.host_reply(id, command, Duration::from_secs(660))?;
         if !reply.ok {
             anyhow::bail!(
                 "{}",
@@ -174,6 +159,30 @@ impl NativeApps {
             );
         }
         Ok(serde_json::from_value(reply.value.unwrap_or(Value::Null))?)
+    }
+    pub(super) fn save_computer(&self, enabled: bool) -> anyhow::Result<()> {
+        let id = format!("native-computer-{}", self.next.fetch_add(1, Ordering::Relaxed));
+        let command = json!({"method":"settings.computer","id":id,"enabled":enabled});
+        let result = self.host_reply(id, command, Duration::from_secs(5))?;
+        anyhow::ensure!(result.ok, "Could not save Computer Use settings");
+        Ok(())
+    }
+    fn host_reply(&self, id: String, command: Value, timeout: Duration) -> anyhow::Result<Reply> {
+        let (sender, receiver) = mpsc::channel();
+        {
+            let mut pending = self.pending.lock().unwrap();
+            anyhow::ensure!(!self.disconnected.load(Ordering::Acquire), "Native Host is unavailable");
+            pending.insert(id.clone(), sender);
+        }
+        let result = self.host.send(command.to_string()).map_err(anyhow::Error::from)
+            .and_then(|_| Ok(receiver.recv_timeout(timeout)?));
+        self.pending.lock().unwrap().remove(&id);
+        result
+    }
+    pub(super) fn publish_computer(&self, state: pero_contracts::computer_runtime::ComputerUseState) {
+        let mut event = HostEvent::new("computer_state", None, String::new());
+        event.data = serde_json::to_value(state).expect("Computer Use state");
+        let _ = self.events.send_blocking(event);
     }
     pub(super) fn shell_request(&self, data: Value) -> anyhow::Result<Value> {
         let id = format!("native-surface-{}", self.next.fetch_add(1, Ordering::Relaxed));

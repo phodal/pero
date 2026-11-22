@@ -1,6 +1,6 @@
 //! Native shell adapter for the shared connector owner. Private stdio only.
 use crate::{native_apps::NativeApps, native_secrets::SecretStore};
-use pero_contracts::HostEvent;
+use pero_contracts::{HostEvent, computer_runtime::{ComputerControl, ComputerUseState}};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -28,6 +28,7 @@ struct Message {
     url: String,
     #[serde(default)]
     value: Value,
+    computer_state: Option<ComputerUseState>,
 }
 
 pub(crate) struct NativeConnectors {
@@ -44,6 +45,7 @@ impl NativeConnectors {
         data: &Path,
         host: &Path,
         node: Option<&Path>,
+        computer: &Path,
     ) -> anyhow::Result<(Arc<Self>, BTreeMap<String, String>)> {
         let helpers = root.join("packages/connectors/helpers");
         let mut child =
@@ -52,6 +54,7 @@ impl NativeConnectors {
                 .arg(data.join("connectors"))
                 .arg(host.parent().unwrap().join("pero-connector-worker"))
                 .arg(helpers)
+                .arg(computer)
                 .current_dir(root)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
@@ -82,7 +85,11 @@ impl NativeConnectors {
                 let Ok(message) = serde_json::from_str::<Message>(&line) else {
                     continue;
                 };
-                if message.effect.is_some() {
+                if let Some(state) = message.computer_state {
+                    if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
+                        apps.publish_computer(state);
+                    }
+                } else if message.effect.is_some() {
                     let result = reader.effect(&message);
                     let reply = match result {
                         Ok(value) => json!({"reply":message.id,"ok":true,"value":value}),
@@ -123,11 +130,18 @@ impl NativeConnectors {
         result
     }
     pub fn accept(&self, event: &HostEvent) {
-        if matches!(event.kind.as_str(), "session_created" | "session_deleted" | "session_closed" | "turn_started" | "turn_finished" | "user_message" | "session_error" | "command_rejected" | "disconnected") {
+        if (event.kind == "computer_settings" && event.request_id.is_none())
+            || matches!(event.kind.as_str(), "session_created" | "session_deleted" | "session_closed" | "turn_started" | "turn_finished" | "user_message" | "session_error" | "command_rejected" | "disconnected") {
             let _ = self.send(json!({"event":event}));
         }
     }
 
+    pub fn computer(&self, control: ComputerControl) -> anyhow::Result<()> {
+        self.send(json!({"computer": control}))
+    }
+    pub fn conversation_command(&self, command: &Value) -> anyhow::Result<()> {
+        self.send(json!({"command":command}))
+    }
     fn effect(&self, message: &Message) -> Result<Value, &'static str> {
         let store = || {
             SecretStore::new(
@@ -139,6 +153,15 @@ impl NativeConnectors {
             )
         };
         match message.effect.as_deref() {
+            Some("computer.settings") => {
+                let enabled = message.value.as_bool().ok_or("COMPUTER_SETTINGS_INVALID")?;
+                let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
+                apps.save_computer(enabled).map_err(|error| {
+                    eprintln!("Computer Use settings: {error:#}");
+                    "Could not save Computer Use settings"
+                })?;
+                Ok(Value::Null)
+            }
             Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
                 .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),
             Some("apps" | "surface") => {
