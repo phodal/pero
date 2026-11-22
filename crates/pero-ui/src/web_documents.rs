@@ -139,7 +139,7 @@ impl Workbench {
         self.queue_workspace_checkpoint(cx);
         cx.notify();
     }
-    fn close_web(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn close_web(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         #[cfg(not(target_family = "wasm"))]
         self.native_web_pages.remove(id);
         self.web_documents.retain(|page| page.id != id);
@@ -190,43 +190,7 @@ impl Workbench {
                         }
                         _ => unreachable!(),
                     };
-                    let id = document.id.clone();
-                    let document = if let Some(open) = self.native_web_pages.get(&id) {
-                        open.view.read(cx).document.clone()
-                    } else {
-                        let view = cx
-                            .new(|cx| crate::native_web::NativeWebPage::new(document, window, cx));
-                        let document = view.read(cx).document.clone();
-                        let subscription = cx.subscribe_in(
-                            &view,
-                            window,
-                            |this, _, event: &crate::native_web::NativeWebChanged, window, cx| {
-                                this.observe_web(event.0.clone(), false, window, cx)
-                            },
-                        );
-                        let popup = cx.subscribe_in(
-                            &view,
-                            window,
-                            |this, _, event: &crate::native_web::NativeWebPopup, window, cx| {
-                                this.web_command(
-                                    json!({"action":"web_open","url":event.0}),
-                                    window,
-                                    cx,
-                                )
-                            },
-                        );
-                        let focused_id=id.clone();
-                        let focus=cx.subscribe_in(&view,window,move|this,_,_:&crate::native_web::NativeWebFocused,window,cx|this.focus_surface_item(&WorkspaceItem::Web(focused_id.clone()),window,cx));
-                        self.native_web_pages.insert(
-                            id,
-                            WorkspaceNativeWeb {
-                                view,
-                                _subscriptions: vec![subscription, popup, focus],
-                            },
-                        );
-                        document
-                    };
-                    self.observe_web(document, select, window, cx);
+                    self.mount_native_web(document, select, None, window, cx);
                 }
                 Navigate { id, url } => {
                     if let Some(open) = self.native_web_pages.get(&id) {
@@ -249,6 +213,54 @@ impl Workbench {
             }
         }
     }
+    #[cfg(not(target_family = "wasm"))]
+    pub(super) fn mount_native_web(
+        &mut self,
+        document: WebDocument,
+        select: bool,
+        origin: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let id = document.id.clone();
+        let document = if let Some(open) = self.native_web_pages.get(&id) {
+            open.view.read(cx).document.clone()
+        } else {
+            let view = cx
+                .new(|cx| crate::native_web::NativeWebPage::new(document, origin, window, cx));
+            let document = view.read(cx).document.clone();
+            let subscription = cx.subscribe_in(
+                &view,
+                window,
+                |this, _, event: &crate::native_web::NativeWebChanged, window, cx| {
+                    this.observe_web(event.0.clone(), false, window, cx)
+                },
+            );
+            let popup = cx.subscribe_in(
+                &view,
+                window,
+                |this, _, event: &crate::native_web::NativeWebPopup, window, cx| {
+                    this.web_command(
+                        json!({"action":"web_open","url":event.0}),
+                        window,
+                        cx,
+                    )
+                },
+            );
+            let focused_id=id.clone();
+            let focus=cx.subscribe_in(&view,window,move|this,_,_:&crate::native_web::NativeWebFocused,window,cx|this.focus_surface_item(&WorkspaceItem::Web(focused_id.clone()),window,cx));
+            self.native_web_pages.insert(
+                id,
+                WorkspaceNativeWeb {
+                    view,
+                    _subscriptions: vec![subscription, popup, focus],
+                },
+            );
+            document
+        };
+        self.observe_web(document, select, window, cx);
+    }
+
     pub(crate) fn sync_web_address(
         &self,
         force: bool,
