@@ -45,15 +45,27 @@ try {
   const menu = id => desktop.evaluate(({ Menu, BrowserWindow }, id) => Menu.getApplicationMenu().getMenuItemById(id).click(undefined, BrowserWindow.getAllWindows()[0]), id);
   await expect.poll(() => desktop.evaluate(({ Menu }) => !!Menu.getApplicationMenu().getMenuItemById('new_chat'))).toBe(true);
   await menu('new_chat');
-  await expect.poll(async () => (await state()).chats[0]?.state).toBe('idle');
-  const thread = (await state()).chats[0].id;
+  const selected = async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]; };
+  await expect.poll(async () => (await selected())?.state).toBe('idle');
+  const thread = (await selected()).id;
   await page.evaluate(thread_id => window.pero.appUseCommand({ action: 'select', thread_id }), thread);
   const opening = desktop.waitForEvent('window');
   await menu('linux-desktop');
   const viewer = await opening;
   await focusPage(viewer);
   const button = name => viewer.getByRole('button', { name, exact: true });
-  const frame = () => expect(viewer.locator('.framebuffer')).toHaveAttribute('data-frame', 'connected', { timeout: 20_000 });
+  const frame = async () => {
+    await expect(viewer.locator('.framebuffer')).toHaveAttribute('data-frame', 'connected', { timeout: 20_000 });
+    // RFB can finish negotiating before the first image reaches the canvas.
+    await viewer.waitForFunction(() => {
+      const canvas = document.querySelector('.framebuffer canvas');
+      if (!canvas?.width || !canvas.height) return false;
+      const context = canvas.getContext('2d');
+      const pixel = context.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
+      const corner = context.getImageData(0, 0, 1, 1).data;
+      return pixel[3] === 255 && Math.abs(pixel[0] - corner[0]) > 50;
+    }, undefined, { timeout: 20_000 });
+  };
 
   await viewer.getByLabel('SSH host or alias').fill(profile.host);
   await viewer.getByLabel('Remote VNC port').fill(vncPort);
@@ -71,7 +83,7 @@ try {
   await button('Connect selected chat').click();
   await expect(button('Disconnect chat')).toBeVisible();
   await page.evaluate(thread_id => window.pero.sessionCommand({ action: 'prompt', thread_id, text: 'Read the remote status.' }), thread);
-  await expect.poll(async () => (await state()).chats[0].messages.filter(message => message.role === 'assistant').map(message => message.text).join(''),
+  await expect.poll(async () => (await selected()).messages.filter(message => message.role === 'assistant').map(message => message.text).join(''),
     { timeout: 20_000 }).toMatch(/SSH_COMPUTER:.*"platform":"linux".*"available":true/);
   await viewer.screenshot({ path: resolve(out, 'managed-ssh.png') });
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ host: 'Linux over OpenSSH', pty: 'Linux', files: 'opened and saved remote file',
