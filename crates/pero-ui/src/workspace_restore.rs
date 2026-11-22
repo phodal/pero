@@ -249,15 +249,9 @@ impl Workbench {
             self.materialize_workspace_source(source, conflict, window, cx);
         }
         for page in &session.web {
-            let mut document = if let Some(html) = &page.html {
-                pero_contracts::web_document::WebDocument::inline(html.clone())
-            } else {
-                pero_contracts::web_document::WebDocument::open(
-                    pero_contracts::web_document::WebAddress::try_from(page.id.clone())
-                        .expect("saved Web identity"),
-                )
-            };
-            document.observation.url = page.url.clone();
+            let Ok(document) = pero_contracts::web_document::WebDocument::restore(
+                page.id.clone(), page.url.clone(), page.html.clone(),
+            ) else { continue };
             self.web_documents.push(document);
             self.web_command(
                 serde_json::json!({"action":"web_restore","id":page.id,"url":page.url,"html":page.html}),

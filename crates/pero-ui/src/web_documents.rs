@@ -177,25 +177,14 @@ impl Workbench {
                         Open { url } => (WebDocument::open(url), true),
                         Html { source } => (WebDocument::inline(source), true),
                         Restore { id, url, html } => {
-                            let mut document = if let Some(source) = html {
-                                WebDocument::inline(source)
-                            } else {
-                                match pero_contracts::web_document::WebAddress::try_from(id.clone())
-                                {
-                                    Ok(address) => WebDocument::open(address),
-                                    Err(error) => {
-                                        self.error = Some(error);
-                                        cx.notify();
-                                        return;
-                                    }
+                            let mut document = match WebDocument::restore(id, url, html) {
+                                Ok(document) => document,
+                                Err(error) => {
+                                    self.error = Some(error);
+                                    cx.notify();
+                                    return;
                                 }
                             };
-                            if document.id != id {
-                                self.error = Some("HTML source identity changed".into());
-                                cx.notify();
-                                return;
-                            }
-                            document.observation.url = url;
                             document.observation.notice = Some("Native restored this source. Browser history and form recovery are unavailable in this engine.".into());
                             (document, false)
                         }

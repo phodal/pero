@@ -1,7 +1,6 @@
 //! Recoverable workspace values. Restoring a view does not execute its producer.
 use crate::{
     content_document::DocumentHeader, content_origin::ContentOrigin, reader_state::ReaderState,
-    web_document::WebAddress,
 };
 use serde::{Deserialize, Serialize};
 #[path = "workspace_history.rs"]
@@ -394,11 +393,7 @@ impl WorkspaceSession {
                     })
             })
             && self.web.iter().enumerate().all(|(i, page)| {
-                (if let Some(html) = &page.html {
-                    !html.id.is_empty() && page.id == format!("html:{}", html.id)
-                } else {
-                    WebAddress::try_from(page.id.clone()).is_ok()
-                }) && self
+                crate::web_document::WebDocument::accepts_identity(&page.id, page.html.as_ref()) && self
                     .navigation
                     .items
                     .contains(&WorkspaceItem::Web(page.id.clone()))

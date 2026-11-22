@@ -91,7 +91,7 @@ pub struct WebObservation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebDocument {
-    /// Opening the same initial URL activates the existing view, even after it navigates.
+    /// URL sources and independent tab instances retain their identity through navigation.
     pub id: String,
     pub observation: WebObservation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -125,6 +125,30 @@ impl WebDocument {
             },
             html: Some(html),
         }
+    }
+    pub fn accepts_identity(id: &str, html: Option<&InlineHtml>) -> bool {
+        if let Some(html) = html {
+            return !html.id.is_empty() && id.strip_prefix("html:") == Some(html.id.as_str());
+        }
+        if let Some(instance) = id.strip_prefix("web-tab:") {
+            return instance.len() == 36 && instance.bytes().enumerate().all(|(index, byte)| {
+                if matches!(index, 8 | 13 | 18 | 23) { byte == b'-' } else { byte.is_ascii_hexdigit() }
+            });
+        }
+        WebAddress::try_from(id.to_owned()).is_ok()
+    }
+    pub fn restore(id: String, url: WebLocation, html: Option<InlineHtml>) -> Result<Self, String> {
+        if !Self::accepts_identity(&id, html.as_ref()) {
+            return Err("Invalid saved browser identity".into());
+        }
+        let mut document = if let Some(html) = html {
+            Self::inline(html)
+        } else {
+            Self::open(WebAddress::try_from(url.as_str().to_owned())?)
+        };
+        document.id = id;
+        document.observation.url = url;
+        Ok(document)
     }
     pub fn observe(&mut self, observation: WebObservation) {
         self.observation = observation;
