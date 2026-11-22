@@ -31,11 +31,25 @@ pub fn serve<D: DesktopDriver>(desktop: D) -> io::Result<()> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(std::process::id() as i32);
+    serve_stream(
+        desktop,
+        host_pid,
+        io::BufReader::new(io::stdin()),
+        io::stdout().lock(),
+    )
+}
+
+pub fn serve_stream<D: DesktopDriver>(
+    desktop: D,
+    host_pid: i32,
+    input: impl BufRead + Send + 'static,
+    mut output: impl Write,
+) -> io::Result<()> {
     let mut driver = ComputerRuntime::new(desktop, host_pid);
     let cancellation = driver.cancellation.clone();
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     std::thread::spawn(move || {
-        for line in io::stdin().lock().lines() {
+        for line in input.lines() {
             let request = line.and_then(|line| {
                 if line.len() > 1_000_000 {
                     return Err(io::Error::other(
@@ -64,10 +78,9 @@ pub fn serve<D: DesktopDriver>(desktop: D) -> io::Result<()> {
                 error,
             },
         };
-        let mut stdout = io::stdout().lock();
-        serde_json::to_writer(&mut stdout, &response)?;
-        writeln!(stdout)?;
-        stdout.flush()?;
+        serde_json::to_writer(&mut output, &response)?;
+        writeln!(output)?;
+        output.flush()?;
     }
     Ok(())
 }

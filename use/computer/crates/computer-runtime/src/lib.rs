@@ -5,7 +5,7 @@ mod stdio;
 mod unsupported;
 pub use driver::{DesktopDriver, WindowObservation};
 pub use runtime::ComputerRuntime;
-pub use stdio::serve;
+pub use stdio::{serve, serve_stream};
 pub use unsupported::UnsupportedDesktop;
 #[cfg(test)]
 mod tests;

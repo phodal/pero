@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { startComputerProcess, type ComputerProcess } from './computer-process.ts';
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
@@ -18,7 +18,8 @@ export class ComputerFailure extends Error {
 export class ComputerClient {
   private binary: string;
   private args: string[];
-  private child?: ChildProcessWithoutNullStreams;
+  private connection?: ComputerProcess;
+  private starting?: { controller: AbortController; ready: Promise<void> };
   private closing?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
   private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
@@ -28,15 +29,28 @@ export class ComputerClient {
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
-      if (!this.child) this.start();
-      const child = this.child!;
+      if (!this.connection) {
+        const controller = new AbortController();
+        const startup = AbortSignal.any([controller.signal, signal]);
+        const ready = this.start(startup);
+        this.starting = { controller, ready };
+        try {
+          await ready;
+          startup.throwIfAborted();
+        } finally {
+          this.starting = undefined;
+        }
+      }
+      signal.throwIfAborted();
+      const connection = this.connection;
+      if (!connection) throw new ComputerFailure({ code: 'cancelled', message: 'Computer Use was interrupted before dispatch.' });
       return new Promise<ComputerResponse>((resolve, reject) => {
         const abort = () => { void this.stop('cancelled').catch(() => {}); };
         const timer = setTimeout(() => { void this.stop('timeout').catch(() => {}); }, 30_000);
         const id = randomUUID();
-        this.pending = { id, dispatched: child.pid !== undefined, resolve, reject, dispose: () => { clearTimeout(timer); signal.removeEventListener('abort', abort); } };
+        this.pending = { id, dispatched: true, resolve, reject, dispose: () => { clearTimeout(timer); signal.removeEventListener('abort', abort); } };
         signal.addEventListener('abort', abort, { once: true });
-        child.stdin.write(JSON.stringify({ id, thread, request }) + '\n', error => {
+        connection.input.write(JSON.stringify({ id, thread, request }) + '\n', error => {
           if (error) void this.stop('failed').catch(() => {});
         });
       });
@@ -44,13 +58,18 @@ export class ComputerClient {
     this.queue = result.catch(() => {});
     return result;
   }
-  private start() {
-    const child = spawn(this.binary, this.args, { stdio: 'pipe', env: { ...process.env, PERO_COMPUTER_HOST_PID: String(process.pid) } });
-    this.child = child;
+  private async start(signal: AbortSignal) {
+    let connection: ComputerProcess;
+    try {
+      connection = await startComputerProcess(this.binary, this.args, signal);
+    } catch (error) {
+      throw new ComputerFailure({ code: signal.aborted ? 'cancelled' : 'failed', message: error instanceof Error ? error.message : String(error) });
+    }
+    this.connection = connection;
     let buffer = '';
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
-      if (this.child !== child) return;
+    connection.output.setEncoding('utf8');
+    connection.output.on('data', chunk => {
+      if (this.connection !== connection) return;
       buffer += chunk;
       if (Buffer.byteLength(buffer) > 16 * 1024 * 1024) { void this.stop('failed').catch(() => {}); return; }
       let at: number;
@@ -69,31 +88,34 @@ export class ComputerClient {
         }
       }
     });
-    child.stderr.on('data', data => console.error(String(data)));
     const stopped = () => {
-      if (this.child !== child) return;
-      this.child = undefined;
+      if (this.connection !== connection) return;
+      this.connection = undefined;
       const pending = this.pending; this.pending = undefined;
       pending?.dispose();
       pending?.reject(new ComputerFailure({ code: 'failed', message: 'The native desktop connection closed. Observe again before continuing.' }, pending.dispatched));
     };
-    child.once('error', stopped);
-    child.once('exit', stopped);
+    void connection.exited.then(stopped);
   }
   stop(reason: 'cancelled' | 'timeout' | 'failed' = 'cancelled'): Promise<void> {
     if (this.closing) return this.closing;
-    const child = this.child;
-    this.child = undefined;
+    const starting = this.starting;
+    if (starting) {
+      starting.controller.abort();
+      return starting.ready.then(() => { this.starting = undefined; return this.stop(reason); }, () => {});
+    }
+    const connection = this.connection;
+    this.connection = undefined;
     const pending = this.pending; this.pending = undefined;
     pending?.dispose();
     pending?.reject(new ComputerFailure({ code: reason, message: 'Native work was interrupted. Input may have happened; inspect its receipt and observe again.' }, pending.dispatched));
-    if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+    if (!connection) return Promise.resolve();
     this.closing = new Promise<void>((resolve, reject) => {
-      const force = setTimeout(() => child.kill('SIGKILL'), 1500);
+      const force = setTimeout(() => connection.kill(), 1500);
       const deadline = setTimeout(() => reject(new Error('Native desktop process exit is unconfirmed')), 4000);
-      child.once('exit', () => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; resolve(); });
+      void connection.exited.then(() => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; resolve(); });
       // EOF asks the native worker to cancel and release held input before exit.
-      child.stdin.end();
+      connection.input.end();
     });
     return this.closing;
   }
