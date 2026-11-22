@@ -9,7 +9,7 @@ type FormState = {
   valueTruncated?: true;
   options?: { value: string; name: string; selected: boolean; disabled: boolean }[];
 };
-type ElementAction = 'click' | 'fill' | 'press' | 'setChecked' | 'selectOption';
+type ElementAction = 'click' | 'fill' | 'press' | 'setChecked' | 'selectOption' | 'upload' | 'download';
 
 export type BrowserNode = {
   role?: string;
@@ -22,13 +22,15 @@ export type BrowserNode = {
 
 export type DocumentCommand =
   | ({ observation: string } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
-  | Extract<BrowserRequest, { action: ElementAction | 'scroll' }>;
+  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload'> | 'scroll' }>
+  | { action: 'upload'; ref: string; file: { name: string; mediaType: string; base64: string } };
 
 export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean;
     frame?: FrameSelector[]; frameUrl?: string; frames: { selector: FrameSelector; sameOrigin: boolean }[] }
   | { kind: 'dispatched' | 'focused' | 'pending' }
   | { kind: 'point'; point: ViewportPoint }
+  | { kind: 'download'; url: string; name?: string }
   | { kind: 'rejected'; reason: string };
 
 // Serialized into the top document's isolated world. Keep frame traversal,
@@ -44,7 +46,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   const { tag, html, hidden, visible, role, name, normalize } = semantics;
   const frameTags = ['IFRAME', 'FRAME', 'OBJECT', 'EMBED'];
   const sensitive = (node: Element) => tag(node, 'input') &&
-    (['password', 'file', 'hidden'].includes(node.type) ||
+    (['password', 'hidden'].includes(node.type) ||
       node.autocomplete.toLowerCase().split(/\s+/).some(token => ['current-password', 'new-password', 'one-time-code'].includes(token)));
   const disabled = (node: Element) => node.matches(':disabled') || !!node.closest('[aria-disabled="true"]');
   const plainText = (node: Element): node is HTMLInputElement | HTMLTextAreaElement =>
@@ -53,10 +55,11 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
   const editable = (node: Element): node is HTMLInputElement | HTMLTextAreaElement =>
     plainText(node) && !node.readOnly && !disabled(node);
   const fieldValue = (node: Element) => plainText(node) || tag(node, 'select') ? node.value : undefined;
+  const fileInput = (node: Element): node is HTMLInputElement => tag(node,'input') && node.type === 'file';
   const checkable = (node: Element): node is HTMLInputElement =>
     tag(node, 'input') && ['checkbox', 'radio'].includes(node.type);
   const clickable = (node: Element, nodeRole: string) =>
-    html(node) && !sensitive(node) && !disabled(node) &&
+    html(node) && !fileInput(node) && !sensitive(node) && !disabled(node) &&
     ['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'menuitem'].includes(nodeRole);
   const state = (node: Element): FormState => {
     const fields: FormState = { disabled: disabled(node) };
@@ -154,6 +157,8 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (actions.length && html(node) && (node.tabIndex >= 0 || node.hasAttribute('tabindex'))) actions.push('press');
       if (checkable(node) && !disabled(node)) actions.push('setChecked');
       if (tag(node, 'select') && !node.multiple && !disabled(node)) actions.push('selectOption');
+      if (fileInput(node) && !disabled(node)) actions.push('upload');
+      if (tag(node, 'a') && node.hasAttribute('href')) actions.push('download');
       const entry: BrowserNode = { ...(nodeRole && { role: nodeRole }), ...(nodeName && { name: nodeName }),
         ...(text && text !== nodeName && { text }), ...(isControl && { state: state(node) }) };
       if (actions.length && html(node)) {
@@ -257,6 +262,19 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     node.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     node.dispatchEvent(new Event('change', { bubbles: true }));
   };
+  if (command.action === 'upload') {
+    if (!fileInput(node) || disabled(node)) return reject('Choose an enabled file input.');
+    const bytes = Uint8Array.from(atob(command.file.base64), byte => byte.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], command.file.name, { type: command.file.mediaType }));
+    node.files = transfer.files;
+    change();
+    return { kind: 'dispatched' };
+  }
+  if (command.action === 'download') {
+    if (!tag(node, 'a') || !node.hasAttribute('href')) return reject('Choose an observed download link.');
+    return { kind: 'download', url: node.href, name: node.download || undefined };
+  }
   if (command.action === 'fill') {
     if (!editable(node)) return reject('The target is not an editable plain-text field.');
     const prototype = tag(node, 'textarea') ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -338,7 +356,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const translated = topPoint(point, chain);
       return translated ? { kind: 'point', point: translated } : reject('The iframe is covered or transformed.');
     }
-    if (sensitive(hit) || frameTags.includes(hit.tagName) || clickable(hit, role(hit)) || editable(hit)) break;
+    if (sensitive(hit) || fileInput(hit) || frameTags.includes(hit.tagName) || clickable(hit, role(hit)) || editable(hit)) break;
   }
   return reject('The element is covered or cannot receive pointer input.');
 }

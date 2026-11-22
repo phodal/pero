@@ -1,5 +1,5 @@
 import {WebContentsView,dialog,session,type BrowserWindow,type Session,type Event as ElectronEvent} from 'electron';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import type {WebCommand,WebDocument,SurfaceBounds,WebSurfaceSlot} from '../../../protocol/generated/host';
 import {WebAddress} from '../../../packages/content-source/web-address.ts';
 import {WebLocation,inlineHtml} from '../../../packages/content-source/web-location.ts';
@@ -63,7 +63,7 @@ export class WebPages {
     if(page.view.getVisible()&&this.window.isVisible()&&this.window.isFocused())page.view.webContents.focus();
     void page.view.webContents.loadURL(address.text).catch(error=>{if(!page.view.webContents.isDestroyed()&&error.code!=='ERR_ABORTED')this.fail(page,error.message);});
   }
-  private async open(document:WebDocument,restored=false) {
+  private async open(document:WebDocument,restored=false,initialOrigin?:string) {
     const previous=this.pages.get(document.id);
     if(previous){this.emit(restored?'web_state':'web_opened',previous);return;}
     const view=new WebContentsView({webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,session:this.partition}});
@@ -112,7 +112,7 @@ export class WebPages {
     };
     contents.on('will-navigate',navigation);contents.on('will-redirect',navigation);
     contents.setWindowOpenHandler(({url})=>{
-      try {const address=WebAddress.parse(url);void this.open(this.urlDocument(address));}
+      try {const address=WebAddress.parse(url);void this.openNewTab(address.text);}
       catch {this.notice(page,'This popup cannot be opened as an HTTP or HTTPS page.');}
       return {action:'deny'};
     });
@@ -124,7 +124,23 @@ export class WebPages {
       pageState=saved.page;
       await contents.navigationHistory.restore({entries:saved.entries,index:saved.index}).catch(error=>this.fail(page,`Browser history could not be restored: ${String(error)}`));
     } else {
-      await contents.loadURL(document.observation.url).catch(error=>{if(!contents.isDestroyed()&&error.code!=='ERR_ABORTED')this.fail(page,error.message);});
+      let blockedRedirect=false;
+      const redirect=(event:Electron.Event<Electron.WebContentsWillRedirectEventParams>)=>{
+        if(event.isMainFrame&&new URL(event.url).origin!==initialOrigin){
+          blockedRedirect=true;
+          event.preventDefault();
+        }
+      };
+      if(initialOrigin)contents.on('will-redirect',redirect);
+      try {
+        await contents.loadURL(document.observation.url).catch(error=>{
+          if(contents.isDestroyed())return;
+          if(blockedRedirect)this.fail(page,'The new tab redirected outside the authorized site.');
+          else if(error.code!=='ERR_ABORTED')this.fail(page,error.message);
+        });
+      } finally {
+        if(initialOrigin&&!contents.isDestroyed())contents.off('will-redirect',redirect);
+      }
     }
   }
   private urlDocument(address:WebAddress):WebDocument {
@@ -142,6 +158,12 @@ export class WebPages {
     this.focusedSurface=focused;
   }
 
+  async openNewTab(url:string,initialOrigin?:string) {
+    const document=this.urlDocument(WebAddress.parse(url));
+    document.id='web-tab:'+randomUUID();
+    await this.open(document,false,initialOrigin);
+    return document.id;
+  }
   focusedBrowserTab(authorizationNotice?:string): BrowserTab | undefined {
     const id=this.focusedSurface;
     if(!id)return;
@@ -149,8 +171,11 @@ export class WebPages {
     if(!page||page.document.html||this.ownsMcp(page.view.webContents.getURL()))return;
     const contents=page.view.webContents;
     return {
-      contents,
+      id, contents,
+      focused:()=>this.focusedSurface===id,
       visible:()=>!this.window.isDestroyed()&&!this.window.isMinimized()&&this.pages.get(id)===page&&page.view.getVisible(),
+      activate:()=>this.emit('web_opened',page),
+      close:()=>this.command({action:'web_close',id}),
       authorizationChanged:active=>{
         page.browserAuthorization=active?authorizationNotice:undefined;
         if(!contents.isDestroyed())this.emit('web_state',page);
@@ -190,8 +215,9 @@ export class WebPages {
     if(command.action==='web_restore'){
       const html=command.html?inlineHtml(command.html):undefined;
       if(html&&command.id!==`html:${html.id}`)throw new Error('HTML source identity changed');
-      const document=html?{id:command.id,html,observation:{url:WebLocation.parse(command.url).text,title:html.title,load:{kind:'loading' as const},can_back:false,can_forward:false}}:this.urlDocument(WebAddress.parse(command.id));
-      if(!html)document.observation.url=WebAddress.parse(command.url).text;
+      if(!html&&!/^web-tab:[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(command.id))WebAddress.parse(command.id);
+      const document=html?{id:command.id,html,observation:{url:WebLocation.parse(command.url).text,title:html.title,load:{kind:'loading' as const},can_back:false,can_forward:false}}:this.urlDocument(WebAddress.parse(command.url));
+      document.id=command.id;
       await this.open(document,true);return;
     }
     if(command.action==='web_surface'){this.surfaces(command.id&&command.bounds?[{id:command.id,bounds:command.bounds,focused:true}]:[]);return;}

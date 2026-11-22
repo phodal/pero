@@ -4,7 +4,7 @@ import { AppParameterSchema, type AppJson } from '../../../packages/app-sdk/src/
 import type { AppUseTask } from './app-use-task.ts';
 import { AppUseError } from './app-use-task.ts';
 
-type FrozenFile = Readonly<{ ref: string; name: string; mediaType: string; data: Buffer }>;
+export type FrozenFile = Readonly<{ ref: string; name: string; mediaType: string; data: Buffer }>;
 type InputGrant = Readonly<{
   file: FrozenFile;
   taskId: string;
@@ -49,6 +49,11 @@ export class AppInputs {
       bytes: data.length,
     }));
   }
+  selected(thread: string, ref: string): FrozenFile {
+    const file = this.files.get(thread)?.get(ref);
+    if (!file) throw new AppUseError('APP_FILE_FOREIGN', 'The selected file does not belong to this conversation.');
+    return file;
+  }
   async resolve(
     task: AppUseTask,
     schema: unknown,
@@ -63,9 +68,7 @@ export class AppInputs {
           'APP_FILE_REFERENCE',
           'Use a current conversation file reference from inventory.',
         );
-      const file = this.files.get(task.thread)?.get(ref);
-      if (!file)
-        throw new AppUseError('APP_FILE_FOREIGN', 'The selected file does not belong to this conversation.');
+      const file = this.selected(task.thread, ref);
       const token = randomBytes(32).toString('hex');
       this.grants.set(token, {
         file,

@@ -20,6 +20,7 @@ const boundedResearchApp = (app: string | undefined) => app === 'control-lab' ||
 type SessionAccess = 'selected' | 'app-data' | 'saved-read';
 type AppUseCall = { controller: AbortController; scope?: AppScope; access: SessionAccess };
 type Session = {
+  workspace?: string;
   scope?: AppScope;
   appOwned: boolean;
   visited: Map<string, AppScope>;
@@ -131,10 +132,11 @@ export class AppUse {
       return;
     }
     if (event.kind === 'session_created' && thread) {
-      const data = event.data as { scope?: AppScope; agent?: string; appBinding?: { app: string } };
+      const data = event.data as { scope?: AppScope; agent?: string; workspace?: string; appBinding?: { app: string } };
       const appOwned = !!data?.scope && data.appBinding?.app === data.scope.app;
       this.sessions.set(thread, {
         scope: data?.scope,
+        workspace: data?.workspace,
         appOwned,
         visited: new Map(),
         title: data?.agent || 'Agent',
@@ -249,6 +251,7 @@ export class AppUse {
     return thread && (!this.sessions.has(thread) || this.isOrdinaryConversation(thread)) ? thread : undefined;
   }
   canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
+  conversationWorkspace(thread: string) { return this.sessions.get(thread)?.workspace; }
   requireRunningSession(thread: string) {
     const session = this.sessions.get(thread);
     if (!session?.running) fail('APP_SESSION_INACTIVE', 'A running Host conversation is required.');

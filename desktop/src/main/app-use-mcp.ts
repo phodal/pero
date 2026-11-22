@@ -445,7 +445,8 @@ export class DesktopAppUse {
           const value = await this.authority.access(thread, undefined, (_scope, signal) => {
             if (!this.authority.isOrdinaryConversation(thread))
               throw new AppUseError('BROWSER_SCOPE', 'Browser Use is available in ordinary Workbench conversations.');
-            return this.browser!.call(thread, message.params.arguments, signal);
+            return this.browser!.call(thread, message.params.arguments, signal, this.inputs,
+              this.authority.conversationWorkspace(thread), this.deliverArtifact);
           }, controller.signal);
           if (value.kind === 'screenshot') {
             result = {content:[
