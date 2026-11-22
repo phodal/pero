@@ -11,7 +11,7 @@ case "${1:-}" in
     start) exec "${docker[@]}" run --detach --rm --init --pull never --name "$name" \
         --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 "$image" ;;
     stop) exec "${docker[@]}" stop "$name" ;;
-    probe) exec "${docker[@]}" exec "$name" pero-desktop probe ;;
+    probe|input-idle) exec "${docker[@]}" exec "$name" pero-desktop "$1" ;;
     observe|control|computer) exec "${docker[@]}" exec -i "$name" pero-desktop "$1" ;;
     *) printf 'Usage: %s {build|start|probe|computer|observe|control|stop}\n' "$0" >&2; exit 2 ;;
 esac
