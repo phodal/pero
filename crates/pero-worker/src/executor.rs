@@ -19,6 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(crate) const ACP_CANCEL_GRACE: Duration = Duration::from_secs(2);
+
 pub fn execution_env_allowed(key: &std::ffi::OsStr) -> bool {
     !key.to_string_lossy().starts_with("PERO_")
 }
@@ -300,7 +302,7 @@ pub fn child_execute() -> Result<(), String> {
             let _ = handle.tx.send(SessionCommand::Cancel);
             cancelled_at = Some(Instant::now());
         }
-        if cancelled_at.is_some_and(|at| at.elapsed() > Duration::from_secs(2)) {
+        if cancelled_at.is_some_and(|at| at.elapsed() > ACP_CANCEL_GRACE) {
             result = Some(Outcome::new("cancelled", "Execution cancelled"));
             break;
         }

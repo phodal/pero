@@ -45,7 +45,65 @@ pub struct Event {
     pub data: Value,
 }
 
+// Text from the Go harness's native Shell receipt, embedded in ACP tool content.
+#[derive(Deserialize)]
+struct ShellToolReceipt {
+    result: ShellToolResult,
+}
+
+#[derive(Deserialize)]
+struct ShellToolResult {
+    aborted: bool,
+    stdout: ShellStream,
+    stderr: ShellStream,
+}
+
+#[derive(Deserialize)]
+struct ShellStream {
+    text: String,
+    truncated: bool,
+}
+
 impl Event {
+    pub fn from_host(event: pero_contracts::HostEvent, cancelling: bool) -> Self {
+        let mut stored = Self {
+            seq: 0,
+            kind: event.kind,
+            text: event.text,
+            data: event.data,
+        };
+        if cancelling
+            && stored.kind == "session_update"
+            && stored.text.is_empty()
+            && stored.data["sessionUpdate"] == "tool_call_update"
+            && stored.data["status"] == "failed"
+            && let Some(raw) = stored.data["content"][0]["content"]["text"].as_str()
+            && let Ok(receipt) = serde_json::from_str::<ShellToolReceipt>(raw)
+            && receipt.result.aborted
+        {
+            // Keep the structured ACP receipt in data. Existing Run clients use
+            // event.text to render the captured streams in the execution log.
+            stored.text = [
+                ("stdout", receipt.result.stdout),
+                ("stderr", receipt.result.stderr),
+            ]
+            .into_iter()
+            .filter(|(_, stream)| !stream.text.is_empty())
+            .map(|(name, stream)| {
+                let label = if stream.truncated { " (truncated)" } else { "" };
+                format!("{name}{label}\n{}", stream.text.trim_end_matches('\n'))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+            // Leave the structured receipt intact if escaped output makes
+            // the extra preview exceed the wire limit.
+            if stored.validate().is_err() {
+                stored.text.clear();
+            }
+        }
+        stored
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.kind.trim().is_empty()
             || self.kind.len() > 128

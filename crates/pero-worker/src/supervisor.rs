@@ -1,6 +1,6 @@
 use crate::{
     control::{Control, lease_deadline},
-    executor::{Execution, bounded_line, execution_env_allowed},
+    executor::{ACP_CANCEL_GRACE, Execution, bounded_line, execution_env_allowed},
     journal::Journal,
     model::{Event, Outcome},
 };
@@ -208,6 +208,12 @@ impl Process {
         Ok((process, rx))
     }
 
+    fn request_cancel(&mut self) {
+        if let Some(mut input) = self.child.stdin.take() {
+            let _ = input.write_all(b"cancel\n");
+        }
+    }
+
     fn finish(&mut self, outcome: Outcome) -> Outcome {
         let clean = self.cleanup();
         // cleanup joins the watchdog. Lease expiry can race with an HTTP reply
@@ -215,19 +221,14 @@ impl Process {
         // must override a stale ordinary result, even after confirmed cleanup.
         // Cleanup stops the watchdog before reaping, so also check the final
         // deadline directly: it may elapse without the watchdog setting its flag.
-        if self.expired.load(Ordering::SeqCst)
-            || Instant::now() >= *self.deadline.lock().unwrap()
-        {
+        if self.expired.load(Ordering::SeqCst) || Instant::now() >= *self.deadline.lock().unwrap() {
             return Outcome::new(
                 "reconcile",
                 "Execution lease lost before settlement; effects require reconciliation",
             );
         }
         if !clean {
-            return Outcome::new(
-                "reconcile",
-                "Process group cleanup could not be confirmed",
-            );
+            return Outcome::new("reconcile", "Process group cleanup could not be confirmed");
         }
         outcome
     }
@@ -237,11 +238,10 @@ impl Process {
         if let Some(watchdog) = self.watchdog.take() {
             let _ = watchdog.join();
         }
-        // Give ACP a brief chance to acknowledge cancellation before enforcing termination.
-        if let Some(input) = self.child.stdin.as_mut() {
-            let _ = input.write_all(b"cancel\n");
+        if self.child.stdin.is_some() {
+            self.request_cancel();
+            std::thread::sleep(Duration::from_millis(250));
         }
-        std::thread::sleep(Duration::from_millis(250));
         kill_tree(self.child.id(), &self.groups);
         let _ = self.child.wait();
         self.reaped = true;
@@ -295,7 +295,9 @@ pub fn execute(
     let mut flush_at = Instant::now();
     let mut result = None;
     let started = Instant::now();
-    let outcome = loop {
+    let mut cancelling_until = None;
+    let cloud_cancelled = || Outcome::new("cancelled", "Cancellation requested by Cloud");
+    let outcome = 'execution: loop {
         if process.expired.load(Ordering::SeqCst) {
             break Outcome::new(
                 "reconcile",
@@ -305,13 +307,13 @@ pub fn execute(
         if started.elapsed() >= Duration::from_secs(3600) {
             break Outcome::new("failed", "Worker execution exceeded its one-hour limit");
         }
-        if Instant::now() >= renew_at {
+        if cancelling_until.is_some_and(|until| Instant::now() >= until) {
+            break cloud_cancelled();
+        }
+        if cancelling_until.is_none() && Instant::now() >= renew_at {
             let request_started = Instant::now();
             match control.renew(&run) {
                 Ok(renewal) => {
-                    if renewal.cancel_requested {
-                        break Outcome::new("cancelled", "Cancellation requested by Cloud");
-                    }
                     match lease_deadline(&renewal.lease_expires_at, request_started) {
                         Ok(deadline) => {
                             // Once expired, a late HTTP response can never resurrect execution.
@@ -324,6 +326,14 @@ pub fn execute(
                                     .saturating_duration_since(Instant::now())
                                     .div_f64(3.0)
                                     .max(Duration::from_millis(50));
+                            if renewal.cancel_requested {
+                                process.request_cancel();
+                                // The child has two seconds to collect the ACP cancellation
+                                // receipt and emits its final result before closing stdout.
+                                cancelling_until = Some(
+                                    Instant::now() + ACP_CANCEL_GRACE + Duration::from_millis(250),
+                                );
+                            }
                         }
                         Err(_) => {
                             break Outcome::new(
@@ -359,22 +369,19 @@ pub fn execute(
                         .map_err(|_| "Invalid executor result")?,
                 );
             }
-            if let Err(error) = journal.append(Event {
-                seq: 0,
-                kind: event.kind,
-                text: event.text,
-                data: event.data,
-            }) {
-                result = Some(Outcome::new("reconcile", error));
-                disconnected = true;
-                break;
+            if let Err(error) = journal.append(Event::from_host(event, cancelling_until.is_some()))
+            {
+                break 'execution Outcome::new("reconcile", error);
             }
         }
         if result.is_some() || disconnected {
+            if cancelling_until.is_some() {
+                break cloud_cancelled();
+            }
             break result
                 .unwrap_or_else(|| Outcome::new("failed", "Executor exited without a result"));
         }
-        if Instant::now() >= flush_at {
+        if cancelling_until.is_none() && Instant::now() >= flush_at {
             if let Ok(acknowledged) = control.flush(journal.state.active.as_ref().unwrap()) {
                 journal.state.active.as_mut().unwrap().acknowledged = acknowledged;
                 journal.save()?;
