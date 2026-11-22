@@ -9,12 +9,31 @@ use gpui_kit::{
     *,
 };
 use pero_contracts::{
-    computer_runtime::{ComputerControl, ComputerPermissionState, ComputerUseState},
     HostEvent,
+    computer_runtime::{ComputerControl, ComputerPermissionState, ComputerUseState},
 };
 use pero_theme::SettingMessage;
 
 impl Workbench {
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn computer_failed(&mut self, error: String, cx: &mut Context<Self>) {
+        use pero_contracts::computer_runtime::ComputerDriverStatus;
+        self.computer = Some(ComputerUseState {
+            enabled: false,
+            running: false,
+            status: ComputerDriverStatus {
+                environment: None,
+                available: false,
+                accessibility: ComputerPermissionState::NotDetected,
+                screen_recording: ComputerPermissionState::NotDetected,
+                message: String::new(),
+            },
+            error: Some(error),
+        });
+        self.sync_settings_panel(cx);
+        cx.notify();
+    }
+
     pub(crate) fn receive_computer(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
         if event.kind != "computer_state" {
             return false;
@@ -84,7 +103,7 @@ impl SettingsPanel {
             }
             body = body.child(pero_theme::settings_message(
                 self.t(if unavailable {
-                    "computer.unsupported"
+                    "computer.unavailable"
                 } else if running {
                     "computer.running"
                 } else if enabled {
@@ -113,63 +132,133 @@ impl SettingsPanel {
                 pero_theme::Chrome::from_app(cx),
             ));
         }
-        body.child(pero_theme::settings_actions(
-            [
+        let mut actions = Vec::new();
+        #[cfg(target_os = "macos")]
+        if let Some(path) = crate::native::computer_app().filter(|path| path.is_dir()) {
+            let drag_source = pero_theme::settings_status(
+                "Pero Computer Use.app",
+                self.t("computer.drag_badge"),
+                pero_theme::Chrome::from_app(cx),
+            )
+            .id("computer-drag-helper")
+            .cursor_grab()
+            .on_drag(path.clone(), |_, _, _, cx| cx.new(|_| gpui_kit::Empty))
+            .external_drag_payload(|path: &std::path::PathBuf, _, _| {
+                Some(ExternalDragPayload::Files(FileDragPaths::new([(
+                    path.clone(),
+                    true,
+                )])))
+            });
+            body = body
+                .child(pero_theme::settings_message(
+                    self.t("computer.drag_help"),
+                    SettingMessage::Help,
+                    pero_theme::Chrome::from_app(cx),
+                ))
+                .child(drag_source);
+            actions.push(
                 pero_theme::action_button(
-                    "computer-permissions",
-                    self.t("computer.permissions"),
+                    "computer-reveal-helper",
+                    self.t("computer.reveal_helper"),
                     pero_theme::ActionKind::Ghost,
                     pero_theme::Chrome::from_app(cx),
                     cx,
                 )
-                .disabled(
-                    unavailable
-                        || self.computer_pending
-                        || state.is_some_and(|s| {
-                            s.status.accessibility == ComputerPermissionState::Unsupported
-                                && s.status.screen_recording == ComputerPermissionState::Unsupported
-                        }),
-                )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.computer_control(ComputerControl::Permissions {}, cx)
-                }))
+                .on_click(move |_, _, _| {
+                    if let Err(error) = std::process::Command::new("/usr/bin/open")
+                        .arg("-R")
+                        .arg(&path)
+                        .spawn()
+                    {
+                        eprintln!("Could not reveal Pero Computer Use: {error}");
+                    }
+                })
                 .into_any_element(),
+            );
+        }
+        #[cfg(target_os = "macos")]
+        for (id, label, url) in [
+            (
+                "computer-permissions-ax",
+                "computer.open_accessibility",
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            ),
+            (
+                "computer-permissions-screen",
+                "computer.open_screen_recording",
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            ),
+        ] {
+            actions.push(
                 pero_theme::action_button(
-                    "computer-refresh",
-                    self.t("computer.refresh"),
+                    id,
+                    self.t(label),
                     pero_theme::ActionKind::Ghost,
                     pero_theme::Chrome::from_app(cx),
                     cx,
                 )
-                .disabled(self.computer_pending)
-                .on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.computer_control(ComputerControl::Get {}, cx)
+                .on_click(move |_, _, cx| cx.open_url(url))
+                .into_any_element(),
+            );
+        }
+        #[cfg(target_family = "wasm")]
+        actions.push(
+            pero_theme::action_button(
+                "computer-permissions",
+                self.t("computer.permissions"),
+                pero_theme::ActionKind::Ghost,
+                pero_theme::Chrome::from_app(cx),
+                cx,
+            )
+            .disabled(
+                unavailable
+                    || self.computer_pending
+                    || state.is_some_and(|s| {
+                        s.status.accessibility == ComputerPermissionState::Unsupported
+                            && s.status.screen_recording == ComputerPermissionState::Unsupported
                     }),
-                )
-                .into_any_element(),
-                pero_theme::action_button(
-                    "computer-stop",
-                    self.t("computer.stop"),
-                    pero_theme::ActionKind::Ghost,
-                    pero_theme::Chrome::from_app(cx),
-                    cx,
-                )
-                .disabled(!enabled && !running)
-                .on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.computer_control(ComputerControl::Stop {}, cx)
-                    }),
-                )
-                .into_any_element(),
-            ],
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.computer_control(ComputerControl::Permissions {}, cx)
+            }))
+            .into_any_element(),
+        );
+        actions.extend([
+            pero_theme::action_button(
+                "computer-refresh",
+                self.t("computer.refresh"),
+                pero_theme::ActionKind::Ghost,
+                pero_theme::Chrome::from_app(cx),
+                cx,
+            )
+            .disabled(self.computer_pending)
+            .on_click(
+                cx.listener(|this, _, _, cx| this.computer_control(ComputerControl::Get {}, cx)),
+            )
+            .into_any_element(),
+            pero_theme::action_button(
+                "computer-stop",
+                self.t("computer.stop"),
+                pero_theme::ActionKind::Ghost,
+                pero_theme::Chrome::from_app(cx),
+                cx,
+            )
+            .disabled(!enabled && !running)
+            .on_click(
+                cx.listener(|this, _, _, cx| this.computer_control(ComputerControl::Stop {}, cx)),
+            )
+            .into_any_element(),
+        ]);
+        let body = body.child(pero_theme::settings_actions(
+            actions,
             pero_theme::Chrome::from_app(cx),
-        ))
-        .child(pero_theme::settings_message(
+        ));
+        #[cfg(any(target_family = "wasm", target_os = "macos"))]
+        let body = body.child(pero_theme::settings_message(
             self.t("computer.stop_hint"),
             SettingMessage::Help,
             pero_theme::Chrome::from_app(cx),
-        ))
-        .into_any_element()
+        ));
+        body.into_any_element()
     }
 }

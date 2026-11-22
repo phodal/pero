@@ -75,7 +75,12 @@ impl Workbench {
                             this.command(serde_json::to_value(control).expect("harness control"), cx);
                         }
                         SettingsAction::Computer(control) => {
+                            #[cfg(target_family = "wasm")]
                             this.command(serde_json::to_value(control).expect("computer control"), cx);
+                            #[cfg(not(target_family = "wasm"))]
+                            if let Err(error) = crate::native::computer_control(control.clone()) {
+                                this.computer_failed(error, cx);
+                            }
                         }
                         SettingsAction::Engram(settings) => {
                             this.command(serde_json::json!({
