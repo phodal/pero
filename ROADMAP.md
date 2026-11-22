@@ -428,7 +428,7 @@
 - [x] 并排浏览器. HTTP(S) 页面拥有独立标签、地址栏、前进后退、刷新和失败恢复，切换保留表单、关闭释放引擎；已通过 [macOS Electron 验证](docs/fitness/web-documents.md)。
 - [ ] 浏览器平台验收. macOS 原生 WebKit 已验证引擎导航与保留状态，待实际焦点、组合画面和 Windows/Linux 运行验收；验收：各平台分别保留真实输入、显示与安装包记录。
 - [ ] 浏览器 Profile. 管理 Cookie、扩展和账户，按明确授权迁移登录态并支持撤销；验收：Profile 可隔离账户，撤销后不能继续使用迁移的登录态。
-- [ ] Browser Use. 授权 Agent 操作指定标签与来源，保留观察和操作记录；验收：操作限于获准标签与来源，可回查观察和动作。
+- [x] Browser Use（Electron 工作台）. 授权当前会话读取和操作所选标签与站点，支持页面观察、点击、填表和同站导航，保留观察与操作回执。见 [Browser Use 验证](docs/fitness/browser-use.md)。
 
 ### 桌面与终端
 

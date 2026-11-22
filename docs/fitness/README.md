@@ -203,6 +203,9 @@ Workspace navigation ownership and pure layout refactor:
 
 Agent → App tools, task grants and panel evidence: [App Use](app-use.md).
 
+Agent → Electron Web tab grants, observations and action receipts:
+[Browser Use](browser-use.md).
+
 External Computer Use v1 types and pure admission (L0, no native driver):
 [Computer Use contract](computer-use.md).
 
