@@ -27,6 +27,7 @@ import { DesktopAppUse } from './app-use-mcp';
 import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
+import { LinuxDesktopWindow } from './linux-desktop-window.ts';
 import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
 import { bindAppFrameEditing } from './frame-editing.ts';
@@ -75,11 +76,13 @@ const mcpRpc=new McpSessionRpc(request=>{
   host.stdin.write(JSON.stringify(request)+'\n');
 });
 let computer: DesktopComputer | undefined;
+let linuxDesktop: LinuxDesktopWindow | undefined;
 let locale: Locale = 'en';
 const t = (key: MessageKey) => translate(locale, key);
 let localExecution: LocalExecutionController | undefined;
 const send = (event: object) => {
   if ((event as {kind?: string}).kind === 'remote_state') localExecution?.sync();
+  if ((event as {kind?: string}).kind === 'computer_state') linuxDesktop?.publish();
   if (window && !window.isDestroyed()) window.webContents.send('pero:event', event);
 };
 const artifactDelivery = new HostArtifactDelivery(request => {
@@ -190,6 +193,9 @@ function updateMenus() {
       })),
       { id: 'browser-use-allow', label: t('browser_use.menu_allow'), click: () => { void allowBrowserUse(); } },
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
+      ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
+        void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));
+      } }] : []),
       {id:'session-mcp',label:t('mcp.session_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'session'}})},
       {id:'standalone-mcp',label:t('mcp.standalone_sources'),click:()=>send({version:1,kind:'mcp_choose',request_id:null,text:'',data:{mode:'standalone'}})},
       { id: 'automation-operations', label: t('automation.operations'), click: () => send({version:1,kind:'automation_operations_open',request_id:null,text:''}) },
@@ -234,7 +240,14 @@ app.whenReady().then(async () => {
     save: enabled => savePreference('settings.computer',{enabled}),
     permissions: computerPermissions,
   });
-  globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
+  if (process.platform !== 'win32') {
+    linuxDesktop = new LinuxDesktopWindow(__dirname, computer, () => locale, async () => appUse?.authority.selectedOrdinaryConversation());
+    computer.linuxRoute = thread => linuxDesktop?.session.route(thread);
+    nativeTheme.on('updated', () => linuxDesktop?.publish());
+  }
+  globalShortcut.register('CommandOrControl+Shift+Escape', () => {
+    void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
+  });
   browserUse = new BrowserUse(resolve(app.getPath('userData'), 'browser-use-evidence'), async url => {
     if (!webPages) throw new Error('Web views are unavailable.');
     const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
@@ -322,7 +335,10 @@ app.whenReady().then(async () => {
           send({version:1,kind:request.call?'mcp_app_view':'mcp_sources',request_id:request.request_id,thread_id:request.thread,text:'',data:{url,...(request.call?{tool_call:request.call.tool_call}:{})}});
         })().catch(error=>{mcpReady=undefined;send({version:1,kind:'mcp_error',request_id:request.request_id,thread_id:request.thread,text:error instanceof Error?error.message:String(error)});});return;
       }
-      if(message.kind==='session_deleted'&&message.thread_id)mcpHost?.forgetThread(message.thread_id);
+      if (message.kind === 'session_deleted' && message.thread_id) {
+        mcpHost?.forgetThread(message.thread_id);
+        void linuxDesktop?.session.forget(message.thread_id).catch(error => console.error(error));
+      }
       if (message.kind === 'harness_settings_saved' || message.kind === 'harness_settings_error') {
         const pending = preferenceWrites.get(message.request_id);
         if (pending) { clearTimeout(pending.timer); preferenceWrites.delete(message.request_id);
@@ -357,7 +373,7 @@ app.whenReady().then(async () => {
         const appearance = message.data?.appearance;
         if (appearance === 'light' || appearance === 'dark' || appearance === 'system') nativeTheme.themeSource = appearance;
       }
-      if (message.kind === 'settings') { locale = normalizeLocale(message.text); updateMenus(); }
+      if (message.kind === 'settings') { locale = normalizeLocale(message.text); updateMenus(); linuxDesktop?.publish(); }
       if (message.kind === 'ready') ready = true;
       send(message);
     }
@@ -582,7 +598,7 @@ app.on('before-quit', quit => {
       if(!window.isDestroyed()){shuttingDown=false;return;}
     }
   mcpRpc.close();
-  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close(),mcpSessions?.close(),connectorMcp?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
+  const computerClosed=Promise.all([appUse?.close(),mcpHost?.close(),mcpSessions?.close(),connectorMcp?.close(),linuxDesktop?.close()]); globalShortcut.unregisterAll(); localExecution?.close(); remote.close(); apps.close(); contributions.close(); rejectPreferenceWrites();mcpRequests.clear();
   if (!host?.pid || host.exitCode !== null || host.signalCode !== null) {
     void computerClosed.catch(error=>console.error(error)).finally(()=>{shutdownComplete = true; app.quit();}); return;
   }
