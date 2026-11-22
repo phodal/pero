@@ -95,7 +95,7 @@ export function ConnectorDetailDialog({ configurationRequest = 0, detail, locale
   const formAvailable = !!parsedDefinition;
   const researchKeys = new Set((researchFields[provider?.providerId ?? ''] ?? []).map(field => field.key));
   const tab = formAvailable && editMode !== 'json' ? 'form' : 'json';
-  return <Dialog className={`point-connector-detail${isFeishu ? ' point-feishu-connection' : ''}`} title={help ? <span className="point-connector-title">{name}
+  return <Dialog scope="window" className={`point-connector-detail${isFeishu ? ' point-feishu-connection' : ''}`} title={help ? <span className="point-connector-title">{name}
         {view && !isFeishu && <StatusBadge className="point-connector-state" state={STATE_TONES[view.state] ?? 'neutral'} dotClassName="point-connector-state-dot">
           <span role="status">{(locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[view.state] ?? view.state}</span>
         </StatusBadge>}

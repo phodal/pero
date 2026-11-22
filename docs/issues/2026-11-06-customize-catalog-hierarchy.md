@@ -47,3 +47,15 @@ SkillHub 继续按上游分页读取发布版本。
 技能列表与 MCP 网格。Electron 使用 1,778 个技能、106 个服务验证分页、筛选、
 清除、详情、连接配置入口及英文切换中文，检查了深色窄窗口。截图保存在
 `test-results/customize-catalog/` 与 `test-results/skills-market/`。
+
+## 2026-11-22 连接弹窗遮罩
+
+App 内的原生 `<dialog>` 只覆盖自己的 iframe 或 WebView。连接配置会占用整个工作台，
+使用 SDK 的 `scope="window"`，由 Workbench 遮住 App 外的侧栏、标签栏和其他窗格。
+遮罩统一使用设计契约的 33% 黑色。连接表单、嵌套弹窗、Escape 和焦点仍由 SDK 管理。
+
+macOS Native 开发壳实测飞书连接打开后侧栏和标签栏一起变暗。点侧栏不会导航，并可
+继续按 Escape 关闭。Electron 专项用 GitHub 连接验证遮罩覆盖、底部截图按钮隐藏、
+侧栏点击拦截、Escape 关闭和焦点回到「添加连接」。截图位于
+`test-results/customize-catalog/native-window-modal-zh.png` 与
+`test-results/skills-market/mcp-window-modal.png`。Linux、Windows 和签名安装包尚未实测。
