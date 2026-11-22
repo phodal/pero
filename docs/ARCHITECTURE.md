@@ -150,6 +150,14 @@ Workbench 持有 WKWebView、标签授权和可见性，连接器复用页面语
 可信输入由工作台发送到自己的网页视图。标签截图和网页触发的下载走 Electron 的浏览器后端。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 
+普通 Workbench 会话还可以用 REPL 编排这些工具。Electron Main 装配
+`javascript_repl`，在 QuickJS worker 中运行移植自 Qwen Code 的跨单元绑定语义。
+macOS Native 连接器装配 `python_repl`，在系统沙箱中运行 Apple Python。两个入口
+使用同一 MCP 会话，脚本通过 `cua.browser` 和 `cua.computer` 逐步调用现有 Host
+工具。Agent 会话策略审批 REPL 调用，Host 在每个动作检查会话、标签或目标授权，
+并保存原有回执。重置、取消或关闭会话时销毁解释器。
+开发命令和功能验收见 [Pero REPL 开发技能](../skills/pero-cua-repl/SKILL.md)。
+
 Paper App 的提问、选区与比较通过 SDK 冻结引用进入共享 Chat 草稿，用户提交后在
 同一 Host Agent 会话内调用声明的研究准备、`research-step`、续研与报告保存路由，
 逐步读取冻结 PDF、检索、回读已观察片段、保存发现与缺口并提交报告。

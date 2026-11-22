@@ -23,6 +23,23 @@ async function run(commands) {
   let observed, selectedFiles;
   const results = [];
   for (const { name, ...args } of commands) {
+    if (args.action === 'repl') {
+      const { tool, ...parameters } = args;
+      delete parameters.action;
+      assert.ok(catalog.tools.some(entry => entry.name === tool), `Missing tool ${tool}`);
+      const foreignTool = tool.startsWith('python_') ? 'javascript_repl' : 'python_repl';
+      assert.ok(!catalog.tools.some(entry => entry.name === foreignTool), `Unexpected tool ${foreignTool}`);
+
+      const result = await rpc('tools/call', { name: tool, arguments: parameters });
+      results.push({
+        text: result.content.filter(item => item.type === 'text').map(item => item.text).join(''),
+        images: result.content.filter(item => item.type === 'image').map(item =>
+          createHash('sha256').update(Buffer.from(item.data, 'base64')).digest('hex')),
+        isError: result.isError,
+      });
+      continue;
+    }
+
     if (name) {
       args.ref = observed?.nodes.find(node => node.name === name)?.ref;
       if (!args.ref) {

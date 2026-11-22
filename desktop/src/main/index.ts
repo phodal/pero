@@ -24,6 +24,8 @@ import {z} from 'zod';
 import { DesktopContributions } from './contributions';
 import { LocalExecutionController } from './local-execution';
 import { DesktopAppUse } from './app-use-mcp';
+import { ConversationRepl } from './repl/repl.ts';
+import { startJavaScriptRepl } from './repl/javascript.ts';
 import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
@@ -284,7 +286,8 @@ app.whenReady().then(async () => {
     await ready;
     return tabId;
   }, options => net.request(options));
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),sshProfile ? undefined : browserUse);
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),sshProfile ? undefined : browserUse,
+    sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
   if (process.platform === 'darwin' || process.platform === 'linux') {

@@ -20,6 +20,7 @@ import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 import { AppAgentPluginBinding } from './app-agent-plugin.ts';
 import { DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL, parseArtifactDelivery, parseArtifactPresentation, type ArtifactDeliveryPort } from './artifact-delivery.ts';
 import type { BrowserUsePort } from './browser-use/browser-use.ts';
+import type { ConversationRepl, CuaResult, ReplCapability } from './repl/repl.ts';
 
 type Event = {
   version: number;
@@ -85,6 +86,7 @@ export class DesktopAppUse {
   private readonly uiAvailable: boolean;
   private readonly inspector?: NotebookInspector;
   private readonly browser?: BrowserUsePort;
+  private readonly repl?: ConversationRepl;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -97,10 +99,12 @@ export class DesktopAppUse {
     deliverArtifact?: ArtifactDeliveryPort,
     inspector?: NotebookInspector,
     browser?: BrowserUsePort,
+    repl?: ConversationRepl,
   ) {
     this.deliverArtifact = deliverArtifact;
     this.inspector = inspector;
     this.browser = browser;
+    this.repl = repl;
     this.computer = computer;
     this.uiAvailable = typeof surface === 'function';
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
@@ -191,7 +195,7 @@ export class DesktopAppUse {
       && this.plugins.has(event.thread_id)) this.plugins.set(event.thread_id, null);
     if (event.kind === 'disconnected')
       for (const thread of this.plugins.keys()) this.plugins.set(thread, null);
-    if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); this.browser?.revoke(); }
+    if (event.kind === 'disconnected') { this.goals.forget(); this.submitted.clear(); this.browser?.revoke(); this.repl?.forget(); }
     const rejected = ['session_error', 'session_auth_required', 'session_auth_error', 'command_rejected'].includes(event.kind);
     if (rejected && !event.thread_id) { this.goals.revokeAll(); this.submitted.clear(); }
     if (event.kind === 'user_message' && event.thread_id) {
@@ -219,10 +223,13 @@ export class DesktopAppUse {
       void this.results.forget(event.thread_id).catch(error => this.send({version:1,kind:'error',request_id:null,thread_id:event.thread_id,text:`Could not remove result artifacts: ${String(error)}`}));
     }
     if (event.thread_id && event.kind === 'session_deleted') this.goals.forget(event.thread_id);
-    if (event.thread_id && (event.kind === 'session_closed' || rejected ||
-        (event.kind === 'turn_finished' && (event.text?.toLowerCase() === 'cancelled' || (event.data as { stopReason?: string })?.stopReason === 'cancelled')))) this.goals.revoke(event.thread_id);
+    const cancelled = event.kind === 'turn_finished' &&
+      (event.text?.toLowerCase() === 'cancelled' || (event.data as { stopReason?: string })?.stopReason === 'cancelled');
+    if (event.thread_id && (event.kind === 'session_closed' || rejected || cancelled)) this.goals.revoke(event.thread_id);
     if (event.thread_id && ['session_closed', 'session_error', 'session_deleted'].includes(event.kind))
       this.browser?.revoke(event.thread_id);
+    if (event.thread_id && (cancelled || ['session_closed', 'session_error', 'session_deleted'].includes(event.kind)))
+      this.repl?.forget(event.thread_id);
     if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind))) this.submitted.delete(event.thread_id);
     this.authority.accept(event);
   }
@@ -232,6 +239,7 @@ export class DesktopAppUse {
     if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) {
       this.goals.revoke(value.thread_id);
       this.browser?.revoke(value.thread_id);
+      this.repl?.forget(value.thread_id);
     }
     this.authority.command(value);
   }
@@ -246,6 +254,7 @@ export class DesktopAppUse {
     this.goals.forget();
     this.submitted.clear();
     this.browser?.revoke();
+    this.repl?.forget();
     this.authority.reset(true);
   }
   async close() {
@@ -256,6 +265,31 @@ export class DesktopAppUse {
   private pluginWrites(thread: string, definitions: AppWriteDefinition[]): AppWriteDefinition[] {
     const plugin = this.plugins.get(thread);
     return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
+  }
+  private async callCua(thread: string, capability: ReplCapability, input: unknown, signal: AbortSignal): Promise<CuaResult> {
+    return this.authority.access(thread, undefined, async (_scope, bounded) => {
+      if (capability === 'browser' && this.browser) {
+        if (!this.authority.isOrdinaryConversation(thread))
+          throw new AppUseError('BROWSER_SCOPE', 'Browser Use is available in ordinary Workbench conversations.');
+        const value = await this.browser.call(thread, input, bounded, this.inputs,
+          this.authority.conversationWorkspace(thread), this.deliverArtifact);
+        const image = value.kind === 'screenshot' && Buffer.isBuffer(value.png)
+          ? { type: 'image' as const, data: value.png.toString('base64'), mimeType: 'image/png' }
+          : undefined;
+        return { value: image ? { kind: value.kind, receipt: value.receipt } : value, image,
+          isError: 'outcome' in value && value.outcome !== 'dispatched' };
+      }
+      if (capability === 'computer' && this.computer) {
+        if (this.goals.has(thread) || this.authority.isBoundedResearch(thread))
+          throw new AppUseError('APP_GOAL_DENIED', 'Computer Use is unavailable for bounded research App conversations.');
+        const value = await this.computer.call(thread, input, bounded);
+        const pixels = value.kind === 'observation' ? value.image : undefined;
+        const image = pixels ? { type: 'image' as const, data: pixels.data, mimeType: pixels.media_type } : undefined;
+        return { value: image ? { ...value, image: undefined } : value, image,
+          isError: value.kind === 'receipt' && value.receipt.outcome.status !== 'executed' };
+      }
+      throw new AppUseError('CUA_UNAVAILABLE', 'This control capability is unavailable in the current host.');
+    }, signal);
   }
   async start(): Promise<{ PERO_APP_USE_URL: string; PERO_APP_USE_TOKEN: string }> {
     const token = randomBytes(32).toString('hex');
@@ -328,6 +362,7 @@ export class DesktopAppUse {
               ...(this.uiAvailable ? [TOOL] : []),
               ...(this.computer ? [COMPUTER_TOOL] : []),
               ...(this.browser ? [this.browser.tool] : []),
+              ...(this.repl ? [this.repl.tool, this.repl.resetTool] : []),
               ...(this.deliverArtifact ? [DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL] : []),
               {
                 name: 'content_read',
@@ -441,33 +476,20 @@ export class DesktopAppUse {
         else if (message.method?.startsWith('notifications/')) {
           response.writeHead(202).end();
           return;
-        } else if (message.method === 'tools/call' && message.params?.name === 'browser_use' && this.browser) {
-          const value = await this.authority.access(thread, undefined, (_scope, signal) => {
+        } else if (message.method === 'tools/call' && this.repl &&
+          [this.repl.tool.name, this.repl.resetTool.name].includes(message.params?.name)) {
+          const repl = this.repl;
+          result = await this.authority.access(thread, undefined, (_scope, signal) => {
             if (!this.authority.isOrdinaryConversation(thread))
-              throw new AppUseError('BROWSER_SCOPE', 'Browser Use is available in ordinary Workbench conversations.');
-            return this.browser!.call(thread, message.params.arguments, signal, this.inputs,
-              this.authority.conversationWorkspace(thread), this.deliverArtifact);
+              throw new AppUseError('REPL_SCOPE', 'REPL is available in ordinary Workbench conversations.');
+            return repl.call(thread, message.params.name, message.params.arguments, signal,
+              (capability, input, bounded) => this.callCua(thread, capability, input, bounded));
           }, controller.signal);
-          if (value.kind === 'screenshot' && Buffer.isBuffer(value.png)) {
-            result = {content:[
-              {type:'text',text:await this.results.select(thread,{kind:value.kind,receipt:value.receipt})},
-              {type:'image',data:value.png.toString('base64'),mimeType:'image/png'},
-            ],isError:false};
-          } else {
-            result = {content:[{type:'text',text:await this.results.select(thread,value)}],isError:'outcome' in value&&value.outcome!=='dispatched'};
-          }
-        } else if (message.method === 'tools/call' && message.params?.name === 'computer_use' && this.computer) {
-          const value = await this.authority.access(thread, undefined, (_scope, signal) => {
-            if (this.goals.has(thread) || this.authority.isBoundedResearch(thread))
-              throw new AppUseError('APP_GOAL_DENIED', 'Computer Use is unavailable for bounded research App conversations.');
-            return this.computer!.call(thread, message.params.arguments, signal);
-          }, controller.signal);
-          const images: object[] = [];
-          if (value.kind === 'observation' && value.image) {
-            images.push({type:'image',data:value.image.data,mimeType:value.image.media_type});
-            value.image = undefined;
-          }
-          result = {content:[{type:'text',text:await this.results.select(thread,value)},...images],isError:value.kind==='receipt'&&value.receipt.outcome.status!=='executed'};
+        } else if (message.method === 'tools/call' &&
+          ((message.params?.name === 'browser_use' && this.browser) || (message.params?.name === 'computer_use' && this.computer))) {
+          const capability = message.params.name === 'browser_use' ? 'browser' : 'computer';
+          const { value, image, isError } = await this.callCua(thread, capability, message.params.arguments, controller.signal);
+          result = { content: [{ type: 'text', text: await this.results.select(thread, value) }, ...(image ? [image] : [])], isError };
         } else if (message.method === 'tools/call' && message.params?.name === 'app_use' && this.uiAvailable) {
           const value = await this.authority.call(thread, message.params.arguments, controller.signal);
           const content: object[] = [];

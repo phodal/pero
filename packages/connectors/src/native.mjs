@@ -9,6 +9,8 @@ import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { join, dirname } from 'node:path';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { ConnectorMcp } from './mcp.ts';
+import { ConversationRepl } from '../../../desktop/src/main/repl/repl.ts';
+import { pythonRepl } from '../../../desktop/src/main/repl/python.ts';
 
 // stdout carries private protocol replies; management diagnostics use stderr.
 console.log = console.error;
@@ -52,7 +54,8 @@ const appUse = new DesktopAppUse({
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
 }, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
-  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), browser);
+  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), browser,
+  process.platform === 'darwin' ? new ConversationRepl('python', pythonRepl(helpers)) : undefined);
 
 let closing;
 const close = () => closing ??= (async () => {
