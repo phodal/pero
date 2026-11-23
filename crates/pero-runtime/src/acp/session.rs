@@ -549,6 +549,7 @@ async fn run(
             // initialization is transient, so carry its composer capabilities
             // in the retained session snapshot as well.
             session_data["peroCapabilities"] = serde_json::to_value(AgentCapabilities {
+                science_session: science_negotiated,
                 images: initialized.agent_capabilities.prompt_capabilities.image,
                 embedded_context: initialized.agent_capabilities.prompt_capabilities.embedded_context,
             }).map_err(agent_client_protocol::Error::into_internal_error)?;

@@ -6,6 +6,8 @@ use serde_json::Value;
 pub struct AgentCapabilities {
     pub images: bool,
     pub embedded_context: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub science_session: bool,
 }
 
 impl AgentCapabilities {
@@ -33,6 +35,7 @@ impl AgentCapabilities {
         let initialize: Initialize =
             serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
         Ok(Self {
+            science_session: false,
             images: initialize.agent_capabilities.prompt_capabilities.image,
             embedded_context: initialize
                 .agent_capabilities
