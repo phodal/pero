@@ -15,6 +15,8 @@ const { PNG } = createRequire(import.meta.url)('playwright-core/lib/utilsBundle'
 const root = resolve(import.meta.dirname, '../..');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-browser-'));
 const hits = new Map();
+const downloadText = 'browser,value\nwebkit,已验证\n';
+const blobText = 'Blob from the authorized WebKit tab';
 const listen = handler => new Promise((done, fail) => {
   const server = createServer(handler);
   server.once('error', fail);
@@ -34,10 +36,25 @@ const server = await listen((request, response) => {
     response.end();
     return;
   }
+  if (path === '/report.csv') {
+    if (request.headers.cookie !== 'pero=webkit') { response.writeHead(403).end(); return; }
+    response.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="webkit.csv"' }).end(downloadText);
+    return;
+  }
+  if (path === '/download-redirect') {
+    response.writeHead(302, { Location: foreignOrigin + '/download' }).end();
+    return;
+  }
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   response.setHeader('Cache-Control', 'no-store');
+  if (path === '/suite') response.setHeader('Set-Cookie', 'pero=webkit; HttpOnly; SameSite=Strict');
   const page = path === '/batch-frame' ? browserInputFrame
-    : path === '/suite' ? browserNavigationPage('First', foreignOrigin + '/frame')
+    : path === '/suite' ? browserNavigationPage('First', foreignOrigin + '/frame').replace('<p data-testid="wheel">', `
+      <a href="/report.csv" download>Protected report</a>
+      <a id="blob" download="webkit-blob.txt">Local Blob</a>
+      <a href="/download-redirect" download>Redirecting report</a>
+      <script>document.querySelector('#blob').href = URL.createObjectURL(new Blob([${JSON.stringify(blobText)}]));</script>
+      <p data-testid="wheel">`)
     : path === '/second' ? browserNavigationPage('Second')
     : browserInputPage;
   response.end(page);
@@ -67,6 +84,9 @@ try {
   const turns = [
     { commands: [status] },
     { permission: 'allow', attachments: true, commands: [...browserInputCommands, { action: 'navigate', url: origin + '/suite' }] },
+    { commands: ['Protected report', 'Local Blob', 'Redirecting report'].flatMap(name => [
+      byRole('link', name), { action: 'download', name },
+    ]) },
     { commands: [
       { action: 'screenshot' }, { action: 'screenshot', clip },
       { action: 'screenshot', clip: { ...clip, x: 10000 } },
@@ -121,9 +141,25 @@ try {
   const session = JSON.parse(await readFile(receipt, 'utf8'));
   assert.equal(session.passed, true, session.error);
   assert(session.mcp.servers.some(server => server.server === 'pero-app-use'));
-  const [before, inputs, first, unauthorized, approved, history, final, after] = session.replies;
+  const [before, inputs, downloads, first, unauthorized, approved, history, final, after] = session.replies;
   assert.deepEqual(before, [{ authorized: false, isError: false }]);
   verifyBrowserInputs(inputs.slice(0, -1));
+  const threadDigest = createHash('sha256').update(session.thread).digest('hex');
+  for (const [index, name, contents] of [[1, 'webkit.csv', downloadText], [3, 'webkit-blob.txt', blobText]]) {
+    assert(downloads[index - 1].nodes[0].actions.includes('download'), JSON.stringify(downloads));
+    const result = downloads[index];
+    assert.equal(result.outcome, 'dispatched', JSON.stringify(result));
+    const artifact = result.transfer.artifactReceipt.artifact;
+    assert.equal(artifact.thread_id, session.thread);
+    const [version] = artifact.versions;
+    assert.equal(version.filename, name);
+    assert.equal(version.sha256, createHash('sha256').update(contents).digest('hex'));
+    assert.equal(await readFile(resolve(data, 'settings.artifacts', threadDigest, 'snapshots', version.sha256 + '.bin'), 'utf8'), contents);
+  }
+  assert(downloads[5].isError && !downloads[5].transfer, JSON.stringify(downloads[5]));
+  assert.equal(hits.get('foreign/download') ?? 0, 0);
+  assert.equal(hits.get('/report.csv'), 1);
+  assert.deepEqual((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-')), []);
 
   const [viewport, clipped, invalidClip, , fill, , scroll, staleScroll, wheelResult, position, blockedOpen, opened] = first;
   const dispatched = result => {
@@ -202,7 +238,7 @@ try {
   const expected = [36, 104, 180, 255];
   for (const [channel, value] of decoded.data.subarray(middle, middle + 4).entries())
     assert(Math.abs(value - expected[channel]) <= 3, 'Screenshot clip sampled the blue viewport marker.');
-  console.log('Native Browser Use passed: independent tabs, approval, history, trusted scroll, guarded screenshots and earlier input flows.');
+  console.log('Native Browser Use passed: independent tabs, approval, history, trusted scroll, guarded screenshots and WebKit downloads.');
 } finally {
   clearTimeout(timer);
   child?.kill();

@@ -1,5 +1,6 @@
 import type { DriverOperation } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { captureChromiumDocument } from '../../../desktop/src/main/browser-use/screenshot.ts';
+import { downloadLinkScript, encodeBytes } from '../../../desktop/src/main/browser-use/download-link.ts';
 import { MAX_TRANSFER_BYTES, webOrigin } from './protocol.ts';
 
 export type Cdp = (method: string, params?: Record<string, unknown>) => Promise<any>;
@@ -33,45 +34,8 @@ export async function screenshot(cdp: Cdp, { clip, fullPage }: Omit<Extract<Driv
   }
 }
 
-function encodeBytes(bytes: Uint8Array) {
-  let text = '';
-  for (let offset = 0; offset < bytes.length; offset += 8192)
-    text += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
-  return btoa(text);
-}
-
-async function readLink(url: string, limit: number, encode: typeof encodeBytes) {
-  const response = await fetch(url, {
-    credentials: 'same-origin', redirect: 'error', signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok || !response.body) throw new Error(`The download returned HTTP ${response.status}.`);
-  if (Number(response.headers.get('content-length')) > limit) throw new Error('The Chrome download exceeds 10 MiB.');
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > limit) throw new Error('The Chrome download exceeds 10 MiB.');
-      chunks.push(value);
-    }
-  } finally {
-    void reader.cancel().catch(() => {});
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  return { base64: encode(bytes), disposition: response.headers.get('content-disposition') ?? '' };
-}
-
 export async function downloadLink(cdp: Cdp, world: string, origin: string, url: string) {
-  const parsed = URL.canParse(url) ? new URL(url) : undefined;
-  if (!parsed || (parsed.protocol === 'blob:' ? parsed.origin : webOrigin(url)) !== origin)
-    throw new Error('The download link is outside the approved Chrome origin.');
-  return evaluateDocument(cdp, world, origin,
-    `(${readLink.toString()})(${JSON.stringify(url)}, ${MAX_TRANSFER_BYTES}, (${encodeBytes.toString()}))`, true);
+  return evaluateDocument(cdp, world, origin, downloadLinkScript(origin, url), true);
 }
 
 export async function evaluateDocument(cdp: Cdp, world: string, origin: string, expression: string, awaitPromise = false) {

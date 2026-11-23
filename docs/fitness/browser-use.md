@@ -35,12 +35,16 @@ Native 支持标签清单、观察、定位、条件等待、同源 iframe、同
 历史操作先检查目标来源，然后等待 WebKit 完成导航。滚轮使用新鲜观察 ID，截图支持可见
 视口和像素矩形，复用 Electron 的 PNG MCP 图片与证据文件格式。截图前后通过 WebKit
 帧树检查来源，覆盖封闭 Shadow DOM 内的 iframe。WebKit 未提供所需帧元数据时拒绝截图。
-网页触发的新标签回执和下载回执（含 Blob）由 Electron 提供。
+Native 也可通过 `download` 把已观察的同源 HTTP(S) 或 Blob 链接保存为会话 Artifact。
+HTTP(S) 下载使用该 WebKit 标签的登录态，拒绝重定向，文件上限为 10 MiB。
+网页触发的新标签回执和下载按钮触发的原生下载事件由 Electron 提供。
 
 Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
 并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
 同源地址返回的跨源重定向。验收覆盖新增能力、可信单击和双击与悬停、两个真实附件内容、
 授权前后的工具状态和本地回执。Electron 的全量验收也运行同一组第六批场景。
+Native 回环验收另核对了需 HttpOnly Cookie 的 CSV、页面生成的 Blob、Artifact 字节和
+哈希，以及跨源重定向的目标从未被访问。Chrome Relay 也通过既有下载回归。
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
 

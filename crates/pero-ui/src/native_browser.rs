@@ -125,7 +125,11 @@ impl WebHistory {
 enum WebOperation {
     Check,
     CheckFrames,
-    Evaluate { script: String },
+    Evaluate {
+        script: String,
+        #[serde(default, rename = "awaitResult")]
+        await_result: bool,
+    },
     Navigate { url: String },
     History { action: WebHistory },
     Screenshot { clip: Option<ScreenshotClip> },
@@ -396,10 +400,10 @@ impl Workbench {
                     );
                     match operation {
                         WebOperation::Check => Ok(Some(Value::Null)),
-                        WebOperation::Evaluate { script } => {
+                        WebOperation::Evaluate { script, await_result } => {
                             let request = request.clone();
                             let apps = apps.clone();
-                            evaluate(raw, &script, move |reply| {
+                            evaluate(raw, &script, await_result, move |reply| {
                                 reply_browser(&apps, &request, reply)
                             });
                             Ok(None)
@@ -500,8 +504,18 @@ pub(super) fn web_loading(view: &wry::WebView) -> bool {
     loading.as_bool()
 }
 
-fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Value>) + 'static) {
-    let Ok(source) = std::ffi::CString::new(format!("JSON.stringify({script})")) else {
+fn evaluate(
+    view: &wry::WebView,
+    script: &str,
+    await_result: bool,
+    reply: impl Fn(anyhow::Result<Value>) + 'static,
+) {
+    let script = if await_result {
+        format!("return JSON.stringify(await ({script}));")
+    } else {
+        format!("JSON.stringify({script})")
+    };
+    let Ok(source) = std::ffi::CString::new(script) else {
         reply(Err(anyhow::anyhow!("Invalid Browser Use script.")));
         return;
     };
@@ -521,8 +535,13 @@ fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Val
             };
             reply(result);
         });
-        let _: () = msg_send![&*view,
-            evaluateJavaScript: source, inFrame: ptr::null::<AnyObject>(), inContentWorld: &**world, completionHandler: &*handler];
+        if await_result {
+            let _: () = msg_send![&*view, callAsyncJavaScript: source, arguments: ptr::null::<AnyObject>(),
+                inFrame: ptr::null::<AnyObject>(), inContentWorld: &**world, completionHandler: &*handler];
+        } else {
+            let _: () = msg_send![&*view, evaluateJavaScript: source, inFrame: ptr::null::<AnyObject>(),
+                inContentWorld: &**world, completionHandler: &*handler];
+        }
     });
 }
 

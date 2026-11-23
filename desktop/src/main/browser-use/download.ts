@@ -2,8 +2,7 @@ import type { ClientRequest, ClientRequestConstructorOptions, DownloadItem, Even
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
-
-const LIMIT = 10 * 1024 * 1024;
+import { BROWSER_DOWNLOAD_LIMIT as LIMIT } from './download-link.ts';
 
 export type DownloadRequest = (options: ClientRequestConstructorOptions) => ClientRequest;
 export type DownloadListener = (event: Event, item: DownloadItem) => void;
