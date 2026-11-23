@@ -80,7 +80,6 @@ impl Workbench {
             Some(WorkspaceItem::Project(key)) => Some(key.as_str()),
             _ => None,
         };
-        let project_sessions = self.project_agent_navigation(cx);
         let environment = self.sidebar_environment(current_app.as_deref());
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
@@ -88,7 +87,7 @@ impl Workbench {
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed,
             projects_collapsed: self.projects_collapsed,
-            apps, environment, projects, active_project, project_sessions,
+            apps, environment, projects, active_project,
         }, settings, actions, cx)
     }
 

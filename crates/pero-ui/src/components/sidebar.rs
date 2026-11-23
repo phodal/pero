@@ -50,7 +50,6 @@ pub(crate) struct SidebarProps<'a> {
     pub projects_collapsed: bool,
     pub projects: Vec<Project>,
     pub active_project: Option<&'a str>,
-    pub project_sessions: Option<ProjectGroup>,
 }
 /// Global environment activity. Progress is a status; a missing or failed
 /// environment is the prepare or retry action.
@@ -407,7 +406,6 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 };
                 div().relative().w_full().flex().justify_center().child(element).child(props.shortcut_bounds.probe(app.name))
             }).collect::<Vec<_>>();
-    let mut sessions = props.project_sessions;
     let projects = props.projects.into_iter().map(|project| {
         let selected = props.active_project == Some(project.key.as_str());
         let id = format!("sidebar-project:{}", project.key);
@@ -439,27 +437,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             )
             .tooltip(project.name)
         };
-        let group = selected.then(|| sessions.take()).flatten();
-        div().w_full().flex().flex_col().child(
-            div().w_full().flex().justify_center().items_center()
-                .child(div().relative().min_w_0().when(!collapsed, |el| el.flex_1()).child(row).child(probe))
-                .when_some(group.as_ref(), |el, group| {
-                    let label = format!("{} {}", ui.t(if group.collapsed { "project.expand" } else { "project.collapse" }), group.name);
-                    el.child(pero_theme::ghost_icon_button("sidebar-project-disclosure", chrome, cx)
-                        .icon(Icon::default().path(if group.collapsed { "icons/chevron-right.svg" } else { "icons/chevron-down.svg" }))
-                        .accessibility_label(label.clone()).tooltip(label)
-                        .on_click(click(&on_action, SidebarAction::ToggleProject(group.key.clone()))))
-                }),
-        )
-        .when_some(group.filter(|group| !group.collapsed), |el, group| {
-            let more = group.rows.len() > group.revealed;
-            el.child(div().id("project-agent-navigation").w_full().flex().flex_col()
-                .pl(chrome.geo(pero_theme::SPACE_8))
-                .children(group.rows.into_iter().take(group.revealed).enumerate().map(|(index, row)| {
-                    recent_row(ui, row, 300000 + index, &on_action, cx)
-                }))
-                .when(more, |el| el.child(show_more(ui, 300000, group.key, &on_action, chrome, cx))))
-        })
+        div().relative().w_full().flex().justify_center().child(row).child(probe)
     }).collect::<Vec<_>>();
     pero_theme::sidebar_surface("sidebar", width, chrome)
         .text_size(chrome.text(pero_theme::TYPE_BODY))

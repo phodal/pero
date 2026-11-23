@@ -123,12 +123,12 @@ async function project(id = projectId) {
     return projectAgent.snapshots[id]?.project_id === id && !projectAgent.loading.includes(id);
   }).toBe(true);
 }
-async function wideColumns(id) {
+async function wideColumns() {
   await expect.poll(async () => {
     const s = await state(), controls = s.projectControls;
-    return ['agent:conversation', 'agent:context', `agent:open:${id}`].every(key => controls[key]?.width > 0);
+    return ['agent:conversation', 'agent:context', `sidebar:open:${projectKey}`].every(key => controls[key]?.width > 0);
   }).toBe(true);
-  const s = await state(), nav = s.projectControls[`agent:open:${id}`];
+  const s = await state(), nav = s.projectControls[`sidebar:open:${projectKey}`];
   const conversation = s.projectControls['agent:conversation'], context = s.projectControls['agent:context'];
   expect(nav.x + nav.width).toBeLessThanOrEqual(conversation.x + 2);
   expect(conversation.width).toBeGreaterThan(context.width);
@@ -137,11 +137,18 @@ async function wideColumns(id) {
   expect(s.composerBounds.input.x + s.composerBounds.input.width).toBeLessThanOrEqual(context.x + 2);
 }
 async function open(id) {
-  await expect.poll(async () => {
-    const before = await state();
-    if (before.chats[before.activeChat]?.id !== id) await control(`agent:open:${id}`);
-    const s = await state(); return s.chats[s.activeChat]?.id;
-  }).toBe(id);
+  const before = await state();
+  if (before.chats[before.activeChat]?.id !== id) {
+    const delegates = before.chats.filter(chat => chat.project_agent?.project_id === projectId && chat.project_agent.parent_thread);
+    const index = delegates.findIndex(chat => chat.id === id);
+    if (index < 0) await control(`sidebar:open:${projectKey}`);
+    else {
+      await control('agent:delegates');
+      for (let i = 0; i <= index; i++) await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+    }
+  }
+  await expect.poll(async () => { const s = await state(); return s.chats[s.activeChat]?.id; }).toBe(id);
 }
 async function draft(text) {
   await click(async () => (await state()).composerBounds.input);
@@ -252,6 +259,7 @@ try {
     const s = await state();
     return s.chats[s.activeChat]?.id;
   }).toBe(main);
+  expect((await state()).projectControls[`agent:open:${main}`]?.width || 0).toBe(0);
   const firstChat = (await state()).chats.find(chat => chat.id === main);
   expect(firstChat.messages.filter(message => message.role === 'user').map(message => message.text)).toEqual([firstDraft.trim()]);
   const firstRequests = provider.calls.filter(call => call.messages.some(message =>
@@ -278,7 +286,7 @@ try {
   checks.push('first-project-submit-binds-primary-once-and-sends-frozen-composer-reference');
   checks.push('model-input-separates-user-turn-coordinator-instructions-and-project-context');
 
-  await wideColumns(main);
+  await wideColumns();
   checks.push('research-project-opens-central-agent-chat-with-left-navigation-and-right-materials');
   const singleLine = (await state()).composerBounds.input.height;
   await draft('Inspect the evidence.\nKeep the original files.\nExplain what remains unverified.');
@@ -352,7 +360,7 @@ try {
   expect((await state()).composer).toBe('Overview keeps the central draft');
   await capture('01-project-inspector-reopened');
   await rightTab('project.overview', 'overview');
-  await wideColumns(main);
+  await wideColumns();
   expect((await state()).composer).toBe('Overview keeps the central draft');
   await control('agent:close');
   await expect.poll(async () => (await state()).contentTabs.some(item => item.kind === 'project' && item.value === projectKey)).toBe(false);
@@ -407,7 +415,7 @@ try {
   await showProjectInspector();
   await rightTab('project.overview', 'overview');
   await saveGoal(originalGoal);
-  await wideColumns(main);
+  await wideColumns();
   checks.push('materials-remain-reachable-with-long-goal-at-minimum-window-height');
 
   await permissionMode(main, 'full-access');
@@ -421,7 +429,7 @@ try {
   await completed(child.thread_id);
   expect(child.workspace).not.toBe(workspace);
   expect(await readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('observed fixture evidence');
-  await wideColumns(child.thread_id);
+  await wideColumns();
   const childState = await state();
   const childReply = childState.readableReplies.find(reply => reply.chat === child.thread_id);
   expect(childReply.text).toContain('execution evidence');
@@ -510,7 +518,7 @@ try {
   await resize(1500, 1020);
   await control('agent:materials');
   await expect.poll(async () => (await state()).artifacts.open).toBe(false);
-  await wideColumns(main);
+  await wideColumns();
   await control('agent:artifacts');
   await expect.poll(async () => (await state()).artifacts.open).toBe(true);
   if (!await viewer.locator('.artifact-markdown:visible').isVisible()) {
@@ -532,7 +540,7 @@ try {
   for (const child of projectChildren) expect((await state()).projectControls[`sidebar:open:workspace:${child.workspace}`]?.width || 0).toBe(0);
   await control(`sidebar:open:${projectKey}`);
   await showProjectInspector();
-  await wideColumns(main);
+  await wideColumns();
   checks.push('project-catalog-excludes-delegated-workspaces-and-keeps-saved-project-entry');
   checks.push('provider-failure-visible-with-original-error-and-retained-results');
 

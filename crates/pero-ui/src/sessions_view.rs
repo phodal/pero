@@ -7,7 +7,7 @@ use crate::{
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
-    App, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, Role, Window,
+    CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, Role, Window,
     component::Sizable, div, prelude::*, px,
 };
 use std::rc::Rc;
@@ -257,49 +257,6 @@ impl Workbench {
                 cancel: SidebarAction::CancelDelete,
             }),
         }
-    }
-
-    pub(crate) fn project_agent_navigation(&self, cx: &App) -> Option<sidebar::ProjectGroup> {
-        if self.sidebar_collapsed || !self.project_agent_active() {
-            return None;
-        }
-        let project = self.saved_research_project()?;
-        let panel = self.chat.read(cx);
-        let mut sessions = panel
-            .chats
-            .iter()
-            .enumerate()
-            .filter(|(_, chat)| {
-                chat.project_agent
-                    .as_ref()
-                    .is_some_and(|binding| binding.project_id == project.id)
-            })
-            .collect::<Vec<_>>();
-        sessions.sort_by_key(|(_, chat)| {
-            chat.project_agent
-                .as_ref()
-                .is_some_and(|binding| binding.parent_thread.is_some())
-        });
-        let rows = sessions
-            .into_iter()
-            .map(|(index, chat)| self.session_navigation_row(index, chat, panel.active_chat))
-            .collect::<Vec<_>>();
-        if rows.is_empty() {
-            return None;
-        }
-        let key = format!("research:{}", project.id);
-        Some(sidebar::ProjectGroup {
-            collapsed: self.collapsed_projects.contains(&key),
-            revealed: self
-                .revealed_sessions
-                .get(&key)
-                .copied()
-                .unwrap_or(INITIAL_VISIBLE_SESSIONS),
-            key,
-            name: project.title.clone(),
-            workspace: None,
-            rows,
-        })
     }
 
     pub(crate) fn sessions_panel(

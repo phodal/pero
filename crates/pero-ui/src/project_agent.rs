@@ -390,6 +390,12 @@ impl Workbench {
         let role = binding.filter(|binding| binding.parent_thread.is_some())
             .map(|binding| binding.label.clone())
             .unwrap_or_else(|| self.t("project.agent.primary").to_owned());
+        let delegates: Vec<_> = chat.chats.iter().filter_map(|chat| {
+            let binding = chat.project_agent.as_ref()?;
+            (binding.project_id == project_id && binding.parent_thread.is_some())
+                .then(|| (chat.id.clone(), binding.label.clone()))
+        }).collect();
+        let owner = cx.entity().downgrade();
         let inspector_visible = self.project_inspector_visible(cx);
         let chrome = pero_theme::Chrome::from_app(cx);
         div()
@@ -414,6 +420,21 @@ impl Workbench {
                     .font_weight(FontWeight::MEDIUM)
                     .child(role),
             )
+            .when(!delegates.is_empty(), |el| {
+                el.child(Button::new("project-delegates").ghost().small()
+                    .label(format!("{} · {}", self.t("project.delegates"), delegates.len()))
+                    .relative().child(self.view_bounds.projects.probe("agent:delegates".into()))
+                    .dropdown_menu(move |mut menu, _, _| {
+                        for (thread, label) in &delegates {
+                            let thread = thread.clone();
+                            let owner = owner.clone();
+                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(move |_, _, cx| {
+                                let _ = owner.update(cx, |this, cx| this.open_project_agent_session(&thread, cx));
+                            }));
+                        }
+                        menu
+                    }))
+            })
             .when_some(primary_thread, |el, thread| {
                 el.child(
                     pero_theme::ghost_icon_button("project-agent-summarize", chrome, cx)
