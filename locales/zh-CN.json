@@ -64,6 +64,8 @@
   "browser_use.cloud_stop": "停止共享给云端任务",
   "browser_use.cloud_confirm": "将此标签页共享给所选云端任务？",
   "browser_use.cloud_detail": "标签页可见时，Agent 可以读取此站点的页面内容、点击和填写表单。可通过「工作台 → 停止共享给云端任务」撤销访问。",
+  "browser_use.native_cloud_detail": "标签页可见时，Agent 可以读取此站点的页面内容、点击和填写表单。可在云端任务中停止共享。",
+  "browser_use.cloud_tab_changed": "Chrome 当前标签页已切换。请选中要共享的标签页后重试。",
   "browser_use.cloud_select": "选择你已认领且正在运行的隔离云端任务，再打开已加载的网页标签页。",
   "browser_use.cloud_select_chrome": "选择你已认领且正在运行的隔离云端任务，并在配对的 Chrome 中选中已加载的标签页。",
   "browser_use.cloud_active": "已共享给云端任务",

@@ -7,6 +7,7 @@ import { EXTENSION_ID, MAX_FRAME, PAIR_LIFETIME_MS, RELAY_PATH, RELAY_PROTOCOL, 
 import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
+import { cloudBrowserRequest } from './cloud-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
 
@@ -87,7 +88,20 @@ class ChromeRelay {
     return (result.value as DriverTab[]).find(tab => tab.active && tab.stamp);
   }
 
-  shareTabWithCloud(tab: DriverTab) {
+  async prepareCloudShare(target: Pick<DriverTab, 'tabId' | 'origin' | 'grantId'>,
+    share: string, screenshots: boolean, files: AppInputs) {
+    const active = await this.activeTabForCloud();
+    if (active?.tabId !== target.tabId || active.origin !== target.origin || active.grantId !== target.grantId)
+      return;
+    const grant = this.shareTabWithCloud(active);
+    return {
+      grant: () => grant.signal,
+      call: (input: unknown, signal: AbortSignal) =>
+        grant.browser.call(share, cloudBrowserRequest(input, target.tabId, screenshots), signal, files),
+    };
+  }
+
+  private shareTabWithCloud(tab: DriverTab) {
     const connection = this.connection;
     if (!connection || connection.id !== tab.grantId) throw new Error('The paired Chrome profile changed.');
     const grant = new AbortController();

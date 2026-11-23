@@ -209,12 +209,9 @@ async function shareBrowserWithCloudRun(engine: 'embedded' | 'chrome') {
     if (answer.response !== 1) return;
     const share = `cloud:${run.runId}:${randomUUID()}`;
     if (chromeTab && chrome) {
-      const active = await chrome.activeTabForCloud();
-      if (active?.tabId !== chromeTab.tabId || active.origin !== chromeTab.origin || active.grantId !== chromeTab.grantId)
-        throw new Error(t('browser_use.cloud_select_chrome'));
-      const grant = chrome.shareTabWithCloud(chromeTab);
-      await remote.shareBrowser(run, () => grant.signal,
-        (input, signal) => grant.browser.call(share, cloudBrowserRequest(input, chromeTab.tabId, capability.screenshots), signal, files));
+      const prepared = await chrome.prepareCloudShare(chromeTab, share, capability.screenshots, files);
+      if (!prepared) throw new Error(t('browser_use.cloud_tab_changed'));
+      await remote.shareBrowser(run, prepared.grant, prepared.call);
     } else if (browser && tab && page) {
       const attachment = await remote.shareBrowser(run, () => {
         if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
