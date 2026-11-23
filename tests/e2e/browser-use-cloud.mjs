@@ -5,8 +5,10 @@ import { createServer } from 'node:http';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { expect } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { electron } from './electron.mjs';
+import { clickNewChat } from './sidebar-controls.mjs';
+import { EXTENSION_ID, RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 
 const { PERO_TEST_CLOUD_BROWSER_ORIGIN: origin, PERO_TEST_CLOUD_BROWSER_CLIENT: client,
   PERO_TEST_CLOUD_BROWSER_POD: pod, PERO_TEST_CLOUD_BROWSER_RUN: runId,
@@ -19,14 +21,15 @@ const output = resolve(root, 'test-results/browser-use-cloud');
 await mkdir(output, { recursive: true });
 const effects = [];
 const site = createServer((request, response) => {
-  if (request.url === '/effect') { effects.push(request.url); response.writeHead(204).end(); return; }
+  if (request.url.startsWith('/effect/')) { effects.push(request.url); response.writeHead(204).end(); return; }
+  const lane = request.url === '/chrome' ? 'chrome' : 'embedded';
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
-  response.end(`<!doctype html><title>Cloud Browser fixture</title><button>Mark fixture</button>
+  response.end(`<!doctype html><title>Cloud Browser fixture ${lane}</title><button>Mark fixture</button>
     <p data-testid="effect">Waiting</p><script>
     document.querySelector('button').onclick = event => {
       if (!event.isTrusted) return;
       document.querySelector('p').textContent = 'Trusted Cloud click';
-      fetch('/effect');
+      fetch('/effect/${lane}');
     };
     </script>`);
 });
@@ -40,7 +43,7 @@ const call = async args => {
   const text = await response.text();
   return { status: response.status, value: response.ok ? JSON.parse(text) : text };
 };
-let app;
+let app, chrome;
 try {
   app = await electron.launch({ args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root, env: {
     PATH: process.env.PATH, HOME: process.env.HOME, PERO_LOCALE: 'en',
@@ -59,11 +62,12 @@ try {
   await page.evaluate(url => window.pero.webCommand({ action: 'web_open', url }), url);
   await expect.poll(async () => (await state()).webDocuments.find(item => item.id === url)?.observation.load.kind).toBe('ready');
 
-  await app.evaluate(({ dialog }) => {
+  await app.evaluate(({ dialog, clipboard }) => {
     dialog.showMessageBox = async (_window, options) => {
       globalThis.cloudBrowserDialog = options;
       return { response: options.type === 'question' && globalThis.cloudBrowserApproved ? 1 : 0 };
     };
+    clipboard.writeText = value => { globalThis.cloudChromeTicket = value; };
   });
   await menu('browser-use-cloud-share');
   const consent = () => app.evaluate(() => globalThis.cloudBrowserDialog);
@@ -77,21 +81,26 @@ try {
   assert.equal((await call({ action: 'status' })).status, 409);
   await app.evaluate(() => { globalThis.cloudBrowserApproved = true; });
   await menu('browser-use-cloud-share');
-  await expect.poll(async () => {
+  const shared = () => expect.poll(async () => {
     const result = await call({ action: 'status' });
     return result.status === 200 && result.value.authorized;
   }, { timeout: 10000 }).toBe(true);
+  await shared();
   for (const blocked of [{ action: 'open', url }, { action: 'files' }, { action: 'observe', tabId: 'other-tab' }])
     assert.equal((await call(blocked)).value.kind, 'error');
-  const match = await call({ action: 'locate', locator: { by: 'role', role: 'button', name: 'Mark fixture' } });
-  assert.equal(match.value.kind, 'observation', JSON.stringify(match.value));
-  const ref = match.value.nodes.find(node => node.name === 'Mark fixture')?.ref;
-  assert(ref, JSON.stringify(match.value));
-  const click = (await call({ action: 'click', ref })).value;
-  assert.equal(click.outcome, 'dispatched', JSON.stringify(click));
-  await expect.poll(() => effects).toEqual(['/effect']);
-  const result = (await call({ action: 'observe' })).value;
-  assert(JSON.stringify(result).includes('Trusted Cloud click'));
+  const clickFixture = async () => {
+    const match = await call({ action: 'locate', locator: { by: 'role', role: 'button', name: 'Mark fixture' } });
+    assert.equal(match.value.kind, 'observation', JSON.stringify(match.value));
+    const ref = match.value.nodes.find(node => node.name === 'Mark fixture')?.ref;
+    assert(ref, JSON.stringify(match.value));
+    const click = (await call({ action: 'click', ref })).value;
+    assert.equal(click.outcome, 'dispatched', JSON.stringify(click));
+    const result = (await call({ action: 'observe' })).value;
+    assert(JSON.stringify(result).includes('Trusted Cloud click'));
+    return click;
+  };
+  const click = await clickFixture();
+  await expect.poll(() => effects).toEqual(['/effect/embedded']);
   await page.screenshot({ path: resolve(output, 'embedded-cloud-share.png') });
   const captured = await app.evaluate(async ({ webContents }, address) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL() === address);
@@ -101,12 +110,61 @@ try {
 
   await menu('browser-use-cloud-stop');
   await expect.poll(async () => (await call({ action: 'status' })).status).toBe(409);
-  assert.deepEqual(effects, ['/effect']);
+  await clickNewChat(page);
+  await expect.poll(async () => {
+    const workbench = await state();
+    return !!workbench.chats?.[workbench.activeChat]?.id;
+  }).toBe(true);
+  await menu('browser-use-pair-chrome');
+  await expect.poll(async () => {
+    const value = await app.evaluate(() => globalThis.cloudChromeTicket);
+    return value && JSON.parse(value).protocol;
+  }).toBe(RELAY_PROTOCOL);
+  const ticket = await app.evaluate(() => globalThis.cloudChromeTicket);
+  const extension = resolve(root, 'target/chrome-extension');
+  chrome = await chromium.launchPersistentContext(resolve(temp, 'chrome'), {
+    executablePath: chromium.executablePath(), headless: false,
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+  });
+  const target = chrome.pages()[0] ?? await chrome.newPage();
+  await target.goto(new URL('/chrome', url).href);
+  const sibling = await chrome.newPage();
+  await sibling.goto(new URL('/sibling', url).href);
+  const panel = await chrome.newPage();
+  await panel.goto(`chrome-extension://${EXTENSION_ID}/relay.html#` + new URLSearchParams({ pair: ticket }));
+  await expect(panel.locator('#status')).toContainText('Connected');
+  const mainWindow = await panel.evaluate(async () => (await chrome.tabs.getCurrent()).windowId);
+  const otherWindow = await panel.evaluate(async url => (await chrome.windows.create({ url, type: 'normal', focused: true })).id,
+    new URL('/second-window', url).href);
+  const focusChromeWindow = id => panel.evaluate(id => chrome.windows.update(id, { focused: true }), id);
+  await focusChromeWindow(mainWindow);
+  await target.bringToFront();
+  await menu('browser-use-cloud-chrome');
+  await shared();
+  assert.match((await consent()).detail, /Cloud Browser fixture chrome/);
+  await focusChromeWindow(otherWindow);
+  await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(false);
+  await focusChromeWindow(mainWindow);
+  await sibling.bringToFront();
+  await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(false);
+  assert.equal((await call({ action: 'observe' })).value.kind, 'error');
+  await target.bringToFront();
+  await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(true);
+  const chromeClick = await clickFixture();
+  await expect(target.getByTestId('effect')).toHaveText('Trusted Cloud click');
+  await expect(sibling.getByTestId('effect')).toHaveText('Waiting');
+  await expect.poll(() => effects).toEqual(['/effect/embedded', '/effect/chrome']);
+  await target.screenshot({ path: resolve(output, 'chrome-cloud-page.png') });
+  await menu('browser-use-cloud-stop');
+  await expect.poll(async () => (await call({ action: 'status' })).status).toBe(409);
+  await expect(panel.locator('#status')).toContainText('Connected');
   await writeFile(resolve(output, 'result.json'), JSON.stringify({
-    declined: true, granted: true, blockedOtherTabAndFiles: true, effects, click, revoked: true,
+    declined: true, granted: true, blockedOtherTabAndFiles: true, effects, click, chromeClick,
+    inactiveChromeTabBlocked: true, revoked: true, chromePairRetained: true,
   }, null, 2));
-  console.log('Electron Browser Use completed one trusted click through the real Cloud Runtime Gateway.');
+  console.log('Electron and paired Chrome each completed one trusted click through the real Cloud Runtime Gateway.');
 } finally {
+  await chrome?.close();
   await app?.close();
   site.close();
   await rm(temp, { recursive: true, force: true });

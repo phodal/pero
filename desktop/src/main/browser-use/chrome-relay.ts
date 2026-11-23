@@ -31,6 +31,7 @@ type Ticket = Pairing & { thread: string };
 type Pending = { settle(error?: Error, value?: unknown): void };
 type Connection = {
   id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number; pending?: Pending;
+  ended: AbortController;
 };
 
 class ChromeRelay {
@@ -44,7 +45,7 @@ class ChromeRelay {
 
   private readonly sidebar?: SidebarPort;
 
-  constructor(selected: () => Promise<string | undefined>, evidenceRoot: string, sidebar?: SidebarPort) {
+  constructor(selected: () => Promise<string | undefined>, private readonly evidenceRoot: string, sidebar?: SidebarPort) {
     this.sidebar = sidebar;
     this.selected = selected;
     this.browser = new NativeBrowserUse(request => this.request(request), evidenceRoot, 'chrome');
@@ -78,6 +79,41 @@ class ChromeRelay {
     return this.connection?.thread === thread;
   }
 
+  async activeTabForCloud() {
+    const connection = this.connection;
+    if (!connection) return;
+    const result = await this.request({ op: 'tabs', thread: connection.thread }, true);
+    if (!result.ok || !Array.isArray(result.value) || this.connection !== connection) return;
+    return (result.value as DriverTab[]).find(tab => tab.active && tab.stamp);
+  }
+
+  shareTabWithCloud(tab: DriverTab) {
+    const connection = this.connection;
+    if (!connection || connection.id !== tab.grantId) throw new Error('The paired Chrome profile changed.');
+    const grant = new AbortController();
+    const signal = AbortSignal.any([connection.ended.signal, grant.signal]);
+    const browser = new NativeBrowserUse(async request => {
+      if (signal.aborted || this.connection !== connection || await this.selected() !== connection.thread) {
+        grant.abort();
+        return { ok: false, error: 'The paired Chrome conversation changed.' };
+      }
+      if (request.op === 'tabs') {
+        const result = await this.request({ ...request, thread: connection.thread }, true);
+        if (!result.ok || !Array.isArray(result.value)) return result;
+        const selected = (result.value as DriverTab[]).find(item => item.tabId === tab.tabId && item.origin === tab.origin);
+        if (!selected) {
+          grant.abort();
+          return { ok: true, value: [] };
+        }
+        return { ok: true, value: [selected] };
+      }
+      if (request.op === 'run' && request.tab === tab.tabId)
+        return this.request({ ...request, thread: connection.thread });
+      return { ok: false, error: 'This Cloud Run can operate only the shared Chrome tab.' };
+    }, this.evidenceRoot, 'chrome');
+    return { browser, signal };
+  }
+
   revoke(thread?: string) {
     if (!thread || this.ticket?.thread === thread) this.ticket = undefined;
     const connection = this.connection;
@@ -93,6 +129,7 @@ class ChromeRelay {
   private disconnect(connection: Connection, reason: string) {
     if (this.connection !== connection) return;
     this.connection = undefined;
+    connection.ended.abort();
     clearInterval(connection.timer);
     connection.pending?.settle(new Error(reason));
     connection.socket.close(1000, reason);
@@ -134,7 +171,7 @@ class ChromeRelay {
                 Date.now() - pairedAt > 30 * 60_000))
               this.disconnect(connection, 'Chrome Relay expired.');
           }, 5000);
-          connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0 };
+          connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0, ended: new AbortController() };
           clearTimeout(deadline);
           this.send(socket, { type: 'paired', label: ticket.label });
           return;
@@ -177,7 +214,7 @@ class ChromeRelay {
     });
   }
 
-  private call(connection: Connection, command: { kind: 'inspect' } |
+  private call(connection: Connection, command: { kind: 'inspect' | 'inspectCloud' } |
     { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
     { kind: 'manage'; tab: string; action: TabAction }) {
     if (connection.pending) throw new Error('A Chrome Browser Use operation is already in progress.');
@@ -195,7 +232,7 @@ class ChromeRelay {
     });
   }
 
-  private async request(request: DriverRequest) {
+  private async request(request: DriverRequest, cloudWindowOnly = false) {
     try {
       if (request.op === 'revoke') {
         this.revoke(request.thread);
@@ -209,7 +246,7 @@ class ChromeRelay {
       if (await this.selected() !== request.thread || connection !== this.connection)
         throw new Error('The selected Pero conversation changed.');
       if (request.op === 'tabs') {
-        const tabs = z.array(snapshot).parse(await this.call(connection, { kind: 'inspect' }));
+        const tabs = z.array(snapshot).parse(await this.call(connection, { kind: cloudWindowOnly ? 'inspectCloud' : 'inspect' }));
         if (await this.selected() !== request.thread || connection !== this.connection)
           return { ok: true, value: [] };
         const value: DriverTab[] = tabs.flatMap(tab => {

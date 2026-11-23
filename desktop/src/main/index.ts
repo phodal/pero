@@ -188,26 +188,38 @@ async function allowBrowserUse() {
     });
   }
 }
-async function shareBrowserWithCloudRun() {
+async function shareBrowserWithCloudRun(engine: 'embedded' | 'chrome') {
   try {
     const browser = browserUse, files = appUse?.inputs;
-    const tab = webPages?.focusedBrowserTab(t('browser_use.cloud_active'));
+    const tab = engine === 'embedded' ? webPages?.focusedBrowserTab(t('browser_use.cloud_active')) : undefined;
     const page = tab && browser?.candidate(tab);
+    const chrome = appUse?.browser?.relay;
+    const chromeTab = engine === 'chrome' ? await chrome?.activeTabForCloud() : undefined;
+    const target = page ?? chromeTab;
     const run = remote.browserRun();
-    if (!run || !browser || !files || !tab || !page) throw new Error(t('browser_use.cloud_select'));
+    if (!run || !files || !target) throw new Error(t(engine === 'chrome' ? 'browser_use.cloud_select_chrome' : 'browser_use.cloud_select'));
     if (!await remote.browserShareReady(run)) throw new Error(t('browser_use.cloud_not_ready'));
     const answer = await dialog.showMessageBox(window, {
       type: 'question', message: t('browser_use.cloud_confirm'),
-      detail: [run.title, run.url, page.title, page.origin, '', t('browser_use.cloud_detail')].join('\n'),
+      detail: [run.title, run.url, target.title, target.origin, '', t('browser_use.cloud_detail')].join('\n'),
       buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
     });
     if (answer.response !== 1) return;
     const share = `cloud:${run.runId}:${randomUUID()}`;
-    const attachment = await remote.shareBrowser(run, () => {
-      if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
-      return browser.allow(share, tab, page.origin);
-    }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id), signal, files));
-    void attachment.closed.then(() => browser.revoke(share));
+    if (chromeTab && chrome) {
+      const active = await chrome.activeTabForCloud();
+      if (active?.tabId !== chromeTab.tabId || active.origin !== chromeTab.origin || active.grantId !== chromeTab.grantId)
+        throw new Error(t('browser_use.cloud_select_chrome'));
+      const grant = chrome.shareTabWithCloud(chromeTab);
+      await remote.shareBrowser(run, () => grant.signal,
+        (input, signal) => grant.browser.call(share, cloudBrowserRequest(input, chromeTab.tabId), signal, files));
+    } else if (browser && tab && page) {
+      const attachment = await remote.shareBrowser(run, () => {
+        if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
+        return browser.allow(share, tab, page.origin);
+      }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id), signal, files));
+      void attachment.closed.then(() => browser.revoke(share));
+    }
   } catch (error) {
     if (!window.isDestroyed()) await dialog.showMessageBox(window, {
       type: 'info', message: t('browser_use.unavailable'), detail: error instanceof Error ? error.message : String(error),
@@ -260,7 +272,8 @@ function updateMenus() {
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
       ...(!sshProfile ? [
-        { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun(); } },
+        { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun('embedded'); } },
+        { id: 'browser-use-cloud-chrome', label: t('browser_use.cloud_chrome'), click: () => { void shareBrowserWithCloudRun('chrome'); } },
         { id: 'browser-use-cloud-stop', label: t('browser_use.cloud_stop'), click: () => remote.stopBrowserShare() },
       ] : []),
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {

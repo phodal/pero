@@ -243,19 +243,24 @@ with a loopback TLS control endpoint and scripted provider. It verified the
 tool result returned to the next provider request and the default lane has no
 Browser Use function.
 
-In Electron Workbench, select the claimed Run in Cloud Tasks, open the Web
-tab, and choose Workbench → Share This Tab with Cloud Run. The confirmation
-shows the task, Cloud origin and page origin. The toolbar marks the tab as
-shared. The stop action and the Workbench emergency shortcut release it.
+In Electron Workbench, select the claimed Run in Cloud Tasks. Use Workbench →
+Share This Tab with Cloud Run for the embedded Web tab, or Share Active Chrome
+Tab with Cloud Run for the active tab in the paired Chrome profile's last
+focused window. The confirmation shows the task, Cloud origin and page origin.
+The embedded toolbar marks the tab as shared. The stop action and Workbench
+emergency shortcut release the Cloud share. The Chrome extension's Disconnect
+action also releases a Cloud share of that profile.
 
 With `PERO_TEST_CLOUD_BROWSER_ELECTRON` set to the absolute path of
 `tests/e2e/browser-use-cloud.mjs`, the same Go test launches the Electron
-Workbench against that real Gateway and PostgreSQL fixture. It verifies both
-choices at the consent boundary, one trusted Chromium click with independent
-page and server effects, file and other-tab rejection, and revocation.
+Workbench and a headed Chrome fixture against that real Gateway and PostgreSQL
+fixture. It verifies both choices at the consent boundary, one trusted click in
+each browser with independent page and server effects, file and other-tab
+rejection, Chrome window and tab switching, and revocation.
 The screenshot and receipt are under `test-results/browser-use-cloud/`.
 This ran in a development build with a loopback Pod identity fixture.
-Hosted Kubernetes and external Chrome sharing still require verification.
+Hosted Kubernetes transport and a signed Workbench build still require
+verification.
 
 ### Embedded browser
 

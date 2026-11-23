@@ -12,7 +12,7 @@ import { readVisiblePage } from './collector-capture.js';
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>;
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
-type Command = { kind: 'inspect' } | { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
+type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
   lastPong: number; lastId: number; busy: boolean; tabs: Map<number, TabHandle>;
@@ -113,12 +113,14 @@ async function untilDialog<T>(handle: TabHandle, operation: () => Promise<T>) {
 }
 
 async function run(connection: Peer, command: Command) {
-  if (command.kind === 'inspect') {
-    const [windows, tabs]: [{ id?: number; state?: string }[], ChromeTab[]] = await Promise.all([
+  if (command.kind === 'inspect' || command.kind === 'inspectCloud') {
+    const [windows, tabs, focused]: [{ id?: number; state?: string }[], ChromeTab[], { id?: number }?] = await Promise.all([
       chrome.windows.getAll({ windowTypes: ['normal', 'popup'] }), chrome.tabs.query({}),
+      command.kind === 'inspectCloud' ? chrome.windows.getLastFocused({ windowTypes: ['normal'] }) : undefined,
     ]);
     const minimized = new Set(windows.filter(window => window.state === 'minimized').map(window => window.id));
-    return tabs.filter(webTab).map(tab => describeTab(tab, tabHandle(connection, tab.id), minimized.has(tab.windowId)));
+    return tabs.filter(webTab).map(tab => describeTab(tab, tabHandle(connection, tab.id),
+      minimized.has(tab.windowId) || command.kind === 'inspectCloud' && tab.windowId !== focused?.id));
   }
   const handle = [...connection.tabs.values()].find(handle => handle.id === command.tab);
   if (!handle) throw new Error('The selected Chrome tab is unavailable. List tabs again.');
