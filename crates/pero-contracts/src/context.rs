@@ -24,6 +24,7 @@ pub enum ContextKind {
     BranchDiff,
     Fetch,
     AppObject,
+    Capability,
 }
 
 impl ContextKind {
@@ -39,6 +40,7 @@ impl ContextKind {
             Self::BranchDiff => "diff",
             Self::Fetch => "fetch",
             Self::AppObject => "app",
+            Self::Capability => "capability",
         }
     }
     pub fn from_keyword(keyword: &str) -> Option<Self> {
@@ -52,7 +54,6 @@ impl ContextKind {
             Self::Selection,
             Self::BranchDiff,
             Self::Fetch,
-            Self::AppObject,
         ]
         .into_iter()
         .find(|kind| kind.keyword() == keyword)
@@ -73,6 +74,7 @@ pub struct ContextCandidate {
 pub enum ContextContent {
     Text { text: String },
     Image { data: String, mime_type: String },
+    Capability { selection: crate::capability_selection::CapabilitySelection },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -98,7 +100,13 @@ impl ContextReference {
                 return Err("Context identity is missing");
             }
             match &reference.content {
+                ContextContent::Capability { selection } => {
+                    if reference.kind != ContextKind::Capability || !selection.valid() {
+                        return Err("Invalid capability target");
+                    }
+                }
                 ContextContent::Text { text } => {
+                    if reference.kind == ContextKind::Capability { return Err("Capability context requires a typed selection"); }
                     text_size += text.len();
                     if text.contains('\0') || text_size > 128_000 {
                         return Err("Context text exceeds 128 KB or contains binary data");

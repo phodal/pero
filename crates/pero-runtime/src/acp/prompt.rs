@@ -114,6 +114,7 @@ pub(super) fn prompt_blocks(
     let mut app_use_selected = false;
     for reference in context {
         let block = match reference.content {
+            ContextContent::Capability { selection } => ContentBlock::Text(TextContent::new(selection.prompt())),
             ContextContent::Image { data, mime_type } => {
                 if !capabilities.image {
                     return Err(agent_client_protocol::Error::new(

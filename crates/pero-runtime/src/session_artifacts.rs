@@ -689,6 +689,7 @@ mod tests {
                     assert!(text.contains(&frozen.sha256));
                 }
                 ContextContent::Text { text } => assert_eq!(text.as_bytes(), bytes),
+                ContextContent::Capability { .. } => panic!("an artifact must contain bytes"),
             }
             std::fs::write(&frozen.path, b"damaged").unwrap();
             assert!(matches!(

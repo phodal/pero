@@ -427,6 +427,12 @@ impl Manager {
                     self.send("context_files", "", serde_json::json!(files));
                 }
             }
+            HostCommand::ComposerCatalog { thread_id, request_id } => {
+                let mut event = HostEvent::new("composer_catalog", Some(request_id), String::new());
+                event.thread_id = Some(thread_id);
+                event.data = serde_json::json!([]);
+                let _ = self.tx.send(event);
+            }
             HostCommand::SearchContext {
                 request_id,
                 kind,

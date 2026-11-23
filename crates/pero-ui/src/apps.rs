@@ -817,7 +817,7 @@ impl crate::app::Workbench {
                         scope["panel"].as_str().unwrap_or("main").to_string(),
                     )
                 }
-                ContextContent::Image { .. } => (String::new(), String::new()),
+                ContextContent::Image { .. } | ContextContent::Capability { .. } => (String::new(), String::new()),
             },
             _ => {
                 if reference.source.starts_with("http://") || reference.source.starts_with("https://")

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub mod app_chat;
 pub use app_chat::AppChatScope;
 pub mod composer_capabilities;
+pub mod capability_selection;
 pub mod computer_use;
 pub mod computer_runtime;
 pub mod engram;
@@ -97,6 +98,7 @@ pub enum HostCommand {
     AttachFiles {
         paths: Vec<String>,
     },
+    ComposerCatalog { thread_id: String, request_id: String },
     SearchContext {
         request_id: String,
         kind: context::ContextKind,
