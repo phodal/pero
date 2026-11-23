@@ -15,7 +15,7 @@ import { pythonRepl } from '../../../desktop/src/main/repl/python.ts';
 // stdout carries private protocol replies; management diagnostics use stderr.
 console.log = console.error;
 
-const [root, executable, helpers, computerExecutable] = process.argv.slice(2);
+const [root, executable, helpers, computerExecutable, bundledPython] = process.argv.slice(2);
 const pending = new Map();
 let next = 0;
 const send = value => {
@@ -55,7 +55,7 @@ const appUse = new DesktopAppUse({
   presence: () => {},
 }, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
   (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), browser,
-  process.platform === 'darwin' ? new ConversationRepl('python', pythonRepl(helpers)) : undefined);
+  process.platform === 'darwin' ? new ConversationRepl('python', pythonRepl(helpers, bundledPython)) : undefined);
 
 let closing;
 const close = () => closing ??= (async () => {

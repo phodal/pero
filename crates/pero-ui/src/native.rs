@@ -220,7 +220,14 @@ pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     COMPUTER_APP.with(|slot| *slot.borrow_mut() = Some(distribution.computer.clone()));
     let (connector_owner, connector_environment) =
-        match crate::native_connectors::NativeConnectors::start(&root, &data, &executable, node.as_deref(), &distribution.computer) {
+        match crate::native_connectors::NativeConnectors::start(
+            &root,
+            &data,
+            &executable,
+            node.as_deref(),
+            &distribution.computer,
+            distribution.repl_python.as_deref(),
+        ) {
             Ok((owner, environment)) => (Some(owner), environment),
             Err(error) => {
                 eprintln!("Native Connectors: {error:#}");

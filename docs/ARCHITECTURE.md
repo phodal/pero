@@ -156,7 +156,8 @@ Workbench 下发一次性配对码，扩展单独确认选中的标签和来源�
 
 普通 Workbench 会话还可以用 REPL 编排这些工具。Electron Main 装配
 `javascript_repl`，在 QuickJS worker 中运行移植自 Qwen Code 的跨单元绑定语义。
-macOS Native 连接器装配 `python_repl`，在系统沙箱中运行 Apple Python。两个入口
+macOS Native 连接器装配 `python_repl`，在系统沙箱中运行 CPython。发布包携带固定版本，
+开发构建调用 Xcode 或 Command Line Tools 的 Apple Python。两个入口
 使用同一 MCP 会话，脚本通过 `cua.browser` 和 `cua.computer` 逐步调用现有 Host
 工具。Agent 会话策略审批 REPL 调用，Host 在每个动作检查会话、标签或目标授权，
 并保存原有回执。重置、取消或关闭会话时销毁解释器。

@@ -46,20 +46,25 @@ impl NativeConnectors {
         host: &Path,
         node: Option<&Path>,
         computer: &Path,
+        repl_python: Option<&Path>,
     ) -> anyhow::Result<(Arc<Self>, BTreeMap<String, String>)> {
         let helpers = root.join("packages/connectors/helpers");
-        let mut child =
-            Command::new(node.unwrap_or_else(|| Path::new("node")))
-                .arg(helpers.join("pero-connectors-host.mjs"))
-                .arg(data.join("connectors"))
-                .arg(host.parent().unwrap().join("pero-connector-worker"))
-                .arg(helpers)
-                .arg(computer)
-                .current_dir(root)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .spawn()?;
+        let mut command = Command::new(node.unwrap_or_else(|| Path::new("node")));
+        command
+            .arg(helpers.join("pero-connectors-host.mjs"))
+            .arg(data.join("connectors"))
+            .arg(host.parent().unwrap().join("pero-connector-worker"))
+            .arg(helpers)
+            .arg(computer);
+        if let Some(python) = repl_python {
+            command.arg(python);
+        }
+        let mut child = command
+            .current_dir(root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()?;
         let input = child.stdin.take().unwrap();
         let mut output = BufReader::new(child.stdout.take().unwrap());
         let (ready, startup) = mpsc::channel();

@@ -5,6 +5,7 @@ pub(crate) struct NativeDistribution {
     pub root: PathBuf,
     pub host: PathBuf,
     pub node: Option<PathBuf>,
+    pub repl_python: Option<PathBuf>,
     pub computer: PathBuf,
     pub packaged: bool,
 }
@@ -27,7 +28,13 @@ impl NativeDistribution {
             "target/release/pero-host"
         });
         let node = packaged.then(|| root.join("bin/node"));
-        if packaged && (!host.is_file() || node.as_ref().is_some_and(|path| !path.is_file())) {
+        let repl_python =
+            (packaged && cfg!(target_os = "macos")).then(|| root.join("runtime/python/bin/python3"));
+        if packaged
+            && (!host.is_file()
+                || node.as_ref().is_some_and(|path| !path.is_file())
+                || repl_python.as_ref().is_some_and(|path| !path.is_file()))
+        {
             anyhow::bail!("Native runtime is incomplete: {}", root.display());
         }
         let computer = if cfg!(target_os = "macos") {
@@ -51,6 +58,7 @@ impl NativeDistribution {
             root,
             host,
             node,
+            repl_python,
             computer,
             packaged,
         })

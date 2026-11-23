@@ -13,29 +13,36 @@ const event = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('done'), cell: z.string(), error: z.string().optional() }),
 ]);
 
-export function pythonRepl(helpers: string): StartRepl {
+export function pythonRepl(helpers: string, bundledPython?: string): StartRepl {
   const sandbox = '/usr/bin/sandbox-exec';
   let config: { interpreter: string; profile: string; source: string } | undefined;
   return async (receive, fail) => {
     if (!config) {
-      let interpreter: string, framework: string;
+      let interpreter: string, runtime: string;
       try {
         await access(sandbox);
-        const { stdout } = await promisify(execFile)('/usr/bin/xcrun', ['--find', 'python3'], {
-          env: {}, timeout: 2_000,
-        });
-        framework = dirname(dirname(await realpath(stdout.trim())));
-        interpreter = join(framework, 'Resources/Python.app/Contents/MacOS/Python');
+        if (bundledPython) {
+          interpreter = await realpath(bundledPython);
+          runtime = dirname(dirname(interpreter));
+        } else {
+          const { stdout } = await promisify(execFile)('/usr/bin/xcrun', ['--find', 'python3'], {
+            env: {}, timeout: 2_000,
+          });
+          runtime = dirname(dirname(await realpath(stdout.trim())));
+          interpreter = join(runtime, 'Resources/Python.app/Contents/MacOS/Python');
+        }
         await access(interpreter);
       } catch {
-        throw new Error('The Native REPL requires Apple Python 3 from Xcode or Command Line Tools and the macOS sandbox launcher.');
+        throw new Error(bundledPython
+          ? 'The Native REPL could not start its bundled Python or the macOS sandbox launcher.'
+          : 'The Native development REPL requires Apple Python 3 from Xcode or Command Line Tools and the macOS sandbox launcher.');
       }
       const source = await readFile(join(helpers, 'python-repl.py'), 'utf8');
       const profile = `(version 1)
         (deny default)
         (allow process-exec (literal ${JSON.stringify(interpreter)}))
         (allow sysctl-read)
-        (allow file-read* (subpath ${JSON.stringify(framework)}) (subpath "/System/Library")
+        (allow file-read* (subpath ${JSON.stringify(runtime)}) (subpath "/System/Library")
           (subpath "/usr/lib") (literal "/") (literal "/dev/null") (literal "/dev/urandom"))`;
       config = { interpreter, profile, source };
     }

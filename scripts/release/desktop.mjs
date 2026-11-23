@@ -60,7 +60,7 @@ if (operation === 'prepare') {
     buildURL: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
     signing: process.platform === 'darwin' ? 'ad-hoc' : 'unsigned', notarized: false, bundledAgentCLIs: false,
     ...(native ? { nodeVersion: '22.23.4' } : {}),
-    ...(standalone ? { python: JSON.parse(readFileSync(resolve(root, 'scripts/release/python.json'), 'utf8')) } : {}),
+    ...(standalone || native ? { python: JSON.parse(readFileSync(resolve(root, 'scripts/release/python.json'), 'utf8')) } : {}),
   };
   mkdirSync(resolve(root, 'desktop/dist'), { recursive: true });
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + '\n');
@@ -80,7 +80,8 @@ if (operation === 'prepare') {
       if (existsSync(join(payload, name))) throw new Error(`Unexpected private or test input in package: ${name}`);
     }
     if (process.platform === 'darwin') {
-      for (const executable of [native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host', ...(native ? ['Contents/Resources/app/bin/node'] : [])]) {
+      for (const executable of [native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero', 'Contents/Resources/app/bin/pero-host',
+        ...(native ? ['Contents/Resources/app/bin/node', 'Contents/Resources/app/runtime/python/bin/python3'] : [])]) {
         const arch = execFileSync('/usr/bin/lipo', ['-archs', join(app, executable)], { encoding: 'utf8' }).trim();
         if (arch !== process.arch) throw new Error(`Unexpected packaged architecture: ${arch}`);
       }

@@ -1,5 +1,5 @@
 // Portable macOS GPUI bundle. The builder accepts a verified official Node runtime.
-import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, existsSync, mkdtempSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, existsSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Product } from '../../packages/product/product.ts';
@@ -11,6 +11,8 @@ const root = resolve(import.meta.dirname, '../..');
 if (process.platform !== 'darwin') throw new Error('Native packaging requires macOS.');
 const runtime = process.env.PERO_NATIVE_NODE_ROOT;
 if (!runtime || !existsSync(join(runtime, 'bin/node')) || !existsSync(join(runtime, 'LICENSE'))) throw new Error('Set PERO_NATIVE_NODE_ROOT to the verified official Node runtime.');
+const pythonSource = process.env.PERO_NATIVE_PYTHON_ROOT;
+if (!pythonSource || !existsSync(join(pythonSource, 'bin/python3'))) throw new Error('Set PERO_NATIVE_PYTHON_ROOT to the verified standalone CPython runtime.');
 const product = Product.parse(JSON.parse(readFileSync(join(root, 'products/pero.json'), 'utf8')));
 const directory = join(root, 'target/native-package');
 const app = join(directory, 'Pero Native.app');
@@ -29,6 +31,19 @@ cpSync(join(root, 'target/release/pero-native'), join(app, 'Contents/MacOS/pero-
 const icon = join(app, 'Contents/Resources/AppIcon.icns');
 writeIcns(join(root, 'resources/app-icon.svg'), icon);
 const signingIdentity = process.env.PERO_MACOS_SIGN_IDENTITY || '-';
+const python = join(payload, 'runtime/python');
+cpSync(pythonSource, python, { recursive: true, verbatimSymlinks: true });
+for (const file of readdirSync(join(python, 'lib'), { recursive: true, withFileTypes: true })) {
+  if (file.isFile() && /\.(?:dylib|so)$/.test(file.name)) {
+    const binary = join(file.parentPath, file.name);
+    signNativeCode(binary, signingIdentity);
+    execFileSync('/usr/bin/codesign', ['--verify', '--strict', binary]);
+  }
+}
+const pythonExecutable = realpathSync(join(python, 'bin/python3'));
+signNativeCode(pythonExecutable, signingIdentity);
+execFileSync('/usr/bin/codesign', ['--verify', '--strict', pythonExecutable]);
+const pythonVersion = execFileSync(pythonExecutable, ['--version'], { encoding: 'utf8' }).trim();
 const bundledWorker = join(payload, 'bin/pero-computer');
 const helper = join(directory, 'Pero Computer Use.app');
 stageComputerApp(helper, bundledWorker, {
@@ -63,5 +78,6 @@ try {
 } finally {
   rmSync(staging, { recursive: true, force: true });
 }
-writeFileSync(join(directory, 'size.json'), JSON.stringify({ app, helper, dmg: archive, dmgBytes: statSync(archive).size, bundledNode: '22.23.4', bundledAgentCLIs: false }, null, 2) + '\n');
+writeFileSync(join(directory, 'size.json'), JSON.stringify({ app, helper, dmg: archive, dmgBytes: statSync(archive).size,
+  bundledNode: '22.23.4', bundledPython: pythonVersion, bundledAgentCLIs: false }, null, 2) + '\n');
 console.log(archive);
