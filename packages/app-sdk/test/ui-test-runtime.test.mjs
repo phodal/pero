@@ -39,3 +39,17 @@ test('UI runtime external React imports use file URLs and share the host React i
     assert.ok(imports.some(item => item.kind === 'import-statement' && item.path === expected), `missing file URL import for ${name}: ${JSON.stringify(imports)}`);
   }
 });
+
+test('closing a UI runtime cancels pending timeouts from the browser bundle', async t => {
+  let calls = 0;
+  await t.test('schedule a callback while the window is open', async child => {
+    const { ui } = await createUiRuntime(child, {
+      resolveDir: import.meta.dirname,
+      contents: 'export const later = callback => setTimeout(callback, 1000);',
+    });
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    ui.later(() => { calls++; });
+  });
+  t.mock.timers.tick(1000);
+  assert.equal(calls, 0);
+});
