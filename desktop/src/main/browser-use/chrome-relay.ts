@@ -134,7 +134,7 @@ class ChromeRelay {
           const pairedAt = Date.now();
           const timer = setInterval(() => {
             if (connection && (Date.now() - connection.lastSeen > 35000 ||
-                Date.now() - pairedAt > (connection.grants.size ? 30 * 60_000 : PAIR_LIFETIME_MS)))
+                Date.now() - pairedAt > (this.sidebar || connection.grants.size ? 30 * 60_000 : PAIR_LIFETIME_MS)))
               this.disconnect(connection, 'Chrome Relay expired.');
           }, 5000);
           connection = this.connection = { socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0, grants: new Map() };
