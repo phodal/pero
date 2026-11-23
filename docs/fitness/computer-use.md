@@ -232,6 +232,14 @@ also passed `node scripts/build/computer.mjs --test`. This run used a single
 virtual display and the native driver with an owned WinForms app. Signed Windows
 Workbench, other UI frameworks and multi-display behavior remain unverified.
 
+The Windows driver also accepts screenshot-relative foreground move, hover and
+hold. The hit test requires the selected top-level window to own the point,
+including when two windows in the same process overlap. Closing the driver
+connection wakes a pending hold and releases the tracked button. The pure
+admission suite, x64 GNU and ARM64 MSVC Clippy checks, and compilation of the
+extended WinForms fixture against .NET Framework 4 reference assemblies passed.
+The new WinForms scenarios for overlap, pointer placement, button events and
+mid-hold cancellation still require an unlocked Windows desktop run.
 
 ## Pero Native and real Pero (DeepSeek), 2026-11-22
 
