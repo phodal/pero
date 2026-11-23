@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "acp",
     srcs = [
+        "app_tool_loading.go",
         "lifecycle.go",
         "mcp_access.go",
         "mcp_policy.go",

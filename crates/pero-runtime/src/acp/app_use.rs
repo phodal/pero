@@ -1,6 +1,16 @@
 //! Trusted Desktop transport configuration, never an App-supplied grant.
 use super::sdk::schema::v1::{HttpHeader, McpServer, McpServerHttp};
 
+pub(super) const APP_TOOL_LOADING_CAPABILITY: &str = "pero.appToolLoading";
+
+/// Host-frozen App identity and its declared MCP dependencies for tool presentation.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppToolLoading {
+    pub app: crate::apps::AppName,
+    pub required_servers: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct AppUseEndpoint {
     url: String,

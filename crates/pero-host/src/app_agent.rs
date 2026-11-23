@@ -48,6 +48,7 @@ impl Manager {
         if scope.as_ref().is_some_and(|scope| !scope.valid()) {
             return Err("Invalid App conversation scope".into());
         }
+        let scoped_app = scope.as_ref().map(|scope| AppName::try_from(scope.app.clone())).transpose()?;
         self.admit_session(&thread_id)?;
         let agent = self
             .agents
@@ -78,8 +79,8 @@ impl Manager {
             agent.args.push("--plugin-dir".into());
             agent.args.push(skill.directory.to_string_lossy().into_owned());
         }
-        let mut plugins = match (&scope, &self.apps) {
-            (Some(scope), Some(apps)) => apps.session_plugins(&AppName::try_from(scope.app.clone())?, &scope.panel)?,
+        let mut plugins = match (scope.as_ref().zip(scoped_app.as_ref()), &self.apps) {
+            (Some((scope, app)), Some(apps)) => apps.session_plugins(app, &scope.panel)?,
             _ => None,
         };
         if let Some(binding) = binding {
@@ -108,6 +109,13 @@ impl Manager {
             agent.session_instructions = plugins.instructions.clone();
             if plugins.assembly.is_some() { agent.required_mcp_servers.insert("pero-app-use".into()); }
         }
+        let app_tool_loading = scoped_app.filter(|_| self.app_use.is_some() || !agent.required_mcp_servers.is_empty()).map(|app| acp::AppToolLoading {
+            app,
+            required_servers: agent.required_mcp_servers.iter()
+                .filter(|name| name.as_str() != "pero-app-use")
+                .cloned()
+                .collect(),
+        });
         if let Some(project) = &project {
             if let Some(server) = &project.server {
                 if agent.mcp_server_names().iter().any(|name| name == "pero-project") {return Err("Project tool name conflicts with Agent configuration".into());}
@@ -169,10 +177,12 @@ impl Manager {
             if plugins.as_ref().is_some_and(|plugins| plugins.assembly.is_some()) { endpoint.require_http() } else { endpoint }
         });
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
-        let options = project.map(|project| acp::SessionStartOptions {
+        let mut options = project.map(|project| acp::SessionStartOptions {
             initial_settings: project.initial_settings,
             project_prompt: Some(project.agent_prompt),
+            ..Default::default()
         }).unwrap_or_default();
+        options.app_tool_loading = app_tool_loading;
         self.sessions.insert(
             thread_id.clone(),
             acp::start_interactive_configured(agent,workspace,thread_id,self.tx.clone(),app_use,resume_id,options),

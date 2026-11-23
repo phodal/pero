@@ -36,6 +36,9 @@ type Options struct {
 	// It narrows session admission before persistence or MCP activation. Nil keeps
 	// the protocol-only absolute-path behavior. Execution-time tool checks remain.
 	ValidateWorkingDirectory func(string) error
+	// RegisterAppDeferredTools is available on compatible native profiles.
+	// Session metadata only enables the composition after capability negotiation.
+	RegisterAppDeferredTools func(*point.Run) error
 	Harness                  *harness.Harness
 	Persistence              harness.SessionPersistence
 	Provider                 string
@@ -72,6 +75,7 @@ type Server struct {
 	modelCapacity            int
 	modelOutput              int
 	validateWorkingDirectory func(string) error
+	registerAppDeferredTools func(*point.Run) error
 	h                        *harness.Harness
 	persistence              harness.SessionPersistence
 	provider                 string
@@ -101,6 +105,7 @@ type Server struct {
 	mcpRuntime          bool
 	mcpToolPolicy       bool
 	mcpSession          bool
+	appToolLoading      bool
 	questionTools       bool
 	userQuestions       bool
 	holdAssistantText   func(*harness.Agent) bool
@@ -172,7 +177,8 @@ func NewServer(options Options) (*Server, error) {
 		sessionTitles: options.SessionTitles,
 		modelChoices:  choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
-		provider: options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
+		registerAppDeferredTools: options.RegisterAppDeferredTools,
+		provider:                 options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		outputLimitRecoveries: options.OutputLimitRecoveries,
 		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
@@ -488,18 +494,14 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 	if err := s.observeMCPServers(servers, id, params.Meta); err != nil {
 		return "", err
 	}
+	configure, err := s.configureSessionTools(servers, params.Meta.AppToolLoading)
+	if err != nil {
+		return "", err
+	}
 	agent, err := s.h.Agents().Create(ctx, harness.AgentOptions{
 		ID: id, CWD: params.CWD, Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction,
 		ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
-			if err := s.registerUserQuestions(run, owner); err != nil {
-				return err
-			}
-			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
-				return err
-			}
-			return harness.MountAgentMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), owner, servers)
-		},
+		Configure:        configure,
 	})
 	if err != nil {
 		return "", err
@@ -704,17 +706,13 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	if err := s.observeMCPServers(servers, id, params.Meta); err != nil {
 		return err
 	}
+	configure, err := s.configureSessionTools(servers, params.Meta.AppToolLoading)
+	if err != nil {
+		return err
+	}
 	agent, err := s.h.Agents().Resume(ctx, session, harness.AgentOptions{
 		Provider: s.provider, Model: s.model, MaxSteps: s.maxSteps, Compaction: s.compaction, ToolResultPruner: s.toolResultPruner,
-		Configure: func(setup context.Context, run *point.Run, owner *harness.Agent) error {
-			if err := s.registerUserQuestions(run, owner); err != nil {
-				return err
-			}
-			if _, err := s.h.Approvals().Register(run, s.requestApproval); err != nil {
-				return err
-			}
-			return harness.MountAgentMCPServers(setup, run, s.h.Tools(), s.h.Prompts(), owner, servers)
-		},
+		Configure: configure,
 	})
 	if err != nil {
 		return err

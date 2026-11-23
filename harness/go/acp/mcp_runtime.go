@@ -6,11 +6,13 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 )
 
-// MCPRuntimeMeta is an optional observation request, not transport configuration.
-// The revision is echoed as evidence of the client's frozen session snapshot.
+// MCPRuntimeMeta holds optional extensions for the current session MCP snapshot.
 type MCPRuntimeMeta struct {
-	Runtime *MCPRuntimeRequest `json:"pero.mcpRuntime,omitempty"`
+	Runtime        *MCPRuntimeRequest     `json:"pero.mcpRuntime,omitempty"`
+	AppToolLoading *appToolLoadingRequest `json:"pero.appToolLoading,omitempty"`
 }
+
+// The revision is echoed as evidence of the client's frozen session snapshot.
 type MCPRuntimeRequest struct {
 	Revision uint64 `json:"revision"`
 }
@@ -40,9 +42,10 @@ func (s *Server) negotiateMCPRuntime(raw json.RawMessage) error {
 	var params struct {
 		Capabilities struct {
 			Meta struct {
-				Runtime    int `json:"pero.mcpRuntime"`
-				ToolPolicy int `json:"pero.mcpToolPolicy"`
-				Session    int `json:"pero.mcpSession"`
+				Runtime        int `json:"pero.mcpRuntime"`
+				ToolPolicy     int `json:"pero.mcpToolPolicy"`
+				Session        int `json:"pero.mcpSession"`
+				AppToolLoading int `json:"pero.appToolLoading"`
 			} `json:"_meta"`
 		} `json:"clientCapabilities"`
 	}
@@ -55,6 +58,7 @@ func (s *Server) negotiateMCPRuntime(raw json.RawMessage) error {
 	s.mcpRuntime = params.Capabilities.Meta.Runtime == 1
 	s.mcpToolPolicy = params.Capabilities.Meta.ToolPolicy == 1
 	s.mcpSession = params.Capabilities.Meta.Session == 1
+	s.appToolLoading = s.registerAppDeferredTools != nil && params.Capabilities.Meta.AppToolLoading == 1
 	s.mu.Unlock()
 	return nil
 }

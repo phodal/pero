@@ -80,7 +80,8 @@ func run() (resultErr error) {
 	scienceMCPPython := flag.String("science-mcp-python", "", "absolute Python for --science-mcp-root; required when that root is set")
 	shellPath := flag.String("shell", "", "absolute shell executable; defaults to /bin/bash on Unix; Windows requires explicit pwsh.exe")
 	pdfRenderer := flag.String("pdf-renderer", "", "absolute Poppler pdftoppm path with adjacent pdfinfo; empty auto-detects, '-' disables PDF page rendering")
-	deferToolLoading := flag.Bool("defer-tool-loading", false, "declare caller-authorized tools after ToolSearch returns their schemas")
+	const deferToolLoadingFlag = "defer-tool-loading"
+	deferToolLoading := flag.Bool(deferToolLoadingFlag, false, "true enables search-first loading for all sessions; false keeps all authorized tools eager; omission allows App-scoped loading on compatible ACP profiles")
 	bashOutputMaxChars := flag.Int("bash-output-max-chars", 0, "plugin Bash inline/readback character override, 1..128000; zero uses Claude defaults and BASH_MAX_OUTPUT_LENGTH")
 	bashHostMode := flag.String("bash-host-mode", "unattended", "plugin Bash background deadlines: unattended or explicit interactive")
 	disableBashBackground := flag.Bool("disable-bash-background", false, "disable plugin Bash background starts and automatic promotion")
@@ -103,6 +104,12 @@ func run() (resultErr error) {
 	lspConfig := bindLSPOptions(flag.CommandLine)
 	research := bindResearchOptions(flag.CommandLine)
 	flag.Parse()
+	deferToolLoadingExplicit := false
+	flag.Visit(func(visited *flag.Flag) {
+		if visited.Name == deferToolLoadingFlag {
+			deferToolLoadingExplicit = true
+		}
+	})
 	modelProfile, err := loadModelProfile(*modelProfilePath, flag.CommandLine)
 	if err != nil {
 		return err
@@ -532,6 +539,11 @@ func run() (resultErr error) {
 	}
 	if native != nil {
 		serverOptions.ValidateWorkingDirectory = native.CheckCWD
+		if !deferToolLoadingExplicit {
+			serverOptions.RegisterAppDeferredTools = func(run *point.Run) error {
+				return nativetools.RegisterAppDeferredToolSearch(run, h, toolFormat == "claude")
+			}
+		}
 	}
 	server, err := acp.NewServer(serverOptions)
 	if err != nil {

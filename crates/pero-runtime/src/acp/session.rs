@@ -1,9 +1,10 @@
+use super::app_use::APP_TOOL_LOADING_CAPABILITY;
 use super::configuration::Configuration;
 use super::prompt::{
     project_prompt_blocks, prompt_blocks, PromptLayers, ReceiptMode, APP_USE_CONTEXT_CAPABILITY,
     TURN_RECEIPT_CAPABILITY,
 };
-use super::AgentConfig;
+use super::{AgentConfig, AppToolLoading};
 use agent_client_protocol::schema::{v1::*, ProtocolVersion};
 use agent_client_protocol::{
     AcpAgent, AcpAgentConfig, Agent, Client, ConnectionTo, UntypedMessage,
@@ -61,6 +62,7 @@ pub(super) type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<S
 pub struct SessionStartOptions {
     pub initial_settings: Vec<SettingSelection>,
     pub project_prompt: Option<ProjectAgentPrompt>,
+    pub app_tool_loading: Option<AppToolLoading>,
 }
 
 pub struct SessionHandle {
@@ -291,7 +293,7 @@ async fn run(
     options: SessionStartOptions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
-    let SessionStartOptions { initial_settings, project_prompt } = options;
+    let SessionStartOptions { initial_settings, project_prompt, app_tool_loading } = options;
     let project_prompt = project_prompt.as_ref().map(project_prompt_blocks).transpose()
         .map_err(|error| error.to_string())?;
     event(
@@ -428,6 +430,7 @@ async fn run(
             let mut deferred = VecDeque::new();
             let mut capabilities = json!({"_meta": {"pero.mcpRuntime": 1, "pero.mcpToolPolicy": 1, "pero.mcpSession": 1, "pero.scienceSession": 1}});
             if interactive { capabilities["_meta"][super::user_questions::CAPABILITY] = json!(1); }
+            if app_tool_loading.is_some() { capabilities["_meta"][APP_TOOL_LOADING_CAPABILITY] = json!(1); }
             let Some(initialized) = setup_request(
                 connection.send_request(UntypedMessage::new("initialize", json!({
                     "protocolVersion": 1, "clientCapabilities": capabilities
@@ -443,6 +446,7 @@ async fn run(
             let science_negotiated = initialized["agentCapabilities"]["_meta"][super::science::CAPABILITY] == json!(1);
             let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
             let app_use_context_negotiated = initialized["agentCapabilities"]["_meta"][APP_USE_CONTEXT_CAPABILITY] == json!(1);
+            let app_tool_loading = app_tool_loading.filter(|_| initialized["agentCapabilities"]["_meta"][APP_TOOL_LOADING_CAPABILITY] == json!(1));
             let receipt_mode = match (acquire_workspace, initialized["agentCapabilities"]["_meta"][TURN_RECEIPT_CAPABILITY] == json!(1)) {
                 (false, _) => ReceiptMode::Disabled,
                 (true, true) => ReceiptMode::Correlate,
@@ -481,6 +485,9 @@ async fn run(
                 } else { ("session/new",serde_json::to_value(NewSessionRequest::new(cwd.clone()).mcp_servers(mcp_servers)).map_err(agent_client_protocol::Error::into_internal_error)?) };
                 if negotiated {
                     request["_meta"] = json!({"pero.mcpRuntime": {"revision": mcp_runtime.lock().unwrap().revision}});
+                }
+                if let Some(app_tool_loading) = &app_tool_loading {
+                    request["_meta"][APP_TOOL_LOADING_CAPABILITY] = json!(app_tool_loading);
                 }
                 loading_history.store(resume_id.is_some(), std::sync::atomic::Ordering::Release);
                 let result = setup_request(

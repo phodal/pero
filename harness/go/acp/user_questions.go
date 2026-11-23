@@ -55,6 +55,9 @@ func (s *Server) extensionCapabilities() map[string]int {
 	if s.science != nil {
 		result[ScienceSessionCapability] = 1
 	}
+	if s.registerAppDeferredTools != nil {
+		result[appToolLoadingCapability] = 1
+	}
 	return result
 }
 
