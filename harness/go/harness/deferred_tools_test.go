@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 
+	harnessmcp "github.com/phodal/pero/harness/go/mcp"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
@@ -93,6 +95,72 @@ func TestDeferredToolsCheckpointAndNativeFinalContent(t *testing.T) {
 	if err != nil || out.Result.IsError || executions.Load() != 1 || len(out.Result.Content) != 1 || out.Result.Content[0].Text != "bounded native result" {
 		t.Fatalf("deferred presentation lost native finalization: %+v %v", out, err)
 	}
+}
+
+func TestAppDeferredToolsRespectMCPRegistrationAndPolicy(t *testing.T) {
+	h := retirementHarness(t)
+	host := MCPServerConfig{Name: "pero-app-use", AppToolScope: "notebook"}
+	dependency := MCPServerConfig{Name: "required", AppToolEager: true}
+	optional := MCPServerConfig{Name: "optional", ToolPolicy: &harnessmcp.ToolPolicy{
+		Default: harnessmcp.ToolDeny, Tools: map[string]harnessmcp.ToolDecision{"app__notebook__read": harnessmcp.ToolAllow},
+	}}
+	deniedDependency := MCPServerConfig{Name: "blocked", AppToolEager: true, ToolPolicy: &harnessmcp.ToolPolicy{Default: harnessmcp.ToolDeny}}
+	type registration struct {
+		server MCPServerConfig
+		raw    string
+	}
+	rows := []registration{
+		{host, "app__notebook__read"},
+		{host, "content_read"},
+		{host, "app__paper-agent__read"},
+		{dependency, "read_required"},
+		{optional, "app__notebook__read"},
+		{deniedDependency, "read_blocked"},
+	}
+	var view *DeferredTools
+	agent, err := h.Agents().Create(t.Context(), AgentOptions{ID: "app-deferred", Configure: func(_ context.Context, run *point.Run, _ *Agent) error {
+		for _, row := range rows {
+			tool := mcpTool(harnessmcp.Tool{
+				Name: row.raw,
+				Schema: ToolSchema{Name: PublicMCPToolName(row.server.Name, row.raw),
+					InputSchema: json.RawMessage(`{"type":"object"}`), OutputSchema: json.RawMessage(`{"type":"object"}`)},
+				Execute: func(context.Context, json.RawMessage) (ToolResult, error) { return ToolResult{}, nil },
+			}, row.server.ToolPolicy)
+			tool.appToolEager = row.server.eagerAppTool(row.raw)
+			if _, err := h.Tools().Register(run, tool); err != nil {
+				return err
+			}
+		}
+		var err error
+		view, _, err = h.Tools().RegisterAppDeferredTools(run, "app-deferred", "tool_search")
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(schemas []ToolSchema, err error, indices ...int) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := make([]string, 0, len(indices))
+		for _, i := range indices {
+			want = append(want, PublicMCPToolName(rows[i].server.Name, rows[i].raw))
+		}
+		got := make([]string, 0, len(schemas))
+		for _, schema := range schemas {
+			got = append(got, schema.Name)
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("tools = %v, want %v", got, want)
+		}
+	}
+	declared, err := h.Tools().SchemasForAgent(t.Context(), agent)
+	check(declared, err, 0, 1, 3)
+	candidates, err := view.Candidates(t.Context(), agent)
+	check(candidates, err, 0, 1, 2, 3, 4)
 }
 
 func TestDeferredToolsRejectIncompatiblePresenters(t *testing.T) {

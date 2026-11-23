@@ -22,6 +22,7 @@ type Tool struct {
 	nativeFinalTransfer        *sourceFinalContentTransfer
 	nativeFinalOrigin          *point.Scope
 	nativeFinalSelection       *finalContentSelection
+	appToolEager               bool
 	Schema                     ToolSchema
 	ExecutionMode              ExecutionMode
 	// Timeout is the cooperative execution budget enforced by the Base tool

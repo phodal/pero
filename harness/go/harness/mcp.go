@@ -36,7 +36,11 @@ const (
 // from wire formats and lets conformance tests use the SDK's in-memory link.
 type MCPServerConfig struct {
 	// ToolPolicy is trusted configuration, admitted through negotiated ACP metadata or local composition.
-	ToolPolicy              *harnessmcp.ToolPolicy                           `json:"-"`
+	ToolPolicy *harnessmcp.ToolPolicy `json:"-"`
+	// AppToolEager marks a required App dependency. AppToolScope marks the App
+	// served by the reserved Host App Use connection. Both are presentation only.
+	AppToolEager            bool                                             `json:"-"`
+	AppToolScope            string                                           `json:"-"`
 	Name                    string                                           `json:"name"`
 	Transport               MCPTransport                                     `json:"transport"`
 	Command                 string                                           `json:"command,omitempty"`
@@ -142,6 +146,7 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		tools := make([]Tool, len(definitions))
 		for i, definition := range definitions {
 			tools[i] = mcpTool(definition, config.ToolPolicy)
+			tools[i].appToolEager = config.eagerAppTool(definition.Name)
 			if access != nil && definition.ResourceURI != "" {
 				tools[i].Execute = nil
 				tools[i].ExecuteRequest = func(ctx context.Context, request ToolRequest) (ToolResult, error) {
@@ -156,6 +161,20 @@ func mountMCPServer(ctx context.Context, run *point.Run, registry *ToolRegistry,
 		}
 		return registry.replaceGeneration(owner, generation, tools)
 	})
+}
+
+func (config MCPServerConfig) eagerAppTool(name string) bool {
+	if config.Name != "pero-app-use" {
+		return config.AppToolEager
+	}
+	if config.AppToolScope == "" {
+		return false
+	}
+	switch name {
+	case "app_use", "app_describe", "app_write", "content_read":
+		return true
+	}
+	return strings.HasPrefix(name, "app__"+config.AppToolScope+"__")
 }
 
 func listMCPTools(ctx context.Context, session *mcp.ClientSession) ([]*mcp.Tool, error) {

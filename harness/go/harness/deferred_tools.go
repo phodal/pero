@@ -20,9 +20,10 @@ const deferredToolsEvent = "tools/deferred-activation"
 // declaration and dispatch. Sessions reconstructed in a new process retain
 // discovery only for byte-identical schemas that are still authorized.
 type DeferredTools struct {
-	base  ToolCatalogBase
-	epoch string
-	eager map[string]bool
+	base      ToolCatalogBase
+	epoch     string
+	eager     map[string]bool
+	appScoped bool
 }
 
 type deferredToolVersion struct {
@@ -43,6 +44,16 @@ type deferredToolActivation struct {
 // composition must be implemented explicitly instead of bypassing its view.
 // Eager names normally contain just the tool-search entry point.
 func (r *ToolRegistry) RegisterDeferredTools(run *point.Run, generation string, eager ...string) (*DeferredTools, point.Dispose, error) {
+	return r.registerDeferredTools(run, generation, false, eager)
+}
+
+// RegisterAppDeferredTools adds a deferred view at the owning Agent's scope.
+// Only trusted registration metadata can make App tools eager in this view.
+func (r *ToolRegistry) RegisterAppDeferredTools(run *point.Run, generation, discoveryName string) (*DeferredTools, point.Dispose, error) {
+	return r.registerDeferredTools(run, generation, true, []string{discoveryName})
+}
+
+func (r *ToolRegistry) registerDeferredTools(run *point.Run, generation string, appScoped bool, eager []string) (*DeferredTools, point.Dispose, error) {
 	if len(eager) == 0 {
 		return nil, nil, errors.New("harness: deferred tools require an eager discovery tool")
 	}
@@ -56,7 +67,7 @@ func (r *ToolRegistry) RegisterDeferredTools(run *point.Run, generation string, 
 	}
 	epoch := r.deferredEpoch
 	r.mu.Unlock()
-	view := &DeferredTools{epoch: epoch, eager: make(map[string]bool, len(eager))}
+	view := &DeferredTools{epoch: epoch, eager: make(map[string]bool, len(eager)), appScoped: appScoped}
 	for _, name := range eager {
 		if name == "" {
 			return nil, nil, errors.New("harness: deferred eager tool name is empty")
@@ -77,7 +88,21 @@ func (r *ToolRegistry) RegisterDeferredTools(run *point.Run, generation string, 
 // Candidates is the complete current caller-authorized pool, before deferred
 // presentation. It never activates tools or grants permission.
 func (d *DeferredTools) Candidates(ctx context.Context, agent *Agent) ([]ToolSchema, error) {
-	return d.base.Schemas(ctx, agent)
+	schemas, err := d.base.Schemas(ctx, agent)
+	if err != nil || !d.appScoped {
+		return schemas, err
+	}
+	result := schemas[:0]
+	for _, schema := range schemas {
+		_, current, err := d.currentTool(ctx, agent, schema)
+		if err != nil {
+			return nil, err
+		}
+		if current {
+			result = append(result, schema)
+		}
+	}
+	return result, nil
 }
 
 // ToolSchemaDigest identifies the canonical declaration and trusted output
@@ -104,11 +129,11 @@ func (d *DeferredTools) Activate(ctx context.Context, agent *Agent, schemas []To
 	}
 	fact := deferredToolActivation{Session: agent.ID(), Epoch: d.epoch}
 	for _, schema := range schemas {
-		tool, found, err := d.base.Resolve(ctx, agent, schema.Name)
+		tool, found, err := d.currentTool(ctx, agent, schema)
 		if err != nil {
 			return err
 		}
-		if !found || ToolSchemaDigest(tool.Schema) != ToolSchemaDigest(schema) {
+		if !found {
 			return fmt.Errorf("harness: tool %q changed during discovery; search again", schema.Name)
 		}
 		fact.Tools = append(fact.Tools, deferredToolVersion{
@@ -182,7 +207,7 @@ func (d *DeferredTools) load(ctx context.Context, agent *Agent) (deferredToolSta
 			if err != nil {
 				return state, err
 			}
-			if found && ToolSchemaDigest(tool.Schema) == version.Digest {
+			if found && d.eligible(tool) && ToolSchemaDigest(tool.Schema) == version.Digest {
 				version.Registration, version.Catalog = tool.registrationID, tool.catalogID
 				fact.Tools = append(fact.Tools, version)
 			}
@@ -203,8 +228,27 @@ func (d *DeferredTools) load(ctx context.Context, agent *Agent) (deferredToolSta
 	}
 }
 
+func (d *DeferredTools) eligible(tool Tool) bool {
+	return !d.appScoped || tool.DeniedReason == ""
+}
+
+func (d *DeferredTools) currentTool(ctx context.Context, agent *Agent, schema ToolSchema) (Tool, bool, error) {
+	tool, found, err := d.base.Resolve(ctx, agent, schema.Name)
+	return tool, found && d.eligible(tool) && ToolSchemaDigest(tool.Schema) == ToolSchemaDigest(schema), err
+}
+
+func (d *DeferredTools) needsResolution(name string, state deferredToolState) bool {
+	// App eagerness belongs to the current registration and cannot be inferred
+	// from the public name before resolving it.
+	_, activated := state.Tools[name]
+	return d.appScoped || d.eager[name] || activated
+}
+
 func (d *DeferredTools) admitted(tool Tool, state deferredToolState) bool {
-	if d.eager[tool.Schema.Name] {
+	if !d.eligible(tool) {
+		return false
+	}
+	if d.eager[tool.Schema.Name] || d.appScoped && tool.appToolEager {
 		return true
 	}
 	version, found := state.Tools[tool.Schema.Name]
@@ -212,7 +256,7 @@ func (d *DeferredTools) admitted(tool Tool, state deferredToolState) bool {
 }
 
 func (d *DeferredTools) schemas(ctx context.Context, agent *Agent) ([]ToolSchema, error) {
-	candidates, err := d.Candidates(ctx, agent)
+	candidates, err := d.base.Schemas(ctx, agent)
 	if err != nil {
 		return nil, err
 	}
@@ -222,14 +266,14 @@ func (d *DeferredTools) schemas(ctx context.Context, agent *Agent) ([]ToolSchema
 	}
 	result := make([]ToolSchema, 0, len(candidates))
 	for _, schema := range candidates {
-		if _, found := active.Tools[schema.Name]; !d.eager[schema.Name] && !found {
+		if !d.needsResolution(schema.Name, active) {
 			continue
 		}
-		tool, found, err := d.base.Resolve(ctx, agent, schema.Name)
+		tool, found, err := d.currentTool(ctx, agent, schema)
 		if err != nil {
 			return nil, err
 		}
-		if found && ToolSchemaDigest(tool.Schema) == ToolSchemaDigest(schema) && d.admitted(tool, active) {
+		if found && d.admitted(tool, active) {
 			result = append(result, schema)
 		}
 	}
@@ -241,7 +285,7 @@ func (d *DeferredTools) resolve(ctx context.Context, agent *Agent, name string) 
 	if err != nil {
 		return Tool{}, false, err
 	}
-	if _, found := active.Tools[name]; !d.eager[name] && !found {
+	if !d.needsResolution(name, active) {
 		return Tool{}, false, nil
 	}
 	tool, found, err := d.base.Resolve(ctx, agent, name)
@@ -281,7 +325,7 @@ func (d *DeferredTools) prepareFinalContent(ctx context.Context, agent *Agent, n
 	if err != nil {
 		return Tool{}, false, err
 	}
-	if _, found := active.Tools[name]; !d.eager[name] && !found {
+	if !d.needsResolution(name, active) {
 		return Tool{}, false, nil
 	}
 	// Preserve the base's narrow opt-in preparation. A false result must not
@@ -330,7 +374,7 @@ func (r *ToolRegistry) boundDeferredRequest(ctx context.Context, agent *Agent, r
 }
 
 func (r *ToolRegistry) deferredForAgent(agent *Agent) bool {
-	return r.deferredViewForAgent(agent) != nil
+	return r.DeferredForAgent(agent) != nil
 }
 
 // ToolDelegationPool separates authorized capabilities from the discovery
@@ -343,7 +387,7 @@ type ToolDelegationPool struct {
 // DelegationPool is for trusted capability inspection and child restriction
 // setup, independent of activation. Model requests still use SchemasForAgent.
 func (r *ToolRegistry) DelegationPool(ctx context.Context, agent *Agent) (ToolDelegationPool, error) {
-	if deferred := r.deferredViewForAgent(agent); deferred != nil {
+	if deferred := r.DeferredForAgent(agent); deferred != nil {
 		schemas, err := deferred.Candidates(ctx, agent)
 		pool := ToolDelegationPool{Schemas: schemas}
 		for _, schema := range schemas {
@@ -357,7 +401,8 @@ func (r *ToolRegistry) DelegationPool(ctx context.Context, agent *Agent) (ToolDe
 	return ToolDelegationPool{Schemas: schemas}, err
 }
 
-func (r *ToolRegistry) deferredViewForAgent(agent *Agent) *DeferredTools {
+// DeferredForAgent returns the discovery view in the live Agent's scope.
+func (r *ToolRegistry) DeferredForAgent(agent *Agent) *DeferredTools {
 	if agent == nil {
 		return nil
 	}

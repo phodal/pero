@@ -31,6 +31,45 @@ type toolSearchResult struct {
 }
 
 func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoading bool) error {
+	tool := toolSearch(h, claude, deferLoading)
+	if !deferLoading {
+		_, err := h.RegisterTool(ctx, "native/tool-search", tool)
+		return err
+	}
+	definition := point.Define(point.Descriptor{ID: "native/deferred-tools"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+		if _, err := h.Tools().Register(run, tool); err != nil {
+			return nil, err
+		}
+		_, _, err := h.Tools().RegisterDeferredTools(run, "native/deferred-tools", tool.Schema.Name)
+		return nil, err
+	})
+	instance, err := h.Runtime().Mount(nil, "native/tool-search", definition, nil)
+	if err != nil {
+		return err
+	}
+	if err := instance.WaitStable(ctx); err != nil {
+		_ = instance.Dispose(context.Background())
+		return err
+	}
+	if snapshot := instance.Snapshot(); snapshot.State == point.Failed {
+		_ = instance.Dispose(context.Background())
+		return fmt.Errorf("native deferred tools: %s", snapshot.LastError)
+	}
+	return nil
+}
+
+// RegisterAppDeferredToolSearch replaces the discovery declaration only in
+// the App Agent's scope, preserving the eager profile's regular ToolSearch.
+func RegisterAppDeferredToolSearch(run *point.Run, h *harness.Harness, claude bool) error {
+	tool := toolSearch(h, claude, true)
+	if _, err := h.Tools().Register(run, tool); err != nil {
+		return err
+	}
+	_, _, err := h.Tools().RegisterAppDeferredTools(run, "native/app-deferred-tools", tool.Schema.Name)
+	return err
+}
+
+func toolSearch(h *harness.Harness, claude, deferLoading bool) harness.Tool {
 	name := "tool_search"
 	if claude {
 		name = "ToolSearch"
@@ -45,8 +84,7 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 		description += " Returns current schemas and hashes. This only indexes available tools and does not change activation."
 	}
 	description += " Discovery never grants permissions. Availability may change: call only tools declared in the current request."
-	var deferred *harness.DeferredTools
-	tool := harness.Tool{
+	return harness.Tool{
 		Schema:        harness.ToolSchema{Name: name, Description: description, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["query"],"properties":{"query":{"type":"string","minLength":1,"maxLength":512},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":20}}}`)},
 		ExecutionMode: harness.ExecutionSerial,
 		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
@@ -63,6 +101,7 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 			}
 			var schemas []harness.ToolSchema
 			var err error
+			deferred := h.Tools().DeferredForAgent(request.Agent)
 			if deferred != nil {
 				schemas, err = deferred.Candidates(ctx, request.Agent)
 			} else {
@@ -103,31 +142,6 @@ func mountToolSearch(ctx context.Context, h *harness.Harness, claude, deferLoadi
 			return renderResult(result, nil)
 		},
 	}
-	if !deferLoading {
-		_, err := h.RegisterTool(ctx, "native/tool-search", tool)
-		return err
-	}
-	definition := point.Define(point.Descriptor{ID: "native/deferred-tools"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
-		if _, err := h.Tools().Register(run, tool); err != nil {
-			return nil, err
-		}
-		var err error
-		deferred, _, err = h.Tools().RegisterDeferredTools(run, "native/deferred-tools", name)
-		return nil, err
-	})
-	instance, err := h.Runtime().Mount(nil, "native/tool-search", definition, nil)
-	if err != nil {
-		return err
-	}
-	if err := instance.WaitStable(ctx); err != nil {
-		_ = instance.Dispose(context.Background())
-		return err
-	}
-	if snapshot := instance.Snapshot(); snapshot.State == point.Failed {
-		_ = instance.Dispose(context.Background())
-		return fmt.Errorf("native deferred tools: %s", snapshot.LastError)
-	}
-	return nil
 }
 
 // Keep the complete bounded discovery receipt for inspection, while the next

@@ -35,7 +35,7 @@ func (r ToolRegistration) available(ctx context.Context, agent *Agent, beforeDis
 		return false, err
 	}
 	resolve := r.registry.resolveForAgent
-	if deferred := r.registry.deferredViewForAgent(agent); beforeDiscovery && deferred != nil {
+	if deferred := r.registry.DeferredForAgent(agent); beforeDiscovery && deferred != nil {
 		resolve = deferred.base.Resolve
 	}
 	tool, found, err := resolve(ctx, agent, r.name)
