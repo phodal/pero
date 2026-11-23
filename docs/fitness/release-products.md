@@ -209,6 +209,27 @@ the already authorized companion in `~/Applications`. Codex read a new
 canvas-only code, the AppKit fixture recorded exactly one background press
 and Count=1, and the Host and ACP image bytes matched for one 2360 × 1838
 WebKit PNG and two 1200 × 944 AppKit JPEGs. Evidence is in
-`target/native-repl-final/native-repl-codex/`. The DMG companion's fresh
-permission grant, Developer ID signing, and notarization remain separate
-acceptance conditions.
+`target/native-repl-final/native-repl-codex/`. Developer ID signing and
+notarization remain separate acceptance conditions.
+
+After operator authentication, both System Settings Add pickers selected the
+exact installed copy of the mounted DMG companion. macOS logged a modification
+for both services. The restarted companion still reported both permissions as
+`not_detected`. The TCC logs identify an existing code requirement with cdhash
+`12b7f0f7abbcd057df372a2bf28eda9756ec713f` and the running DMG companion with
+cdhash `6eec2581175741ed3f8d0394689f3082952bd8c5` under the same bundle ID.
+Codex read the WebKit screenshot marker `D3995F` and stopped at native window
+discovery. Desktop input and captures were not attempted. The recorded
+session is in `target/native-repl-dmg-permissions/native-repl-codex/`.
+
+With explicit operator approval, the old Screen Recording entry was removed
+in System Settings and Accessibility was reset only for
+`com.openpero.computer-use`. Both Add pickers then granted access to the
+verified DMG companion. Its executable SHA-256 matched the mounted DMG
+(`dd7dc8e6f3811db70e1300ef5a8c8f06c312ffd024d9740b40a7446d23b83f3d`).
+The newly launched companion reported both permissions granted. In the
+signed Native probe, real Codex `gpt-5.6-sol` drove one AppKit background
+press, the Host recorded `executed`, and the fixture independently recorded
+Count=1. Both 1200 × 944 AppKit JPEGs matched the corresponding ACP payloads
+byte for byte by SHA-256. The same run read the WebKit screenshot marker
+`1F4032`. Evidence is in `target/native-repl-dmg-grants-verified/native-repl-codex/`.
