@@ -299,6 +299,7 @@ impl Workbench {
         };
         div()
             .id("titleband-resources-column")
+            .relative()
             .w(px(width))
             .h_full()
             .flex_shrink_0()
@@ -319,6 +320,7 @@ impl Workbench {
             .child(div().flex_1().min_h_0().min_w_0().overflow_hidden().bg(bg)
                 .when(segment.primary == Primary::Resource(titleband::ResourcePrimary::Project), |el| el.flex().flex_col())
                 .child(body))
+            .when(segment.primary == Primary::Resource(titleband::ResourcePrimary::Project), |el| el.child(self.inspector_splitter(width, cx)))
             .into_any_element()
     }
 

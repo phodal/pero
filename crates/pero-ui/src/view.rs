@@ -177,6 +177,11 @@ impl Workbench {
 
     fn resize_layout_at(&mut self, position: Point<Pixels>, released: bool, window: &Window, cx: &mut Context<Self>) {
         self.resize_document_pane(position, cx);
+        if self.project_agents.resizing_inspector {
+            let viewport = f32::from(window.viewport_size().width);
+            self.resize_inspector(viewport - f32::from(position.x), viewport, released, cx);
+            if released { self.project_agents.resizing_inspector = false; }
+        }
         if self.resizing_sessions {
             let x: f32 = position.x.into();
             self.preferences.layout.resize_sessions(x - self.layout.sidebar_width);
@@ -221,7 +226,7 @@ impl Workbench {
             window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
                 if !phase.capture() { return; }
                 let _ = move_owner.update(cx, |this, cx| {
-                    if !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    if !this.project_agents.resizing_inspector && !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
                     this.resize_layout_at(event.position, false, window, cx);
                     cx.stop_propagation();
                 });
@@ -229,7 +234,7 @@ impl Workbench {
             window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
                 if !phase.capture() || event.button != MouseButton::Left { return; }
                 let _ = owner.update(cx, |this, cx| {
-                    if !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
+                    if !this.project_agents.resizing_inspector && !this.resizing_sidebar && this.chat_dock_drag.is_none() && !this.resizing_sessions && this.pane_resize.is_none() { return; }
                     // AppKit can deliver release before the next overlay frame.
                     this.resize_layout_at(event.position, true, window, cx);
                     if this.pane_resize.take().is_some() {
@@ -350,7 +355,7 @@ impl Render for Workbench {
             && !(self.navigation.page() == WorkbenchPage::Conversation
                 && self.tab != ConversationTab::Chat);
         let pane_layout = self.navigation.pane_layout().filter(|_| pane_tree);
-        let resizing = self.resizing_sidebar || self.chat_dock_drag.is_some() || self.resizing_sessions || self.pane_resize.is_some();
+        let resizing = self.project_agents.resizing_inspector || self.resizing_sidebar || self.chat_dock_drag.is_some() || self.resizing_sessions || self.pane_resize.is_some();
         let window_overlay = self.spotlight.is_some()
             || self.settings_panel.is_some()
             || window.has_active_dialog(cx);
@@ -450,6 +455,7 @@ impl Render for Workbench {
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
+        let project_split = self.project_inspector_width(width, cx).is_some();
         let resources_width = self.claimed_resources_width(width, cx);
         let dock_span = if dock {
             (chat_width - resources_width).max(0.)
@@ -779,7 +785,7 @@ impl Render for Workbench {
                                                             .relative()
                                                             .flex()
                                                             .flex_col()
-                                                            .child(pero_theme::edge_shadow_plate(p.border))
+                                                            .when(!project_split, |el| el.child(pero_theme::edge_shadow_plate(p.border)))
                                                             .child(
                                                         div()
                                                             .flex_1()
@@ -789,6 +795,7 @@ impl Render for Workbench {
                                                             .flex()
                                                             .flex_col()
                                                             .rounded_tl(px(pero_theme::RADIUS_PANEL))
+                                                            .when(project_split, |el| el.border_t(px(0.5)).border_color(p.border))
                                                             // Reading surface owns the cutout. Opaque children
                                                             // must not repaint a square fill over this corner.
                                                             .bg(p.surface)

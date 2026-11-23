@@ -30,6 +30,7 @@ pub(crate) struct ProjectAgentsView {
     delegate_roster: Option<String>,
     context_open: bool,
     wide_context_hidden: bool,
+    pub(crate) resizing_inspector: bool,
 }
 impl ProjectAgentsView {
     pub(crate) fn finish_request(&mut self, id: &str) -> Option<(String, String)> {
@@ -364,10 +365,51 @@ impl Workbench {
         if self.layout.narrow || !self.project_inspector_visible(cx) {
             return None;
         }
-        let available = viewport_width - self.layout.sidebar_width;
-        let width = self.chat.read(cx).artifact_pane_width()
-            .clamp(PROJECT_INSPECTOR_MIN_WIDTH, PROJECT_INSPECTOR_MAX_WIDTH);
-        Some(width.min(available - PROJECT_CHAT_MIN_WIDTH))
+        Some(self.clamp_inspector_width(self.chat.read(cx).artifact_pane_width(), viewport_width))
+    }
+
+    fn clamp_inspector_width(&self, width: f32, viewport: f32) -> f32 {
+        let available = viewport - self.layout.sidebar_width - PROJECT_CHAT_MIN_WIDTH;
+        width.clamp(PROJECT_INSPECTOR_MIN_WIDTH, available.clamp(PROJECT_INSPECTOR_MIN_WIDTH, PROJECT_INSPECTOR_MAX_WIDTH))
+    }
+
+    pub(crate) fn resize_inspector(&mut self, requested: f32, viewport: f32, save: bool, cx: &mut Context<Self>) {
+        let width = self.clamp_inspector_width(requested, viewport);
+        self.chat.update(cx, |chat, cx| chat.set_artifact_pane_width(width, cx));
+        if save {
+            let mut prefs = self.preferences.clone();
+            prefs.layout.resize_artifact_pane(width);
+            self.save_preferences(prefs, cx);
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn inspector_splitter(&self, width: f32, cx: &mut Context<Self>) -> impl IntoElement {
+        let border = pero_theme::UiAppearance::global(cx).palette.action;
+        let default = f32::from(pero_contracts::workbench::LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH);
+        div().id("project-inspector-splitter").absolute().left_0().top_0().bottom_0().w(px(6.))
+            .focusable().tab_index(0).role(Role::Splitter).aria_label(self.t("project.resize_inspector"))
+            .aria_numeric_value(width.into()).cursor(CursorStyle::ResizeLeftRight)
+            .hover(move |el| el.border_l_1().border_color(border))
+            .focus(move |el| el.border_l_1().border_color(border))
+            .child(self.view_bounds.projects.probe("agent:splitter".into()))
+            .on_mouse_down(MouseButton::Left, cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                if event.click_count == 2 {
+                    this.resize_inspector(default, window.viewport_size().width.into(), true, cx);
+                } else {
+                    this.project_agents.resizing_inspector = true;
+                }
+                cx.stop_propagation();
+            }))
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
+                let requested = match event.keystroke.key.as_str() {
+                    "left" => width + 20., "right" => width - 20.,
+                    "home" => PROJECT_INSPECTOR_MIN_WIDTH, "end" => PROJECT_INSPECTOR_MAX_WIDTH,
+                    "enter" => default, _ => return,
+                };
+                this.resize_inspector(requested, window.viewport_size().width.into(), true, cx);
+                cx.stop_propagation();
+            }))
     }
 
     fn project_conversation_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -405,8 +447,7 @@ impl Workbench {
             .items_center()
             .gap(chrome.geo(pero_theme::SPACE_4))
             .px(chrome.geo(pero_theme::SPACE_12))
-            .border_b(px(0.5))
-            .border_color(chrome.palette.border)
+            .when(self.layout.narrow || self.project_agents.wide_context_hidden, |el| el.border_b(px(0.5)).border_color(chrome.palette.border))
             .child(
                 div()
                     .flex_1()

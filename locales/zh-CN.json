@@ -1317,6 +1317,7 @@
   "cloud.worker.attention": "需要复核",
   "project.actions": "项目视图",
   "project.inspector.show": "显示项目视图",
+  "project.resize_inspector": "调整项目面板宽度",
   "project.inspector.hide": "收起项目视图",
   "project.inspector.back": "返回项目对话",
   "project.tab.materials": "资料",
