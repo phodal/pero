@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pero Browser Use</title>
+  <link rel="stylesheet" href="relay.css">
+</head>
+<body>
+  <main>
+    <h1>Pero Browser Use</h1>
+    <p id="status" role="status"></p>
+    <section id="pair">
+      <label for="code">Pairing code from Pero</label>
+      <textarea id="code" rows="3" spellcheck="false" autocomplete="off"></textarea>
+      <button id="connect">Pair with Pero</button>
+    </section>
+    <section id="choose" hidden>
+      <label for="tab">Chrome tab</label>
+      <select id="tab"></select>
+      <button id="review">Review tab</button>
+      <div id="preview" hidden>
+        <strong id="title"></strong>
+        <p id="url"></p>
+        <button id="allow">Allow this tab</button>
+      </div>
+    </section>
+    <p id="error" role="alert" hidden></p>
+    <button id="stop" hidden>Stop and take over</button>
+  </main>
+  <script type="module" src="relay-panel.js"></script>
+</body>
+</html>
