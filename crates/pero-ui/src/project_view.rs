@@ -116,6 +116,11 @@ impl Workbench {
             .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
+        if project.research_id().is_none() {
+            self.register_catalog_project(project, cx);
+            self.queue_workspace_checkpoint(cx);
+            return;
+        }
         self.project_tab = project.research_id().map(|id| self.project_agents.right_tab(id)).unwrap_or_default();
         self.clear_transient_research_editor();
         self.research.choosing = false;

@@ -97,14 +97,15 @@ impl Project {
     pub fn with_research(mut catalog: Vec<Self>, research: &[pero_contracts::research_project::ResearchProject]) -> Vec<Self> {
         let mut projects = Vec::new();
         for saved in research {
-            let directory = saved.workspace.as_ref().and_then(|path| catalog.iter().find(|p| p.contains_workspace(path)));
+            let directory = saved.workspace.as_ref().and_then(|path| catalog.iter().find(|p| p.contains_workspace(path)))
+                .or_else(|| saved.shared_id.as_ref().and_then(|id| catalog.iter().find(|p| p.shared_id.as_ref() == Some(id))));
             projects.push(Self {
                 key: format!("research:{}", saved.id), name: saved.title.clone(),
                 workspace: saved.workspace.clone(), workspaces: directory.map(|project| project.workspaces.clone()).unwrap_or_else(|| saved.workspace.iter().cloned().collect()),
-                shared_id: directory.and_then(|p| p.shared_id.clone()),
+                shared_id: directory.and_then(|p| p.shared_id.clone()).or_else(|| saved.shared_id.clone()),
             });
         }
-        catalog.retain(|project| !research.iter().any(|saved| saved.workspace.as_ref().is_some_and(|path| project.contains_workspace(path))));
+        catalog.retain(|project| !research.iter().any(|saved| saved.workspace.as_ref().is_some_and(|path| project.contains_workspace(path)) || saved.shared_id.is_some() && saved.shared_id == project.shared_id));
         projects.extend(catalog);
         projects
     }

@@ -147,6 +147,19 @@ impl Workbench {
         cx.notify();
     }
 
+    pub(crate) fn register_catalog_project(&mut self, entry: Project, cx: &mut Context<Self>) {
+        if self.research.pending.is_some() {
+            return;
+        }
+        match ResearchProject::new(self.new_research_id(), entry.name, String::new(), entry.workspace) {
+            Ok(mut project) => {
+                project.shared_id = entry.shared_id;
+                self.persist_research(project, false, cx);
+            }
+            Err(error) => self.research_error(error, cx),
+        }
+    }
+
     fn persist_research(&mut self, project: ResearchProject, close_editor: bool, cx: &mut Context<Self>) {
         let mut preferences = self.preferences.clone();
         preferences.research_projects.retain(|p| p.id != project.id);

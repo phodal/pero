@@ -110,6 +110,8 @@ pub struct ResearchProject {
     pub title: String,
     pub goal: String,
     pub workspace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_id: Option<String>,
     #[serde(default)]
     pub resources: Vec<ProjectResourceRef>,
 }
@@ -128,6 +130,7 @@ impl ResearchProject {
             goal: goal.trim().into(),
             workspace,
             resources: vec![],
+            shared_id: None,
         };
         project.validate()?;
         Ok(project)
