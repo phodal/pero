@@ -389,8 +389,8 @@ impl Manager {
                 let _ = self.tx.send(event);
             }
             HostCommand::Workspace { path, project_id } => match dunce::canonicalize(&path) {
-                Ok(path) if path.is_dir() => {
-                    self.workspace = path;
+                Ok(directory) if directory.is_dir() => {
+                    self.workspace = directory;
                     self.publish_workspace();
                     if let Some(project_id) = project_id {
                         self.send("project_workspace_available", path, serde_json::json!({"project_id":project_id}));

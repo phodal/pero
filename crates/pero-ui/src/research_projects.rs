@@ -232,6 +232,14 @@ impl Workbench {
         let (project, previous, close_editor) = self.research.pending.take().unwrap();
         let key = format!("research:{}", project.id);
         let new_project = previous.as_deref() != Some(key.as_str());
+        if new_project && !close_editor && previous.is_some() {
+            let previous = previous.unwrap();
+            self.navigation.replace_identity(&WorkspaceItem::Project(previous), WorkspaceItem::Project(key));
+            if let Some(WorkspaceItem::Project(active)) = self.navigation.current().cloned() {
+                self.open_project(active, window, cx);
+            }
+            return;
+        }
         if !new_project {
             if close_editor {
                 self.research.saved_editors.remove(&key);

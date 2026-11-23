@@ -469,7 +469,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             .child(nav("sidebar-projects", ui.t("nav.projects"), if props.projects_collapsed { "icons/chevron-right.svg" } else { "icons/chevron-down.svg" }, false, SidebarAction::ToggleProjects)
                 .flex_1().relative().child(props.shortcut_bounds.probe("projects".into())))
             .child(pero_theme::ghost_icon_button("project-actions", chrome, cx)
-                .icon(Icon::default().path("icons/ellipsis.svg")).accessibility_label(ui.t("nav.projects"))
+                .icon(Icon::default().path("icons/dots.svg")).accessibility_label(ui.t("project.sidebar_actions")).relative().child(props.project_bounds.probe("sidebar:actions".into()))
                 .dropdown_menu({
                     let on_action = on_action.clone();
                     let items = [(ui.t("research.new"), SidebarAction::NewProject), (ui.t("project.open_folder"), SidebarAction::OpenFolder), (ui.t("project.all_tasks"), SidebarAction::AllTasks)];

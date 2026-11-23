@@ -771,6 +771,7 @@
   "project.show_more": "展开显示",
   "project.unassigned": "未归属项目",
   "project.workspace_unavailable": "项目目录不可用",
+  "project.sidebar_actions": "项目操作",
   "project.change_directory": "更换目录",
   "project.open_folder": "打开文件夹…",
   "project.all_tasks": "全部项目任务",

@@ -771,6 +771,7 @@
   "project.show_more": "Show more",
   "project.unassigned": "Unassigned",
   "project.workspace_unavailable": "Directory unavailable",
+  "project.sidebar_actions": "Project actions",
   "project.change_directory": "Change directory",
   "project.open_folder": "Open folder…",
   "project.all_tasks": "All project tasks",
