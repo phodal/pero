@@ -118,6 +118,7 @@ export type HostCommand =
   | WorkspaceCommand
   | LoadRoadmapCommand
   | AttachFilesCommand
+  | ComposerCatalogCommand
   | SearchContextCommand
   | ResolveContextCommand
   | AuthenticateCommand
@@ -132,8 +133,28 @@ export type HostCommand =
   | DeleteCommand
   | InsightsCommand;
 export type ContextKind =
-  "file" | "directory" | "symbol" | "thread" | "skill" | "image" | "selection" | "branch_diff" | "fetch" | "app_object";
-export type ContextContent = TextContextContent | ImageContextContent;
+  | "file"
+  | "directory"
+  | "symbol"
+  | "thread"
+  | "skill"
+  | "image"
+  | "selection"
+  | "branch_diff"
+  | "fetch"
+  | "app_object"
+  | "capability";
+export type ContextContent = TextContextContent | ImageContextContent | CapabilityContextContent;
+export type CapabilitySelection =
+  | BrowserSelection
+  | BrowserTabSelection
+  | ComputerSelection
+  | RemoteDesktopSelection
+  | AppDataSelection
+  | AppPanelSelection
+  | ConnectorSelection
+  | DelegateSelection
+  | ScienceSelection;
 export type QuestionReply = AnsweredQuestions | CancelledQuestions;
 export type EngramSettingsRequest = GetEngramSettings | SetEngramSettings | SetEngramDocument;
 export type EngramBinary = string;
@@ -284,6 +305,7 @@ export type HostEvent =
   | WorkspaceEvent
   | LocalRoadmapEvent
   | ContextFilesEvent
+  | ComposerCatalogEvent
   | ContextCandidatesEvent
   | ContextResolvedEvent
   | ContextErrorEvent
@@ -1767,6 +1789,11 @@ export interface AttachFilesCommand {
   action: "attach_files";
   paths: string[];
 }
+export interface ComposerCatalogCommand {
+  action: "composer_catalog";
+  thread_id: string;
+  request_id: string;
+}
 export interface SearchContextCommand {
   action: "search_context";
   request_id: string;
@@ -1819,6 +1846,48 @@ export interface ImageContextContent {
   type: "image";
   data: string;
   mime_type: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+}
+export interface CapabilityContextContent {
+  type: "capability";
+  selection: CapabilitySelection;
+}
+export interface BrowserSelection {
+  kind: "browser";
+}
+export interface BrowserTabSelection {
+  kind: "browser_tab";
+  tab_id: string;
+  origin: string;
+}
+export interface ComputerSelection {
+  kind: "computer";
+}
+export interface RemoteDesktopSelection {
+  kind: "remote_desktop";
+  attachment: string;
+}
+export interface AppDataSelection {
+  kind: "app_data";
+  app: string;
+  panel: string;
+}
+export interface AppPanelSelection {
+  kind: "app_panel";
+  app: string;
+  panel: string;
+  surface_id: string;
+  instance: string;
+}
+export interface ConnectorSelection {
+  kind: "connector";
+  connector_id: string;
+}
+export interface DelegateSelection {
+  kind: "project_delegate";
+}
+export interface ScienceSelection {
+  kind: "science";
+  language: "python" | "r";
 }
 export interface CancelCommand {
   action: "cancel";
@@ -3927,6 +3996,19 @@ export interface ContextFile {
   path: string;
   name: string;
   text: string;
+}
+export interface ComposerCatalogEvent {
+  kind: "composer_catalog";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: ComposerCapability[];
+}
+export interface ComposerCapability {
+  selection: CapabilitySelection;
+  target?: string;
+  needs?: "tab_grant" | "computer_enabled" | "panel_visible";
 }
 export interface ContextCandidatesEvent {
   kind: "context_candidates";

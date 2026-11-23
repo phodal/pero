@@ -263,12 +263,25 @@ model LoadThreadHistoryCommand { action: "load_thread_history"; thread_id: Threa
 model WorkspaceCommand { action: "workspace"; path: string; ...Closed }
 model LoadRoadmapCommand { action: "load_roadmap"; ...Closed }
 model AttachFilesCommand { action: "attach_files"; paths: string[]; ...Closed }
-enum ContextKind { file, directory, symbol, thread, skill, image, selection, branch_diff, fetch, app_object }
+enum ContextKind { file, directory, symbol, thread, skill, image, selection, branch_diff, fetch, app_object, capability }
 model TextContextContent { type: "text"; text: string; ...Closed }
 model ImageContextContent { type: "image"; data: string; mime_type: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; ...Closed }
-@oneOf union ContextContent {TextContextContent, ImageContextContent}
+model BrowserSelection { kind: "browser"; ...Closed }
+model BrowserTabSelection { kind: "browser_tab"; tab_id: string; origin: string; ...Closed }
+model ComputerSelection { kind: "computer"; ...Closed }
+model RemoteDesktopSelection { kind: "remote_desktop"; attachment: string; ...Closed }
+model AppDataSelection { kind: "app_data"; app: string; panel: string; ...Closed }
+model AppPanelSelection { kind: "app_panel"; app: string; panel: string; surface_id: string; instance: string; ...Closed }
+model ConnectorSelection { kind: "connector"; connector_id: string; ...Closed }
+model DelegateSelection { kind: "project_delegate"; ...Closed }
+model ScienceSelection { kind: "science"; language: "python" | "r"; ...Closed }
+@oneOf union CapabilitySelection { BrowserSelection, BrowserTabSelection, ComputerSelection, RemoteDesktopSelection, AppDataSelection, AppPanelSelection, ConnectorSelection, DelegateSelection, ScienceSelection }
+model ComposerCapability { selection: CapabilitySelection; target?: string; needs?: "tab_grant" | "computer_enabled" | "panel_visible"; ...Closed }
+model CapabilityContextContent { type: "capability"; selection: CapabilitySelection; ...Closed }
+@oneOf union ContextContent {TextContextContent, ImageContextContent, CapabilityContextContent}
 model ContextCandidate { kind: ContextKind; label: string; source: string; detail: string; ...Closed }
 model ContextReference { id: string; kind: ContextKind; label: string; source: string; content: ContextContent; ...Closed }
+model ComposerCatalogCommand { action: "composer_catalog"; thread_id: string; request_id: string; ...Closed }
 model SearchContextCommand {action: "search_context"; request_id: string; kind: ContextKind; query: string; project_id?: string | null; ...Closed}
 model ResolveContextCommand {action: "resolve_context"; request_id: string; kind: ContextKind; source: string; start_line?: uint32 | null; end_line?: uint32 | null; project_id?: string | null; ...Closed}
 model AuthenticateCommand { action: "authenticate"; thread_id: string; method_id: string; ...Closed }
@@ -316,6 +329,7 @@ union HostCommand {
   WorkspaceCommand,
   LoadRoadmapCommand,
   AttachFilesCommand,
+  ComposerCatalogCommand,
   SearchContextCommand,
   ResolveContextCommand,
   AuthenticateCommand,
@@ -450,6 +464,7 @@ model RoadmapItem { line: uint32; parent_line: uint32 | null; title: string; tex
 model LocalRoadmap { workspace: string; path: string; items: RoadmapItem[]; error: "not_found" | "read" | "invalid" | null; ...Closed }
 model LocalRoadmapEvent { kind: "local_roadmap"; ...EventBase; data: LocalRoadmap }
 model ContextFile { path: string; name: string; text: string; ...Closed }
+model ComposerCatalogEvent { kind: "composer_catalog"; ...ThreadEventBase; data: ComposerCapability[] }
 model ContextCandidatesEvent {kind: "context_candidates"; ...EventBase; data: ContextCandidate[]}
 model ContextResolvedEvent {kind: "context_resolved"; ...EventBase; data: ContextReference}
 model ContextErrorEvent {kind: "context_error"; ...EventBase}
@@ -656,6 +671,7 @@ union HostEvent {
   WorkspaceEvent,
   LocalRoadmapEvent,
   ContextFilesEvent,
+  ComposerCatalogEvent,
   ContextCandidatesEvent,
   ContextResolvedEvent,
   ContextErrorEvent,

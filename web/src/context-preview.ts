@@ -141,7 +141,8 @@ export function previewContext(reference: ContextReference, annotate?: (context:
     }
   } else {
     const text = document.createElement('pre');
-    text.textContent = reference.content.text;
+    text.textContent = reference.content.type === 'capability'
+      ? reference.label : reference.content.text;
     text.style.cssText =
       'white-space:pre-wrap;overflow-wrap:anywhere;max-height:70vh;overflow:auto;margin-top:12px';
     dialog.append(text);

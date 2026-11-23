@@ -1638,6 +1638,28 @@
       "properties": {},
       "additionalProperties": false
     },
+    "AppDataSelection": {
+      "title": "AppDataSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_data"
+        },
+        "app": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "app",
+        "panel"
+      ],
+      "additionalProperties": false
+    },
     "AppDocumentSchema": {
       "title": "AppDocumentSchema",
       "type": "object",
@@ -1772,6 +1794,36 @@
         "id",
         "title",
         "entry"
+      ],
+      "additionalProperties": false
+    },
+    "AppPanelSelection": {
+      "title": "AppPanelSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "app_panel"
+        },
+        "app": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        },
+        "surface_id": {
+          "type": "string"
+        },
+        "instance": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "app",
+        "panel",
+        "surface_id",
+        "instance"
       ],
       "additionalProperties": false
     },
@@ -5506,6 +5558,42 @@
       ],
       "additionalProperties": false
     },
+    "BrowserSelection": {
+      "title": "BrowserSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "browser"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "BrowserTabSelection": {
+      "title": "BrowserTabSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "browser_tab"
+        },
+        "tab_id": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "tab_id",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
     "CalendarSchedule": {
       "title": "CalendarSchedule",
       "type": "object",
@@ -5981,6 +6069,56 @@
         "operationId"
       ],
       "additionalProperties": false
+    },
+    "CapabilityContextContent": {
+      "title": "CapabilityContextContent",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "capability"
+        },
+        "selection": {
+          "$ref": "#/$defs/CapabilitySelection"
+        }
+      },
+      "required": [
+        "type",
+        "selection"
+      ],
+      "additionalProperties": false
+    },
+    "CapabilitySelection": {
+      "title": "CapabilitySelection",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BrowserSelection"
+        },
+        {
+          "$ref": "#/$defs/BrowserTabSelection"
+        },
+        {
+          "$ref": "#/$defs/ComputerSelection"
+        },
+        {
+          "$ref": "#/$defs/RemoteDesktopSelection"
+        },
+        {
+          "$ref": "#/$defs/AppDataSelection"
+        },
+        {
+          "$ref": "#/$defs/AppPanelSelection"
+        },
+        {
+          "$ref": "#/$defs/ConnectorSelection"
+        },
+        {
+          "$ref": "#/$defs/DelegateSelection"
+        },
+        {
+          "$ref": "#/$defs/ScienceSelection"
+        }
+      ]
     },
     "ChangedFile": {
       "title": "ChangedFile",
@@ -6503,6 +6641,105 @@
       ],
       "additionalProperties": false
     },
+    "ComposerCapability": {
+      "title": "ComposerCapability",
+      "type": "object",
+      "properties": {
+        "selection": {
+          "$ref": "#/$defs/CapabilitySelection"
+        },
+        "target": {
+          "type": "string"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "tab_grant"
+            },
+            {
+              "type": "string",
+              "const": "computer_enabled"
+            },
+            {
+              "type": "string",
+              "const": "panel_visible"
+            }
+          ]
+        }
+      },
+      "required": [
+        "selection"
+      ],
+      "additionalProperties": false
+    },
+    "ComposerCatalogCommand": {
+      "title": "ComposerCatalogCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "composer_catalog"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id",
+        "request_id"
+      ],
+      "additionalProperties": false
+    },
+    "ComposerCatalogEvent": {
+      "title": "ComposerCatalogEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "composer_catalog"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposerCapability"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "ComputePackages": {
       "title": "ComputePackages",
       "type": "object",
@@ -6510,6 +6747,20 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "ComputerSelection": {
+      "title": "ComputerSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "computer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
     },
     "ConfigurationChangedEvent": {
       "title": "ConfigurationChangedEvent",
@@ -6603,6 +6854,24 @@
         "name",
         "method",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "ConnectorSelection": {
+      "title": "ConnectorSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "connector"
+        },
+        "connector_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "connector_id"
       ],
       "additionalProperties": false
     },
@@ -6777,6 +7046,9 @@
         },
         {
           "$ref": "#/$defs/ImageContextContent"
+        },
+        {
+          "$ref": "#/$defs/CapabilityContextContent"
         }
       ]
     },
@@ -6889,7 +7161,8 @@
         "selection",
         "branch_diff",
         "fetch",
-        "app_object"
+        "app_object",
+        "capability"
       ]
     },
     "ContextReference": {
@@ -7547,6 +7820,20 @@
       "required": [
         "thread_id",
         "has_messages"
+      ],
+      "additionalProperties": false
+    },
+    "DelegateSelection": {
+      "title": "DelegateSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "project_delegate"
+        }
+      },
+      "required": [
+        "kind"
       ],
       "additionalProperties": false
     },
@@ -8874,6 +9161,9 @@
           "$ref": "#/$defs/AttachFilesCommand"
         },
         {
+          "$ref": "#/$defs/ComposerCatalogCommand"
+        },
+        {
           "$ref": "#/$defs/SearchContextCommand"
         },
         {
@@ -9153,6 +9443,9 @@
         },
         {
           "$ref": "#/$defs/ContextFilesEvent"
+        },
+        {
+          "$ref": "#/$defs/ComposerCatalogEvent"
         },
         {
           "$ref": "#/$defs/ContextCandidatesEvent"
@@ -15720,6 +16013,24 @@
       "additionalProperties": false,
       "description": "Internal main-process/runtime preferences; never exposed in renderer snapshots."
     },
+    "RemoteDesktopSelection": {
+      "title": "RemoteDesktopSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "remote_desktop"
+        },
+        "attachment": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "attachment"
+      ],
+      "additionalProperties": false
+    },
     "RemoteOpenEvent": {
       "title": "RemoteOpenEvent",
       "type": "object",
@@ -16772,6 +17083,33 @@
         "refresh",
         "session",
         "sources"
+      ],
+      "additionalProperties": false
+    },
+    "ScienceSelection": {
+      "title": "ScienceSelection",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "science"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "python"
+            },
+            {
+              "type": "string",
+              "const": "r"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "language"
       ],
       "additionalProperties": false
     },

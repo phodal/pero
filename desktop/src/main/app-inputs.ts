@@ -20,7 +20,7 @@ export class AppInputs {
   retain(thread: string, references: readonly ContextReference[]) {
     const catalog = this.files.get(thread) || new Map<string, FrozenFile>();
     for (const reference of references) {
-      if (reference.kind !== 'file' && reference.kind !== 'image') continue;
+      if (reference.content.type === 'capability' || reference.kind !== 'file' && reference.kind !== 'image') continue;
       const data =
         reference.content.type === 'text'
           ? Buffer.from(reference.content.text, 'utf8')
