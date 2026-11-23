@@ -1,0 +1,330 @@
+/* non-colour tokens (shape, density, type, motion) */
+:root,
+:root body {
+  --point-radius-2xs: 2px;
+  --point-radius-xs: 4px;
+  --point-radius-sm: 6px;
+  --point-radius-md: 8px;
+  --point-radius-lg: 10px;
+  --point-radius-xl: 12px;
+  --point-radius-2xl: 14px;
+  --point-radius-3xl: 16px;
+  --point-radius-full: 999px;
+  --point-space-1: 2px;
+  --point-space-2: 4px;
+  --point-space-3: 6px;
+  --point-space-4: 8px;
+  --point-space-5: 10px;
+  --point-space-6: 12px;
+  --point-space-7: 14px;
+  --point-space-8: 16px;
+  --point-space-9: 18px;
+  --point-space-10: 20px;
+  --point-space-12: 24px;
+  --point-font-size-2xs: 10px;
+  --point-font-size-xs: 11px;
+  --point-font-size-xs-plus: 11.5px;
+  --point-font-size-sm: 12px;
+  --point-font-size-sm-plus: 12.5px;
+  --point-font-size-md: 13px;
+  --point-font-size-md-plus: 13.5px;
+  --point-font-size-base: 14px;
+  --point-font-size-base-plus: 15px;
+  --point-font-size-lg: 16px;
+  --point-font-size-xl: 18px;
+  --point-font-size-2xl: 20px;
+  --point-font-size-3xl: 24px;
+  --point-font-weight-regular: 400;
+  --point-font-weight-medium: 500;
+  --point-font-weight-semibold: 600;
+  --point-font-weight-bold: 700;
+  --point-line-height-tight: 1.3;
+  --point-line-height-snug: 1.4;
+  --point-line-height-normal: 1.5;
+  --point-line-height-relaxed: 1.6;
+  --point-font-family-sans: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+  --point-font-family-mono: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --point-elevation-sm: 0 1px 2px var(--point-shadow);
+  --point-elevation-md: 0 4px 16px var(--point-shadow);
+  --point-elevation-lg: 0 10px 32px var(--point-shadow);
+  --point-duration-fast: 120ms;
+  --point-duration-base: 150ms;
+  --point-duration-moderate: 180ms;
+  --point-duration-medium: 200ms;
+  --point-duration-slow: 350ms;
+  --point-easing-standard: ease;
+  --point-easing-out: ease-out;
+  --point-easing-in-out: ease-in-out;
+  --point-easing-linear: linear;
+  --point-border-width-thin: 1px;
+  --point-border-width-medium: 1.5px;
+  --point-border-width-thick: 2px;
+  --point-border-width-accent: 3px;
+  --point-z-raised: 1;
+  --point-z-dropdown: 20;
+  --point-z-sticky: 30;
+  --point-z-overlay: 100;
+  --point-z-modal: 1000;
+  --point-z-toast: 1100;
+  --point-size-control: 30px;
+  --point-size-control-sm: 28px;
+  --point-size-hit-min: 24px;
+  --point-focus-ring-width: 2px;
+  --point-focus-ring-offset: 2px;
+  --point-control-radius: var(--point-radius-sm);
+}
+
+/* style comfortable — Comfortable */
+[data-style="comfortable"],
+body[data-style="comfortable"],
+[data-style="comfortable"] body:where(:not([data-style])) {
+  --point-style: comfortable;
+  --point-radius-2xs: 3px;
+  --point-radius-xs: 6px;
+  --point-radius-sm: 9px;
+  --point-radius-md: 12px;
+  --point-radius-lg: 14px;
+  --point-radius-xl: 16px;
+  --point-radius-2xl: 18px;
+  --point-radius-3xl: 22px;
+  --point-radius-full: 999px;
+  --point-space-1: 3px;
+  --point-space-2: 5px;
+  --point-space-3: 8px;
+  --point-space-4: 10px;
+  --point-space-5: 13px;
+  --point-space-6: 15px;
+  --point-space-7: 18px;
+  --point-space-8: 20px;
+  --point-space-9: 22px;
+  --point-space-10: 25px;
+  --point-space-12: 30px;
+  --point-font-size-2xs: 11px;
+  --point-font-size-xs: 12px;
+  --point-font-size-xs-plus: 12.5px;
+  --point-font-size-sm: 13px;
+  --point-font-size-sm-plus: 13.5px;
+  --point-font-size-md: 14px;
+  --point-font-size-md-plus: 14.5px;
+  --point-font-size-base: 15px;
+  --point-font-size-base-plus: 16px;
+  --point-font-size-lg: 17px;
+  --point-font-size-xl: 19px;
+  --point-font-size-2xl: 22px;
+  --point-font-size-3xl: 26px;
+  --point-line-height-tight: 1.35;
+  --point-line-height-snug: 1.45;
+  --point-line-height-normal: 1.55;
+  --point-line-height-relaxed: 1.7;
+  --point-elevation-sm: 0 2px 6px var(--point-shadow);
+  --point-elevation-md: 0 8px 24px var(--point-shadow);
+  --point-elevation-lg: 0 16px 48px var(--point-shadow);
+  --point-duration-fast: 140ms;
+  --point-duration-base: 180ms;
+  --point-duration-moderate: 220ms;
+  --point-duration-medium: 240ms;
+  --point-duration-slow: 420ms;
+  --point-border-width-thin: 1px;
+  --point-border-width-medium: 1.5px;
+  --point-border-width-thick: 2px;
+  --point-border-width-accent: 3px;
+  --point-size-control: 36px;
+  --point-size-control-sm: 32px;
+  --point-size-hit-min: 28px;
+  --point-focus-ring-width: 3px;
+  --point-focus-ring-offset: 2px;
+  --point-control-radius: var(--point-radius-sm);
+}
+
+/* style compact — Compact */
+[data-style="compact"],
+body[data-style="compact"],
+[data-style="compact"] body:where(:not([data-style])) {
+  --point-style: compact;
+  --point-radius-2xs: 1px;
+  --point-radius-xs: 2px;
+  --point-radius-sm: 3px;
+  --point-radius-md: 4px;
+  --point-radius-lg: 5px;
+  --point-radius-xl: 6px;
+  --point-radius-2xl: 7px;
+  --point-radius-3xl: 8px;
+  --point-radius-full: 999px;
+  --point-space-1: 2px;
+  --point-space-2: 3px;
+  --point-space-3: 4px;
+  --point-space-4: 6px;
+  --point-space-5: 7px;
+  --point-space-6: 9px;
+  --point-space-7: 10px;
+  --point-space-8: 12px;
+  --point-space-9: 13px;
+  --point-space-10: 15px;
+  --point-space-12: 18px;
+  --point-font-size-2xs: 10px;
+  --point-font-size-xs: 10.5px;
+  --point-font-size-xs-plus: 11px;
+  --point-font-size-sm: 11.5px;
+  --point-font-size-sm-plus: 12px;
+  --point-font-size-md: 12.5px;
+  --point-font-size-md-plus: 13px;
+  --point-font-size-base: 13px;
+  --point-font-size-base-plus: 14px;
+  --point-font-size-lg: 15px;
+  --point-font-size-xl: 17px;
+  --point-font-size-2xl: 19px;
+  --point-font-size-3xl: 22px;
+  --point-line-height-tight: 1.25;
+  --point-line-height-snug: 1.35;
+  --point-line-height-normal: 1.4;
+  --point-line-height-relaxed: 1.5;
+  --point-elevation-sm: 0 1px 1px var(--point-shadow);
+  --point-elevation-md: 0 2px 8px var(--point-shadow);
+  --point-elevation-lg: 0 6px 18px var(--point-shadow);
+  --point-duration-fast: 90ms;
+  --point-duration-base: 110ms;
+  --point-duration-moderate: 140ms;
+  --point-duration-medium: 160ms;
+  --point-duration-slow: 260ms;
+  --point-border-width-thin: 1px;
+  --point-border-width-medium: 1px;
+  --point-border-width-thick: 1.5px;
+  --point-border-width-accent: 2px;
+  --point-size-control: 26px;
+  --point-size-control-sm: 24px;
+  --point-size-hit-min: 24px;
+  --point-focus-ring-width: 2px;
+  --point-focus-ring-offset: 2px;
+  --point-control-radius: var(--point-radius-sm);
+}
+
+/* style point-default — Point */
+[data-style="point-default"],
+body[data-style="point-default"],
+[data-style="point-default"] body:where(:not([data-style])) {
+  --point-style: point-default;
+  --point-radius-2xs: 2px;
+  --point-radius-xs: 4px;
+  --point-radius-sm: 6px;
+  --point-radius-md: 8px;
+  --point-radius-lg: 10px;
+  --point-radius-xl: 12px;
+  --point-radius-2xl: 14px;
+  --point-radius-3xl: 16px;
+  --point-radius-full: 999px;
+  --point-space-1: 2px;
+  --point-space-2: 4px;
+  --point-space-3: 6px;
+  --point-space-4: 8px;
+  --point-space-5: 10px;
+  --point-space-6: 12px;
+  --point-space-7: 14px;
+  --point-space-8: 16px;
+  --point-space-9: 18px;
+  --point-space-10: 20px;
+  --point-space-12: 24px;
+  --point-font-size-2xs: 10px;
+  --point-font-size-xs: 11px;
+  --point-font-size-xs-plus: 11.5px;
+  --point-font-size-sm: 12px;
+  --point-font-size-sm-plus: 12.5px;
+  --point-font-size-md: 13px;
+  --point-font-size-md-plus: 13.5px;
+  --point-font-size-base: 14px;
+  --point-font-size-base-plus: 15px;
+  --point-font-size-lg: 16px;
+  --point-font-size-xl: 18px;
+  --point-font-size-2xl: 20px;
+  --point-font-size-3xl: 24px;
+  --point-line-height-tight: 1.3;
+  --point-line-height-snug: 1.4;
+  --point-line-height-normal: 1.5;
+  --point-line-height-relaxed: 1.6;
+  --point-elevation-sm: 0 1px 2px var(--point-shadow);
+  --point-elevation-md: 0 4px 16px var(--point-shadow);
+  --point-elevation-lg: 0 10px 32px var(--point-shadow);
+  --point-duration-fast: 120ms;
+  --point-duration-base: 150ms;
+  --point-duration-moderate: 180ms;
+  --point-duration-medium: 200ms;
+  --point-duration-slow: 350ms;
+  --point-border-width-thin: 1px;
+  --point-border-width-medium: 1.5px;
+  --point-border-width-thick: 2px;
+  --point-border-width-accent: 3px;
+  --point-size-control: 30px;
+  --point-size-control-sm: 28px;
+  --point-size-hit-min: 24px;
+  --point-focus-ring-width: 2px;
+  --point-focus-ring-offset: 2px;
+  --point-control-radius: var(--point-radius-sm);
+}
+
+/* prefers-reduced-motion: every duration token collapses to 0 (in every style) */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root body,
+  [data-style] {
+    --point-duration-fast: 0ms;
+    --point-duration-base: 0ms;
+    --point-duration-moderate: 0ms;
+    --point-duration-medium: 0ms;
+    --point-duration-slow: 0ms;
+  }
+}
+
+/* Deprecated aliases (public to apps; add, never remove). Declared on body so they
+   override the upstream DSH theme and resolve against the active Point theme. */
+:root body,
+:root body[data-ds-dark-theme],
+[data-theme] {
+  --dsw-alias-bg-base: var(--point-surface);
+  --dsw-alias-bg-layer-1: var(--point-surface);
+  --dsw-alias-bg-subtle: var(--point-surface-muted);
+  --dsw-alias-bg-l2: var(--point-surface-muted);
+  --dsw-alias-bg-module-platform: var(--point-page);
+  --dsw-alias-label-primary: var(--point-text);
+  --dsw-alias-label-secondary: var(--point-text-secondary);
+  --dsw-alias-label-tertiary: var(--point-text-secondary);
+  --dsw-alias-label-caption: var(--point-text-secondary);
+  --dsw-alias-label-primary-foreground: var(--point-on-primary);
+  --dsw-alias-label-error: var(--point-danger);
+  --dsw-alias-label-danger: var(--point-danger);
+  --dsw-alias-label-warning: var(--point-warning);
+  --dsw-alias-interactive-bg-hover: var(--point-hover);
+  --dsw-alias-interactive-bg-active: var(--point-active);
+  --dsw-alias-interactive-primary: var(--point-accent);
+  --dsw-alias-button-info-fill: var(--point-accent);
+  --dsw-alias-button-info-label: var(--point-surface);
+  --dsw-alias-button-primary-fill: var(--point-primary);
+  --dsw-alias-button-primary-hover: var(--point-primary-hover);
+  --dsw-alias-button-ghost-active-border: var(--point-border-control);
+  --dsw-alias-brand-primary: var(--point-focus);
+  --dsw-alias-border-l: var(--point-border-subtle);
+  --dsw-alias-border-l2: var(--point-border-subtle);
+  --dsw-alias-border-primary: var(--point-border-subtle);
+  --dsw-alias-border-focus: var(--point-focus);
+  --dsw-alias-state-error-primary: var(--point-danger);
+  --dsw-alias-state-error-bg: var(--point-danger-surface);
+  --dsw-alias-state-success-primary: var(--point-success);
+  --dsw-alias-state-warning-primary: var(--point-warning);
+  --dsw-alias-state-warning-bg: var(--point-warning-surface);
+  --dsw-alias-state-info-primary: var(--point-info);
+  --dsw-alias-status-error: var(--point-danger);
+  --dsw-alias-status-warning: var(--point-warning);
+  --dsw-alias-shadow-color: var(--point-shadow);
+  --point-border: var(--point-border-subtle);
+  --point-muted: var(--point-text-secondary);
+  --point-splitter: var(--point-border-subtle);
+  --point-accent-color: var(--point-accent);
+  --point-focus-color: var(--point-focus);
+  --point-hover-bg: var(--point-hover);
+  --point-active-bg: var(--point-active);
+  --point-active-border: var(--point-border-control);
+  --point-primary-bg: var(--point-primary);
+  --point-primary-hover-bg: var(--point-primary-hover);
+  --point-primary-text: var(--point-on-primary);
+  --dsw-alias-state-business-primary: var(--point-info);
+  --dsw-alias-label-link: var(--point-link);
+  --dsw-alias-bg-l1: var(--point-surface);
+}

@@ -1,0 +1,46 @@
+.collector-page { overflow-y: auto; }
+.collector-page [hidden] { display: none !important; }
+.collector-main { display: flex; flex-direction: column; height: auto; min-height: 100%; gap: var(--space-3); padding: var(--space-4) var(--space-3); max-width: 760px; margin: auto; }
+.collector-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: 0 var(--space-1); }
+.collector-header h1 { margin: 0; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.collector-header p { margin: var(--space-1) 0 0; color: var(--muted); font-size: 12px; }
+.collector-link { display: inline-flex; min-height: var(--control-height); align-items: center; padding: 0 var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--text); font-size: 12px; text-decoration: none; }
+.collector-link:hover { background: var(--surface-container); }
+.collector-card { min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface-raised); }
+.collector-card h2, .collector-card label { font-size: 13px; font-weight: 600; line-height: 1.4; margin: 0; }
+.collector-card label { display: block; margin: var(--space-3) 0 6px; }
+.collector-card > label:first-child { margin-top: 0; }
+.collector-card p { margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
+.collector-card p:empty { display: none; }
+.collector-muted { color: var(--muted); font-size: 12px; }
+.collector-row, .collector-actions, .collector-capture-row { display: flex; align-items: center; gap: var(--space-2); }
+.collector-row { justify-content: space-between; min-height: var(--control-height); }
+.collector-row + .collector-row, .collector-card p + .collector-row { margin-top: var(--space-3); }
+.collector-actions { flex-wrap: wrap; margin-top: var(--space-3); }
+.collector-row label { margin: 0; }
+.collector-page input, .collector-page select, .collector-page textarea { width: 100%; min-width: 0; border: var(--point-border-width-thin, 1px) solid var(--point-border-control); border-radius: var(--radius-control); padding: 0 var(--point-space-5, 10px); background: var(--surface); color: var(--text); }
+.collector-page input, .collector-page select { height: var(--control-height); }
+.collector-page input[readonly] { color: var(--muted); }
+.collector-page textarea { display: block; resize: vertical; min-height: 64px; padding: 8px 10px; line-height: 1.55; }
+.collector-page #collector-content { min-height: 180px; }
+.collector-page button { min-height: var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 var(--space-3); background: var(--surface-raised); color: var(--text); font-size: 12px; white-space: nowrap; }
+.collector-page button:hover:not(:disabled) { background: var(--surface-container); }
+.collector-page button.collector-primary { background: var(--primary); color: var(--on-primary); border-color: var(--point-primary-border); font-weight: var(--point-font-weight-semibold, 600); }
+.collector-page button.collector-primary:hover:not(:disabled) { background: var(--primary); opacity: .85; }
+.collector-capture-row select { flex: 1; }
+.collector-capture-row button { flex: none; }
+.collector-tag { color: var(--muted); font-size: 11px; }
+.collector-page details { margin: var(--space-3) 0 0; }
+.collector-page summary { min-height: 28px; cursor: pointer; color: var(--muted); font-size: 12px; }
+#collector-login { margin-top: var(--space-2); }
+.collector-code { font-family: ui-monospace, monospace; font-weight: 600; user-select: all; }
+.collector-warning { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+.collector-pending { border-color: var(--focus); }
+.collector-pending-item { border-top: 1px solid var(--border); margin-top: var(--space-3); padding-top: var(--space-2); }
+.collector-pending-item p { font-size: 12px; }
+.collector-success { border-color: var(--good); }
+#collector-receipt { font-size: 13px; }
+#collector-final-preview { max-height: 240px; overflow: auto; margin: var(--space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 ui-monospace, monospace; padding: 10px; border-radius: var(--radius-control); background: var(--surface-container); }
+#collector-budget { font-size: 12px; color: var(--muted); }
+#collector-save { width: 100%; margin-top: var(--space-2); min-height: 36px; }
+@media (max-width: 340px) { .collector-main { padding: var(--space-3) var(--space-2); }.collector-card { padding: var(--space-3); }.collector-capture-row { align-items: stretch; flex-direction: column; }.collector-header { gap: var(--space-2); } }
