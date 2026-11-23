@@ -608,6 +608,22 @@ fn ghost_colors(chrome: Chrome, cx: &App, active: Hsla) -> ButtonCustomVariant {
         .active(active)
 }
 
+/// Switches the view inside a pane while the object's tab stays open.
+pub fn pane_view_tab(id: impl Into<ElementId>, label: impl Into<SharedString>, selected: bool, chrome: Chrome, cx: &App) -> Button {
+    Button::new(id)
+        .custom(ghost_colors(chrome, cx, chrome.navigation_selected()))
+        .role(Role::Tab)
+        .selected(selected)
+        .toggled(selected)
+        .small()
+        .min_w_0()
+        .h(chrome.control(crate::CONTENT_TAB))
+        .px(chrome.geo(SPACE_8))
+        .rounded(chrome.geo(RADIUS_SELECTION))
+        .text_size(chrome.text(crate::TYPE_TAB))
+        .label(label)
+}
+
 /// Primary, ghost, and danger share one height, padding, and radius.
 /// Focus tints the border; the theme draws no ring outside the control.
 pub fn action_button(

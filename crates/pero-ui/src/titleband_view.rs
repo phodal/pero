@@ -633,8 +633,7 @@ impl Workbench {
 
 fn resources_surface(segment: &Segment, palette: &pero_theme::Palette) -> Hsla {
     match segment.primary {
-        Primary::Resource(titleband::ResourcePrimary::Project) => palette.bg,
-        Primary::Resource(titleband::ResourcePrimary::Files) => palette.surface_muted,
+        Primary::Resource(titleband::ResourcePrimary::Project | titleband::ResourcePrimary::Files) => palette.surface_muted,
         Primary::Resource(_) => palette.surface,
         _ => palette.bg,
     }

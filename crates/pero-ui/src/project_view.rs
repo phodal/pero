@@ -236,22 +236,18 @@ impl Workbench {
                 })
                 .map(|(i, tab)| {
                     let label = self.t(tab.label_key());
-                    Button::new(("project-tab", i))
-                        .role(Role::Tab)
-                        .ghost()
-                        .small()
-                        .when(compact, |tab| tab.min_w_0())
-                        .when(!compact, |tab| tab.flex_shrink_0())
-                        .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
-                        .rounded_none()
-                        .label(if compact { self.t(tab.compact_label_key()) } else { label })
-                        .accessibility_label(label)
-                        .tooltip(label)
+                    let selected = self.project_tab == tab;
+                    let button = if compact {
+                        pero_theme::pane_view_tab(("project-tab", i), self.t(tab.compact_label_key()), selected,
+                            pero_theme::Chrome::from_app(cx), cx)
+                    } else {
+                        Button::new(("project-tab", i)).role(Role::Tab).ghost().small().flex_shrink_0()
+                            .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
+                            .rounded_none().label(label).selected(selected).toggled(selected)
+                            .border_b_2().border_color(if selected { p.action } else { p.text.opacity(0.) })
+                    };
+                    button.accessibility_label(label).tooltip(label)
                         .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
-                        .selected(self.project_tab == tab)
-                        .toggled(self.project_tab == tab)
-                        .border_b_2()
-                        .border_color(if self.project_tab == tab { p.action } else { p.text.opacity(0.) })
                         .on_click(cx.listener(move |this, _, _, cx| this.select_project_view(tab, cx)))
                 }))
             .into_any_element()
