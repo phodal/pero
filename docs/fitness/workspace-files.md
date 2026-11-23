@@ -1,5 +1,34 @@
 # Conversation workspace files
 
+## Workbench titlebar navigation · 2026-11-23
+
+Global Search sits immediately to the left of the sidebar toggle, including when
+the sidebar is collapsed. The ordinary conversation's Artifacts button sits at
+the far-right edge of the window titlebar, including when the resources column
+has its own header. It uses the shared Box icon button with a tooltip and an
+accessible name. The button opens Artifacts and closes the pane when selected.
+Inside the pane, Files, Artifacts and Code changes still use the shared resource
+toolbar. Search offers Files and Artifacts as current-session shortcuts.
+
+- macOS arm64 development builds from `d898f084e` plus working-tree changes.
+  Electron/Wasm passed `node tests/e2e/workspace-files.mjs` against the real Host
+  and temporary workspaces. The test covers the square rightmost titlebar
+  toggle in both pane states, opening both resources with Search and Enter,
+  and viewing a saved artifact version in Scientific Viewer. It also exercises
+  session isolation and retained file preview state.
+- Inspected Electron `test-results/workspace-files/titlebar-artifacts-light.png`
+  and `files-narrow-dark.png`. Search precedes the sidebar toggle, and the Box
+  button stays at the right edge in both themes. The selected resource and file
+  preview remain visible in the narrow pane.
+- In an isolated macOS Native development window, clicked the Box icon twice in
+  the same position to open and close the pane. Checked that Search sits before
+  the sidebar toggle with the sidebar expanded and collapsed. Clicking it with
+  the sidebar collapsed and searching for 文件 opened the tree with `results.txt`.
+  The Native fixture omitted App installations. Scientific Viewer content was
+  exercised in Electron, and signed installation was outside this run.
+
+## Original workspace files acceptance
+
 2026-11-07 · macOS arm64 · GPUI Kit 0.9.0 · #145.
 Source: `codex/conversation-files-145`, the final commits of PR #155 after merging current master.
 Scientific conversation PR [#150](https://github.com/phodal/pero/pull/150) is already merged.

@@ -231,6 +231,7 @@
   "spotlight.placeholder": "Search anywhere…",
   "spotlight.empty": "No matches",
   "spotlight.session": "Session",
+  "spotlight.current_session": "Current session",
   "spotlight.task": "Task",
   "spotlight.project": "Project",
   "spotlight.place": "Go",

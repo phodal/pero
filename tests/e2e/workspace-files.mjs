@@ -41,9 +41,20 @@ const launch=async()=>{
 const click=async(select)=>{
   let bounds;await expect.poll(async()=>{bounds=select(await state());return !!bounds?.width;},{timeout:10000}).toBe(true);
   await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+  return bounds;
 };
 const control=key=>click(s=>s.files?.browser?.bounds[key]);
 const row=path=>control(`row:${path}`);
+const toggleArtifacts=()=>click(s=>s.artifacts?.bounds.toggle);
+const searchResources=async query=>{
+  const modifier=process.platform==='darwin'?'Meta':'Control';
+  await page.keyboard.press(`${modifier}+Shift+K`);
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.keyboard.insertText(query);
+  await expect.poll(async()=>(await state()).sidebarSearch).toBe(query);
+  await page.keyboard.press('Enter');
+  await expect.poll(async()=>(await state()).sidebarSearch).toBe('');
+};
 const hostRequest=async request=>{
   await page.evaluate(request=>window.pero.sessionCommand(request),request);
   await expect.poll(()=>page.evaluate(id=>window.filesEvents.some(e=>e.request_id===id),request.request_id)).toBe(true);
@@ -52,7 +63,21 @@ const hostRequest=async request=>{
 const close=async()=>{await app.evaluate(({BrowserWindow})=>{for(const w of BrowserWindow.getAllWindows())w.destroy();});await app.close();app=null;};
 try {
   await launch();await clickSessionRow(page,'files-a');
-  await click(s=>s.artifacts?.bounds.toggle);await control('files-tab');
+  const closedButton=await toggleArtifacts();
+  await expect.poll(async()=>(await state()).artifacts.open).toBe(true);
+  const opened=await state();
+  expect(opened.files.tab).toBe('artifacts');
+  const button=opened.artifacts.bounds.toggle;
+  expect(button.y).toBeLessThan(42);
+  expect(button.width).toBeCloseTo(button.height);
+  const rightInset=await page.evaluate(()=>innerWidth)-button.x-button.width;
+  expect(rightInset).toBeGreaterThanOrEqual(8);
+  expect(rightInset).toBeLessThanOrEqual(10);
+  expect(Math.abs(button.x-closedButton.x)).toBeLessThanOrEqual(1);
+  await page.screenshot({path:join(output,'titlebar-artifacts-light.png'),scale:'css'});
+  await toggleArtifacts();
+  await expect.poll(async()=>(await state()).artifacts.open).toBe(false);
+  await searchResources('Files');
   await expect.poll(async()=>(await state()).files?.browser?.rows.filter(r=>r.entry).length).toBe(6);
   await expect.poll(async()=>(await state()).preferences.layout.resource_tab).toBe('files');
   await row('runs');await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.path==='runs/result.json')).toBe(true);
@@ -119,7 +144,7 @@ try {
   await control('files-tab');
   expect((await state()).files.browser.previewPath).toBe('runs/result.json');
 
-  await clickSessionRow(page,'files-b');await click(s=>s.artifacts?.bounds.toggle);
+  await clickSessionRow(page,'files-b');await searchResources('Files');
   await expect.poll(async()=>(await state()).files?.browser?.rows.some(r=>r.path==='other-only.txt')).toBe(true);
   expect((await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(false);
   await clickSessionRow(page,'files-a');
@@ -150,14 +175,16 @@ try {
   expect(wrong.kind).toBe('workspace_files_error');
   await close();await launch();await clickSessionRow(page,'files-a');
   await expect.poll(async()=>(await state()).files.tab).toBe('files');
-  await click(s=>s.artifacts?.bounds.toggle);
+  await searchResources('Artifacts');
+  await expect.poll(async()=>(await state()).files.tab).toBe('artifacts');
+  await control('files-tab');
   await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
   await rename(workspace,workspace+'-unavailable');await control('refresh');
   await expect.poll(async()=>(await state()).files.browser.rows.some(r=>r.notice.startsWith('Some(WorkspaceUnavailable'))).toBe(true);
   expect((await state()).files.browser.rows.some(r=>r.path==='request.json')).toBe(true);
   expect(await readFile(history,'utf8')).toBe(events.map(e=>JSON.stringify(e)).join('\n')+'\n');
   expect(errors).toEqual([]);
-  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','session isolation','keyboard','relative Markdown link','reload retains scroll','missing workspace retains rows','retained tabs','snapshot preserved','artifact maximize and split restore','reload','truncation','narrow dark','restart preference'],errors},null,2));
+  await writeFile(join(output,'result.json'),JSON.stringify({workspace,history,renderedRowsFor2000Entries:painted,checks:['real Host and filesystem','titlebar Artifacts toggle','Files and Artifacts from global search','session isolation','keyboard','relative Markdown link','reload retains scroll','missing workspace retains rows','retained tabs','snapshot preserved','artifact maximize and split restore','reload','truncation','narrow dark','restart preference'],errors},null,2));
   console.log('Workspace Files: real Host, lazy tree, preview, keyboard, isolation, immutable artifact and restart passed');
 } catch(error) {
   if(page){await page.screenshot({path:join(output,'failure.png')});await writeFile(join(output,'failure.json'),JSON.stringify(await state(),null,2));}

@@ -231,6 +231,7 @@
   "spotlight.placeholder": "搜索任何内容…",
   "spotlight.empty": "没有匹配",
   "spotlight.session": "会话",
+  "spotlight.current_session": "当前会话",
   "spotlight.task": "任务",
   "spotlight.project": "项目",
   "spotlight.place": "前往",

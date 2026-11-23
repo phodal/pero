@@ -1,5 +1,5 @@
 //! Search anywhere. A panel under the title bar lists places, sessions,
-//! projects, and tasks; the sidebar list itself stays unfiltered.
+//! projects, tasks, and shortcuts to the current conversation's resources.
 use crate::{
     app::Workbench,
     remote::string,
@@ -13,6 +13,7 @@ use gpui_kit::{
     prelude::*,
     *,
 };
+use pero_contracts::workbench::ResourceTab;
 
 gpui_kit::actions!(spotlight, [OpenSpotlight]);
 
@@ -27,6 +28,7 @@ enum Target {
     Settings,
     Project(String),
     Session(usize),
+    Resources(ResourceTab),
     Task(String),
 }
 
@@ -60,6 +62,19 @@ impl Spotlight {
                 icon: "terminal",
                 target: Target::Session(index),
             });
+        }
+        if workbench.conversation_resources_in_titleband() && panel.active_chat.is_some() {
+            for (tab, label, icon) in [
+                (ResourceTab::Artifacts, "artifacts.title", "box"),
+                (ResourceTab::Files, "files.title", "folder"),
+            ] {
+                hits.push(Hit {
+                    label: workbench.t(label).to_owned(),
+                    hint: workbench.t("spotlight.current_session").to_owned(),
+                    icon,
+                    target: Target::Resources(tab),
+                });
+            }
         }
         for (label, icon, target) in [
             (
@@ -157,6 +172,7 @@ impl Spotlight {
                     Target::Command(_) | Target::NewChat
                     | Target::OpenApp { .. }
                     | Target::Navigate(_)
+                    | Target::Resources(_)
                     | Target::Settings => places.push(index),
                     _ => {}
                 }
@@ -425,6 +441,9 @@ impl Workbench {
             Target::Settings => self.open_settings(window, cx),
             Target::Project(key) => self.open_project(key, window, cx),
             Target::Session(index) => self.focus_chat(Some(index), ConversationTab::Chat, cx),
+            Target::Resources(tab) => {
+                self.chat.update(cx, |chat, cx| chat.open_resource_tab(tab, cx));
+            }
             Target::Task(id) => self.open_task(id, cx),
         }
     }
@@ -432,7 +451,7 @@ impl Workbench {
 
 #[cfg(test)]
 mod tests {
-    use super::{Hit, Spotlight, Target, rank};
+    use super::{Hit, ResourceTab, Spotlight, Target, rank};
 
     fn hit(label: &str, target: Target) -> Hit {
         Hit {
@@ -448,6 +467,8 @@ mod tests {
         let hits = vec![
             hit("older", Target::Session(0)),
             hit("newer", Target::Session(1)),
+            hit("Artifacts", Target::Resources(ResourceTab::Artifacts)),
+            hit("Files", Target::Resources(ResourceTab::Files)),
             hit("New chat", Target::NewChat),
             hit("point", Target::Project("shared:point".into())),
         ];
@@ -455,7 +476,7 @@ mod tests {
             .into_iter()
             .map(|index| hits[index].label.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(shown, ["older", "newer", "New chat"]);
+        assert_eq!(shown, ["older", "newer", "Artifacts", "Files", "New chat"]);
     }
 
     #[test]
