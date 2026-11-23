@@ -45,6 +45,7 @@ const server = await listen((request, response) => {
     response.writeHead(302, { Location: foreignOrigin + '/download' }).end();
     return;
   }
+  if (path.startsWith('/dialog-effect?')) { response.writeHead(204).end(); return; }
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   response.setHeader('Cache-Control', 'no-store');
   if (path === '/suite') response.setHeader('Set-Cookie', 'pero=webkit; HttpOnly; SameSite=Strict');
@@ -61,6 +62,15 @@ const server = await listen((request, response) => {
         document.querySelector('#foreign-popup').onclick = () => window.open(${JSON.stringify(foreignOrigin + '/popup')}, '_blank');
       </script>
       <p data-testid="wheel">`)
+    : path === '/dialogs' ? `<!doctype html><title>Native WebKit dialogs</title>
+      <button onclick="finish('confirm', String(confirm('Native confirmation')))" >Open WebKit confirm</button>
+      <button onclick="finish('prompt', prompt('Native input', 'Default'))" >Open WebKit prompt</button>
+      <button onclick="alert('Native alert'); finish('alert', 'closed')" >Open WebKit alert</button>
+      <p data-testid="dialog-result">Waiting</p>
+      <script>function finish(kind, value) {
+        document.querySelector('[data-testid="dialog-result"]').textContent = value;
+        fetch('/dialog-effect?' + new URLSearchParams({kind, value}));
+      }</script>`
     : path === '/second' ? browserNavigationPage('Second')
     : path === '/popup' ? browserNavigationPage('Popup fixture')
     : browserInputPage;
@@ -89,12 +99,54 @@ try {
   const byRole = (role, name) => ({ action: 'locate', locator: { by: 'role', role, name } });
   const clickForPopup = (role, name) => [byRole(role, name), { action: 'click', name, expectPopup: true }];
   const wheel = { action: 'scroll', deltaX: 0, deltaY: 460 };
+  const dialogCell = `
+import asyncio, json, time
+
+async def inspect_dialog():
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        found = (await cua.browser({"action": "getJsDialog"}))["dialog"]
+        if found:
+            return found
+        await asyncio.sleep(0.05)
+    raise AssertionError("WebKit did not expose the active dialog")
+
+results = []
+previous = None
+for kind, decision, answer, marker in [
+    ("confirm", "accept", None, "true"),
+    ("confirm", "dismiss", None, "false"),
+    ("prompt", "accept", "Pero 已验证 🌱", "Pero 已验证 🌱"),
+    ("alert", "dismiss", None, "closed"),
+]:
+    located = await cua.browser({"action": "locate", "locator": {"by": "role", "role": "button", "name": "Open WebKit " + kind}})
+    await cua.browser({"action": "click", "ref": located["nodes"][0]["ref"]})
+    dialog = await inspect_dialog()
+    assert dialog["type"] == kind, dialog
+    if previous:
+        try:
+            stale = await cua.browser({"action": "handleJsDialog", "dialogId": previous, "decision": "dismiss"})
+        except Exception as error:
+            stale = error.result
+        assert stale["outcome"] == "rejected", stale
+    action = {"action": "handleJsDialog", "dialogId": dialog["id"], "decision": decision}
+    if answer is not None:
+        action["promptText"] = answer
+    handled = await cua.browser(action)
+    verified = await cua.browser({"action": "wait", "locator":{"by":"testId","value":"dialog-result"}, "condition":{"kind":"text","value":marker}})
+    assert handled["outcome"] == "dispatched" and verified["matched"], (handled, verified)
+    assert (await cua.browser({"action":"getJsDialog"}))["dialog"] is None
+    results.append({"kind":kind,"marker":marker,"receiptId":handled["receiptId"],"dialogId":dialog["id"],"decision":decision})
+    previous = dialog["id"]
+print(json.dumps(results))`;
   const turns = [
     { commands: [status] },
     { permission: 'allow', attachments: true, commands: [...browserInputCommands, { action: 'navigate', url: origin + '/suite' }] },
     { commands: ['Protected report', 'Local Blob', 'Redirecting report'].flatMap(name => [
       byRole('link', name), { action: 'download', name },
     ]) },
+    { commands: [{ action: 'navigate', url: origin + '/dialogs' }] },
+    { commands: [{ action: 'repl', tool: 'python_repl', code: dialogCell }, { action: 'navigate', url: origin + '/suite' }] },
     { commands: [
       ...clickForPopup('button', 'No popup expected'),
       ...clickForPopup('button', 'Open foreign popup'),
@@ -156,7 +208,7 @@ try {
   const session = JSON.parse(await readFile(receipt, 'utf8'));
   assert.equal(session.passed, true, session.error);
   assert(session.mcp.servers.some(server => server.server === 'pero-app-use'));
-  const [before, inputs, downloads, popups, popupDenied, popupGranted, first, unauthorized, approved, history, final, after] = session.replies;
+  const [before, inputs, downloads, , [dialogs], popups, popupDenied, popupGranted, first, unauthorized, approved, history, final, after] = session.replies;
   assert.deepEqual(before, [{ authorized: false, isError: false }]);
   verifyBrowserInputs(inputs.slice(0, -1));
   const threadDigest = createHash('sha256').update(session.thread).digest('hex');
@@ -174,6 +226,19 @@ try {
   assert(downloads[5].isError && !downloads[5].transfer, JSON.stringify(downloads[5]));
   assert.equal(hits.get('foreign/download') ?? 0, 0);
   assert.equal(hits.get('/report.csv'), 1);
+  assert.equal(dialogs.isError, false, dialogs.text);
+  const answers = JSON.parse(dialogs.text);
+  assert.deepEqual(answers.map(answer => [answer.kind, answer.marker]), [
+    ['confirm', 'true'], ['confirm', 'false'], ['prompt', 'Pero 已验证 🌱'], ['alert', 'closed'],
+  ]);
+  for (const answer of answers) {
+    assert.equal(hits.get('/dialog-effect?' + new URLSearchParams({ kind: answer.kind, value: answer.marker })), 1);
+    const directory = resolve(data, 'browser-use-evidence', threadDigest);
+    const recorded = JSON.parse(await readFile(resolve(directory, answer.receiptId + '.result.json'), 'utf8'));
+    assert.deepEqual(recorded, { id: answer.receiptId, dialogId: answer.dialogId, decision: answer.decision, outcome: 'dispatched' });
+    const intent = JSON.parse(await readFile(resolve(directory, answer.receiptId + '.intent.json'), 'utf8'));
+    assert(!('promptText' in intent));
+  }
   assert.deepEqual((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-')), []);
   assert.equal(popups[1].popup.kind, 'notObserved', JSON.stringify(popups));
   assert.equal(popups[3].popup.kind, 'blocked', JSON.stringify(popups));
@@ -268,7 +333,7 @@ try {
   const expected = [36, 104, 180, 255];
   for (const [channel, value] of decoded.data.subarray(middle, middle + 4).entries())
     assert(Math.abs(value - expected[channel]) <= 3, 'Screenshot clip sampled the blue viewport marker.');
-  console.log('Native Browser Use passed: popup outcomes, independent tabs, approval, history, trusted scroll, guarded screenshots and WebKit downloads.');
+  console.log('Native Browser Use passed: JavaScript dialogs, popup outcomes, independent tabs, approval, history, trusted scroll, guarded screenshots and WebKit downloads.');
 } finally {
   clearTimeout(timer);
   child?.kill();

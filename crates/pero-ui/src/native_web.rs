@@ -27,6 +27,8 @@ pub struct NativeWebPage {
     pub(super) browser_grant: Option<crate::native_browser::WebGrant>,
     #[cfg(target_os = "macos")]
     pub(super) browser_popup: Option<crate::native_browser::WebPopupWatch>,
+    #[cfg(target_os = "macos")]
+    pub(super) browser_dialogs: Option<objc2::rc::Retained<crate::native_browser::DialogDelegate>>,
 }
 impl EventEmitter<NativeWebChanged> for NativeWebPage {}
 impl EventEmitter<NativeWebPopup> for NativeWebPage {}
@@ -47,6 +49,8 @@ impl NativeWebPage {
             browser_grant: None,
             #[cfg(target_os = "macos")]
             browser_popup: None,
+            #[cfg(target_os = "macos")]
+            browser_dialogs: None,
         };
         this.mount(window, cx);
         if this.view.is_some() {
@@ -113,6 +117,8 @@ impl NativeWebPage {
             });
         match WebView::build(builder, window, cx) {
             Ok(mut view) => {
+                #[cfg(target_os = "macos")]
+                { self.browser_dialogs = crate::native_browser::DialogDelegate::install(view.raw()); }
                 view.hide();
                 self.view = Some(cx.new(|_| view));
             }

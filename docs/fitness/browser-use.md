@@ -41,6 +41,10 @@ HTTP(S) 下载使用该 WebKit 标签的登录态，拒绝重定向，文件上�
 同源目标使用独立标签实例和授权，跨源目标在发出页面请求前拒绝。等待上限为五秒，
 届时若无新标签事件，回执记为 `notObserved`。Electron 也支持下载按钮触发的原生下载事件。
 
+WebKit 的 `alert`、`confirm` 和 `prompt` 显示为当前工作台窗口的原生对话框。
+浏览器工具可在当前标签及同源授权下读取和处理它们。旧对话框 ID 会被拒绝，
+`promptText` 不写入动作回执。
+
 Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
 并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
 同源地址返回的跨源重定向。验收覆盖新增能力、可信单击和双击与悬停、两个真实附件内容、
@@ -49,6 +53,8 @@ Native 回环验收另核对了需 HttpOnly Cookie 的 CSV、页面生成的 Blo
 哈希，以及跨源重定向的目标从未被访问。Chrome Relay 也通过既有下载回归。
 新标签验收核对了同源 `_blank` 链接打开后的页面内容、授权前的拒绝、跨源 `window.open`
 请求计数为零，以及无新标签时的超时回执。工具结果与保存的动作回执一致。
+Native Python REPL 验收关闭了 `alert`，接受和取消了 `confirm`，并向 `prompt` 提交
+含中文和 emoji 的文本。回环服务器独立核对了 WebKit 脚本的返回值和请求次数。
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
 

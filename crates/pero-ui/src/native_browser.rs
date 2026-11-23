@@ -19,6 +19,8 @@ use crate::native_web::{ObjcPoint, ObjcRect};
 
 mod capture;
 use capture::ScreenshotClip;
+mod dialogs;
+pub(crate) use dialogs::DialogDelegate;
 
 pub(super) struct WebGrant {
     id: uuid::Uuid,
@@ -36,6 +38,10 @@ pub(super) struct WebPopupWatch {
 impl WebGrant {
     pub(super) fn matches(&self, value: &str) -> bool {
         origin(value).is_some_and(|candidate| candidate == self.origin)
+    }
+
+    fn stamp(&self, generation: u64, dialogs: Option<&DialogDelegate>, url: &str) -> String {
+        format!("{}:{generation}:{}:{url}", self.id, dialogs.map_or(0, DialogDelegate::revision))
     }
 }
 
@@ -71,11 +77,13 @@ enum BrowserOp {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 enum TabAction {
     Open { url: String },
     Activate,
     Close,
+    GetJsDialog,
+    HandleJsDialog { dialog_id: uuid::Uuid, decision: dialogs::Decision, prompt_text: Option<String> },
 }
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -316,7 +324,7 @@ impl Workbench {
                         if !grant.matches(&url) { return None; }
                         let id = &tab.document.id;
                         let active = self.navigation.current() == Some(&WorkspaceItem::Web(id.clone()));
-                        let stamp = tab.browser_view(cx).ok().map(|(_, generation)| format!("{}:{generation}:{url}", grant.id));
+                        let stamp = tab.browser_view(cx).ok().map(|(_, generation)| grant.stamp(generation, tab.browser_dialogs.as_deref(), &url));
                         let load_error = if let WebLoad::Failed(error) = &tab.document.observation.load { Some(error) } else { None };
                         Some(json!({"tabId":id,"origin":grant.origin,"url":url,"title":tab.document.observation.title.chars().take(160).collect::<String>(),
                             "visible":tab.visible(cx) && window_visible(engine),"active":active,"stamp":stamp,"grantId":grant.id,"loadError":load_error}))
@@ -344,8 +352,9 @@ impl Workbench {
                         .as_ref()
                         .filter(|current| current.id == grant && current.thread == thread)
                         .ok_or_else(|| anyhow::anyhow!("Allow Browser Use for this tab."))?;
+                    let (raw, _) = view.browser_engine(cx)?;
                     anyhow::ensure!(
-                        grant.matches(&view.browser_engine(cx)?.0.url()?),
+                        grant.matches(&raw.url()?),
                         "The Web tab left the authorized site."
                     );
                     match command {
@@ -373,6 +382,17 @@ impl Workbench {
                             self.close_web(&tab, window, cx);
                             Ok(Some(json!({"kind":"tabClosed","tabId":tab})))
                         }
+                        action @ (TabAction::GetJsDialog | TabAction::HandleJsDialog { .. }) => {
+                            anyhow::ensure!(
+                                view.visible(cx) && window_visible(raw) && self.navigation.current() == Some(&WorkspaceItem::Web(tab)),
+                                "Select the authorized Web tab before handling its JavaScript dialog."
+                            );
+                            let dialogs = view.browser_dialogs.as_ref().ok_or_else(|| anyhow::anyhow!("The WebKit dialog delegate is unavailable."))?;
+                            Ok(Some(match action {
+                                TabAction::HandleJsDialog { dialog_id, decision, prompt_text } => dialogs.answer(grant, dialog_id, decision, prompt_text),
+                                _ => dialogs.observe(grant).unwrap_or(Value::Null),
+                            }))
+                        }
                     }
                 }
                 BrowserOp::Run {
@@ -396,10 +416,12 @@ impl Workbench {
                         .as_ref()
                         .filter(|grant| grant.thread == thread)
                         .ok_or_else(|| anyhow::anyhow!("Allow Browser Use for this tab."))?;
+                    let dialogs = view.browser_dialogs.as_deref();
+                    anyhow::ensure!(!dialogs.is_some_and(DialogDelegate::is_open), "A JavaScript dialog is open. Use getJsDialog or close it in the Workbench.");
                     let (raw, generation) = view.browser_view(cx)?;
                     let url = raw.url()?;
                     anyhow::ensure!(
-                        grant.matches(&url) && stamp == format!("{}:{generation}:{url}", grant.id),
+                        grant.matches(&url) && stamp == grant.stamp(generation, dialogs, &url),
                         "The Web tab or document changed."
                     );
                     match operation {
@@ -407,9 +429,12 @@ impl Workbench {
                         WebOperation::Evaluate { script, await_result } => {
                             let request = request.clone();
                             let apps = apps.clone();
-                            evaluate(raw, &script, await_result, move |reply| {
-                                reply_browser(&apps, &request, reply)
-                            });
+                            let reply = move |reply| reply_browser(&apps, &request, reply);
+                            if let Some(dialogs) = dialogs {
+                                evaluate(raw, &script, await_result, dialogs.evaluation(Box::new(reply)));
+                            } else {
+                                evaluate(raw, &script, await_result, reply);
+                            }
                             Ok(None)
                         }
                         WebOperation::Navigate { url } => {
