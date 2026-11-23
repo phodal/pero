@@ -268,6 +268,12 @@ impl Workbench {
                             .contains(&query))
             })
             .collect::<Vec<_>>();
+        // Omit a shared document title, while retaining all section levels below it.
+        let skip_title = items.first().is_some_and(|first| {
+            first.headings.first().is_some_and(|title| title.eq_ignore_ascii_case("roadmap"))
+                && items.iter().all(|item| item.headings.len() > 1
+                && item.headings.first() == first.headings.first())
+        });
         div()
             .flex_1()
             .min_h_0()
@@ -345,7 +351,7 @@ impl Workbench {
                                         .child(self.t("roadmap.empty")),
                                 )
                             })
-                            .children(self.roadmap_rows(&visible, &workspace, !query.is_empty(), p, cx)),
+                            .children(self.roadmap_rows(&visible, &workspace, !query.is_empty(), usize::from(skip_title), 0, true, p, cx)),
                     )
                 },
             )
@@ -474,25 +480,28 @@ impl Workbench {
         items: &[&RoadmapItem],
         workspace: &str,
         searching: bool,
+        depth: usize,
+        indent: usize,
+        first_branch: bool,
         p: &pero_theme::Palette,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
         let mut rows = Vec::new();
         for (index, group) in items
-            .chunk_by(|left, right| left.headings == right.headings)
+            .chunk_by(|left, right| left.headings.get(depth) == right.headings.get(depth))
             .enumerate()
         {
             let first = group[0];
-            if let Some(section) = first.headings.last() {
-                let key = (workspace.to_owned(), first.headings.clone());
+            if let Some(section) = first.headings.get(depth) {
+                let key = (workspace.to_owned(), first.headings[..=depth].to_vec());
                 let expanded = searching
                     || self
                         .local_roadmap
                         .expanded_sections
                         .get(&key)
                         .copied()
-                        .unwrap_or(index == 0);
+                        .unwrap_or(first_branch && index == 0);
                 let header = div()
                     .flex_1()
                     .min_w_0()
@@ -502,10 +511,10 @@ impl Workbench {
                     .text_size(caption)
                     .text_color(p.text_muted)
                     .child(
-                        self.icon(if expanded {
-                            "chevron-down"
+                        Icon::default().path(if expanded {
+                            "icons/chevron-down.svg"
                         } else {
-                            "chevron-right"
+                            "icons/chevron-right.svg"
                         })
                         .size(px(12.)),
                     )
@@ -520,7 +529,8 @@ impl Workbench {
                     .child(group.len().to_string());
                 rows.push(
                     div()
-                        .pt(px(6.))
+                        .pl(px(indent as f32 * 12.))
+                        .pt(px(if indent == 0 { 4. } else { 0. }))
                         .child(if searching {
                             div()
                                 .px(px(8.))
@@ -529,12 +539,12 @@ impl Workbench {
                                 .child(header)
                                 .into_any_element()
                         } else {
-                            Button::new(("roadmap-section", first.line))
+                            Button::new(SharedString::from(format!("roadmap-section-{}-{depth}", first.line)))
                                 .ghost()
                                 .small()
                                 .w_full()
                                 .accessibility_label(format!("{section} ({})", group.len()))
-                                .tooltip(first.headings.join(" / "))
+                                .tooltip(first.headings[..=depth].join(" / "))
                                 .child(header)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.local_roadmap
@@ -546,9 +556,11 @@ impl Workbench {
                         })
                         .into_any_element(),
                 );
-                if !expanded {
-                    continue;
+                if expanded {
+                    rows.extend(self.roadmap_rows(group, workspace, searching, depth + 1, indent + 1,
+                        first_branch && index == 0, p, cx));
                 }
+                continue;
             }
             for item in group {
                 let line = item.line;
@@ -571,7 +583,7 @@ impl Workbench {
                                         .flex()
                                         .items_center()
                                         .gap(px(8.))
-                                        .pl(px(if item.parent_line.is_some() { 16. } else { 0. }))
+                                        .pl(px(indent as f32 * 12. + if item.parent_line.is_some() { 12. } else { 0. }))
                                         .child(
                                             div()
                                                 .flex_1()

@@ -360,3 +360,8 @@ Local task details place Back in the source toolbar. The inspector shows the
 task title, description, explicit acceptance clause and source location before
 the execution controls. A single Agent picker keeps unavailable options
 disabled. A task with an existing session opens its conversation directly.
+
+The local roadmap inspector follows the heading hierarchy in ROADMAP.md.
+Section counts include tasks in descendant sections that pass the current
+filters. The first branch opens on entry. Searching reveals matching paths
+temporarily and clearing the query restores the browsing state.
