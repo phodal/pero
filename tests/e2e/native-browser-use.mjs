@@ -3,30 +3,44 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { browserInputCommands, browserInputFrame, browserInputPage, verifyBrowserInputs } from '../fixtures/browser-use-inputs.mjs';
+import { browserNavigationPage } from '../fixtures/browser-use-navigation.mjs';
 
 assert.equal(process.platform, 'darwin');
+const { PNG } = createRequire(import.meta.url)('playwright-core/lib/utilsBundle');
 const root = resolve(import.meta.dirname, '../..');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-browser-'));
-let jumpHits = 0, foreignHits = 0;
-const foreign = createServer((_request, response) => { foreignHits++; response.end('Other site'); });
-await new Promise(done => foreign.listen(0, '127.0.0.1', done));
-const server = createServer((request, response) => {
-  if (request.url === '/jump') {
-    jumpHits++;
-    response.writeHead(302, { Location: 'http://127.0.0.1:' + foreign.address().port });
+const hits = new Map();
+const listen = handler => new Promise((done, fail) => {
+  const server = createServer(handler);
+  server.once('error', fail);
+  server.listen(0, '127.0.0.1', () => done(server));
+});
+const count = path => hits.set(path, (hits.get(path) ?? 0) + 1);
+const foreign = await listen((request, response) => {
+  count('foreign' + request.url);
+  response.end('Other site');
+});
+const foreignOrigin = 'http://127.0.0.1:' + foreign.address().port;
+const server = await listen((request, response) => {
+  const path = request.url;
+  count(path);
+  if (path === '/jump') {
+    response.writeHead(302, { Location: foreignOrigin + '/redirect' });
     response.end();
     return;
   }
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
-  response.end(request.url === '/batch-frame' ? browserInputFrame : browserInputPage);
-});
-await new Promise((done, fail) => {
-  server.once('error', fail);
-  server.listen(0, '127.0.0.1', done);
+  response.setHeader('Cache-Control', 'no-store');
+  const page = path === '/batch-frame' ? browserInputFrame
+    : path === '/suite' ? browserNavigationPage('First', foreignOrigin + '/frame')
+    : path === '/second' ? browserNavigationPage('Second')
+    : browserInputPage;
+  response.end(page);
 });
 let child, timer;
 try {
@@ -40,21 +54,64 @@ try {
   await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Browser Use fixture', command: process.execPath,
     args: [resolve(root, 'tests/fixtures/browser-use-agent.mjs')] }]));
   await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'browser-use-fixture' }));
+
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const commands = [...browserInputCommands, { action: 'navigate', url: origin + '/jump' }];
+  const status = { action: 'status' };
+  const tabs = { action: 'tabs' };
+  const observe = { action: 'observe' };
+  const clip = { x: 40, y: 40, width: 80, height: 40 };
+  const draft = { action: 'locate', locator: { by: 'label', value: 'Tab draft' } };
+  const waitText = (id, value) => ({ action: 'wait', locator: { by: 'testId', value: id }, condition: { kind: 'text', value }, timeoutMs: 3000 });
+  const byRole = (role, name) => ({ action: 'locate', locator: { by: 'role', role, name } });
+  const wheel = { action: 'scroll', deltaX: 0, deltaY: 460 };
+  const turns = [
+    { commands: [status] },
+    { permission: 'allow', attachments: true, commands: [...browserInputCommands, { action: 'navigate', url: origin + '/suite' }] },
+    { commands: [
+      { action: 'screenshot' }, { action: 'screenshot', clip },
+      { action: 'screenshot', clip: { ...clip, x: 10000 } },
+      draft, { action: 'fill', name: 'Tab draft', text: 'first tab only' }, observe, wheel, wheel,
+      waitText('wheel', 'Wheel trusted true'), waitText('scroll-ready', 'Scrolled'),
+      { action: 'open', url: foreignOrigin + '/denied' },
+      { action: 'open', url: origin + '/suite' },
+    ] },
+    { commands: [
+      { ...status, tabId: '$duplicate' }, { ...observe, tabId: '$duplicate' },
+      { action: 'closeTab', tabId: '$duplicate' }, tabs,
+    ] },
+    { permission: 'allow', commands: [
+      tabs, draft, { action: 'fill', name: 'Tab draft', text: 'second tab only' },
+      { action: 'back' }, byRole('link', 'Jump to the section'), { action: 'click', name: 'Jump to the section' },
+      waitText('anchor-status', 'Anchor opened'), { action: 'back' }, waitText('anchor-status', 'Anchor cleared'),
+      byRole('link', 'Open second page here'), { action: 'click', name: 'Open second page here' },
+    ] },
+    { commands: [
+      { action: 'back' }, { action: 'forward' },
+      draft, { action: 'fill', name: 'Tab draft', text: 'reload clears' },
+      { action: 'reload' }, draft, { action: 'activate', tabId: '$first' },
+    ] },
+    { commands: [
+      tabs, draft, { action: 'closeTab', tabId: '$duplicate' }, tabs,
+      byRole('button', 'Attach foreign frame'), { action: 'scrollIntoView', name: 'Attach foreign frame' },
+      byRole('button', 'Attach foreign frame'), { action: 'click', name: 'Attach foreign frame' },
+      waitText('frame-status', 'Frame loaded'), { action: 'screenshot', clip },
+      { action: 'navigate', url: origin + '/jump' },
+    ] },
+    { permission: 'revoke', commands: [status] },
+  ];
   child = spawn(process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native'),
     ['--verify-apps', receipt, 'browser'], {
       cwd: root,
       env: { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data,
         PERO_AGENTS_FILE: agents, PERO_ADAPTER_NODE: process.execPath, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
-        PERO_NATIVE_BROWSER_PROBE_WORKSPACE: workspace, PERO_NATIVE_BROWSER_PROBE_COMMANDS: JSON.stringify(commands),
+        PERO_NATIVE_BROWSER_PROBE_WORKSPACE: workspace, PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns),
         PERO_NATIVE_BROWSER_PROBE_URL: origin + '/' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   let log = '';
   child.stderr.on('data', chunk => { log += chunk; });
   child.stdout.on('data', chunk => { log += chunk; });
-  timer = setTimeout(() => child.kill('SIGTERM'), 65_000);
+  timer = setTimeout(() => child.kill('SIGTERM'), 72_000);
   const exit = await new Promise((done, fail) => {
     child.once('error', fail);
     child.once('exit', (code, signal) => done({ code, signal }));
@@ -64,20 +121,88 @@ try {
   const session = JSON.parse(await readFile(receipt, 'utf8'));
   assert.equal(session.passed, true, session.error);
   assert(session.mcp.servers.some(server => server.server === 'pero-app-use'));
-  const [before, results, after] = session.replies;
+  const [before, inputs, first, unauthorized, approved, history, final, after] = session.replies;
   assert.deepEqual(before, [{ authorized: false, isError: false }]);
-  verifyBrowserInputs(results.slice(0, -1));
-  assert.equal(jumpHits, 1);
-  assert.equal(foreignHits, 0);
+  verifyBrowserInputs(inputs.slice(0, -1));
+
+  const [viewport, clipped, invalidClip, , fill, , scroll, staleScroll, wheelResult, position, blockedOpen, opened] = first;
+  const dispatched = result => {
+    assert.equal(result.outcome, 'dispatched', JSON.stringify(result));
+    assert.equal(result.verified, false);
+  };
+  dispatched(fill);
+  dispatched(scroll);
+  assert.match(staleScroll.error, /observation is stale/i);
+  assert.equal(wheelResult.matched, true, JSON.stringify(wheelResult));
+  assert.equal(position.matched, true, JSON.stringify(position));
+  assert.match(position.nodes[0].name, /^Page Y [1-9]/);
+  const pointer = wheelResult.nodes[0].name;
+  const [, x, y, width, height] = /^Pointer (\d+),(\d+) in (\d+)x(\d+)$/.exec(pointer) ?? [];
+  assert(Math.abs(Number(x) - Number(width) / 2) <= 4, pointer);
+  assert(Math.abs(Number(y) - Number(height) / 2) <= 4, pointer);
+  assert.match(invalidClip.error, /fit inside the visible viewport/i);
+  assert.match(blockedOpen.error, /outside the authorized site/i);
+  assert.match(opened.tabId, /^web-tab:/);
+  assert.equal(opened.authorized, false);
+  assert.deepEqual(unauthorized[0], before[0]);
+  assert(unauthorized[1].isError && unauthorized[2].isError);
+  assert.equal(unauthorized[3].tabs.length, 1);
+  assert.equal(unauthorized[3].tabs[0].active, false);
+  assert.equal(approved[0].tabs.length, 2);
+  assert.equal(approved[0].tabs.find(tab => tab.active)?.tabId, opened.tabId);
+  assert.equal(approved[1].nodes[0].state.value, '');
+  assert.match(approved[3].reason, /no history entry/i);
+  assert.equal(approved[3].outcome, 'rejected');
+  assert.equal(approved[6].matched, true, JSON.stringify(approved[6]));
+  dispatched(approved[7]);
+  assert.equal(approved[7].url, origin + '/suite');
+  assert.equal(approved[8].matched, true, JSON.stringify(approved[8]));
+
+  const [back, forward, , , reload, cleared, activated] = history;
+  for (const effect of [back, forward, reload]) dispatched(effect);
+  assert.deepEqual([back.url, forward.url, reload.url], [origin + '/suite', origin + '/second', origin + '/second']);
+  assert.equal(cleared.nodes[0].state.value, '');
+  assert.equal(activated.kind, 'tabActivated');
+  assert.equal(activated.tabId, origin + '/');
+  assert.equal(final[0].tabs.find(item => item.active)?.tabId, activated.tabId);
+  assert.equal(final[1].nodes[0].state.value, 'first tab only');
+  assert.deepEqual(final[2], { kind: 'tabClosed', tabId: opened.tabId, isError: false });
+  assert.equal(final[3].tabs.length, 1);
+  assert.equal(final[8].matched, true, JSON.stringify(final[8]));
+  assert.match(final[9].error, /frame outside the authorized site/i);
   assert.deepEqual(after, before);
+  assert.equal(hits.get('/jump'), 1);
+  assert.equal(hits.get('foreign/frame'), 1);
+  assert.equal(hits.get('foreign/redirect') ?? 0, 0);
+  assert.equal(hits.get('foreign/denied') ?? 0, 0);
+  assert.ok((hits.get('/second') ?? 0) >= 2, 'Reload fetched the page again.');
+
   const directory = resolve(data, 'browser-use-evidence', createHash('sha256').update(session.thread).digest('hex'));
   const receipts = await readdir(directory);
-  for (const { receiptId } of results.filter(result => result.receiptId)) {
+  for (const action of session.replies.flat().filter(result => result.receiptId && result.outcome)) {
+    const { receiptId } = action;
     assert(receipts.includes(receiptId + '.intent.json'));
     const result = JSON.parse(await readFile(resolve(directory, receiptId + '.result.json'), 'utf8'));
-    assert.equal(result.outcome, 'dispatched');
+    assert.equal(result.outcome, action.outcome);
   }
-  console.log('Native Browser Use passed through GPUI → Host → ACP/MCP → WKWebView, including trusted events, two attachments, and revoke.');
+  for (const [shot, name] of [[viewport, 'viewport'], [clipped, 'clip']]) {
+    assert.equal(shot.kind, 'screenshot', JSON.stringify(shot));
+    const { id, ...stored } = shot.receipt;
+    const png = await readFile(resolve(directory, id + '.png'));
+    assert.deepEqual(JSON.parse(await readFile(resolve(directory, id + '.json'), 'utf8')), shot.receipt);
+    assert.equal(stored.sha256, createHash('sha256').update(png).digest('hex'));
+    assert.deepEqual(shot.pixels, { width: stored.width, height: stored.height, bytes: stored.bytes, sha256: stored.sha256 });
+    await writeFile(resolve(output, name + '.png'), png);
+  }
+  assert.equal(clipped.receipt.width, clip.width);
+  assert.equal(clipped.receipt.height, clip.height);
+  assert(clipped.receipt.width < viewport.receipt.width && clipped.receipt.height < viewport.receipt.height);
+  const decoded = PNG.sync.read(await readFile(resolve(output, 'clip.png')));
+  const middle = (Math.floor(decoded.height / 2) * decoded.width + Math.floor(decoded.width / 2)) * 4;
+  const expected = [36, 104, 180, 255];
+  for (const [channel, value] of decoded.data.subarray(middle, middle + 4).entries())
+    assert(Math.abs(value - expected[channel]) <= 3, 'Screenshot clip sampled the blue viewport marker.');
+  console.log('Native Browser Use passed: independent tabs, approval, history, trusted scroll, guarded screenshots and earlier input flows.');
 } finally {
   clearTimeout(timer);
   child?.kill();

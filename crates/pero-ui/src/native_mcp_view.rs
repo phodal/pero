@@ -74,7 +74,7 @@ impl Workbench {
             let Ok(address) = WebAddress::try_from(entry) else {
                 return;
             };
-            let page = cx.new(|cx| NativeWebPage::new(WebDocument::open(address), window, cx));
+            let page = cx.new(|cx| NativeWebPage::new(WebDocument::open(address), None, window, cx));
             page.update(cx, |page, _| page.set_active(false));
             let load_key = key.clone();
             let load = cx.subscribe(&page, move |this, _, event: &NativeWebChanged, cx| {

@@ -30,8 +30,12 @@ Native 支持标签清单、观察、定位、条件等待、同源 iframe、同
 修饰键、逐键输入及多文件上传同时用于 Native 和 Electron。逐键输入接受英文字母、
 数字与空格。它在每次按键间检查焦点，`fill` 可一次填写其他纯文本。
 
-Electron 提供工具级的标签创建和管理、历史遍历、滚轮、截图及网页下载和弹窗回执，
-包括 Blob 下载。Native 的这些工具能力留待对应的 WebKit 接入。
+第七批接入 Native 的 `open`、`activate`、`closeTab`、`back`、`forward`、`reload`、
+`scroll` 和 `screenshot`。新标签有独立实例 ID，即使打开相同地址也单独授权。
+历史操作先检查目标来源，然后等待 WebKit 完成导航。滚轮使用新鲜观察 ID，截图支持可见
+视口和像素矩形，复用 Electron 的 PNG MCP 图片与证据文件格式。截图前后通过 WebKit
+帧树检查来源，覆盖封闭 Shadow DOM 内的 iframe。WebKit 未提供所需帧元数据时拒绝截图。
+网页触发的新标签回执和下载回执（含 Blob）由 Electron 提供。
 
 Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
 并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
@@ -39,6 +43,21 @@ Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试�
 授权前后的工具状态和本地回执。Electron 的全量验收也运行同一组第六批场景。
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
+
+## 第七批与 @Chrome 插件对照
+
+使用同一套回环网页，在实际 Chrome 扩展会话与 Native Workbench 上检查核心行为。
+Chrome 测试标签已关闭。
+
+| 场景 | @Chrome 插件 | macOS Native |
+| --- | --- | --- |
+| 标签 | 同一 URL 有两个标签 ID，草稿隔离，关闭后回到原标签 | 同址独立，显式切换和关闭，新标签未经授权时不可操作 |
+| 历史 | 返回、前进和刷新均检查页面实际变化 | 返回和前进检查当前 URL，刷新重新请求页面并清除测试草稿 |
+| 滚轮 | 页面收到 `isTrusted=true`，滚动至 Y=1046 | 页面收到可信滚轮且视口移动，第二次使用旧观察被拒绝 |
+| 截图 | JPEG 视口 1680×672、裁剪 120×48、整页 1680×2400 均取到了图像 | 视口和区域 PNG 核对尺寸、裁剪颜色、哈希和回执，跨源帧及越界裁剪被拒绝 |
+
+Native 验收通过实际的 GPUI、Rust Host、确定性 ACP 和 WebKit，测试夹具在既有授权
+边界提供用户选项。该验收未覆盖旧版 macOS 的 WebKit。
 
 ## Electron restart regression
 
@@ -49,6 +68,28 @@ two tabs with the same URL are checkpointed under separate IDs, reappear under
 those IDs after restart, and restore independent Chromium form values.
 
 ## Electron Runtime
+
+### External Chrome extension and Relay
+
+The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
+Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
+same local Relay and the same ACP conversation tool. Pairing binds the
+connection to the selected ordinary conversation. Chrome grants access only
+after the user reviews and approves a specific live tab. A page operation
+requires the approved origin, an active tab in its Chrome window, and a
+current observation. Pero uses the existing Browser Use observation and
+action receipts.
+
+`node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
+Relay, real Host and deterministic ACP Agent with headed Google Chrome for
+Testing. It loads the actual unpacked extension in a temporary Chrome profile.
+The suite checks pairing without tab access, explicit tab approval, an
+independently observed trusted click after filling and its stored receipt,
+isolation from another tab and conversation, rejection of a replayed code,
+and debugger release after revocation from either Chrome or Pero. Evidence is written to
+`test-results/chrome-relay/`.
+
+### Embedded browser
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
 `browser/src/browser-dom-semantics.mjs` and the isolated-world approach from

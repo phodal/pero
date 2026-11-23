@@ -97,9 +97,15 @@ input.on('line', line => {
   } else if (message.shutdown) {
     void close();
   } else if (message.id) {
-    const result = message.request?.operation === 'app-context'
-      ? appUse.draftContext.freeze(message.request.scope, message.request.thread, message.request.options)
-      : owner.request(message.request);
+    const request = message.request;
+    const result = request?.operation === 'app-context'
+      ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
+      : request?.operation === 'chrome-relay-pair'
+        ? appUse.chromeRelay.pairing(request.label, request.thread).then(code => ({ ok: true, code }),
+          error => ({ ok: false, message: error.message }))
+        : request?.operation === 'chrome-relay-stop'
+          ? Promise.resolve(appUse.chromeRelay.revoke()).then(() => ({ ok: true }))
+          : owner.request(request);
     void result.then(
       value => send({ id: message.id, value }),
       error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(message.request?.operation === 'app-context' ? { message: String(error.message) } : {}) } }),

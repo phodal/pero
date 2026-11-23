@@ -147,7 +147,11 @@ Electron Browser Use 通过同一个经过认证的 MCP 连接提供 `browser_us
 下载事件，包含 Blob 文件，并由既有 Host Artifact 链路冻结文件及返回版本回执。
 macOS Pero Native 通过同一个会话 MCP 提供 `browser_use`，授权入口在 Web 标签工具栏。
 Workbench 持有 WKWebView、标签授权和可见性，连接器复用页面语义、文件引用和本地回执，
-可信输入由工作台发送到自己的网页视图。标签截图和网页触发的下载走 Electron 的浏览器后端。
+可信输入由工作台发送到自己的网页视图。Native 支持同源标签创建、授权标签切换与关闭，
+历史遍历、滚轮和视口截图。网页触发的新标签回执及下载回执由 Electron 的浏览器后端提供。
+外部 Chrome 通过 Pero MV3 扩展和 Workbench 的回环 Relay 接入同一个 `browser_use`。
+Workbench 下发一次性配对码，扩展单独确认选中的标签和来源。操作仍受当前选中会话和运行中
+的 Agent 回合约束，页面观察与操作进入现有 Browser Use 回执。Chrome 与 Workbench 均可撤销。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 
 普通 Workbench 会话还可以用 REPL 编排这些工具。Electron Main 装配

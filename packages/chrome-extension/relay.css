@@ -1,0 +1,14 @@
+:root { color-scheme: light dark; font: 14px system-ui, sans-serif; color: light-dark(#172536,#eaf1f8); background: light-dark(#f7f9fc,#0b1420); }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 340px; }
+main { max-width: 440px; padding: 18px; }
+h1 { margin: 0; font-size: 17px; }
+p { margin: 8px 0 12px; overflow-wrap: anywhere; }
+label { display: block; margin: 8px 0 4px; }
+textarea, select, button { font: inherit; padding: 7px 9px; border: 1px solid light-dark(#748599,#526278); border-radius: 6px; }
+textarea, select { display: block; width: 100%; margin-bottom: 8px; background: light-dark(white,#121f2e); color: inherit; }
+button { cursor: pointer; background: light-dark(#007f86,#55d5dd); color: light-dark(white,#142b45); border-color: transparent; }
+button:disabled { opacity: .6; cursor: default; }
+#preview { margin-top: 12px; padding: 10px; background: light-dark(#e7f3f5,#182d40); border-radius: 6px; }
+#error { color: light-dark(#b54445,#f7a8a9); }
+#stop { margin-top: 8px; background: transparent; border-color: light-dark(#748599,#526278); color: inherit; }

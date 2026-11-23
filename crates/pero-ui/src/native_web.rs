@@ -30,7 +30,7 @@ impl EventEmitter<NativeWebChanged> for NativeWebPage {}
 impl EventEmitter<NativeWebPopup> for NativeWebPage {}
 impl EventEmitter<NativeWebFocused> for NativeWebPage {}
 impl NativeWebPage {
-    pub fn new(document: WebDocument, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(document: WebDocument, _browser_origin: Option<String>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (sender, receiver) = async_channel::unbounded();
         let mut this = Self {
             document,
@@ -40,7 +40,7 @@ impl NativeWebPage {
             active: true,
             focused: false,
             #[cfg(target_os = "macos")]
-            browser_destination: Default::default(),
+            browser_destination: std::rc::Rc::new(std::cell::RefCell::new(_browser_origin)),
             #[cfg(target_os = "macos")]
             browser_grant: None,
         };
@@ -272,6 +272,51 @@ impl NativeWebPage {
         Ok(())
     }
     #[cfg(target_os = "macos")]
+    pub(super) fn browser_engine<'a>(&self, cx: &'a App) -> anyhow::Result<(&'a wry::WebView, u64)> {
+        let view = self.view.as_ref().ok_or_else(|| anyhow::anyhow!("Native Web tab is unavailable"))?.read(cx);
+        Ok((view.raw(), self.generation))
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(super) fn browser_history(
+        &mut self,
+        action: crate::native_browser::WebHistory,
+        destination: String,
+        origin: String,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        self.browser_destination.replace(Some(origin));
+        self.start_load(cx);
+        let (raw, generation) = self.browser_engine(cx)?;
+        if let Err(error) = action.start(raw) {
+            self.receive(Update::Failed(error.to_string()), cx);
+            return Err(error);
+        }
+        self.changed(cx);
+        if action != crate::native_browser::WebHistory::Reload {
+            // WebKit does not send a load event for same-document history entries.
+            cx.spawn(async move |this, cx| {
+                for _ in 0..150 {
+                    cx.background_executor().timer(Duration::from_millis(100)).await;
+                    let done = this.update(cx, |this, cx| {
+                        if this.generation != generation || !matches!(this.document.observation.load, WebLoad::Loading) {
+                            return true;
+                        }
+                        let Ok((raw, _)) = this.browser_engine(cx) else { return true };
+                        if raw.url().ok().as_deref() == Some(&destination) && !crate::native_browser::web_loading(raw) {
+                            this.receive(Update::Load(wry::PageLoadEvent::Finished, destination.clone()), cx);
+                            return true;
+                        }
+                        false
+                    });
+                    if done.unwrap_or(true) { break; }
+                }
+            }).detach();
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
     pub(super) fn browser_view<'a>(&self, cx: &'a App) -> anyhow::Result<(&'a wry::WebView, u64)> {
         let view = self.view.as_ref().ok_or_else(|| anyhow::anyhow!("Native Web tab is unavailable"))?.read(cx);
         anyhow::ensure!(
@@ -302,7 +347,7 @@ impl NativeWebPage {
             view.update(cx, |view, _| view.show());
         }
     }
-    #[cfg(feature = "native-probe")]
+    #[cfg(any(target_os = "macos", feature = "native-probe"))]
     pub fn visible(&self, cx: &App) -> bool {
         self.view
             .as_ref()
@@ -453,6 +498,12 @@ unsafe impl objc2::encode::Encode for ObjcRect {
     const ENCODING: objc2::encode::Encoding =
         objc2::encode::Encoding::Struct("_NSRect", &[ObjcPoint::ENCODING, ObjcSize::ENCODING]);
 }
+#[cfg(target_os = "macos")]
+unsafe impl objc2::encode::RefEncode for ObjcRect {
+    const ENCODING_REF: objc2::encode::Encoding =
+        objc2::encode::Encoding::Pointer(&<Self as objc2::encode::Encode>::ENCODING);
+}
+
 
 #[cfg(target_os = "macos")]
 pub(crate) fn edit_macos(view: &wry::WebView, command: &str) -> bool {

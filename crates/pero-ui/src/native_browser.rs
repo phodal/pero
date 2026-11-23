@@ -9,13 +9,16 @@ use objc2::{
 };
 use pero_contracts::{
     HostEvent,
-    web_document::{WebAddress, WebLoad},
+    web_document::{WebAddress, WebDocument, WebLoad},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{ffi::CStr, ptr};
 
 use crate::native_web::{ObjcPoint, ObjcRect};
+
+mod capture;
+use capture::ScreenshotClip;
 
 pub(super) struct WebGrant {
     id: uuid::Uuid,
@@ -46,6 +49,12 @@ enum BrowserOp {
     Revoke {
         thread: Option<String>,
     },
+    Manage {
+        thread: String,
+        tab: String,
+        grant: uuid::Uuid,
+        command: TabAction,
+    },
     Run {
         thread: String,
         tab: String,
@@ -56,10 +65,70 @@ enum BrowserOp {
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+enum TabAction {
+    Open { url: String },
+    Activate,
+    Close,
+}
+
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) enum WebHistory {
+    Back,
+    Forward,
+    Reload,
+}
+
+impl WebHistory {
+    fn destination(self, view: &wry::WebView) -> anyhow::Result<Option<String>> {
+        if self == Self::Reload {
+            return Ok(Some(view.url()?));
+        }
+        let view = webkit(view);
+        unsafe {
+            let list: *mut AnyObject = msg_send![&*view, backForwardList];
+            let item: *mut AnyObject = match self {
+                Self::Back => msg_send![list, backItem],
+                Self::Forward => msg_send![list, forwardItem],
+                Self::Reload => unreachable!(),
+            };
+            if item.is_null() {
+                return Ok(None);
+            }
+            let url: *mut AnyObject = msg_send![item, URL];
+            let text: *mut AnyObject = msg_send![url, absoluteString];
+            let utf8: *const std::ffi::c_char = msg_send![text, UTF8String];
+            anyhow::ensure!(!utf8.is_null(), "The history entry has no URL.");
+            Ok(Some(CStr::from_ptr(utf8).to_str()?.to_owned()))
+        }
+    }
+
+    pub(super) fn start(self, view: &wry::WebView) -> anyhow::Result<()> {
+        let view = webkit(view);
+        let navigation: *mut AnyObject = unsafe {
+            match self {
+                Self::Back => msg_send![&*view, goBack],
+                Self::Forward => msg_send![&*view, goForward],
+                Self::Reload => msg_send![&*view, reload],
+            }
+        };
+        anyhow::ensure!(
+            !navigation.is_null(),
+            "WebKit did not start history navigation."
+        );
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 enum WebOperation {
     Check,
+    CheckFrames,
     Evaluate { script: String },
     Navigate { url: String },
+    History { action: WebHistory },
+    Screenshot { clip: Option<ScreenshotClip> },
     Dispatch { input: WebInput },
 }
 
@@ -70,6 +139,12 @@ enum WebInput {
         x: f64,
         y: f64,
         count: u8,
+    },
+    Wheel {
+        x: f64,
+        y: f64,
+        delta_x: i32,
+        delta_y: i32,
     },
     Key {
         key: String,
@@ -195,7 +270,7 @@ impl Workbench {
     pub(crate) fn native_browser_rpc(
         &mut self,
         event: HostEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let request = event.request_id.unwrap_or_default();
@@ -220,16 +295,77 @@ impl Workbench {
                     let tabs: Vec<_> = self.native_web_pages.values().filter_map(|page| {
                         let tab = page.view.read(cx);
                         let grant = tab.browser_grant.as_ref().filter(|grant| grant.thread == thread)?;
-                        let available = tab.browser_view(cx).ok();
-                        let url = available.and_then(|(view, _)| view.url().ok())
+                        let (engine, _) = tab.browser_engine(cx).ok()?;
+                        let url = engine.url().ok().filter(|value| !value.is_empty())
                             .unwrap_or_else(|| tab.document.observation.url.as_str().to_owned());
                         if !grant.matches(&url) { return None; }
                         let id = &tab.document.id;
                         let active = self.navigation.current() == Some(&WorkspaceItem::Web(id.clone()));
+                        let stamp = tab.browser_view(cx).ok().map(|(_, generation)| format!("{}:{generation}:{url}", grant.id));
+                        let load_error = if let WebLoad::Failed(error) = &tab.document.observation.load { Some(error) } else { None };
                         Some(json!({"tabId":id,"origin":grant.origin,"url":url,"title":tab.document.observation.title.chars().take(160).collect::<String>(),
-                            "visible":available.is_some(),"active":active,"stamp":available.map(|(_, generation)| format!("{}:{generation}:{url}",grant.id))}))
+                            "visible":tab.visible(cx) && window_visible(engine),"active":active,"stamp":stamp,"grantId":grant.id,"loadError":load_error}))
                     }).collect();
                     Ok(Some(json!(tabs)))
+                }
+                BrowserOp::Manage {
+                    thread,
+                    tab,
+                    grant,
+                    command,
+                } => {
+                    anyhow::ensure!(
+                        self.browser_thread(cx).as_deref() == Some(&thread),
+                        "The selected conversation changed."
+                    );
+                    let view = self
+                        .native_web_pages
+                        .get(&tab)
+                        .ok_or_else(|| anyhow::anyhow!("The Web tab is closed."))?
+                        .view
+                        .read(cx);
+                    let grant = view
+                        .browser_grant
+                        .as_ref()
+                        .filter(|current| current.id == grant && current.thread == thread)
+                        .ok_or_else(|| anyhow::anyhow!("Allow Browser Use for this tab."))?;
+                    anyhow::ensure!(
+                        grant.matches(&view.browser_engine(cx)?.0.url()?),
+                        "The Web tab left the authorized site."
+                    );
+                    match command {
+                        TabAction::Open { url } => {
+                            view.browser_view(cx)?;
+                            anyhow::ensure!(
+                                grant.matches(&url),
+                                "The address is outside the authorized site."
+                            );
+                            let address = WebAddress::try_from(url).map_err(anyhow::Error::msg)?;
+                            let origin = grant.origin.clone();
+                            let id = format!("web-tab:{}", uuid::Uuid::new_v4());
+                            let document = WebDocument::restore(id.clone(), address.into(), None)
+                                .map_err(anyhow::Error::msg)?;
+                            self.mount_native_web(document, true, Some(origin), window, cx);
+                            Ok(Some(
+                                json!({"kind":"tabOpened","tabId":id,"authorized":false}),
+                            ))
+                        }
+                        TabAction::Activate => {
+                            let item = WorkspaceItem::Web(tab.clone());
+                            if let Some(route) = self.navigation.select(&item) {
+                                self.activate_route(route, window, cx);
+                            }
+                            anyhow::ensure!(
+                                self.navigation.current() == Some(&item),
+                                "The Web tab is unavailable."
+                            );
+                            Ok(Some(json!({"kind":"tabActivated","tabId":tab})))
+                        }
+                        TabAction::Close => {
+                            self.close_web(&tab, window, cx);
+                            Ok(Some(json!({"kind":"tabClosed","tabId":tab})))
+                        }
+                    }
                 }
                 BrowserOp::Run {
                     thread,
@@ -278,6 +414,39 @@ impl Workbench {
                             page.update(cx, |view, cx| view.browser_navigate(address, origin, cx));
                             Ok(Some(Value::Null))
                         }
+                        WebOperation::History { action } => {
+                            let Some(destination) = action.destination(raw)? else {
+                                return Ok(Some(
+                                    json!({"rejected":"There is no history entry in that direction."}),
+                                ));
+                            };
+                            if !grant.matches(&destination) {
+                                return Ok(Some(
+                                    json!({"rejected":"The history entry is outside the authorized site."}),
+                                ));
+                            }
+                            let origin = grant.origin.clone();
+                            page.update(cx, |view, cx| {
+                                view.browser_history(action, destination, origin, cx)
+                            })?;
+                            Ok(Some(Value::Null))
+                        }
+                        WebOperation::CheckFrames => {
+                            let apps = apps.clone();
+                            let id = request.clone();
+                            capture::check_frames(raw, &grant.origin, move |reply| {
+                                reply_browser(&apps, &id, reply)
+                            })?;
+                            Ok(None)
+                        }
+                        WebOperation::Screenshot { clip } => {
+                            let apps = apps.clone();
+                            let id = request.clone();
+                            capture::capture(raw, clip, move |reply| {
+                                reply_browser(&apps, &id, reply)
+                            });
+                            Ok(None)
+                        }
                         WebOperation::Dispatch { input } => {
                             anyhow::ensure!(
                                 self.navigation.current() == Some(&WorkspaceItem::Web(tab)),
@@ -320,13 +489,23 @@ thread_local! {
     };
 }
 
-fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Value>) + 'static) {
+fn webkit(view: &wry::WebView) -> Retained<AnyObject> {
     use wry::WebViewExtMacOS;
+    unsafe { Retained::cast_unchecked(view.webview()) }
+}
+
+pub(super) fn web_loading(view: &wry::WebView) -> bool {
+    let view = webkit(view);
+    let loading: Bool = unsafe { msg_send![&*view, isLoading] };
+    loading.as_bool()
+}
+
+fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Value>) + 'static) {
     let Ok(source) = std::ffi::CString::new(format!("JSON.stringify({script})")) else {
         reply(Err(anyhow::anyhow!("Invalid Browser Use script.")));
         return;
     };
-    let view = view.webview();
+    let view = webkit(view);
     BROWSER_WORLD.with(|world| unsafe {
         let source: *mut AnyObject =
             msg_send![class!(NSString), stringWithUTF8String: source.as_ptr()];
@@ -342,16 +521,15 @@ fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Val
             };
             reply(result);
         });
-        let _: () = msg_send![&*(std::ptr::from_ref(&*view).cast::<AnyObject>()),
+        let _: () = msg_send![&*view,
             evaluateJavaScript: source, inFrame: ptr::null::<AnyObject>(), inContentWorld: &**world, completionHandler: &*handler];
     });
 }
 
 pub(super) fn window_visible(view: &wry::WebView) -> bool {
-    use wry::WebViewExtMacOS;
-    let view = view.webview();
+    let view = webkit(view);
     unsafe {
-        let wk = &*(std::ptr::from_ref(&*view).cast::<AnyObject>());
+        let wk = &*view;
         let window: *mut AnyObject = msg_send![wk, window];
         let visible: Bool = msg_send![window, isVisible];
         let minimized: Bool = msg_send![window, isMiniaturized];
@@ -359,10 +537,48 @@ pub(super) fn window_visible(view: &wry::WebView) -> bool {
     }
 }
 
+#[link(name = "CoreGraphics", kind = "framework")]
+unsafe extern "C" {
+    fn CGEventCreateScrollWheelEvent2(
+        source: *mut std::ffi::c_void,
+        units: u32,
+        count: u32,
+        vertical: i32,
+        horizontal: i32,
+        third: i32,
+    ) -> *mut std::ffi::c_void;
+    fn CGEventSetLocation(event: *mut std::ffi::c_void, point: ObjcPoint);
+}
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    fn CFRelease(value: *mut std::ffi::c_void);
+}
+
+fn pointer_location(wk: &AnyObject, x: f64, y: f64) -> anyhow::Result<ObjcPoint> {
+    unsafe {
+        let bounds: ObjcRect = msg_send![wk, bounds];
+        let flipped: Bool = msg_send![wk, isFlipped];
+        let zoom: f64 = msg_send![wk, pageZoom];
+        let (x, y) = (x * zoom, y * zoom);
+        anyhow::ensure!(
+            x >= 0. && y >= 0. && x < bounds.size.width && y < bounds.size.height,
+            "The pointer is outside the visible Web tab."
+        );
+        let point = ObjcPoint {
+            x,
+            y: if flipped.as_bool() {
+                y
+            } else {
+                bounds.size.height - y
+            },
+        };
+        Ok(msg_send![wk, convertPoint: point, toView: ptr::null::<AnyObject>()])
+    }
+}
+
 fn dispatch(view: &wry::WebView, input: WebInput) -> anyhow::Result<()> {
-    use wry::WebViewExtMacOS;
-    let view = view.webview();
-    let wk = unsafe { &*(std::ptr::from_ref(&*view).cast::<AnyObject>()) };
+    let view = webkit(view);
+    let wk = &*view;
     unsafe {
         let window: *mut AnyObject = msg_send![wk, window];
         let window = window
@@ -373,28 +589,8 @@ fn dispatch(view: &wry::WebView, input: WebInput) -> anyhow::Result<()> {
         let timestamp: f64 = msg_send![info, systemUptime];
         match input {
             WebInput::Pointer { x, y, count } => {
-                let bounds: ObjcRect = msg_send![wk, bounds];
-                let flipped: Bool = msg_send![wk, isFlipped];
-                let zoom: f64 = msg_send![wk, pageZoom];
-                let (x, y) = (x * zoom, y * zoom);
-                anyhow::ensure!(
-                    x >= 0.
-                        && y >= 0.
-                        && x < bounds.size.width
-                        && y < bounds.size.height
-                        && count <= 2,
-                    "The pointer is outside the visible Web tab."
-                );
-                let point = ObjcPoint {
-                    x,
-                    y: if flipped.as_bool() {
-                        y
-                    } else {
-                        bounds.size.height - y
-                    },
-                };
-                let location: ObjcPoint =
-                    msg_send![wk, convertPoint: point, toView: ptr::null::<AnyObject>()];
+                anyhow::ensure!(count <= 2, "Unsupported pointer click count.");
+                let location = pointer_location(wk, x, y)?;
                 let types: &[usize] = if count == 0 { &[5] } else { &[1, 2] };
                 for ty in types {
                     let event: *mut AnyObject = msg_send![class!(NSEvent), mouseEventWithType: *ty,
@@ -434,6 +630,42 @@ fn dispatch(view: &wry::WebView, input: WebInput) -> anyhow::Result<()> {
                         }
                     }
                 }
+            }
+            WebInput::Wheel {
+                x,
+                y,
+                delta_x,
+                delta_y,
+            } => {
+                let location = pointer_location(wk, x, y)?;
+                anyhow::ensure!(
+                    (-2000..=2000).contains(&delta_x)
+                        && (-2000..=2000).contains(&delta_y)
+                        && (delta_x != 0 || delta_y != 0),
+                    "Send bounded, nonzero scroll deltas."
+                );
+                let cg =
+                    CGEventCreateScrollWheelEvent2(ptr::null_mut(), 0, 2, -delta_y, -delta_x, 0);
+                anyhow::ensure!(!cg.is_null(), "Cannot create a WebKit wheel event.");
+                // The event is delivered directly. Encode window-local coordinates in
+                // the CoreGraphics point so NSEvent presents the position WebKit expects.
+                let screens: *mut AnyObject = msg_send![class!(NSScreen), screens];
+                let primary: *mut AnyObject = msg_send![screens, firstObject];
+                let screen: ObjcRect = msg_send![primary, frame];
+                CGEventSetLocation(
+                    cg,
+                    ObjcPoint {
+                        x: location.x,
+                        y: screen.size.height - location.y,
+                    },
+                );
+                let event: *mut AnyObject = msg_send![class!(NSEvent), eventWithCGEvent: cg];
+                CFRelease(cg);
+                anyhow::ensure!(
+                    !event.is_null(),
+                    "AppKit could not represent the wheel event."
+                );
+                let _: () = msg_send![wk, scrollWheel: event];
             }
             WebInput::Key { key, modifiers } => {
                 let (code, ch) = match key.as_str() {

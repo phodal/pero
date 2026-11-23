@@ -1,0 +1,238 @@
+// Installs the actual unpacked MV3 build in headed Google Chrome for Testing.
+// Pero Desktop and its Rust Host use the existing deterministic ACP test agent.
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { chromium, expect } from '@playwright/test';
+import { electron } from './electron.mjs';
+import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
+
+const source = resolve(import.meta.dirname, '../..');
+const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
+const chromeBinary = process.env.PERO_RELAY_CHROME || chromium.executablePath();
+const extension = resolve(source, 'target/chrome-extension');
+const portManifest = JSON.parse(await readFile(resolve(extension, 'manifest.json'), 'utf8'));
+assert.equal(portManifest.name, 'Pero Browser Use');
+const temporary = await mkdtemp(resolve(tmpdir(), 'pero-chrome-relay-'));
+const output = resolve(source, 'test-results/chrome-relay');
+await mkdir(output, { recursive: true });
+await rm(resolve(output, 'result.json'), { force: true });
+const agents = resolve(temporary, 'agents.json');
+const settings = resolve(temporary, 'settings.json');
+await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Browser Use Fixture', command: process.execPath,
+  args: [resolve(source, 'tests/fixtures/browser-use-agent.mjs')] }]));
+await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
+const site = createServer((_request, response) => {
+  response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  response.end(`<!doctype html><title>Chrome Relay fixture</title>
+<style>body{margin:24px;font:16px system-ui;min-height:1600px}</style>
+<h1>Chrome Relay fixture</h1><label>Relay message <input id="message"></label>
+<button id="apply">Apply from Chrome</button><p data-testid="result">Waiting for input</p>
+<script>document.querySelector('#apply').onclick = event => {
+  document.querySelector('[data-testid="result"]').textContent =
+    document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
+};</script>`);
+});
+await new Promise((done, fail) => { site.once('error', fail); site.listen(0, '127.0.0.1', done); });
+const siteUrl = `http://127.0.0.1:${site.address().port}/`;
+let app, chrome, panel, page;
+try {
+  app = await electron.launch({
+    args: ['--use-mock-keychain', resolve(root, 'desktop')],
+    cwd: root,
+    env: { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temporary, 'desktop'), PERO_SETTINGS_PATH: settings,
+      PERO_AGENTS_FILE: agents, PERO_HISTORY_PATH: resolve(temporary, 'sessions.jsonl'), PERO_LOCALE: 'en',
+      PERO_APPS_ROOT: resolve(temporary, 'apps') },
+  });
+  page = await app.firstWindow();
+  await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
+  const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
+  const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
+  const menu = id => app.evaluate(({ Menu, BrowserWindow }, key) => {
+    const item = Menu.getApplicationMenu().getMenuItemById(key);
+    if (!item) throw new Error(`Missing Pero menu action ${key}`);
+    item.click(undefined, BrowserWindow.getAllWindows()[0]);
+  }, id);
+  const prompt = async commands => {
+    await expect.poll(async () => (await active())?.state, { timeout: 10000 }).toBe('idle');
+    const previous = (await active()).messages.length;
+    const input = (await state()).composerBounds.input;
+    assert(input?.width > 0, 'The actual Pero composer is not visible.');
+    await page.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
+    await expect.poll(async () => (await state()).composerFocused).toBe(true);
+    const text = JSON.stringify(commands);
+    await page.keyboard.insertText(text);
+    await expect.poll(async () => (await state()).composer).toContain(text);
+    await page.keyboard.press('Enter');
+    let response;
+    await expect.poll(async () => {
+      const chat = await active();
+      response = chat?.messages.slice(previous).find(item => item.role === 'assistant')?.text;
+      return response?.startsWith('BROWSER_RESULT:') && chat.state === 'idle';
+    }, { timeout: 15000 }).toBe(true);
+    return JSON.parse(response.slice('BROWSER_RESULT:'.length));
+  };
+  await app.evaluate(({ dialog, clipboard }) => {
+    // Keep the actual menu/IPC/Host path and isolate its two presentation
+    // effects so the test can run without touching the user’s clipboard.
+    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+    clipboard.writeText = value => { globalThis.relayFixtureClipboard = value; };
+    clipboard.readText = () => globalThis.relayFixtureClipboard ?? '';
+    clipboard.clear = () => { globalThis.relayFixtureClipboard = ''; };
+  });
+  await clickNewChat(page);
+  await expect.poll(async () => (await active())?.state, { timeout: 10000 }).toBe('idle');
+  const original = (await active()).id;
+
+  chrome = await chromium.launchPersistentContext(resolve(temporary, 'chrome'), {
+    executablePath: chromeBinary, headless: false,
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+  });
+  let worker = chrome.serviceWorkers().find(candidate => candidate.url().startsWith('chrome-extension://'));
+  worker ??= await chrome.waitForEvent('serviceworker', { predicate: candidate => candidate.url().startsWith('chrome-extension://') });
+  const extensionOrigin = new URL(worker.url()).origin === 'null' ? worker.url().split('/service-worker.js')[0] : new URL(worker.url()).origin;
+  const target = chrome.pages()[0] ?? await chrome.newPage();
+  await target.goto(siteUrl);
+  await target.getByRole('heading', { name: 'Chrome Relay fixture' }).waitFor();
+  // Display the extension's toolbar panel as its own Chrome window so it has
+  // a regular WebContents and the authorized page stays active in its window.
+  const panelReady = chrome.waitForEvent('page');
+  await worker.evaluate(url => chrome.windows.create({ url, type: 'popup', width: 480, height: 460 }), extensionOrigin + '/relay.html');
+  panel = await panelReady;
+  await expect(panel.getByRole('heading', { name: 'Pero Browser Use' })).toBeVisible();
+  const status = panel.locator('#status');
+  const extensionAttached = () => worker.evaluate(async url => {
+    const [tab] = await chrome.tabs.query({ url });
+    if (!tab?.id) return false;
+    // Playwright also attaches a debugger. Ask Chrome whether this extension's
+    // own session can send a read-only command on the known fixture tab.
+    try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Page.getFrameTree'); return true; }
+    catch { return false; }
+  }, siteUrl);
+  const requestPair = async () => {
+    await app.evaluate(({ clipboard }) => clipboard.clear());
+    await menu('browser-use-pair-chrome');
+    let code;
+    await expect.poll(async () => {
+      code = await app.evaluate(({ clipboard }) => clipboard.readText());
+      try { return JSON.parse(code).protocol; } catch { return null; }
+    }).toBe('pero-browser-connector/1');
+    await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(code);
+    await panel.getByRole('button', { name: 'Pair with Pero' }).click();
+    await expect(status).toContainText('Paired · awaiting tab approval');
+    return code;
+  };
+  const authorize = async () => {
+    await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Chrome Relay fixture · ' + new URL(siteUrl).origin });
+    await panel.getByRole('button', { name: 'Review tab' }).click();
+    await expect(panel.locator('#url')).toHaveText(siteUrl);
+    await panel.getByRole('button', { name: 'Allow this tab' }).click();
+    await expect(status).toContainText('Browser Use allowed');
+  };
+  try {
+    const oneTimeCode = await requestPair();
+    const paired = await prompt([{ action: 'tabs' }, { action: 'status' }, { action: 'observe' }]);
+    assert.deepEqual(paired[0].tabs, []);
+    assert.equal(paired[1].authorized, false);
+    assert.equal(paired[2].isError, true);
+    assert.equal(await extensionAttached(), false);
+    await panel.screenshot({ path: resolve(output, 'paired.png') });
+    await authorize();
+    assert.equal(await extensionAttached(), true);
+    await panel.screenshot({ path: resolve(output, 'authorized.png') });
+    const [available] = await prompt([{ action: 'tabs' }]);
+    assert.equal(available.tabs.length, 1);
+    const tabId = available.tabs[0].tabId;
+    assert.match(tabId, /^chrome:/);
+    assert.equal(available.tabs[0].url, siteUrl);
+    const operations = await prompt([
+      { action: 'observe', tabId },
+      { action: 'locate', tabId, locator: { by: 'label', value: 'Relay message' } },
+      { action: 'fill', tabId, name: 'Relay message', text: 'Verified through Pero' },
+      { action: 'locate', tabId, locator: { by: 'role', role: 'button', name: 'Apply from Chrome' } },
+      { action: 'click', tabId, name: 'Apply from Chrome' },
+      { action: 'wait', tabId, locator: { by: 'testId', value: 'result' },
+        condition: { kind: 'text', value: 'Verified through Pero · trusted true' }, timeoutMs: 3000 },
+    ]);
+    assert.equal(operations[2]?.outcome, 'dispatched', JSON.stringify(operations));
+    assert.equal(operations[4].outcome, 'dispatched');
+    assert.equal(operations[5].matched, true);
+    await expect(target.getByTestId('result')).toHaveText('Verified through Pero · trusted true');
+    await target.screenshot({ path: resolve(output, 'operation.png') });
+    const evidence = resolve(temporary, 'desktop/browser-use-evidence', createHash('sha256').update(original).digest('hex'));
+    const clickReceipt = operations[4].receiptId;
+    assert.deepEqual(
+      JSON.parse(await readFile(resolve(evidence, clickReceipt + '.result.json'), 'utf8')),
+      { id: clickReceipt, outcome: 'dispatched' },
+    );
+
+    const nextTab = chrome.waitForEvent('page');
+    await worker.evaluate(async url => {
+      const [current] = await chrome.tabs.query({ url });
+      await chrome.tabs.create({ windowId: current.windowId, url: url + '?unapproved', active: true });
+    }, siteUrl);
+    const unapproved = await nextTab;
+    await expect(unapproved.getByTestId('result')).toHaveText('Waiting for input');
+    const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
+    assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible]), [[tabId, false]]);
+    assert.equal(switched[1].isError, true);
+    await unapproved.close();
+
+    await clickNewChat(page);
+    await expect.poll(async () => (await active())?.id).not.toBe(original);
+    const other = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
+    assert.deepEqual(other[0].tabs, []);
+    assert.equal(other[1].isError, true);
+    await clickSessionRow(page, original);
+    await expect.poll(async () => (await active())?.id).toBe(original);
+
+    await panel.getByRole('button', { name: 'Stop and take over' }).click();
+    await expect(status).toHaveText('Disconnected');
+    const afterStop = await prompt([{ action: 'status', tabId }, { action: 'observe', tabId }]);
+    assert.equal(afterStop[0].authorized, false);
+    assert.equal(afterStop[1].isError, true);
+    await expect.poll(extensionAttached).toBe(false);
+    assert.equal(target.isClosed(), false);
+    await expect(target.getByTestId('result')).toHaveText('Verified through Pero · trusted true');
+    await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(oneTimeCode);
+    await panel.getByRole('button', { name: 'Pair with Pero' }).click();
+    await expect(panel.locator('#error')).toContainText('pairing code');
+    await expect(status).toHaveText('Disconnected');
+
+    await requestPair();
+    await authorize();
+    await menu('browser-use-stop-chrome');
+    await expect(status).toHaveText('Disconnected');
+    await expect.poll(extensionAttached).toBe(false);
+    assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
+    await panel.screenshot({ path: resolve(output, 'revoked.png') });
+    await writeFile(resolve(output, 'result.json'), JSON.stringify({
+      passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
+      paired: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
+      clickReceiptVerified: true,
+      pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
+      operation: operations[5].nodes[0].text,
+    }, null, 2));
+    console.log('Pero Chrome Relay passed in Google Chrome for Testing and actual Electron/ACP.');
+  } finally {
+    // The test-owned pairing code should not survive the run.
+    await app.evaluate(({ clipboard }) => {
+      try { if (JSON.parse(clipboard.readText()).protocol === 'pero-browser-connector/1') clipboard.clear(); } catch {}
+    });
+  }
+} catch (error) {
+  if (panel && !panel.isClosed()) {
+    await panel.locator('#code').evaluate(field => { field.value = ''; }).catch(() => {});
+    await panel.screenshot({ path: resolve(output, 'failed-panel.png') }).catch(() => {});
+  }
+  if (page && !page.isClosed()) await page.screenshot({ path: resolve(output, 'failed-workbench.png') }).catch(() => {});
+  throw error;
+} finally {
+  await chrome?.close();
+  await app?.close();
+  await new Promise(done => site.close(done));
+  await rm(temporary, { recursive: true, force: true });
+}

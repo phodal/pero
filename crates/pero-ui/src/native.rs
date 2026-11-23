@@ -101,6 +101,11 @@ pub(super) fn computer_control(control: pero_contracts::computer_runtime::Comput
             .computer(control).map_err(|error| error.to_string())
     })
 }
+#[cfg(target_os = "macos")]
+pub(crate) fn chrome_relay_owner() -> Option<std::sync::Arc<crate::native_connectors::NativeConnectors>> {
+    CONNECTORS.with(|slot| slot.borrow().as_ref().and_then(std::sync::Weak::upgrade))
+}
+
 pub(crate) fn apps() -> crate::native_apps::NativeApps {
     APPS.with(|apps| {
         apps.borrow()
