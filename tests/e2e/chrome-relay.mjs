@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
+import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -32,7 +33,16 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
   args: [resolve(source, 'tests/fixtures/browser-use-agent.mjs')] }]));
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
-const otherOrigin = createServer((_request, response) => { foreignHits++; response.end('Outside the grant'); });
+const otherOrigin = createServer((request, response) => {
+  if (request.url === '/inventory-window') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end('<title>Another Chrome window</title><h1>Second origin</h1>');
+    return;
+  }
+  if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
+  foreignHits++;
+  response.end('Outside the current origin');
+});
 await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const site = createServer((request, response) => {
@@ -155,47 +165,37 @@ try {
     await expect.poll(async () => {
       code = await app.evaluate(({ clipboard }) => clipboard.readText());
       try { return JSON.parse(code).protocol; } catch { return null; }
-    }).toBe('pero-browser-connector/2');
+    }).toBe(RELAY_PROTOCOL);
     // Exercise the Native deep link with a real one-time ticket from the Host.
     await panel.goto('about:blank');
     await panel.goto(extensionOrigin + '/relay.html#' + new URLSearchParams({ pair: code }));
-    await expect(status).toContainText('Paired · awaiting tab approval');
+    await expect(status).toContainText('Connected');
     return code;
-  };
-  const authorize = async (url = siteUrl, count = 1) => {
-    await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Chrome Relay fixture · ' + new URL(siteUrl).origin });
-    await panel.getByRole('button', { name: 'Review tab' }).click();
-    await expect(panel.locator('#url')).toHaveText(url);
-    await panel.getByRole('button', { name: 'Allow this tab' }).click();
-    await expect(status).toContainText(`${count} approved ${count === 1 ? 'tab' : 'tabs'}`);
   };
   try {
     assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
-    const inventoryUrl = siteUrl + '?inventory-window';
+    const inventoryUrl = new URL('/inventory-window', foreignUrl).href;
     const inventoryReady = chrome.waitForEvent('page');
     await worker.evaluate(url => chrome.windows.create({ url, type: 'normal' }), inventoryUrl);
     const inventoryPage = await inventoryReady;
-    await expect(inventoryPage.getByRole('heading', { name: 'Chrome Relay fixture' })).toBeVisible();
+    await expect(inventoryPage.getByRole('heading', { name: 'Second origin' })).toBeVisible();
     const oneTimeCode = await requestPair();
-    const paired = await prompt([{ action: 'tabs' }, { action: 'status' }, { action: 'observe' }]);
+    const paired = await prompt([{ action: 'tabs' }, { action: 'status' }]);
     const discovered = paired[0].tabs.find(tab => tab.url === siteUrl);
     assert.deepEqual(paired[0].tabs.map(tab => [tab.url, tab.title, tab.authorized]).sort(), [
-      [siteUrl, 'Chrome Relay fixture', false], [inventoryUrl, 'Chrome Relay fixture', false],
-    ]);
+      [siteUrl, 'Chrome Relay fixture', true], [inventoryUrl, 'Another Chrome window', true],
+    ].sort());
     assert.match(discovered.tabId, /^chrome:/);
-    const [unapprovedStatus, unapprovedObservation] = await prompt([
-      { action: 'status', tabId: discovered.tabId }, { action: 'observe', tabId: discovered.tabId },
-    ]);
-    assert.equal(unapprovedStatus.authorized, false);
-    assert.equal(unapprovedObservation.isError, true);
-    assert.equal(paired[1].authorized, false);
-    assert.equal(paired[2].isError, true);
+    assert.equal(paired[1].authorized, true);
     assert.equal(await extensionAttached(), false);
+    const observed = await prompt(paired[0].tabs.map(tab => ({ action: 'observe', tabId: tab.tabId })));
+    assert.deepEqual(observed.map(result => [result.kind, result.url, result.isError]).sort(), [
+      ['observation', siteUrl, false], ['observation', inventoryUrl, false],
+    ].sort());
+    assert(observed.find(result => result.url === inventoryUrl)?.nodes.some(node => node.name === 'Second origin' || node.text === 'Second origin'));
+    assert.equal(await extensionAttached(), true);
     await inventoryPage.close();
     await panel.screenshot({ path: resolve(output, 'paired.png') });
-    await authorize();
-    assert.equal(await extensionAttached(), true);
-    await panel.screenshot({ path: resolve(output, 'authorized.png') });
     const [available] = await prompt([{ action: 'tabs' }]);
     assert.equal(available.tabs.length, 1);
     const tabId = available.tabs[0].tabId;
@@ -306,17 +306,18 @@ try {
     await target.locator('iframe').evaluate(frame => frame.remove());
 
     const nextTab = chrome.waitForEvent('page');
-    const newUrl = siteUrl + '?unapproved';
+    const newUrl = siteUrl + '?new-tab';
     const [opened] = await prompt([{ action: 'open', tabId, url: newUrl }]);
     assert.equal(opened.kind, 'tabOpened', JSON.stringify(opened));
-    assert.equal(opened.authorized, false);
-    const unapproved = await nextTab;
-    await expect(unapproved.getByTestId('result')).toHaveText('Waiting for input');
-    const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
+    assert.equal(opened.authorized, true);
+    const newTab = await nextTab;
+    await expect(newTab.getByTestId('result')).toHaveText('Waiting for input');
+    const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }, { action: 'observe', tabId: opened.tabId }]);
     assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible, tab.authorized]),
-      [[tabId, false, true], [opened.tabId, true, false]]);
+      [[tabId, false, true], [opened.tabId, true, true]]);
     assert.equal(switched[1].isError, true);
-    await authorize(newUrl, 2);
+    assert.equal(switched[2].url, newUrl);
+    assert.equal(switched[2].isError, false);
     const switchedBack = await prompt([
       { action: 'tabs' }, { action: 'activate', tabId }, { action: 'closeTab', tabId: opened.tabId },
       { action: 'tabs' },
@@ -325,7 +326,7 @@ try {
     assert.equal(switchedBack[1].kind, 'tabActivated', JSON.stringify(switchedBack));
     assert.equal(switchedBack[2].kind, 'tabClosed');
     assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
-    await expect.poll(() => unapproved.isClosed()).toBe(true);
+    await expect.poll(() => newTab.isClosed()).toBe(true);
 
     await clickNewChat(page);
     await expect.poll(async () => (await active())?.id).not.toBe(original);
@@ -350,7 +351,9 @@ try {
     await expect(status).toHaveText('Disconnected');
 
     await requestPair();
-    await authorize();
+    const [reconnected] = await prompt([{ action: 'observe' }]);
+    assert.equal(reconnected.isError, false);
+    assert.equal(await extensionAttached(), true);
     await menu('browser-use-stop-chrome');
     await expect(status).toHaveText('Disconnected');
     await expect.poll(extensionAttached).toBe(false);
@@ -358,10 +361,10 @@ try {
     await panel.screenshot({ path: resolve(output, 'revoked.png') });
     await writeFile(resolve(output, 'result.json'), JSON.stringify({
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
-      paired: true, tabInventoryBeforeApproval: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
+      paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
-      historyVerified: true, openedTabRequiresIndependentApproval: true, tabSwitchAndCloseVerified: true,
+      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true,
       foreignRedirectRefused: true, foreignFrameScreenshotRefused: true, foreignDownloadRefused: true,
       pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
       operation: operations[5].nodes[0].text,
@@ -369,9 +372,9 @@ try {
     console.log('Pero Chrome Relay passed in Google Chrome for Testing and actual Electron/ACP.');
   } finally {
     // The test-owned pairing code should not survive the run.
-    await app.evaluate(({ clipboard }) => {
-      try { if (JSON.parse(clipboard.readText()).protocol === 'pero-browser-connector/2') clipboard.clear(); } catch {}
-    });
+    await app.evaluate(({ clipboard }, protocol) => {
+      try { if (JSON.parse(clipboard.readText()).protocol === protocol) clipboard.clear(); } catch {}
+    }, RELAY_PROTOCOL);
   }
 } catch (error) {
   if (panel && !panel.isClosed()) {

@@ -58,7 +58,7 @@ try {
   const review = await chrome.newPage();
   const pairing = await owner.relay.pairing('Browser acceptance');
   await review.goto(origin + '/relay.html#' + new URLSearchParams({ pair: pairing }));
-  await expect(review.locator('#status')).toContainText('awaiting tab approval');
+  await expect(review.locator('#status')).toContainText('Connected');
   await expect(panel.getByRole('textbox', { name: 'Message Pero' })).toHaveValue('Chrome sidebar message');
   await panel.getByLabel('Model', {exact:true}).selectOption('two');
   await expect.poll(() => composer.model).toBe('two');
@@ -70,12 +70,6 @@ try {
   await panel.getByRole('menuitem', { name: 'Collector' }).click();
   await target.bringToFront();
   await panel.locator('#collector-capture').evaluate(button => button.click());
-  await expect(panel.locator('#collector-error')).toContainText('allow this tab');
-  await expect(review.locator('#tab')).toContainText('Collector fixture');
-  await review.locator('#review').evaluate(button => button.click());
-  await review.locator('#allow').evaluate(button => button.click());
-  await expect(review.locator('#status')).toContainText('1 approved tab');
-  await panel.locator('#collector-capture').evaluate(button => button.click());
   await expect(panel.locator('#collector-content')).toHaveValue('Amber observatory');
   await panel.locator('#collector-reason').fill('Review destination');
   await panel.locator('#collector-save').click();
@@ -84,7 +78,7 @@ try {
   assert.equal(saved.url, url);
   assert.equal(saved.reason, 'Review destination');
   assert.equal(saved.content, 'Amber observatory');
-  console.log('Verified sidebar message, tab denial, approved capture and reviewed receipt.');
+  console.log('Verified sidebar message, capture from paired Chrome and reviewed receipt.');
 } finally {
   owner.relay.close();
   await chrome?.close();

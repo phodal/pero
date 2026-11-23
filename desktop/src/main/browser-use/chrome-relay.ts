@@ -1,5 +1,5 @@
 // Local transport for Point's staged Chrome Relay flow, owned by Pero App Use.
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Server } from 'node:http';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { z } from 'zod';
@@ -15,16 +15,14 @@ import { sidebarRequest, type SidebarPort } from './chrome-sidebar.ts';
 const pair = z.strictObject({
   type: z.literal('pair'), protocol: z.literal(RELAY_PROTOCOL), ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
-const grantId = z.uuid();
+const tabIdentity = z.uuid();
 const snapshot = z.strictObject({
-  id: grantId,
+  id: tabIdentity,
   url: z.string().min(1).max(4096), title: z.string().max(160),
   active: z.boolean(), ready: z.boolean(), revision: z.number().int().min(0).safe(),
 });
 const incoming = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('approve'), tab: snapshot }),
   z.strictObject({ type: z.literal('response'), id: z.number().int().positive().safe(), value: z.unknown().optional(), error: z.string().max(500).optional() }),
-  z.strictObject({ type: z.literal('tabRevoked'), grant: grantId }),
   z.strictObject({ type: z.literal('sidebar'), id: z.uuid(), sessionId: z.string().optional(), request: sidebarRequest }),
   z.strictObject({ type: z.literal('ping') }),
   z.strictObject({ type: z.literal('revoke') }),
@@ -32,8 +30,7 @@ const incoming = z.discriminatedUnion('type', [
 type Ticket = Pairing & { thread: string };
 type Pending = { settle(error?: Error, value?: unknown): void };
 type Connection = {
-  socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number; pending?: Pending;
-  grants: Map<string, string>;
+  id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number; pending?: Pending;
 };
 
 class ChromeRelay {
@@ -77,24 +74,8 @@ class ChromeRelay {
     return JSON.stringify(pairing);
   }
 
-  approved(thread: string) {
-    return this.connection?.thread === thread && this.connection.grants.size > 0;
-  }
-
-  async inventory(thread: string, signal: AbortSignal) {
-    const connection = this.connection;
-    if (!connection || connection.thread !== thread) return [];
-    if (await this.selected() !== thread || connection !== this.connection) return [];
-    signal.throwIfAborted();
-    const tabs = z.array(snapshot).parse(await this.call(connection, { kind: 'inspect', inventory: true }));
-    if (await this.selected() !== thread || connection !== this.connection) return [];
-    signal.throwIfAborted();
-    return tabs.flatMap(({ id, url, title, active }) => {
-      const origin = webOrigin(url);
-      if (!origin) return [];
-      return [{ tabId: 'chrome:' + id, origin, url, title, active, visible: active,
-        authorized: connection.grants.get(id) === origin }];
-    });
+  paired(thread: string) {
+    return this.connection?.thread === thread;
   }
 
   revoke(thread?: string) {
@@ -150,10 +131,10 @@ class ChromeRelay {
           const pairedAt = Date.now();
           const timer = setInterval(() => {
             if (connection && (Date.now() - connection.lastSeen > 35000 ||
-                Date.now() - pairedAt > (this.sidebar || connection.grants.size ? 30 * 60_000 : PAIR_LIFETIME_MS)))
+                Date.now() - pairedAt > 30 * 60_000))
               this.disconnect(connection, 'Chrome Relay expired.');
           }, 5000);
-          connection = this.connection = { socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0, grants: new Map() };
+          connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0 };
           clearTimeout(deadline);
           this.send(socket, { type: 'paired', label: ticket.label });
           return;
@@ -169,8 +150,8 @@ class ChromeRelay {
         } else if (message.type === 'sidebar') {
           const request = message.request;
           const check = () => {
-            if (current !== this.connection || (request.kind === 'collect' && (!current.grants.has(request.grant) || current.grants.get(request.grant) !== webOrigin(request.url))))
-              throw new Error('Chrome authorization changed.');
+            if (current !== this.connection) throw new Error('Chrome disconnected.');
+            if (request.kind === 'collect' && !webOrigin(request.url)) throw new Error('Choose a regular Chrome web page.');
           };
           let result;
           try {
@@ -183,15 +164,6 @@ class ChromeRelay {
             result = { error: error instanceof Error ? error.message : String(error) };
           }
           if (this.connection === current) this.send(current.socket, { type: 'sidebarReply', id: message.id, ...result });
-        } else if (message.type === 'approve') {
-          const origin = webOrigin(message.tab.url);
-          if (!origin || !message.tab.active || !message.tab.ready ||
-              await this.selected() !== current.thread || this.connection !== current || current.grants.has(message.tab.id))
-            throw new Error('The reviewed Chrome tab or Pero conversation changed.');
-          current.grants.set(message.tab.id, origin);
-          this.send(socket, { type: 'approved', grant: message.tab.id });
-        } else if (message.type === 'tabRevoked') {
-          current.grants.delete(message.grant);
         } else {
           if (!current.pending || message.id !== current.next)
             return; // A timed out reply can arrive after its action was invalidated.
@@ -205,9 +177,9 @@ class ChromeRelay {
     });
   }
 
-  private call(connection: Connection, command: { kind: 'inspect'; inventory?: true } |
-    { kind: 'run'; grant: string; stamp: string; operation: DriverOperation } |
-    { kind: 'manage'; grant: string; action: TabAction }) {
+  private call(connection: Connection, command: { kind: 'inspect' } |
+    { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
+    { kind: 'manage'; tab: string; action: TabAction }) {
     if (connection.pending) throw new Error('A Chrome Browser Use operation is already in progress.');
     return new Promise<unknown>((resolve, reject) => {
       const settle = (error?: Error, value?: unknown) => {
@@ -230,9 +202,9 @@ class ChromeRelay {
         return { ok: true, value: null };
       }
       const connection = this.connection;
-      if (!connection || !connection.grants.size || connection.thread !== request.thread) {
+      if (!connection || connection.thread !== request.thread) {
         if (request.op === 'tabs') return { ok: true, value: [] };
-        throw new Error('Pair the Pero Chrome extension and allow this tab.');
+        throw new Error('Pair the Pero Chrome extension with this conversation.');
       }
       if (await this.selected() !== request.thread || connection !== this.connection)
         throw new Error('The selected Pero conversation changed.');
@@ -241,23 +213,21 @@ class ChromeRelay {
         if (await this.selected() !== request.thread || connection !== this.connection)
           return { ok: true, value: [] };
         const value: DriverTab[] = tabs.flatMap(tab => {
-          const origin = connection.grants.get(tab.id);
-          if (!origin || webOrigin(tab.url) !== origin) return [];
-          return [{ origin, tabId: 'chrome:' + tab.id, grantId: tab.id, url: tab.url, title: tab.title,
+          const origin = webOrigin(tab.url);
+          if (!origin) return [];
+          return [{ origin, tabId: 'chrome:' + tab.id, grantId: connection.id, url: tab.url, title: tab.title,
             visible: tab.active, active: tab.active, stamp: tab.ready && tab.active ? tab.revision + ':' + tab.url : null, loadError: null }];
         });
         return { ok: true, value };
       }
-      const grant = request.tab.slice('chrome:'.length);
-      if (request.tab !== 'chrome:' + grant || !connection.grants.has(grant) ||
-          (request.op === 'manage' && request.grant !== grant))
-        throw new Error('Allow this Chrome tab before using it.');
+      const tab = request.tab.startsWith('chrome:') ? tabIdentity.safeParse(request.tab.slice('chrome:'.length)) : undefined;
+      if (!tab?.success || (request.op === 'manage' && request.grant !== connection.id))
+        throw new Error('The selected Chrome tab is unavailable. List tabs again.');
       const value = await this.call(connection, request.op === 'run'
-        ? { kind: 'run', grant, stamp: request.stamp, operation: request.operation }
-        : { kind: 'manage', grant, action: request.command });
-      if (await this.selected() !== request.thread || connection !== this.connection ||
-          (request.op === 'run' && !connection.grants.has(grant)))
-        throw new Error('Chrome authorization changed.');
+        ? { kind: 'run', tab: tab.data, stamp: request.stamp, operation: request.operation }
+        : { kind: 'manage', tab: tab.data, action: request.command });
+      if (await this.selected() !== request.thread || connection !== this.connection)
+        throw new Error('The paired Chrome conversation changed.');
       return { ok: true, value };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -275,8 +245,8 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
     const inputSchema = embedded instanceof NativeBrowserUse ? this.relay.browser.tool.inputSchema : tool.inputSchema;
-    this.tool = { ...tool, inputSchema, description: tool.description + ' For paired Chrome, tabs lists regular web tabs without page access. Entries use a chrome: tabId and include authorized. Approve the specific tab in the extension before reading page contents or acting. Chrome supports ' +
-      chromeActions.join(', ') + '. Opened Chrome tabs need independent extension approval. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
+    this.tool = { ...tool, inputSchema, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
+      chromeActions.join(', ') + '. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
   }
   revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }
   async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }
@@ -285,10 +255,10 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     const { browser } = this.relay;
     if (request.action === 'tabs') {
       const local = await this.embedded.call(thread, input, signal, files, workspace, deliver);
-      const chrome = await this.relay.inventory(thread, signal);
-      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome] };
+      const chrome = await browser.call(thread, input, signal, files);
+      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome.tabs as unknown[]] };
     }
-    const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.approved(thread)) ? browser : this.embedded;
+    const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.paired(thread)) ? browser : this.embedded;
     return target.call(thread, input, signal, files, workspace, deliver);
   }
 }

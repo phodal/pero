@@ -1,6 +1,6 @@
 // Pairing validation adapted from Point browser/chrome-extension/relay.mjs at 2449d4b98.
 export const EXTENSION_ID = 'aoodadgiknjemednghffapmffnljmioc';
-export const RELAY_PROTOCOL = 'pero-browser-connector/2';
+export const RELAY_PROTOCOL = 'pero-browser-connector/3';
 export const RELAY_PATH = '/v1/browser-connector/connect';
 export const MAX_TRANSFER_BYTES = 10 * 1024 * 1024;
 // A bounded file or image plus its Base64 and JSON envelope.

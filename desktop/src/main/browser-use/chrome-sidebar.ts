@@ -16,7 +16,7 @@ export const sidebarRequest = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('dismiss') }),
   z.strictObject({ kind: z.literal('model'), id: z.string().min(1) }),
   z.strictObject({ kind: z.literal('submit'), text: z.string().max(64000), contexts: z.array(image).max(4) }),
-  z.strictObject({ kind: z.literal('collect'), grant: z.uuid(), url: z.string().max(4096), title: z.string().trim().min(1).max(512),
+  z.strictObject({ kind: z.literal('collect'), url: z.string().max(4096), title: z.string().trim().min(1).max(512),
     content: z.string().trim().min(1).max(200000), reason: z.string().max(2048), question: z.string().max(2048) }),
 ]);
 export type SidebarPort = (thread: string, request: z.infer<typeof sidebarRequest>, check: () => void) => Promise<unknown>;

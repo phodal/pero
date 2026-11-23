@@ -14,7 +14,7 @@
     </header>
     <section id="pair">
       <p>Open Settings → Browser Use in Pero and select Pair in Chrome.</p>
-      <p>The paired conversation can list web tab titles and URLs. Review a tab to give it access to the page.</p>
+      <p>Pairing lets the selected conversation read and operate regular web tabs in this Chrome profile.</p>
       <details>
         <summary>Enter a pairing code manually</summary>
         <label for="code">Pairing code from Pero</label>
@@ -22,16 +22,7 @@
         <button id="connect">Pair with Pero</button>
       </details>
     </section>
-    <section id="choose" hidden>
-      <label for="tab">Chrome tab</label>
-      <select id="tab"></select>
-      <button id="review">Review tab</button>
-      <div id="preview" hidden>
-        <strong id="title"></strong>
-        <p id="url"></p>
-        <button id="allow">Allow this tab</button>
-      </div>
-    </section>
+    <p id="access" hidden>This conversation can use web tabs in this Chrome profile.</p>
     <p id="error" role="alert" hidden></p>
     <button id="stop" hidden>Stop and take over</button>
   </main>
