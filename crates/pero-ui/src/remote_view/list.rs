@@ -1,4 +1,5 @@
 use super::*;
+use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
 
 impl Workbench {
     pub(crate) fn remote_list(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -26,24 +27,35 @@ impl Workbench {
                     && (query.is_empty() || string(task, "title").to_lowercase().contains(&query))
             })
             .collect::<Vec<_>>();
+        let inspector = self.project_agent_active();
+        let inset = if inspector {
+            12.
+        } else {
+            pero_theme::WorkbenchStyle::PAGE
+        };
         let toolbar = div()
-            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .px(px(inset))
             .py(px(6.))
             .flex()
             .items_center()
             .gap(px(8.))
             .child(
                 div().flex_1().min_w_0().child(
-                    pero_theme::WorkbenchStyle::input(Input::new(&self.remote.search), cx)
-                        .prefix(self.icon("search"))
-                        .w_full(),
+                    pero_theme::search_field(
+                        Input::new(&self.remote.search),
+                        pero_theme::Chrome::from_app(cx),
+                    )
+                    .prefix(self.icon("search"))
+                    .w_full(),
                 ),
             )
             .child(
                 Button::new("remote-refresh")
                     .ghost()
                     .small()
-                    .label(self.t(if loading {
+                    .icon(Icon::default().path("icons/refresh.svg"))
+                    .accessibility_label(self.t("remote.refresh"))
+                    .tooltip(self.t(if loading {
                         "remote.refreshing"
                     } else {
                         "remote.refresh"
@@ -73,30 +85,62 @@ impl Workbench {
                     )
                 },
             );
-        let filters = div()
-            .px(px(pero_theme::WorkbenchStyle::PAGE))
-            .pb(px(12.))
-            .flex()
-            .flex_wrap()
-            .gap(px(6.))
-            .children(
-                TaskStatusFilter::ALL
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, status)| {
-                        Button::new(("task-status", i))
-                            .ghost()
-                            .small()
-                            .label(self.t(status.label_key()))
-                            .toggled(self.task_status == status)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.task_status = status;
-                                cx.notify();
-                            }))
+        let filters = if inspector {
+            let selected = self.task_status;
+            let statuses = TaskStatusFilter::ALL.map(|status| (status, self.t(status.label_key())));
+            let workbench = cx.weak_entity();
+            div().px(px(inset)).pb(px(6.)).child(
+                Button::new("task-status-menu")
+                    .ghost()
+                    .small()
+                    .label(format!(
+                        "{} · {}",
+                        self.t("cloud.col.status"),
+                        self.t(selected.label_key())
+                    ))
+                    .dropdown_caret(true)
+                    .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
+                        statuses.into_iter().fold(menu, |menu, (status, label)| {
+                            let workbench = workbench.clone();
+                            menu.item(
+                                PopupMenuItem::new(label)
+                                    .checked(status == selected)
+                                    .on_click(move |_, _, cx| {
+                                        let _ = workbench.update(cx, |this, cx| {
+                                            this.task_status = status;
+                                            cx.notify();
+                                        });
+                                    }),
+                            )
+                        })
                     }),
-            );
+            )
+        } else {
+            div()
+                .px(px(inset))
+                .pb(px(12.))
+                .flex()
+                .flex_wrap()
+                .gap(px(6.))
+                .children(
+                    TaskStatusFilter::ALL
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, status)| {
+                            Button::new(("task-status", i))
+                                .ghost()
+                                .small()
+                                .label(self.t(status.label_key()))
+                                .toggled(self.task_status == status)
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.task_status = status;
+                                    cx.notify();
+                                }))
+                        }),
+                )
+        };
         let sources = div()
-            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .px(px(inset))
             .pb(px(10.))
             .flex()
             .flex_wrap()
@@ -166,9 +210,9 @@ impl Workbench {
             .overflow_y_scroll()
             .track_scroll(&self.task_scroll)
             .on_scroll(cx.listener(|this, _, _, cx| this.request_more_tasks(cx)))
-            .px(px(pero_theme::WorkbenchStyle::PAGE))
+            .px(px(inset))
             .pb(px(16.))
-            .child(header)
+            .when(!inspector, |el| el.child(header))
             .when(visible.is_empty(), |el| {
                 el.child(
                     div()
@@ -191,7 +235,10 @@ impl Workbench {
                                         .small()
                                         .label(self.t("project.binding"))
                                         .on_click(cx.listener(|this, _, _, cx| {
-                                            this.select_project_view(crate::projects::ProjectTab::Settings, cx);
+                                            this.select_project_view(
+                                                crate::projects::ProjectTab::Settings,
+                                                cx,
+                                            );
                                         })),
                                 ),
                             )
@@ -243,23 +290,20 @@ impl Workbench {
             )
             .when(!string(&self.remote.data, "tag").is_empty(), |el| {
                 el.child(
-                    div()
-                        .px(px(pero_theme::WorkbenchStyle::PAGE))
-                        .pb(px(8.))
-                        .child(
-                            Button::new("remote-clear-tag")
-                                .outline()
-                                .xsmall()
-                                .label(format!("#{} ×", string(&self.remote.data, "tag")))
-                                .accessibility_label(self.t("remote.clear_tag"))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    let kind = string(&this.remote.data, "source_kind").to_string();
-                                    this.command(
+                    div().px(px(inset)).pb(px(8.)).child(
+                        Button::new("remote-clear-tag")
+                            .outline()
+                            .xsmall()
+                            .label(format!("#{} ×", string(&self.remote.data, "tag")))
+                            .accessibility_label(self.t("remote.clear_tag"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let kind = string(&this.remote.data, "source_kind").to_string();
+                                this.command(
                                     json!({"action":"remote_filter","source_kind":kind,"tag":""}),
                                     cx,
                                 );
-                                })),
-                        ),
+                            })),
+                    ),
                 )
             })
             .child(scroll)
@@ -289,10 +333,10 @@ impl Workbench {
             .ghost()
             .w_full()
             .h(px(56.))
-            .rounded_none()
-            .px(px(12.))
-            .border_b_1()
-            .border_color(p.border)
+            .when(!self.project_agent_active(), |el| {
+                el.rounded_none().border_b_1().border_color(p.border)
+            })
+            .px(px(8.))
             .accessibility_label(label)
             .child(
                 div()
@@ -326,7 +370,7 @@ impl Workbench {
                     )
                     .child(
                         div()
-                            .w(px(105.))
+                            .when(!self.project_agent_active(), |el| el.w(px(105.)))
                             .text_size(
                                 pero_theme::UiAppearance::global(cx)
                                     .text(pero_theme::TextRole::Caption),

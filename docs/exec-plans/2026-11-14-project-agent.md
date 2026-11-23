@@ -335,3 +335,12 @@ follow-up composer, and showed Change directory for the missing pero-ws-b
 directory. Returning to Pero removed that directory alert. The Electron Project
 Agent suite exercised delegation, switching back to the primary, original-session
 follow-up, independent inspector visibility and restart with a fixture provider.
+
+### Project task inspector
+
+The Local ROADMAP and Cloud Tasks segmented control becomes a single source
+menu beneath the project tabs. Search and completion filtering stay visible in
+the local list. Section captions group the tasks. Opening a row reveals its
+source path and line together with the existing execution actions. The Cloud
+inspector uses a status menu and inline status labels while the standalone
+task table keeps its columns and status buttons.
