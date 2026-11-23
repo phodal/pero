@@ -144,7 +144,7 @@ async function run(connection: Peer, command: Command) {
   }
   if (operation.kind === 'screenshot') {
     const frames = await checkFrames(claim.tabId, claim.origin);
-    const image = await screenshot(cdp, operation.clip);
+    const image = await screenshot(cdp, operation);
     if (frames !== await checkFrames(claim.tabId, claim.origin))
       throw new Error('The Chrome document changed during screenshot capture.');
     return image;
@@ -282,7 +282,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         let value;
         if (message.type === 'share' && panel) {
           const frames = await checkFrames(claim.tabId, claim.origin);
-          value = await screenshot(cdp, undefined);
+          value = await screenshot(cdp);
           if (frames !== await checkFrames(claim.tabId, claim.origin)) throw new Error('Frames changed during capture.');
         } else if (collector && ['page','selection'].includes(message.scope)) {
           value = await evaluateDocument(cdp, claim.world, claim.origin,

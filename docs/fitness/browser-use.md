@@ -67,6 +67,23 @@ Use `PERO_CONTENT_TEST_ROOT` for an already staged build. The suite checks that
 two tabs with the same URL are checkpointed under separate IDs, reappear under
 those IDs after restart, and restore independent Chromium form values.
 
+## Full-page screenshots
+
+Pass `fullPage: true` to `browser_use` screenshot on an embedded Electron tab
+or an approved `chrome:` tab. Full-page capture and viewport cropping are
+mutually exclusive. Chromium captures the whole laid-out document while
+preserving its scroll position. The receipt includes `fullPage`, PNG
+dimensions and SHA-256. Page dimensions and encoded bytes are bounded. All
+frames must match the approved origin. Embedded Native WebKit supports viewport
+and clipped screenshots.
+
+On macOS, the Electron Browser Use and headed Chrome Relay suites observed
+the offscreen fixture marker in the returned PNG, matched its hash to the
+saved evidence and rejected a frame outside the authorized origin. The Chrome
+suite used the built unpacked extension and a scripted ACP agent. Evidence is
+in `test-results/browser-use/browser-full-page.png` and
+`test-results/chrome-relay/full-page.png`.
+
 ## Native Workbench and external Chrome
 
 On macOS 27.2.1, the release-mode Pero Native Preview and Google Chrome for

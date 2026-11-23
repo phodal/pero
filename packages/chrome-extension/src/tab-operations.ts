@@ -1,4 +1,5 @@
 import type { DriverOperation } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { captureChromiumDocument } from '../../../desktop/src/main/browser-use/screenshot.ts';
 import { MAX_TRANSFER_BYTES, webOrigin } from './protocol.ts';
 
 export type Cdp = (method: string, params?: Record<string, unknown>) => Promise<any>;
@@ -10,14 +11,15 @@ export async function checkFrames(tabId: number, origin: string) {
   return frames.map(frame => frame.documentId).sort().join(',');
 }
 
-export async function screenshot(cdp: Cdp, clip: Extract<DriverOperation, { kind: 'screenshot' }>['clip']) {
-  const { data } = await cdp('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+export async function screenshot(cdp: Cdp, { clip, fullPage }: Omit<Extract<DriverOperation, { kind: 'screenshot' }>, 'kind'> = {}) {
+  const { data } = fullPage ? await captureChromiumDocument(cdp)
+    : await cdp('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
   if (typeof data !== 'string' || data.length > Math.ceil(MAX_TRANSFER_BYTES / 3) * 4)
-    throw new Error('The Chrome viewport screenshot exceeds 10 MiB.');
+    throw new Error('The Chrome screenshot exceeds 10 MiB.');
   const bytes = Uint8Array.from(atob(data.slice(0, 32)), character => character.charCodeAt(0));
   const header = new DataView(bytes.buffer);
   const width = header.getUint32(16), height = header.getUint32(20);
-  if (!clip) return { base64: data, width, height };
+  if (!clip) return { base64: data, width, height, ...(fullPage && { fullPage }) };
   if (clip.x + clip.width > width || clip.y + clip.height > height)
     throw new Error('The screenshot clip is outside the Chrome viewport.');
   const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(data), char => char.charCodeAt(0))], { type: 'image/png' }));

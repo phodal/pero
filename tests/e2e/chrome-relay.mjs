@@ -55,6 +55,7 @@ const site = createServer((request, response) => {
 <label>Relay attachment <input id="upload" type="file"></label><output id="uploaded"></output>
 <a href="/report.csv" download>Relay report</a><a id="blob" download="fixture-blob.txt">Relay Blob</a>
 <a href="${foreignUrl}" download>Outside download</a>
+<div aria-hidden="true" style="position:absolute;top:1550px;left:0;right:0;height:40px;background:#2468b4"></div>
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
     document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
@@ -205,13 +206,32 @@ try {
       { id: clickReceipt, outcome: 'dispatched' },
     );
 
-    const captures = await prompt([{ action: 'screenshot', tabId }, { action: 'screenshot', tabId, clip: { x: 16, y: 16, width: 64, height: 32 } }]);
+    const captures = await prompt([{ action: 'screenshot', tabId },
+      { action: 'screenshot', tabId, clip: { x: 16, y: 16, width: 64, height: 32 } }, { action: 'screenshot', tabId, fullPage: true }]);
     assert(captures[0].pixels?.width >= 64, JSON.stringify(captures));
     assert.deepEqual([captures[1].pixels.width, captures[1].pixels.height], [64, 32]);
     for (const capture of captures) {
       const bytes = await readFile(resolve(evidence, capture.receipt.id + '.png'));
       assert.equal(createHash('sha256').update(bytes).digest('hex'), capture.pixels.sha256);
     }
+    const full = captures[2];
+    assert.equal(full.receipt.fullPage, true);
+    assert(full.pixels.height > captures[0].pixels.height, JSON.stringify(full.pixels));
+    const fullPng = await readFile(resolve(evidence, full.receipt.id + '.png'));
+    const bottomPixel = await target.evaluate(async ({ data }) => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + data;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d');
+      const y = Math.round(image.height * 1570 / document.documentElement.scrollHeight);
+      context.drawImage(image, 5, y, 1, 1, 0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    }, { data: fullPng.toString('base64') });
+    assert.deepEqual(bottomPixel, [36, 104, 180, 255]);
+    assert.equal(await target.evaluate(() => scrollY), 0);
+    await writeFile(resolve(output, 'full-page.png'), fullPng);
 
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
@@ -264,7 +284,7 @@ try {
       document.body.append(iframe);
     }, foreignUrl);
     await expect.poll(() => foreignHits).toBeGreaterThan(0);
-    const [excluded] = await prompt([{ action: 'screenshot', tabId }]);
+    const [excluded] = await prompt([{ action: 'screenshot', tabId, fullPage: true }]);
     assert.equal(excluded.isError, true, JSON.stringify(excluded));
     await target.locator('iframe').evaluate(frame => frame.remove());
 

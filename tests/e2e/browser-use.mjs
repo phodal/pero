@@ -154,6 +154,7 @@ const site = await serve(async (request, response) => {
         <div contenteditable="true" id="editor" aria-label="Editable note"><strong>Initial note</strong></div>
         <div contenteditable="true" id="read-only" aria-label="Read-only note" aria-readonly="true">Keep this text</div>
       </main>
+      <div aria-hidden="true" style="position:absolute;top:2100px;left:0;right:0;height:100px;background:#2468b4"></div>
       <script>
         const metrics = window.interactionEvents = { clickDetails: [], underlyingClicks: 0, selectionInputs: 0, selectionChanges: 0, edits: 0 };
         document.querySelector('[data-testid=hover-target]').addEventListener('mouseenter', event => {
@@ -426,8 +427,8 @@ try {
   await confirm(1);
   await expect.poll(async () => (await document(framed))?.observation.notice).toBe('Browser Use allowed');
   expect(await prompt([{ action: 'screenshot' },
-    { action: 'screenshot', clip: { x: 0, y: 0, width: 10, height: 10 } }])).toEqual(
-    Array(2).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') })));
+    { action: 'screenshot', clip: { x: 0, y: 0, width: 10, height: 10 } }, { action: 'screenshot', fullPage: true }])).toEqual(
+    Array(3).fill(expect.objectContaining({ isError: true, error: expect.stringContaining('frame outside the authorized site') })));
 
   const interactionsUrl = site.origin + '/interactions';
   await open(interactionsUrl);
@@ -484,6 +485,25 @@ try {
   const marker = [180, 104, 36, 255];
   for (const [index, channel] of corners.entries())
     expect(Math.abs(channel - marker[index % marker.length])).toBeLessThanOrEqual(2);
+
+  const [full, conflictingCapture] = await prompt([
+    { action: 'screenshot', fullPage: true }, { action: 'screenshot', fullPage: true, clip },
+  ]);
+  expect(conflictingCapture).toMatchObject({ isError: true });
+  expect(full).toMatchObject({ kind: 'screenshot', isError: false, receipt: { ...full.pixels, fullPage: true } });
+  const { innerHeight, scrollHeight, scrollY: currentScroll } = await readInteraction('({ innerHeight, scrollHeight: document.documentElement.scrollHeight, scrollY })');
+  expect(currentScroll).toBe(0);
+  expect(full.pixels.height).toBeGreaterThan(innerHeight);
+  const fullPng = await readFile(resolve(interactionEvidence, full.receipt.id + '.png'));
+  expect(createHash('sha256').update(fullPng).digest('hex')).toBe(full.pixels.sha256);
+  const bottomPixel = await app.evaluate(({ nativeImage }, { data, y }) => {
+    const image = nativeImage.createFromBuffer(Buffer.from(data, 'base64'));
+    return [...image.crop({ x: 5, y: Math.round(image.getSize().height * y), width: 1, height: 1 }).toBitmap()];
+  }, { data: fullPng.toString('base64'), y: 2150 / scrollHeight });
+  expect(bottomPixel).toHaveLength(4);
+  for (const [index, channel] of bottomPixel.entries())
+    expect(Math.abs(channel - marker[index])).toBeLessThanOrEqual(2);
+  await writeFile(resolve(output, 'browser-full-page.png'), fullPng);
 
   const modes = { action: 'locate', locator: { by: 'role', role: 'listbox', name: 'Modes' } };
   const note = { by: 'role', role: 'textbox', name: 'Editable note' };
