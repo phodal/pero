@@ -32,6 +32,7 @@ type ColdConfig struct {
 	TemplateDigest     string `json:"template_digest"`
 	Model              string `json:"model"`
 	BrowserUse         bool   `json:"browser_use,omitempty"`
+	BrowserScreenshots bool   `json:"browser_screenshots,omitempty"`
 	TTLSeconds         int64  `json:"ttl_seconds"`
 }
 
@@ -40,6 +41,9 @@ var volumeSize = regexp.MustCompile(`^[1-9][0-9]{0,3}Gi$`)
 var gitRevision = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func (c ColdConfig) Validate() error {
+	if c.BrowserScreenshots && !c.BrowserUse {
+		return model.ErrInvalid
+	}
 	u, err := url.Parse(c.ControlURL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" {
 		return model.ErrInvalid
@@ -200,6 +204,9 @@ func (c ColdConfig) pod(requestID, pvcName string) coldPodSpec {
 	}
 	if c.BrowserUse {
 		container.Env = append(container.Env, coldEnv{"PERO_AGENT_BROWSER_USE", "1"})
+	}
+	if c.BrowserScreenshots {
+		container.Env = append(container.Env, coldEnv{"PERO_AGENT_BROWSER_SCREENSHOTS", "1"})
 	}
 	container.SecurityContext = coldSecurity{AllowPrivilegeEscalation: ptr(false), Privileged: ptr(false), ReadOnlyRootFilesystem: ptr(true)}
 	container.SecurityContext.Capabilities = &struct {

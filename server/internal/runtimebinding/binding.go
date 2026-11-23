@@ -38,7 +38,6 @@ type Config struct {
 	ControlCAFile     string `json:"control_ca_file,omitempty"`
 	ImageRef          string `json:"image_ref,omitempty"`
 	Model             string `json:"model,omitempty"`
-	BrowserUse        bool   `json:"browser_use,omitempty"`
 	StorageClass      string `json:"storage_class,omitempty"`
 	StorageAccessMode string `json:"storage_access_mode,omitempty"`
 	VolumeSize        string `json:"volume_size,omitempty"`
@@ -53,6 +52,9 @@ type Config struct {
 	WorkspaceRevision string `json:"workspace_revision"`
 	TemplateDigest    string `json:"template_digest"`
 	TTLSeconds        int64  `json:"ttl_seconds"`
+
+	BrowserUse         bool `json:"browser_use,omitempty"`
+	BrowserScreenshots bool `json:"browser_screenshots,omitempty"`
 }
 
 var dns = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
@@ -61,6 +63,9 @@ var digest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
 func (c Config) IsIsolated() bool { return c.Profile == "isolated-agent-v1" }
 func (c Config) Validate() error {
+	if c.BrowserScreenshots && !c.BrowserUse {
+		return ErrInvalid
+	}
 	if !c.IsIsolated() && (c.BrowserUse || c.Profile != "" && c.Profile != "trusted-worker-pod") {
 		return ErrInvalid
 	}

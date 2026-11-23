@@ -14,7 +14,7 @@ import (
 // IsolatedConfig maps the fixed composition-root recipe once. It contains no
 // task-controlled values, provider key, Worker token or Kubernetes credential.
 func IsolatedConfig(c runtimebinding.Config) kubernetes.ColdConfig {
-	return kubernetes.ColdConfig{Namespace: c.Namespace, ClusterID: c.ClusterID, ImageRef: c.ImageRef, ImageDigest: c.ImageDigest, RuntimeClass: c.RuntimeClass, ServiceAccountName: c.ServiceAccount, ServiceAccountUID: c.ServiceAccountUID, Audience: c.Audience, ControlURL: c.ControlURL, ControlCAFile: c.ControlCAFile, StorageClass: c.StorageClass, StorageAccessMode: c.StorageAccessMode, VolumeSize: c.VolumeSize, WorkspaceRevision: c.WorkspaceRevision, TemplateDigest: c.TemplateDigest, Model: c.Model, BrowserUse: c.BrowserUse, TTLSeconds: c.TTLSeconds}
+	return kubernetes.ColdConfig{Namespace: c.Namespace, ClusterID: c.ClusterID, ImageRef: c.ImageRef, ImageDigest: c.ImageDigest, RuntimeClass: c.RuntimeClass, ServiceAccountName: c.ServiceAccount, ServiceAccountUID: c.ServiceAccountUID, Audience: c.Audience, ControlURL: c.ControlURL, ControlCAFile: c.ControlCAFile, StorageClass: c.StorageClass, StorageAccessMode: c.StorageAccessMode, VolumeSize: c.VolumeSize, WorkspaceRevision: c.WorkspaceRevision, TemplateDigest: c.TemplateDigest, Model: c.Model, BrowserUse: c.BrowserUse, BrowserScreenshots: c.BrowserScreenshots, TTLSeconds: c.TTLSeconds}
 }
 func NewIsolated(ctx context.Context, db *store.Store, owner *kubernetes.ColdOwner, config runtimebinding.Config, policy artifacts.Policy) (*Runtime, error) {
 	p, err := policy.Canonical()

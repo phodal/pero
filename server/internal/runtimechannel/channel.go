@@ -30,6 +30,14 @@ const (
 	MaxDuration    = 15 * time.Minute
 )
 
+const (
+	BrowserImageMaxBytes      = 2 << 20
+	BrowserImageMaxDimension  = 2048
+	BrowserTextReplyMaxBytes  = 256 << 10
+	BrowserImageReplyMaxBytes = 3 << 20
+	ProviderRequestMaxBytes   = 8 << 20
+)
+
 type Scope struct {
 	RunID             string `json:"run_id"`
 	SessionID         string `json:"session_id"`
@@ -43,7 +51,16 @@ type Scope struct {
 	Audience          string `json:"audience"`
 	PodUID            string `json:"pod_uid"`
 	RuntimeDigest     string `json:"runtime_digest"`
-	BrowserUse        bool   `json:"browser_use,omitempty"`
+
+	BrowserUse         bool `json:"browser_use,omitempty"`
+	BrowserScreenshots bool `json:"browser_screenshots,omitempty"`
+}
+
+func BrowserReplyLimit(screenshots bool) int {
+	if screenshots {
+		return BrowserImageReplyMaxBytes
+	}
+	return BrowserTextReplyMaxBytes
 }
 
 func (s Scope) Validate() error {
@@ -52,7 +69,8 @@ func (s Scope) Validate() error {
 			return ErrAuthority
 		}
 	}
-	if s.RunID != s.SessionID || s.Generation < 1 || s.Audience != Audience || !sha.MatchString(s.RuntimeDigest) {
+	if s.RunID != s.SessionID || s.Generation < 1 || s.Audience != Audience ||
+		!sha.MatchString(s.RuntimeDigest) || s.BrowserScreenshots && !s.BrowserUse {
 		return ErrAuthority
 	}
 	return nil
@@ -82,7 +100,7 @@ type ProviderBudget struct {
 }
 
 func (b ProviderBudget) Validate() error {
-	if b.MaxRequests < 1 || b.MaxRequests > 1000 || b.MaxConcurrent < 1 || b.MaxConcurrent > 4 || b.MaxConcurrent > b.MaxRequests || b.MaxOutputTokens < 1 || b.MaxOutputTokens > 32768 || b.MaxRequestBytes < 1 || b.MaxRequestBytes > 8<<20 || b.MaxResponseBytes < 1 || b.MaxResponseBytes > 16<<20 || b.TimeoutSeconds < 1 || b.TimeoutSeconds > 300 {
+	if b.MaxRequests < 1 || b.MaxRequests > 1000 || b.MaxConcurrent < 1 || b.MaxConcurrent > 4 || b.MaxConcurrent > b.MaxRequests || b.MaxOutputTokens < 1 || b.MaxOutputTokens > 32768 || b.MaxRequestBytes < 1 || b.MaxRequestBytes > ProviderRequestMaxBytes || b.MaxResponseBytes < 1 || b.MaxResponseBytes > 16<<20 || b.TimeoutSeconds < 1 || b.TimeoutSeconds > 300 {
 		return ErrBudget
 	}
 	return nil

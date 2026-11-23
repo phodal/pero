@@ -69,6 +69,9 @@ func loadIsolated(ctx context.Context, db *store.Store, c FileConfig, client *ht
 	if in.Provider.Model != c.Runtime.Model {
 		return nil, fmt.Errorf("fixed provider model differs from sandbox recipe")
 	}
+	if c.Runtime.BrowserScreenshots && in.Provider.Budget.MaxRequestBytes < runtimechannel.BrowserImageReplyMaxBytes {
+		return nil, fmt.Errorf("browser screenshots require a provider request budget of at least %d bytes", runtimechannel.BrowserImageReplyMaxBytes)
+	}
 	key, err := readSecret(in.Provider.APIKeyFile, 1024)
 	if err != nil {
 		return nil, err
