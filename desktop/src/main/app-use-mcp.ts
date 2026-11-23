@@ -86,8 +86,8 @@ export class DesktopAppUse {
   readonly computer?: DesktopComputer;
   private readonly uiAvailable: boolean;
   private readonly inspector?: NotebookInspector;
-  private readonly browser: BrowserUsePort;
-  readonly chromeRelay: ChromeRelay;
+  private readonly browser?: BrowserUsePort;
+  readonly chromeRelay?: ChromeRelay;
   private readonly repl?: ConversationRepl;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
@@ -177,8 +177,10 @@ export class DesktopAppUse {
         }),
     };
     this.authority = new AppUse(ports);
-    this.chromeRelay = new ChromeRelay(() => this.authority.selectedOrdinaryConversation(), join(evidenceRoot, '..', 'browser-use-evidence'));
-    this.browser = new WorkbenchBrowserUse(browser, this.chromeRelay);
+    if (browser) {
+      this.chromeRelay = new ChromeRelay(() => this.authority.selectedOrdinaryConversation(), join(evidenceRoot, '..', 'browser-use-evidence'));
+      this.browser = new WorkbenchBrowserUse(browser, this.chromeRelay);
+    }
     this.draftContext = new AppChatContext(ports, (scope, thread, refs) => this.goals.approve(scope, thread, refs));
   }
   accept(event: AppUseEvent) {
@@ -262,7 +264,7 @@ export class DesktopAppUse {
   }
   async close() {
     this.reset();
-    this.chromeRelay.close();
+    this.chromeRelay?.close();
     this.server?.close();
     await this.computer?.stop();
   }
@@ -551,7 +553,7 @@ export class DesktopAppUse {
         );
       }
     });
-    this.chromeRelay.attach(this.server);
+    this.chromeRelay?.attach(this.server);
     await new Promise<void>((resolve, reject) => {
       this.server!.once('error', reject);
       this.server!.listen(0, '127.0.0.1', () => {

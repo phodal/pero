@@ -218,22 +218,22 @@ export class ChromeRelay {
 
 export class WorkbenchBrowserUse implements BrowserUsePort {
   readonly tool;
-  constructor(private readonly embedded: BrowserUsePort | undefined, private readonly relay: ChromeRelay) {
-    const tool = embedded?.tool ?? relay.browser.tool;
+  constructor(private readonly embedded: BrowserUsePort, private readonly relay: ChromeRelay) {
+    const tool = embedded.tool;
     this.tool = { ...tool, description: tool.description + ' Pero Chrome Relay tabs use a chrome: tabId. Pair from the Workbench, then approve the specific tab in the extension. Chrome supports ' +
       chromeActions.join(', ') + '. Pass its tabId to distinguish it from an embedded tab.' };
   }
-  revoke(thread?: string) { this.embedded?.revoke(thread); this.relay.browser.revoke(thread); }
-  async forget(thread: string) { await this.embedded?.forget(thread); await this.relay.browser.forget(thread); }
+  revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }
+  async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const request = browserRequest.parse(input);
     const { browser } = this.relay;
     if (request.action === 'tabs') {
-      const local = await this.embedded?.call(thread, input, signal, files, workspace, deliver);
+      const local = await this.embedded.call(thread, input, signal, files, workspace, deliver);
       const chrome = await browser.call(thread, input, signal, files);
-      return { kind: 'tabs', tabs: [...(local?.tabs as unknown[] | undefined ?? []), ...chrome.tabs as unknown[]] };
+      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome.tabs as unknown[]] };
     }
-    const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.approved(thread)) ? browser : this.embedded ?? browser;
+    const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.approved(thread)) ? browser : this.embedded;
     return target.call(thread, input, signal, files, workspace, deliver);
   }
 }

@@ -187,7 +187,7 @@ async function allowBrowserUse() {
 }
 async function pairChrome() {
   try {
-    if (!appUse) throw new Error(t('browser_use.unavailable'));
+    if (!appUse?.chromeRelay) throw new Error(t('browser_use.unavailable'));
     clipboard.writeText(await appUse.chromeRelay.pairing(t('browser_use.chrome_selected_chat')));
     await dialog.showMessageBox(window, { type: 'info', message: t('browser_use.chrome_copied') });
   } catch (error) {
@@ -212,8 +212,10 @@ function updateMenus() {
         click: () => send({version:1,kind:'shortcut_command',request_id:null,text:'',data:entry.command}),
       })),
       { id: 'browser-use-allow', label: t('browser_use.menu_allow'), click: () => { void allowBrowserUse(); } },
-      { id: 'browser-use-pair-chrome', label: t('browser_use.chrome_pair'), click: () => { void pairChrome(); } },
-      { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.chromeRelay.revoke() },
+      ...(appUse?.chromeRelay ? [
+        { id: 'browser-use-pair-chrome', label: t('browser_use.chrome_pair'), click: () => { void pairChrome(); } },
+        { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.chromeRelay?.revoke() },
+      ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
         void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));

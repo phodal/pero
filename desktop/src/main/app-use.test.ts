@@ -680,6 +680,7 @@ test('MCP advertises only the UI operations supplied by its shell', async () => 
     try {
       const listed=await rpc('tools/list');
       assert.equal(listed.tools.some((tool:{name:string})=>tool.name==='app_use'),!native);
+      assert.equal(listed.tools.some((tool:{name:string})=>tool.name==='browser_use'),false);
       assert.equal(listed.tools.some((tool:{name:string})=>tool.name==='content_read'),true);
       if(native)assert.equal((await rpc('tools/call',{name:'app_use',arguments:{action:'inventory'}})).isError,true);
     } finally {await endpoint.close();}
