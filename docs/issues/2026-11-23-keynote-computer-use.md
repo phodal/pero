@@ -33,3 +33,18 @@ consume the session's snapshots and require the latest observation.
 - The signed test copy launched Host and Harness successfully. macOS reported
   that the newly signed helper lacked Accessibility and Screen Recording.
   A Keynote call from the signed App with fresh grants remains to be verified.
+
+## Cross-application comparison
+
+The local macOS helper and Codex Computer Use observed the same windows in
+read-only checks. PowerPoint and TextEdit used owned fixture documents.
+
+| App | Codex Computer Use | Pero Computer Use |
+| --- | --- | --- |
+| PowerPoint | AX exposed the thumbnail and editor. Screenshot pixels showed the title, body, and image-only marker. | AX exposed the same areas. The 1600 × 900 screenshot showed the three markers, and OCR recovered all three after initialization. A cold call returned the screenshot without OCR after the four-second budget. |
+| Feishu | AX exposed the message view, composer, and sidebar. A window screenshot was returned. | AX exposed the same landmarks. The default observation was truncated and withheld the screenshot. At 4096 nodes and depth 64, it returned 1203 nodes, reached depth 40, and returned the screenshot. Warm OCR also recognized visible navigation labels. |
+| TextEdit | AX exposed the editable document and full fixture text. A window screenshot was returned. | AX exposed the same fixture text, and the screenshot and warm OCR both succeeded. |
+
+Two subtrees of the PowerPoint window expanded successfully from the same
+whole-window observation. This comparison exercised local tool results and did
+not run a hosted model or change data in Feishu.
