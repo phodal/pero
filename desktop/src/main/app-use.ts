@@ -245,6 +245,16 @@ export class AppUse {
     const session = this.sessions.get(thread);
     return !!session && !session.closed && !session.scope;
   }
+  async composerScope(thread: string) {
+    const session = this.sessions.get(thread);
+    if (!session || session.closed || await this.ports.selectedThread() !== thread)
+      throw new AppUseError('APP_SESSION_INACTIVE', 'Select an active conversation first.');
+    return session.scope;
+  }
+  async composerPanels(scope: AppScope) {
+    const inventory = await this.ports.page(scope, { action: 'inventory' }) as { surfaces: AppSurface[] };
+    return inventory.surfaces;
+  }
   async selectedOrdinaryConversation() {
     const thread = await this.ports.selectedThread();
     // A new ordinary draft acquires its Host session on first send.

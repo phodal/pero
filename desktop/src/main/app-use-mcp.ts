@@ -8,7 +8,7 @@ import type { AppScope } from './app-use-task.ts';
 import { PreparedAppWrite, parseAppWrite, type AppWriteDefinition } from './app-write.ts';
 import { PaperSourceImage } from './paper-source-image.ts';
 import { AppInputs } from './app-inputs.ts';
-import type { AppPluginAssembly, ContextReference } from '../../../protocol/generated/host';
+import type { AppPluginAssembly, ComposerCapability, ContextReference } from '../../../protocol/generated/host';
 import { ContentArtifacts } from './content-artifacts.ts';
 import { ContentRead } from '../../../packages/content-source/index.ts';
 import { AppChatContext } from './app-chat-context.ts';
@@ -263,6 +263,59 @@ export class DesktopAppUse {
     this.server?.close();
     await this.computer?.stop();
   }
+  connectorTools?: (thread: string) => Promise<{connectorId: string; tools: string[]}[]>;
+
+  async composerCatalog(command: {thread_id?: unknown; request_id?: unknown}) {
+    const {thread_id: thread, request_id: request} = command;
+    if (typeof thread !== 'string' || typeof request !== 'string' || !request || request.length > 128)
+      throw new Error('Invalid composer catalog request');
+    const entries: ComposerCapability[] = [];
+    let diagnostic = '';
+    try {
+      const scope = await this.authority.composerScope(thread);
+      const sources: Promise<ComposerCapability[]>[] = [];
+      if (!scope && this.browser) {
+        const browser = this.browser;
+        sources.push((async () => {
+          const result = await browser.call(thread, {action: 'tabs'}, AbortSignal.timeout(5000), this.inputs);
+          const tabs = result.tabs as {tabId: string; origin: string; title?: string}[];
+          return [{selection: {kind: 'browser'}, ...(tabs.length ? {} : {needs: 'tab_grant' as const})},
+            ...tabs.map(tab => ({selection: {kind: 'browser_tab' as const, tab_id: tab.tabId, origin: tab.origin}, target: tab.title || tab.origin}))] as ComposerCapability[];
+        })());
+      }
+      if (this.computer && !this.authority.isBoundedResearch(thread) && !this.goals.has(thread)) {
+        const route = this.computer.linuxRoute?.(thread);
+        if (!route || !('reason' in route)) sources.push(Promise.resolve([{
+          selection: route ? {kind: 'remote_desktop', attachment: route.attachment} : {kind: 'computer'},
+          ...(this.computer.enabled ? {} : {needs: 'computer_enabled'}),
+        }]));
+      }
+      if (scope && this.uiAvailable && !this.authority.isBoundedResearch(thread) && !this.goals.has(thread))
+        sources.push(this.authority.composerPanels(scope).then(panels => panels.map(surface => ({
+          selection: {kind: 'app_panel', app: surface.app, panel: surface.panel, surface_id: surface.surfaceId, instance: surface.instance},
+          ...(surface.operable ? {} : {needs: 'panel_visible' as const}),
+        }))));
+      if (this.writes) sources.push(this.writes.describe().then(definitions => {
+        const panels = new Map<string, ComposerCapability>();
+        for (const {app, panel} of this.scopedWrites(thread, definitions, scope)) {
+          panels.set(JSON.stringify([app, panel]), {selection: {kind: 'app_data', app, panel}});
+        }
+        return [...panels.values()];
+      }));
+      if (this.connectorTools) sources.push(this.connectorTools(thread).then(connectors => connectors
+        .filter(item => item.tools.length).map(item => ({selection: {kind: 'connector', connector_id: item.connectorId}}))));
+      for (const result of await Promise.allSettled(sources)) {
+        if (result.status === 'fulfilled') entries.push(...result.value);
+        else diagnostic = 'Some capability targets could not be loaded.';
+      }
+    } catch (error) { diagnostic = error instanceof Error ? error.message : String(error); }
+    this.send({version: 1, kind: 'composer_catalog', request_id: request, thread_id: thread, text: diagnostic, data: entries});
+  }
+
+  private scopedWrites(thread: string, definitions: AppWriteDefinition[], scope?: AppScope) {
+    return this.pluginWrites(thread, definitions).filter(d =>
+      !scope || d.app === scope.app && (this.plugins.has(thread) || d.panel === scope.panel));
+  }
   private pluginWrites(thread: string, definitions: AppWriteDefinition[]): AppWriteDefinition[] {
     const plugin = this.plugins.get(thread);
     return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
@@ -414,8 +467,7 @@ export class DesktopAppUse {
             thread,
             undefined,
             async (scope) => ({
-              apps: this.pluginWrites(thread, await this.writes!.describe())
-                .filter((d) => !scope || (d.app === scope.app && (this.plugins.has(thread) || d.panel === scope.panel)))
+              apps: this.scopedWrites(thread, await this.writes!.describe(), scope)
                 .map(({ app, name, description, schema }) => ({
                   app,
                   tool: name,

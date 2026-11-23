@@ -182,6 +182,9 @@ impl NativeApps {
     pub(super) fn publish_computer(&self, state: pero_contracts::computer_runtime::ComputerUseState) {
         let mut event = HostEvent::new("computer_state", None, String::new());
         event.data = serde_json::to_value(state).expect("Computer Use state");
+        self.publish(event);
+    }
+    pub(super) fn publish(&self, event: HostEvent) {
         let _ = self.events.send_blocking(event);
     }
     pub(super) fn shell_request(&self, data: Value) -> anyhow::Result<Value> {

@@ -192,6 +192,7 @@ app.whenReady().then(async () => {
     trusted(event);
     if (!product.chat || !ready || !command || typeof command !== 'object' || Array.isArray(command)) throw new Error('Chat runtime is unavailable');
     const value = command as { action?: string; method?: string; kind?: unknown; request_id?: unknown; thread_id?: unknown };
+    if (value.action === 'composer_catalog' && appUse) return appUse.composerCatalog(value);
     if (value.action === 'choose_workspace') {
       const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
       if (!selected.canceled && selected.filePaths[0]) host.stdin!.write(JSON.stringify({ action: 'workspace', path: selected.filePaths[0] }) + '\n');

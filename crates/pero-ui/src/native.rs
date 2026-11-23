@@ -63,6 +63,11 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             Ok(())
         });
     }
+    if action == "composer_catalog" {
+        let sent = CONNECTORS.with(|slot| slot.borrow().as_ref().and_then(std::sync::Weak::upgrade)
+            .map(|owner| owner.conversation_command(&value)));
+        if matches!(sent, Some(Ok(()))) { return Ok(()); }
+    }
     if matches!(action, "app_use_selection" | "prompt" | "cancel" | "close" | "delete") {
         CONNECTORS.with(|slot| {
             if let Some(owner) = slot.borrow().as_ref().and_then(std::sync::Weak::upgrade) {

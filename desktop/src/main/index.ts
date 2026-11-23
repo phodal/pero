@@ -327,6 +327,7 @@ app.whenReady().then(async () => {
       nodeExecutable: process.execPath, helpers: resolve(root, 'packages/connectors/helpers'),
     });
     await connectorOwner.start();
+    if (!sshProfile) appUse.connectorTools = thread => connectorOwner.tools(thread);
     apps.connectors = request => connectorOwner.request(request);
     connectorMcp = new ConnectorMcp(connectorOwner);
     connectorEnvironment = await connectorMcp.start();
@@ -505,6 +506,7 @@ app.whenReady().then(async () => {
       mcpRequests.set(id,{request_id:callerId,thread,mode,call});
       host.stdin.write(JSON.stringify({method:'mcp',action:call?'adopt':'open',request_id:id,thread_id:thread,mode,...call})+'\n');return;
     }
+    if (action === 'composer_catalog' && appUse) return appUse.composerCatalog(command as {thread_id?: unknown; request_id?: unknown});
     if (action === 'harness_get' || action === 'harness_save') return harness.command(command);
     if (method === 'settings.harness') throw new Error('Use harness controls');
     if (action?.startsWith('local_worker_')) {

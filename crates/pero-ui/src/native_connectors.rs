@@ -29,6 +29,7 @@ struct Message {
     #[serde(default)]
     value: Value,
     computer_state: Option<ComputerUseState>,
+    composer_catalog: Option<HostEvent>,
 }
 
 pub(crate) struct NativeConnectors {
@@ -94,6 +95,8 @@ impl NativeConnectors {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
                         apps.publish_computer(state);
                     }
+                } else if let Some(event) = message.composer_catalog {
+                    if let Some(apps) = reader.apps.lock().unwrap().as_ref() { apps.publish(event); }
                 } else if message.effect.is_some() {
                     let result = reader.effect(&message);
                     let reply = match result {

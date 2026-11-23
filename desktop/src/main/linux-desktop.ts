@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ComputerClient } from './computer-client.ts';
 import { LinuxDesktopGuest } from './linux-desktop-guest.ts';
 import { LinuxDesktopVnc } from './linux-desktop-vnc.ts';
@@ -15,7 +16,7 @@ export type LinuxDesktopState = {
   sharing: boolean;
   error?: string;
 };
-export type LinuxComputerRoute = { client: ComputerClient; signal: AbortSignal } | { reason: string };
+export type LinuxComputerRoute = { client: ComputerClient; signal: AbortSignal; attachment: string } | { reason: string };
 
 /** The trusted desktop session owns which conversation and operator use the guest display. */
 export class LinuxDesktop {
@@ -24,6 +25,7 @@ export class LinuxDesktop {
   private guest?: LinuxDesktopGuest | SshManagedDesktop;
   private external?: SshDesktop;
   private thread?: string;
+  private attachment = '';
   private readonly disconnectedChats = new Set<string>();
   private input = new AbortController();
   private sharing = false;
@@ -41,7 +43,7 @@ export class LinuxDesktop {
   route(thread: string): LinuxComputerRoute | undefined {
     if (this.thread !== thread) return this.disconnectedChats.has(thread)
       ? { reason: 'This chat was disconnected from the Linux desktop. Connect it again from Workbench.' } : undefined;
-    if (this.phase === 'watching' && this.guest) return { client: this.guest.computer, signal: this.input.signal };
+    if (this.phase === 'watching' && this.guest) return { client: this.guest.computer, signal: this.input.signal, attachment: this.attachment };
     return { reason: this.phase === 'controlling' || this.phase === 'handoff'
       ? 'The user has control of the Linux desktop. Wait for control to be returned and observe again.'
       : 'The Linux desktop is unavailable. Reopen it from Workbench.' };
@@ -52,6 +54,7 @@ export class LinuxDesktop {
     if (!this.enabled()) throw new Error('Enable Computer Use before connecting a chat.');
     if (this.thread && this.thread !== thread) throw new Error('Disconnect the current chat before connecting another.');
     this.disconnectedChats.delete(thread);
+    if (this.thread !== thread) this.attachment = randomUUID();
     this.thread = thread;
     this.changed();
   }

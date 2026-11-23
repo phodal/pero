@@ -58,9 +58,11 @@ const appUse = new DesktopAppUse({
   page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
-}, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
+}, event => { if (event.kind === 'composer_catalog') send({ id: 0, composer_catalog: event }); }, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
   (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), createBrowser,
   process.platform === 'darwin' ? new ConversationRepl('python', pythonRepl(helpers, bundledPython)) : undefined);
+
+appUse.connectorTools = thread => owner.tools(thread);
 
 let closing;
 const close = () => closing ??= (async () => {
@@ -98,6 +100,7 @@ input.on('line', line => {
   } else if (message.command) {
     const command = message.command;
     if (command.action === 'app_use_selection') appUse.authority.select(command.thread_id || undefined);
+    else if (command.action === 'composer_catalog') void appUse.composerCatalog(command).catch(console.error);
     else appUse.command(command);
   } else if (message.shutdown) {
     void close();
