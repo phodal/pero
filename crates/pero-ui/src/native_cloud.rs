@@ -3,6 +3,9 @@
 mod storage;
 #[path = "native_cloud_sources.rs"]
 mod project_sources;
+#[cfg(target_os = "macos")]
+#[path = "native_cloud_browser.rs"]
+pub(crate) mod browser;
 use crate::cloud_links::{self, idempotency_key};
 use crate::desktop_login::{self, Attempt, CALLBACK_ERROR, DEFAULT_ORIGIN};
 use pero_contracts::HostEvent;

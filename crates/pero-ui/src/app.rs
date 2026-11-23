@@ -591,6 +591,15 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        if event.kind == "native_cloud_browser" {
+            self.receive_cloud_browser(&event.data, window, cx);
+            return;
+        }
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        if event.kind == "disconnected" {
+            self.remote.browser_share = Default::default();
+        }
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
         if self.receive_project_workspace(&event, cx) {

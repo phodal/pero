@@ -159,7 +159,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
-    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser"));
+    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser" | "cloud-browser"));
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -365,9 +365,13 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
     let reply = commands.clone();
+    #[cfg(target_os = "macos")]
+    let cloud_browser_owner = connector_owner.clone();
     std::thread::spawn(move || {
         let mut harness = harness;
         let mut cloud = CloudSession::with_store(&data, ephemeral_secrets);
+        #[cfg(target_os = "macos")]
+        let mut browser = crate::native_cloud::browser::BrowserShare::default();
         let mut device = NativeDevice::new(&data, cloud.has_connection(), ephemeral_secrets);
         loop {
             let json = match incoming.recv_timeout(std::time::Duration::from_secs(5)) {
@@ -382,6 +386,13 @@ pub fn run() -> anyhow::Result<()> {
                 continue;
             };
             let action = value["action"].as_str().unwrap_or_default();
+            #[cfg(target_os = "macos")]
+            if action.starts_with("remote_browser_") {
+                if let Some(event) = browser.command(&cloud, cloud_browser_owner.as_deref(), action, &value) {
+                    let _ = events.send_blocking(event);
+                }
+                continue;
+            }
             if value["method"] == "shared_project_sources" {
                 let event = cloud.shared_web_sources(&value);
                 if !cloud_replies.accept(&event) {
@@ -419,6 +430,8 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 let _ = events.send_blocking(outcome.event);
             } else if action == "remote_login" {
+                #[cfg(target_os = "macos")]
+                browser.reconcile(&cloud, cloud_browser_owner.as_deref(), action);
                 let url = value["url"].as_str().unwrap_or("");
                 match cloud.start_login(url) {
                     Ok(outcome) => {
@@ -440,6 +453,8 @@ pub fn run() -> anyhow::Result<()> {
                     }
                 }
             } else if let Some(mut outcome) = cloud.command(&value) {
+                #[cfg(target_os = "macos")]
+                browser.reconcile(&cloud, cloud_browser_owner.as_deref(), action);
                 if let Some(url) = outcome.open_url.clone() {
                     if let Err(message) = open_browser(&url) {
                         outcome.event.data["error"] = serde_json::Value::String(message);
