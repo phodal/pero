@@ -14,6 +14,17 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 )
 
+func TestRejectsMalformedPromptReceiptID(t *testing.T) {
+	for _, raw := range []string{`null`, `{"id":""}`, `{"id":"bad id"}`, `{"id":"文"}`, `{"id":1}`, `{"id":"` + strings.Repeat("a", 65) + `"}`} {
+		_, err := (&Server{}).prompt(t.Context(), PromptParams{
+			Meta: map[string]json.RawMessage{turnReceiptCapability: json.RawMessage(raw)},
+		})
+		if err == nil || !strings.Contains(err.Error(), "invalid Pero turn receipt ID") {
+			t.Fatalf("malformed metadata %s: expected input rejection, got %v", raw, err)
+		}
+	}
+}
+
 func TestOutputLimitRecovery(t *testing.T) {
 	for _, row := range []struct {
 		name, stop                         string

@@ -172,6 +172,7 @@ func validatePreparedAdapterCall(provider, model string, prepared PreparedAdapte
 		}
 		dispatched = true
 		dispatchMu.Unlock()
+		request.Messages = harnessmodel.ProjectAppUseContext(request.Messages)
 		projected, err := harnessmedia.ProjectFilesToText(request.Messages, request.Attachments)
 		if err != nil {
 			return Completion{}, err
@@ -185,7 +186,6 @@ func validatePreparedAdapterCall(provider, model string, prepared PreparedAdapte
 			request.Messages, request.Tools = tools.Messages, tools.Tools
 			request.toolHistoryProjected = true
 		}
-		return dispatch(ctx, request, emit)
 		if request.promptReceipt != nil {
 			var err error
 			ctx, err = recordPromptReceipt(ctx, request)
@@ -193,6 +193,7 @@ func validatePreparedAdapterCall(provider, model string, prepared PreparedAdapte
 				return Completion{}, err
 			}
 		}
+		return dispatch(ctx, request, emit)
 	}
 	prepared.validated = true
 	return prepared, nil

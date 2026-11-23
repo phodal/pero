@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/model"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/scientificreviewer"
 )
@@ -839,7 +840,8 @@ func promptBlocks(ctx context.Context, attachments harness.AttachmentStore, inpu
 	for _, block := range input {
 		switch block.Type {
 		case "text":
-			result = append(result, harness.ContentBlock{Type: harness.BlockText, Text: block.Text})
+			origin := model.DecodeAppUseContextOrigin(block.Meta[model.AppUseContextMetaKey])
+			result = append(result, harness.ContentBlock{Type: harness.BlockText, Text: block.Text, Meta: origin.Metadata()})
 		case "resource_link":
 			result = append(result, harness.ContentBlock{Type: harness.BlockText, Text: fmt.Sprintf("\n[resource_link name=%q uri=%q]\n", block.Name, block.URI)})
 		case "image":

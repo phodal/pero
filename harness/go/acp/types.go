@@ -42,17 +42,19 @@ type NewSessionParams struct {
 }
 
 type PromptContent struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Name     string `json:"name,omitempty"`
-	URI      string `json:"uri,omitempty"`
-	Data     string `json:"data,omitempty"`
-	MIMEType string `json:"mimeType,omitempty"`
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Name     string                     `json:"name,omitempty"`
+	URI      string                     `json:"uri,omitempty"`
+	Data     string                     `json:"data,omitempty"`
+	MIMEType string                     `json:"mimeType,omitempty"`
+	Meta     map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 type PromptParams struct {
-	SessionID string          `json:"sessionId"`
-	Prompt    []PromptContent `json:"prompt"`
+	SessionID string                     `json:"sessionId"`
+	Prompt    []PromptContent            `json:"prompt"`
+	Meta      map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 type SessionParams struct {

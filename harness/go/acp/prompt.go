@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,7 +9,20 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 )
 
+const turnReceiptCapability = "pero.turnReceipt"
+
 func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error) {
+	if raw, present := params.Meta[turnReceiptCapability]; present {
+		var receipt struct {
+			ID string `json:"id"`
+		}
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&receipt); err != nil || !validTurnReceiptID(receipt.ID) {
+			return "", invalidError("invalid Pero turn receipt ID")
+		}
+		ctx = harness.WithPromptReceiptID(ctx, receipt.ID)
+	}
 	record, err := s.currentRecord(harness.SessionID(params.SessionID))
 	if err != nil {
 		return "", err
@@ -132,6 +146,18 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		record.agent.StartSessionTitle(result.Turn)
 	}
 	return promptStopReason(result.Reason), nil
+}
+
+func validTurnReceiptID(id string) bool {
+	if len(id) == 0 || len(id) > 64 {
+		return false
+	}
+	for _, c := range id {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func promptStopReason(reason harness.FinishKind) string {

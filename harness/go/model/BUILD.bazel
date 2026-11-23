@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "model",
     srcs = [
+        "app_use_context.go",
         "catalog_budget.go",
         "catalog_page.go",
         "clone.go",
@@ -23,6 +24,7 @@ go_library(
 go_test(
     name = "model_test",
     srcs = [
+        "app_use_context_test.go",
         "catalog_budget_test.go",
         "content_attachment_extensions_test.go",
         "content_extensions_test.go",
