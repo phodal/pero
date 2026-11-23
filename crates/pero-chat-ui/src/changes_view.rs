@@ -254,77 +254,74 @@ impl ChatPanel {
         };
         let state = self.artifacts.conversations.get(&chat.id);
         let open = state.is_some_and(|state| state.open);
-        let latest = chat.changes.records.last();
+        let latest = chat
+            .changes
+            .records
+            .iter()
+            .rfind(|summary| summary.total > 0);
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let thread = chat.id.clone();
-        let selected = latest.map(|summary| summary.id.clone());
         let docs = state.map_or(0, |state| state.items.len());
         let docs_thread = thread.clone();
         div()
             .flex()
             .items_center()
             .gap(px(4.))
-            .child(
-                crate::theme::WorkbenchStyle::composer_control(
-                    Button::new("composer-diff").ghost(),
-                    cx,
-                )
-                .relative()
-                .children(
-                    self.artifacts
-                        .bounds
-                        .get(&format!("{thread}/changes-toggle"))
-                        .map(|bounds| bounds.probe()),
-                )
-                .icon(Icon::default().path("icons/file-code.svg"))
-                .selected(open && state.is_some_and(|state| state.show_changes))
-                .accessibility_label(self.t("changes.review"))
-                .tooltip(self.t("changes.review_hint"))
-                .label(self.t("changes.review"))
-                .when_some(latest, |button, summary| {
-                    button
-                        .child(
-                            div()
-                                .text_color(p.text_muted)
-                                .child(summary.total.to_string()),
-                        )
-                        .child(
-                            div()
-                                .text_color(p.success)
-                                .child(format!("+{}", summary.added)),
-                        )
-                        .child(
-                            div()
-                                .text_color(p.error)
-                                .child(format!("−{}", summary.deleted)),
-                        )
-                })
-                .disabled(chat.busy() && latest.is_none())
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    let state = this
-                        .artifacts
-                        .conversations
-                        .entry(thread.clone())
-                        .or_default();
-                    if state.open && state.show_changes {
-                        state.open = false;
-                        state.inline_open = false;
+            .when_some(latest, |el, summary| {
+                let selected = summary.id.clone();
+                el.child(
+                    crate::theme::WorkbenchStyle::composer_control(
+                        Button::new("composer-diff").ghost(),
+                        cx,
+                    )
+                    .relative()
+                    .children(
+                        self.artifacts
+                            .bounds
+                            .get(&format!("{thread}/changes-toggle"))
+                            .map(|bounds| bounds.probe()),
+                    )
+                    .selected(open && state.is_some_and(|state| state.show_changes))
+                    .accessibility_label(self.t("changes.review"))
+                    .tooltip(self.t("changes.review_hint"))
+                    .label(self.t("changes.review"))
+                    .child(
+                        div()
+                            .text_color(p.text_muted)
+                            .child(summary.total.to_string()),
+                    )
+                    .child(
+                        div()
+                            .text_color(p.success)
+                            .child(format!("+{}", summary.added)),
+                    )
+                    .child(
+                        div()
+                            .text_color(p.error)
+                            .child(format!("−{}", summary.deleted)),
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let state = this
+                            .artifacts
+                            .conversations
+                            .entry(thread.clone())
+                            .or_default();
+                        if state.open && state.show_changes {
+                            state.open = false;
+                            state.inline_open = false;
+                            cx.notify();
+                            return;
+                        }
+                        state.show_pane();
+                        state.show_changes = true;
+                        this.read_changes(&thread, &selected, 0, cx);
+                        if this.compact {
+                            cx.emit(ChatAction::CompactNeedsSpace);
+                        }
                         cx.notify();
-                        return;
-                    }
-                    state.show_pane();
-                    state.show_changes = true;
-                    if let Some(id) = &selected {
-                        this.read_changes(&thread, id, 0, cx);
-                    } else {
-                        this.request_changes(&thread, true, cx);
-                    }
-                    if this.compact {
-                        cx.emit(ChatAction::CompactNeedsSpace);
-                    }
-                    cx.notify();
-                })),
-            )
+                    })),
+                )
+            })
             .when(docs > 0, |el| {
                 el.child(
                     crate::theme::WorkbenchStyle::composer_control(

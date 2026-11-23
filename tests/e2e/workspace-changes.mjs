@@ -50,6 +50,8 @@ try {
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, workspace);
   await page.evaluate(() => window.pero.chooseWorkspace()); await clickNewChat(page);
   await expect.poll(async () => { const s = await state(); return s.chats[s.activeChat]?.state; }).toBe('idle');
+  await frame();
+  expect((await state()).artifacts?.bounds?.['changes-toggle']?.height ?? 0).toBe(0);
   const input = (await state()).composerBounds.input;
   await page.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
   await page.keyboard.type('Update files'); await page.keyboard.press('Enter');
