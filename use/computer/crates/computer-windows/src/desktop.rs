@@ -5,7 +5,7 @@ use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_core::types as native;
-use point_computer_windows::{apps, driver::WindowsBackend, ffi};
+use point_computer_windows::{apps, driver::WindowsBackend, ffi, uia};
 
 pub struct Desktop {
     driver: WindowsBackend,
@@ -29,7 +29,17 @@ impl DesktopDriver for Desktop {
         profile::actions()
     }
     fn status(&self) -> ComputerDriverStatus {
-        ComputerDriverStatus{environment:Some(self.environment()),available:true,accessibility:ComputerPermissionState::Unsupported,screen_recording:ComputerPermissionState::Unsupported,message:"Windows UIA and window capture; no macOS permission grants apply. Use foreground for keyboard/pixel input; background supports UIA invocation only. Interactive desktop and integrity checks occur per action.".into()}
+        let ready = uia::session_ready(std::process::id() as i32);
+        ComputerDriverStatus {
+            environment: Some(self.environment()),
+            available: ready.is_ok(),
+            accessibility: ComputerPermissionState::Unsupported,
+            screen_recording: ComputerPermissionState::Unsupported,
+            message: match ready {
+                Ok(()) => "Windows UIA and window capture are available. Use foreground for keyboard and pixel input. Background supports UIA invocation only.".into(),
+                Err(reason) => format!("Computer Use requires an unlocked interactive Windows desktop ({reason})."),
+            },
+        }
     }
     fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         Ok(ffi::window_list()

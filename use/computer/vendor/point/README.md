@@ -11,7 +11,7 @@ The upstream workspace declares MIT. Attribution and the license text are in
 [`../../SOURCE.json`](../../SOURCE.json). No upstream checkout is needed to
 build or run Pero. This is a source snapshot maintained in this repository.
 
-The local changes are limited to build ownership and module organization:
+Local adaptations:
 
 - Restrict workspace members to these five crates, and explicitly bind each
   crate manifest to this workspace. The inherited package and lint settings
@@ -21,6 +21,8 @@ The local changes are limited to build ownership and module organization:
 - Move macOS driver tests into `src/driver/tests.rs`.
 - Move macOS AX helpers, event synthesis and JPEG handling into
   `src/ffi/{accessibility,input,image}.rs`, retaining the `ffi::*` API.
+- Expose the existing Windows UIA session readiness check for Pero's driver
+  status.
 
 The splits keep each source file below Pero's 1000-line limit without changing
 driver behavior. Upstream source comments are retained. Their descriptions of

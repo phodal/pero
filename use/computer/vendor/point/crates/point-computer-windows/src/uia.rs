@@ -86,7 +86,7 @@ mod native {
 			Ok(format!("single:{}:{}:{dpi}", GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)))
 		}
 	}
-	fn session_ready(pid: i32) -> Result<(), String> {
+	pub fn session_ready(pid: i32) -> Result<(), String> {
 		unsafe {
 			let session = login_session()?;
 			let mut target = 0;

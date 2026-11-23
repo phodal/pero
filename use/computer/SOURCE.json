@@ -21,7 +21,8 @@
     ],
     "adaptations": [
       "Limit the workspace to the five local native dependencies and explicitly bind their manifests to it.",
-      "Split native records, macOS driver tests and macOS AX/input/image FFI into modules; preserve their APIs and behavior."
+      "Split native records, macOS driver tests and macOS AX/input/image FFI into modules; preserve their APIs and behavior.",
+      "Expose the Windows UIA session readiness check to the Pero driver for status reporting."
     ]
   }
 }

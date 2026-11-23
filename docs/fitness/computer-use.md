@@ -189,6 +189,10 @@ virtual display, not a physical Linux workstation or real Linux model run.
 Windows has compile/link and value-test evidence, including hosted CI, but no
 interactive Windows desktop-input acceptance. The initial source-build repair
 passed the three-OS workflow; later package-isolation evidence is listed above.
+On Windows 11 ARM64 build `26300.9457`, the current source builds for
+`aarch64-pc-windows-msvc` and passes the Computer Use workspace and contract tests.
+The native NDJSON status in SSH Session 0 changed from `available: true` to
+`available: false` with `WINDOWS_NONINTERACTIVE_SESSION`.
 
 Evidence lives under ignored `target/computer-verification/` so ordinary
 Playwright cleanup of `test-results/` cannot erase this acceptance run.
