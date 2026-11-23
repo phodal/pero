@@ -44,7 +44,8 @@ function webAddress(value: string): URL | undefined {
 }
 
 type PopupEffect = { kind: 'tabOpened'; tabId: string; authorized: false } | { kind: 'blocked'; reason: string };
-export type BrowserPopupResult = PopupEffect | { kind: 'notObserved'; reason: string };
+export type BrowserPopupResult = PopupEffect | { kind: 'tabOpened'; tabId: string; authorized: true }
+  | { kind: 'notObserved'; reason: string };
 export type PageEffects = {
   approvePopup(url: string): string | undefined;
   popup(effect: PopupEffect): void;

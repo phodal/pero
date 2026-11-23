@@ -126,6 +126,12 @@ with a Chrome profile. `tabs` lists its regular HTTP(S) tabs across windows.
 Page operations require an active tab in its window and a current document.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
+With extension 0.3.3, `click` with `expectPopup: true` reports the first
+HTTP(S) navigation target Chrome attributes to the selected tab during input
+and the five-second observation window. The receipt includes its `chrome:`
+ID. The paired conversation can use that ID after the new tab loads, including
+when the page opens another site. If no event is observed, the click outcome
+is recorded separately from `popup.kind: notObserved`.
 
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
@@ -135,7 +141,9 @@ windows immediately after pairing, lazy debugger attachment, an
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
-back, forward and reload. It checks isolation from other conversations,
+back, forward and reload. It also follows an actual `target="_blank"` link
+and a delayed cross-site `window.open` by the IDs in their saved receipts.
+An ordinary click checks the timeout result. The suite checks isolation from other conversations,
 inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
 Evidence is written to `test-results/chrome-relay/`.
 

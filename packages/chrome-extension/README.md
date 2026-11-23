@@ -27,7 +27,10 @@ active agent.
 Chrome Relay supports observation, locators, waits, same-origin frames,
 forms, keyboard, mouse and scroll. Use `tabs`, `open`, `activate` and
 `closeTab` to work with multiple tabs. A new web tab is available to the same
-paired conversation. `navigate`, `back`, `forward` and `reload` stay within
+paired conversation. Use `click` with `expectPopup: true` to get the ID of a
+new web tab opened by the selected page, including tabs opened on another site.
+The receipt reports `notObserved` when Chrome reports no new web tab within
+five seconds. `navigate`, `back`, `forward` and `reload` stay within
 the current page's origin.
 
 `screenshot` returns a viewport PNG, pixel crop or an entire document, and

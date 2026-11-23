@@ -3,6 +3,7 @@
 import { parseRelayPairing, webOrigin, MAX_FRAME, MAX_TRANSFER_BYTES, RELAY_PATH, RELAY_PROTOCOL } from './protocol.ts';
 import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../../../desktop/src/main/browser-use/input.ts';
 import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
+import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 
 import { readVisiblePage } from './collector-capture.js';
@@ -167,7 +168,7 @@ async function run(connection: Peer, command: Command) {
     if (!result) handle.revision++;
     return result;
   }
-  if (operation.kind === 'dispatch') {
+  if (operation.kind === 'dispatch' || operation.kind === 'clickAndWatchPopup') {
     const input = operation.input;
     let event: BrowserInput;
     if (input.kind === 'key') {
@@ -182,8 +183,30 @@ async function run(connection: Peer, command: Command) {
       else if (input.count === 1 || input.count === 2) event = { kind: 'click', point, count: input.count };
       else throw new Error('Invalid Chrome click count.');
     }
-    await sendBrowserInput(cdp, () => peer === connection && connection.tabs.get(handle.tabId) === handle, event);
-    return null;
+    const connected = () => peer === connection && connection.tabs.get(handle.tabId) === handle;
+    if (operation.kind === 'dispatch') {
+      await sendBrowserInput(cdp, connected, event);
+      return null;
+    }
+    if (event.kind !== 'click' || event.count !== 1) throw new Error('Watching for a popup requires a single click.');
+    const popup = Promise.withResolvers<BrowserPopupResult>();
+    const created = (details: { sourceTabId: number; tabId: number; url: string }) => {
+      if (!connected() || handle.revision !== current.revision || details.sourceTabId !== handle.tabId ||
+          details.tabId === handle.tabId || details.url.length > 4096 || !webOrigin(details.url)) return;
+      chrome.webNavigation.onCreatedNavigationTarget.removeListener(created);
+      popup.resolve({ kind: 'tabOpened', tabId: 'chrome:' + tabHandle(connection, details.tabId).id, authorized: true });
+    };
+    chrome.webNavigation.onCreatedNavigationTarget.addListener(created);
+    const timer = setTimeout(() => popup.resolve({ kind: 'notObserved', reason: 'Chrome did not report a new web tab.' }), 5000);
+    try {
+      await sendBrowserInput(cdp, connected, event);
+      const result = await popup.promise;
+      if (!connected()) throw new Error('The Chrome debugging session ended.');
+      return result;
+    } finally {
+      clearTimeout(timer);
+      chrome.webNavigation.onCreatedNavigationTarget.removeListener(created);
+    }
   }
   throw new Error('This action is unavailable in the Pero Chrome extension.');
 }

@@ -245,7 +245,7 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
     this.tool = { ...tool, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
-      chromeActions.join(', ') + '. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
+      chromeActions.join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
   }
   revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }
   async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }

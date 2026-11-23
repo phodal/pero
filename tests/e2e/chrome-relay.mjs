@@ -34,9 +34,11 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
 const otherOrigin = createServer((request, response) => {
-  if (request.url === '/inventory-window') {
+  if (request.url === '/inventory-window' || request.url === '/popup-destination') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
-    response.end('<title>Another Chrome window</title><h1>Second origin</h1>');
+    response.end(request.url === '/popup-destination'
+      ? '<title>Chrome Popup Destination</title><h1>Cross-site popup reached</h1>'
+      : '<title>Another Chrome window</title><h1>Second origin</h1>');
     return;
   }
   if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
@@ -45,6 +47,7 @@ const otherOrigin = createServer((request, response) => {
 });
 await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
+const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
@@ -65,6 +68,8 @@ const site = createServer((request, response) => {
 <label>Relay attachment <input id="upload" type="file"></label><output id="uploaded"></output>
 <a href="/report.csv" download>Relay report</a><a id="blob" download="fixture-blob.txt">Relay Blob</a>
 <a href="${foreignUrl}" download>Outside download</a>
+<a href="/?popup" target="_blank">Open fixture link</a>
+<button id="popup">Open delayed popup</button>
 <div aria-hidden="true" style="position:absolute;top:1550px;left:0;right:0;height:40px;background:#2468b4"></div>
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
@@ -75,6 +80,7 @@ document.querySelector('#upload').onchange = async event => {
   document.querySelector('#uploaded').textContent = file.name + ' ' + (await file.text()).length;
 };
 document.querySelector('#blob').href = URL.createObjectURL(new Blob(['Blob from the approved tab']));
+document.querySelector('#popup').onclick = () => setTimeout(() => window.open(${JSON.stringify(popupUrl)}, '_blank'), 60);
 </script>`);
 });
 await new Promise((done, fail) => { site.once('error', fail); site.listen(0, '127.0.0.1', done); });
@@ -328,6 +334,36 @@ try {
     assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
     await expect.poll(() => newTab.isClosed()).toBe(true);
 
+    const popupReceipts = [];
+    for (const [name, expectedUrl, marker] of [
+      ['Open fixture link', siteUrl + '?popup', 'Chrome Relay fixture'],
+      ['Open delayed popup', popupUrl, 'Cross-site popup reached'],
+      ['Apply from Chrome', null, null],
+    ]) {
+      const [, clicked] = await prompt([
+        { action: 'observe', tabId }, { action: 'click', tabId, name, expectPopup: true },
+      ]);
+      assert.equal(clicked.outcome, 'dispatched', JSON.stringify(clicked));
+      const receipt = JSON.parse(await readFile(resolve(evidence, clicked.receiptId + '.result.json'), 'utf8'));
+      assert.deepEqual(receipt.popup, clicked.popup);
+      if (!expectedUrl) assert.equal(clicked.popup?.kind, 'notObserved', JSON.stringify(clicked));
+      else {
+        assert.equal(clicked.popup?.kind, 'tabOpened', JSON.stringify(clicked));
+        assert.equal(clicked.popup.authorized, true);
+        assert.notEqual(clicked.popup.tabId, tabId);
+        await expect.poll(() => chrome.pages().find(candidate => candidate.url() === expectedUrl)?.url()).toBe(expectedUrl);
+        const openedPage = chrome.pages().find(candidate => candidate.url() === expectedUrl);
+        await expect(openedPage.getByRole('heading', { name: marker })).toBeVisible();
+        const [popup] = await prompt([{ action: 'observe', tabId: clicked.popup.tabId }]);
+        assert.equal(popup.url, expectedUrl, JSON.stringify(popup));
+        assert(popup.nodes.some(node => node.name === marker || node.text === marker));
+        const [, closed] = await prompt([{ action: 'activate', tabId }, { action: 'closeTab', tabId: clicked.popup.tabId }]);
+        assert.equal(closed.kind, 'tabClosed');
+        await expect.poll(() => openedPage.isClosed()).toBe(true);
+      }
+      popupReceipts.push(receipt);
+    }
+
     await clickNewChat(page);
     await expect.poll(async () => (await active())?.id).not.toBe(original);
     const other = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
@@ -364,7 +400,7 @@ try {
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
-      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true,
+      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts,
       foreignRedirectRefused: true, foreignFrameScreenshotRefused: true, foreignDownloadRefused: true,
       pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
       operation: operations[5].nodes[0].text,
