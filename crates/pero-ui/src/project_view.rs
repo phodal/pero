@@ -200,6 +200,9 @@ impl Workbench {
             }
         }
         self.project_tab = tab;
+        if tab == ProjectTab::ResearchResources {
+            self.refresh_project_web_sources(cx);
+        }
         if tab == ProjectTab::Sources {
             if let Some(repository) = self.listed_repositories(cx).into_iter().next() {
                 self.request_pull_request_list(&repository, self.pull_request_index.state, cx);

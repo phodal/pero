@@ -401,3 +401,24 @@ original URL, `Amber observatory sample 739.`, and the reason entered in
 Chrome. Disconnecting in Native returned the sidebar to the pairing prompt.
 This run used the installed app with ephemeral Native secret storage and the
 real Codex adapter. Local screenshots are in `test-results/chrome-sidebar/`.
+
+## Project sources from Chrome Collector
+
+Chrome Collector can save reviewed page text or a selection to a saved local
+Project. Choose the destination in **Save to** before saving. The Project's
+**Materials → Web sources** section opens the excerpt, collection reason and
+research question independently of the paired conversation. The current
+profile owns the source and its receipt. The receipt identifies the Project
+and the reviewed capture; retrying the same input returns the same record.
+
+`node tests/e2e/chrome-sidebar.mjs` uses a headed Chromium extension, the
+actual Relay and Rust Host, and a deterministic paired conversation.
+It verified the original conversation Artifact path through the fixture,
+then saved a Unicode selection with a reason and question to a Project.
+Host's digest matched the preview bytes. The original record survived a
+Host restart. An identical retry returned the same receipt, while changed
+content under that capture ID and access from a second Project were refused.
+A separate running macOS Native development build opened a source seeded by
+the same Host command and displayed its URL, edited text, reason and question.
+The Chrome test uses a loopback page. Signed installation and shared Project
+synchronization were outside these checks.
