@@ -14,11 +14,32 @@ struct Observation<S> {
     native: S,
     bounds: Option<WindowBounds>,
 }
+struct Observations<S> {
+    window: Observation<S>,
+    subtree: Option<Observation<S>>,
+}
+impl<S> Observations<S> {
+    fn basis(&self, target: &ComputerTargetRef, root: &ComputerSubtree) -> Option<&S> {
+        self.subtree
+            .iter()
+            .chain(std::iter::once(&self.window))
+            .find(|observation| {
+                observation.public.id == root.observation_id
+                    && &observation.public.target == target
+                    && observation
+                        .public
+                        .elements
+                        .iter()
+                        .any(|element| element.id == root.element_id)
+            })
+            .map(|observation| &observation.native)
+    }
+}
 pub struct ComputerRuntime<D: DesktopDriver> {
     driver: D,
     capabilities: ComputerCapabilities,
     targets: HashMap<ComputerRef, Window>,
-    observations: HashMap<ComputerRef, Observation<D::Snapshot>>,
+    observations: HashMap<ComputerRef, Observations<D::Snapshot>>,
     host_pid: i32,
     pub(crate) cancellation: crate::Cancellation,
 }
@@ -138,26 +159,18 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         target: ComputerTargetRef,
         options: ComputerObserveOptions,
     ) -> Result<ComputerResponse, ComputerError> {
-        let previous = self.observations.remove(&thread);
         let basis = if let Some(root) = &options.root {
-            let previous = previous
-                .as_ref()
-                .filter(|previous| {
-                    previous.public.id == root.observation_id
-                        && previous.public.target == target
-                        && previous
-                            .public
-                            .elements
-                            .iter()
-                            .any(|element| element.id == root.element_id)
-                })
-                .ok_or_else(|| {
-                    error(
-                        ComputerErrorCode::StaleObservation,
-                        "Expand a control from the current conversation observation",
-                    )
-                })?;
-            Some(&previous.native)
+            Some(
+                self.observations
+                    .get(&thread)
+                    .and_then(|current| current.basis(&target, root))
+                    .ok_or_else(|| {
+                        error(
+                            ComputerErrorCode::StaleObservation,
+                            "Expand a control from the latest observation or the current whole-window observation",
+                        )
+                    })?,
+            )
         } else {
             None
         };
@@ -186,14 +199,22 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             screenshot,
             truncated,
         };
-        self.observations.insert(
-            thread,
-            Observation {
-                public: observation.clone(),
-                native: source,
-                bounds,
-            },
-        );
+        let snapshot = Observation {
+            public: observation.clone(),
+            native: source,
+            bounds,
+        };
+        if options.root.is_some() {
+            self.observations.get_mut(&thread).unwrap().subtree = Some(snapshot);
+        } else {
+            self.observations.insert(
+                thread,
+                Observations {
+                    window: snapshot,
+                    subtree: None,
+                },
+            );
+        }
         Ok(ComputerResponse::Observation { observation, image })
     }
     fn act(&mut self, thread: &ComputerRef, action: ComputerAction) -> ComputerActionReceipt {
@@ -204,12 +225,13 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             outcome: ComputerActionOutcome::Executed { execution: None },
         };
         let prepared = (|| {
-            let observation = self.observations.remove(thread).ok_or_else(|| {
+            let observations = self.observations.remove(thread).ok_or_else(|| {
                 error(
                     ComputerErrorCode::StaleObservation,
                     "Observe this target in the current conversation first",
                 )
             })?;
+            let observation = observations.subtree.unwrap_or(observations.window);
             let app = self.target(&action.target)?;
             let action = action
                 .prepare(&observation.public, &self.capabilities)?

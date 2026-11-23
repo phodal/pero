@@ -114,13 +114,23 @@ impl DesktopDriver for OwnedDesktop {
 
 #[test]
 fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
-    for (name, moved, stopped, fail_after_input, refuse_before_input, expected, clicks) in [
-        ("acknowledged", false, false, false, false, "executed", 1),
+    for (name, moved, stopped, fail_after_input, refuse_before_input, expand, expected, clicks) in [
+        (
+            "acknowledged",
+            false,
+            false,
+            false,
+            false,
+            false,
+            "executed",
+            1,
+        ),
         (
             "lost acknowledgement",
             false,
             false,
             true,
+            false,
             false,
             "unknown",
             1,
@@ -131,16 +141,37 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             false,
             false,
             true,
+            false,
             "rejected",
             0,
         ),
-        ("window moved", true, false, false, false, "rejected", 0),
+        (
+            "window moved",
+            true,
+            false,
+            false,
+            false,
+            false,
+            "rejected",
+            0,
+        ),
         (
             "stop revoked the observation",
             false,
             true,
             false,
             false,
+            false,
+            "rejected",
+            0,
+        ),
+        (
+            "latest subtree only for input",
+            false,
+            false,
+            false,
+            false,
+            true,
             "rejected",
             0,
         ),
@@ -177,6 +208,33 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
         else {
             panic!()
         };
+        let root = ComputerSubtree {
+            observation_id: observation.id.clone(),
+            element_id: observation.elements[0].id.clone(),
+        };
+        let expand_root = |runtime: &mut ComputerRuntime<OwnedDesktop>, root: ComputerSubtree| {
+            runtime.call(
+                thread.clone(),
+                ComputerRequest::Observe {
+                    target: target.clone(),
+                    options: ComputerObserveOptions {
+                        want_image: false,
+                        root: Some(root),
+                        ..ComputerObserveOptions::default()
+                    },
+                },
+            )
+        };
+        if expand {
+            assert!(expand_root(&mut runtime, root.clone()).is_ok());
+            let mut invalid = root.clone();
+            invalid.element_id = "missing".to_owned().try_into().unwrap();
+            assert_eq!(
+                expand_root(&mut runtime, invalid).unwrap_err().code,
+                ComputerErrorCode::StaleObservation
+            );
+            assert!(expand_root(&mut runtime, root.clone()).is_ok());
+        }
         if moved {
             app.borrow_mut().bounds.x = 10.;
         }
@@ -187,7 +245,7 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
         }
         let action = ComputerAction {
             request_id: "input-1".to_owned().try_into().unwrap(),
-            target,
+            target: target.clone(),
             observation_id: observation.id,
             delivery: ComputerDelivery::Background,
             input: ComputerInput::Click {
@@ -216,6 +274,10 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
         };
         assert_eq!(outcome, expected, "{name}");
         assert_eq!(app.borrow().clicks, clicks, "{name}");
+        assert_eq!(
+            expand_root(&mut runtime, root).unwrap_err().code,
+            ComputerErrorCode::StaleObservation
+        );
         let ComputerResponse::Receipt { receipt } = runtime
             .call(thread, ComputerRequest::Act { action })
             .unwrap()
