@@ -17,6 +17,7 @@ import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
+import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
 import {McpSessionPanels} from './mcp-session-panels.ts';
@@ -187,8 +188,8 @@ async function allowBrowserUse() {
 }
 async function pairChrome() {
   try {
-    if (!appUse?.chromeRelay) throw new Error(t('browser_use.unavailable'));
-    clipboard.writeText(await appUse.chromeRelay.pairing(t('browser_use.chrome_selected_chat')));
+    if (!appUse?.browser) throw new Error(t('browser_use.unavailable'));
+    clipboard.writeText(await appUse.browser.relay.pairing(t('browser_use.chrome_selected_chat')));
     await dialog.showMessageBox(window, { type: 'info', message: t('browser_use.chrome_copied') });
   } catch (error) {
     if (!window.isDestroyed()) await dialog.showMessageBox(window, {
@@ -212,9 +213,9 @@ function updateMenus() {
         click: () => send({version:1,kind:'shortcut_command',request_id:null,text:'',data:entry.command}),
       })),
       { id: 'browser-use-allow', label: t('browser_use.menu_allow'), click: () => { void allowBrowserUse(); } },
-      ...(appUse?.chromeRelay ? [
+      ...(appUse?.browser ? [
         { id: 'browser-use-pair-chrome', label: t('browser_use.chrome_pair'), click: () => { void pairChrome(); } },
-        { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.chromeRelay?.revoke() },
+        { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.browser?.relay.revoke() },
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
@@ -295,13 +296,15 @@ app.whenReady().then(async () => {
   globalShortcut.register('CommandOrControl+Shift+Escape', () => {
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
-  browserUse = new BrowserUse(resolve(app.getPath('userData'), 'browser-use-evidence'), async url => {
+  const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
+  const embedded = browserUse = new BrowserUse(browserEvidence, async url => {
     if (!webPages) throw new Error('Web views are unavailable.');
     const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
     await ready;
     return tabId;
   }, options => net.request(options));
-  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),sshProfile ? undefined : browserUse,
+  appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
+    sshProfile ? undefined : selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};

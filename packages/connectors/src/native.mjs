@@ -8,6 +8,7 @@ import { DesktopAppUse } from '../../../desktop/src/main/app-use-mcp.ts';
 import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { join, dirname } from 'node:path';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
 import { ConnectorMcp } from './mcp.ts';
 import { ConversationRepl } from '../../../desktop/src/main/repl/repl.ts';
 import { pythonRepl } from '../../../desktop/src/main/repl/python.ts';
@@ -44,17 +45,18 @@ const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'co
       await computer.restore(enabled);
     },
   });
-const browser = process.platform === 'darwin'
-  ? new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }),
-    join(dirname(root), 'browser-use-evidence'))
-  : undefined;
+const browserEvidence = join(dirname(root), 'browser-use-evidence');
+const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchBrowserUse(
+  new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
+  selected, browserEvidence,
+) : undefined;
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),
   page: (scope, request) => effect('surface', { value: { action: 'page', scope, request } }),
   capture: async () => { throw new Error('Native App capture is unavailable'); },
   presence: () => {},
 }, () => {}, join(dirname(root), 'app-evidence'), { describe: () => routes.describe(), apply: (write, signal, goal) => routes.apply(write, signal, goal) }, computer,
-  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), browser,
+  (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }), new NotebookInspector(dirname(fileURLToPath(import.meta.url))), createBrowser,
   process.platform === 'darwin' ? new ConversationRepl('python', pythonRepl(helpers, bundledPython)) : undefined);
 
 let closing;
@@ -98,13 +100,14 @@ input.on('line', line => {
     void close();
   } else if (message.id) {
     const request = message.request;
+    const relay = appUse.browser?.relay;
     const result = request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
-      : request?.operation === 'chrome-relay-pair'
-        ? appUse.chromeRelay.pairing(request.label, request.thread).then(code => ({ ok: true, code }),
+      : relay && request?.operation === 'chrome-relay-pair'
+        ? relay.pairing(request.label, request.thread).then(code => ({ ok: true, code }),
           error => ({ ok: false, message: error.message }))
-        : request?.operation === 'chrome-relay-stop'
-          ? Promise.resolve(appUse.chromeRelay.revoke()).then(() => ({ ok: true }))
+        : relay && request?.operation === 'chrome-relay-stop'
+          ? Promise.resolve(relay.revoke()).then(() => ({ ok: true }))
           : owner.request(request);
     void result.then(
       value => send({ id: message.id, value }),

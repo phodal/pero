@@ -31,7 +31,7 @@ type Connection = {
   grant?: { id: string; tabId: string; origin: string };
 };
 
-export class ChromeRelay {
+class ChromeRelay {
   readonly browser: BrowserUsePort;
   private readonly sockets = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME, perMessageDeflate: false });
   private server?: Server;
@@ -222,11 +222,11 @@ export class ChromeRelay {
 export class WorkbenchBrowserUse implements BrowserUsePort {
   readonly tool;
   private readonly embedded: BrowserUsePort;
-  private readonly relay: ChromeRelay;
+  readonly relay: ChromeRelay;
 
-  constructor(embedded: BrowserUsePort, relay: ChromeRelay) {
+  constructor(embedded: BrowserUsePort, selected: () => Promise<string | undefined>, evidenceRoot: string) {
     this.embedded = embedded;
-    this.relay = relay;
+    this.relay = new ChromeRelay(selected, evidenceRoot);
     const tool = embedded.tool;
     this.tool = { ...tool, description: tool.description + ' Pero Chrome Relay tabs use a chrome: tabId. Pair from the Workbench, then approve the specific tab in the extension. Chrome supports ' +
       chromeActions.join(', ') + '. Pass its tabId to distinguish it from an embedded tab.' };
