@@ -1,7 +1,7 @@
 // Headed extension and real Relay, with a deterministic conversation at the Native UI boundary.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
@@ -9,6 +9,8 @@ import { WorkbenchBrowserUse } from '../../desktop/src/main/browser-use/chrome-r
 import { EXTENSION_ID } from '../../packages/chrome-extension/src/protocol.ts';
 
 const root = await mkdtemp(resolve(tmpdir(), 'pero-sidepanel-'));
+const output = resolve('test-results/chrome-sidebar');
+await mkdir(output, { recursive: true });
 const thread = 'acceptance';
 const messages = [];
 let saved;
@@ -45,6 +47,8 @@ try {
   await panel.getByRole('textbox', { name: 'Message Pero' }).fill('Chrome sidebar message');
   await panel.getByRole('button', { name: 'Send message' }).click();
   await expect(panel.locator('.bubble')).toContainText('Chrome sidebar message');
+  await panel.setViewportSize({ width: 420, height: 760 });
+  await panel.screenshot({ path: resolve(output, 'testing-chat.png') });
   await panel.getByRole('button', { name: 'More' }).click();
   await panel.getByRole('menuitem', { name: 'Collector' }).click();
   await target.bringToFront();
@@ -59,6 +63,7 @@ try {
   await panel.locator('#collector-reason').fill('Review destination');
   await panel.locator('#collector-save').click();
   await expect(panel.locator('#collector-receipt')).toContainText('reviewed-source');
+  await panel.screenshot({ path: resolve(output, 'testing-collector.png') });
   assert.equal(saved.url, url);
   assert.equal(saved.reason, 'Review destination');
   assert.equal(saved.content, 'Amber observatory');
