@@ -2,6 +2,7 @@
 use crate::{
     composer_state::ComposerState,
     conversation::{AgentChoice, Conversation},
+    project_composer::ProjectComposer,
     session_artifacts::InlineArtifactAction,
 };
 use gpui_kit::{
@@ -51,6 +52,7 @@ pub enum ChatAction {
     /// Open the App or source named by a frozen composer reference.
     OpenContext { reference: ContextReference },
     Selected { thread_id: Option<String> },
+    StartProjectAgent { project_id: String, agent_id: String },
     /// A compact surface needs room for a picker or a larger draft.
     CompactNeedsSpace,
     ClosePanel,
@@ -114,7 +116,8 @@ pub struct ChatPanel {
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
-    input_locale: String,
+    pub(crate) project_composer: ProjectComposer,
+    input_placeholder: &'static str,
     pub(crate) replayed: bool,
     pub(crate) visible: bool,
     pub(crate) next_request: u64,
@@ -161,6 +164,7 @@ impl ChatPanel {
         ];
         Self {
             link_subscriptions: HashMap::new(),
+            input_placeholder: pero_contracts::i18n::text(&locale, "chat.placeholder"),
             locale,
             connected: false,
             error: None,
@@ -196,7 +200,7 @@ impl ChatPanel {
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),
-            input_locale: String::new(),
+            project_composer: ProjectComposer::default(),
             replayed: false,
             visible: true,
             next_request: 0,
@@ -312,6 +316,10 @@ impl ChatPanel {
                 .insert(self.scope.clone(), chat.id.clone());
         }
         self.scope = scope;
+        self.restore_scope_chat(cx);
+    }
+
+    pub fn restore_scope_chat(&mut self, cx: &mut Context<Self>) {
         let next = self
             .scope_selection
             .get(&self.scope)
@@ -329,8 +337,11 @@ impl ChatPanel {
             if !visible { self.hide_mcp_surfaces(); }
             if visible {
                 if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
-                if self.active_chat.is_none() && self.replayed { self.new_draft(cx); }
-                else { self.prepare_chat(cx); }
+                if self.active_chat.is_none() && self.replayed && self.project_composer.scope.is_none() {
+                    self.new_draft(cx);
+                } else {
+                    self.prepare_chat(cx);
+                }
             }
             self.sync_follow(cx);
             cx.notify();
@@ -542,9 +553,9 @@ impl Render for ChatPanel {
         }
         self.apply_composer_context(window, cx);
         self.apply_pending_composer_insertions(window, cx);
-        if self.input_locale != self.locale {
-            self.input_locale = self.locale.clone();
-            let placeholder = self.t("chat.placeholder");
+        let placeholder = self.composer_placeholder();
+        if self.input_placeholder != placeholder {
+            self.input_placeholder = placeholder;
             self.composer.update(cx, |input, cx| {
                 input.set_placeholder(placeholder, window, cx)
             });

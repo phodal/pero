@@ -139,9 +139,14 @@ async function completed(id) {
 try {
   await launch(); await project();
   await capture('01-ready-light');
-  await control('agent:start');
+  expect(await sessions()).toHaveLength(0);
+  await draft('PROJECT_FIRST_TURN: Review the project goal');
+  await page.keyboard.press('Enter');
   await expect.poll(async () => (await sessions()).length).toBe(1);
   const main = (await sessions())[0].thread_id;
+  await completed(main);
+  await expect.poll(async () => (await state()).chats.find(chat => chat.id === main)?.messages
+    .filter(message => message.role === 'user').length).toBe(1);
   await wideColumns(main);
   checks.push('research-project-opens-central-agent-chat-with-left-navigation-and-right-materials');
   const singleLine = (await state()).composerBounds.input.height;

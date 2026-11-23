@@ -27,6 +27,10 @@ mod history_recovery;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod project_composer;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub use project_composer::ProjectComposerScope;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
 pub mod stream;
 #[cfg(any(target_family = "wasm", feature = "native"))]

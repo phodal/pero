@@ -20,7 +20,6 @@ pub(crate) struct ProjectAgentsView {
     loading: BTreeSet<String>,
     dirty: BTreeSet<String>,
     errors: BTreeMap<String, String>,
-    selected_agent: Option<String>,
     selected_threads: BTreeMap<String, String>,
     context_open: bool,
 }
@@ -32,11 +31,13 @@ impl ProjectAgentsView {
         }
         Some((project, action))
     }
-    pub(crate) fn request_failed(&mut self, id: &str, error: String) {
-        if let Some((project, _)) = self.finish_request(id) {
+    fn request_failed(&mut self, id: &str, error: String) -> Option<String> {
+        if let Some((project, action)) = self.finish_request(id) {
             self.dirty.remove(&project);
-            self.errors.insert(project, error);
+            self.errors.insert(project.clone(), error);
+            return (action == "start").then_some(project);
         }
+        None
     }
     pub(crate) fn snapshot_for(&self, project: &str) -> Option<&ProjectAgentSnapshot> {
         self.snapshots.get(project)
@@ -49,6 +50,41 @@ impl ProjectAgentsView {
 }
 
 impl Workbench {
+    pub(crate) fn project_composer_scope(&self) -> Option<pero_chat_ui::ProjectComposerScope> {
+        let project = self.saved_research_project()?;
+        let ready = self.project_agents.snapshot_for(&project.id).is_some_and(|snapshot| {
+            !snapshot.sessions.iter().any(|session| session.binding.parent_thread.is_none())
+        });
+        Some(pero_chat_ui::ProjectComposerScope {
+            project_id: project.id.clone(),
+            workspace: project.workspace.clone(),
+            ready,
+        })
+    }
+
+    pub(crate) fn start_project_agent(&mut self, project_id: &str, agent_id: &str, cx: &mut Context<Self>) {
+        let chat = self.chat.read(cx);
+        let retry = chat.active_chat.and_then(|index| chat.chats.get(index)).is_some_and(|chat| {
+            chat.can_retry_project_start() && chat.agent == agent_id
+        });
+        if self.project_agent_active()
+            && self.project_composer_scope().is_some_and(|scope| scope.project_id == project_id && (scope.ready || retry))
+            && !self.project_agents.pending.values().any(|(project, action)| project == project_id && action == "start")
+        {
+            self.request_project_agents(project_id, "start", json!({
+                "project_id": project_id, "agent_id": agent_id
+            }), cx);
+        } else {
+            self.chat.update(cx, |chat, cx| chat.project_start_failed(project_id, cx));
+        }
+    }
+
+    pub(crate) fn fail_project_agent_request(&mut self, id: &str, cx: &mut Context<Self>) {
+        if let Some(project) = self.project_agents.request_failed(id, self.t("error.connection").into()) {
+            self.chat.update(cx, |chat, cx| chat.project_start_failed(&project, cx));
+        }
+    }
+
     pub(crate) fn refresh_project_agents(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self
             .saved_research_project()
@@ -103,9 +139,13 @@ impl Workbench {
                 .map(|(project, _)| project.clone())
                 .or_else(|| event.data["project_id"].as_str().map(str::to_owned));
             if let Some(project) = project {
+                let starting = pending.is_some_and(|(_, action)| action == "start");
                 let refresh =
                     self.project_agents.dirty.remove(&project) && event.kind == "project_agent";
                 if event.kind == "project_agent_error" {
+                    if starting {
+                        self.chat.update(cx, |chat, cx| chat.project_start_failed(&project, cx));
+                    }
                     self.project_agents
                         .errors
                         .insert(project.clone(), event.text.clone());
@@ -113,6 +153,15 @@ impl Workbench {
                     match serde_json::from_value::<ProjectAgentSnapshot>(event.data.clone()) {
                         Ok(snapshot) => {
                             let selected = snapshot.selected_thread.clone();
+                            if starting {
+                                self.chat.update(cx, |chat, cx| {
+                                    if let Some(thread) = selected.as_deref() {
+                                        chat.finish_project_start(&project, thread, cx);
+                                    } else {
+                                        chat.project_start_failed(&project, cx);
+                                    }
+                                });
+                            }
                             self.project_agents
                                 .snapshots
                                 .insert(project.clone(), snapshot);
@@ -129,6 +178,9 @@ impl Workbench {
                             }
                         }
                         Err(_) => {
+                            if starting {
+                                self.chat.update(cx, |chat, cx| chat.project_start_failed(&project, cx));
+                            }
                             self.project_agents.errors.insert(
                                 project.clone(),
                                 self.t("project.agent.invalid_response").into(),
@@ -149,7 +201,10 @@ impl Workbench {
             return true;
         }
         if event.kind == "disconnected" {
-            for (project, _) in self.project_agents.pending.values() {
+            for (project, action) in self.project_agents.pending.values() {
+                if action == "start" {
+                    self.chat.update(cx, |chat, cx| chat.project_start_failed(project, cx));
+                }
                 self.project_agents
                     .errors
                     .insert(project.clone(), self.t("error.connection").into());
@@ -525,23 +580,6 @@ impl Workbench {
         let snapshot = self.project_agents.snapshot_for(&id);
         let loading = self.project_agents.loading.contains(&id);
         let error = self.project_agents.errors.get(&id);
-        let primary = snapshot.and_then(|snapshot| {
-            snapshot
-                .sessions
-                .iter()
-                .find(|session| session.binding.parent_thread.is_none())
-        });
-        let selected = self
-            .chat
-            .read(cx)
-            .active_chat
-            .and_then(|index| self.chat.read(cx).chats.get(index))
-            .and_then(|chat| {
-                snapshot?
-                    .sessions
-                    .iter()
-                    .find(|session| session.thread_id == chat.id)
-            });
         let external_resources = self.chat.read(cx).resource_column.is_some();
         let narrow_context =
             !external_resources && self.layout.narrow && self.project_agents.context_open;
@@ -577,7 +615,7 @@ impl Workbench {
                                     .child(error.clone()),
                             )
                         })
-                        .when(loading, |el| {
+                        .when(loading && snapshot.is_none(), |el| {
                             el.child(
                                 div()
                                     .id("project-agent-loading")
@@ -588,120 +626,10 @@ impl Workbench {
                                     .child(self.t("project.agent.loading")),
                             )
                         })
-                        .when(selected.is_some(), |el| el.child(self.chat.clone()))
-                        .when(primary.is_none(), |el| {
-                            el.child(self.project_agent_start(snapshot.is_some(), loading, &id, cx))
-                        }),
+                        .child(self.chat.clone()),
                 )
             })
             .when(context, |el| el.child(self.project_agent_context(cx)))
-            .into_any_element()
-    }
-
-    fn project_agent_start(
-        &self,
-        ready: bool,
-        loading: bool,
-        project: &str,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let agents = self
-            .chat
-            .read(cx)
-            .agents
-            .iter()
-            .filter(|agent| agent.available)
-            .cloned()
-            .collect::<Vec<_>>();
-        let selected = self
-            .project_agents
-            .selected_agent
-            .as_ref()
-            .and_then(|id| agents.iter().find(|agent| &agent.id == id))
-            .or_else(|| agents.get(self.chat.read(cx).agent_index))
-            .or_else(|| agents.first());
-        let agent_id = selected.map(|agent| agent.id.clone()).unwrap_or_default();
-        let selected_id = agent_id.clone();
-        let agent_label = selected
-            .map(|agent| agent.name.clone())
-            .unwrap_or_else(|| self.t("project.agent.no_agent").into());
-        let owner = cx.entity().downgrade();
-        let project = project.to_owned();
-        div()
-            .flex_1()
-            .min_h_0()
-            .flex()
-            .flex_col()
-            .justify_center()
-            .items_center()
-            .p(px(pero_theme::SPACE_24))
-            .child(
-                div()
-                    .max_w(px(520.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(pero_theme::SPACE_16))
-                    .child(
-                        div()
-                            .text_size(px(pero_theme::TYPE_HEADING))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(self.t("project.agent.start")),
-                    )
-                    .child(
-                        div()
-                            .whitespace_normal()
-                            .text_color(p.text_muted)
-                            .child(self.t("project.agent.hint")),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(pero_theme::SPACE_8))
-                            .child(
-                                Button::new("project-agent-choice")
-                                    .ghost()
-                                    .label(agent_label)
-                                    .dropdown_caret(true)
-                                    .disabled(loading || agents.is_empty())
-                                    .dropdown_menu(move |mut menu, _, _| {
-                                        for agent in &agents {
-                                            let owner = owner.clone();
-                                            let id = agent.id.clone();
-                                            menu = menu.item(
-                                                PopupMenuItem::new(agent.name.clone())
-                                                    .checked(agent.id == selected_id)
-                                                    .on_click(move |_, _, cx| {
-                                                        let _ = owner.update(cx, |this, cx| {
-                                                            this.project_agents.selected_agent =
-                                                                Some(id.clone());
-                                                            cx.notify();
-                                                        });
-                                                    }),
-                                            );
-                                        }
-                                        menu
-                                    }),
-                            )
-                            .child(
-                                Button::new("project-agent-start")
-                                    .primary()
-                                    .label(self.t("project.agent.start"))
-                                    .disabled(!ready || loading || agent_id.is_empty())
-                                    .relative()
-                                    .child(self.view_bounds.projects.probe("agent:start".into()))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.request_project_agents(
-                                            &project,
-                                            "start",
-                                            json!({"project_id":project,"agent_id":agent_id}),
-                                            cx,
-                                        )
-                                    })),
-                            ),
-                    ),
-            )
             .into_any_element()
     }
 

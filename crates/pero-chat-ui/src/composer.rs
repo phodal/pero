@@ -19,6 +19,8 @@ impl ChatPanel {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let chat = self.active_chat.and_then(|i| self.chats.get(i));
+        let project_scope = self.project_composer.scope.as_ref();
+        let starting = self.project_starting();
         let busy = chat.is_some_and(|c| c.busy());
         let id = chat.map(|c| c.id.clone()).unwrap_or_default();
         let agent = chat
@@ -36,9 +38,13 @@ impl ChatPanel {
         let workspace_path = chat
             .map(|chat| chat.workspace.as_str())
             .filter(|path| !path.is_empty())
-            .unwrap_or(&self.workspace);
+            .unwrap_or_else(|| project_scope.map(|scope| scope.workspace.as_deref().unwrap_or_default())
+                .unwrap_or(&self.workspace));
         let workspace = crate::composer_workspace::label(workspace_path).to_string();
-        let can_retry = chat.is_some_and(|chat| chat.can_retry());
+        let project_retry = chat.filter(|chat| chat.can_retry_project_start()).and_then(|chat| {
+            chat.project_agent.as_ref().map(|binding| (binding.project_id.clone(), chat.agent.clone()))
+        });
+        let can_retry = project_retry.is_some() || chat.is_some_and(|chat| chat.can_retry());
         let can_send = self.connected
             && self
                 .agents
@@ -46,6 +52,7 @@ impl ChatPanel {
                 .any(|choice| choice.id == agent && choice.available)
             && !(self.composer_state.loading && self.composer_state.resolve_range.is_some())
             && (!editor.value().trim().is_empty() || !self.attachments.is_empty())
+            && (project_scope.is_none() || self.can_start_project())
             && chat.is_none_or(|chat| chat.can_submit());
         let model_pending =
             chat.is_some_and(|chat| chat.pending_model.is_some() || chat.pending_setting.is_some());
@@ -143,7 +150,7 @@ impl ChatPanel {
             })
             .tooltip(self.t("composer.acp"))
             .dropdown_caret(true)
-            .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
+            .disabled(starting || chat.is_some_and(|chat| !chat.can_retarget()))
             .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
                 agent_choices.iter().enumerate().fold(
                     menu.min_w(px(W::MENU_WIDTH)).check_side(Side::Right),
@@ -170,6 +177,7 @@ impl ChatPanel {
             (None, Some(agent_picker))
         };
         let context_button = W::composer_control(Button::new("attach-context").ghost(), cx)
+            .disabled(starting)
             .relative()
             .child(self.composer_bounds.context.probe())
             .icon(IconName::Plus)
@@ -268,6 +276,7 @@ impl ChatPanel {
                             W::composer_control(Button::new(("attached-file", i)).ghost(), cx)
                                 .flex_1()
                                 .min_w_0()
+                                .disabled(starting && !can_open)
                                 .icon(Icon::default().path(Self::context_kind_icon(file.kind)))
                                 .label(file.label.clone())
                                 .tooltip(if can_open {
@@ -287,6 +296,7 @@ impl ChatPanel {
                         )
                         .child(
                             W::composer_control(Button::new(("remove-context", i)).ghost(), cx)
+                                .disabled(starting)
                                 .label("×")
                                 .accessibility_label(self.t("composer.remove"))
                                 .tooltip(self.t("composer.remove"))
@@ -437,14 +447,22 @@ impl ChatPanel {
                                 .child(self.composer_bounds.reconnect.probe())
                                 .icon(Icon::default().path(crate::assets::UiIcon::RotateCcw.path()))
                                 .label(
-                                    if chat.is_some_and(|chat| chat.state == SessionState::Closed) {
+                                    if project_retry.is_none() && chat.is_some_and(|chat| chat.state == SessionState::Closed) {
                                         self.t("chat.reconnect")
                                     } else {
                                         self.t("chat.retry")
                                     },
                                 )
                                 .disabled(!self.connected)
-                                .on_click(cx.listener(|this, _, _, cx| this.retry_chat(cx))),
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    if let Some((project_id, agent_id)) = &project_retry {
+                                        cx.emit(crate::ChatAction::StartProjectAgent {
+                                            project_id: project_id.clone(), agent_id: agent_id.clone(),
+                                        });
+                                    } else {
+                                        this.retry_chat(cx);
+                                    }
+                                })),
                         ),
                 )
             })
@@ -476,7 +494,8 @@ impl ChatPanel {
                                         pero_theme::UiAppearance::global(cx)
                                             .text(pero_theme::TextRole::Body),
                                     )
-                                    .aria_label(self.t("chat.placeholder"))
+                                    .aria_label(self.composer_placeholder())
+                                    .disabled(starting)
                                     .accessibility_id("chat-input")
                                     .on_paste(move |clipboard, window, cx| {
                                         paste_workbench
@@ -607,7 +626,7 @@ impl ChatPanel {
                                     workspace_path
                                 ))
                                 .max_w(px(280.))
-                                .disabled(chat.is_some_and(|chat| !chat.can_retarget()))
+                                .disabled(project_scope.is_some() || chat.is_some_and(|chat| !chat.can_retarget()))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.command(json!({"action":"choose_workspace"}), cx)
                                 })),

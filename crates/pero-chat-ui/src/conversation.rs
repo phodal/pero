@@ -372,6 +372,12 @@ impl Conversation {
             || self.mcp.as_ref().is_some_and(|mcp| !mcp.failed_servers().is_empty()))
     }
 
+    pub fn can_retry_project_start(&self) -> bool {
+        self.history.complete() && self.state == SessionState::Closed
+            && self.session_id.is_empty() && self.messages.is_empty()
+            && self.project_agent.as_ref().is_some_and(|binding| binding.parent_thread.is_none())
+    }
+
     pub fn can_submit(&self) -> bool {
         self.history.complete() && (self.state.can_submit()
             || (self.state == SessionState::Closed && self.project_agent.is_some() && !self.session_id.is_empty()))

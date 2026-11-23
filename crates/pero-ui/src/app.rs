@@ -217,6 +217,7 @@ impl Workbench {
                 ChatAction::FollowLink { href, middle, primary_modifier } => this.follow_link(href, pero_contracts::workbench::LinkClick { middle: *middle, primary_modifier: *primary_modifier }, window, cx),
                 ChatAction::OpenSource { target, middle, primary_modifier } => this.open_source(target.clone().resolve_remote(false), pero_contracts::workbench::LinkClick { middle: *middle, primary_modifier: *primary_modifier }, window, cx),
                 ChatAction::OpenDocument(document)=>this.open_document(document.clone(),window,cx),
+                ChatAction::StartProjectAgent { project_id, agent_id } => this.start_project_agent(project_id, agent_id, cx),
                 ChatAction::Content(intent) => this.command(serde_json::to_value(intent).expect("content intent"), cx),
                 ChatAction::WorkspaceFiles(request) => this.command(serde_json::to_value(request).expect("workspace file request"), cx),
                 ChatAction::ResourceTab { tab } => {let mut preferences=this.preferences.clone();preferences.layout.resource_tab=*tab;this.save_preferences(preferences,cx);},
@@ -425,6 +426,8 @@ impl Workbench {
             _=>None,
         });
         let pinned=pinned_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
+        let project_composer = (pinned.is_none() && self.project_agent_active())
+            .then(|| self.project_composer_scope()).flatten();
         let scope=origin.and_then(|origin|match origin {
             pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
@@ -441,8 +444,16 @@ impl Workbench {
         let compact = self.active_app_chat_slot().is_none() && self.floating_chat && !self.floating_chat_expanded && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
         self.chat.update(cx, |chat, cx| {
             if !visible { chat.set_visible(false, cx); }
-            chat.set_scope(scope, cx);
-            if let Some(index)=pinned {if chat.active_chat!=Some(index) {chat.focus_chat(Some(index),cx);}}
+            let needs_project_draft = project_composer.is_some();
+            let left_project_draft = chat.set_project_composer(project_composer, cx);
+            if !needs_project_draft {
+                chat.set_scope(scope, cx);
+                if let Some(index) = pinned {
+                    if chat.active_chat != Some(index) { chat.focus_chat(Some(index), cx); }
+                } else if left_project_draft && visible && chat.active_chat.is_none() {
+                    chat.restore_scope_chat(cx);
+                }
+            }
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
             if chat.compact != compact { chat.compact = compact; cx.notify(); }
@@ -504,7 +515,7 @@ impl Workbench {
         if session_command(&value.to_string()).is_err() {
             if value["method"] == "project_agent" {
                 if let Some(id) = value["request_id"].as_str() {
-                    self.project_agents.request_failed(id, self.t("error.connection").into());
+                    self.fail_project_agent_request(id, cx);
                 }
             }
             self.chat.update(cx, |panel, cx| {
