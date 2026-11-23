@@ -275,9 +275,14 @@ require verification.
 
 On 2026-11-23, a read-only preflight of `app.openpero.com` returned 200 for
 health and both existing client and operator APIs. The shared Project source
-route and Browser Use readiness route returned plain-text 404. No task was
-dispatched. The deployed API needs the new routes and an enabled isolated
-vision recipe before this acceptance can run there.
+route and Browser Use readiness route returned plain-text 404. After the
+operator-approved upgrade to `20261123T120905Z-898caf18`, the authorized client
+received a shared source list and a different Project returned 403. Health,
+client identity and operator task listing remained available. Migration 019
+was present, the pre-upgrade dump was readable and the previous container was
+retained. The deployed service has no isolated runtime configuration, so the
+Browser Use readiness route still returns 404. No Task was dispatched.
+The read-only API receipts are in `test-results/cloud-browser-hosted/`.
 
 ### Embedded browser
 
