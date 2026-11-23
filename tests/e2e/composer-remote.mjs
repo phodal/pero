@@ -37,8 +37,8 @@ try {
   const original = (await state()).chats[(await state()).activeChat].id;
   const box = (await state()).composerBounds.input;
   await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-  await page.keyboard.insertText('Compare results @remote');
-  const label = 'Remote Use · Worker task';
+  await page.keyboard.insertText('Compare results @worker');
+  const label = 'Worker task';
   await expect.poll(async () => (await state()).completion.items).toContain(label);
   const {items, selected} = (await state()).completion;
   for (let n = (items.indexOf(label) - selected + items.length) % items.length; n; n--) await page.keyboard.press('ArrowDown');
@@ -54,9 +54,9 @@ try {
   await page.mouse.click(chatInput.x + chatInput.width/2, chatInput.y + chatInput.height/2);
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
   await page.keyboard.insertText('/compute');
-  await expect.poll(async () => (await state()).completion.items).toContain('Remote Use · Compute');
+  await expect.poll(async () => (await state()).completion.items).toContain('Compute');
   const compute = (await state()).completion;
-  for (let n = (compute.items.indexOf('Remote Use · Compute') - compute.selected + compute.items.length) % compute.items.length; n; n--) await page.keyboard.press('ArrowDown');
+  for (let n = (compute.items.indexOf('Compute') - compute.selected + compute.items.length) % compute.items.length; n; n--) await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await state()).activeContent).toEqual({kind:'app', value:{name:'compute', panel:'main'}});
   expect(fixture.creationAttempts).toHaveLength(0);

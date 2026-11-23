@@ -118,7 +118,8 @@ configured server and the shell's actual capabilities.
 | Browser Use | Browser, or an authorized tab and origin | Browser Use grant owner |
 | Computer Use | Local desktop | Computer Use settings and permission checks |
 | App Use | App data tools, or the current panel instance | App declarations and App Use |
-| Remote Use | Attached Linux desktop, bound project task draft, or Compute | Desktop attachment, existing task form, or Compute's SSH/Slurm flow |
+| Remote Use | Open the Linux desktop beside chat, or select the attached desktop for a prompt | Workbench VNC panel and Linux desktop session |
+| Worker task and Compute | Prepare a bound project task draft or open Compute | Task form and Compute SSH/Slurm flow |
 | Connector | Enabled connector in this conversation | Connector owner |
 | Project delegation | Primary project Agent | Project work tool |
 | Notebook | Python or R in a negotiated shared science session | ACP Agent session |
@@ -132,3 +133,11 @@ dialogs. Slash commands and project skills keep their original semantics.
 The Workbench owns navigation to Compute and creation of a remote task draft.
 A task draft copies the editable prompt into the existing form for the bound
 project. The user chooses a Worker and submits through the normal task flow.
+
+
+The Electron Workbench on macOS and Linux places the VNC renderer in a
+sandboxed WebContentsView beside the retained Workbench. Point's
+`desktop/electron/src/vnc/vnc-surface-host.mjs` and `vnc/renderer/app.mjs`
+provide the reference for display ownership, sizing, noVNC and handoff.
+Pero's LinuxDesktop owns the guest, conversation binding and control route.
+Moving the panel relays no input to the guest and preserves its RFB connection.

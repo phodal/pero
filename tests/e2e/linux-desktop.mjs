@@ -42,7 +42,6 @@ try {
     viewer.on('pageerror', error => errors.push(error.message));
     await focusPage(viewer);
   };
-  await openViewer();
   const button = name => viewer.getByRole('button', { name, exact: true });
   const frame = () => expect(viewer.locator('.framebuffer')).toHaveAttribute('data-frame', 'connected', { timeout: 25_000 });
   const canvas = () => viewer.locator('.framebuffer canvas');
@@ -50,7 +49,22 @@ try {
   const prompt = async command => {
     await expect.poll(async () => (await chat()).state).toBe('idle');
     const count = (await chat()).messages.length;
-    await workbench.evaluate(({ thread, command }) => window.pero.sessionCommand({ action: 'prompt', thread_id: thread, text: `DESKTOP_TEST:${command}` }), { thread, command });
+    if (command === 'write') {
+      const input = (await state()).composerBounds.input;
+      await workbench.mouse.click(input.x + input.width/2, input.y + input.height/2);
+      await workbench.keyboard.insertText('DESKTOP_TEST:write @remo');
+      const target = 'Use attached Linux desktop';
+      await expect.poll(async () => {
+        const picker = (await state()).completion;
+        return !picker.loading && picker.items.includes(target);
+      }).toBe(true);
+      const picker = (await state()).completion;
+      for (let n = (picker.items.indexOf(target)-picker.selected+picker.items.length)%picker.items.length; n; n--)
+        await workbench.keyboard.press('ArrowDown');
+      await workbench.keyboard.press('Enter');
+      await expect.poll(async () => (await state()).attachments).toEqual([target]);
+      await workbench.keyboard.press('Enter');
+    } else await workbench.evaluate(({ thread, command }) => window.pero.sessionCommand({ action: 'prompt', thread_id: thread, text: `DESKTOP_TEST:${command}` }), { thread, command });
     let reply;
     await expect.poll(async () => {
       const current = await chat();
@@ -60,8 +74,38 @@ try {
     return JSON.parse(reply.slice('LINUX_RESULT:'.length));
   };
 
-  await button('Start desktop').click();
-  await frame();
+  const input = (await state()).composerBounds.input;
+  await workbench.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
+  await workbench.keyboard.insertText('@remo');
+  await expect.poll(async () => (await state()).completion.items[0]).toBe('Remote Use · Linux Desktop');
+  await workbench.keyboard.press('Enter');
+  const dock = async script => desktop.evaluate(({ BrowserWindow }, script) => {
+    const view = BrowserWindow.getAllWindows()[0].contentView.children[1];
+    return view?.webContents?.executeJavaScript(script);
+  }, script);
+  const dockButton = async label => {
+    const query = 'Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === ' + JSON.stringify(label) + ' && !b.disabled)';
+    await expect.poll(() => dock('!!(' + query + ')')).toBe(true);
+    await dock(query + '.click()');
+  };
+  const dockBounds = () => desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.map(view => view.getBounds()));
+  await dockButton('Start desktop');
+  await expect.poll(() => dock('document.querySelector(".framebuffer")?.dataset.frame'), {timeout:30000}).toBe('connected');
+  const [chatBounds, desktopBounds] = await dockBounds();
+  expect(desktopBounds.x).toBe(chatBounds.width);
+  await dockButton('Move to other side');
+  await expect.poll(async () => (await dockBounds())[1].x).toBe(0);
+  const heading = await dock('document.querySelector(".heading").getBoundingClientRect().toJSON()');
+  await desktop.evaluate(({BrowserWindow}, rect) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    const view = win.contentView.children[1];
+    const x = Math.round(rect.x + 10), y = Math.round(rect.y + 10);
+    view.webContents.sendInputEvent({type:'mouseDown', button:'left', x, y, clickCount:1});
+    const drop = x + 100;
+    view.webContents.sendInputEvent({type:'mouseMove', x:drop, y, modifiers:['leftButtonDown']});
+    view.webContents.sendInputEvent({type:'mouseUp', button:'left', x:drop, y, clickCount:1});
+  }, heading);
+  await expect.poll(async () => (await dockBounds())[1].x).toBe(chatBounds.width);
   const guests = (await containers()).filter(name => !original.includes(name));
   expect(guests).toHaveLength(1);
   [guest] = guests;
@@ -70,12 +114,19 @@ try {
   await docker('exec', guest, 'touch', proof);
   await docker('exec', '-d', guest, 'mousepad', proof);
   await expect.poll(() => docker('exec', guest, 'xwininfo', '-root', '-tree')).toContain('remote-proof.txt');
-  await button('Enable Computer Use').click();
+  await dockButton('Enable Computer Use');
   await expect.poll(async () => JSON.parse(await readFile(settings, 'utf8')).computer_use.enabled).toBe(true);
-  await button('Connect selected chat').click();
-  await expect(button('Disconnect chat')).toBeVisible();
+  await dockButton('Connect selected chat');
+  await expect.poll(() => dock('document.body.innerText.includes("Disconnect chat")')).toBe(true);
   const first = await prompt('write');
   expect(first.receipt?.outcome.status, JSON.stringify(first)).toBe('executed');
+  const panelImage = await desktop.evaluate(async ({BrowserWindow}) =>
+    (await BrowserWindow.getAllWindows()[0].contentView.children[1].webContents.capturePage()).toPNG().toString('base64'));
+  await writeFile(resolve(out,'agent-vnc-panel.png'), Buffer.from(panelImage,'base64'));
+  await dockButton('Close panel');
+  await expect.poll(async () => (await dockBounds()).length).toBe(0);
+  await openViewer();
+  await frame();
   await viewer.screenshot({ path: resolve(out, 'watching.png') });
 
   await canvas().click();
@@ -145,7 +196,7 @@ try {
   expect((await prompt('after-stop')).error).toMatch(/Linux desktop is unavailable/i);
   expect(errors).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, guest, runtime: resumed.runtime,
-    fileContent: 'Agent-Human-Resumed', provider: 'scripted ACP', checks: ['view-only', 'handoff', 'fresh observation', 'independent guest file',
+    fileContent: 'Agent-Human-Resumed', provider: 'scripted ACP', checks: ['composer @remote', 'right VNC panel', 'move button', 'drag between sides', 'attached chat input', 'view-only', 'handoff', 'fresh observation', 'independent guest file',
       'close returns control', 'disconnect refuses local fallback', 'stop cancel and confirmation', 'guest exit and restart'] }, null, 2));
   await rm(resolve(out, 'failure.png'), { force: true });
   console.log('Real Electron and Colima Linux desktop passed view-only, Agent input, VNC takeover, resume, saved file, and disconnect checks.');
