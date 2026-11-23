@@ -23,6 +23,9 @@ Local adaptations:
   `src/ffi/{accessibility,input,image}.rs`, retaining the `ffi::*` API.
 - Expose the existing Windows UIA session readiness check for Pero's driver
   status.
+- Keep WinForms controls with no usable runtime ID in the password scan.
+  Use the UI Automation focus policy for background invocation and expose
+  observed editable and scrollable controls to the Pero driver.
 
 The splits keep each source file below Pero's 1000-line limit without changing
 driver behavior. Upstream source comments are retained. Their descriptions of

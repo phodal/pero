@@ -22,7 +22,7 @@ const children = [];
 let fixtureState, target, native, sequence = 0;
 
 function worker(executable, args, stdin, onLine) {
-  const child = spawn(executable, args, { windowsHide: true, stdio: [stdin, 'pipe', 'inherit'] });
+  const child = spawn(executable, args, { windowsHide: executable !== fixturePath, stdio: [stdin, 'pipe', 'inherit'] });
   const owned = { child, exited: false };
   child.on('exit', code => { owned.exited = true; owned.exitCode = code; });
   child.on('error', error => { owned.error = error; });
@@ -91,7 +91,8 @@ try {
   const listed = await call({ operation: 'targets' });
   const fixtureTarget = listed.targets.find(item => item.title === `${title} Target`);
   const guardTarget = listed.targets.find(item => item.title === `${title} Guard`);
-  assert.ok(fixtureTarget && guardTarget, 'Both owned WinForms windows must be discoverable');
+  assert.ok(fixtureTarget && guardTarget,
+    `Both owned WinForms windows must be discoverable (target: ${Boolean(fixtureTarget)}, guard: ${Boolean(guardTarget)})`);
   assert.notDeepEqual(fixtureTarget.reference, guardTarget.reference);
   assert.equal(listed.capabilities.environment.platform, 'windows');
   target = fixtureTarget.reference;

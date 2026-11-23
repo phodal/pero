@@ -1,7 +1,7 @@
 //! The only Point-to-Pero value conversion for this native library.
 use computer_core::{ControlId, ObservedControl, Window, WindowBounds, WindowImage};
 use computer_runtime::WindowObservation;
-use pero_contracts::computer_use::ComputerImageType;
+use pero_contracts::computer_use::{ComputerActionKind, ComputerImageType};
 use point_computer_core::types as native;
 use std::num::NonZeroU32;
 
@@ -32,11 +32,14 @@ pub fn bounds(frame: native::Frame) -> WindowBounds {
     }
 }
 pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Snapshot> {
+    source
+        .elements
+        .retain(|element| !element.subrole.is_empty());
     let elements = source
         .elements
         .iter()
         .map(|e| {
-            ObservedControl {
+            let mut control = ObservedControl {
                 index: ControlId(e.index),
                 role: e.role.clone(),
                 label: e.title.clone(),
@@ -44,9 +47,20 @@ pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Sn
                 depth: e.depth,
                 enabled: e.enabled,
                 secure: e.secure,
-                invocable: e.actions.iter().any(|action| action == "AXPress"),
+                invocable: e.actions.iter().any(|action| action == "press"),
             }
-            .into_element()
+            .into_element();
+            if e.enabled && !e.secure {
+                if e.traits.iter().any(|name| name == "editable")
+                    && !control.actions.contains(&ComputerActionKind::Click)
+                {
+                    control.actions.push(ComputerActionKind::Click);
+                }
+                if e.actions.iter().any(|action| action == "scroll") {
+                    control.actions.push(ComputerActionKind::Scroll);
+                }
+            }
+            control
         })
         .collect();
     let bytes = std::mem::take(&mut source.image_jpeg);

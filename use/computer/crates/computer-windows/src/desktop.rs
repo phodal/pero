@@ -163,22 +163,17 @@ impl DesktopDriver for Desktop {
                     ComputerMouseButton::Middle => native::MouseButton::Middle,
                 };
                 if !foreground {
-                    if u8::from(count) != 1 || element(&anchor).is_none() {
+                    let target = element(&anchor)
+                        .filter(|_| button == native::MouseButton::Left && u8::from(count) == 1);
+                    let Some(target) = target else {
                         return Err(error(
                             ComputerErrorCode::Unsupported,
-                            "Background Windows input requires a single UIA element invocation",
+                            "Background Windows input requires a single left click on a UIA element",
                         ));
-                    }
-                    self.driver.click(
-                        app,
-                        element(&anchor),
-                        native::ClickRequest {
-                            method: native::ClickMethod::Accessibility,
-                            point: None,
-                            button,
-                            count: 1,
-                        },
-                    )
+                    };
+                    uia::invoke_background(app, target)
+                        .map_err(|message| error(ComputerErrorCode::Failed, message))?;
+                    return Ok(None);
                 } else {
                     self.driver.click(
                         app,
