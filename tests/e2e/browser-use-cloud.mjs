@@ -1,6 +1,7 @@
 // Run via TestCloudBrowserFollowsClaimAndRuntimeChannel, which owns the
 // temporary PostgreSQL binding, HTTP Gateway and projected Pod fixture.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -77,6 +78,7 @@ try {
     return dialog?.type;
   }).toBe('question');
   assert.match((await consent()).detail, /Browser fixture/);
+  assert.match((await consent()).detail, /Screenshots of the visible page/);
   assert((await consent()).detail.includes(origin) && (await consent()).detail.includes(new URL(url).origin));
   assert.equal((await call({ action: 'status' })).status, 409);
   await app.evaluate(() => { globalThis.cloudBrowserApproved = true; });
@@ -88,6 +90,31 @@ try {
   await shared();
   for (const blocked of [{ action: 'open', url }, { action: 'files' }, { action: 'observe', tabId: 'other-tab' }])
     assert.equal((await call(blocked)).value.kind, 'error');
+  assert.equal((await call({ action: 'screenshot', fullPage: true })).value.kind, 'error');
+  const screenshot = async lane => {
+    const result = await call({ action: 'screenshot', clip: { x: 0, y: 0, width: 450, height: 250 } });
+    assert.equal(result.value.kind, 'screenshot', JSON.stringify(result.value).slice(0, 300));
+    const png = Buffer.from(result.value.png, 'base64');
+    const { receipt } = result.value;
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.deepEqual([receipt.width, receipt.height], [450, 250]);
+    assert.equal(receipt.bytes, png.length);
+    assert.equal(receipt.sha256, createHash('sha256').update(png).digest('hex'));
+    const model = new URL(`/api/runtime/v1/runs/${runId}/provider/v1/chat/completions`, origin);
+    model.searchParams.set('session_id', runId);
+    const response = await fetch(model, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+      headers: { Authorization: `Bearer ${pod}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'fixture', messages: [{ role: 'tool', tool_call_id: 'shot',
+        content: [{ type: 'text', text: JSON.stringify(receipt) },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,' + result.value.png } }] }] }),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal((await response.json()).sha256, receipt.sha256);
+    await writeFile(resolve(output, lane + '-cloud-model.png'), png);
+    return receipt;
+  };
   const clickFixture = async () => {
     const match = await call({ action: 'locate', locator: { by: 'role', role: 'button', name: 'Mark fixture' } });
     assert.equal(match.value.kind, 'observation', JSON.stringify(match.value));
@@ -100,6 +127,7 @@ try {
     return click;
   };
   const click = await clickFixture();
+  const embeddedScreenshot = await screenshot('embedded');
   await expect.poll(() => effects).toEqual(['/effect/embedded']);
   await page.screenshot({ path: resolve(output, 'embedded-cloud-share.png') });
   const captured = await app.evaluate(async ({ webContents }, address) => {
@@ -151,6 +179,7 @@ try {
   await target.bringToFront();
   await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(true);
   const chromeClick = await clickFixture();
+  const chromeScreenshot = await screenshot('chrome');
   await expect(target.getByTestId('effect')).toHaveText('Trusted Cloud click');
   await expect(sibling.getByTestId('effect')).toHaveText('Waiting');
   await expect.poll(() => effects).toEqual(['/effect/embedded', '/effect/chrome']);
@@ -160,7 +189,7 @@ try {
   await expect(panel.locator('#status')).toContainText('Connected');
   await writeFile(resolve(output, 'result.json'), JSON.stringify({
     declined: true, granted: true, blockedOtherTabAndFiles: true, effects, click, chromeClick,
-    inactiveChromeTabBlocked: true, revoked: true, chromePairRetained: true,
+    embeddedScreenshot, chromeScreenshot, inactiveChromeTabBlocked: true, revoked: true, chromePairRetained: true,
   }, null, 2));
   console.log('Electron and paired Chrome each completed one trusted click through the real Cloud Runtime Gateway.');
 } finally {

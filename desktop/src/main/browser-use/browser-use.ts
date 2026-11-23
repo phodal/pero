@@ -12,7 +12,7 @@ import { downloadArtifact, downloadPageArtifact, type DownloadListener, type Dow
 import { HistoryRejection, traverseHistory } from './navigation.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserInputSchema, browserRequest, type FrameSelector } from './request.ts';
-import { captureChromiumDocument } from './screenshot.ts';
+import { captureChromiumDocument, rasterScreenshot } from './screenshot.ts';
 
 export const BROWSER_TOOL = {
   name: 'browser_use',
@@ -74,7 +74,7 @@ class BrowserGrant {
   revision = 0;
   release?: () => void;
   observation?: { id: string; url: string; frame?: FrameSelector[]; frameUrl?: string };
-  constructor(id: string, thread: string, tab: BrowserTab, origin: string) {
+  constructor(id: string, thread: string, tab: BrowserTab, origin: string, readonly modelScreenshots: boolean) {
     this.id = id;
     this.thread = thread;
     this.tab = tab;
@@ -113,10 +113,10 @@ export class BrowserUse implements BrowserUsePort {
     if (address) return { origin: address.origin, title: tab.contents.getTitle().slice(0, 160) };
   }
 
-  allow(thread: string, tab: BrowserTab, origin: string) {
+  allow(thread: string, tab: BrowserTab, origin: string, modelScreenshots = false) {
     if (this.candidate(tab)?.origin !== origin) throw new Error('The Web tab changed. Select it and try again.');
     this.revokeTab(tab.id);
-    const grant = new BrowserGrant(randomUUID(), thread, tab, origin);
+    const grant = new BrowserGrant(randomUUID(), thread, tab, origin, modelScreenshots);
     const contents = tab.contents;
     const navigating = ({ url, isMainFrame }: { url: string; isMainFrame: boolean }) => {
       if (!isMainFrame) return;
@@ -311,6 +311,13 @@ export class BrowserUse implements BrowserUsePort {
             throw new Error('The screenshot clip must fit inside the visible viewport.');
           image = clip ? viewport.crop(clip) : viewport;
           png = image.toPNG();
+          if (grant.modelScreenshots) {
+            checkFrames();
+            const raster = await contents.executeJavaScriptInIsolatedWorld(1004, [{
+              code: `(${rasterScreenshot.toString()})(${JSON.stringify(png.toString('base64'))})`,
+            }]);
+            png = Buffer.from(raster.base64, 'base64');
+          }
         }
         checkFrames();
         if (image.isEmpty() || png.length > 4 * 1024 * 1024)

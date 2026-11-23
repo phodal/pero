@@ -68,6 +68,7 @@
   "browser_use.cloud_select_chrome": "Select a running isolated Cloud task you claimed and activate a loaded tab in paired Chrome.",
   "browser_use.cloud_active": "Shared with Cloud Run",
   "browser_use.cloud_not_ready": "This Cloud Run is not ready for browser sharing.",
+  "browser_use.cloud_screenshots": "Screenshots of the visible page can be sent to the Cloud Run’s model.",
   "browser_use.deny": "Cancel",
   "browser_use.grant_detail": "The selected chat can read and operate this tab on the listed site while the tab is visible. Stop access anytime from Workbench → Stop Browser Use.",
   "browser_use.menu_allow": "Allow Browser Use for This Tab…",

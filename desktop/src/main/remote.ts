@@ -161,10 +161,10 @@ export class RemoteAdapter {
     this.browserShare = undefined;
   }
   async browserShareReady(run: BrowserRun) {
-    return this.matchesBrowserRun(run) &&
-      await this.request(`/api/runtime/v1/runs/${run.runId}/browser/desktop?session_id=${run.sessionId}`)
-        .then(value => !!value && typeof value === 'object' && 'available' in value && value.available === true)
-        .catch(() => false);
+    if (!this.matchesBrowserRun(run)) return;
+    const value = await this.request(`/api/runtime/v1/runs/${run.runId}/browser/desktop?session_id=${run.sessionId}`).catch(() => undefined);
+    if (!value || typeof value !== 'object' || !('available' in value) || value.available !== true) return;
+    return { screenshots: 'screenshots' in value && value.screenshots === true };
   }
   async shareBrowser(run: BrowserRun, grant: () => AbortSignal, call: (input: unknown, signal: AbortSignal) => Promise<object>) {
     if (!this.matchesBrowserRun(run)) throw new Error('The selected Cloud Run changed.');

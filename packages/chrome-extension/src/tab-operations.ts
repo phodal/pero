@@ -1,6 +1,6 @@
 import type { DriverOperation } from '../../../desktop/src/main/browser-use/native-use.ts';
-import { captureChromiumDocument } from '../../../desktop/src/main/browser-use/screenshot.ts';
-import { downloadLinkScript, encodeBytes } from '../../../desktop/src/main/browser-use/download-link.ts';
+import { captureChromiumDocument, rasterScreenshot } from '../../../desktop/src/main/browser-use/screenshot.ts';
+import { downloadLinkScript } from '../../../desktop/src/main/browser-use/download-link.ts';
 import { MAX_TRANSFER_BYTES, webOrigin } from './protocol.ts';
 
 export type Cdp = (method: string, params?: Record<string, unknown>) => Promise<any>;
@@ -23,15 +23,7 @@ export async function screenshot(cdp: Cdp, { clip, fullPage }: Omit<Extract<Driv
   if (!clip) return { base64: data, width, height, ...(fullPage && { fullPage }) };
   if (clip.x + clip.width > width || clip.y + clip.height > height)
     throw new Error('The screenshot clip is outside the Chrome viewport.');
-  const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(data), char => char.charCodeAt(0))], { type: 'image/png' }));
-  try {
-    const canvas = new OffscreenCanvas(clip.width, clip.height);
-    canvas.getContext('2d')!.drawImage(bitmap, clip.x, clip.y, clip.width, clip.height, 0, 0, clip.width, clip.height);
-    const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
-    return { base64: encodeBytes(bytes), width: clip.width, height: clip.height };
-  } finally {
-    bitmap.close();
-  }
+  return rasterScreenshot(data, clip);
 }
 
 export async function downloadLink(cdp: Cdp, world: string, origin: string, url: string) {

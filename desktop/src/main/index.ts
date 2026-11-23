@@ -198,10 +198,12 @@ async function shareBrowserWithCloudRun(engine: 'embedded' | 'chrome') {
     const target = page ?? chromeTab;
     const run = remote.browserRun();
     if (!run || !files || !target) throw new Error(t(engine === 'chrome' ? 'browser_use.cloud_select_chrome' : 'browser_use.cloud_select'));
-    if (!await remote.browserShareReady(run)) throw new Error(t('browser_use.cloud_not_ready'));
+    const capability = await remote.browserShareReady(run);
+    if (!capability) throw new Error(t('browser_use.cloud_not_ready'));
     const answer = await dialog.showMessageBox(window, {
       type: 'question', message: t('browser_use.cloud_confirm'),
-      detail: [run.title, run.url, target.title, target.origin, '', t('browser_use.cloud_detail')].join('\n'),
+      detail: [run.title, run.url, target.title, target.origin, '', t('browser_use.cloud_detail'),
+        ...(capability.screenshots ? [t('browser_use.cloud_screenshots')] : [])].join('\n'),
       buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
     });
     if (answer.response !== 1) return;
@@ -212,12 +214,12 @@ async function shareBrowserWithCloudRun(engine: 'embedded' | 'chrome') {
         throw new Error(t('browser_use.cloud_select_chrome'));
       const grant = chrome.shareTabWithCloud(chromeTab);
       await remote.shareBrowser(run, () => grant.signal,
-        (input, signal) => grant.browser.call(share, cloudBrowserRequest(input, chromeTab.tabId), signal, files));
+        (input, signal) => grant.browser.call(share, cloudBrowserRequest(input, chromeTab.tabId, capability.screenshots), signal, files));
     } else if (browser && tab && page) {
       const attachment = await remote.shareBrowser(run, () => {
         if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
-        return browser.allow(share, tab, page.origin);
-      }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id), signal, files));
+        return browser.allow(share, tab, page.origin, capability.screenshots);
+      }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id, capability.screenshots), signal, files));
       void attachment.closed.then(() => browser.revoke(share));
     }
   } catch (error) {

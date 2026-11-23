@@ -68,6 +68,7 @@
   "browser_use.cloud_select_chrome": "选择你已认领且正在运行的隔离云端任务，并在配对的 Chrome 中选中已加载的标签页。",
   "browser_use.cloud_active": "已共享给云端任务",
   "browser_use.cloud_not_ready": "此云端任务尚未就绪，暂时无法共享浏览器。",
+  "browser_use.cloud_screenshots": "可见页面的截图可能发送给此云端任务使用的模型。",
   "browser_use.deny": "取消",
   "browser_use.grant_detail": "当前聊天可在标签页可见时读取和操作此站点。可随时通过「工作台 → 停止浏览器操作」撤销。",
   "browser_use.menu_allow": "允许操作此浏览器标签页…",

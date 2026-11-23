@@ -3,15 +3,32 @@ import { request as httpsRequest } from 'node:https';
 import { browserRequest } from './request.ts';
 
 const MAX_REQUEST = 17 << 10;
-const MAX_REPLY = 256 << 10;
+const MAX_TEXT_REPLY = 256 << 10;
+const MAX_IMAGE_BYTES = 2 << 20;
+const MAX_IMAGE_REPLY = 3 << 20;
+const MAX_IMAGE_EDGE = 2048;
 type BrowserCall = (input: unknown, signal: AbortSignal) => Promise<object>;
 
-export function cloudBrowserRequest(value: unknown, tabId: string) {
+export function cloudBrowserRequest(value: unknown, tabId: string, screenshots: boolean) {
   const request = browserRequest.parse(value);
-  if (!['status', 'observe', 'locate', 'click', 'fill'].includes(request.action) ||
+  const viewport = request.action === 'screenshot' && screenshots && !request.fullPage;
+  if ((!viewport && !['status', 'observe', 'locate', 'click', 'fill'].includes(request.action)) ||
       'tabId' in request || 'frame' in request || 'within' in request || 'expectPopup' in request)
     throw new Error('This Cloud Run can observe and operate only the shared tab.');
+  if (viewport && request.clip && Math.max(request.clip.width, request.clip.height) > MAX_IMAGE_EDGE)
+    throw new Error('Choose a viewport clip at most 2048 pixels on each edge.');
   return { ...request, tabId };
+}
+
+function screenshotReply(result: object) {
+  if (!('png' in result) || !Buffer.isBuffer(result.png) || !('receipt' in result))
+    throw new Error('Browser Use did not return a PNG with its receipt.');
+  const { png, receipt } = result;
+  if (!receipt || typeof receipt !== 'object' || !('width' in receipt) || !('height' in receipt) ||
+      typeof receipt.width !== 'number' || typeof receipt.height !== 'number' ||
+      Math.max(receipt.width, receipt.height) > MAX_IMAGE_EDGE || png.length > MAX_IMAGE_BYTES)
+    throw new Error('Choose a viewport clip at most 2048 pixels on each edge and 2 MiB as PNG.');
+  return { kind: 'screenshot', receipt, png: png.toString('base64') };
 }
 
 export function connectCloudBrowser(base: string, token: string, runId: string, sessionId: string,
@@ -70,12 +87,16 @@ async function consume(response: IncomingMessage, signal: AbortSignal, call: Bro
           !('value' in frame) || !frame.value || typeof frame.value !== 'object' || Array.isArray(frame.value))
         throw new Error('The Cloud browser call is invalid.');
       let result: object;
-      try { result = await call(frame.value, signal); }
+      try {
+        result = await call(frame.value, signal);
+        if ('kind' in result && result.kind === 'screenshot') result = screenshotReply(result);
+      }
       catch (error) { result = { kind: 'error', message: (error instanceof Error ? error.message : 'Browser Use failed.').slice(0, 500) }; }
       signal.throwIfAborted();
       let line = JSON.stringify({ id: expected, value: result }) + '\n';
-      if (Buffer.byteLength(line) > MAX_REPLY)
-        line = JSON.stringify({ id: expected, value: { kind: 'error', message: 'Browser result exceeds the Cloud text result limit.' } }) + '\n';
+      const limit = 'kind' in result && result.kind === 'screenshot' ? MAX_IMAGE_REPLY : MAX_TEXT_REPLY;
+      if (Buffer.byteLength(line) > limit)
+        line = JSON.stringify({ id: expected, value: { kind: 'error', message: 'Browser result exceeds the Cloud reply limit.' } }) + '\n';
       reply(line);
       expected++;
     }
