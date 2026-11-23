@@ -1,7 +1,7 @@
 // Run via TestCloudBrowserFollowsClaimAndRuntimeChannel, which owns the
 // temporary PostgreSQL binding, HTTP Gateway and projected Pod fixture.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -18,8 +18,10 @@ const { PERO_TEST_CLOUD_BROWSER_ORIGIN: origin, PERO_TEST_CLOUD_BROWSER_CLIENT: 
 assert(origin && new URL(origin).hostname === '127.0.0.1' && client && pod && runId && taskId,
   'Start the isolated Browser Use Go test fixture.');
 const root = resolve(import.meta.dirname, '../..');
+const installed = process.argv.includes('--native') && process.env.PERO_TEST_CLOUD_BROWSER_NATIVE_APP;
+if (installed) execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--deep', installed]);
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-cloud-browser-'));
-const output = resolve(root, 'test-results/browser-use-cloud');
+const output = resolve(root, 'test-results', installed ? 'installed-browser-use-cloud' : 'browser-use-cloud');
 await mkdir(output, { recursive: true });
 const effects = [];
 const site = createServer((request, response) => {
@@ -95,7 +97,8 @@ async function expectActiveChromeTab(panel, target) {
 }
 
 async function pairedChrome(ticket) {
-  const extension = resolve(root, 'target/chrome-extension');
+  const extension = installed ? resolve(installed, 'Contents/Resources/app/packages/connectors/helpers/chrome-extension')
+    : resolve(root, 'target/chrome-extension');
   chrome = await chromium.launchPersistentContext(resolve(temp, 'chrome'), {
     executablePath: chromium.executablePath(), headless: false,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
@@ -106,7 +109,9 @@ async function pairedChrome(ticket) {
   await sibling.goto(new URL('/sibling', url).href);
   const panel = await chrome.newPage();
   await panel.goto(`chrome-extension://${EXTENSION_ID}/relay.html#` + new URLSearchParams({ pair: ticket }));
-  await expect(panel.locator('#status')).toContainText('Connected');
+  await expect.poll(async () => ({
+    status: await panel.locator('#status').textContent(), error: await panel.locator('#error').textContent(),
+  })).toEqual({ status: expect.stringContaining('Connected'), error: '' });
   await target.bringToFront();
   await expectActiveChromeTab(panel, target);
   return { target, sibling, panel };
@@ -115,12 +120,20 @@ async function pairedChrome(ticket) {
 async function runNative() {
   assert.equal(process.platform, 'darwin');
   const receipt = resolve(temp, 'native.json');
-  native = spawn(process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native'),
+  const binary = installed ? resolve(installed, 'Contents/MacOS/pero-native')
+    : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+  const env = { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: resolve(temp, 'native'),
+    PERO_NATIVE_CLOUD_BROWSER_FIXTURE: temp, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en' };
+  if (installed) {
+    for (const key of ['PERO_NATIVE_HOST', 'PERO_ADAPTER_NODE', 'PERO_AGENT_ROOT', 'PERO_BUILTIN_APPS_ROOT']) delete env[key];
+    env.PERO_ENV_FILE = '/dev/null';
+  } else {
+    env.PERO_ADAPTER_NODE = process.execPath;
+  }
+  native = spawn(binary,
     ['--verify-apps', receipt, 'cloud-browser'], {
-      cwd: root,
-      env: { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: resolve(temp, 'native'),
-        PERO_NATIVE_CLOUD_BROWSER_FIXTURE: temp, PERO_ADAPTER_NODE: process.execPath,
-        PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en' },
+      cwd: installed ? temp : root,
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   let log = '', exit;
@@ -149,6 +162,7 @@ async function runNative() {
   try {
     const { code } = await read('ticket.json');
     const { target, sibling, panel } = await pairedChrome(code);
+    await step('chrome-paired');
     for (const decision of ['deny', 'changed', 'approve']) {
       await step('prepare-' + decision);
       const consent = await read(`confirm-${decision}.json`);

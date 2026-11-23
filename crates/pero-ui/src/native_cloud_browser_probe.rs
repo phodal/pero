@@ -82,6 +82,8 @@ pub(super) async fn verify(root: &Entity<Workbench>, cx: &mut AsyncApp) -> anyho
         ticket["message"]
     );
     write(&directory.join("ticket.json"), &ticket)?;
+    let paired = directory.join("chrome-paired");
+    wait_for(cx, "Chrome pairing", || Ok(paired.exists().then_some(()))).await?;
     cx.update(|cx| root.update(cx, |view, cx| view.open_task(task_id.clone(), cx)));
     let mut ready = false;
     for _ in 0..300 {
