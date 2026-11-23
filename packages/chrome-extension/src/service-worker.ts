@@ -401,10 +401,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         if (!captured || !handle || message.key !== captured.key) throw new Error('Read this page again.');
         const current = await snapshot(connection, handle);
         if (current.url !== captured.url || current.revision !== captured.revision) throw new Error('The source page changed.');
-        const { projectId, ...draft } = request;
+        const { projectId, sharedProject, ...draft } = request;
         request = { ...draft, url: captured.url, project: projectId ? {
           id: projectId, captureId: captured.key, scope: captured.scope,
-          truncated: captured.truncated, capturedAt: captured.capturedAt,
+          truncated: captured.truncated, capturedAt: captured.capturedAt, shared: sharedProject,
         } : undefined };
       } else if (collector ? !['snapshot', 'collectorTargets'].includes(request?.kind)
           : ['collect', 'collectorTargets'].includes(request?.kind)) throw new Error('Unsupported sidebar operation.');

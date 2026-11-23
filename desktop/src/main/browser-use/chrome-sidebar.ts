@@ -20,7 +20,8 @@ export const sidebarRequest = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('collect'), url: z.string().max(4096), title: z.string().trim().min(1).max(512),
     content: z.string().trim().min(1).max(200000), reason: z.string().max(2048), question: z.string().max(2048),
     project: z.strictObject({ id: z.string().min(1).max(128), captureId: z.uuid(),
-      scope: z.enum(['page', 'selection']), truncated: z.boolean(), capturedAt: z.number().int().positive().safe() }).optional(),
+      scope: z.enum(['page', 'selection']), truncated: z.boolean(), capturedAt: z.number().int().positive().safe(),
+      shared: z.strictObject({ origin: z.string().max(2048), accountId: z.string().min(1).max(128) }).optional() }).optional(),
   }),
 ]);
 export type SidebarPort = (thread: string, request: z.infer<typeof sidebarRequest>, check: () => void) => Promise<unknown>;
@@ -28,7 +29,9 @@ export type SidebarPort = (thread: string, request: z.infer<typeof sidebarReques
 export function projectSourceCommand(request: z.infer<typeof sidebarRequest>) {
   if (request.kind === 'collectorTargets') return { kind: 'projects' };
   if (request.kind !== 'collect' || !request.project) return;
-  const { id: projectId, captureId: id, scope, truncated, capturedAt } = request.project;
+  const { id: projectId, captureId: id, scope, truncated, capturedAt, shared } = request.project;
   const { url, title, content, reason, question } = request;
-  return { kind: 'save', projectId, source: { id, url, title, content, reason, question, scope, truncated, capturedAt } };
+  const source = { id, url, title, content, reason, question, scope, truncated, capturedAt };
+  return shared ? { kind: 'save', destination: 'shared', target: { ...shared, projectId }, source }
+    : { kind: 'save', projectId, source };
 }

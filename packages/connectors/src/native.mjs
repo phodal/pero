@@ -60,6 +60,12 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
       check();
       const result = await effect('project.sources', { value: command });
       if (!result.ok) throw new Error(result.error);
+      if (command.kind === 'projects') {
+        check();
+        const shared = await effect('project.sources', { value: { kind: 'projects', destination: 'shared' } }).catch(() => undefined);
+        const projects = shared?.ok ? shared.value.projects : [];
+        return { projects: [...result.value.projects, ...projects] };
+      }
       return result.value;
     }
     if (request.kind === 'snapshot') return { ...await surface(request), projectCollector: true };

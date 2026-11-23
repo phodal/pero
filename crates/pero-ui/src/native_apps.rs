@@ -3,6 +3,8 @@
 mod native_notebook_projects;
 #[path = "native_app_canvas.rs"]
 mod canvas;
+#[path = "native_app_project_sources.rs"]
+mod project_sources;
 use pero_contracts::HostEvent;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -43,6 +45,7 @@ pub(crate) struct NativeApps {
     pub(super) docling: Arc<crate::native_docling::NativeDocling>,
     connectors: Option<std::sync::Weak<crate::native_connectors::NativeConnectors>>,
     host: mpsc::Sender<String>,
+    cloud: Option<mpsc::Sender<String>>,
     pending: Arc<Mutex<BTreeMap<String, mpsc::Sender<Reply>>>>,
     disconnected: Arc<AtomicBool>,
     next: Arc<AtomicU64>,
@@ -59,6 +62,7 @@ impl NativeApps {
             docling_probe_origins: Default::default(),
             connectors,
             host,
+            cloud: None,
             events,
             pending: Default::default(),
             disconnected: Default::default(),
@@ -168,20 +172,17 @@ impl NativeApps {
         anyhow::ensure!(result.ok, "Could not save Computer Use settings");
         Ok(())
     }
-    pub(super) fn project_source_request(&self, request: Value) -> anyhow::Result<Value> {
-        let id = format!("native-collector-{}", self.next.fetch_add(1, Ordering::Relaxed));
-        let command = json!({"method":"project_sources","request_id":id,"request":request});
-        let reply = self.host_reply(id, command, Duration::from_secs(30))?;
-        Ok(json!({"ok":reply.ok,"value":reply.value,"error":reply.error}))
-    }
     fn host_reply(&self, id: String, command: Value, timeout: Duration) -> anyhow::Result<Reply> {
+        let transport = if command["method"] == "shared_project_sources" {
+            self.cloud.as_ref().ok_or_else(|| anyhow::anyhow!("Cloud connection is unavailable"))?
+        } else { &self.host };
         let (sender, receiver) = mpsc::channel();
         {
             let mut pending = self.pending.lock().unwrap();
             anyhow::ensure!(!self.disconnected.load(Ordering::Acquire), "Native Host is unavailable");
             pending.insert(id.clone(), sender);
         }
-        let result = self.host.send(command.to_string()).map_err(anyhow::Error::from)
+        let result = transport.send(command.to_string()).map_err(anyhow::Error::from)
             .and_then(|_| Ok(receiver.recv_timeout(timeout)?));
         self.pending.lock().unwrap().remove(&id);
         result

@@ -1,6 +1,8 @@
 //! Native Cloud session with platform-owned credential persistence.
 #[path = "native_cloud_storage.rs"]
 mod storage;
+#[path = "native_cloud_sources.rs"]
+mod project_sources;
 use crate::cloud_links::{self, idempotency_key};
 use crate::desktop_login::{self, Attempt, CALLBACK_ERROR, DEFAULT_ORIGIN};
 use pero_contracts::HostEvent;

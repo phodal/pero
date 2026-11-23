@@ -181,3 +181,31 @@ impl ProjectWebSource {
         }
     }
 }
+
+/// The Cloud account and service selected when the user reviewed a destination.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SharedWebSourceTarget {
+    pub project_id: String,
+    pub origin: String,
+    pub account_id: String,
+}
+
+impl SharedWebSourceTarget {
+    pub fn route(&self) -> Option<String> {
+        let id = &self.project_id;
+        (!id.is_empty()
+            && id.len() <= 128
+            && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b)))
+        .then(|| format!("/api/client/v1/projects/{id}/web-sources"))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum SharedWebSourceRequest {
+    Projects {},
+    List { target: SharedWebSourceTarget },
+    Read { target: SharedWebSourceTarget, id: ProjectSourceId },
+    Save { target: SharedWebSourceTarget, source: ReviewedWebSource },
+}

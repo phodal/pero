@@ -3,15 +3,20 @@ const node = (id) => document.getElementById('collector-' + id);
 let capture,
   session,
   busy = false;
+let destinations = new Map();
 const bytesOf = text => new TextEncoder().encode(text).length;
 function draft() {
+  const destination = destinations.get(node('destination').value);
   return {
     kind: 'collect',
     title: node('title').value.trim(),
     content: node('content').value.trim(),
     reason: node('reason').value.trim(),
     question: node('question').value.trim(),
-    projectId: node('destination').value || undefined,
+    projectId: destination?.id,
+    sharedProject: destination?.target && {
+      origin: destination.target.origin, accountId: destination.target.accountId,
+    },
   };
 }
 function render() {
@@ -63,9 +68,13 @@ async function load() {
   })).projects : [];
   const destination = node('destination');
   const previous = destination.value;
+  const previousTarget = destinations.get(previous)?.target;
+  destinations = new Map(projects.map(project => [project.target ? 'shared:' + project.id : project.id, project]));
   destination.replaceChildren(new Option(`Conversation · ${value.title}`, ''),
-    ...projects.map(project => new Option(`Project · ${project.title}`, project.id)));
-  if (projects.some(project => project.id === previous)) destination.value = previous;
+    ...Array.from(destinations, ([key, project]) => new Option(`${project.target ? 'Shared Project' : 'Project'} · ${project.title}`, key)));
+  const currentTarget = destinations.get(previous)?.target;
+  if (destinations.has(previous) && previousTarget?.origin === currentTarget?.origin &&
+      previousTarget?.accountId === currentTarget?.accountId) destination.value = previous;
 }
 node('capture').onclick = () =>
   act(async () => {

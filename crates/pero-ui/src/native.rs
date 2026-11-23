@@ -78,7 +78,8 @@ pub(crate) fn session_command(json: &str) -> Result<(), String> {
             return Ok(());
         }
     }
-    let controller = action.starts_with("remote_")
+    let controller = value["method"] == "shared_project_sources"
+        || action.starts_with("remote_")
         || action.starts_with("local_worker_")
         || action.starts_with("choose_")
         || matches!(action, "apps_install" | "harness_get" | "harness_save");
@@ -283,13 +284,14 @@ pub fn run() -> anyhow::Result<()> {
         host_commands.clone(),
         events.clone(),
         connector_owner.as_ref().map(std::sync::Arc::downgrade),
-    );
+    ).with_cloud(commands.clone());
     if let Some(owner) = &connector_owner {
         owner.bind(app_client.clone());
         CONNECTORS.with(|slot| *slot.borrow_mut() = Some(std::sync::Arc::downgrade(owner)));
     }
     APPS.with(|slot| *slot.borrow_mut() = Some(app_client.clone()));
     let writer_events = events.clone();
+    let cloud_replies = app_client.clone();
     std::thread::spawn(move || {
         for json in host_incoming {
             if writeln!(stdin, "{json}")
@@ -380,7 +382,12 @@ pub fn run() -> anyhow::Result<()> {
                 continue;
             };
             let action = value["action"].as_str().unwrap_or_default();
-            if action == "native_host_disconnected" {
+            if value["method"] == "shared_project_sources" {
+                let event = cloud.shared_web_sources(&value);
+                if !cloud_replies.accept(&event) {
+                    let _ = events.send_blocking(event);
+                }
+            } else if action == "native_host_disconnected" {
                 let _ = events.send_blocking(device.command_failed(&cloud));
                 if let Some(event) = harness.abandon() {
                     let _ = events.send_blocking(event);
