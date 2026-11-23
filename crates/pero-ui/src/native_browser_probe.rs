@@ -135,11 +135,15 @@ async fn verify_repl_agent(
 ) -> anyhow::Result<Value> {
     let agent = std::env::var("PERO_NATIVE_REPL_PROBE_AGENT")?;
     let workspace = std::env::var("PERO_NATIVE_BROWSER_PROBE_WORKSPACE")?;
+    let pairing_path = std::env::var_os("PERO_NATIVE_REPL_CHROME_PAIRING_PATH")
+        .map(std::path::PathBuf::from);
+    let mut pair_requested = false;
     let started = Instant::now();
     let mut chat_created = false;
     let mut sent = false;
     let mut last = Value::Null;
     while started.elapsed() < Duration::from_secs(180) {
+        let mut pair_thread = None;
         let complete = window.update(cx, |_, window, cx| root.update(cx, |root, cx| {
             let chat = root.chat.read(cx);
             if !chat_created && chat.connected && chat.agents.iter().any(|entry| entry.id == agent && entry.available) {
@@ -166,14 +170,24 @@ async fn verify_repl_agent(
                 }
                 return Ok(None);
             }
-            if !matches!(root.navigation.current(), Some(WorkspaceItem::Web(id)) if id == url) {
-                root.web_command(json!({"action":"web_open","url":url}), window, cx);
-                return Ok(None);
+            if let Some(pairing) = &pairing_path {
+                if !pair_requested {
+                    pair_thread = root.browser_thread(cx);
+                    return Ok(None);
+                }
+                if !pairing.with_extension("ready").is_file() {
+                    return Ok(None);
+                }
+            } else {
+                if !matches!(root.navigation.current(), Some(WorkspaceItem::Web(id)) if id == url) {
+                    root.web_command(json!({"action":"web_open","url":url}), window, cx);
+                    return Ok(None);
+                }
+                if !root.native_web_pages.get(url).is_some_and(|page| page.view.read(cx).browser_view(cx).is_ok()) {
+                    return Ok(None);
+                }
+                anyhow::ensure!(root.native_browser_allow(url, cx), "Native could not approve the visible fixture tab");
             }
-            if !root.native_web_pages.get(url).is_some_and(|page| page.view.read(cx).browser_view(cx).is_ok()) {
-                return Ok(None);
-            }
-            anyhow::ensure!(root.native_browser_allow(url, cx), "Native could not approve the visible fixture tab");
             anyhow::ensure!(root.chat.update(cx, |chat, cx| chat.submit_prompt(prompt.clone(), Vec::new(), cx)),
                 "Native Chat could not submit the REPL acceptance prompt");
             sent = true;
@@ -181,6 +195,21 @@ async fn verify_repl_agent(
         }))??;
         if let Some(result) = complete {
             return Ok(result);
+        }
+        if let (Some(thread), Some(path)) = (pair_thread, pairing_path.as_ref()) {
+            let owner = crate::native::chrome_relay_owner()
+                .ok_or_else(|| anyhow::anyhow!("Native Chrome Relay is unavailable"))?;
+            let path = path.clone();
+            cx.background_executor().spawn(async move {
+                let value = owner.request(json!({
+                    "operation":"chrome-relay-pair", "thread":thread, "label":"Native Chrome acceptance"
+                }))?;
+                anyhow::ensure!(value["ok"] == true, "Could not pair Native Chrome: {}", value["message"]);
+                let code = value["code"].as_str().ok_or_else(|| anyhow::anyhow!("Missing Chrome pairing code"))?;
+                std::fs::write(path, code)?;
+                Ok::<_, anyhow::Error>(())
+            }).await?;
+            pair_requested = true;
         }
         cx.background_executor().timer(Duration::from_millis(100)).await;
     }

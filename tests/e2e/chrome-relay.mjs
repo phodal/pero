@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
@@ -22,19 +22,49 @@ await mkdir(output, { recursive: true });
 await rm(resolve(output, 'result.json'), { force: true });
 const agents = resolve(temporary, 'agents.json');
 const settings = resolve(temporary, 'settings.json');
+const workspace = resolve(temporary, 'workspace');
+const attachment = resolve(workspace, 'fixture.txt');
+const uploadText = 'Selected file for Chrome\n'.repeat(4200);
+const downloadText = 'chrome,relay\n1,verified\n';
+await mkdir(workspace);
+await writeFile(attachment, uploadText);
 await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Browser Use Fixture', command: process.execPath,
   args: [resolve(source, 'tests/fixtures/browser-use-agent.mjs')] }]));
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
-const site = createServer((_request, response) => {
+let foreignHits = 0;
+const otherOrigin = createServer((_request, response) => { foreignHits++; response.end('Outside the grant'); });
+await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
+const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
+const site = createServer((request, response) => {
+  if (request.url === '/redirect') {
+    response.writeHead(302, { Location: foreignUrl }).end();
+    return;
+  }
+  if (request.url === '/report.csv') {
+    if (request.headers.cookie !== 'relay=approved') { response.writeHead(403).end(); return; }
+    response.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="relay.csv"' });
+    response.end(downloadText);
+    return;
+  }
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  response.setHeader('Set-Cookie', 'relay=approved; HttpOnly; SameSite=Strict');
   response.end(`<!doctype html><title>Chrome Relay fixture</title>
 <style>body{margin:24px;font:16px system-ui;min-height:1600px}</style>
 <h1>Chrome Relay fixture</h1><label>Relay message <input id="message"></label>
 <button id="apply">Apply from Chrome</button><p data-testid="result">Waiting for input</p>
+<label>Relay attachment <input id="upload" type="file"></label><output id="uploaded"></output>
+<a href="/report.csv" download>Relay report</a><a id="blob" download="fixture-blob.txt">Relay Blob</a>
+<a href="${foreignUrl}" download>Outside download</a>
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
     document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
-};</script>`);
+};
+document.querySelector('#upload').onchange = async event => {
+  const [file] = event.target.files;
+  document.querySelector('#uploaded').textContent = file.name + ' ' + (await file.text()).length;
+};
+document.querySelector('#blob').href = URL.createObjectURL(new Blob(['Blob from the approved tab']));
+</script>`);
 });
 await new Promise((done, fail) => { site.once('error', fail); site.listen(0, '127.0.0.1', done); });
 const siteUrl = `http://127.0.0.1:${site.address().port}/`;
@@ -83,6 +113,11 @@ try {
     clipboard.readText = () => globalThis.relayFixtureClipboard ?? '';
     clipboard.clear = () => { globalThis.relayFixtureClipboard = ''; };
   });
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
+  }, workspace);
+  await page.evaluate(() => window.pero.chooseWorkspace());
+  await expect.poll(async () => (await state()).workspace).toBe(await realpath(workspace));
   await clickNewChat(page);
   await expect.poll(async () => (await active())?.state, { timeout: 10000 }).toBe('idle');
   const original = (await active()).id;
@@ -119,18 +154,18 @@ try {
     await expect.poll(async () => {
       code = await app.evaluate(({ clipboard }) => clipboard.readText());
       try { return JSON.parse(code).protocol; } catch { return null; }
-    }).toBe('pero-browser-connector/1');
+    }).toBe('pero-browser-connector/2');
     await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(code);
     await panel.getByRole('button', { name: 'Pair with Pero' }).click();
     await expect(status).toContainText('Paired · awaiting tab approval');
     return code;
   };
-  const authorize = async () => {
+  const authorize = async (url = siteUrl, count = 1) => {
     await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Chrome Relay fixture · ' + new URL(siteUrl).origin });
     await panel.getByRole('button', { name: 'Review tab' }).click();
-    await expect(panel.locator('#url')).toHaveText(siteUrl);
+    await expect(panel.locator('#url')).toHaveText(url);
     await panel.getByRole('button', { name: 'Allow this tab' }).click();
-    await expect(status).toContainText('Browser Use allowed');
+    await expect(status).toContainText(`${count} approved ${count === 1 ? 'tab' : 'tabs'}`);
   };
   try {
     const oneTimeCode = await requestPair();
@@ -169,17 +204,89 @@ try {
       { id: clickReceipt, outcome: 'dispatched' },
     );
 
+    const captures = await prompt([{ action: 'screenshot', tabId }, { action: 'screenshot', tabId, clip: { x: 16, y: 16, width: 64, height: 32 } }]);
+    assert(captures[0].pixels?.width >= 64, JSON.stringify(captures));
+    assert.deepEqual([captures[1].pixels.width, captures[1].pixels.height], [64, 32]);
+    for (const capture of captures) {
+      const bytes = await readFile(resolve(evidence, capture.receipt.id + '.png'));
+      assert.equal(createHash('sha256').update(bytes).digest('hex'), capture.pixels.sha256);
+    }
+
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
+    }, attachment);
+    const attach = (await state()).composerBounds.context;
+    await page.mouse.click(attach.x + attach.width / 2, attach.y + attach.height / 2);
+    for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await state()).attachments).toEqual(['fixture.txt']);
+    const transfers = await prompt([
+      { action: 'files', tabId },
+      { action: 'locate', tabId, locator: { by: 'label', value: 'Relay attachment' } },
+      { action: 'upload', tabId, name: 'Relay attachment' },
+      { action: 'locate', tabId, locator: { by: 'role', role: 'link', name: 'Relay report' } },
+      { action: 'download', tabId, name: 'Relay report' },
+      { action: 'locate', tabId, locator: { by: 'role', role: 'link', name: 'Relay Blob' } },
+      { action: 'download', tabId, name: 'Relay Blob' },
+      { action: 'locate', tabId, locator: { by: 'role', role: 'link', name: 'Outside download' } },
+      { action: 'download', tabId, name: 'Outside download' },
+    ]);
+    assert.equal(transfers[2]?.outcome, 'dispatched', JSON.stringify(transfers));
+    await expect(target.locator('#uploaded')).toHaveText(`fixture.txt ${uploadText.length}`);
+    for (const [index, filename, contents] of [[4, 'relay.csv', downloadText], [6, 'fixture-blob.txt', 'Blob from the approved tab']]) {
+      const artifact = transfers[index]?.transfer?.artifactReceipt.artifact;
+      assert.equal(artifact?.thread_id, original, JSON.stringify(transfers));
+      const [version] = artifact.versions;
+      assert.equal(version.filename, filename);
+      assert.equal(version.sha256, createHash('sha256').update(contents).digest('hex'));
+      assert.equal(await readFile(resolve(temporary, 'settings.artifacts', createHash('sha256').update(original).digest('hex'),
+        'snapshots', version.sha256 + '.bin'), 'utf8'), contents);
+    }
+    assert.equal(transfers[8]?.outcome, 'rejected', JSON.stringify(transfers));
+    assert.equal(foreignHits, 0);
+
+    const historyUrl = siteUrl + '?history';
+    const history = await prompt([
+      { action: 'navigate', tabId, url: historyUrl }, { action: 'back', tabId },
+      { action: 'forward', tabId }, { action: 'reload', tabId }, { action: 'back', tabId },
+    ]);
+    assert.deepEqual(history.map(result => result.outcome), Array(5).fill('dispatched'), JSON.stringify(history));
+    assert.deepEqual(history.slice(1).map(result => result.url), [siteUrl, historyUrl, historyUrl, siteUrl]);
+    assert.equal(target.url(), siteUrl);
+
+    const [blocked] = await prompt([{ action: 'open', tabId, url: siteUrl + 'redirect' }]);
+    assert.equal(blocked.isError, true, JSON.stringify(blocked));
+    assert.equal(foreignHits, 0, 'The redirect is refused before the foreign server receives a request.');
+    await target.evaluate(url => {
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      document.body.append(iframe);
+    }, foreignUrl);
+    await expect.poll(() => foreignHits).toBeGreaterThan(0);
+    const [excluded] = await prompt([{ action: 'screenshot', tabId }]);
+    assert.equal(excluded.isError, true, JSON.stringify(excluded));
+    await target.locator('iframe').evaluate(frame => frame.remove());
+
     const nextTab = chrome.waitForEvent('page');
-    await worker.evaluate(async url => {
-      const [current] = await chrome.tabs.query({ url });
-      await chrome.tabs.create({ windowId: current.windowId, url: url + '?unapproved', active: true });
-    }, siteUrl);
+    const newUrl = siteUrl + '?unapproved';
+    const [opened] = await prompt([{ action: 'open', tabId, url: newUrl }]);
+    assert.equal(opened.kind, 'tabOpened', JSON.stringify(opened));
+    assert.equal(opened.authorized, false);
     const unapproved = await nextTab;
     await expect(unapproved.getByTestId('result')).toHaveText('Waiting for input');
     const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
     assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible]), [[tabId, false]]);
     assert.equal(switched[1].isError, true);
-    await unapproved.close();
+    await authorize(newUrl, 2);
+    const switchedBack = await prompt([
+      { action: 'tabs' }, { action: 'activate', tabId }, { action: 'closeTab', tabId: opened.tabId },
+      { action: 'tabs' },
+    ]);
+    assert.deepEqual(switchedBack[0].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, false], [opened.tabId, true]]);
+    assert.equal(switchedBack[1].kind, 'tabActivated', JSON.stringify(switchedBack));
+    assert.equal(switchedBack[2].kind, 'tabClosed');
+    assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
+    await expect.poll(() => unapproved.isClosed()).toBe(true);
 
     await clickNewChat(page);
     await expect.poll(async () => (await active())?.id).not.toBe(original);
@@ -196,7 +303,7 @@ try {
     assert.equal(afterStop[1].isError, true);
     await expect.poll(extensionAttached).toBe(false);
     assert.equal(target.isClosed(), false);
-    await expect(target.getByTestId('result')).toHaveText('Verified through Pero · trusted true');
+    await expect(target.getByTestId('result')).toBeVisible();
     await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(oneTimeCode);
     await panel.getByRole('button', { name: 'Pair with Pero' }).click();
     await expect(panel.locator('#error')).toContainText('pairing code');
@@ -213,6 +320,9 @@ try {
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
       paired: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
+      screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
+      historyVerified: true, openedTabRequiresIndependentApproval: true, tabSwitchAndCloseVerified: true,
+      foreignRedirectRefused: true, foreignFrameScreenshotRefused: true, foreignDownloadRefused: true,
       pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
       operation: operations[5].nodes[0].text,
     }, null, 2));
@@ -220,7 +330,7 @@ try {
   } finally {
     // The test-owned pairing code should not survive the run.
     await app.evaluate(({ clipboard }) => {
-      try { if (JSON.parse(clipboard.readText()).protocol === 'pero-browser-connector/1') clipboard.clear(); } catch {}
+      try { if (JSON.parse(clipboard.readText()).protocol === 'pero-browser-connector/2') clipboard.clear(); } catch {}
     });
   }
 } catch (error) {
@@ -234,5 +344,6 @@ try {
   await chrome?.close();
   await app?.close();
   await new Promise(done => site.close(done));
+  await new Promise(done => otherOrigin.close(done));
   await rm(temporary, { recursive: true, force: true });
 }

@@ -99,7 +99,7 @@ The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
 Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
 same local Relay and the same ACP conversation tool. Pairing binds the
 connection to the selected ordinary conversation. Chrome grants access only
-after the user reviews and approves a specific live tab. A page operation
+after the user reviews and approves each live tab. A page operation
 requires the approved origin, an active tab in its Chrome window, and a
 current observation. Pero uses the existing Browser Use observation and
 action receipts.
@@ -109,9 +109,22 @@ Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
 The suite checks pairing without tab access, explicit tab approval, an
 independently observed trusted click after filling and its stored receipt,
-isolation from another tab and conversation, rejection of a replayed code,
-and debugger release after revocation from either Chrome or Pero. Evidence is written to
-`test-results/chrome-relay/`.
+viewport and cropped PNG hashes, upload of a conversation attachment,
+authenticated and Blob download Artifacts, tab switching and closing, and
+back, forward and reload. It checks isolation from other tabs and conversations,
+foreign-origin rejection, replay protection and debugger release on revocation.
+Evidence is written to `test-results/chrome-relay/`.
+
+For real Codex on macOS, build the extension, install the signed Native bundle
+with the `native-probe` binary and run
+`node tests/e2e/native-repl-agent.mjs --chrome` with
+`PERO_NATIVE_REPL_REAL_AGENT=1` and `PERO_NATIVE_REPL_INSTALLED_APP`.
+The probe pairs headed Chrome for Testing through the Native connector and
+reviews the fixture tab in the actual extension. Codex uses bundled CPython
+across two cells. The test independently checks the trusted click and the
+image-only marker read by Codex, plus the PNG hash in both the Host evidence
+and Codex's ACP transcript. Evidence is written to
+`target/computer-verification/native-chrome-repl-codex/`.
 
 ### Embedded browser
 
