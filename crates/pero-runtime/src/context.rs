@@ -140,6 +140,10 @@ impl ContextSources<'_> {
                 }
             }
             ContextKind::Skill => {
+                if "pero-browser-use chrome external browser tabs collector 浏览器 采集".contains(&query.to_lowercase()) {
+                    items.push(ContextCandidate { kind, label: "pero-browser-use".into(), source: "pero-skill:pero-browser-use".into(),
+                        detail: "Use an approved tab in external Chrome and verify the page effect".into() });
+                }
                 if "research-resource-import paper url pdf fulltext full-text study tex arxiv source tables figures reproduce nonstandard website proposals model dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"research-resource-import".into(),source:"pero-skill:research-resource-import".into(),detail:"Collect research references and nonstandard-link proposals; confirm versioned TeX source, PDF comparison or Data downloads".into()});}
                 if "app-use".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"app-use".into(),source:"pero-skill:app-use".into(),detail:"App objects, operations, evidence and declared data writes".into()});}
                 if "data analytics chart dataset".contains(&query.to_lowercase()) {items.push(ContextCandidate{kind,label:"data".into(),source:"pero-skill:data".into(),detail:"Analyze datasets and make source-aware charts with Data Agent".into()});}
@@ -241,6 +245,10 @@ impl ContextSources<'_> {
         }
         if kind==ContextKind::Skill && source=="pero-skill:data" {
             return Ok(ContextReference{id:"pero-skill:data".into(),kind,label:"data".into(),source:source.into(),content:ContextContent::Text{text:include_str!("data-skill.md").into()}});
+        }
+        if kind == ContextKind::Skill && source == "pero-skill:pero-browser-use" {
+            return Ok(ContextReference { id: source.into(), kind, label: "pero-browser-use".into(), source: source.into(),
+                content: ContextContent::Text { text: include_str!("../../../skills/pero-browser-use/SKILL.md").into() } });
         }
         if kind == ContextKind::Skill && source == "pero-skill:molecular-report" {
             return Ok(ContextReference{id:source.into(),kind,label:"molecular-report".into(),source:source.into(),content:ContextContent::Text{text:include_str!("../../../apps/scientific-viewer/skills/molecular-report/SKILL.md").into()}});

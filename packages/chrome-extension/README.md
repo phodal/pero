@@ -38,3 +38,19 @@ The reviewed-tab flow and Relay lifecycle are adapted from Point
 `2449d4b98b38a8839ce741fd1039af201e63d6a7`. The Pero extension connects to the
 local Workbench over loopback. Pero owns the selected conversation, the
 authorization and the existing Browser Use receipts.
+
+## Native chat and Collector
+
+Click the pinned Pero icon to open the conversation in the Chrome side panel.
+The message history, attachments, stop action and approvals use the paired
+Native chat. Open **More → Open in Pero** to review an Agent approval. History
+and New chat select a Native conversation in the current workspace. A new
+pairing starts with an empty set of tab grants.
+
+Use **More → Collector** on an active, approved page. Choose page text or
+selected text, read and edit the preview, and optionally add a reason and a
+question. **Save to conversation** writes the reviewed Markdown, including its
+source URL, to that conversation’s Artifacts. The chat and Collector surfaces
+adapt Point’s extension at revision `16e092464404c7a1e6d78a6a9bbed6920c785976`.
+In a Native chat, select the `pero-browser-use` skill for the external Chrome
+workflow and Python REPL examples.
