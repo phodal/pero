@@ -26,6 +26,8 @@ Local adaptations:
 - Keep WinForms controls with no usable runtime ID in the password scan.
   Use the UI Automation focus policy for background invocation and expose
   observed editable and scrollable controls to the Pero driver.
+- Keep the DWM visible frame with Windows Graphics Capture images so
+  screenshot-relative input uses the pixels that were captured.
 
 The splits keep each source file below Pero's 1000-line limit without changing
 driver behavior. Upstream source comments are retained. Their descriptions of

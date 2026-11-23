@@ -186,9 +186,7 @@ ordinary Settings suite then passed.
 The Linux run used an isolated Colima/Docker environment with a real X server,
 Tk process and XTest extension. It is native Linux process evidence under a
 virtual display, not a physical Linux workstation or real Linux model run.
-Windows has compile/link and value-test evidence, including hosted CI, but no
-interactive Windows desktop-input acceptance. The initial source-build repair
-passed the three-OS workflow; later package-isolation evidence is listed above.
+The initial Windows source-build repair passed the three-OS workflow.
 On Windows 11 ARM64 build `26300.9457`, the current source builds for
 `aarch64-pc-windows-msvc` and passes the Computer Use workspace and contract tests.
 The native NDJSON status in SSH Session 0 changed from `available: true` to
@@ -203,14 +201,36 @@ Local ignored outputs are `target/computer-verification/native-result.json`,
 `target/computer-verification/product-chat/`. The initial OS-access and duplicate-event problems
 are tracked in the [resolved incident](../issues/2026-10-30-computer-use-native-access.md).
 
-No signed/notarized app launch, pure Wayland, Windows desktop input, or third-party
-application compatibility matrix is implied. Standard AppKit control glyphs in
+This run covered owned fixtures in development builds. Standard AppKit control glyphs in
 this fixture are absent from both its system screenshot and ScreenCaptureKit
 image; the fixture's custom canvas status is visible and its native AX values
 and independent callback effects are used for verification.
 
 The macOS capability expansion, new native action matrix and framework-specific
 effects are recorded in [computer-use-macos.md](computer-use-macos.md).
+
+## Windows 11 ARM64 WinForms, 2026-11-23
+
+The native `pero-computer.exe` NDJSON driver passed four scenarios with nine
+receipts in an unlocked VMware Fusion session on Windows build `26300.9457`.
+A WinForms fixture independently recorded the effects:
+
+- One background UI Automation invocation, with the guard window still
+  foreground and the pointer in the same position. The old observation was refused.
+- A 404 × 360 window JPEG matching the DWM visible frame. Background pixel input
+  was refused. The foreground pixel click landed within two pixels of the intended
+  button center on both axes.
+- A foreground edit control click, Unicode text with Chinese characters and an
+  emoji, and Backspace removing the trailing character.
+- The list moved from row 0 to row 9. The square moved approximately 60 × 40
+  pixels and logged one button press, a move and one release. The guard
+  window's counter stayed at zero.
+
+The checked JPEG and receipts are in
+`target/computer-verification/windows-arm64-winforms/`. Windows ARM64 and macOS
+also passed `node scripts/build/computer.mjs --test`. This run used a single
+virtual display and the native driver with an owned WinForms app. Signed Windows
+Workbench, other UI frameworks and multi-display behavior remain unverified.
 
 
 ## Pero Native and real Pero (DeepSeek), 2026-11-22
