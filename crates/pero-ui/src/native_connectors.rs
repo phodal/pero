@@ -172,6 +172,10 @@ impl NativeConnectors {
             }
             Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
                 .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),
+            Some("project.sources") => {
+                let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
+                apps.project_source_request(message.value.clone()).map_err(|_| "Project sources are unavailable")
+            }
             Some("apps" | "surface") => {
                 let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
                 if message.effect.as_deref() == Some("surface") {

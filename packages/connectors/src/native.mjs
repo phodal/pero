@@ -13,6 +13,7 @@ import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { freezeDownloadBytes } from '../../../desktop/src/main/browser-use/download.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
+import { projectSourceCommand } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
 import { ConnectorMcp } from './mcp.ts';
 import { ConversationRepl } from '../../../desktop/src/main/repl/repl.ts';
 import { pythonRepl } from '../../../desktop/src/main/repl/python.ts';
@@ -54,6 +55,14 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
   new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
   selected, browserEvidence, async (thread, request, check) => {
     const surface = request => effect('surface', { value: { action: 'sidebar', thread, request } });
+    const command = projectSourceCommand(request);
+    if (command) {
+      check();
+      const result = await effect('project.sources', { value: command });
+      if (!result.ok) throw new Error(result.error);
+      return result.value;
+    }
+    if (request.kind === 'snapshot') return { ...await surface(request), projectCollector: true };
     if (request.kind !== 'collect') return surface(request);
     const { workspace } = await surface({ kind: 'snapshot' });
     if (!workspace) throw new Error('Choose a conversation workspace in Pero before collecting.');

@@ -23,6 +23,7 @@
         <p class="collector-muted" data-copy="captureHelp">Read only after you click. The preview stays in Chrome until you save.</p>
       </section>
       <section id="collector-editor" class="collector-card" hidden>
+        <label for="collector-destination">Save to</label><select id="collector-destination"></select>
         <label for="collector-source-url" data-copy="sourceUrl">Original URL</label><input id="collector-source-url" readonly>
         <label for="collector-title" data-copy="title">Title</label><input id="collector-title" maxlength="1024">
         <label for="collector-content" data-copy="content">Collected text</label><textarea id="collector-content" rows="10" spellcheck="false"></textarea>
@@ -32,8 +33,7 @@
         <label for="collector-question" data-copy="question">Question to answer</label><textarea id="collector-question" rows="2" maxlength="2048" data-placeholder="questionPlaceholder"></textarea>
         <details><summary data-copy="preview">Final source preview</summary><pre id="collector-final-preview"></pre></details>
         <p id="collector-budget" role="status" aria-live="polite"></p><p id="collector-validation" class="collector-warning" role="status" aria-live="polite" hidden></p>
-        <button id="collector-save" class="collector-primary" type="button" data-copy="save" disabled>Save to conversation</button>
-        <p class="collector-muted" data-copy="permissionNotice">Saved sources appear in the paired conversation’s Artifacts.</p>
+        <button id="collector-save" class="collector-primary" type="button" disabled>Save source</button>
       </section>
       <section id="collector-success" class="collector-card collector-success" role="status" aria-live="polite" hidden><p id="collector-receipt"></p><button id="collector-another" type="button" data-copy="collectAnother">Collect another page</button></section>
       <p id="collector-error" class="collector-warning" role="alert" hidden></p>

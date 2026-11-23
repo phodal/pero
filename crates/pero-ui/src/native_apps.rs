@@ -114,7 +114,8 @@ impl NativeApps {
             }
             return false; // The same receipt also updates the conversation's artifact list.
         }
-        if event.kind != "apps_result" {
+        if event.kind != "apps_result" && !(event.kind == "project_sources_result"
+            && event.request_id.as_deref().is_some_and(|id| id.starts_with("native-collector-"))) {
             return false;
         }
         if let Some(sender) = self
@@ -166,6 +167,12 @@ impl NativeApps {
         let result = self.host_reply(id, command, Duration::from_secs(5))?;
         anyhow::ensure!(result.ok, "Could not save Computer Use settings");
         Ok(())
+    }
+    pub(super) fn project_source_request(&self, request: Value) -> anyhow::Result<Value> {
+        let id = format!("native-collector-{}", self.next.fetch_add(1, Ordering::Relaxed));
+        let command = json!({"method":"project_sources","request_id":id,"request":request});
+        let reply = self.host_reply(id, command, Duration::from_secs(30))?;
+        Ok(json!({"ok":reply.ok,"value":reply.value,"error":reply.error}))
     }
     fn host_reply(&self, id: String, command: Value, timeout: Duration) -> anyhow::Result<Reply> {
         let (sender, receiver) = mpsc::channel();

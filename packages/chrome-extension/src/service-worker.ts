@@ -17,7 +17,8 @@ type Command = { kind: 'inspect' } | { kind: 'run'; tab: string; stamp: string; 
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
   lastPong: number; lastId: number; busy: boolean; tabs: Map<number, TabHandle>;
   sidebar: Map<string, (reply: {value?: unknown; error?: string}) => void>;
-  capture?: { key: string; tabId: number; url: string; revision: number } };
+  capture?: { key: string; tabId: number; url: string; revision: number;
+    scope: 'page' | 'selection'; truncated: boolean; capturedAt: number } };
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
@@ -384,8 +385,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
           throw new Error('The Chrome document changed.');
         if (collector) {
           const key = crypto.randomUUID();
-          connection.capture = { key, tabId: handle.tabId, url: before.url, revision: before.revision };
-          return { ...value, key };
+          const capturedAt = Date.now();
+          connection.capture = { key, tabId: handle.tabId, url: before.url, revision: before.revision,
+            scope: value.captureScope, truncated: value.truncated, capturedAt };
+          return { ...value, key, capturedAt };
         }
         return value;
       }
@@ -396,8 +399,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         if (!captured || !handle || message.key !== captured.key) throw new Error('Read this page again.');
         const current = await snapshot(connection, handle);
         if (current.url !== captured.url || current.revision !== captured.revision) throw new Error('The source page changed.');
-        request = { ...request, url: captured.url };
-      } else if (collector ? request?.kind !== 'snapshot' : request?.kind === 'collect') throw new Error('Unsupported sidebar operation.');
+        const { projectId, ...draft } = request;
+        request = { ...draft, url: captured.url, project: projectId ? {
+          id: projectId, captureId: captured.key, scope: captured.scope,
+          truncated: captured.truncated, capturedAt: captured.capturedAt,
+        } : undefined };
+      } else if (collector ? !['snapshot', 'collectorTargets'].includes(request?.kind)
+          : ['collect', 'collectorTargets'].includes(request?.kind)) throw new Error('Unsupported sidebar operation.');
       const id = crypto.randomUUID();
       return new Promise((resolve, reject) => {
         const finish = (response: {value?: unknown; error?: string}) => {

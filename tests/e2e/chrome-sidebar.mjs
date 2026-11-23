@@ -1,22 +1,72 @@
-// Headed extension and real Relay, with a deterministic conversation at the Native UI boundary.
+// Headed extension and real Relay/Host, with a deterministic paired conversation.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { chromium, expect } from '@playwright/test';
 import { WorkbenchBrowserUse } from '../../desktop/src/main/browser-use/chrome-relay.ts';
+import { projectSourceCommand } from '../../desktop/src/main/browser-use/chrome-sidebar.ts';
 import { EXTENSION_ID } from '../../packages/chrome-extension/src/protocol.ts';
 
 const root = await mkdtemp(resolve(tmpdir(), 'pero-sidepanel-'));
+const settings = resolve(root, 'settings.json');
+const project = { id: 'observatory', title: 'Observatory', goal: '', workspace: null };
+const otherProject = { ...project, id: 'other-project', title: 'Another Project' };
+await writeFile(settings, JSON.stringify({ workbench: { research_projects: [project, otherProject] } }));
+await writeFile(resolve(root, 'agents.json'), '[]');
+let host, hostExit, hostError = '';
+const pending = new Map();
+function startHost() {
+  host = spawn(process.env.PERO_COLLECTOR_HOST || resolve('target/debug/pero-host'), ['--stdio'], {
+    cwd: root,
+    env: { ...process.env, PERO_SETTINGS_PATH: settings, PERO_HISTORY_PATH: resolve(root, 'history.jsonl'),
+      PERO_APPS_ROOT: resolve(root, 'apps'), PERO_AGENTS_FILE: resolve(root, 'agents.json'),
+      PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '' },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  hostExit = once(host, 'exit');
+  host.stderr.on('data', chunk => { hostError += chunk; });
+  createInterface({ input: host.stdout }).on('line', line => {
+    const event = JSON.parse(line);
+    if (event.kind === 'project_sources_result') pending.get(event.request_id)?.(event.data);
+  });
+}
+async function stopHost() {
+  if (!host) return;
+  host.stdin.end();
+  const [code, signal] = await hostExit;
+  host = undefined;
+  assert.deepEqual([code, signal], [0, null], hostError);
+}
+async function projectRequest(request, expectOk = true) {
+  const request_id = randomUUID();
+  const data = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { pending.delete(request_id); reject(new Error(hostError || 'Project source request timed out')); }, 10000);
+    pending.set(request_id, value => { clearTimeout(timer); pending.delete(request_id); resolve(value); });
+    host.stdin.write(JSON.stringify({ method: 'project_sources', request_id, request }) + '\n');
+  });
+  assert.equal(data.ok, expectOk, JSON.stringify(data));
+  return expectOk ? data.value : data.error;
+}
 const output = resolve('test-results/chrome-sidebar');
 await mkdir(output, { recursive: true });
 const thread = 'acceptance';
 const messages = [];
 const composer = { text: '', model: 'one', models: [['one','One'],['two','Two']], references: [], items: [] };
-let saved;
+let saved, savedProjectRequest;
 const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () => thread, root,
-  async (_, request) => {
+  async (_, request, check) => {
+    const source = projectSourceCommand(request);
+    if (source) {
+      check();
+      if (source.kind === 'save') savedProjectRequest = source;
+      return projectRequest(source);
+    }
     if (request.kind === 'edit') {
       assert.equal(composer.text, request.before);
       const bytes = Buffer.from(composer.text);
@@ -32,7 +82,7 @@ const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () =>
       saved = request;
       return { artifactReceipt: { id: 'reviewed-source' } };
     }
-    return { sessionId: thread, title: 'Browser acceptance', workspace: root, messages, composer, sessions: [] };
+    return { sessionId: thread, title: 'Browser acceptance', workspace: root, projectCollector: true, messages, composer, sessions: [] };
   });
 const site = createServer((_req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -44,6 +94,7 @@ const extension = resolve('target/chrome-extension');
 const origin = 'chrome-extension://' + EXTENSION_ID;
 let chrome;
 try {
+  startHost();
   chrome = await chromium.launchPersistentContext(root, { executablePath: chromium.executablePath(), headless: false,
     args: ['--load-extension=' + extension, '--disable-extensions-except=' + extension] });
   const target = chrome.pages()[0];
@@ -78,10 +129,45 @@ try {
   assert.equal(saved.url, url);
   assert.equal(saved.reason, 'Review destination');
   assert.equal(saved.content, 'Amber observatory');
-  console.log('Verified sidebar message, capture from paired Chrome and reviewed receipt.');
+
+  await panel.locator('#collector-another').click();
+  await target.locator('main').evaluate(main => getSelection().selectAllChildren(main));
+  await panel.locator('#collector-capture-scope').selectOption('selection');
+  await target.bringToFront();
+  await panel.locator('#collector-capture').evaluate(button => button.click());
+  await expect(panel.locator('#collector-editor')).toBeVisible();
+  await panel.getByLabel('Save to').selectOption(project.id);
+  await panel.locator('#collector-title').fill('Observatory 摘录');
+  await panel.locator('#collector-content').fill('Amber observatory 🌱');
+  await panel.locator('#collector-reason').fill('Record the observation');
+  await panel.locator('#collector-question').fill('Which source supports it?');
+  const exported = await panel.locator('#collector-final-preview').textContent();
+  await panel.locator('#collector-save').click();
+  await expect(panel.locator('#collector-receipt')).toContainText('Saved to Project · Observatory');
+  await panel.screenshot({ path: resolve(output, 'testing-project-collector.png') });
+  assert.equal(savedProjectRequest.projectId, project.id);
+  const { id } = savedProjectRequest.source;
+  const { sources: [receipt] } = await projectRequest({ kind: 'list', projectId: project.id });
+  assert.equal(receipt.id, id);
+  assert.equal(receipt.scope, 'selection');
+  assert.equal(receipt.url, url);
+  assert.equal(receipt.sha256, createHash('sha256').update(exported).digest('hex'));
+  assert.deepEqual((await projectRequest(savedProjectRequest)).sourceReceipt, receipt);
+  assert.match(await projectRequest({ ...savedProjectRequest, source: { ...savedProjectRequest.source, content: 'Different text' } }, false), /different content/);
+  assert.deepEqual(await projectRequest({ kind: 'list', projectId: otherProject.id }), { sources: [] });
+  await projectRequest({ kind: 'read', projectId: otherProject.id, id }, false);
+  await projectRequest({ ...savedProjectRequest, projectId: '../unavailable-project' }, false);
+  await projectRequest({ ...savedProjectRequest, source: { ...savedProjectRequest.source, id: randomUUID(), content: '研'.repeat(5600) } }, false);
+  await stopHost();
+  startHost();
+  const { source } = await projectRequest({ kind: 'read', projectId: project.id, id });
+  assert.deepEqual(source.source, savedProjectRequest.source);
+  assert.equal(source.sha256, receipt.sha256);
+  console.log('Verified Chrome collection to conversation and Project, scoped Project reads, review bytes, retry and Host restart.');
 } finally {
   owner.relay.close();
   await chrome?.close();
   site.close();
+  await stopHost();
   await rm(root, { recursive: true, force: true });
 }
