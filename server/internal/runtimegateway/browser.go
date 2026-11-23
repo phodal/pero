@@ -16,7 +16,7 @@ import (
 
 const (
 	maxBrowserRequest = 16 << 10
-	maxBrowserReply   = 8 << 20
+	maxBrowserReply   = 256 << 10
 	browserCallLimit  = 25 * time.Second
 )
 
@@ -270,7 +270,7 @@ func (g *Gateway) callBrowser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session, err := g.db.AuthorizeRuntimeChannel(ctx, runID)
-	if err != nil || session.State != runtimechannel.Started || !session.Scope.Accepts(identity) {
+	if err != nil || !session.BrowserAvailable() || !session.Scope.Accepts(identity) {
 		deny(w, http.StatusForbidden)
 		return
 	}
@@ -295,7 +295,7 @@ func (g *Gateway) callBrowser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session, err = g.db.AuthorizeRuntimeChannel(ctx, runID)
-	if err != nil || session.State != runtimechannel.Started || session.Scope != carrier.scope {
+	if err != nil || !session.BrowserAvailable() || session.Scope != carrier.scope {
 		deny(w, http.StatusForbidden)
 		return
 	}

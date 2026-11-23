@@ -54,7 +54,7 @@ func liveChannelScope(ctx context.Context, tx pgx.Tx, runID string) (runtimechan
 	if !b.Config.IsIsolated() || r.Status != "running" || r.LeaseExpiresAt == nil || !r.LeaseExpiresAt.After(now) || b.Phase != runtimebinding.Ready || b.ReleaseRequested || b.ValidUntil == nil || !b.ValidUntil.After(now) || b.Snapshot == nil || b.Snapshot.Runtime == nil {
 		return runtimechannel.Scope{}, now, ErrLease
 	}
-	scope := runtimechannel.Scope{RunID: r.ID, SessionID: r.ID, Generation: r.Generation, WorkerID: r.WorkerID, InstanceID: r.InstanceID, ProjectID: r.Spec.ProjectID, Namespace: b.Config.Namespace, ServiceAccount: b.Config.ServiceAccount, ServiceAccountUID: b.Config.ServiceAccountUID, Audience: b.Config.Audience, PodUID: b.Snapshot.Runtime.ID, RuntimeDigest: b.Snapshot.Runtime.Digest}
+	scope := runtimechannel.Scope{RunID: r.ID, SessionID: r.ID, Generation: r.Generation, WorkerID: r.WorkerID, InstanceID: r.InstanceID, ProjectID: r.Spec.ProjectID, Namespace: b.Config.Namespace, ServiceAccount: b.Config.ServiceAccount, ServiceAccountUID: b.Config.ServiceAccountUID, Audience: b.Config.Audience, PodUID: b.Snapshot.Runtime.ID, RuntimeDigest: b.Snapshot.Runtime.Digest, BrowserUse: b.Config.BrowserUse}
 	if scope.Validate() != nil {
 		return scope, now, ErrForbidden
 	}
@@ -162,7 +162,7 @@ func (s *Store) AuthorizeRuntimeBrowserOwner(ctx context.Context, runID string, 
 	if err != nil {
 		return c, err
 	}
-	if c.State != runtimechannel.Started {
+	if !c.BrowserAvailable() {
 		return c, ErrLease
 	}
 	return c, tx.Commit(ctx)

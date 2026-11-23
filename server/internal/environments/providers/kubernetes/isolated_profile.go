@@ -31,6 +31,7 @@ type ColdConfig struct {
 	WorkspaceRevision  string `json:"workspace_revision"`
 	TemplateDigest     string `json:"template_digest"`
 	Model              string `json:"model"`
+	BrowserUse         bool   `json:"browser_use,omitempty"`
 	TTLSeconds         int64  `json:"ttl_seconds"`
 }
 
@@ -196,6 +197,9 @@ func (c ColdConfig) pod(requestID, pvcName string) coldPodSpec {
 	container := coldContainer{Name: "agent", Image: c.ImageRef, ImagePullPolicy: "IfNotPresent", Env: []coldEnv{{"PERO_AGENT_CONTROL_URL", strings.TrimSuffix(c.ControlURL, "/")}, {"PERO_AGENT_RUN_ID", requestID}, {"PERO_AGENT_SESSION_ID", requestID}, {"PERO_AGENT_TOKEN_FILE", "/var/run/pero/token"}, {"PERO_AGENT_WORKSPACE", "/workspace/repo"}, {"PERO_WORKSPACE_REVISION", c.WorkspaceRevision}, {"PERO_AGENT_MODEL", c.Model}}, VolumeMounts: []coldMount{{"workspace", "/workspace", false}, {"tmp", "/tmp", false}, {"identity", "/var/run/pero", true}}}
 	if c.ControlCAFile != "" {
 		container.Env = append(container.Env, coldEnv{"PERO_AGENT_CA_FILE", c.ControlCAFile})
+	}
+	if c.BrowserUse {
+		container.Env = append(container.Env, coldEnv{"PERO_AGENT_BROWSER_USE", "1"})
 	}
 	container.SecurityContext = coldSecurity{AllowPrivilegeEscalation: ptr(false), Privileged: ptr(false), ReadOnlyRootFilesystem: ptr(true)}
 	container.SecurityContext.Capabilities = &struct {

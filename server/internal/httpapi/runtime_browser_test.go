@@ -25,6 +25,12 @@ import (
 )
 
 func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
+	t.Run("disabled recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, false) })
+	t.Run("opted-in recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, true) })
+}
+
+func checkCloudBrowserRuntime(t *testing.T, enabled bool) {
+	t.Helper()
 	const podToken = "fixture-pod-token"
 	const wrongPodToken = "wrong-pod-token"
 	reviews := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +95,7 @@ func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
 		WorkerID: worker.ID, ProjectID: "p", WorkspaceKey: "repo", AgentID: "fixture",
 		ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64),
 		WorkspaceRevision: strings.Repeat("c", 40), TTLSeconds: 3600, RuntimeClass: "runsc",
-		ServiceAccount: "agent", ServiceAccountUID: "sa-one", Audience: runtimechannel.Audience,
+		ServiceAccount: "agent", ServiceAccountUID: "sa-one", Audience: runtimechannel.Audience, BrowserUse: enabled,
 		ControlURL: "https://fixture.invalid", ImageRef: "fixture@sha256:" + strings.Repeat("a", 64),
 		Model: "fixture", StorageClass: "retained", StorageAccessMode: "ReadWriteOnce", VolumeSize: "1Gi",
 	}
@@ -160,6 +166,15 @@ func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
 	attach("/channel/worker", run.ID+"."+secret, http.StatusOK)
 	attach("/channel/agent", podToken, http.StatusOK)
 	callPath := path("/browser/call")
+	desktopPath := path("/browser/desktop")
+	request(t, server, "GET", desktopPath, peerToken, nil, "", http.StatusForbidden)
+	if !enabled {
+		request(t, server, "GET", desktopPath, ownerToken, nil, "", http.StatusForbidden)
+		attach("/browser/desktop", ownerToken, http.StatusForbidden)
+		request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusForbidden)
+		return
+	}
+	request(t, server, "GET", desktopPath, ownerToken, nil, "", http.StatusOK)
 	request(t, server, "POST", callPath, wrongPodToken, `{"action":"observe"}`, "", http.StatusForbidden)
 	request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusConflict)
 	if electronFixture != "" {

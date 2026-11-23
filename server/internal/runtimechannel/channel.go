@@ -43,6 +43,7 @@ type Scope struct {
 	Audience          string `json:"audience"`
 	PodUID            string `json:"pod_uid"`
 	RuntimeDigest     string `json:"runtime_digest"`
+	BrowserUse        bool   `json:"browser_use,omitempty"`
 }
 
 func (s Scope) Validate() error {
@@ -97,6 +98,10 @@ type Session struct {
 	Budget         ProviderBudget `json:"budget"`
 	Requests       int            `json:"requests"`
 	ActiveRequests int            `json:"active_requests"`
+}
+
+func (s Session) BrowserAvailable() bool {
+	return s.Scope.BrowserUse && s.State == Started
 }
 
 func SecretHash(secret string) (string, error) {
