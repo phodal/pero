@@ -52,11 +52,18 @@ export class NativeBrowserUse implements BrowserUsePort {
   private readonly observations = new Map<string, Observed>();
   private executing = false;
   private readonly actions: readonly NativeAction[];
+  private readonly transport: (request: DriverRequest) => Promise<unknown>;
+  private readonly evidenceRoot: string;
+  private readonly engine: 'native' | 'chrome';
+
   constructor(
-    private readonly transport: (request: DriverRequest) => Promise<unknown>,
-    private readonly evidenceRoot: string,
-    private readonly engine: 'native' | 'chrome' = 'native',
+    transport: (request: DriverRequest) => Promise<unknown>,
+    evidenceRoot: string,
+    engine: 'native' | 'chrome' = 'native',
   ) {
+    this.transport = transport;
+    this.evidenceRoot = evidenceRoot;
+    this.engine = engine;
     const chrome = engine === 'chrome';
     this.actions = chrome ? chromeActions : nativeActions;
     const description = chrome

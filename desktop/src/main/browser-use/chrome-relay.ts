@@ -38,7 +38,10 @@ export class ChromeRelay {
   private ticket?: Ticket;
   private connection?: Connection;
 
-  constructor(private readonly selected: () => Promise<string | undefined>, evidenceRoot: string) {
+  private readonly selected: () => Promise<string | undefined>;
+
+  constructor(selected: () => Promise<string | undefined>, evidenceRoot: string) {
+    this.selected = selected;
     this.browser = new NativeBrowserUse(request => this.request(request), evidenceRoot, 'chrome');
   }
 
@@ -218,7 +221,12 @@ export class ChromeRelay {
 
 export class WorkbenchBrowserUse implements BrowserUsePort {
   readonly tool;
-  constructor(private readonly embedded: BrowserUsePort, private readonly relay: ChromeRelay) {
+  private readonly embedded: BrowserUsePort;
+  private readonly relay: ChromeRelay;
+
+  constructor(embedded: BrowserUsePort, relay: ChromeRelay) {
+    this.embedded = embedded;
+    this.relay = relay;
     const tool = embedded.tool;
     this.tool = { ...tool, description: tool.description + ' Pero Chrome Relay tabs use a chrome: tabId. Pair from the Workbench, then approve the specific tab in the extension. Chrome supports ' +
       chromeActions.join(', ') + '. Pass its tabId to distinguish it from an embedded tab.' };
