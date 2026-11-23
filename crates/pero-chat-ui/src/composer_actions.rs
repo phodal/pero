@@ -184,10 +184,9 @@ impl ChatPanel {
         let id = format!("context-{}", self.next_request);
         self.composer_state.request = Some(id.clone());
         self.composer_state.loading = true;
-        self.command(
-            json!({"action":"search_context","request_id":id,"kind":kind,"query":query}),
-            cx,
-        );
+        let command = json!({"action":"search_context","request_id":id,"kind":kind,"query":query,
+            "project_id":self.composer_project_id()});
+        self.command(command, cx);
     }
 
     pub(crate) fn browse_composer_context(&mut self, kind: ContextKind, cx: &mut Context<Self>) {
@@ -277,7 +276,9 @@ impl ChatPanel {
                     .as_ref()
                     .map(|q| q.range.clone());
                 self.composer_state.loading = true;
-                self.command(json!({"action":"resolve_context","request_id":id,"kind":candidate.kind,"source":candidate.source}),cx);
+                let command = json!({"action":"resolve_context","request_id":id,"kind":candidate.kind,
+                    "source":candidate.source,"project_id":self.composer_project_id()});
+                self.command(command, cx);
             }
         }
     }

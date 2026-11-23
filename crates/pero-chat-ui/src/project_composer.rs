@@ -20,6 +20,19 @@ pub(crate) struct ProjectComposer {
 }
 
 impl ChatPanel {
+    pub(crate) fn composer_project_id(&self) -> Option<&str> {
+        self.project_composer
+            .scope
+            .as_ref()
+            .map(|scope| scope.project_id.as_str())
+            .or_else(|| {
+                self.active_chat
+                    .and_then(|index| self.chats.get(index))
+                    .and_then(|chat| chat.project_agent.as_ref())
+                    .map(|binding| binding.project_id.as_str())
+            })
+    }
+
     /// Show the shared composer before the project has an ACP conversation.
     pub fn set_project_composer(
         &mut self,
