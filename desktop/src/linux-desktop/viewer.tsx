@@ -92,6 +92,7 @@ function Viewer() {
     };
   }, [pair, state?.sharing]);
 
+  const dragStart = useRef<number | null>(null);
   async function act(action: DesktopAction) {
     setError(''); setPending(action);
     try {
@@ -108,12 +109,27 @@ function Viewer() {
   const watching = state?.phase === 'watching';
   return <main>
     <header>
-      <div className="heading">
+      <div className={state?.dockSide ? 'heading movable' : 'heading'}
+        onPointerDown={event => {
+          if (!state?.dockSide || event.button !== 0) return;
+          dragStart.current = event.clientX;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { dragStart.current = null; }}
+        onPointerUp={event => {
+          if (dragStart.current !== null && (event.clientX - dragStart.current) * (state?.dockSide === 'left' ? 1 : -1) > 36)
+            void act('move');
+          dragStart.current = null;
+        }}>
         <h1>{t('linux_desktop.title')}</h1>
         <Feedback>{t(state?.sharing ? paired ? 'linux_desktop.shared' : 'linux_desktop.await_peer' :
           state ? phaseLabels[state.phase] : 'linux_desktop.loading')}</Feedback>
       </div>
       <div className="actions">
+        {state?.dockSide && <>
+          <Button onClick={() => void act('move')}>{t('linux_desktop.move')}</Button>
+          <Button onClick={() => void act('hide')}>{t('linux_desktop.hide')}</Button>
+        </>}
         {state?.sharing ? <Button variant="primary" disabled={blocked} onClick={() => void act('end-share')}>{t('linux_desktop.end_share')}</Button>
           : state?.external ? <Button disabled={blocked} onClick={() => void act('stop')}>{t('linux_desktop.disconnect_host')}</Button> : state?.hasGuest ? <>
           {watching && <Button variant="primary" disabled={blocked} onClick={() => void act('takeover')}>{t('linux_desktop.takeover')}</Button>}
