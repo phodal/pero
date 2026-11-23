@@ -556,9 +556,14 @@ impl Workbench {
                         Button::new("bind-project-folder")
                             .outline()
                             .label(self.t("project.open_folder"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.pending_project_workspace = true;
-                                this.command(json!({"action":"choose_workspace"}), cx);
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                if this.saved_research_project().is_some() {
+                                    this.select_project_view(ProjectTab::Overview, cx);
+                                    this.edit_research_project(false, window, cx);
+                                } else {
+                                    this.pending_project_workspace = true;
+                                    this.command(json!({"action":"choose_workspace"}), cx);
+                                }
                             })),
                     )
                 },

@@ -452,7 +452,7 @@ try {
   await expect.poll(() => readFile(join(child.workspace, 'evidence.txt'), 'utf8')).toContain('followup evidence');
   await completed(child.thread_id);
   await capture('03-followup');
-  checks.push('left-child-navigation-and-shared-composer-append-to-original-session');
+  checks.push('delegates-menu-and-shared-composer-append-to-original-session');
   await project();
   await expect.poll(async () => {
     const s = await state();
@@ -556,7 +556,7 @@ try {
   await expect.poll(async () => (await state()).projectAgent.errors[projectId]).toBeUndefined();
   await open(main); await open(child.thread_id);
   expect((await state()).composer).toBe('Preserved composer draft');
-  checks.push('refresh-failure-and-left-navigation-retain-shared-composer-draft-and-content');
+  checks.push('refresh-failure-and-project-navigation-retain-shared-composer-draft-and-content');
 
   await project(secondProjectId);
   expect((await state()).composer).toBe(secondDraft);

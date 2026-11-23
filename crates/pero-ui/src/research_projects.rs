@@ -154,7 +154,9 @@ impl Workbench {
         }
         match ResearchProject::new(self.new_research_id(), entry.name, String::new(), entry.workspace) {
             Ok(mut project) => {
-                project.shared_id = entry.shared_id;
+                if project.workspace.is_none() {
+                    project.shared_id = entry.shared_id;
+                }
                 self.persist_research(project, false, cx);
             }
             Err(error) => self.research_error(error, cx),
