@@ -74,6 +74,8 @@ value using reviewed observations; never invent an image, template or SA UID.
     "control_url": "https://FIXED_CONTROL_ORIGIN",
     "control_ca_file": "/etc/pero/control-ca.pem",
     "model": "REVIEWED_MODEL",
+    "browser_use": false,
+    "browser_screenshots": false,
     "storage_class": "REVIEWED_STORAGE_CLASS",
     "storage_access_mode": "ReadWriteOncePod",
     "volume_size": "1Gi",
@@ -109,6 +111,16 @@ Compute `template_digest` with
 `kubernetes.ColdTemplateDigest(sandbox.IsolatedConfig(config))` in the trusted
 configuration composition, then assign it before validation. It covers the fixed
 cold Pod/PVC recipe with per-Run placeholders, not an arbitrary manifest label.
+To opt an isolated recipe into Cloud Browser Use, set `runtime.browser_use` to
+`true`, use an Agent image with the browser-aware connector and Go ACP, and
+recalculate `template_digest`. The Desktop still needs the current Task
+claimant's explicit tab share. The two Browser Use routes use the same
+unbuffered, single-instance transport requirements as the ACP channel.
+For a reviewed vision model, also set `runtime.browser_screenshots` to `true`
+before computing the recipe digest and set `isolated.provider.budget.max_request_bytes`
+to at least 3145728. The Desktop then discloses that the shared page's viewport
+PNG can be sent to the model. Each capture is limited to 2048 pixels per edge
+and 2 MiB. The request budget also covers prior screenshots retained in context.
 `control_ca_file` may be omitted for system trust roots; if supplied in this
 profile it is exactly `/etc/pero/control-ca.pem` inside the reviewed image. The
 Kubernetes API's `ca_file` is separate. Production storage must use HTTPS; the

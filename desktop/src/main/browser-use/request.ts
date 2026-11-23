@@ -29,6 +29,9 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('open'), url:z.string().max(4096) }),
   z.strictObject({ action: z.literal('activate'), tabId:z.string().min(1).max(4096) }),
   z.strictObject({ action: z.literal('closeTab'), tabId:z.string().min(1).max(4096) }),
+  z.strictObject({ ...tab, action: z.literal('getJsDialog') }),
+  z.strictObject({ ...tab, action: z.literal('handleJsDialog'), dialogId: z.uuid(),
+    decision: z.enum(['accept', 'dismiss']), promptText: z.string().max(4096).optional() }),
   z.strictObject({ ...tab, action: z.literal('back') }),
   z.strictObject({ ...tab, action: z.literal('forward') }),
   z.strictObject({ ...tab, action: z.literal('reload') }),
@@ -56,13 +59,14 @@ export const browserRequest = z.discriminatedUnion('action', [
     deltaX: z.number().int().min(-2000).max(2000),
     deltaY: z.number().int().min(-2000).max(2000),
   }),
-  z.strictObject({ ...tab, action: z.literal('screenshot'), clip: z.strictObject({
+  z.strictObject({ ...tab, action: z.literal('screenshot'), fullPage: z.boolean().optional(), clip: z.strictObject({
     x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
     width: z.number().int().positive(), height: z.number().int().positive(),
-  }).optional() }),
+  }).optional() }).refine(value => !value.fullPage || !value.clip, 'Choose either fullPage or a viewport clip.'),
   z.strictObject({ ...tab, action: z.literal('navigate'), url: z.string().max(4096) }),
 ]);
 
+export const browserInputSchema = { type: 'object', ...z.toJSONSchema(browserRequest, { target: 'draft-7', unrepresentable: 'throw' }) };
 export type BrowserRequest = z.infer<typeof browserRequest>;
 export type FrameSelector = z.infer<typeof frameSelector>;
 export type Locator = z.infer<typeof locator>;

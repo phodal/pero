@@ -35,12 +35,26 @@ Native 支持标签清单、观察、定位、条件等待、同源 iframe、同
 历史操作先检查目标来源，然后等待 WebKit 完成导航。滚轮使用新鲜观察 ID，截图支持可见
 视口和像素矩形，复用 Electron 的 PNG MCP 图片与证据文件格式。截图前后通过 WebKit
 帧树检查来源，覆盖封闭 Shadow DOM 内的 iframe。WebKit 未提供所需帧元数据时拒绝截图。
-网页触发的新标签回执和下载回执（含 Blob）由 Electron 提供。
+Native 也可通过 `download` 把已观察的同源 HTTP(S) 或 Blob 链接保存为会话 Artifact。
+HTTP(S) 下载使用该 WebKit 标签的登录态，拒绝重定向，文件上限为 10 MiB。
+`click` 可带 `expectPopup: true`，等待网页打开新标签并在动作回执中记录标签 ID。
+同源目标使用独立标签实例和授权，跨源目标在发出页面请求前拒绝。等待上限为五秒，
+届时若无新标签事件，回执记为 `notObserved`。Electron 也支持下载按钮触发的原生下载事件。
+
+WebKit 的 `alert`、`confirm` 和 `prompt` 显示为当前工作台窗口的原生对话框。
+浏览器工具可在当前标签及同源授权下读取和处理它们。旧对话框 ID 会被拒绝，
+`promptText` 不写入动作回执。
 
 Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
 并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
 同源地址返回的跨源重定向。验收覆盖新增能力、可信单击和双击与悬停、两个真实附件内容、
 授权前后的工具状态和本地回执。Electron 的全量验收也运行同一组第六批场景。
+Native 回环验收另核对了需 HttpOnly Cookie 的 CSV、页面生成的 Blob、Artifact 字节和
+哈希，以及跨源重定向的目标从未被访问。Chrome Relay 也通过既有下载回归。
+新标签验收核对了同源 `_blank` 链接打开后的页面内容、授权前的拒绝、跨源 `window.open`
+请求计数为零，以及无新标签时的超时回执。工具结果与保存的动作回执一致。
+Native Python REPL 验收关闭了 `alert`，接受和取消了 `confirm`，并向 `prompt` 提交
+含中文和 emoji 的文本。回环服务器独立核对了 WebKit 脚本的返回值和请求次数。
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
 
@@ -67,7 +81,24 @@ Use `PERO_CONTENT_TEST_ROOT` for an already staged build. The suite checks that
 two tabs with the same URL are checkpointed under separate IDs, reappear under
 those IDs after restart, and restore independent Chromium form values.
 
-## Native Workbench and external Chrome
+## Full-page screenshots
+
+Pass `fullPage: true` to `browser_use` screenshot on an embedded Electron tab
+or a tab from the paired Chrome profile. Full-page capture and viewport cropping are
+mutually exclusive. Chromium captures the whole laid-out document while
+preserving its scroll position. The receipt includes `fullPage`, PNG
+dimensions and SHA-256. Page dimensions and encoded bytes are bounded. All
+frames must match the page's origin. Embedded Native WebKit supports viewport
+and clipped screenshots.
+
+On macOS, the Electron Browser Use and headed Chrome Relay suites observed
+the offscreen fixture marker in the returned PNG, matched its hash to the
+saved evidence and rejected a frame outside the authorized origin. The Chrome
+suite used the built unpacked extension and a scripted ACP agent. Evidence is
+in `test-results/browser-use/browser-full-page.png` and
+`test-results/chrome-relay/full-page.png`.
+
+## Native Workbench and external Chrome, historical protocol 2
 
 On macOS 27.2.1, the release-mode Pero Native Preview and Google Chrome for
 Testing 156.0.8078.4 ran with isolated profiles. The Native build used
@@ -95,36 +126,190 @@ both tabs open. The checks and receipt are in
 
 ### External Chrome extension and Relay
 
-The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
-Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
-same local Relay and the same ACP conversation tool. Pairing binds the
-connection to the selected ordinary conversation. Chrome grants access only
-after the user reviews and approves each live tab. A page operation
-requires the approved origin, an active tab in its Chrome window, and a
-current observation. Pero uses the existing Browser Use observation and
-action receipts.
+Electron Desktop and macOS Native use the same local Relay and ACP
+conversation tool. Relay protocol 3 pairs the selected ordinary conversation
+with a Chrome profile. `tabs` lists its regular HTTP(S) tabs across windows.
+Page operations require an active tab in its window and a current document.
+The extension attaches Chrome's debugger only when a page operation needs it.
+Stop and take over or Disconnect Chrome releases the attached tabs.
+With extension 0.3.3, `click` with `expectPopup: true` reports the first
+HTTP(S) navigation target Chrome attributes to the selected tab during input
+and the five-second observation window. The receipt includes its `chrome:`
+ID. The paired conversation can use that ID after the new tab loads, including
+when the page opens another site. If no event is observed, the click outcome
+is recorded separately from `popup.kind: notObserved`.
+
+Extension 0.3.4 also supports JavaScript dialogs on the active tab in the
+paired Chrome profile. `getJsDialog` returns the current dialog ID, type and
+bounded message. Use that ID with `handleJsDialog` and `decision` of `accept`
+or `dismiss`. Accepting a `prompt` requires `promptText`. `alert` and
+`beforeunload` support `dismiss`, which keeps the current page open when
+dismissing `beforeunload`. The dialog ID expires when the dialog closes.
+Chrome can hold a renderer input response while a dialog is open. Relay
+returns control on the dialog event so the next request can handle it, then
+settles the original input before the next page operation. Dialog action
+receipts record the decision and ID. The prompt answer stays out of the receipt.
 
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
-The suite checks pairing without tab access, explicit tab approval, an
+The suite checks listing and observing tabs on two origins in separate Chrome
+windows immediately after pairing, lazy debugger attachment, an
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
-back, forward and reload. It checks isolation from other tabs and conversations,
-foreign-origin rejection, replay protection and debugger release on revocation.
+back, forward and reload. It also follows an actual `target="_blank"` link
+and a delayed cross-site `window.open` by the IDs in their saved receipts.
+An ordinary click checks the timeout result. Dialog coverage verifies the
+page's confirmation result (including across two REPL cells), the Unicode
+prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
+that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
+inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
 Evidence is written to `test-results/chrome-relay/`.
+
+### Chrome and embedded browser from an SSH Workbench
+
+An ordinary SSH Workbench chat can operate an explicitly shared local web tab
+over the existing authenticated reverse-loopback App Use tunnel. The
+Workbench consent shows the SSH host and the scope. Embedded web tabs use
+their existing site grant. Chrome pairs to the selected SSH chat once and
+lists regular tabs in the paired Chrome profile. The desktop keeps its
+Chrome debugger and Browser Use evidence. The SSH route excludes
+`files`, `upload` and `download` from the tool schema and rejects raw calls
+to those actions.
+
+`tests/e2e/browser-use-ssh.mjs` ran with the Electron development build,
+the OpenSSH server in a Colima Linux arm64 VM, and the Linux Rust Host
+and deterministic Python ACP Agent. The test supplied both choices at the
+Workbench consent boundary. Refusing Chrome access yielded no ticket.
+The Linux Agent used Browser Use on the granted embedded tab and the paired
+Chrome profile in separate turns. The loopback web server recorded one trusted
+click in each engine. The Agent verified each DOM effect and compared the
+received PNG digest with its receipt. Revocation removed access in both lanes.
+The result is in `test-results/browser-use-ssh/`.
+
+To rerun, configure the remote Host's Agent entry to run
+`tests/fixtures/browser-use-ssh-acp.py` on the SSH machine. Use the matching
+local SSH configuration and Workbench profile with the development Desktop
+and Chrome extension built.
+
+```sh
+PERO_SSH_CONFIG=/path/to/ssh.config PERO_TEST_SSH_PROFILE=/path/to/profile.json \
+  node tests/e2e/browser-use-ssh.mjs
+```
+
+### External Chrome from Native Workbench
+
+The Native development workbench used its connector and
+headed Chrome for Testing with a scripted ACP agent. Without any per-tab
+action in Chrome, the conversation listed both fixture windows and observed
+actual page text. Native exit disconnected the extension. Evidence is in
+`test-results/native-chrome-pairing/`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with
 `PERO_NATIVE_REPL_REAL_AGENT=1` and `PERO_NATIVE_REPL_INSTALLED_APP`.
-The probe pairs headed Chrome for Testing through the Native connector and
-reviews the fixture tab in the actual extension. Codex uses bundled CPython
+The probe pairs headed Chrome for Testing through the Native connector.
+Codex uses bundled CPython
 across two cells. The test independently checks the trusted click and the
 image-only marker read by Codex, plus the PNG hash in both the Host evidence
 and Codex's ACP transcript. Evidence is written to
 `target/computer-verification/native-chrome-repl-codex/`.
+
+### Cloud Run browser transport
+
+The isolated Runtime Gateway accepts one duplex Desktop attachment per live
+Run. The Desktop authenticates with the Cloud Client that currently holds the
+Task claim. Browser requests come from the Agent Pod whose identity matches
+the Run's active lease and binding in an online TokenReview. The Desktop owns
+browser selection and action admission. The gateway delivers one call at a
+time, closes the attachment on loss of Run authority and does not replay
+requests whose effects may be unknown.
+
+`TestCloudBrowserFollowsClaimAndRuntimeChannel` uses real PostgreSQL and
+full-duplex HTTP with fixture Desktop, Worker and Pod peers. It exercises
+same-project non-owner rejection, wrong-Pod rejection, single attachment,
+single-flight calls, response delivery and cancellation during an in-flight
+call. The TokenReview endpoint is a loopback fixture.
+
+The operator opts in with `runtime.browser_use: true` in the isolated recipe.
+The recipe passes `PERO_AGENT_BROWSER_USE=1` to the Agent. The fixed Go ACP
+process exposes the `browser_use` function for status, observation, locating,
+clicking and filling on the shared tab. The Pod shim uses the rotating projected
+token. Text recipes receive bounded text results. The process fixture
+`TestAgentConnectCLIWithGoACP/browser` ran the real ACP and connector binaries
+with a loopback TLS control endpoint and scripted provider. It verified the
+tool result returned to the next provider request and the default lane has no
+Browser Use function.
+
+A vision recipe can additionally opt in with `runtime.browser_screenshots`.
+The share confirmation discloses the screenshot transfer. `screenshot` returns
+the visible viewport or a requested clip as PNG. The Go Agent checks the PNG
+against the Desktop receipt. The provider receives the receipt as a tool
+result and the inline PNG in the next vision message. The ACP stream carries
+the receipt. Text recipes refuse screenshot calls.
+
+In Electron Workbench, select the claimed Run in Cloud Tasks. Use Workbench →
+Share This Tab with Cloud Run for the embedded Web tab, or Share Active Chrome
+Tab with Cloud Run for the active tab in the paired Chrome profile's last
+focused window. The confirmation shows the task, Cloud origin and page origin.
+The embedded toolbar marks the tab as shared. The stop action and Workbench
+emergency shortcut release the Cloud share. The Chrome extension's Disconnect
+action also releases a Cloud share of that profile.
+
+In macOS Native Workbench, pair Chrome from an ordinary conversation and open
+the claimed Run. Its execution card offers **Share Active Chrome Tab with Cloud
+Run**. The confirmation identifies the task and both origins and discloses
+whether screenshots can reach the model. After approval the card marks the
+share as active and offers **Stop Cloud Browser Sharing**. Both shells recheck
+the tab, origin and pairing after the confirmation.
+
+With `PERO_TEST_CLOUD_BROWSER_ELECTRON` set to the absolute path of
+`tests/e2e/browser-use-cloud.mjs`, the same Go test launches the Electron
+Workbench and a headed Chrome fixture against that real Gateway and PostgreSQL
+fixture. It verifies both choices at the consent boundary, one trusted click in
+each browser with independent page and server effects, file and other-tab
+rejection, Chrome window and tab switching, and revocation.
+It also verifies that the mock provider receives the same SHA-256 as each
+browser receipt. A separate real Go ACP process test verified the same bytes
+using `PERO_TEST_CLOUD_SCREENSHOT` with each browser-produced PNG, and an image
+larger than the ACP frame limit.
+With `PERO_TEST_CLOUD_BROWSER_NATIVE` pointing to the same script, the
+`native-probe` build drives the actual Native Workbench, connector and headed
+Chrome against the same PostgreSQL/Gateway fixture. The probe supplies the
+dialog decision at the confirmation boundary. It verifies refusal before
+approval and after switching to a different tab during confirmation, a trusted
+click with an independent page effect, a PNG matching the fixture model's
+SHA-256, and stream revocation while the ordinary Chrome pairing stays connected.
+The screenshot and receipt are under `test-results/browser-use-cloud/`.
+This ran in a development build with a loopback Pod identity fixture.
+Hosted Kubernetes, an external vision model and a signed Workbench build still
+require verification.
+
+On 2026-11-23, a read-only preflight of `app.openpero.com` returned 200 for
+health and both existing client and operator APIs. The shared Project source
+route and Browser Use readiness route returned plain-text 404. After the
+operator-approved upgrade to `20261123T120905Z-898caf18`, the authorized client
+received a shared source list and a different Project returned 403. Health,
+client identity and operator task listing remained available. Migration 019
+was present, the pre-upgrade dump was readable and the previous container was
+retained. The deployed service has no isolated runtime configuration, so the
+Browser Use readiness route still returns 404. No Task was dispatched.
+The read-only API receipts are in `test-results/cloud-browser-hosted/`.
+
+The hosted Nginx vhost now forwards Run requests without buffering or retries.
+The prior vhost stalled before answering a still-open streaming request. A
+loopback test with Nginx 1.25.3, the hosted version, verified the new vhost with
+TLS and the Desktop connector. A synthetic 1 MiB screenshot reply and a 3 MiB
+provider request passed; the ordinary API still rejected bodies above 512 KiB.
+Both Workbench vision fixtures then passed the Go race test through the same
+runtime location over loopback HTTP. Electron delivered a trusted click per
+browser. Native refused the tab switch during confirmation and clicked the
+approved Chrome tab. All three PNG hashes matched the fixture provider, and
+sharing stopped in both shells. The test overlay only routed the fixture's
+requests through Nginx. The live vhost passed its syntax and HTTPS health checks
+after reload. The live server still has no isolated profile mounted.
 
 ### Embedded browser
 
@@ -143,8 +328,9 @@ observation. Pointer actions recheck the node's identity and semantic label
 and hit-test its visible point. `dblclick` checks the same target and point
 again after the first click. A press focuses an observed element and sends a named key
 such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
-ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
-attachment for fixed input commands. The tool accepts page content as data.
+ID and bounded X/Y wheel deltas. The granted tab keeps a Chromium debugger
+attached for fixed input commands and JavaScript dialog events. Revoking the
+grant or closing the tab releases the debugger. The tool accepts page content as data.
 Observation omits password, hidden and credential-autocomplete inputs. For a
 visible file input it exposes an actionable reference and label without any
 selected filenames or local paths.
@@ -152,6 +338,19 @@ Direct navigation rejects foreign origins and cancels
 cross-origin HTTP redirects before the foreign site receives a request.
 A navigation initiated independently by the page or the user ends the grant
 if it leaves the origin.
+
+Use `getJsDialog` and `handleJsDialog` to inspect and answer an embedded
+Chromium `confirm`, or dismiss an `alert`. Dialogs use the existing grant
+for the visible tab, and dialog IDs expire when their dialog closes. A delayed
+dialog remains discoverable after the click returns. When a page opens a dialog
+while loading, Browser Use returns before the load finishes so the next call can
+answer the dialog. Electron rejects
+`window.prompt()` in the renderer and automatically cancels navigation when
+the page prevents unload. The paired Chrome provider supports both dialog types.
+The Electron acceptance suite verifies page callbacks, navigation resuming
+after a dismissed alert, stale IDs and debugger release on revocation. The
+test replaces native message-box presentation while preserving the renderer
+and debugger dialog lifecycle.
 
 ### Independent tabs, history and files
 
@@ -329,3 +528,58 @@ original URL, `Amber observatory sample 739.`, and the reason entered in
 Chrome. Disconnecting in Native returned the sidebar to the pairing prompt.
 This run used the installed app with ephemeral Native secret storage and the
 real Codex adapter. Local screenshots are in `test-results/chrome-sidebar/`.
+
+## Project sources from Chrome Collector
+
+Chrome Collector can save reviewed page text or a selection to a local or shared
+Project. Choose the destination in **Save to** before saving. The Project's
+**Materials → Web sources** section opens the excerpt, collection reason and
+research question independently of the paired conversation. Local captures
+stay in the current profile. Choose **Shared Project** to store the reviewed
+capture in Cloud for members of that Project. The destination is bound to the
+selected Cloud service and account. Retrying an identical capture in the same
+Project returns its original receipt.
+
+`node tests/e2e/chrome-sidebar.mjs` uses a headed Chromium extension, the
+actual Relay and Rust Host, and a deterministic paired conversation.
+It verified the original conversation Artifact path through the fixture,
+then saved a Unicode selection with a reason and question to a Project.
+Host's digest matched the preview bytes. The original record survived a
+Host restart. An identical retry returned the same receipt, while changed
+content under that capture ID and access from a second Project were refused.
+A separate running macOS Native development build opened a source seeded by
+the same Host command and displayed its URL, edited text, reason and question.
+
+Extension 0.3.6 freezes a reviewed Project save in extension session storage
+until Collector receives its receipt. The test disconnected the Relay after
+the real Host saved the source, navigated the source tab, reopened Collector
+and restarted the Host. A different conversation could not recover the save.
+After pairing the original conversation, **Recover save** returned the same
+receipt, and the Project still contained one matching source. Closing the
+Chrome browser session clears the pending draft.
+
+The optional `TestSharedWebSourcesNativeChromeToMaterials` test uses two
+independent macOS Native profiles with separate client identities, headed
+Chromium, and the real Cloud API backed by PostgreSQL. It saves a Unicode
+selection through Collector and reads the same capture and digest through the
+second profile's Materials view. The companion API test verifies that another
+Project cannot read the capture and that an edited retry is rejected. The test
+uses a loopback source page and a development build.
+
+Build Native with `--features native-probe`, the connector helpers and the
+Chrome extension, then run the tests from the repo root with
+`PERO_TEST_DATABASE_URL` set to a test database.
+
+```sh
+PERO_TEST_SHARED_SOURCES_NATIVE="$PWD/tests/e2e/native-shared-project-sources.mjs" \
+  go -C server test -race ./internal/httpapi -run '^TestSharedWebSources' -v
+```
+
+Set `PERO_TEST_SHARED_SOURCES_APP` to an ad-hoc-signed Native app bundle with
+the probe binary to run the same test against the bundled Host, Node and
+Chrome extension. This lane uses the macOS Keychain and starts the reader
+again without supplying a token. It asserts the same client identity, source
+bytes and receipt after relaunch, then removes the two fixture credentials.
+This passed in an isolated copy of the Native bundle. Evidence is under
+`test-results/installed-shared-project-sources/`. The Cloud API was a loopback
+fixture. A hosted deployment still needs acceptance.

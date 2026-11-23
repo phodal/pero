@@ -1,122 +1,59 @@
-// The review nonce and explicit Allow/Stop controls follow Point relay-panel.js (2449d4b98).
-import { webOrigin } from './protocol.ts';
-
 const node = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const status = node('status');
 const code = node<HTMLTextAreaElement>('code');
-const tabs = node<HTMLSelectElement>('tab');
 const pair = node<HTMLButtonElement>('connect');
-const review = node<HTMLButtonElement>('review');
-const allow = node<HTMLButtonElement>('allow');
-let consent: string | undefined;
+const stop = node<HTMLButtonElement>('stop');
+
+type Status = { state: 'disconnected' | 'connecting' | 'paired'; error?: string; label?: string };
 let busy = false;
 
 async function request(message: object) {
   const response = await chrome.runtime.sendMessage(message);
   if (!response) throw new Error('Reload Pero Browser Use in Chrome, then pair again from Pero settings.');
   if (!response.ok) throw new Error(response.error);
-  return response.value;
+  return response.value as Status;
 }
-async function choices(approvedTabIds: number[]) {
-  const selected = tabs.value;
-  const available = await chrome.tabs.query({ active: true });
-  const entries = available.filter(tab => tab.status === 'complete' && !tab.incognito &&
-    Number.isInteger(tab.id) && !approvedTabIds.includes(tab.id!) && webOrigin(tab.url ?? '')).map(tab => {
-    const entry = document.createElement('option');
-    entry.value = String(tab.id);
-    entry.textContent = `${tab.title || 'Chrome tab'} · ${webOrigin(tab.url!)}`;
-    return entry;
-  });
-  tabs.replaceChildren(...(entries.length ? entries : [new Option('Switch to an unapproved tab in Chrome', '')]));
-  tabs.disabled = entries.length === 0;
-  if ([...tabs.options].some(option => option.value === selected)) tabs.value = selected;
+
+function render({ state, error, label }: Status) {
+  const labels = { disconnected: 'Disconnected', connecting: 'Connecting to Pero…', paired: 'Connected' };
+  node('status').textContent = labels[state] + (state !== 'disconnected' && label ? ' · ' + label : '');
+  node('pair').hidden = state !== 'disconnected';
+  node('access').hidden = state !== 'paired';
+  stop.hidden = state === 'disconnected';
+  node('error').textContent = error ?? '';
+  node('error').hidden = !error;
 }
-function clearReview() {
-  consent = undefined;
-  node('preview').hidden = true;
-}
-async function render(value?: {state: string; error?: string; label?: string; approvedTabIds: number[]}) {
-  const state = value ?? await request({ type: 'status' });
-  const paired = state.state === 'paired' || state.state === 'approved';
-  status.textContent = ({
-    disconnected: 'Disconnected',
-    connecting: 'Connecting to Pero…',
-    paired: 'Paired · awaiting tab approval',
-    authorizing: 'Allowing the reviewed tab…',
-    approved: 'Browser Use allowed',
-  } as Record<string, string>)[state.state] + (state.state !== 'disconnected' && state.label ? ` · ${state.label}` : '');
-  const count = state.approvedTabIds.length;
-  if (count) status.textContent += ` · ${count} approved ${count === 1 ? 'tab' : 'tabs'}`;
-  node('pair').hidden = state.state !== 'disconnected';
-  node('choose').hidden = !paired;
-  node('stop').hidden = state.state === 'disconnected';
-  node('error').textContent = state.error ?? '';
-  node('error').hidden = !state.error;
-  if (!paired) clearReview();
-  else await choices(state.approvedTabIds);
-  review.disabled = busy || !tabs.value;
-  pair.disabled = allow.disabled = busy;
-}
-async function action(fn: () => Promise<void>) {
+
+async function action(fn: () => Promise<Status>) {
   if (busy) return;
-  busy = true;
-  pair.disabled = review.disabled = allow.disabled = true;
+  busy = pair.disabled = stop.disabled = true;
   node('error').hidden = true;
-  try { await fn(); }
+  try { render(await fn()); }
   catch (error) {
     node('error').textContent = error instanceof Error ? error.message : String(error);
     node('error').hidden = false;
   } finally {
-    busy = false;
-    pair.disabled = allow.disabled = false;
-    review.disabled = !tabs.value;
+    busy = pair.disabled = stop.disabled = false;
   }
 }
+
 pair.addEventListener('click', () => void action(async () => {
-  await render(await request({ type: 'pair', code: code.value }));
+  const status = await request({ type: 'pair', code: code.value });
   code.value = '';
+  return status;
 }));
-tabs.addEventListener('change', clearReview);
-review.addEventListener('click', () => void action(async () => {
-  clearReview();
-  const preview = await request({ type: 'preview', tabId: Number(tabs.value) });
-  consent = preview.nonce;
-  node('title').textContent = preview.title || 'Chrome tab';
-  node('url').textContent = preview.url;
-  node('preview').hidden = false;
-  allow.focus();
-}));
-allow.addEventListener('click', () => void action(async () => {
-  const nonce = consent;
-  clearReview();
-  await render(await request({ type: 'allow', nonce }));
-}));
-node('stop').addEventListener('click', () => void action(async () => {
-  await render(await request({ type: 'stop' }));
-}));
+stop.addEventListener('click', () => void action(() => request({ type: 'stop' })));
 chrome.runtime.onMessage.addListener(message => {
-  if (message.type === 'pero.relay.changed') void render(message);
+  if (message.type === 'pero.relay.changed') render(message);
 });
-chrome.tabs.onActivated.addListener(() => {
-  if (!node('choose').hidden) { clearReview(); void render(); }
-});
-chrome.tabs.onUpdated.addListener((_tabId, change, tab) => {
-  if (!node('choose').hidden && tab.active && (change.url || change.status === 'complete')) {
-    if (change.url) clearReview();
-    void render();
-  }
-});
+
 const handoff = new URLSearchParams(location.hash.slice(1)).get('pair');
 if (handoff) {
   history.replaceState(null, '', location.pathname);
   void action(async () => {
-    // Restore the previous active tab in the browser window for tab review.
-    const currentTab = await chrome.tabs.getCurrent();
-    if (currentTab?.id) {
-      await chrome.windows.create({ tabId: currentTab.id, type: 'popup', width: 460, height: 440 });
-    }
-    await render(await request({ type: 'pair', code: handoff }));
+    const current = await chrome.tabs.getCurrent();
+    if (current?.id) await chrome.windows.create({ tabId: current.id, type: 'popup', width: 460, height: 300 });
+    return request({ type: 'pair', code: handoff });
   });
 } else {
-  void render();
+  void action(() => request({ type: 'status' }));
 }

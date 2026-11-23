@@ -17,6 +17,7 @@ import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
+import { cloudBrowserRequest } from './browser-use/cloud-use.ts';
 import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
@@ -173,7 +174,8 @@ async function allowBrowserUse() {
     if (!browser || !tab || !candidate || !thread) throw new Error(t('browser_use.select_tab_and_chat'));
     const answer = await dialog.showMessageBox(window, {
       type: 'question', message: t('browser_use.allow_tab'),
-      detail: [candidate.origin, candidate.title, '', t('browser_use.grant_detail')].join('\n'),
+      detail: [candidate.origin, candidate.title, '', t('browser_use.grant_detail'),
+        ...(sshProfile ? [t('browser_use.ssh_grant_detail'), sshProfile.host] : [])].join('\n'),
       buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
     });
     if (answer.response !== 1) return;
@@ -186,10 +188,60 @@ async function allowBrowserUse() {
     });
   }
 }
+async function shareBrowserWithCloudRun(engine: 'embedded' | 'chrome') {
+  try {
+    const browser = browserUse, files = appUse?.inputs;
+    const tab = engine === 'embedded' ? webPages?.focusedBrowserTab(t('browser_use.cloud_active')) : undefined;
+    const page = tab && browser?.candidate(tab);
+    const chrome = appUse?.browser?.relay;
+    const chromeTab = engine === 'chrome' ? await chrome?.activeTabForCloud() : undefined;
+    const target = page ?? chromeTab;
+    const run = remote.browserRun();
+    if (!run || !files || !target) throw new Error(t(engine === 'chrome' ? 'browser_use.cloud_select_chrome' : 'browser_use.cloud_select'));
+    const capability = await remote.browserShareReady(run);
+    if (!capability) throw new Error(t('browser_use.cloud_not_ready'));
+    const answer = await dialog.showMessageBox(window, {
+      type: 'question', message: t('browser_use.cloud_confirm'),
+      detail: [run.title, run.url, target.title, target.origin, '', t('browser_use.cloud_detail'),
+        ...(capability.screenshots ? [t('browser_use.cloud_screenshots')] : [])].join('\n'),
+      buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
+    });
+    if (answer.response !== 1) return;
+    const share = `cloud:${run.runId}:${randomUUID()}`;
+    if (chromeTab && chrome) {
+      const prepared = await chrome.prepareCloudShare(chromeTab, share, capability.screenshots, files);
+      if (!prepared) throw new Error(t('browser_use.cloud_tab_changed'));
+      await remote.shareBrowser(run, prepared.grant, prepared.call);
+    } else if (browser && tab && page) {
+      const attachment = await remote.shareBrowser(run, () => {
+        if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
+        return browser.allow(share, tab, page.origin, capability.screenshots);
+      }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id, capability.screenshots), signal, files));
+      void attachment.closed.then(() => browser.revoke(share));
+    }
+  } catch (error) {
+    if (!window.isDestroyed()) await dialog.showMessageBox(window, {
+      type: 'info', message: t('browser_use.unavailable'), detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 async function pairChrome() {
   try {
     if (!appUse?.browser) throw new Error(t('browser_use.unavailable'));
-    clipboard.writeText(await appUse.browser.relay.pairing(t('browser_use.chrome_selected_chat')));
+    const label = sshProfile ? `SSH · ${sshProfile.host}` : t('browser_use.chrome_selected_chat');
+    if (sshProfile) {
+      const thread = await appUse.authority.selectedOrdinaryConversation();
+      if (!thread) throw new Error(t('browser_use.select_tab_and_chat'));
+      const answer = await dialog.showMessageBox(window, {
+        type: 'question', message: t('browser_use.ssh_pair_chrome'),
+        detail: [sshProfile.host, '', t('browser_use.ssh_pair_detail')].join('\n'),
+        buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0, noLink: true,
+      });
+      if (answer.response !== 1) return;
+      clipboard.writeText(await appUse.browser.relay.pairing(label, thread));
+    } else {
+      clipboard.writeText(await appUse.browser.relay.pairing(label));
+    }
     await dialog.showMessageBox(window, { type: 'info', message: t('browser_use.chrome_copied') });
   } catch (error) {
     if (!window.isDestroyed()) await dialog.showMessageBox(window, {
@@ -218,6 +270,11 @@ function updateMenus() {
         { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.browser?.relay.revoke() },
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
+      ...(!sshProfile ? [
+        { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun('embedded'); } },
+        { id: 'browser-use-cloud-chrome', label: t('browser_use.cloud_chrome'), click: () => { void shareBrowserWithCloudRun('chrome'); } },
+        { id: 'browser-use-cloud-stop', label: t('browser_use.cloud_stop'), click: () => remote.stopBrowserShare() },
+      ] : []),
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
         void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));
       } }] : []),
@@ -294,6 +351,7 @@ app.whenReady().then(async () => {
     nativeTheme.on('updated', () => linuxDesktop?.publish());
   }
   globalShortcut.register('CommandOrControl+Shift+Escape', () => {
+    remote.stopBrowserShare();
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
   const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
@@ -304,7 +362,7 @@ app.whenReady().then(async () => {
     return tabId;
   }, options => net.request(options));
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
-    sshProfile ? undefined : selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence),
+    selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local'),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};
@@ -558,6 +616,22 @@ app.whenReady().then(async () => {
         preferenceWrites.set(id,{resolve:resolveWrite,reject:rejectWrite,timer});
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
+    }
+    if (method === 'shared_project_sources') {
+      const { request_id, request } = command as { request_id?: unknown; request?: unknown };
+      if (typeof request_id !== 'string' || !request_id || request_id.length > 128 || JSON.stringify(command).length > 4096)
+        throw new Error('Invalid shared Project source reader request');
+      const data = await remote.sharedWebSource(request)
+        .then(value => ({ ok: true, value }), error => ({ ok: false, error: error instanceof Error ? error.message : 'Project sources are unavailable' }));
+      send({ version: 1, kind: 'project_sources_result', request_id, data, text: '' });
+      return;
+    }
+    if (method === 'project_sources') {
+      const request = (command as { request?: { kind?: string } }).request;
+      if (!['list', 'read'].includes(request?.kind ?? '') || JSON.stringify(command).length > 4096)
+        throw new Error('Invalid Project source reader request');
+      host.stdin.write(JSON.stringify(command) + '\n');
+      return;
     }
     if ((!['list_agents','load_thread_history','workspace','load_roadmap','new_session','prompt','cancel','permission','answer_user_questions','model','configure','authenticate','close','delete','search_context','resolve_context','attach_files'].includes(action || '') && !['settings.workbench', 'settings.workbench.get', 'settings.mcp.get', 'settings.mcp.set', 'settings.engram', 'settings.engram.get', 'settings.engram.document', 'documents','workspace_files','artifacts','workspace_changes','pull_requests','project_agent','icons','automation','terminal'].includes(method || '')) || JSON.stringify(command).length > 16_000_000) throw new Error('Invalid session command');
     appUse?.command(command as {action?:string;thread_id?:string});

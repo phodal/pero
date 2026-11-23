@@ -171,6 +171,7 @@ pub fn attach_image(snap: Snapshot, max_px: u32, quality: u8) -> Snapshot {
 	if snap.app.window_id == 0 {
 		return suppressed(snap, "window_id_missing");
 	}
+	let visible_frame = ffi::visible_window_frame(snap.app.window_id);
 	let image = CAPTURE_OVERRIDE.with(|slot| {
 		slot.borrow().map(|capture| capture()).unwrap_or_else(|| {
 			let clamped_px = max_px.clamp(MIN_SCREENSHOT_MAX_PX, MAX_SCREENSHOT_MAX_PX);
@@ -179,10 +180,19 @@ pub fn attach_image(snap: Snapshot, max_px: u32, quality: u8) -> Snapshot {
 		})
 	});
 	let accept = image.error.is_empty();
+	let image_bounds = if !accept {
+		None
+	} else if image.backend == "windows.graphics.capture" {
+		// WGC captures the DWM frame, excluding invisible Win32 resize borders.
+		visible_frame.filter(|frame| Some(*frame) == ffi::visible_window_frame(snap.app.window_id))
+	} else {
+		snap.window_bounds
+	};
 	Snapshot {
 		image_jpeg: if accept { image.bytes } else { Vec::new() },
 		image_width: if accept { image.width } else { 0 },
 		image_height: if accept { image.height } else { 0 },
+		image_bounds,
 		capture_backend: image.backend.into(),
 		capture_error: image.error.into(),
 		capture_fallback: image.fallback.into(),
@@ -195,6 +205,7 @@ fn suppressed(snap: Snapshot, reason: &'static str) -> Snapshot {
 		image_jpeg: Vec::new(),
 		image_width: 0,
 		image_height: 0,
+		image_bounds: None,
 		capture_backend: "suppressed".into(),
 		capture_error: reason.into(),
 		capture_fallback: String::new(),

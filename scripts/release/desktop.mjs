@@ -138,7 +138,7 @@ if (operation === 'prepare') {
     page = await desktop.firstWindow();
     page.on('console', message => appendFileSync(join(outputDir, 'browser.log'), `${message.type()}: ${message.text()}\n`));
     const errors = []; page.on('pageerror', error => { errors.push(error.message); appendFileSync(join(outputDir, 'browser.log'), `pageerror: ${error.message}\n`); });
-    await page.waitForFunction(() => window.peroDiagnostics, undefined, { timeout: 60_000 });
+    await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60_000 });
     const snapshot = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
     await expect.poll(async () => (await snapshot()).ready, { timeout: 60_000 }).toBe(true);
     await expect.poll(async () => (await snapshot()).connected, { timeout: 60_000 }).toBe(true);

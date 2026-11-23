@@ -25,6 +25,10 @@ pub struct NativeWebPage {
     browser_destination: std::rc::Rc<std::cell::RefCell<Option<String>>>,
     #[cfg(target_os = "macos")]
     pub(super) browser_grant: Option<crate::native_browser::WebGrant>,
+    #[cfg(target_os = "macos")]
+    pub(super) browser_popup: Option<crate::native_browser::WebPopupWatch>,
+    #[cfg(target_os = "macos")]
+    pub(super) browser_dialogs: Option<objc2::rc::Retained<crate::native_browser::DialogDelegate>>,
 }
 impl EventEmitter<NativeWebChanged> for NativeWebPage {}
 impl EventEmitter<NativeWebPopup> for NativeWebPage {}
@@ -43,6 +47,10 @@ impl NativeWebPage {
             browser_destination: std::rc::Rc::new(std::cell::RefCell::new(_browser_origin)),
             #[cfg(target_os = "macos")]
             browser_grant: None,
+            #[cfg(target_os = "macos")]
+            browser_popup: None,
+            #[cfg(target_os = "macos")]
+            browser_dialogs: None,
         };
         this.mount(window, cx);
         if this.view.is_some() {
@@ -109,6 +117,8 @@ impl NativeWebPage {
             });
         match WebView::build(builder, window, cx) {
             Ok(mut view) => {
+                #[cfg(target_os = "macos")]
+                { self.browser_dialogs = crate::native_browser::DialogDelegate::install(view.raw()); }
                 view.hide();
                 self.view = Some(cx.new(|_| view));
             }
@@ -196,10 +206,17 @@ impl NativeWebPage {
                 }
             }
             Update::Title(title) => self.document.observation.title = title,
-            Update::Popup(uri) => match WebAddress::try_from(uri) {
-                Ok(address) => cx.emit(NativeWebPopup(address.as_str().into())),
-                Err(error) => self.document.observation.notice = Some(error),
-            },
+            Update::Popup(uri) => {
+                #[cfg(target_os = "macos")]
+                if self.browser_popup.is_some() {
+                    cx.emit(NativeWebPopup(uri));
+                    return;
+                }
+                match WebAddress::try_from(uri) {
+                    Ok(address) => cx.emit(NativeWebPopup(address.as_str().into())),
+                    Err(error) => self.document.observation.notice = Some(error),
+                }
+            }
             Update::Failed(error) => self.document.observation.load = WebLoad::Failed(error),
         }
         #[cfg(target_os = "macos")]

@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      windows_native:
+        description: 'Run the owned WinForms input fixture on Windows 11 ARM64'
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 jobs:
@@ -103,4 +108,30 @@ jobs:
           path: |
             test-results/paper-host-approval-native/
             test-results/ci/paper-host-approval-native.json
+          retention-days: 7
+
+  windows-native:
+    name: Windows 11 ARM64 desktop acceptance
+    if: inputs.windows_native
+    runs-on: windows-11-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          architecture: arm64
+      - uses: dtolnay/rust-toolchain@stable
+      - run: node scripts/build/computer.mjs
+      - name: Verify input against the owned WinForms fixture
+        timeout-minutes: 3
+        env:
+          PERO_COMPUTER_NATIVE: '1'
+        run: node tests/e2e/computer-windows.mjs
+      - name: Retain WinForms window capture and action receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-winforms
+          path: target/computer-verification/windows-winforms.*
           retention-days: 7

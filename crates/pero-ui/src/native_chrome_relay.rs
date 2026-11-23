@@ -1,11 +1,12 @@
 use crate::app::Workbench;
+use crate::workspace::WorkspaceItem;
 use gpui_kit::component::{
     button::*,
     menu::{DropdownMenu, PopupMenuItem},
     *,
 };
 use gpui_kit::{prelude::*, *};
-use serde_json::json;
+use serde_json::{Value, json};
 
 enum ChromeAction {
     Pair(String),
@@ -13,7 +14,146 @@ enum ChromeAction {
     PrepareFolder,
 }
 
+#[derive(Default)]
+pub(crate) struct CloudBrowserView {
+    pending: bool,
+    active: Option<(String, String)>,
+    #[cfg(feature = "native-probe")]
+    pub(crate) probe: Option<async_channel::Sender<Value>>,
+}
+
 impl Workbench {
+    pub(crate) fn cloud_browser_button(
+        &self,
+        task_id: &str,
+        run_id: &str,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        crate::native::chrome_relay_owner()?;
+        let shared = self
+            .remote
+            .browser_share
+            .active
+            .as_ref()
+            .is_some_and(|(_, run)| run == run_id);
+        let task_id = task_id.to_owned();
+        let button = Button::new("native-cloud-browser")
+            .outline()
+            .small()
+            .disabled(self.remote.browser_share.pending)
+            .label(self.t(if shared {
+                "browser_use.cloud_stop"
+            } else {
+                "browser_use.cloud_chrome"
+            }))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.request_cloud_browser(&task_id, shared, cx);
+            }));
+        Some(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .when(shared, |row| row.child(self.t("browser_use.cloud_active")))
+                .child(button)
+                .into_any_element(),
+        )
+    }
+
+    pub(crate) fn request_cloud_browser(&mut self, task_id: &str, stop: bool, cx: &mut Context<Self>) {
+        self.remote.browser_share.pending = true;
+        self.command(
+            if stop {
+                json!({"action":"remote_browser_stop"})
+            } else {
+                json!({"action":"remote_browser_prepare","task_id":task_id})
+            },
+            cx,
+        );
+        cx.notify();
+    }
+
+    pub(crate) fn receive_cloud_browser(
+        &mut self,
+        data: &Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        #[cfg(feature = "native-probe")]
+        let probe = self.remote.browser_share.probe.as_ref().is_some_and(|probe| {
+            let _ = probe.try_send(data.clone());
+            true
+        });
+        #[cfg(not(feature = "native-probe"))]
+        let probe = false;
+        let id = data["id"].as_str().unwrap_or_default();
+        match data["state"].as_str() {
+            Some("confirm") => {
+                if probe { return; }
+                let task = WorkspaceItem::Task(data["taskId"].as_str().unwrap_or_default().into());
+                if self.navigation.current() != Some(&task) {
+                    self.command(json!({"action":"remote_browser_dismiss"}), cx);
+                    return;
+                }
+                let mut detail = ["taskTitle", "cloudOrigin", "pageTitle", "pageOrigin"]
+                    .map(|key| data[key].as_str().unwrap_or_default())
+                    .join("\n");
+                detail.push_str("\n\n");
+                detail.push_str(self.t("browser_use.native_cloud_detail"));
+                if data["screenshots"] == true {
+                    detail.push('\n');
+                    detail.push_str(self.t("browser_use.cloud_screenshots"));
+                }
+                let answer = window.prompt(
+                    PromptLevel::Warning,
+                    self.t("browser_use.cloud_confirm"),
+                    Some(&detail),
+                    &[self.t("browser_use.deny"), self.t("browser_use.allow")],
+                    cx,
+                );
+                let id = id.to_owned();
+                cx.spawn_in(window, async move |view, cx| {
+                    let approved = answer.await == Ok(1);
+                    let _ = view.update_in(cx, |view, _, cx| {
+                        view.command(
+                            if approved && view.navigation.current() == Some(&task) {
+                                json!({"action":"remote_browser_approve","id":id})
+                            } else {
+                                json!({"action":"remote_browser_dismiss"})
+                            },
+                            cx,
+                        );
+                    });
+                })
+                .detach();
+            }
+            Some("sharing") => {
+                self.remote.browser_share.pending = false;
+                self.remote.browser_share.active =
+                    Some((id.to_owned(), data["runId"].as_str().unwrap_or_default().into()));
+            }
+            Some("closed") => {
+                if self.remote.browser_share.active.as_ref().is_some_and(|(active, _)| active == id) {
+                    self.remote.browser_share.active = None;
+                }
+            }
+            Some("idle" | "error") => {
+                self.remote.browser_share.pending = false;
+                if !probe && let Some(key) = data["key"].as_str() {
+                    let _ = window.prompt(
+                        PromptLevel::Warning,
+                        self.t("browser_use.unavailable"),
+                        Some(self.t(key)),
+                        &[self.t("remote.close_form")],
+                        cx,
+                    );
+                }
+            }
+            _ => {}
+        }
+        cx.notify();
+    }
+
     pub(crate) fn chrome_settings(&self, cx: &mut Context<Self>) -> AnyElement {
         let chrome = pero_theme::Chrome::from_app(cx);
         let available = crate::native::chrome_relay_owner().is_some();

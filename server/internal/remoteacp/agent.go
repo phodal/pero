@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/phodal/pero/server/internal/runtimechannel"
 )
 
 // AgentConfig is operator image configuration. No Task can supply its executable,
@@ -23,9 +25,14 @@ type AgentConfig struct {
 	Channel                                             Channel
 	TokenFile, Workspace, Executable, Model, SessionDir string
 	Args                                                []string
+	BrowserUse                                          bool
+	BrowserScreenshots                                  bool
 }
 
 func (c AgentConfig) validate() error {
+	if c.BrowserScreenshots && !c.BrowserUse {
+		return errors.New("browser screenshots require Cloud Browser Use")
+	}
 	if !filepath.IsAbs(c.Workspace) {
 		return errors.New("absolute remote workspace required")
 	}
@@ -33,7 +40,7 @@ func (c AgentConfig) validate() error {
 		return errors.New("explicit operator Agent configuration required")
 	}
 	for _, arg := range c.Args {
-		for _, reserved := range []string{"--endpoint", "--api-key-env", "--workspace", "--model", "--session-dir", "--approval", "--enable-shell"} {
+		for _, reserved := range []string{"--endpoint", "--api-key-env", "--workspace", "--model", "--session-dir", "--approval", "--enable-shell", "--image-input"} {
 			if arg == reserved || strings.HasPrefix(arg, reserved+"=") {
 				return errors.New("reserved Agent option cannot be overridden")
 			}
@@ -93,14 +100,27 @@ func Connect(ctx context.Context, c AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	proxy := &http.Server{Handler: providerProxy(c, client), ReadHeaderTimeout: 5 * time.Second}
+	mux := http.NewServeMux()
+	mux.Handle("/v1/chat/completions", providerProxy(c, client))
+	if c.BrowserUse {
+		mux.HandleFunc("POST /browser/call", func(w http.ResponseWriter, r *http.Request) {
+			proxyBrowser(c, client, w, r)
+		})
+	}
+	proxy := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go proxy.Serve(listener)
 	defer proxy.Close()
 	args := []string{"--endpoint", "http://" + listener.Addr().String() + "/v1", "--api-key-env", "PERO_ISOLATED_PROVIDER_KEY", "--workspace", c.Workspace, "--model", c.Model, "--session-dir", c.SessionDir, "--approval", "ask"}
+	if c.BrowserScreenshots {
+		args = append(args, "--image-input")
+	}
 	args = append(args, c.Args...)
 	command := exec.Command(c.Executable, args...)
 	command.Dir = c.Workspace
 	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "LANG=C.UTF-8", "PERO_ISOLATED_PROVIDER_KEY=local-nonsecret"}
+	if c.BrowserUse {
+		command.Env = append(command.Env, "PERO_ISOLATED_BROWSER_USE=1")
+	}
 	command.Stderr = io.Discard // Hostile stderr cannot expose credentials in supervisor logs.
 	stop, err := isolateChild(command)
 	if err != nil {
@@ -141,7 +161,11 @@ func providerProxy(c AgentConfig, client *http.Client) http.Handler {
 			http.Error(w, "runtime identity unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		body := http.MaxBytesReader(w, r.Body, 1<<20)
+		requestLimit := int64(1 << 20)
+		if c.BrowserScreenshots {
+			requestLimit = runtimechannel.ProviderRequestMaxBytes
+		}
+		body := http.MaxBytesReader(w, r.Body, requestLimit)
 		request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, c.Channel.endpoint("/provider/v1/chat/completions"), body)
 		if err != nil {
 			http.Error(w, "invalid provider request", http.StatusBadRequest)

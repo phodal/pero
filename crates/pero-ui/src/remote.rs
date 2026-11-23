@@ -10,6 +10,8 @@ use serde_json::{Value, json};
 
 pub(crate) struct RemoteState {
     pub data: Value,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub(crate) browser_share: crate::native_chrome_relay::CloudBrowserView,
     pub connection: crate::remote_connection::ConnectionForm,
     seen_connection: bool,
     pub creating: bool,
@@ -62,6 +64,8 @@ impl RemoteState {
             connection: crate::remote_connection::ConnectionForm::new(window, cx),
             seen_connection: false,
             data: json!({"configured":false,"loading":false,"tasks":[],"workers":[],"detail":null}),
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            browser_share: Default::default(),
             creating: false,
             creation_request_id: String::new(),
             target_worker: None,

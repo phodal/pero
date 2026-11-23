@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
+import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -32,10 +33,24 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
   args: [resolve(source, 'tests/fixtures/browser-use-agent.mjs')] }]));
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
-const otherOrigin = createServer((_request, response) => { foreignHits++; response.end('Outside the grant'); });
+let leaveRequests = 0;
+const otherOrigin = createServer((request, response) => {
+  if (request.url === '/inventory-window' || request.url === '/popup-destination') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(request.url === '/popup-destination'
+      ? '<title>Chrome Popup Destination</title><h1>Cross-site popup reached</h1>'
+      : '<title>Another Chrome window</title><h1>Second origin</h1>');
+    return;
+  }
+  if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
+  foreignHits++;
+  response.end('Outside the current origin');
+});
 await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
+const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (request.url === '/leave-fixture') leaveRequests++;
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
     return;
@@ -55,6 +70,12 @@ const site = createServer((request, response) => {
 <label>Relay attachment <input id="upload" type="file"></label><output id="uploaded"></output>
 <a href="/report.csv" download>Relay report</a><a id="blob" download="fixture-blob.txt">Relay Blob</a>
 <a href="${foreignUrl}" download>Outside download</a>
+<a href="/?popup" target="_blank">Open fixture link</a>
+<button id="popup">Open delayed popup</button>
+<button id="confirm">Open confirmation</button><button id="prompt">Open prompt</button>
+<button id="alert">Open alert</button><output data-testid="dialog-result"></output>
+<a href="/leave-fixture">Leave fixture</a>
+<div aria-hidden="true" style="position:absolute;top:1550px;left:0;right:0;height:40px;background:#2468b4"></div>
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
     document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
@@ -64,6 +85,11 @@ document.querySelector('#upload').onchange = async event => {
   document.querySelector('#uploaded').textContent = file.name + ' ' + (await file.text()).length;
 };
 document.querySelector('#blob').href = URL.createObjectURL(new Blob(['Blob from the approved tab']));
+document.querySelector('#popup').onclick = () => setTimeout(() => window.open(${JSON.stringify(popupUrl)}, '_blank'), 60);
+const dialogResult = document.querySelector('[data-testid="dialog-result"]');
+document.querySelector('#confirm').onclick = () => { dialogResult.textContent = String(confirm('Continue fixture?')); };
+document.querySelector('#prompt').onclick = () => { dialogResult.textContent = prompt('Fixture name?', 'Default'); };
+document.querySelector('#alert').onclick = () => { alert('Fixture alert'); dialogResult.textContent = 'Alert closed'; };
 </script>`);
 });
 await new Promise((done, fail) => { site.once('error', fail); site.listen(0, '127.0.0.1', done); });
@@ -154,36 +180,43 @@ try {
     await expect.poll(async () => {
       code = await app.evaluate(({ clipboard }) => clipboard.readText());
       try { return JSON.parse(code).protocol; } catch { return null; }
-    }).toBe('pero-browser-connector/2');
+    }).toBe(RELAY_PROTOCOL);
     // Exercise the Native deep link with a real one-time ticket from the Host.
     await panel.goto('about:blank');
     await panel.goto(extensionOrigin + '/relay.html#' + new URLSearchParams({ pair: code }));
-    await expect(status).toContainText('Paired · awaiting tab approval');
+    await expect(status).toContainText('Connected');
     return code;
   };
-  const authorize = async (url = siteUrl, count = 1) => {
-    await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Chrome Relay fixture · ' + new URL(siteUrl).origin });
-    await panel.getByRole('button', { name: 'Review tab' }).click();
-    await expect(panel.locator('#url')).toHaveText(url);
-    await panel.getByRole('button', { name: 'Allow this tab' }).click();
-    await expect(status).toContainText(`${count} approved ${count === 1 ? 'tab' : 'tabs'}`);
-  };
   try {
+    assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
+    const inventoryUrl = new URL('/inventory-window', foreignUrl).href;
+    const inventoryReady = chrome.waitForEvent('page');
+    await worker.evaluate(url => chrome.windows.create({ url, type: 'normal' }), inventoryUrl);
+    const inventoryPage = await inventoryReady;
+    await expect(inventoryPage.getByRole('heading', { name: 'Second origin' })).toBeVisible();
     const oneTimeCode = await requestPair();
-    const paired = await prompt([{ action: 'tabs' }, { action: 'status' }, { action: 'observe' }]);
-    assert.deepEqual(paired[0].tabs, []);
-    assert.equal(paired[1].authorized, false);
-    assert.equal(paired[2].isError, true);
+    const paired = await prompt([{ action: 'tabs' }, { action: 'status' }]);
+    const discovered = paired[0].tabs.find(tab => tab.url === siteUrl);
+    assert.deepEqual(paired[0].tabs.map(tab => [tab.url, tab.title, tab.authorized]).sort(), [
+      [siteUrl, 'Chrome Relay fixture', true], [inventoryUrl, 'Another Chrome window', true],
+    ].sort());
+    assert.match(discovered.tabId, /^chrome:/);
+    assert.equal(paired[1].authorized, true);
     assert.equal(await extensionAttached(), false);
-    await panel.screenshot({ path: resolve(output, 'paired.png') });
-    await authorize();
+    const observed = await prompt(paired[0].tabs.map(tab => ({ action: 'observe', tabId: tab.tabId })));
+    assert.deepEqual(observed.map(result => [result.kind, result.url, result.isError]).sort(), [
+      ['observation', siteUrl, false], ['observation', inventoryUrl, false],
+    ].sort());
+    assert(observed.find(result => result.url === inventoryUrl)?.nodes.some(node => node.name === 'Second origin' || node.text === 'Second origin'));
     assert.equal(await extensionAttached(), true);
-    await panel.screenshot({ path: resolve(output, 'authorized.png') });
+    await inventoryPage.close();
+    await panel.screenshot({ path: resolve(output, 'paired.png') });
     const [available] = await prompt([{ action: 'tabs' }]);
     assert.equal(available.tabs.length, 1);
     const tabId = available.tabs[0].tabId;
-    assert.match(tabId, /^chrome:/);
+    assert.equal(tabId, discovered.tabId);
     assert.equal(available.tabs[0].url, siteUrl);
+    assert.equal(available.tabs[0].authorized, true);
     const operations = await prompt([
       { action: 'observe', tabId },
       { action: 'locate', tabId, locator: { by: 'label', value: 'Relay message' } },
@@ -205,13 +238,32 @@ try {
       { id: clickReceipt, outcome: 'dispatched' },
     );
 
-    const captures = await prompt([{ action: 'screenshot', tabId }, { action: 'screenshot', tabId, clip: { x: 16, y: 16, width: 64, height: 32 } }]);
+    const captures = await prompt([{ action: 'screenshot', tabId },
+      { action: 'screenshot', tabId, clip: { x: 16, y: 16, width: 64, height: 32 } }, { action: 'screenshot', tabId, fullPage: true }]);
     assert(captures[0].pixels?.width >= 64, JSON.stringify(captures));
     assert.deepEqual([captures[1].pixels.width, captures[1].pixels.height], [64, 32]);
     for (const capture of captures) {
       const bytes = await readFile(resolve(evidence, capture.receipt.id + '.png'));
       assert.equal(createHash('sha256').update(bytes).digest('hex'), capture.pixels.sha256);
     }
+    const full = captures[2];
+    assert.equal(full.receipt.fullPage, true);
+    assert(full.pixels.height > captures[0].pixels.height, JSON.stringify(full.pixels));
+    const fullPng = await readFile(resolve(evidence, full.receipt.id + '.png'));
+    const bottomPixel = await target.evaluate(async ({ data }) => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + data;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d');
+      const y = Math.round(image.height * 1570 / document.documentElement.scrollHeight);
+      context.drawImage(image, 5, y, 1, 1, 0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    }, { data: fullPng.toString('base64') });
+    assert.deepEqual(bottomPixel, [36, 104, 180, 255]);
+    assert.equal(await target.evaluate(() => scrollY), 0);
+    await writeFile(resolve(output, 'full-page.png'), fullPng);
 
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
@@ -264,21 +316,23 @@ try {
       document.body.append(iframe);
     }, foreignUrl);
     await expect.poll(() => foreignHits).toBeGreaterThan(0);
-    const [excluded] = await prompt([{ action: 'screenshot', tabId }]);
+    const [excluded] = await prompt([{ action: 'screenshot', tabId, fullPage: true }]);
     assert.equal(excluded.isError, true, JSON.stringify(excluded));
     await target.locator('iframe').evaluate(frame => frame.remove());
 
     const nextTab = chrome.waitForEvent('page');
-    const newUrl = siteUrl + '?unapproved';
+    const newUrl = siteUrl + '?new-tab';
     const [opened] = await prompt([{ action: 'open', tabId, url: newUrl }]);
     assert.equal(opened.kind, 'tabOpened', JSON.stringify(opened));
-    assert.equal(opened.authorized, false);
-    const unapproved = await nextTab;
-    await expect(unapproved.getByTestId('result')).toHaveText('Waiting for input');
-    const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
-    assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible]), [[tabId, false]]);
+    assert.equal(opened.authorized, true);
+    const newTab = await nextTab;
+    await expect(newTab.getByTestId('result')).toHaveText('Waiting for input');
+    const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }, { action: 'observe', tabId: opened.tabId }]);
+    assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible, tab.authorized]),
+      [[tabId, false, true], [opened.tabId, true, true]]);
     assert.equal(switched[1].isError, true);
-    await authorize(newUrl, 2);
+    assert.equal(switched[2].url, newUrl);
+    assert.equal(switched[2].isError, false);
     const switchedBack = await prompt([
       { action: 'tabs' }, { action: 'activate', tabId }, { action: 'closeTab', tabId: opened.tabId },
       { action: 'tabs' },
@@ -287,7 +341,133 @@ try {
     assert.equal(switchedBack[1].kind, 'tabActivated', JSON.stringify(switchedBack));
     assert.equal(switchedBack[2].kind, 'tabClosed');
     assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
-    await expect.poll(() => unapproved.isClosed()).toBe(true);
+    await expect.poll(() => newTab.isClosed()).toBe(true);
+
+    const popupReceipts = [];
+    for (const [name, expectedUrl, marker] of [
+      ['Open fixture link', siteUrl + '?popup', 'Chrome Relay fixture'],
+      ['Open delayed popup', popupUrl, 'Cross-site popup reached'],
+      ['Apply from Chrome', null, null],
+    ]) {
+      const [, clicked] = await prompt([
+        { action: 'observe', tabId }, { action: 'click', tabId, name, expectPopup: true },
+      ]);
+      assert.equal(clicked.outcome, 'dispatched', JSON.stringify(clicked));
+      const receipt = JSON.parse(await readFile(resolve(evidence, clicked.receiptId + '.result.json'), 'utf8'));
+      assert.deepEqual(receipt.popup, clicked.popup);
+      if (!expectedUrl) assert.equal(clicked.popup?.kind, 'notObserved', JSON.stringify(clicked));
+      else {
+        assert.equal(clicked.popup?.kind, 'tabOpened', JSON.stringify(clicked));
+        assert.equal(clicked.popup.authorized, true);
+        assert.notEqual(clicked.popup.tabId, tabId);
+        await expect.poll(() => chrome.pages().find(candidate => candidate.url() === expectedUrl)?.url()).toBe(expectedUrl);
+        const openedPage = chrome.pages().find(candidate => candidate.url() === expectedUrl);
+        await expect(openedPage.getByRole('heading', { name: marker })).toBeVisible();
+        const [popup] = await prompt([{ action: 'observe', tabId: clicked.popup.tabId }]);
+        assert.equal(popup.url, expectedUrl, JSON.stringify(popup));
+        assert(popup.nodes.some(node => node.name === marker || node.text === marker));
+        const [, closed] = await prompt([{ action: 'activate', tabId }, { action: 'closeTab', tabId: clicked.popup.tabId }]);
+        assert.equal(closed.kind, 'tabClosed');
+        await expect.poll(() => openedPage.isClosed()).toBe(true);
+      }
+      popupReceipts.push(receipt);
+    }
+
+    const nativeDialogs = [];
+    target.on('dialog', dialog => nativeDialogs.push({ type: dialog.type(), message: dialog.message() }));
+    const dialogReceipts = [];
+    let previousDialogId;
+    for (const [name, type, message, decision, promptText, expected] of [
+      ['Open confirmation', 'confirm', 'Continue fixture?', 'accept', undefined, 'true'],
+      ['Open confirmation', 'confirm', 'Continue fixture?', 'dismiss', undefined, 'false'],
+      ['Open prompt', 'prompt', 'Fixture name?', 'accept', 'Pero 已验证 🌱', 'Pero 已验证 🌱'],
+      ['Open alert', 'alert', 'Fixture alert', 'dismiss', undefined, 'Alert closed'],
+    ]) {
+      const [, clicked, inspected] = await prompt([
+        { action: 'observe', tabId }, { action: 'click', tabId, name }, { action: 'getJsDialog', tabId },
+      ]);
+      assert.equal(clicked.outcome, 'dispatched', JSON.stringify(clicked));
+      assert.equal(inspected.kind, 'jsDialog', JSON.stringify(inspected));
+      const { id: dialogId } = inspected.dialog;
+      assert.notEqual(dialogId, previousDialogId);
+      assert.deepEqual(inspected.dialog, { id: dialogId, type, message });
+      assert.deepEqual(nativeDialogs.at(-1), { type, message });
+      if (previousDialogId) {
+        const [stale] = await prompt([{ action: 'handleJsDialog', tabId, dialogId: previousDialogId, decision }]);
+        assert.equal(stale.outcome, 'rejected', JSON.stringify(stale));
+      } else {
+        const [blocked] = await prompt([{ action: 'observe', tabId }]);
+        assert.equal(blocked.isError, true, JSON.stringify(blocked));
+        assert.match(blocked.error, /JavaScript dialog/);
+      }
+      if (type === 'prompt' || type === 'alert') {
+        const [invalid, stillOpen] = await prompt([
+          { action: 'handleJsDialog', tabId, dialogId, decision: 'accept' }, { action: 'getJsDialog', tabId },
+        ]);
+        assert.equal(invalid.outcome, 'rejected');
+        assert.equal(stillOpen.dialog.id, dialogId);
+      }
+      const [handled, cleared] = await prompt([
+        { action: 'handleJsDialog', tabId, dialogId, decision, promptText }, { action: 'getJsDialog', tabId },
+      ]);
+      assert.equal(handled.outcome, 'dispatched', JSON.stringify(handled));
+      assert.equal(cleared.dialog, null);
+      await expect(target.getByTestId('dialog-result')).toHaveText(expected);
+      const intent = JSON.parse(await readFile(resolve(evidence, handled.receiptId + '.intent.json'), 'utf8'));
+      assert.equal(intent.promptText, undefined);
+      assert.equal(intent.dialogId, dialogId);
+      const receipt = JSON.parse(await readFile(resolve(evidence, handled.receiptId + '.result.json'), 'utf8'));
+      assert.deepEqual(receipt, { id: handled.receiptId, dialogId, decision, outcome: 'dispatched' });
+      dialogReceipts.push(receipt);
+      previousDialogId = dialogId;
+    }
+    const [scriptedOpen, scriptedHandle] = await prompt([
+      { action: 'repl', tool: 'javascript_repl', code: `
+const dialogTab = ${JSON.stringify(tabId)};
+const located = await cua.browser({action:'locate',tabId:dialogTab,locator:{by:'role',role:'button',name:'Open confirmation'}});
+await cua.browser({action:'click',tabId:dialogTab,ref:located.nodes[0].ref});
+const openedDialog = (await cua.browser({action:'getJsDialog',tabId:dialogTab})).dialog;
+nodeRepl.write(openedDialog.type);` },
+      { action: 'repl', tool: 'javascript_repl', code: `
+const answer = await cua.browser({action:'handleJsDialog',tabId:dialogTab,dialogId:openedDialog.id,decision:'accept'});
+nodeRepl.write(answer.outcome);` },
+    ]);
+    assert.equal(scriptedOpen.text.trim(), 'confirm', JSON.stringify(scriptedOpen));
+    assert.equal(scriptedHandle.text.trim(), 'dispatched', JSON.stringify(scriptedHandle));
+    await expect(target.getByTestId('dialog-result')).toHaveText('true');
+
+    await target.evaluate(() => {
+      window.onbeforeunload = event => { event.preventDefault(); event.returnValue = ''; };
+    });
+    const [, leave, beforeUnload] = await prompt([
+      { action: 'observe', tabId }, { action: 'click', tabId, name: 'Leave fixture' }, { action: 'getJsDialog', tabId },
+    ]);
+    assert.equal(leave.outcome, 'dispatched', JSON.stringify(leave));
+    assert.equal(beforeUnload.dialog?.type, 'beforeunload', JSON.stringify(beforeUnload));
+    assert.equal(nativeDialogs.at(-1).type, 'beforeunload');
+    const { id: leaveDialogId } = beforeUnload.dialog;
+    const [declined, stayed, closedDialog] = await prompt([
+      { action: 'handleJsDialog', tabId, dialogId: leaveDialogId, decision: 'accept' },
+      { action: 'handleJsDialog', tabId, dialogId: leaveDialogId, decision: 'dismiss' },
+      { action: 'getJsDialog', tabId },
+    ]);
+    assert.equal(declined.outcome, 'rejected');
+    assert.equal(stayed.outcome, 'dispatched');
+    assert.equal(closedDialog.dialog, null);
+    // Playwright's navigation expectation can keep waiting for a commit that
+    // was cancelled. Read the live renderer independently through CDP.
+    const inspector = await chrome.newCDPSession(target);
+    try {
+      const { result } = await inspector.send('Runtime.evaluate', {
+        expression: `window.onbeforeunload = null;
+          ({ url: location.href, marker: document.querySelector('[data-testid="dialog-result"]').textContent })`,
+        returnByValue: true,
+      });
+      assert.deepEqual(result.value, { url: siteUrl, marker: 'true' });
+      assert.equal(leaveRequests, 0);
+    } finally {
+      await inspector.detach();
+    }
 
     await clickNewChat(page);
     await expect.poll(async () => (await active())?.id).not.toBe(original);
@@ -304,7 +484,7 @@ try {
     assert.equal(afterStop[1].isError, true);
     await expect.poll(extensionAttached).toBe(false);
     assert.equal(target.isClosed(), false);
-    await expect(target.getByTestId('result')).toBeVisible();
+    await expect.poll(() => worker.evaluate(async url => (await chrome.tabs.query({ url })).some(tab => tab.active), siteUrl)).toBe(true);
     if (!await panel.locator('#code').isVisible()) await panel.getByText('Enter a pairing code manually').click();
     await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(oneTimeCode);
     await panel.getByRole('button', { name: 'Pair with Pero' }).click();
@@ -312,7 +492,9 @@ try {
     await expect(status).toHaveText('Disconnected');
 
     await requestPair();
-    await authorize();
+    const [reconnected] = await prompt([{ action: 'observe' }]);
+    assert.equal(reconnected.isError, false);
+    assert.equal(await extensionAttached(), true);
     await menu('browser-use-stop-chrome');
     await expect(status).toHaveText('Disconnected');
     await expect.poll(extensionAttached).toBe(false);
@@ -320,10 +502,11 @@ try {
     await panel.screenshot({ path: resolve(output, 'revoked.png') });
     await writeFile(resolve(output, 'result.json'), JSON.stringify({
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
-      paired: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
+      paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
-      historyVerified: true, openedTabRequiresIndependentApproval: true, tabSwitchAndCloseVerified: true,
+      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts, dialogReceipts,
+      beforeUnloadDismissed: true, dialogHandledThroughRepl: true,
       foreignRedirectRefused: true, foreignFrameScreenshotRefused: true, foreignDownloadRefused: true,
       pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
       operation: operations[5].nodes[0].text,
@@ -331,9 +514,9 @@ try {
     console.log('Pero Chrome Relay passed in Google Chrome for Testing and actual Electron/ACP.');
   } finally {
     // The test-owned pairing code should not survive the run.
-    await app.evaluate(({ clipboard }) => {
-      try { if (JSON.parse(clipboard.readText()).protocol === 'pero-browser-connector/2') clipboard.clear(); } catch {}
-    });
+    await app.evaluate(({ clipboard }, protocol) => {
+      try { if (JSON.parse(clipboard.readText()).protocol === protocol) clipboard.clear(); } catch {}
+    }, RELAY_PROTOCOL);
   }
 } catch (error) {
   if (panel && !panel.isClosed()) {

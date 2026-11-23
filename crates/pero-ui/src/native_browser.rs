@@ -19,6 +19,8 @@ use crate::native_web::{ObjcPoint, ObjcRect};
 
 mod capture;
 use capture::ScreenshotClip;
+mod dialogs;
+pub(crate) use dialogs::DialogDelegate;
 
 pub(super) struct WebGrant {
     id: uuid::Uuid,
@@ -26,9 +28,20 @@ pub(super) struct WebGrant {
     origin: String,
 }
 
+pub(super) struct WebPopupWatch {
+    request: String,
+    grant: uuid::Uuid,
+    generation: u64,
+    url: String,
+}
+
 impl WebGrant {
     pub(super) fn matches(&self, value: &str) -> bool {
         origin(value).is_some_and(|candidate| candidate == self.origin)
+    }
+
+    fn stamp(&self, generation: u64, dialogs: Option<&DialogDelegate>, url: &str) -> String {
+        format!("{}:{generation}:{}:{url}", self.id, dialogs.map_or(0, DialogDelegate::revision))
     }
 }
 
@@ -64,11 +77,13 @@ enum BrowserOp {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 enum TabAction {
     Open { url: String },
     Activate,
     Close,
+    GetJsDialog,
+    HandleJsDialog { dialog_id: uuid::Uuid, decision: dialogs::Decision, prompt_text: Option<String> },
 }
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -125,11 +140,19 @@ impl WebHistory {
 enum WebOperation {
     Check,
     CheckFrames,
-    Evaluate { script: String },
+    Evaluate {
+        script: String,
+        #[serde(default, rename = "awaitResult")]
+        await_result: bool,
+    },
     Navigate { url: String },
     History { action: WebHistory },
     Screenshot { clip: Option<ScreenshotClip> },
-    Dispatch { input: WebInput },
+    Dispatch {
+        input: WebInput,
+        #[serde(default, rename = "expectPopup")]
+        expect_popup: bool,
+    },
 }
 
 #[derive(Deserialize)]
@@ -301,7 +324,7 @@ impl Workbench {
                         if !grant.matches(&url) { return None; }
                         let id = &tab.document.id;
                         let active = self.navigation.current() == Some(&WorkspaceItem::Web(id.clone()));
-                        let stamp = tab.browser_view(cx).ok().map(|(_, generation)| format!("{}:{generation}:{url}", grant.id));
+                        let stamp = tab.browser_view(cx).ok().map(|(_, generation)| grant.stamp(generation, tab.browser_dialogs.as_deref(), &url));
                         let load_error = if let WebLoad::Failed(error) = &tab.document.observation.load { Some(error) } else { None };
                         Some(json!({"tabId":id,"origin":grant.origin,"url":url,"title":tab.document.observation.title.chars().take(160).collect::<String>(),
                             "visible":tab.visible(cx) && window_visible(engine),"active":active,"stamp":stamp,"grantId":grant.id,"loadError":load_error}))
@@ -329,8 +352,9 @@ impl Workbench {
                         .as_ref()
                         .filter(|current| current.id == grant && current.thread == thread)
                         .ok_or_else(|| anyhow::anyhow!("Allow Browser Use for this tab."))?;
+                    let (raw, _) = view.browser_engine(cx)?;
                     anyhow::ensure!(
-                        grant.matches(&view.browser_engine(cx)?.0.url()?),
+                        grant.matches(&raw.url()?),
                         "The Web tab left the authorized site."
                     );
                     match command {
@@ -340,15 +364,8 @@ impl Workbench {
                                 grant.matches(&url),
                                 "The address is outside the authorized site."
                             );
-                            let address = WebAddress::try_from(url).map_err(anyhow::Error::msg)?;
                             let origin = grant.origin.clone();
-                            let id = format!("web-tab:{}", uuid::Uuid::new_v4());
-                            let document = WebDocument::restore(id.clone(), address.into(), None)
-                                .map_err(anyhow::Error::msg)?;
-                            self.mount_native_web(document, true, Some(origin), window, cx);
-                            Ok(Some(
-                                json!({"kind":"tabOpened","tabId":id,"authorized":false}),
-                            ))
+                            Ok(Some(self.open_native_browser_tab(&url, origin, window, cx)?))
                         }
                         TabAction::Activate => {
                             let item = WorkspaceItem::Web(tab.clone());
@@ -364,6 +381,17 @@ impl Workbench {
                         TabAction::Close => {
                             self.close_web(&tab, window, cx);
                             Ok(Some(json!({"kind":"tabClosed","tabId":tab})))
+                        }
+                        action @ (TabAction::GetJsDialog | TabAction::HandleJsDialog { .. }) => {
+                            anyhow::ensure!(
+                                view.visible(cx) && window_visible(raw) && self.navigation.current() == Some(&WorkspaceItem::Web(tab)),
+                                "Select the authorized Web tab before handling its JavaScript dialog."
+                            );
+                            let dialogs = view.browser_dialogs.as_ref().ok_or_else(|| anyhow::anyhow!("The WebKit dialog delegate is unavailable."))?;
+                            Ok(Some(match action {
+                                TabAction::HandleJsDialog { dialog_id, decision, prompt_text } => dialogs.answer(grant, dialog_id, decision, prompt_text),
+                                _ => dialogs.observe(grant).unwrap_or(Value::Null),
+                            }))
                         }
                     }
                 }
@@ -388,20 +416,25 @@ impl Workbench {
                         .as_ref()
                         .filter(|grant| grant.thread == thread)
                         .ok_or_else(|| anyhow::anyhow!("Allow Browser Use for this tab."))?;
+                    let dialogs = view.browser_dialogs.as_deref();
+                    anyhow::ensure!(!dialogs.is_some_and(DialogDelegate::is_open), "A JavaScript dialog is open. Use getJsDialog or close it in the Workbench.");
                     let (raw, generation) = view.browser_view(cx)?;
                     let url = raw.url()?;
                     anyhow::ensure!(
-                        grant.matches(&url) && stamp == format!("{}:{generation}:{url}", grant.id),
+                        grant.matches(&url) && stamp == grant.stamp(generation, dialogs, &url),
                         "The Web tab or document changed."
                     );
                     match operation {
                         WebOperation::Check => Ok(Some(Value::Null)),
-                        WebOperation::Evaluate { script } => {
+                        WebOperation::Evaluate { script, await_result } => {
                             let request = request.clone();
                             let apps = apps.clone();
-                            evaluate(raw, &script, move |reply| {
-                                reply_browser(&apps, &request, reply)
-                            });
+                            let reply = move |reply| reply_browser(&apps, &request, reply);
+                            if let Some(dialogs) = dialogs {
+                                evaluate(raw, &script, await_result, dialogs.evaluation(Box::new(reply)));
+                            } else {
+                                evaluate(raw, &script, await_result, reply);
+                            }
                             Ok(None)
                         }
                         WebOperation::Navigate { url } => {
@@ -447,13 +480,51 @@ impl Workbench {
                             });
                             Ok(None)
                         }
-                        WebOperation::Dispatch { input } => {
+                        WebOperation::Dispatch { input, expect_popup } => {
                             anyhow::ensure!(
                                 self.navigation.current() == Some(&WorkspaceItem::Web(tab)),
                                 "Select the authorized Web tab before sending input."
                             );
+                            if !expect_popup {
+                                dispatch(raw, input)?;
+                                return Ok(Some(Value::Null));
+                            }
+                            anyhow::ensure!(
+                                matches!(input, WebInput::Pointer { count: 1, .. }),
+                                "A popup can only be observed after a single click."
+                            );
+                            anyhow::ensure!(
+                                view.browser_popup.is_none(),
+                                "A new tab is already being observed."
+                            );
+                            let watch = WebPopupWatch {
+                                request: request.clone(),
+                                grant: grant.id,
+                                generation,
+                                url,
+                            };
                             dispatch(raw, input)?;
-                            Ok(Some(Value::Null))
+                            page.update(cx, |view, _| view.browser_popup = Some(watch));
+                            let page = page.clone();
+                            let apps = apps.clone();
+                            let request = request.clone();
+                            cx.spawn(async move |_, cx| {
+                                cx.background_executor().timer(std::time::Duration::from_secs(5)).await;
+                                let expired = page.update(cx, |view, _| {
+                                    if view.browser_popup.as_ref().is_some_and(|watch| watch.request == request) {
+                                        view.browser_popup.take();
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                });
+                                if expired {
+                                    reply_browser(&apps, &request, Ok(json!({
+                                        "kind": "notObserved", "reason": "No new tab was observed after the click."
+                                    })));
+                                }
+                            }).detach();
+                            Ok(None)
                         }
                     }
                 }
@@ -464,6 +535,49 @@ impl Workbench {
             Ok(None) => {}
             Err(error) => reply_browser(&apps, &request, Err(error)),
         }
+    }
+
+    fn open_native_browser_tab(
+        &mut self,
+        url: &str,
+        origin: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<Value> {
+        let address = WebAddress::try_from(url.to_owned()).map_err(anyhow::Error::msg)?;
+        let id = format!("web-tab:{}", uuid::Uuid::new_v4());
+        let document = WebDocument::restore(id.clone(), address.into(), None)
+            .map_err(anyhow::Error::msg)?;
+        self.mount_native_web(document, true, Some(origin), window, cx);
+        Ok(json!({"kind":"tabOpened","tabId":id,"authorized":false}))
+    }
+
+    pub(super) fn native_browser_popup(
+        &mut self,
+        source: &Entity<crate::native_web::NativeWebPage>,
+        url: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(watch) = source.update(cx, |view, _| view.browser_popup.take()) else {
+            return false;
+        };
+        let result = (|| -> anyhow::Result<Value> {
+            let view = source.read(cx);
+            let grant = view.browser_grant.as_ref().filter(|grant| grant.id == watch.grant)
+                .ok_or_else(|| anyhow::anyhow!("The source tab's authorization ended."))?;
+            let (engine, generation) = view.browser_view(cx)?;
+            anyhow::ensure!(generation == watch.generation && engine.url()? == watch.url
+                && self.browser_thread(cx).as_deref() == Some(grant.thread.as_str())
+                && self.navigation.current() == Some(&WorkspaceItem::Web(view.document.id.clone())),
+                "The source tab or conversation changed.");
+            anyhow::ensure!(grant.matches(url), "The new tab is outside the authorized site.");
+            let origin = grant.origin.clone();
+            self.open_native_browser_tab(url, origin, window, cx)
+        })();
+        let effect = result.unwrap_or_else(|error| json!({"kind":"blocked","reason":error.to_string()}));
+        reply_browser(&crate::native::apps(), &watch.request, Ok(effect));
+        true
     }
 }
 
@@ -500,8 +614,18 @@ pub(super) fn web_loading(view: &wry::WebView) -> bool {
     loading.as_bool()
 }
 
-fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Value>) + 'static) {
-    let Ok(source) = std::ffi::CString::new(format!("JSON.stringify({script})")) else {
+fn evaluate(
+    view: &wry::WebView,
+    script: &str,
+    await_result: bool,
+    reply: impl Fn(anyhow::Result<Value>) + 'static,
+) {
+    let script = if await_result {
+        format!("return JSON.stringify(await ({script}));")
+    } else {
+        format!("JSON.stringify({script})")
+    };
+    let Ok(source) = std::ffi::CString::new(script) else {
         reply(Err(anyhow::anyhow!("Invalid Browser Use script.")));
         return;
     };
@@ -521,8 +645,13 @@ fn evaluate(view: &wry::WebView, script: &str, reply: impl Fn(anyhow::Result<Val
             };
             reply(result);
         });
-        let _: () = msg_send![&*view,
-            evaluateJavaScript: source, inFrame: ptr::null::<AnyObject>(), inContentWorld: &**world, completionHandler: &*handler];
+        if await_result {
+            let _: () = msg_send![&*view, callAsyncJavaScript: source, arguments: ptr::null::<AnyObject>(),
+                inFrame: ptr::null::<AnyObject>(), inContentWorld: &**world, completionHandler: &*handler];
+        } else {
+            let _: () = msg_send![&*view, evaluateJavaScript: source, inFrame: ptr::null::<AnyObject>(),
+                inContentWorld: &**world, completionHandler: &*handler];
+        }
     });
 }
 

@@ -1,5 +1,8 @@
 //! Local research presentation. App records remain with their owning backends.
 mod editor;
+mod web_sources;
+#[cfg(all(feature = "native-probe", target_os = "macos"))]
+pub(crate) use web_sources::shared_probe;
 use crate::{app::Workbench, projects::{Project, ProjectTab}, workspace::WorkspaceItem};
 use gpui_kit::{
     component::{
@@ -26,6 +29,7 @@ pub(crate) struct ResearchProjectsView {
     pub unavailable_workspaces: BTreeMap<String, String>,
     catalogs: BTreeMap<String, ProjectResourceCatalog>,
     loading: BTreeSet<String>,
+    web_sources: web_sources::WebSourcesView,
     pending: Option<(ResearchProject, Option<String>, bool)>,
     resolving_workspace: Option<(ResearchProject, Option<String>)>,
     error: Option<String>,
@@ -339,6 +343,7 @@ impl Workbench {
     }
 
     pub(crate) fn refresh_project_resources(&mut self, cx: &mut Context<Self>) {
+        self.refresh_project_web_sources(cx);
         let apps = self
             .saved_research_project()
             .map(|project| project.resources.iter().map(|r| r.app.clone()).collect::<BTreeSet<_>>())
@@ -444,6 +449,16 @@ impl Workbench {
     }
 
     pub(crate) fn research_resources(&self, cx: &mut Context<Self>) -> AnyElement {
+        if self.saved_research_project().is_none() {
+            return div()
+                .id("shared-research-resources")
+                .p(px(pero_theme::WorkbenchStyle::PAGE))
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .children(self.project_web_sources(cx))
+                .into_any_element();
+        }
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let references = self.saved_research_project().map(|project| project.resources.as_slice()).unwrap_or_default();
         let saving = self.research.pending.is_some() && self.error.is_none();
@@ -526,6 +541,7 @@ impl Workbench {
                 self.research_resource_row(index, reference, current, catalog.and_then(|c| c.error.as_deref()), cx)
             }))
             .when(self.research.choosing, |el| el.child(self.research_resource_picker(cx)))
+            .children(self.project_web_sources(cx))
             .into_any_element()
     }
 

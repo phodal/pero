@@ -186,9 +186,11 @@ ordinary Settings suite then passed.
 The Linux run used an isolated Colima/Docker environment with a real X server,
 Tk process and XTest extension. It is native Linux process evidence under a
 virtual display, not a physical Linux workstation or real Linux model run.
-Windows has compile/link and value-test evidence, including hosted CI, but no
-interactive Windows desktop-input acceptance. The initial source-build repair
-passed the three-OS workflow; later package-isolation evidence is listed above.
+The initial Windows source-build repair passed the three-OS workflow.
+On Windows 11 ARM64 build `26300.9457`, the current source builds for
+`aarch64-pc-windows-msvc` and passes the Computer Use workspace and contract tests.
+The native NDJSON status in SSH Session 0 changed from `available: true` to
+`available: false` with `WINDOWS_NONINTERACTIVE_SESSION`.
 
 Evidence lives under ignored `target/computer-verification/` so ordinary
 Playwright cleanup of `test-results/` cannot erase this acceptance run.
@@ -199,8 +201,7 @@ Local ignored outputs are `target/computer-verification/native-result.json`,
 `target/computer-verification/product-chat/`. The initial OS-access and duplicate-event problems
 are tracked in the [resolved incident](../issues/2026-10-30-computer-use-native-access.md).
 
-No signed/notarized app launch, pure Wayland, Windows desktop input, or third-party
-application compatibility matrix is implied. Standard AppKit control glyphs in
+This run covered owned fixtures in development builds. Standard AppKit control glyphs in
 this fixture are absent from both its system screenshot and ScreenCaptureKit
 image; the fixture's custom canvas status is visible and its native AX values
 and independent callback effects are used for verification.
@@ -208,6 +209,60 @@ and independent callback effects are used for verification.
 The macOS capability expansion, new native action matrix and framework-specific
 effects are recorded in [computer-use-macos.md](computer-use-macos.md).
 
+## Windows 11 ARM64 WinForms, 2026-11-23
+
+The native `pero-computer.exe` NDJSON driver passed four scenarios with nine
+receipts in an unlocked VMware Fusion session on Windows build `26300.9457`.
+A WinForms fixture independently recorded the effects:
+
+- One background UI Automation invocation, with the guard window still
+  foreground and the pointer in the same position. The old observation was refused.
+- A 404 × 360 window JPEG matching the DWM visible frame. Background pixel input
+  was refused. The foreground pixel click landed within two pixels of the intended
+  button center on both axes.
+- A foreground edit control click, Unicode text with Chinese characters and an
+  emoji, and Backspace removing the trailing character.
+- The list moved from row 0 to row 9. The square moved approximately 60 × 40
+  pixels and logged one button press, a move and one release. The guard
+  window's counter stayed at zero.
+
+The checked JPEG and receipts are in
+`target/computer-verification/windows-arm64-winforms/`. Windows ARM64 and macOS
+also passed `node scripts/build/computer.mjs --test`. This run used a single
+virtual display and the native driver with an owned WinForms app. Signed Windows
+Workbench, other UI frameworks and multi-display behavior remain unverified.
+
+The Windows driver also accepts screenshot-relative foreground move, hover and
+hold. The hit test requires the selected top-level window to own the point,
+including when two windows in the same process overlap. Closing the driver
+connection wakes a pending hold and releases the tracked button. The pure
+admission suite, x64 GNU and ARM64 MSVC Clippy checks, and compilation of the
+extended WinForms fixture against .NET Framework 4 reference assemblies passed.
+The new WinForms scenarios for overlap, pointer placement, button events and
+mid-hold cancellation still require an unlocked Windows desktop run.
+
+The unsigned Windows ARM64 portable build of Pero 0.1.1 uses source
+`5e3da1141a16d8ad5d4ba49c871b55d20da7b697`. The platform-neutral Wasm and
+Electron bundles were built on macOS from that checkout. The native binaries,
+App assets and ZIP were built on Windows ARM64. The full Computer Use workspace
+and shared action contract tests passed on ARM64. The ZIP's CRCs, SHA-256 and
+all six executable architectures were verified after transfer.
+
+From a fresh ZIP extraction on Windows, the Host emitted `ready`, the Go ACP
+binary printed its help, and the Electron executable ran Node in ARM64 mode.
+The packaged Computer Use binary returned `WINDOWS_NONINTERACTIVE_SESSION`
+in the SSH session. The archive, checksum and process receipt are in
+`target/package/` under the `Pero-windows-arm64` name.
+
+The release smoke test now waits for the Workbench loading overlay to clear.
+The earlier test could write a passing receipt while its screenshot still
+showed “Opening the workbench…”. With the corrected test, a fresh extraction of
+the same ZIP rendered the Workbench navigation, connected the Host and exited
+successfully in Windows SSH Session 0. The default Task Center was
+`https://app.openpero.com` and no page errors were reported. The receipt and
+screenshot are `Pero-windows-arm64.workbench-smoke.json` and `.png` in
+`target/package/`. The operator's interactive desktop and the new WinForms
+input scenarios remain unverified.
 
 ## Pero Native and real Pero (DeepSeek), 2026-11-22
 
@@ -347,6 +402,25 @@ file saved with that input, and release on disconnect. It also passed
 with relay-only ICE and a real coturn instance. Public TLS deployment,
 separate physical devices, signed Desktop, and a live model provider
 were not part of this acceptance.
+
+### Blender desktop, 2026-11-23
+
+The optional Blender image ran on the dedicated arm64 Colima Linux desktop.
+`node tests/e2e/linux-desktop-blender.mjs` used the managed desktop's real
+Computer Use stream and a Blender 3.4.1 window. A foreground drag changed
+the default cube's X location. The GUI saved the scene, and a separate
+Blender process read the saved value back as approximately 0.01 m.
+
+Another edit exercised the Save Changes dialog. Discard closed the original
+window and preserved the source SHA-256. The fixture relaunched the saved
+scene, waited for its rendered viewport, and used the File menu to export OBJ.
+The eight exported vertices had the same X centroid as the saved cube.
+Reusing the first drag's observation was rejected as stale. The test tore down
+its container before recording a pass.
+
+This lane used deterministic Computer Use requests in an X11 guest and
+fixture-owned files. Receipts, screenshots, hashes, the BLEND and the OBJ with
+its MTL are in `test-results/linux-desktop-blender/`.
 
 ```sh
 npm run build:desktop

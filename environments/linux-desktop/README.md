@@ -37,6 +37,24 @@ when launching Electron. You can supply `PERO_REMOTE_DESKTOP_IMAGE` to both
 commands for a locally built alternative image. The guest runs as a non-root
 user with no published ports, host mounts or external network.
 
+## Blender desktop
+
+The optional Blender image opens a fresh Blender application in the same
+managed X11 desktop. Build the image and launch the current Electron build:
+
+```sh
+./environments/linux-desktop/run.sh build-blender
+PERO_REMOTE_DESKTOP_IMAGE=pero/linux-desktop:blender npm start
+```
+
+Start it from the same Linux Desktop panel. Save or export files out of a
+disposable desktop before stopping it.
+
+`node tests/e2e/linux-desktop-blender.mjs` starts a separate container and
+drives Blender through the native Computer Use stream. It records GUI
+captures, receipts, a saved scene and matching OBJ geometry in
+`test-results/linux-desktop-blender/`.
+
 ## Run independently
 
 ```sh
@@ -91,8 +109,16 @@ directory. Open **Workbench → Open SSH Workbench…** and select a profile fil
 
 The new window identifies the SSH host in its title. Its Rust Host, shell,
 PTY, workspace files, Agent process and history are on Linux. OpenSSH
-allocates a reverse loopback port for the session-authorized Computer Use
+allocates a reverse loopback port for the session-authorized App Use MCP
 channel. Remote access and forwarding must be enabled in the SSH account.
+
+An ordinary SSH chat can also use local Browser Use. Open a workbench web tab
+and choose **Workbench → Allow Browser Use for This Tab…**, or choose
+**Workbench → Copy Chrome pairing code** and pair from the extension.
+The consent displays the SSH destination. **Stop Browser Use** revokes the
+embedded tab grant. **Disconnect Chrome** ends the Chrome pairing.
+SSH Browser Use supports page input, observations and screenshots. File
+transfer actions require a local conversation.
 
 The optional `desktop` field names a launcher for an already running managed
 desktop on the same host. It implements the `probe`, `observe`, `control`,

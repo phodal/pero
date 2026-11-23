@@ -303,6 +303,14 @@ func TestColdObservedPodProfileFailsClosed(t *testing.T) {
 		"token override": func(s map[string]any) {
 			s["containers"].([]any)[0].(map[string]any)["env"] = []any{map[string]string{"name": "PERO_WORKER_TOKEN", "value": "must-not-leak"}}
 		},
+		"browser sharing override": func(s map[string]any) {
+			container := s["containers"].([]any)[0].(map[string]any)
+			container["env"] = append(container["env"].([]any), map[string]string{"name": "PERO_AGENT_BROWSER_USE", "value": "1"})
+		},
+		"browser screenshot override": func(s map[string]any) {
+			container := s["containers"].([]any)[0].(map[string]any)
+			container["env"] = append(container["env"].([]any), map[string]string{"name": "PERO_AGENT_BROWSER_SCREENSHOTS", "value": "1"})
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

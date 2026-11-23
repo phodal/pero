@@ -29,6 +29,7 @@ type Gateway struct {
 	ingress  chan struct{}
 }
 type pair struct {
+	scope           runtimechannel.Scope
 	ready           chan struct{}
 	done            chan struct{}
 	once            sync.Once
@@ -36,6 +37,7 @@ type pair struct {
 	workerW, agentW *io.PipeWriter
 	count           int
 	bytes           atomic.Int64
+	browser         *browserCarrier
 }
 
 func New(db *store.Store, reviewer *runtimeauth.Reviewer, provider ProviderConfig) (*Gateway, error) {
@@ -49,6 +51,9 @@ func (g *Gateway) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/channel/{role}", g.attach)
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/provider/v1/chat/completions", g.proxy)
+	mux.HandleFunc("GET /api/runtime/v1/runs/{id}/browser/desktop", g.browserDesktopReady)
+	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/desktop", g.attachBrowser)
+	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/call", g.callBrowser)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -118,7 +123,7 @@ func (g *Gateway) attach(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), runtimechannel.MaxDuration)
 	defer cancel()
 	admit, stop := context.WithTimeout(ctx, 4*time.Second)
-	_, err := g.db.AttachRuntimeChannel(admit, runID, sessionID, role, secret, identity)
+	session, err := g.db.AttachRuntimeChannel(admit, runID, sessionID, role, secret, identity)
 	stop()
 	if err != nil {
 		status := 409
@@ -131,7 +136,7 @@ func (g *Gateway) attach(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	p := g.pairs[runID]
 	if p == nil {
-		p = &pair{ready: make(chan struct{}), done: make(chan struct{})}
+		p = &pair{scope: session.Scope, ready: make(chan struct{}), done: make(chan struct{})}
 		p.workerR, p.workerW = io.Pipe()
 		p.agentR, p.agentW = io.Pipe()
 		g.pairs[runID] = p

@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { DesktopLogin } from './desktop-login';
 import { safeStorage, shell } from 'electron';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { z } from 'zod';
 import schema from '../../../protocol/generated/remote.schema.json';
 import type { Detail, RemoteState, Task, TaskSpec, TaskPage, Worker, Identity, GitHubStatus, GitHubSyncResult, EnrollWorker, WorkerCredential } from '../../../protocol/generated/remote';
+import { connectCloudBrowser } from './browser-use/cloud-use.ts';
 
 type Emit = (event: object) => void;
 type Mode = 'client' | 'operator';
@@ -16,6 +18,17 @@ export class RemoteRequestError extends Error {
 const defaultTaskCenter = 'https://app.openpero.com';
 export type StoredRemoteConnection = { url: string; mode: Mode; encrypted_token: string };
 export type RemotePreferences = { load(): unknown; save(connection: StoredRemoteConnection | null): Promise<void> };
+type BrowserRun = { url: string; owner: string; runId: string; sessionId: string; title: string };
+const sourceTarget = z.strictObject({
+  projectId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  origin: z.string().min(1).max(2048),
+  accountId: z.string().min(1).max(128),
+});
+const sharedSourceRead = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('list'), target: sourceTarget }),
+  z.strictObject({ kind: z.literal('read'), target: sourceTarget,
+    id: z.string().regex(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/) }),
+]);
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 ajv.addSchema(schema);
 function checked<T>(name: string, value: unknown): T {
@@ -78,6 +91,7 @@ export class RemoteAdapter {
   private api = this.clientMode ? '/api/client/v1' : '/api/v1';
   private timer?: ReturnType<typeof setTimeout>;
   private closed = false;
+  private browserShare?: { run: BrowserRun; controller: AbortController };
   private queue: Promise<void> = Promise.resolve();
   private initialization?: Promise<void>;
   private persistenceAvailable = false;
@@ -140,7 +154,46 @@ export class RemoteAdapter {
       } finally { this.connectionState(); this.publish(); }
     })();
   }
-  close() { this.login.cancel(); this.closed = true; this.token = ''; clearTimeout(this.timer); }
+  close() { this.stopBrowserShare(); this.login.cancel(); this.closed = true; this.token = ''; clearTimeout(this.timer); }
+  browserRun(): BrowserRun | undefined {
+    const { detail, identity, selected_task_id } = this.state;
+    const run = detail?.run;
+    if (this.closed || !this.base || !this.clientMode || !this.token || identity?.role !== 'client' ||
+        detail?.task.id !== selected_task_id || detail?.task.claimed_by?.id !== identity.id ||
+        run?.status !== 'running' || detail.task.current_run_id !== run.id) return;
+    return { url: this.base, owner: identity.id, runId: id(run.id), sessionId: id(run.id), title: detail.task.title };
+  }
+  private matchesBrowserRun(expected: BrowserRun) {
+    const current = this.browserRun();
+    return current?.url === expected.url && current.owner === expected.owner && current.runId === expected.runId;
+  }
+  stopBrowserShare() {
+    this.browserShare?.controller.abort();
+    this.browserShare = undefined;
+  }
+  async browserShareReady(run: BrowserRun) {
+    if (!this.matchesBrowserRun(run)) return;
+    const value = await this.request(`/api/runtime/v1/runs/${run.runId}/browser/desktop?session_id=${run.sessionId}`).catch(() => undefined);
+    if (!value || typeof value !== 'object' || !('available' in value) || value.available !== true) return;
+    return { screenshots: 'screenshots' in value && value.screenshots === true };
+  }
+  async shareBrowser(run: BrowserRun, grant: () => AbortSignal, call: (input: unknown, signal: AbortSignal) => Promise<object>) {
+    if (!this.matchesBrowserRun(run)) throw new Error('The selected Cloud Run changed.');
+    this.stopBrowserShare();
+    const controller = new AbortController();
+    this.browserShare = { run, controller };
+    const release = () => {
+      controller.abort();
+      if (this.browserShare?.controller === controller) this.browserShare = undefined;
+    };
+    try {
+      const attachment = await connectCloudBrowser(run.url, this.token, run.runId, run.sessionId, controller.signal, grant, call);
+      return { closed: attachment.closed.finally(release) };
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
   localWorkerConnection() {
     if (this.closed || !this.state.configured || !this.base) return null;
     return { url: this.base, mode: this.clientMode ? 'client' as const : 'operator' as const, identity: this.state.identity ?? null };
@@ -155,6 +208,17 @@ export class RemoteAdapter {
     catch { throw new RemoteRequestError('invalid_response'); }
   }
   get contributionIdentity() { return this.state.identity; }
+  async sharedWebSource(input: unknown): Promise<unknown> {
+    const request = sharedSourceRead.parse(input);
+    await this.initialize();
+    const { target } = request;
+    const identity = this.state.identity;
+    if (this.closed || !this.clientMode || !this.token || this.base !== target.origin ||
+        identity?.role !== 'client' || identity.id !== target.accountId || !identity.projects.includes(target.projectId))
+      throw new Error('The shared Project or Cloud account changed. Select the destination again.');
+    const path = `/api/client/v1/projects/${target.projectId}/web-sources`;
+    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+  }
   async contributionRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
     await this.initialize();
     if (!this.state.configured || !this.clientMode) throw new Error('Sign in with a GitHub contributor account first.');
@@ -163,6 +227,7 @@ export class RemoteAdapter {
   }
   private publish() {
     this.connectionState();
+    if (this.browserShare && !this.matchesBrowserRun(this.browserShare.run)) this.stopBrowserShare();
     if (!this.closed) this.emit({ version: 1, kind: 'remote_state', request_id: null, text: '', data: this.state });
   }
   private error(error: unknown): string {
@@ -233,6 +298,7 @@ export class RemoteAdapter {
     const url = endpoint(text(command.url, 2048))!;
     const selectedMode = mode(command.mode);
     const token = text(command.token, 512); delete command.token;
+    this.stopBrowserShare();
     this.token = ''; this.base = url; this.clientMode = selectedMode === 'client'; this.api = this.clientMode ? '/api/client/v1' : '/api/v1';
     this.clearTasks();
     if (!await this.storageAvailable()) throw new Error('System credential storage is unavailable. Unlock or enable it and retry.');
@@ -297,6 +363,7 @@ export class RemoteAdapter {
         this.login.cancel();
         if (!this.preferences) throw new Error('Local runtime preferences are unavailable. Retry disconnecting.');
         await this.preferences.save(null);
+        this.stopBrowserShare();
         this.token = ''; this.base = null; this.clientMode = true; this.api = '/api/client/v1'; this.configError = null;
         this.clearTasks(); this.state.source_kind = ''; this.state.tag = '';
         return;

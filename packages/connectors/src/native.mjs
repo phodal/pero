@@ -13,6 +13,8 @@ import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { freezeDownloadBytes } from '../../../desktop/src/main/browser-use/download.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
+import { projectSourceCommand } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
+import { connectCloudBrowser } from '../../../desktop/src/main/browser-use/cloud-use.ts';
 import { ConnectorMcp } from './mcp.ts';
 import { ConversationRepl } from '../../../desktop/src/main/repl/repl.ts';
 import { pythonRepl } from '../../../desktop/src/main/repl/python.ts';
@@ -54,6 +56,20 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
   new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
   selected, browserEvidence, async (thread, request, check) => {
     const surface = request => effect('surface', { value: { action: 'sidebar', thread, request } });
+    const command = projectSourceCommand(request);
+    if (command) {
+      check();
+      const result = await effect('project.sources', { value: command });
+      if (!result.ok) throw new Error(result.error);
+      if (command.kind === 'projects') {
+        check();
+        const shared = await effect('project.sources', { value: { kind: 'projects', destination: 'shared' } }).catch(() => undefined);
+        const projects = shared?.ok ? shared.value.projects : [];
+        return { projects: [...result.value.projects, ...projects] };
+      }
+      return result.value;
+    }
+    if (request.kind === 'snapshot') return { ...await surface(request), projectCollector: true };
     if (request.kind !== 'collect') return surface(request);
     const { workspace } = await surface({ kind: 'snapshot' });
     if (!workspace) throw new Error('Choose a conversation workspace in Pero before collecting.');
@@ -77,8 +93,48 @@ const appUse = new DesktopAppUse({
 
 appUse.connectorTools = thread => owner.tools(thread);
 
+let cloudBrowser;
+function stopCloudBrowser(id) {
+  if (cloudBrowser && (id === undefined || cloudBrowser.id === id)) {
+    cloudBrowser.controller.abort();
+    cloudBrowser = undefined;
+  }
+}
+// Called only by the Native shell over stdio. The token never enters the MCP tool.
+async function handleCloudBrowser(request, relay) {
+  if (request.operation === 'cloud-browser-target') {
+    const tab = await relay?.activeTabForCloud();
+    if (!tab) return { ok: false };
+    const { tabId, title, origin, grantId } = tab;
+    return { ok: true, value: { tabId, title, origin, grantId } };
+  }
+  if (!relay) return { ok: false };
+  const { id, token, origin, runId, tab, screenshots } = request;
+  stopCloudBrowser();
+  const controller = new AbortController();
+  cloudBrowser = { id, controller };
+  try {
+    const prepared = await relay.prepareCloudShare(tab, `cloud:${runId}:${id}`, screenshots, appUse.inputs);
+    if (!prepared) {
+      stopCloudBrowser(id);
+      return { ok: false, reason: 'tab_changed' };
+    }
+    const attachment = await connectCloudBrowser(origin, token, runId, runId, controller.signal, prepared.grant, prepared.call);
+    send({ id: 0, cloud_browser: { state: 'sharing', id, runId } });
+    void attachment.closed.finally(() => {
+      stopCloudBrowser(id);
+      send({ id: 0, cloud_browser: { state: 'closed', id } });
+    });
+    return { ok: true };
+  } catch {
+    stopCloudBrowser(id);
+    return { ok: false };
+  }
+}
+
 let closing;
 const close = () => closing ??= (async () => {
+  stopCloudBrowser();
   for (const promise of pending.values()) promise.reject(Object.assign(new Error('MCP_CONTROL_DISPOSED'), { code: 'MCP_CONTROL_DISPOSED' }));
   pending.clear();
   await appUse.close();
@@ -112,7 +168,8 @@ input.on('line', line => {
     void computer.command(message.computer).catch(console.error);
   } else if (message.command) {
     const command = message.command;
-    if (command.action === 'app_use_selection') appUse.authority.select(command.thread_id || undefined);
+    if (command.action === 'cloud-browser-stop') stopCloudBrowser(command.id);
+    else if (command.action === 'app_use_selection') appUse.authority.select(command.thread_id || undefined);
     else if (command.action === 'composer_catalog') void appUse.composerCatalog(command).catch(console.error);
     else appUse.command(command);
   } else if (message.shutdown) {
@@ -122,6 +179,8 @@ input.on('line', line => {
     const relay = appUse.browser?.relay;
     const result = request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
+      : ['cloud-browser-target', 'cloud-browser-start'].includes(request?.operation)
+        ? handleCloudBrowser(request, relay)
       : request?.operation === 'chrome-extension-folder'
         ? cp(join(helpers, 'chrome-extension'), join(homedir(), '.pero', 'chrome-extension'), { recursive: true })
           .then(() => ({ ok: true, folder: join(homedir(), '.pero', 'chrome-extension') }),

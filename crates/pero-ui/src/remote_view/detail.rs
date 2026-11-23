@@ -102,6 +102,16 @@ impl Workbench {
         let closed = source_closed(task);
         let changed = source_changed(task);
         let busy = self.remote.loading();
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        let chrome_share = {
+            let run_id = string(run, "id");
+            (client && mine && phase == Phase::Running && !run_id.is_empty()
+                && string(task, "current_run_id") == run_id)
+                .then(|| self.cloud_browser_button(&id, run_id, cx))
+                .flatten()
+        };
+        #[cfg(not(all(feature = "native", target_os = "macos")))]
+        let chrome_share: Option<AnyElement> = None;
         let can_dispatch =
             dispatchable(task) && !closed && !changed && (operator || (client && mine));
         let can_cancel =
@@ -262,6 +272,7 @@ impl Workbench {
                     .flex_wrap()
                     .items_center()
                     .gap(px(8.))
+                    .children(chrome_share)
                     .when(
                         matches!(phase, Phase::Draft | Phase::Queued | Phase::Cancelled)
                             && (operator || (client && mine)),

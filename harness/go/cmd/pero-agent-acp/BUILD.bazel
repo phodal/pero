@@ -4,6 +4,7 @@ go_library(
     name = "pero-agent-acp_lib",
     srcs = [
         "attempt_audit.go",
+        "cloud_browser.go",
         "coding.go",
         "compaction.go",
         "engineering.go",

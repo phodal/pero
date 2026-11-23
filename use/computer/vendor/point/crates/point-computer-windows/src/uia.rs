@@ -33,7 +33,7 @@ mod native {
 	use windows::Win32::Security::*;
 	use windows::Win32::System::{Com::*, Ole::*, RemoteDesktop::*, StationsAndDesktops::*, Threading::*};
 	use windows::Win32::UI::{Accessibility::*, WindowsAndMessaging::*};
-	use windows::core::PWSTR;
+	use windows::core::{Interface, PWSTR};
 
 	fn err(e: windows::core::Error) -> String {
 		format!("WINDOWS_UIA_ERROR: {}", e.code())
@@ -60,7 +60,7 @@ mod native {
 		unsafe {
 			CoInitializeEx(None, COINIT_MULTITHREADED).ok().map_err(err)?;
 			let apartment = Apartment;
-			let client = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).map_err(err)?;
+			let client = CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).map_err(err)?;
 			Ok((apartment, client))
 		}
 	}
@@ -86,7 +86,7 @@ mod native {
 			Ok(format!("single:{}:{}:{dpi}", GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)))
 		}
 	}
-	fn session_ready(pid: i32) -> Result<(), String> {
+	pub fn session_ready(pid: i32) -> Result<(), String> {
 		unsafe {
 			let session = login_session()?;
 			let mut target = 0;
@@ -165,17 +165,17 @@ mod native {
 			Ok(*GetSidSubAuthority(label.Label.Sid, n as u32 - 1))
 		}
 	}
-	unsafe fn runtime_id(element: &IUIAutomationElement) -> Result<String, String> {
+	unsafe fn runtime_id(element: &IUIAutomationElement) -> Result<Option<String>, String> {
 		unsafe {
 			let array = element.GetRuntimeId().map_err(err)?;
 			let result = (|| {
 				if array.is_null() || SafeArrayGetDim(array) != 1 || SafeArrayGetElemsize(array) != 4 {
-					return Err("WINDOWS_UIA_ID_UNAVAILABLE".into());
+					return Ok(None);
 				}
 				let low = SafeArrayGetLBound(array, 1).map_err(err)?;
 				let high = SafeArrayGetUBound(array, 1).map_err(err)?;
 				if high < low || high - low > 64 {
-					return Err("WINDOWS_UIA_ID_UNAVAILABLE".into());
+					return Ok(None);
 				}
 				let mut ids = Vec::new();
 				for i in low..=high {
@@ -183,7 +183,7 @@ mod native {
 					SafeArrayGetElement(array, &i, &mut value as *mut _ as _).map_err(err)?;
 					ids.push(value.to_string());
 				}
-				Ok(format!("UIA:{}", ids.join(".")))
+				Ok(Some(format!("UIA:{}", ids.join("."))))
 			})();
 			if !array.is_null() {
 				let _ = SafeArrayDestroy(array);
@@ -191,9 +191,13 @@ mod native {
 			result
 		}
 	}
-	unsafe fn target_ref(element: &IUIAutomationElement) -> Result<String, String> {
+	unsafe fn target_ref(element: &IUIAutomationElement) -> Result<Option<String>, String> {
 		unsafe {
-			Ok(format!("{}@{}", runtime_id(element)?, process_identity(element.CurrentProcessId().map_err(err)?)?))
+			let Some(runtime_id) = runtime_id(element)? else {
+				return Ok(None);
+			};
+			let process = process_identity(element.CurrentProcessId().map_err(err)?)?;
+			Ok(Some(format!("{runtime_id}@{process}")))
 		}
 	}
 	unsafe fn ancestry_secure(
@@ -244,12 +248,18 @@ mod native {
 		unsafe {
 			// Password state must be known before any value is read.
 			let secure = inherited_secure || el.CurrentIsPassword().map_err(err)?.as_bool();
+			// Some WinForms ListBox items have no usable runtime ID. Keep them in the
+			// password and depth walk, without exposing a reference for input.
+			let identity = target_ref(el)?;
+			if depth == 0 && identity.is_none() {
+				return Err("WINDOWS_UIA_ID_UNAVAILABLE".into());
+			}
 			let kind = el.CurrentControlType().map_err(err)?;
 			let rect = el.CurrentBoundingRectangle().map_err(err)?;
 			let mut rec = ElementRec {
 				index,
 				role: role(kind),
-				subrole: target_ref(el)?,
+				subrole: identity.unwrap_or_default(),
 				title: if secure { String::new() } else { el.CurrentName().map_err(err)?.to_string() },
 				depth,
 				secure,
@@ -263,7 +273,7 @@ mod native {
 				}),
 				..Default::default()
 			};
-			if !secure {
+			if !secure && !rec.subrole.is_empty() {
 				if let Ok(value) = el.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId) {
 					if !value.CurrentIsReadOnly().map_err(err)?.as_bool() {
 						rec.traits.push("editable".into());
@@ -280,8 +290,15 @@ mod native {
 					}
 				}
 			}
-			if el.GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId).is_ok() {
+			if !rec.subrole.is_empty() && el.GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId).is_ok() {
 				rec.actions.push("press".into());
+			}
+			if !rec.subrole.is_empty()
+				&& let Ok(scroll) = el.GetCurrentPatternAs::<IUIAutomationScrollPattern>(UIA_ScrollPatternId)
+				&& (scroll.CurrentHorizontallyScrollable().map_err(err)?.as_bool()
+					|| scroll.CurrentVerticallyScrollable().map_err(err)?.as_bool())
+			{
+				rec.actions.push("scroll".into());
 			}
 			Ok(rec)
 		}
@@ -329,7 +346,9 @@ mod native {
 					if secure {
 						focused_secure = true;
 						focused_el = None;
-					} else if focused_el.is_none() || rec.traits.iter().any(|trait_name| trait_name == "editable") {
+					} else if !rec.subrole.is_empty()
+						&& (focused_el.is_none() || rec.traits.iter().any(|trait_name| trait_name == "editable"))
+					{
 						focused_el = Some(el.clone());
 					}
 				}
@@ -591,7 +610,9 @@ mod native {
 			}
 			let (_apartment, client) = automation()?;
 			let focused = client.GetFocusedElement().map_err(err)?;
-			if focused.CurrentProcessId().map_err(err)? != app.pid || target_ref(&focused)? != rec.subrole {
+			if focused.CurrentProcessId().map_err(err)? != app.pid
+				|| target_ref(&focused)?.as_deref() != Some(rec.subrole.as_str())
+			{
 				return Err("WINDOWS_FOCUS_CHANGED".into());
 			}
 			let bounds = crate::apps::window_bounds(app.window_id, app.pid).ok_or("WINDOWS_WINDOW_GONE")?;
@@ -615,14 +636,24 @@ mod native {
 		}
 	}
 	pub fn invoke(app: &AppRef, rec: &ElementRec) -> Result<(), String> {
+		invoke_element(app, rec, true)
+	}
+	pub fn invoke_background(app: &AppRef, rec: &ElementRec) -> Result<(), String> {
+		invoke_element(app, rec, false)
+	}
+	fn invoke_element(app: &AppRef, rec: &ElementRec, require_foreground: bool) -> Result<(), String> {
 		crate::execution::check()?;
 		session_ready(app.pid)?;
 		let (_apartment, client) = automation()?;
 		unsafe {
+			if !require_foreground {
+				// UI Automation normally moves focus before invoking a pattern.
+				client.cast::<IUIAutomation2>().map_err(err)?.SetAutoSetFocus(false).map_err(err)?;
+			}
 			if integrity(app.pid as u32)? > integrity(GetCurrentProcessId())? {
 				return Err("WINDOWS_HIGHER_INTEGRITY_BLOCKED".into());
 			}
-			if GetForegroundWindow() != HWND(app.window_id as usize as _) {
+			if require_foreground && GetForegroundWindow() != HWND(app.window_id as usize as _) {
 				return Err("WINDOWS_FOCUS_CHANGED".into());
 			}
 			let root = client.ElementFromHandle(HWND(app.window_id as usize as _)).map_err(err)?;
@@ -634,7 +665,7 @@ mod native {
 				if count > 1200 {
 					return Err("WINDOWS_UIA_WALK_LIMIT".into());
 				}
-				if target_ref(&el)? == rec.subrole {
+				if target_ref(&el)?.as_deref() == Some(rec.subrole.as_str()) {
 					if el.CurrentIsPassword().map_err(err)?.as_bool() || !el.CurrentIsEnabled().map_err(err)?.as_bool()
 					{
 						return Err("WINDOWS_TARGET_BLOCKED".into());
@@ -650,7 +681,7 @@ mod native {
 					}
 					crate::execution::check()?;
 					session_ready(app.pid)?;
-					if GetForegroundWindow() != HWND(app.window_id as usize as _) {
+					if require_foreground && GetForegroundWindow() != HWND(app.window_id as usize as _) {
 						return Err("WINDOWS_FOCUS_CHANGED".into());
 					}
 					if el.CurrentProcessId().map_err(err)? != app.pid {
@@ -659,7 +690,7 @@ mod native {
 					if let Ok(pattern) = el.GetCurrentPatternAs::<IUIAutomationInvokePattern>(UIA_InvokePatternId) {
 						return pattern.Invoke().map_err(err);
 					}
-					if fresh.traits.iter().any(|t| t == "editable") {
+					if require_foreground && fresh.traits.iter().any(|t| t == "editable") {
 						return el.SetFocus().map_err(err);
 					}
 					return Err("WINDOWS_UIA_PATTERN_UNAVAILABLE".into());

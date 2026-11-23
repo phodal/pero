@@ -131,13 +131,8 @@ Read the six-character code visually from the first cell's browser screenshot. I
       }, { timeout: 25_000 }).toBeGreaterThan(0);
       await panel.goto('about:blank');
       await panel.goto(worker.url().replace(/\/service-worker\.js$/, '/relay.html#') + new URLSearchParams({ pair: code }));
-      await expect(panel.locator('#status')).toContainText('Paired · awaiting tab approval');
-      await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Native REPL fixture · ' + new URL(url).origin });
-      await panel.getByRole('button', { name: 'Review tab' }).click();
-      await expect(panel.locator('#url')).toHaveText(url);
-      await panel.getByRole('button', { name: 'Allow this tab' }).click();
-      await expect(panel.locator('#status')).toContainText('1 approved tab');
-      await panel.screenshot({ path: resolve(output, 'approved.png') });
+      await expect(panel.locator('#status')).toContainText('Connected');
+      await panel.screenshot({ path: resolve(output, 'paired.png') });
       await rm(pairing);
       await writeFile(resolve(run, 'pairing.ready'), '');
     }

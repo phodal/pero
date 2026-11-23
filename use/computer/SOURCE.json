@@ -21,7 +21,10 @@
     ],
     "adaptations": [
       "Limit the workspace to the five local native dependencies and explicitly bind their manifests to it.",
-      "Split native records, macOS driver tests and macOS AX/input/image FFI into modules; preserve their APIs and behavior."
+      "Split native records, macOS driver tests and macOS AX/input/image FFI into modules; preserve their APIs and behavior.",
+      "Expose the Windows UIA session readiness check to the Pero driver for status reporting.",
+      "Keep UIA identification and input separate from the password scan. Use the Windows UIA focus policy for background invocation.",
+      "Keep the DWM visible frame with Windows Graphics Capture images for screenshot-relative input."
     ]
   }
 }

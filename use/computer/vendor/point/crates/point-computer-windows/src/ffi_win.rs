@@ -6,7 +6,9 @@ use std::os::windows::ffi::OsStringExt;
 use std::ptr;
 use std::sync::OnceLock;
 
-use point_computer_core::types::MouseButton;
+use point_computer_core::types::{Frame, MouseButton};
+use windows::Win32::Graphics::Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
+use windows::Win32::UI::WindowsAndMessaging::{GA_ROOT, GetAncestor, WindowFromPoint};
 
 use super::sys::{
 	self, BITMAPINFO, BITMAPINFOHEADER, BOOL, DWORD, HANDLE, HBITMAP, HWND, INPUT, INPUT_UNION, KEYBDINPUT, LONG,
@@ -33,11 +35,36 @@ pub fn cursor_position() -> Option<(f64, f64)> {
 	Some((point.x as f64, point.y as f64))
 }
 
+pub fn window_owns_point(window_id: u32, pid: i32, x: f64, y: f64) -> bool {
+	set_dpi_aware();
+	let point = windows::Win32::Foundation::POINT { x: x.round() as i32, y: y.round() as i32 };
+	unsafe {
+		let target = GetAncestor(WindowFromPoint(point), GA_ROOT);
+		if target.0.is_null() || target.0 as usize as u32 != window_id {
+			return false;
+		}
+		let mut owner = 0;
+		sys::GetWindowThreadProcessId(target.0, &mut owner);
+		owner as i32 == pid
+	}
+}
+
 pub fn window_list() -> Vec<WindowInfo> {
 	set_dpi_aware();
 	let mut out: Vec<WindowInfo> = Vec::new();
 	unsafe { sys::EnumWindows(enum_windows_cb, &mut out as *mut Vec<WindowInfo> as LPARAM) };
 	out
+}
+
+pub fn visible_window_frame(window_id: u32) -> Option<Frame> {
+	let mut rect = windows::Win32::Foundation::RECT::default();
+	let hwnd = windows::Win32::Foundation::HWND(window_id as usize as _);
+	unsafe {
+		DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ptr::from_mut(&mut rect).cast(), size_of_val(&rect) as u32)
+	}.ok()?;
+	let w = rect.right - rect.left;
+	let h = rect.bottom - rect.top;
+	(w > 0 && h > 0).then_some(Frame { x: rect.left.into(), y: rect.top.into(), w: w.into(), h: h.into() })
 }
 
 unsafe extern "C" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -336,6 +363,16 @@ fn button_flags(button: MouseButton) -> (u32, u32) {
 }
 
 const MOVE_FLAGS: u32 = sys::MOUSEEVENTF_MOVE | sys::MOUSEEVENTF_ABSOLUTE | sys::MOUSEEVENTF_VIRTUALDESK;
+
+pub fn send_pointer(x: f64, y: f64, press: Option<MouseButton>) -> Result<(), String> {
+	set_dpi_aware();
+	let (dx, dy) = abs_mouse(x, y);
+	let motion = mouse_input(dx, dy, 0, MOVE_FLAGS);
+	match press {
+		Some(button) => send_inputs(&[motion, mouse_input(dx, dy, 0, button_flags(button).0)]),
+		None => send_inputs(&[motion]),
+	}
+}
 
 pub fn send_mouse_click(x: f64, y: f64, button: MouseButton, count: u8) -> Result<(), String> {
 	set_dpi_aware();

@@ -52,6 +52,9 @@ type Config struct {
 	WorkspaceRevision string `json:"workspace_revision"`
 	TemplateDigest    string `json:"template_digest"`
 	TTLSeconds        int64  `json:"ttl_seconds"`
+
+	BrowserUse         bool `json:"browser_use,omitempty"`
+	BrowserScreenshots bool `json:"browser_screenshots,omitempty"`
 }
 
 var dns = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
@@ -60,7 +63,10 @@ var digest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
 func (c Config) IsIsolated() bool { return c.Profile == "isolated-agent-v1" }
 func (c Config) Validate() error {
-	if c.Profile != "" && c.Profile != "trusted-worker-pod" && !c.IsIsolated() {
+	if c.BrowserScreenshots && !c.BrowserUse {
+		return ErrInvalid
+	}
+	if !c.IsIsolated() && (c.BrowserUse || c.Profile != "" && c.Profile != "trusted-worker-pod") {
 		return ErrInvalid
 	}
 	if !model.ValidKey(c.ClusterID) || !dns.MatchString(c.Namespace) || (c.IsIsolated() && (!dns.MatchString(c.RuntimeClass) || !dns.MatchString(c.ServiceAccount) || !model.ValidKey(c.ServiceAccountUID) || c.Audience != "pero-runtime" || c.ControlURL == "" || c.ImageRef == "" || c.Model == "" || c.StorageClass == "" || c.VolumeSize == "")) || (!c.IsIsolated() && !dns.MatchString(c.WarmPool)) || !model.ValidKey(c.WorkerID) || !model.ValidKey(c.ProjectID) || !model.ValidKey(c.WorkspaceKey) || !model.ValidKey(c.AgentID) || !digest.MatchString(c.ImageDigest) || !digest.MatchString(c.TemplateDigest) || !revision.MatchString(c.WorkspaceRevision) || c.TTLSeconds < 60 || c.TTLSeconds > 7*24*3600 {

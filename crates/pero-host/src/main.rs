@@ -18,6 +18,7 @@ mod app_startup;
 mod app_canvas;
 mod research_assets;
 mod project_resources;
+mod project_sources;
 mod project_tools;
 mod notebook_projects;
 mod paper_reproduction;
@@ -302,6 +303,10 @@ fn main() -> io::Result<()> {
                 &mut documents,
                 value,
             ))?;
+            continue;
+        }
+        if value.get("method").and_then(|v| v.as_str()) == Some("project_sources") {
+            emit(project_sources::dispatch(settings_path.as_deref(), value, insights::now_ms().get().max(0) as u64))?;
             continue;
         }
         if value.get("method").and_then(|v| v.as_str()) == Some("contribution") {

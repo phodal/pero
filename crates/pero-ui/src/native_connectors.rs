@@ -30,6 +30,7 @@ struct Message {
     value: Value,
     computer_state: Option<ComputerUseState>,
     composer_catalog: Option<HostEvent>,
+    cloud_browser: Option<Value>,
 }
 
 pub(crate) struct NativeConnectors {
@@ -97,6 +98,12 @@ impl NativeConnectors {
                     }
                 } else if let Some(event) = message.composer_catalog {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() { apps.publish(event); }
+                } else if let Some(data) = message.cloud_browser {
+                    if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
+                        let mut event = HostEvent::new("native_cloud_browser", None, String::new());
+                        event.data = data;
+                        apps.publish(event);
+                    }
                 } else if message.effect.is_some() {
                     let result = reader.effect(&message);
                     let reply = match result {
@@ -172,6 +179,10 @@ impl NativeConnectors {
             }
             Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
                 .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),
+            Some("project.sources") => {
+                let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
+                apps.project_source_request(message.value.clone()).map_err(|_| "Project sources are unavailable")
+            }
             Some("apps" | "surface") => {
                 let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
                 if message.effect.as_deref() == Some("surface") {

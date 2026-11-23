@@ -205,7 +205,7 @@ func (s *Server) project(record *activeSession, event harness.Event) {
 		for _, child := range block.Content {
 			if child.Type == harness.BlockText && presentation.DisplayText == "" {
 				content = append(content, map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": child.Text}})
-			} else if child.Type == harness.BlockImage {
+			} else if child.Type == harness.BlockImage && !s.omitToolImages {
 				data, mediaType, ok := s.imageBytes(child)
 				if ok {
 					content = append(content, map[string]any{"type": "content", "content": map[string]any{

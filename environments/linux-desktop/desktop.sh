@@ -30,7 +30,11 @@ dbus-daemon --session --nofork --address="$DBUS_SESSION_BUS_ADDRESS" &
 critical+=("$!")
 openbox &
 critical+=("$!")
-mousepad &
+case "${PERO_DESKTOP_APP:-mousepad}" in
+    mousepad) mousepad & ;;
+    blender) blender --factory-startup & ;;
+    *) printf 'Unknown managed desktop application\n' >&2; exit 2 ;;
+esac
 x11vnc -localhost -rfbport 5900 -viewonly -forever -shared -nopw -noxdamage -noremote -nosel &
 critical+=("$!")
 x11vnc -localhost -rfbport 5901 -forever -shared -nopw -noxdamage -noremote -nosel -clear_all &

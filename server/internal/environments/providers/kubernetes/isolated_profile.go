@@ -31,6 +31,8 @@ type ColdConfig struct {
 	WorkspaceRevision  string `json:"workspace_revision"`
 	TemplateDigest     string `json:"template_digest"`
 	Model              string `json:"model"`
+	BrowserUse         bool   `json:"browser_use,omitempty"`
+	BrowserScreenshots bool   `json:"browser_screenshots,omitempty"`
 	TTLSeconds         int64  `json:"ttl_seconds"`
 }
 
@@ -39,6 +41,9 @@ var volumeSize = regexp.MustCompile(`^[1-9][0-9]{0,3}Gi$`)
 var gitRevision = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func (c ColdConfig) Validate() error {
+	if c.BrowserScreenshots && !c.BrowserUse {
+		return model.ErrInvalid
+	}
 	u, err := url.Parse(c.ControlURL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" {
 		return model.ErrInvalid
@@ -196,6 +201,12 @@ func (c ColdConfig) pod(requestID, pvcName string) coldPodSpec {
 	container := coldContainer{Name: "agent", Image: c.ImageRef, ImagePullPolicy: "IfNotPresent", Env: []coldEnv{{"PERO_AGENT_CONTROL_URL", strings.TrimSuffix(c.ControlURL, "/")}, {"PERO_AGENT_RUN_ID", requestID}, {"PERO_AGENT_SESSION_ID", requestID}, {"PERO_AGENT_TOKEN_FILE", "/var/run/pero/token"}, {"PERO_AGENT_WORKSPACE", "/workspace/repo"}, {"PERO_WORKSPACE_REVISION", c.WorkspaceRevision}, {"PERO_AGENT_MODEL", c.Model}}, VolumeMounts: []coldMount{{"workspace", "/workspace", false}, {"tmp", "/tmp", false}, {"identity", "/var/run/pero", true}}}
 	if c.ControlCAFile != "" {
 		container.Env = append(container.Env, coldEnv{"PERO_AGENT_CA_FILE", c.ControlCAFile})
+	}
+	if c.BrowserUse {
+		container.Env = append(container.Env, coldEnv{"PERO_AGENT_BROWSER_USE", "1"})
+	}
+	if c.BrowserScreenshots {
+		container.Env = append(container.Env, coldEnv{"PERO_AGENT_BROWSER_SCREENSHOTS", "1"})
 	}
 	container.SecurityContext = coldSecurity{AllowPrivilegeEscalation: ptr(false), Privileged: ptr(false), ReadOnlyRootFilesystem: ptr(true)}
 	container.SecurityContext.Capabilities = &struct {

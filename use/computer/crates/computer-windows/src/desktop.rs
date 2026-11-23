@@ -1,11 +1,28 @@
 //! Windows UIA, WGC/PrintWindow and explicit foreground input.
 use crate::{bridge, profile};
 use computer_core::{ControlId, Window, WindowBounds};
-use computer_runtime::{DesktopDriver, WindowObservation, error};
+use computer_runtime::{Cancellation, DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_core::types as native;
-use point_computer_windows::{apps, driver::WindowsBackend, ffi};
+use point_computer_windows::{apps, driver::WindowsBackend, ffi, uia};
+use std::time::Duration;
+
+fn screenshot_point(
+    snap: &native::Snapshot,
+    point: ComputerPoint,
+) -> Result<(f64, f64), ComputerError> {
+    let frame = snap.image_bounds.ok_or_else(|| {
+        error(
+            ComputerErrorCode::Unsupported,
+            "Window screenshot geometry is unavailable",
+        )
+    })?;
+    Ok((
+        frame.x + f64::from(point.x) * frame.w / f64::from(snap.image_width),
+        frame.y + f64::from(point.y) * frame.h / f64::from(snap.image_height),
+    ))
+}
 
 pub struct Desktop {
     driver: WindowsBackend,
@@ -29,7 +46,17 @@ impl DesktopDriver for Desktop {
         profile::actions()
     }
     fn status(&self) -> ComputerDriverStatus {
-        ComputerDriverStatus{environment:Some(self.environment()),available:true,accessibility:ComputerPermissionState::Unsupported,screen_recording:ComputerPermissionState::Unsupported,message:"Windows UIA and window capture; no macOS permission grants apply. Use foreground for keyboard/pixel input; background supports UIA invocation only. Interactive desktop and integrity checks occur per action.".into()}
+        let ready = uia::session_ready(std::process::id() as i32);
+        ComputerDriverStatus {
+            environment: Some(self.environment()),
+            available: ready.is_ok(),
+            accessibility: ComputerPermissionState::Unsupported,
+            screen_recording: ComputerPermissionState::Unsupported,
+            message: match ready {
+                Ok(()) => "Windows UIA and window capture are available. Use foreground for keyboard and pixel input. Background supports UIA invocation only.".into(),
+                Err(reason) => format!("Computer Use requires an unlocked interactive Windows desktop ({reason})."),
+            },
+        }
     }
     fn targets(&self) -> Result<Vec<Window>, ComputerError> {
         Ok(ffi::window_list()
@@ -98,12 +125,34 @@ impl DesktopDriver for Desktop {
             .map(bridge::observation)
             .ok_or_else(|| error(ComputerErrorCode::PermissionRequired, result.text))
     }
+    fn admit(&self, snap: &native::Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
+        let anchor = match &action.input {
+            ComputerInput::Move { anchor }
+            | ComputerInput::Hover { anchor, .. }
+            | ComputerInput::Hold { anchor, .. } => anchor,
+            _ => return Ok(()),
+        };
+        let ComputerAnchor::Pixel { point, .. } = anchor else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Windows pointer movement and holds require a screenshot pixel",
+            ));
+        };
+        let (x, y) = screenshot_point(snap, *point)?;
+        if !ffi::window_owns_point(snap.app.window_id, snap.app.pid, x, y) {
+            return Err(error(
+                ComputerErrorCode::TargetUnavailable,
+                "Expose the selected window at the requested pixel",
+            ));
+        }
+        Ok(())
+    }
     fn input(
         &self,
         app: &Window,
         snap: &native::Snapshot,
         action: ComputerAction,
-        _: &computer_runtime::Cancellation,
+        cancellation: &Cancellation,
     ) -> Result<Option<ComputerExecution>, ComputerError> {
         let app = &bridge::native_window(app);
         let bounds = snap.window_bounds.ok_or_else(|| {
@@ -112,12 +161,7 @@ impl DesktopDriver for Desktop {
                 "Window input geometry is unavailable",
             )
         })?;
-        let point = |p: ComputerPoint| {
-            (
-                bounds.x + f64::from(p.x) * bounds.w / f64::from(snap.image_width),
-                bounds.y + f64::from(p.y) * bounds.h / f64::from(snap.image_height),
-            )
-        };
+        let point = |point| screenshot_point(snap, point);
         let element = |anchor: &ComputerAnchor| {
             let ComputerAnchor::Element { element_id } = anchor else {
                 return None;
@@ -128,7 +172,7 @@ impl DesktopDriver for Desktop {
         };
         let location = |anchor: &ComputerAnchor| -> Result<(f64, f64), ComputerError> {
             match anchor {
-                ComputerAnchor::Pixel { point: p, .. } => Ok(point(*p)),
+                ComputerAnchor::Pixel { point: p, .. } => point(*p),
                 _ => element(anchor)
                     .and_then(|e| e.frame)
                     .map(|f| (bounds.x + f.x + f.w / 2., bounds.y + f.y + f.h / 2.))
@@ -140,6 +184,12 @@ impl DesktopDriver for Desktop {
                     }),
             }
         };
+        let aim = |anchor: &ComputerAnchor, press| -> Result<(), ComputerError> {
+            let (x, y) = location(anchor)?;
+            cancellation.wait(Duration::ZERO)?;
+            ffi::send_pointer(x, y, press)
+                .map_err(|message| error(ComputerErrorCode::Failed, message))
+        };
         let foreground = action.delivery == ComputerDelivery::Foreground;
         let result = match action.input {
             ComputerInput::Click {
@@ -147,28 +197,19 @@ impl DesktopDriver for Desktop {
                 button,
                 count,
             } => {
-                let button = match button {
-                    ComputerMouseButton::Left => native::MouseButton::Left,
-                    ComputerMouseButton::Right => native::MouseButton::Right,
-                    ComputerMouseButton::Middle => native::MouseButton::Middle,
-                };
+                let button = bridge::mouse_button(button);
                 if !foreground {
-                    if u8::from(count) != 1 || element(&anchor).is_none() {
+                    let target = element(&anchor)
+                        .filter(|_| button == native::MouseButton::Left && u8::from(count) == 1);
+                    let Some(target) = target else {
                         return Err(error(
                             ComputerErrorCode::Unsupported,
-                            "Background Windows input requires a single UIA element invocation",
+                            "Background Windows input requires a single left click on a UIA element",
                         ));
-                    }
-                    self.driver.click(
-                        app,
-                        element(&anchor),
-                        native::ClickRequest {
-                            method: native::ClickMethod::Accessibility,
-                            point: None,
-                            button,
-                            count: 1,
-                        },
-                    )
+                    };
+                    uia::invoke_background(app, target)
+                        .map_err(|message| error(ComputerErrorCode::Failed, message))?;
+                    return Ok(None);
                 } else {
                     self.driver.click(
                         app,
@@ -182,12 +223,30 @@ impl DesktopDriver for Desktop {
                     )
                 }
             }
-            ComputerInput::Hold { .. }
-            | ComputerInput::Hover { .. }
-            | ComputerInput::FocusWindow {}
+            ComputerInput::Move { anchor } => {
+                aim(&anchor, None)?;
+                return Ok(None);
+            }
+            ComputerInput::Hover { anchor, dwell_ms } => {
+                aim(&anchor, None)?;
+                cancellation.wait(dwell_ms.duration())?;
+                return Ok(None);
+            }
+            ComputerInput::Hold {
+                anchor,
+                button,
+                hold_ms,
+            } => {
+                aim(&anchor, Some(bridge::mouse_button(button)))?;
+                let held = cancellation.wait(hold_ms.duration());
+                ffi::release_tracked()
+                    .map_err(|message| error(ComputerErrorCode::Failed, message))?;
+                held?;
+                return Ok(None);
+            }
+            ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
-            | ComputerInput::PerformAction { .. }
-            | ComputerInput::Move { .. } => {
+            | ComputerInput::PerformAction { .. } => {
                 return Err(error(
                     ComputerErrorCode::Unsupported,
                     "This input is not implemented on this platform",
@@ -197,8 +256,8 @@ impl DesktopDriver for Desktop {
                 app,
                 native::DragRequest {
                     method: native::ClickMethod::Global,
-                    start: point(from),
-                    end: point(to),
+                    start: point(from)?,
+                    end: point(to)?,
                     ..Default::default()
                 },
             ),

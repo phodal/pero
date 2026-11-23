@@ -9,7 +9,7 @@ RUN sed -i 's/^members = .*/members = ["crates\/pero-contracts"]/g' Cargo.toml \
     && cargo build --locked --manifest-path use/computer/Cargo.toml \
     && install -m 755 use/computer/target/debug/pero-computer /pero-computer
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS desktop
 RUN apt-get update && apt-get install -y --no-install-recommends \
     at-spi2-core dbus fonts-dejavu-core mousepad openbox socat x11-utils x11vnc xvfb \
     && rm -rf /var/lib/apt/lists/* \
@@ -21,3 +21,12 @@ ENV DISPLAY=:1 HOME=/home/pero XDG_SESSION_TYPE=x11 \
 WORKDIR /home/pero
 USER pero
 ENTRYPOINT ["/usr/local/bin/pero-desktop"]
+
+FROM desktop AS blender
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends blender libgl1-mesa-dri \
+    && rm -rf /var/lib/apt/lists/*
+USER pero
+ENV PERO_DESKTOP_APP=blender
+
+FROM desktop

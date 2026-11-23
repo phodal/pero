@@ -532,6 +532,9 @@ impl Workbench {
                     self.fail_project_agent_request(id, cx);
                 }
             }
+            if value["method"] == "project_sources" || value["method"] == "shared_project_sources" {
+                self.fail_project_web_sources(value["request_id"].as_str(), cx);
+            }
             self.chat.update(cx, |panel, cx| {
                 if value["action"] == "load_thread_history" {
                     let mut failure = HostEvent::message(
@@ -588,6 +591,15 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        if event.kind == "native_cloud_browser" {
+            self.receive_cloud_browser(&event.data, window, cx);
+            return;
+        }
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        if event.kind == "disconnected" {
+            self.remote.browser_share = Default::default();
+        }
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
         if self.receive_project_workspace(&event, cx) {
@@ -622,6 +634,7 @@ impl Workbench {
             || self.receive_local_execution(&event, window, cx)
             || self.receive_contribution(&event, cx)
             || self.receive_project_agents(&event, cx) || self.receive_research_resources(&event, cx)
+            || self.receive_project_web_sources(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
         // App lifecycle notifications also reach Chat; scope admission stays with Apps.
