@@ -173,7 +173,8 @@ async function allowBrowserUse() {
     if (!browser || !tab || !candidate || !thread) throw new Error(t('browser_use.select_tab_and_chat'));
     const answer = await dialog.showMessageBox(window, {
       type: 'question', message: t('browser_use.allow_tab'),
-      detail: [candidate.origin, candidate.title, '', t('browser_use.grant_detail')].join('\n'),
+      detail: [candidate.origin, candidate.title, '', t('browser_use.grant_detail'),
+        ...(sshProfile ? [t('browser_use.ssh_grant_detail'), sshProfile.host] : [])].join('\n'),
       buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
     });
     if (answer.response !== 1) return;
@@ -189,7 +190,20 @@ async function allowBrowserUse() {
 async function pairChrome() {
   try {
     if (!appUse?.browser) throw new Error(t('browser_use.unavailable'));
-    clipboard.writeText(await appUse.browser.relay.pairing(t('browser_use.chrome_selected_chat')));
+    const label = sshProfile ? `SSH · ${sshProfile.host}` : t('browser_use.chrome_selected_chat');
+    if (sshProfile) {
+      const thread = await appUse.authority.selectedOrdinaryConversation();
+      if (!thread) throw new Error(t('browser_use.select_tab_and_chat'));
+      const answer = await dialog.showMessageBox(window, {
+        type: 'question', message: t('browser_use.ssh_pair_chrome'),
+        detail: [sshProfile.host, '', t('browser_use.ssh_pair_detail')].join('\n'),
+        buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0, noLink: true,
+      });
+      if (answer.response !== 1) return;
+      clipboard.writeText(await appUse.browser.relay.pairing(label, thread));
+    } else {
+      clipboard.writeText(await appUse.browser.relay.pairing(label));
+    }
     await dialog.showMessageBox(window, { type: 'info', message: t('browser_use.chrome_copied') });
   } catch (error) {
     if (!window.isDestroyed()) await dialog.showMessageBox(window, {
@@ -304,7 +318,7 @@ app.whenReady().then(async () => {
     return tabId;
   }, options => net.request(options));
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
-    sshProfile ? undefined : selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence),
+    selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local'),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};

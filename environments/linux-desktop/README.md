@@ -109,8 +109,16 @@ directory. Open **Workbench → Open SSH Workbench…** and select a profile fil
 
 The new window identifies the SSH host in its title. Its Rust Host, shell,
 PTY, workspace files, Agent process and history are on Linux. OpenSSH
-allocates a reverse loopback port for the session-authorized Computer Use
+allocates a reverse loopback port for the session-authorized App Use MCP
 channel. Remote access and forwarding must be enabled in the SSH account.
+
+An ordinary SSH chat can also use local Browser Use. Open a workbench web tab
+and choose **Workbench → Allow Browser Use for This Tab…**, or choose
+**Workbench → Copy Chrome pairing code** and pair from the extension.
+The consent displays the SSH destination. **Stop Browser Use** revokes the
+embedded tab grant. **Disconnect Chrome** ends the Chrome pairing.
+SSH Browser Use supports page input, observations and screenshots. File
+transfer actions require a local conversation.
 
 The optional `desktop` field names a launcher for an already running managed
 desktop on the same host. It implements the `probe`, `observe`, `control`,

@@ -8,7 +8,7 @@ import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
-import { browserInputSchema, browserRequest } from './request.ts';
+import { browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
 
 import { sidebarRequest, type SidebarPort } from './chrome-sidebar.ts';
 
@@ -236,21 +236,36 @@ class ChromeRelay {
 }
 
 export class WorkbenchBrowserUse implements BrowserUsePort {
-  readonly tool;
+  readonly tool: BrowserUsePort['tool'];
   private readonly embedded: BrowserUsePort;
   readonly relay: ChromeRelay;
 
-  constructor(embedded: BrowserUsePort, selected: () => Promise<string | undefined>, evidenceRoot: string, sidebar?: SidebarPort) {
+  constructor(
+    embedded: BrowserUsePort,
+    selected: () => Promise<string | undefined>,
+    evidenceRoot: string,
+    sidebar?: SidebarPort,
+    private readonly workspace: 'local' | 'ssh' = 'local',
+  ) {
     this.embedded = embedded;
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
     this.tool = { ...tool, inputSchema: browserInputSchema, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
       chromeActions.join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
+    if (this.workspace === 'ssh') {
+      this.tool = {
+        ...this.tool,
+        inputSchema: sshBrowserSchema,
+        description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status. Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab. Activate the tab before reading or acting on its page. Locate a fresh ref before input and observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
+      };
+    }
   }
   revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }
   async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const request = browserRequest.parse(input);
+    if (this.workspace === 'ssh' && browserFileAction(request.action))
+      throw new Error('Browser file operations require a local Workbench conversation.');
     const { browser } = this.relay;
     if (request.action === 'tabs') {
       const local = await this.embedded.call(thread, input, signal, files, workspace, deliver);
@@ -261,3 +276,15 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     return target.call(thread, input, signal, files, workspace, deliver);
   }
 }
+
+function browserFileAction(action: BrowserRequest['action']) {
+  return action === 'files' || action === 'upload' || action === 'download';
+}
+
+const sshBrowserSchema = {
+  type: 'object',
+  anyOf: browserRequest.options.filter(schema => !browserFileAction(schema.shape.action.value)).map(schema => {
+    const { $schema: _, ...action } = z.toJSONSchema(schema, { target: 'draft-7', unrepresentable: 'throw' });
+    return action;
+  }),
+};

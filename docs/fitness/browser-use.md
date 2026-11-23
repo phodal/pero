@@ -167,6 +167,39 @@ that an expired ID or invalid answer cannot close a live dialog. The suite check
 inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
 Evidence is written to `test-results/chrome-relay/`.
 
+### Chrome and embedded browser from an SSH Workbench
+
+An ordinary SSH Workbench chat can operate an explicitly shared local web tab
+over the existing authenticated reverse-loopback App Use tunnel. The
+Workbench consent shows the SSH host and the scope. Embedded web tabs use
+their existing site grant. Chrome pairs to the selected SSH chat once and
+lists regular tabs in the paired Chrome profile. The desktop keeps its
+Chrome debugger and Browser Use evidence. The SSH route excludes
+`files`, `upload` and `download` from the tool schema and rejects raw calls
+to those actions.
+
+`tests/e2e/browser-use-ssh.mjs` ran with the Electron development build,
+the OpenSSH server in a Colima Linux arm64 VM, and the Linux Rust Host
+and deterministic Python ACP Agent. The test supplied both choices at the
+Workbench consent boundary. Refusing Chrome access yielded no ticket.
+The Linux Agent used Browser Use on the granted embedded tab and the paired
+Chrome profile in separate turns. The loopback web server recorded one trusted
+click in each engine. The Agent verified each DOM effect and compared the
+received PNG digest with its receipt. Revocation removed access in both lanes.
+The result is in `test-results/browser-use-ssh/`. It covers the SSH Workbench
+route. A Cloud Worker connection through a public relay requires separate
+implementation and verification.
+
+To rerun, configure the remote Host's Agent entry to run
+`tests/fixtures/browser-use-ssh-acp.py` on the SSH machine. Use the matching
+local SSH configuration and Workbench profile with the development Desktop
+and Chrome extension built.
+
+```sh
+PERO_SSH_CONFIG=/path/to/ssh.config PERO_TEST_SSH_PROFILE=/path/to/profile.json \
+  node tests/e2e/browser-use-ssh.mjs
+```
+
 A separate run used the Native development workbench, its connector and
 headed Chrome for Testing with a scripted ACP agent. Without any per-tab
 action in Chrome, the conversation listed both fixture windows and observed
