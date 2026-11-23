@@ -119,8 +119,10 @@ both tabs open. The checks and receipt are in
 The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
 Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
 same local Relay and the same ACP conversation tool. Pairing binds the
-connection to the selected ordinary conversation. Chrome grants access only
-after the user reviews and approves each live tab. A page operation
+connection to the selected ordinary conversation. `tabs` can then list the
+titles and URLs of regular HTTP(S) tabs across Chrome windows, including
+tabs marked `authorized: false`. Chrome grants page access after the user
+reviews and approves each live tab. A page operation
 requires the approved origin, an active tab in its Chrome window, and a
 current observation. Pero uses the existing Browser Use observation and
 action receipts.
@@ -128,13 +130,19 @@ action receipts.
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
-The suite checks pairing without tab access, explicit tab approval, an
+The suite checks inventory across windows before tab approval, refusal of
+page access using an unapproved tab ID, explicit tab approval, an
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
 back, forward and reload. It checks isolation from other tabs and conversations,
 foreign-origin rejection, replay protection and debugger release on revocation.
 Evidence is written to `test-results/chrome-relay/`.
+
+The Native development connector was also exercised with actual Chrome and a
+scripted ACP agent. The paired conversation listed two regular web tabs in
+separate Chrome windows before either was approved. Status reported no page
+grant and page observation was denied.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run

@@ -170,12 +170,28 @@ try {
     await expect(status).toContainText(`${count} approved ${count === 1 ? 'tab' : 'tabs'}`);
   };
   try {
+    assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
+    const inventoryUrl = siteUrl + '?inventory-window';
+    const inventoryReady = chrome.waitForEvent('page');
+    await worker.evaluate(url => chrome.windows.create({ url, type: 'normal' }), inventoryUrl);
+    const inventoryPage = await inventoryReady;
+    await expect(inventoryPage.getByRole('heading', { name: 'Chrome Relay fixture' })).toBeVisible();
     const oneTimeCode = await requestPair();
     const paired = await prompt([{ action: 'tabs' }, { action: 'status' }, { action: 'observe' }]);
-    assert.deepEqual(paired[0].tabs, []);
+    const discovered = paired[0].tabs.find(tab => tab.url === siteUrl);
+    assert.deepEqual(paired[0].tabs.map(tab => [tab.url, tab.title, tab.authorized]).sort(), [
+      [siteUrl, 'Chrome Relay fixture', false], [inventoryUrl, 'Chrome Relay fixture', false],
+    ]);
+    assert.match(discovered.tabId, /^chrome:/);
+    const [unapprovedStatus, unapprovedObservation] = await prompt([
+      { action: 'status', tabId: discovered.tabId }, { action: 'observe', tabId: discovered.tabId },
+    ]);
+    assert.equal(unapprovedStatus.authorized, false);
+    assert.equal(unapprovedObservation.isError, true);
     assert.equal(paired[1].authorized, false);
     assert.equal(paired[2].isError, true);
     assert.equal(await extensionAttached(), false);
+    await inventoryPage.close();
     await panel.screenshot({ path: resolve(output, 'paired.png') });
     await authorize();
     assert.equal(await extensionAttached(), true);
@@ -183,8 +199,9 @@ try {
     const [available] = await prompt([{ action: 'tabs' }]);
     assert.equal(available.tabs.length, 1);
     const tabId = available.tabs[0].tabId;
-    assert.match(tabId, /^chrome:/);
+    assert.equal(tabId, discovered.tabId);
     assert.equal(available.tabs[0].url, siteUrl);
+    assert.equal(available.tabs[0].authorized, true);
     const operations = await prompt([
       { action: 'observe', tabId },
       { action: 'locate', tabId, locator: { by: 'label', value: 'Relay message' } },
@@ -296,7 +313,8 @@ try {
     const unapproved = await nextTab;
     await expect(unapproved.getByTestId('result')).toHaveText('Waiting for input');
     const switched = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
-    assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible]), [[tabId, false]]);
+    assert.deepEqual(switched[0].tabs.map(tab => [tab.tabId, tab.visible, tab.authorized]),
+      [[tabId, false, true], [opened.tabId, true, false]]);
     assert.equal(switched[1].isError, true);
     await authorize(newUrl, 2);
     const switchedBack = await prompt([
@@ -340,7 +358,7 @@ try {
     await panel.screenshot({ path: resolve(output, 'revoked.png') });
     await writeFile(resolve(output, 'result.json'), JSON.stringify({
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
-      paired: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
+      paired: true, tabInventoryBeforeApproval: true, tabIndependentlyAuthorized: true, otherTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
       historyVerified: true, openedTabRequiresIndependentApproval: true, tabSwitchAndCloseVerified: true,

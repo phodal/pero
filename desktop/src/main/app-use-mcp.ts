@@ -278,9 +278,9 @@ export class DesktopAppUse {
         const browser = this.browser;
         sources.push((async () => {
           const result = await browser.call(thread, {action: 'tabs'}, AbortSignal.timeout(5000), this.inputs);
-          const tabs = result.tabs as {tabId: string; origin: string; title?: string}[];
+          const tabs = result.tabs as {tabId: string; origin: string; title?: string; authorized?: boolean}[];
           return [{selection: {kind: 'browser'}, ...(tabs.length ? {} : {needs: 'tab_grant' as const})},
-            ...tabs.map(tab => ({selection: {kind: 'browser_tab' as const, tab_id: tab.tabId, origin: tab.origin}, target: tab.title || tab.origin}))] as ComposerCapability[];
+            ...tabs.filter(tab => tab.authorized !== false).map(tab => ({selection: {kind: 'browser_tab' as const, tab_id: tab.tabId, origin: tab.origin}, target: tab.title || tab.origin}))] as ComposerCapability[];
         })());
       }
       if (this.computer && !this.authority.isBoundedResearch(thread) && !this.goals.has(thread)) {

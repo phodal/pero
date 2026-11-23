@@ -98,7 +98,7 @@ impl CapabilitySelection {
 
     pub fn prompt(&self) -> String {
         let instruction = match self {
-            Self::Browser => "Use browser_use. Check tab authorization for this conversation.",
+            Self::Browser => "Use browser_use. Call tabs to discover tab titles and URLs. Check tab authorization before reading page contents or acting.",
             Self::BrowserTab { .. } => {
                 "Use browser_use with this tabId and origin. Stop if the selected tab is no longer authorized."
             }

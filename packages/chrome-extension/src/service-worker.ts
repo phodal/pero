@@ -10,10 +10,10 @@ import { readVisiblePage } from './collector-capture.js';
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type Review = { nonce: string; tabId: number; url: string; expiresAt: number };
 type Claim = { id: string; tabId: number; origin: string; revision: number; world: string; navigating?: boolean };
-type Command = { kind: 'inspect' } | { kind: 'run'; grant: string; stamp: string; operation: DriverOperation } |
+type Command = { kind: 'inspect'; inventory?: true } | { kind: 'run'; grant: string; stamp: string; operation: DriverOperation } |
   { kind: 'manage'; grant: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired' | 'authorizing' | 'approved'; label: string; timer?: number;
-  lastPong: number; lastId: number; busy: boolean; review?: Review; claims: Map<number, Claim>; opened: Map<number, string>;
+  lastPong: number; lastId: number; busy: boolean; review?: Review; claims: Map<number, Claim>; tabIds: Map<number, string>;
   sidebar: Map<string, (reply: {value?: unknown; error?: string}) => void>;
   capture?: { key: string; grant: string; url: string; revision: number };
   authorizing?: string; opening?: number };
@@ -59,6 +59,7 @@ async function release(connection: Peer, reason?: string) {
 async function revokeTab(connection: Peer, claim: Claim) {
   if (connection.claims.get(claim.tabId) !== claim) return;
   connection.claims.delete(claim.tabId);
+  connection.tabIds.delete(claim.tabId);
   if (connection.authorizing === claim.id) connection.authorizing = undefined;
   connection.state = connection.authorizing ? 'authorizing' : connection.claims.size ? 'approved' : 'paired';
   send(connection, { type: 'tabRevoked', grant: claim.id });
@@ -69,6 +70,14 @@ async function revokeTab(connection: Peer, claim: Claim) {
 function inScope(tab: ChromeTab, origin: string, navigating = false) {
   return !tab.incognito && !!tab.url && webOrigin(tab.url) === origin &&
     (navigating || !tab.pendingUrl || webOrigin(tab.pendingUrl) === origin);
+}
+
+function tabIdentity(connection: Peer, tabId: number) {
+  const current = connection.tabIds.get(tabId);
+  if (current) return current;
+  const id = crypto.randomUUID();
+  connection.tabIds.set(tabId, id);
+  return id;
 }
 
 async function snapshot(connection: Peer, claim: Claim) {
@@ -84,6 +93,16 @@ async function snapshot(connection: Peer, claim: Claim) {
 
 async function run(connection: Peer, command: Command) {
   if (command.kind === 'inspect') {
+    if (command.inventory) {
+      const windows: { id?: number; state?: string }[] = await chrome.windows.getAll({ windowTypes: ['normal', 'popup'] });
+      const minimized = new Set(windows.filter(window => window.state === 'minimized').map(window => window.id));
+      const tabs: ChromeTab[] = await chrome.tabs.query({});
+      return tabs.flatMap(tab => {
+        if (tab.incognito || tab.id === undefined || !tab.url || tab.url.length > 4096 || !webOrigin(tab.url)) return [];
+        return [{ id: tabIdentity(connection, tab.id), url: tab.url, title: (tab.title ?? '').slice(0, 160),
+          active: !!tab.active && !minimized.has(tab.windowId), ready: tab.status === 'complete', revision: 0 }];
+      });
+    }
     const tabs = await Promise.allSettled([...connection.claims.values()].map(claim => snapshot(connection, claim)));
     return tabs.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
   }
@@ -123,8 +142,7 @@ async function run(connection: Peer, command: Command) {
     } finally {
       connection.opening = undefined;
     }
-    const id = crypto.randomUUID();
-    connection.opened.set(opened.id, id);
+    const id = tabIdentity(connection, opened.id);
     return { kind: 'tabOpened', tabId: 'chrome:' + id, url: command.action.url, authorized: false };
   }
   if (command.kind !== 'run') throw new Error('Unknown Chrome Relay command.');
@@ -185,7 +203,7 @@ function connect(code: string) {
   if (peer) throw new Error('Disconnect the current Pero session first.');
   const pairing = parseRelayPairing(code.trim());
   const socket = new WebSocket(pairing.baseUrl.replace('http:', 'ws:') + RELAY_PATH);
-  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, claims: new Map(), opened: new Map(), sidebar: new Map() };
+  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, claims: new Map(), tabIds: new Map(), sidebar: new Map() };
   peer = connection;
   failure = undefined;
   publish();
@@ -254,7 +272,7 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
   const connection = peer, claim = connection?.claims.get(tabId);
-  connection?.opened.delete(tabId);
+  connection?.tabIds.delete(tabId);
   if (connection && claim) void revokeTab(connection, claim).catch(error => void release(connection, error.message));
 });
 chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }) => {
@@ -357,14 +375,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         await chrome.debugger.attach(target, '1.3');
         attached = true;
         if (peer !== connection) throw new Error('The Pero Relay disconnected.');
-        const id = connection.opened.get(review.tabId) ?? crypto.randomUUID();
+        const id = tabIdentity(connection, review.tabId);
         const claim = { id, tabId: review.tabId, origin: webOrigin(review.url)!, revision: 0, world: 'PeroBrowserUse-' + id };
         connection.claims.set(review.tabId, claim);
         connection.authorizing = id;
         const current = await snapshot(connection, claim);
         if (current.url !== review.url || !current.ready || !current.active) throw new Error('The reviewed tab changed.');
         send(connection, { type: 'approve', tab: current });
-        connection.opened.delete(review.tabId);
       } catch (error) {
         connection.claims.delete(review.tabId);
         connection.authorizing = undefined;

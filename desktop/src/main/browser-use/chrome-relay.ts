@@ -81,6 +81,22 @@ class ChromeRelay {
     return this.connection?.thread === thread && this.connection.grants.size > 0;
   }
 
+  async inventory(thread: string, signal: AbortSignal) {
+    const connection = this.connection;
+    if (!connection || connection.thread !== thread) return [];
+    if (await this.selected() !== thread || connection !== this.connection) return [];
+    signal.throwIfAborted();
+    const tabs = z.array(snapshot).parse(await this.call(connection, { kind: 'inspect', inventory: true }));
+    if (await this.selected() !== thread || connection !== this.connection) return [];
+    signal.throwIfAborted();
+    return tabs.flatMap(({ id, url, title, active }) => {
+      const origin = webOrigin(url);
+      if (!origin) return [];
+      return [{ tabId: 'chrome:' + id, origin, url, title, active, visible: active,
+        authorized: connection.grants.get(id) === origin }];
+    });
+  }
+
   revoke(thread?: string) {
     if (!thread || this.ticket?.thread === thread) this.ticket = undefined;
     const connection = this.connection;
@@ -189,7 +205,7 @@ class ChromeRelay {
     });
   }
 
-  private call(connection: Connection, command: { kind: 'inspect' } |
+  private call(connection: Connection, command: { kind: 'inspect'; inventory?: true } |
     { kind: 'run'; grant: string; stamp: string; operation: DriverOperation } |
     { kind: 'manage'; grant: string; action: TabAction }) {
     if (connection.pending) throw new Error('A Chrome Browser Use operation is already in progress.');
@@ -259,7 +275,7 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
     const inputSchema = embedded instanceof NativeBrowserUse ? this.relay.browser.tool.inputSchema : tool.inputSchema;
-    this.tool = { ...tool, inputSchema, description: tool.description + ' Pero Chrome Relay tabs use a chrome: tabId. Pair from the Workbench, then approve the specific tab in the extension. Chrome supports ' +
+    this.tool = { ...tool, inputSchema, description: tool.description + ' For paired Chrome, tabs lists regular web tabs without page access. Entries use a chrome: tabId and include authorized. Approve the specific tab in the extension before reading page contents or acting. Chrome supports ' +
       chromeActions.join(', ') + '. Opened Chrome tabs need independent extension approval. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
   }
   revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }
@@ -269,8 +285,8 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     const { browser } = this.relay;
     if (request.action === 'tabs') {
       const local = await this.embedded.call(thread, input, signal, files, workspace, deliver);
-      const chrome = await browser.call(thread, input, signal, files);
-      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome.tabs as unknown[]] };
+      const chrome = await this.relay.inventory(thread, signal);
+      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome] };
     }
     const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.approved(thread)) ? browser : this.embedded;
     return target.call(thread, input, signal, files, workspace, deliver);

@@ -3,11 +3,12 @@ name: pero-browser-use
 description: Operate an approved tab in the user's external Google Chrome from a Pero conversation. Use for reading, interaction, screenshots and verifying the effect of browser actions.
 ---
 
-Start with `browser_use` action `tabs`. External Chrome tab IDs start with
-`chrome:`. Match the requested title and URL. Keep the selected ID for the
-task. If the list is empty, open Native Settings → Browser Use → Pair in
-Chrome. In the extension, review the title and URL and allow the specific tab.
-A paired chat can exchange messages before any page is shared.
+Start with `browser_use` action `tabs`. Once Chrome is paired, the list
+includes regular web tabs across Chrome windows, with `authorized` indicating
+page access. External Chrome tab IDs start with `chrome:`. Match the requested
+title and URL. A request to list tabs can be answered from this result alone.
+For page access, choose the specific tab, review it in the extension and allow
+it if needed. Pair through Native Settings → Browser Use → Pair in Chrome.
 
 Observe the chosen tab before input. Use a returned reference or locate a
 specific role and accessible name, label, or text. After a click, navigation
