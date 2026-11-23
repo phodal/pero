@@ -53,3 +53,27 @@ Ignored local evidence: `target/computer-verification/macos-capabilities.json`,
 and Linux/Agent evidence remains in [computer-use.md](computer-use.md). No real
 model run, installed package, permission revocation or lock-screen cycle was
 repeated in this change.
+
+## Sublime Text document round trip
+
+On macOS 27.2.1, Sublime Text build 4215 saved a disposable document after
+native focus, click, Unicode typing and a Save shortcut. The test compared the
+entire UTF-8 file with the expected insertion and original text. It closed the
+document through Computer Use, then restarted the editor with the same file.
+The reopened window had a fresh target ID and the file digest still matched.
+Six consecutive runs passed, including three runs of the checked-in entry point. Each run
+recorded five input receipts and the reopened window image.
+
+The fixture uses Sublime Text Safe Mode, which recreates its separate Safe
+Mode profile. Run it after quitting Sublime Text and with an expendable Safe
+Mode profile. [Sublime Text Safe Mode](https://www.sublimetext.com/docs/safe_mode.html)
+
+```sh
+node scripts/build/computer.mjs
+PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-sublime.mjs
+```
+
+Evidence is under `target/computer-verification/sublime/`. This used the
+development driver and scripted input. The separately installed macOS helper
+answered its transport handshake and status request, but its permission
+preflight reported Accessibility and Screen Recording as `not_detected`.
