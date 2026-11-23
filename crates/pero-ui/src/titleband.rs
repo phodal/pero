@@ -45,7 +45,7 @@ pub(crate) struct DeclaredAction {
     pub icon: Option<String>,
 }
 
-/// Files, artifacts, or changes open beside the chat. Not a bottom stack.
+/// Project context, files, artifacts or changes in the right Workbench column.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ResourcesColumn {
     pub width: f32,
@@ -54,6 +54,7 @@ pub(crate) struct ResourcesColumn {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ResourcePrimary {
+    Project,
     Files,
     Artifacts,
     Changes,

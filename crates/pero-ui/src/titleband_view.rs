@@ -150,7 +150,7 @@ impl Workbench {
         }
     }
 
-    fn project_titleband(&self, cx: &mut Context<Self>) -> titleband::Titleband {
+    fn project_titleband(&self, viewport_width: f32, cx: &mut Context<Self>) -> titleband::Titleband {
         let claim = self.resource_band_claimed(cx);
         self.chat
             .update(cx, |chat, _| chat.host_titleband = claim);
@@ -163,7 +163,9 @@ impl Workbench {
                     pero_chat_ui::ResourcePrimary::Changes => titleband::ResourcePrimary::Changes,
                 },
             }
-        });
+        }).or_else(|| self.project_inspector_width(viewport_width, cx).map(|width| {
+            titleband::ResourcesColumn { width, primary: titleband::ResourcePrimary::Project }
+        }));
         titleband::project(&titleband::WorkbenchColumns {
             sidebar_width: self.layout.sidebar_width,
             main: titleband::MainColumn {
@@ -194,9 +196,9 @@ impl Workbench {
         })
     }
 
-    pub(crate) fn claimed_resources_width(&mut self, cx: &mut Context<Self>) -> f32 {
+    pub(crate) fn claimed_resources_width(&mut self, viewport_width: f32, cx: &mut Context<Self>) -> f32 {
         match self
-            .project_titleband(cx)
+            .project_titleband(viewport_width, cx)
             .segment(ColumnKind::Resources)
             .map(|segment| segment.width)
         {
@@ -212,7 +214,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let width = self.layout.sidebar_width;
-        let band = self.project_titleband(cx);
+        let band = self.project_titleband(window.viewport_size().width.into(), cx);
         let bg = self.ui(cx).palette.surface_muted;
         div()
             .id("titleband-sidebar-column")
@@ -238,7 +240,7 @@ impl Workbench {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let band = self.project_titleband(cx);
+        let band = self.project_titleband(window.viewport_size().width.into(), cx);
         let sidebar_controls = band.segment(ColumnKind::Sidebar).and_then(|sidebar| {
             match sidebar_toggle_slot(
                 self.layout.sidebar_width,
@@ -271,7 +273,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let Some(segment) = self
-            .project_titleband(cx)
+            .project_titleband(window.viewport_size().width.into(), cx)
             .segment(ColumnKind::Resources)
             .cloned()
         else {
@@ -290,9 +292,11 @@ impl Workbench {
         } else {
             width
         };
-        let body = self
-            .chat
-            .update(cx, |chat, cx| chat.resource_column_body(toolbar_width, cx));
+        let body = if segment.primary == Primary::Resource(titleband::ResourcePrimary::Project) {
+            self.project_context_body(cx)
+        } else {
+            self.chat.update(cx, |chat, cx| chat.resource_column_body(toolbar_width, cx))
+        };
         div()
             .id("titleband-resources-column")
             .w(px(width))
@@ -386,14 +390,15 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let bg = self.ui(cx).palette.surface_muted;
-        let primary = if self.project_agent_active() {
-            self.project_agent_titleband(cx)
+        let primary = if let Some(item) = self.navigation.current().filter(|_| self.project_agent_active()) {
+            div().h_full().min_w_0().flex().items_center().px(px(pero_theme::SPACE_4))
+                .child(self.workspace_content_tab(item, cx)).into_any_element()
         } else { match segment.primary {
             Primary::Address => self.web_toolbar(true, cx).into_any_element(),
             Primary::Tabs => self.main_tabs(cx).into_any_element(),
             _ => div().into_any_element(),
         }};
-        let actions = if self.project_agent_active() { Vec::new() } else { self.titleband_actions(&segment.actions, cx) };
+        let actions = self.titleband_actions(&segment.actions, cx);
         window_drag(
             div()
                 .id("titleband-main")
@@ -451,11 +456,12 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let bg = resources_surface(segment, &self.ui(cx).palette);
-        let toolbar = segment
-            .actions
-            .iter()
-            .any(|action| matches!(action, Action::ResourceToolbar))
-            .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(toolbar_width, cx)));
+        let toolbar = if segment.primary == Primary::Resource(titleband::ResourcePrimary::Project) {
+            Some(keep_click(div().size_full().child(self.project_context_toolbar(cx))).into_any_element())
+        } else {
+            segment.actions.contains(&Action::ResourceToolbar)
+                .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(toolbar_width, cx)))
+        };
         let trailing_actions = self.titleband_actions(&segment.actions, cx);
         window_drag(
             div()
@@ -627,6 +633,7 @@ impl Workbench {
 
 fn resources_surface(segment: &Segment, palette: &pero_theme::Palette) -> Hsla {
     match segment.primary {
+        Primary::Resource(titleband::ResourcePrimary::Project) => palette.bg,
         Primary::Resource(titleband::ResourcePrimary::Files) => palette.surface_muted,
         Primary::Resource(_) => palette.surface,
         _ => palette.bg,

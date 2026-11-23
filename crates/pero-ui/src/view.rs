@@ -419,6 +419,9 @@ impl Render for Workbench {
         if self.sidebar_collapsed {
             layout = layout.hide_sidebar(width, &self.preferences.layout);
         }
+        if self.project_agent_active() && width - layout.sidebar_width < crate::project_agent::PROJECT_SPLIT_MIN {
+            layout.narrow = true;
+        }
         self.layout = layout;
         #[cfg(not(target_family = "wasm"))]
         let app_window_modal = self.native_window_modal(cx);
@@ -443,7 +446,7 @@ impl Render for Workbench {
         let chat_width = layout.chat_width;
         let dock = layout.chat == ChatPlacement::Dock;
         let narrow = layout.narrow;
-        let resources_width = self.claimed_resources_width(cx);
+        let resources_width = self.claimed_resources_width(width, cx);
         let dock_span = if dock {
             (chat_width - resources_width).max(0.)
         } else {

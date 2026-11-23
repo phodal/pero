@@ -117,7 +117,7 @@ impl Workbench {
             .replace_identity(&WorkspaceItem::Project(key), canonical.clone());
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
-        self.project_tab = if project.research_id().is_some() { ProjectTab::Agent } else { ProjectTab::Overview };
+        self.project_tab = project.research_id().map(|id| self.project_agents.right_tab(id)).unwrap_or_default();
         self.cancel_research_editor();
         self.research.choosing = false;
         self.refresh_project_resources(cx);
@@ -146,6 +146,9 @@ impl Workbench {
         self.command(json!({"action":"remote_select","task_id":null}), cx);
         if self.project_agent_active() { self.select_project_conversation(cx); }
         self.sync_follow(cx);
+        if self.project_agent_active() {
+            self.focus_project_composer(window, cx);
+        }
         cx.notify();
     }
 
@@ -295,10 +298,7 @@ impl Workbench {
                     .into_any_element()
             })
             .collect::<Vec<_>>();
-        let editor = self
-            .research
-            .editor
-            .is_some()
+        let editor = self.research.editor.is_some()
             .then(|| self.research_editor(cx));
         let chrome = pero_theme::Chrome::from_app(cx);
         div()
@@ -432,9 +432,10 @@ impl Workbench {
     }
 
     pub(crate) fn select_project_view(&mut self, tab: ProjectTab, cx: &mut Context<Self>) {
-        if matches!(tab, ProjectTab::Overview | ProjectTab::Agent) && self.saved_research_project().is_some() {
-            self.show_project_agents(cx);
-            return;
+        if self.project_agent_active() {
+            if let Some(id) = self.saved_research_project().map(|project| project.id.clone()) {
+                self.project_agents.right_tabs.insert(id, tab);
+            }
         }
         self.project_tab = tab;
         if tab == ProjectTab::Sources {
@@ -445,6 +446,67 @@ impl Workbench {
         cx.notify();
     }
 
+    pub(crate) fn project_view_tabs(&self, research: bool, cx: &mut Context<Self>) -> AnyElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
+        let compact = self.project_agent_active();
+        let third = match self.project_tab {
+            ProjectTab::Sources | ProjectTab::Execution | ProjectTab::Settings => self.project_tab,
+            _ => ProjectTab::Tasks,
+        };
+        div()
+            .id("project-view-tabs")
+            .role(Role::TabList)
+            .aria_label(self.t("project.actions"))
+            .flex()
+            .items_center()
+            .gap_x(px(pero_theme::SPACE_4))
+            .when(compact, |tabs| tabs.flex_1().min_w_0().h_full())
+            .when(!compact, |tabs| {
+                tabs.flex_shrink_0().flex_wrap().border_b(px(0.5)).border_color(p.border)
+            })
+            .children(ProjectTab::ALL.into_iter().enumerate()
+                .filter(|(_, tab)| {
+                    if compact {
+                        matches!(tab, ProjectTab::Overview | ProjectTab::ResearchResources) || *tab == third
+                    } else {
+                        *tab != ProjectTab::ResearchResources || research
+                    }
+                })
+                .map(|(i, tab)| {
+                    let label = self.t(tab.label_key());
+                    Button::new(("project-tab", i))
+                        .role(Role::Tab)
+                        .ghost()
+                        .small()
+                        .when(compact, |tab| tab.min_w_0())
+                        .when(!compact, |tab| tab.flex_shrink_0())
+                        .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
+                        .rounded_none()
+                        .label(if compact { self.t(tab.compact_label_key()) } else { label })
+                        .accessibility_label(label)
+                        .tooltip(label)
+                        .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
+                        .selected(self.project_tab == tab)
+                        .toggled(self.project_tab == tab)
+                        .border_b_2()
+                        .border_color(if self.project_tab == tab { p.action } else { p.text.opacity(0.) })
+                        .on_click(cx.listener(move |this, _, _, cx| this.select_project_view(tab, cx)))
+                }))
+            .into_any_element()
+    }
+
+    pub(crate) fn project_tab_content(&self, narrow: bool, cx: &mut Context<Self>) -> AnyElement {
+        match self.project_tab {
+            ProjectTab::Overview => self.project_overview(self.current_project(cx).as_ref(), cx),
+            ProjectTab::ResearchResources => div().id("project-resource-tab").flex_1().min_h_0()
+                .flex().flex_col().overflow_y_scroll().child(self.research_resources(cx)).into_any_element(),
+            ProjectTab::Tasks => self.project_tasks(narrow, cx).into_any_element(),
+            ProjectTab::Sources => self.project_sources(cx).into_any_element(),
+            ProjectTab::Execution => self.project_execution(cx).into_any_element(),
+            ProjectTab::Settings => self.project_settings(cx).into_any_element(),
+        }
+    }
+
     pub(crate) fn project_workspace(
         &self,
         narrow: bool,
@@ -453,7 +515,6 @@ impl Workbench {
         if self.project_agent_active() {
             return self.project_agent_view(cx);
         }
-        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self.current_project(cx);
         let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some());
         div()
@@ -484,56 +545,10 @@ impl Workbench {
                     ))
                     .child(
                         div()
-                            .mt(px(8.))
-                            .flex()
-                            .gap(px(8.))
-                            .border_b(px(0.5))
-                            .border_color(p.border)
-                            .flex_wrap()
-                            .children(ProjectTab::ALL.into_iter().enumerate()
-                                .filter(|(_, tab)| !matches!(tab, ProjectTab::ResearchResources | ProjectTab::Agent) || is_research)
-                                .map(|(i, tab)| {
-                                Button::new(("project-tab", i))
-                                    .ghost()
-                                    .small()
-                                    .h(px(pero_theme::UiAppearance::global(cx)
-                                        .typography
-                                        .row_height()))
-                                    .rounded_none()
-                                    .label(self.t(tab.label_key()))
-                                    .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
-                                    .toggled(self.project_tab == tab)
-                                    .border_b_2()
-                                    .border_color(p.color(if self.project_tab == tab {
-                                        "action"
-                                    } else {
-                                        "surface"
-                                    }))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.select_project_view(tab, cx);
-                                    }))
-                            })),
+                            .mt(px(8.)).child(self.project_view_tabs(is_research, cx)),
                     ),
             )
-            .when(self.project_tab == ProjectTab::Overview, |el| {
-                el.child(self.project_overview(project.as_ref(), cx))
-            })
-            .when(self.project_tab == ProjectTab::Agent, |el| { el.child(self.project_agent_view(cx)) })
-            .when(self.project_tab == ProjectTab::ResearchResources, |el| {
-                el.child(self.research_resources(cx))
-            })
-            .when(self.project_tab == ProjectTab::Tasks, |el| {
-                el.child(self.project_tasks(narrow, cx))
-            })
-            .when(self.project_tab == ProjectTab::Sources, |el| {
-                el.child(self.project_sources(cx))
-            })
-            .when(self.project_tab == ProjectTab::Execution, |el| {
-                el.child(self.project_execution(cx))
-            })
-            .when(self.project_tab == ProjectTab::Settings, |el| {
-                el.child(self.project_settings(cx))
-            })
+            .child(self.project_tab_content(narrow, cx))
             .into_any_element()
     }
 
@@ -707,8 +722,11 @@ impl Workbench {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let project = self.current_project(cx);
         div()
+            .id("project-settings")
             .flex_1()
             .min_w_0()
+            .min_h_0()
+            .overflow_y_scroll()
             .p(px(pero_theme::WorkbenchStyle::PAGE))
             .flex()
             .flex_col()

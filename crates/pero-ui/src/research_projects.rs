@@ -186,13 +186,14 @@ impl Workbench {
             return;
         }
         let key = format!("research:{}", project.id);
+        let new_project = previous.as_deref() != Some(key.as_str());
         if let Some(previous) = previous {
             self.navigation
                 .replace_identity(&WorkspaceItem::Project(previous), WorkspaceItem::Project(key.clone()));
         }
         self.navigation.open(WorkspaceItem::Project(key.clone()));
-        if close_editor || self.selected_project.as_deref() != Some(key.as_str()) {
-            self.project_tab = ProjectTab::Agent;
+        if self.selected_project.as_deref() != Some(key.as_str()) {
+            self.project_tab = self.project_agents.right_tab(&project.id);
         }
         self.selected_project = Some(key);
         if close_editor {
@@ -207,7 +208,9 @@ impl Workbench {
         self.refresh_project_resources(cx);
         self.refresh_project_agents(cx);
         self.sync_follow(cx);
-        let _ = window;
+        if close_editor && new_project && self.project_agent_active() {
+            self.focus_project_composer(window, cx);
+        }
     }
 
     fn link_research_resource(&mut self, reference: ProjectResourceRef, remove: bool, cx: &mut Context<Self>) {
@@ -378,52 +381,36 @@ impl Workbench {
             .id("project-overview")
             .flex_1()
             .min_h_0()
-            .overflow_y_scroll()
-            .p(px(pero_theme::WorkbenchStyle::PAGE));
-        if self.research.editor.is_some() {
-            return overview.child(self.research_editor(cx)).into_any_element();
+            .flex()
+            .flex_col()
+            .overflow_y_scroll();
+        if self.research.editor.as_ref().is_some() {
+            return overview.p(px(pero_theme::WorkbenchStyle::PAGE))
+                .child(self.research_editor(cx)).into_any_element();
         }
         if let Some(saved) = saved {
             let has_goal = !saved.goal.is_empty();
-            let has_resources = !saved.resources.is_empty();
             return overview.child(
-                div().max_w(px(760.)).flex().flex_col().gap(px(12.))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(self.t("research.goal")))
+                div().flex_shrink_0().px(px(pero_theme::SPACE_16)).pt(px(pero_theme::SPACE_12))
+                    .flex().flex_col().gap(px(pero_theme::SPACE_8))
                     .child(div().whitespace_normal().text_color(if has_goal { p.text } else { p.text_muted })
-                        .child(if has_goal { saved.goal.clone() } else { self.t("research.goal_empty").to_string() }))
-                    .child(
-                        div().flex().flex_wrap().gap(px(8.))
-                            .child(
-                                Button::new("research-edit")
-                                    .when(!has_goal, |button| button.primary())
-                                    .when(has_goal, |button| button.ghost())
-                                    .label(self.t(if has_goal { "research.edit" } else { "research.add_goal" }))
-                                    .disabled(saving)
-                                    .relative().child(self.view_bounds.projects.probe("edit".into()))
-                                    .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
-                            )
-                            .child(
-                                Button::new("research-project-agent")
-                                    .outline().label(self.t("project.agent"))
-                                    .relative().child(self.view_bounds.projects.probe("agent:entry".into()))
-                                    .on_click(cx.listener(|this, _, _, cx| this.show_project_agents(cx))),
-                            )
-                            .child(
-                                Button::new("research-continue")
-                                    .when(has_goal, |button| button.primary())
-                                    .when(!has_goal, |button| button.outline())
-                                    .label(self.t(if has_resources { "research.view_resources" } else { "research.link" }))
-                                    .relative().child(self.view_bounds.projects.probe("research-continue".into()))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.project_tab = ProjectTab::ResearchResources;
-                                        this.research.choosing = !has_resources;
-                                        cx.notify();
-                                    })),
-                            ),
-                    ),
+                        .child(
+                            div().flex().items_center().justify_between()
+                                .text_size(px(pero_theme::TYPE_CAPTION)).text_color(p.text_muted)
+                                .child(self.t("research.goal"))
+                                .child(
+                                    Button::new("project-overview-edit")
+                                        .ghost().small()
+                                        .label(self.t("research.edit"))
+                                        .disabled(saving)
+                                        .relative().child(self.view_bounds.projects.probe("edit".into()))
+                                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
+                                ),
+                        )
+                        .child(if has_goal { saved.goal.clone() } else { self.t("research.goal_empty").to_owned() })),
             ).into_any_element();
         }
-        overview.child(
+        overview.p(px(pero_theme::WorkbenchStyle::PAGE)).child(
             div().flex().flex_col().gap(px(12.))
                 .child(div().font_weight(FontWeight::SEMIBOLD).child(self.t(if workspace.is_some() {
                     "project.workspace"
@@ -440,10 +427,7 @@ impl Workbench {
                                 .primary()
                                 .label(self.t("project.view_tasks"))
                                 .relative().child(self.view_bounds.projects.probe("view-tasks".into()))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.project_tab = ProjectTab::Tasks;
-                                    cx.notify();
-                                })),
+                                .on_click(cx.listener(|this, _, _, cx| this.select_project_view(ProjectTab::Tasks, cx))),
                         )
                         .when(workspace.is_some(), |el| {
                             el.child(
@@ -513,7 +497,7 @@ impl Workbench {
                     )),
             )
             .when_some(
-                self.error.as_ref().filter(|_| self.research.editor.is_none()),
+                self.error.as_ref().filter(|_| self.research.editor.as_ref().is_none()),
                 |el, error| {
                     el.child(
                         div()

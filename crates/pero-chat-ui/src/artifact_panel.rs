@@ -91,6 +91,12 @@ impl ChatPanel {
     }
 
     /// Close the selected conversation's resources while preserving its contents.
+    pub fn resource_pane_open(&self) -> bool {
+        self.active_chat.and_then(|index| self.chats.get(index))
+            .and_then(|chat| self.artifacts.conversations.get(&chat.id))
+            .is_some_and(|state| state.open)
+    }
+
     pub fn close_resource_pane(&mut self, cx: &mut Context<Self>) {
         if let Some(thread) = self
             .active_chat
