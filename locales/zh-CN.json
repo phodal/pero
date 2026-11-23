@@ -771,6 +771,7 @@
   "project.show_more": "展开显示",
   "project.unassigned": "未归属项目",
   "project.workspace_unavailable": "项目目录不可用",
+  "project.cite_result": "引用到主对话",
   "project.delegates": "委派 Agent",
   "project.sidebar_actions": "项目操作",
   "project.change_directory": "更换目录",

@@ -27,6 +27,7 @@ pub(crate) struct ProjectAgentsView {
     errors: BTreeMap<String, String>,
     selected_threads: BTreeMap<String, String>,
     pub(crate) right_tabs: BTreeMap<String, ProjectTab>,
+    delegate_roster: Option<String>,
     context_open: bool,
     wide_context_hidden: bool,
 }
@@ -390,12 +391,9 @@ impl Workbench {
         let role = binding.filter(|binding| binding.parent_thread.is_some())
             .map(|binding| binding.label.clone())
             .unwrap_or_else(|| self.t("project.agent.primary").to_owned());
-        let delegates: Vec<_> = chat.chats.iter().filter_map(|chat| {
-            let binding = chat.project_agent.as_ref()?;
-            (binding.project_id == project_id && binding.parent_thread.is_some())
-                .then(|| (chat.id.clone(), binding.label.clone()))
-        }).collect();
-        let owner = cx.entity().downgrade();
+        let delegates = chat.chats.iter().filter(|chat| chat.project_agent.as_ref()
+            .is_some_and(|binding| binding.project_id == project_id && binding.parent_thread.is_some())).count();
+        let roster_open = self.project_agents.delegate_roster.as_ref() == Some(&project_id);
         let inspector_visible = self.project_inspector_visible(cx);
         let chrome = pero_theme::Chrome::from_app(cx);
         div()
@@ -420,20 +418,16 @@ impl Workbench {
                     .font_weight(FontWeight::MEDIUM)
                     .child(role),
             )
-            .when(!delegates.is_empty(), |el| {
+            .when(delegates > 0, |el| {
+                let id = project_id.clone();
                 el.child(Button::new("project-delegates").ghost().small()
-                    .label(format!("{} · {}", self.t("project.delegates"), delegates.len()))
+                    .label(format!("{} · {}", self.t("project.delegates"), delegates))
+                    .toggled(roster_open)
                     .relative().child(self.view_bounds.projects.probe("agent:delegates".into()))
-                    .dropdown_menu(move |mut menu, _, _| {
-                        for (thread, label) in &delegates {
-                            let thread = thread.clone();
-                            let owner = owner.clone();
-                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(move |_, _, cx| {
-                                let _ = owner.update(cx, |this, cx| this.open_project_agent_session(&thread, cx));
-                            }));
-                        }
-                        menu
-                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.project_agents.delegate_roster = (!roster_open).then(|| id.clone());
+                        cx.notify();
+                    })))
             })
             .when_some(primary_thread, |el, thread| {
                 el.child(
@@ -504,6 +498,61 @@ impl Workbench {
                 )
             })
             .into_any_element()
+    }
+
+    fn delegate_roster(&self, project: &str, cx: &mut Context<Self>) -> AnyElement {
+        let chat = self.chat.read(cx);
+        let snapshot = self.project_agents.snapshot_for(project);
+        let rows = chat.chats.iter().filter_map(|session| {
+            let binding = session.project_agent.as_ref()?;
+            if binding.project_id != project || binding.parent_thread.is_none() { return None; }
+            Some((session.id.clone(), binding.label.clone(),
+                snapshot.and_then(|state| state.sessions.iter().find(|s| s.thread_id == session.id))
+                    .is_some_and(|s| !s.result.is_empty())))
+        }).collect::<Vec<_>>();
+        div().id("delegate-roster").max_h(px(180.)).overflow_y_scroll().px(px(12.))
+            .children(rows.into_iter().enumerate().map(|(index, (thread, label, has_result))| {
+                let open = thread.clone();
+                div().flex().items_center().justify_between().child(
+                    Button::new(("open-delegate", index)).ghost().small().label(label)
+                        .relative().child(self.view_bounds.projects.probe(format!("delegate:open:{thread}")))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.project_agents.delegate_roster = None;
+                            this.open_project_agent_session(&open, cx);
+                        }))
+                ).when(has_result, |el| el.child(
+                    Button::new(("cite-delegate", index)).ghost().small().label(self.t("project.cite_result"))
+                        .relative().child(self.view_bounds.projects.probe(format!("delegate:cite:{thread}")))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.cite_delegate_result(&thread, window, cx);
+                        }))
+                ))
+            })).into_any_element()
+    }
+
+    fn cite_delegate_result(&mut self, thread: &str, window: &mut Window, cx: &mut Context<Self>) {
+        use pero_contracts::context::{ContextContent, ContextKind, ContextReference};
+        let Some(project) = self.saved_research_project() else { return };
+        let Some(snapshot) = self.project_agents.snapshot_for(&project.id) else { return };
+        let Some(primary) = snapshot.sessions.iter().find(|session| session.binding.parent_thread.is_none())
+            .map(|session| session.thread_id.clone()) else { return };
+        let Some(child) = snapshot.sessions.iter().find(|session| session.thread_id == thread) else { return };
+        let reference = ContextReference {
+            id: format!("project-result:{thread}:{}", self.next_request),
+            kind: ContextKind::Selection,
+            label: child.binding.label.clone(),
+            source: format!("session:{thread}"),
+            content: ContextContent::Text { text: child.result.clone() },
+        };
+        self.next_request += 1;
+        self.open_project_agent_session(&primary, cx);
+        self.project_agents.delegate_roster = None;
+        self.chat.update(cx, |chat, cx| {
+            if chat.active_chat.is_some_and(|index| chat.chats[index].id == primary) {
+                chat.compose_with_context(String::new(), vec![reference], cx);
+            }
+        });
+        self.focus_project_composer(window, cx);
     }
 
     pub(crate) fn project_context_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -611,6 +660,7 @@ impl Workbench {
                         }))))
             })
             .child(self.project_conversation_toolbar(cx))
+            .when(self.project_agents.delegate_roster.as_ref() == Some(&id), |el| el.child(self.delegate_roster(&id, cx)))
             .when_some(error, |el, error| {
                 el.child(
                     div()

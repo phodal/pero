@@ -771,6 +771,7 @@
   "project.show_more": "Show more",
   "project.unassigned": "Unassigned",
   "project.workspace_unavailable": "Directory unavailable",
+  "project.cite_result": "Add result to main chat",
   "project.delegates": "Agents",
   "project.sidebar_actions": "Project actions",
   "project.change_directory": "Change directory",
