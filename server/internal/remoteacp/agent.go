@@ -23,6 +23,7 @@ type AgentConfig struct {
 	Channel                                             Channel
 	TokenFile, Workspace, Executable, Model, SessionDir string
 	Args                                                []string
+	BrowserUse                                          bool
 }
 
 func (c AgentConfig) validate() error {
@@ -93,7 +94,14 @@ func Connect(ctx context.Context, c AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	proxy := &http.Server{Handler: providerProxy(c, client), ReadHeaderTimeout: 5 * time.Second}
+	mux := http.NewServeMux()
+	mux.Handle("/v1/chat/completions", providerProxy(c, client))
+	if c.BrowserUse {
+		mux.HandleFunc("POST /browser/call", func(w http.ResponseWriter, r *http.Request) {
+			proxyBrowser(c, client, w, r)
+		})
+	}
+	proxy := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go proxy.Serve(listener)
 	defer proxy.Close()
 	args := []string{"--endpoint", "http://" + listener.Addr().String() + "/v1", "--api-key-env", "PERO_ISOLATED_PROVIDER_KEY", "--workspace", c.Workspace, "--model", c.Model, "--session-dir", c.SessionDir, "--approval", "ask"}
@@ -101,6 +109,9 @@ func Connect(ctx context.Context, c AgentConfig) error {
 	command := exec.Command(c.Executable, args...)
 	command.Dir = c.Workspace
 	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "LANG=C.UTF-8", "PERO_ISOLATED_PROVIDER_KEY=local-nonsecret"}
+	if c.BrowserUse {
+		command.Env = append(command.Env, "PERO_ISOLATED_BROWSER_USE=1")
+	}
 	command.Stderr = io.Discard // Hostile stderr cannot expose credentials in supervisor logs.
 	stop, err := isolateChild(command)
 	if err != nil {

@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "remoteacp",
-    srcs = ["channel.go", "agent.go", "process_unix.go", "process_other.go"],
+    srcs = ["channel.go", "agent.go", "browser.go", "process_unix.go", "process_other.go"],
     importpath = "github.com/phodal/pero/server/internal/remoteacp",
     visibility = ["//server:__subpackages__"],
     deps = ["//server/internal/runtimechannel"],

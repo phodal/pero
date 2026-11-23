@@ -266,6 +266,11 @@ func run() (resultErr error) {
 		}
 		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), science.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
+	if os.Getenv("PERO_ISOLATED_BROWSER_USE") == "1" {
+		if err := mountCloudBrowser(ctx, h, *endpoint); err != nil {
+			return err
+		}
+	}
 	if paperResearch != nil {
 		if err := mountPaperResearch(ctx, h, *paperResearch); err != nil {
 			return err

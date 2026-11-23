@@ -22,6 +22,7 @@ func main() {
 	flag.StringVar(&c.Executable, "agent", c.Executable, "operator-fixed executable")
 	flag.StringVar(&c.Model, "model", c.Model, "fixed provider model")
 	flag.StringVar(&c.SessionDir, "session-dir", c.SessionDir, "private Agent session directory")
+	flag.BoolVar(&c.BrowserUse, "browser-use", os.Getenv("PERO_AGENT_BROWSER_USE") == "1", "enable scoped Cloud Browser Use")
 	flag.Parse()
 	c.Args = flag.Args()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
