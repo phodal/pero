@@ -314,3 +314,18 @@ workspace had no remaining download staging directories.
 This verification covers the Electron Workbench development build with a
 fixture Agent. Native Wry, remote Worker, external Chrome/Relay, a real model
 provider and packaged builds remain outside this implementation or verification.
+
+## Installed Native and daily Chrome sidebar, 2026-11-23
+
+The installed macOS app paired from Settings with the Phodal profile in Google
+Chrome 157 and Pero Browser Use 0.3.0. The sidebar sent a multiplication prompt
+to the selected Codex conversation. The account rejected its configured
+6.2 Astra model. Selecting 5.6 Sol in that conversation and sending a new
+prompt produced the assistant response `日常浏览器2747` for 41 × 67.
+
+Collector read one explicitly approved loopback page. Native opened
+`Collected page.md` v1 in that conversation's Artifacts and displayed the
+original URL, `Amber observatory sample 739.`, and the reason entered in
+Chrome. Disconnecting in Native returned the sidebar to the pairing prompt.
+This run used the installed app with ephemeral Native secret storage and the
+real Codex adapter. Local screenshots are in `test-results/chrome-sidebar/`.
