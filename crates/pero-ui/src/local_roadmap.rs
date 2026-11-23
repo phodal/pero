@@ -1,7 +1,12 @@
 use crate::app::Workbench;
 use crate::workspace::{ConversationTab, WorkbenchPage};
 use gpui_kit::{
-    component::{button::*, input::Input, *},
+    component::{
+        button::*,
+        input::Input,
+        menu::{DropdownMenu, PopupMenuItem},
+        *,
+    },
     prelude::*,
     *,
 };
@@ -45,14 +50,27 @@ impl Workbench {
     }
 
     pub(crate) fn project_tasks(&self, narrow: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        if self.current_project(cx).is_some_and(|project| project.research_id().is_some() && project.workspace.is_none() && project.shared_id.is_none()) {
-            return div().flex_1().p(px(12.)).flex().flex_col().gap(px(12.))
+        if self.current_project(cx).is_some_and(|project| {
+            project.research_id().is_some()
+                && project.workspace.is_none()
+                && project.shared_id.is_none()
+        }) {
+            return div()
+                .flex_1()
+                .p(px(12.))
+                .flex()
+                .flex_col()
+                .gap(px(12.))
                 .child(self.t("research.directory_needed"))
-                .child(Button::new("research-add-directory").outline().label(self.t("research.edit"))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.select_project_view(crate::projects::ProjectTab::Overview, cx);
-                        this.edit_research_project(false, window, cx);
-                    })));
+                .child(
+                    Button::new("research-add-directory")
+                        .outline()
+                        .label(self.t("research.edit"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.select_project_view(crate::projects::ProjectTab::Overview, cx);
+                            this.edit_research_project(false, window, cx);
+                        })),
+                );
         }
         let local = self
             .current_project(cx)
@@ -63,27 +81,60 @@ impl Workbench {
             .flex()
             .flex_col()
             .when(local, |el| {
+                let sources = [self.t("roadmap.local"), self.t("roadmap.cloud")];
+                let cloud = self.local_roadmap.show_cloud;
+                let owner = cx.weak_entity();
                 el.child(
-                    div().px(px(24.)).pt(px(8.)).pb(px(4.)).flex().child(
-                        ButtonGroup::new("task-location")
-                            .outline()
-                            .small()
-                            .child(
-                                Button::new(("task-location", 0usize))
-                                    .label(self.t("roadmap.local"))
-                                    .selected(!self.local_roadmap.show_cloud),
+                    div()
+                        .px(px(12.))
+                        .py(px(6.))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            Button::new("task-location")
+                                .ghost()
+                                .small()
+                                .label(sources[usize::from(cloud)])
+                                .dropdown_caret(true)
+                                .dropdown_menu_with_anchor(
+                                    Anchor::BottomLeft,
+                                    move |menu, _, _| {
+                                        sources.into_iter().enumerate().fold(
+                                            menu,
+                                            |menu, (index, label)| {
+                                                let owner = owner.clone();
+                                                menu.item(
+                                                    PopupMenuItem::new(label)
+                                                        .checked((index == 1) == cloud)
+                                                        .on_click(move |_, _, cx| {
+                                                            let _ = owner.update(cx, |this, cx| {
+                                                                this.local_roadmap.show_cloud =
+                                                                    index == 1;
+                                                                cx.notify();
+                                                            });
+                                                        }),
+                                                )
+                                            },
+                                        )
+                                    },
+                                ),
+                        )
+                        .when(!cloud, |el| {
+                            el.child(
+                                Button::new("local-roadmap-refresh")
+                                    .ghost()
+                                    .small()
+                                    .icon(Icon::default().path("icons/refresh.svg"))
+                                    .tooltip(self.t("remote.refresh"))
+                                    .accessibility_label(self.t("remote.refresh"))
+                                    .disabled(self.local_roadmap.loading || !self.connected)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.local_roadmap.loading = true;
+                                        this.command(json!({"action":"load_roadmap"}), cx);
+                                    })),
                             )
-                            .child(
-                                Button::new(("task-location", 1usize))
-                                    .label(self.t("roadmap.cloud"))
-                                    .selected(self.local_roadmap.show_cloud),
-                            )
-                            .on_click(cx.listener(|this, selected: &Vec<usize>, _, cx| {
-                                this.local_roadmap.show_cloud =
-                                    selected.first().copied() == Some(1);
-                                cx.notify();
-                            })),
-                    ),
+                        }),
                 )
             })
             .when(local && !self.local_roadmap.show_cloud, |el| {
@@ -197,44 +248,19 @@ impl Workbench {
             .min_h_0()
             .flex()
             .flex_col()
-            .child(
-                div()
-                    .px(px(24.))
-                    .py(px(10.))
-                    .flex()
-                    .items_center()
-                    .gap(px(8.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(
-                                pero_theme::UiAppearance::global(cx)
-                                    .text(pero_theme::TextRole::Caption),
-                            )
-                            .text_color(p.text_muted)
-                            .child(if loading {
-                                self.t("roadmap.loading").into()
-                            } else {
-                                data.map(|data| data.path.clone()).unwrap_or_default()
-                            }),
-                    )
-                    .child(
-                        Button::new("local-roadmap-refresh")
-                            .ghost()
-                            .small()
-                            .label(self.t("remote.refresh"))
-                            .disabled(self.local_roadmap.loading || !self.connected)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.local_roadmap.loading = true;
-                                this.command(json!({"action":"load_roadmap"}), cx);
-                            })),
-                    ),
-            )
+            .when(loading, |el| {
+                el.child(
+                    div()
+                        .px(px(12.))
+                        .text_color(p.text_muted)
+                        .child(self.t("roadmap.loading")),
+                )
+            })
             .when(data.and_then(|data| data.error.as_ref()).is_some(), |el| {
                 el.child(
                     div()
                         .id("local-roadmap-error")
-                        .px(px(24.))
+                        .px(px(12.))
                         .py(px(16.))
                         .role(Role::Alert)
                         .whitespace_normal()
@@ -250,16 +276,19 @@ impl Workbench {
                 |el| {
                     el.child(
                         div()
-                            .px(px(24.))
+                            .px(px(12.))
                             .pb(px(12.))
                             .flex()
                             .items_center()
                             .gap(px(8.))
                             .child(
                                 div().flex_1().min_w_0().child(
-                                    Input::new(&self.remote.search)
-                                        .prefix(self.icon("search"))
-                                        .w_full(),
+                                    pero_theme::search_field(
+                                        Input::new(&self.remote.search),
+                                        pero_theme::Chrome::from_app(cx),
+                                    )
+                                    .prefix(self.icon("search"))
+                                    .w_full(),
                                 ),
                             )
                             .child(
@@ -282,7 +311,7 @@ impl Workbench {
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
-                            .px(px(24.))
+                            .px(px(12.))
                             .when(visible.is_empty(), |el| {
                                 el.child(
                                     div()
@@ -318,7 +347,7 @@ impl Workbench {
                         .flex_1()
                         .min_h_0()
                         .overflow_y_scroll()
-                        .px(px(24.))
+                        .px(px(12.))
                         .py(px(12.))
                         .child(
                             Button::new("local-roadmap-back")
@@ -350,7 +379,12 @@ impl Workbench {
                                 )
                                 .text_color(p.text_muted)
                                 .whitespace_normal()
-                                .child(format!("{} · L{}", item.headings.join(" / "), item.line)),
+                                .child(format!(
+                                    "{} · {} · L{}",
+                                    data.unwrap().path,
+                                    item.headings.join(" / "),
+                                    item.line
+                                )),
                         )
                         .child(
                             div()
@@ -450,8 +484,10 @@ impl Workbench {
                 if !section.is_empty() {
                     rows.push(
                         div()
-                            .pt(px(10.))
-                            .pb(px(2.))
+                            .pt(px(12.))
+                            .px(px(6.))
+                            .pb(px(4.))
+                            .font_weight(FontWeight::SEMIBOLD)
                             .text_size(caption)
                             .text_color(p.text_muted)
                             .child(section.clone())
@@ -460,18 +496,17 @@ impl Workbench {
                 }
             }
             let line = item.line;
-            let title = format!("{}{}", if item.checked { "✓ " } else { "" }, item.title);
+            let title = format!("{}{}", if item.checked { "✓  " } else { "○  " }, item.title);
             rows.push(
                 div()
-                    .border_b_1()
-                    .border_color(p.border)
                     .child(
                         Button::new(("local-roadmap-item", line))
                             .ghost()
                             .w_full()
                             .h_auto()
-                            .min_h(px(36.))
+                            .min_h(px(30.))
                             .justify_start()
+                            .tooltip(format!("{} · L{line}", item.title))
                             .accessibility_label(item.title.clone())
                             .child(
                                 div()
@@ -481,12 +516,13 @@ impl Workbench {
                                     .items_center()
                                     .gap(px(8.))
                                     .pl(px(if item.parent_line.is_some() { 16. } else { 0. }))
-                                    .child(div().flex_1().min_w_0().truncate().child(title))
                                     .child(
                                         div()
-                                            .text_size(caption)
-                                            .text_color(p.text_muted)
-                                            .child(format!("L{line}")),
+                                            .flex_1()
+                                            .min_w_0()
+                                            .whitespace_normal()
+                                            .when(item.checked, |el| el.text_color(p.text_muted))
+                                            .child(title),
                                     ),
                             )
                             .on_click(cx.listener(move |this, _, _, cx| {
