@@ -68,7 +68,11 @@ impl Workbench {
                         .label(self.t("research.edit"))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.select_project_view(crate::projects::ProjectTab::Overview, cx);
-                            this.edit_research_project(crate::research_projects::ProjectEdit::Details, window, cx);
+                            this.edit_research_project(
+                                crate::research_projects::ProjectEdit::Details,
+                                window,
+                                cx,
+                            );
                         })),
                 );
         }
@@ -90,7 +94,25 @@ impl Workbench {
                         .py(px(6.))
                         .flex()
                         .items_center()
-                        .justify_between()
+                        .gap(px(4.))
+                        .when(!cloud && self.local_roadmap.selected_line.is_some(), |el| {
+                            el.child(
+                                pero_theme::ghost_icon_button(
+                                    "local-roadmap-back",
+                                    pero_theme::Chrome::from_app(cx),
+                                    cx,
+                                )
+                                .icon(Icon::default().path("icons/arrow-left.svg"))
+                                .accessibility_label(self.t("project.back_tasks"))
+                                .tooltip(self.t("project.back_tasks"))
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.local_roadmap.selected_line = None;
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                        })
                         .child(
                             Button::new("task-location")
                                 .ghost()
@@ -120,6 +142,7 @@ impl Workbench {
                                     },
                                 ),
                         )
+                        .child(div().flex_1())
                         .when(!cloud, |el| {
                             el.child(
                                 Button::new("local-roadmap-refresh")
@@ -341,57 +364,24 @@ impl Workbench {
                             .find(|chat| chat.id == session.thread_id)
                             .map(|chat| chat.state.as_str().to_owned())
                     });
+                let chrome = pero_theme::Chrome::from_app(cx);
+                let (description, acceptance) = item.detail_text();
+                let agent_label = agents.get(agent_index).map(|agent| agent.name.clone())
+                    .unwrap_or_else(|| self.t("field.agent").to_owned());
                 el.child(
-                    div()
-                        .id("local-roadmap-detail")
-                        .flex_1()
-                        .min_h_0()
-                        .overflow_y_scroll()
-                        .px(px(12.))
-                        .py(px(12.))
-                        .child(
-                            Button::new("local-roadmap-back")
-                                .ghost()
-                                .small()
-                                .label(self.t("project.back_tasks"))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.local_roadmap.selected_line = None;
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            div()
-                                .mt(px(16.))
-                                .text_size(
-                                    pero_theme::UiAppearance::global(cx)
-                                        .text(pero_theme::TextRole::Title),
-                                )
-                                .font_weight(FontWeight::BOLD)
-                                .whitespace_normal()
-                                .child(item.title.clone()),
-                        )
-                        .child(
-                            div()
-                                .mt(px(8.))
-                                .text_size(
-                                    pero_theme::UiAppearance::global(cx)
-                                        .text(pero_theme::TextRole::Caption),
-                                )
-                                .text_color(p.text_muted)
-                                .whitespace_normal()
-                                .child(format!(
-                                    "{} · {} · L{}",
-                                    data.unwrap().path,
-                                    item.headings.join(" / "),
-                                    item.line
-                                )),
-                        )
-                        .child(
-                            div()
-                                .mt(px(16.))
-                                .whitespace_normal()
-                                .child(item.text.clone()),
-                        )
+                    div().id("local-roadmap-detail").flex_1().min_h_0().overflow_y_scroll()
+                        .p(chrome.geo(pero_theme::SPACE_16))
+                        .child(div().text_size(chrome.text(pero_theme::TYPE_HEADING))
+                            .font_weight(FontWeight::SEMIBOLD).whitespace_normal().child(item.title.clone()))
+                        .when(!description.is_empty(), |el| el.child(div().mt(px(8.))
+                            .whitespace_normal().child(description.to_owned())))
+                        .when_some(acceptance, |el, criterion| el.child(div().mt(px(16.))
+                            .child(div().text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(p.text_muted)
+                                .child(self.t("remote.acceptance")))
+                            .child(div().mt(px(4.)).whitespace_normal().child(criterion.to_owned()))))
+                        .child(div().mt(px(12.)).text_size(chrome.text(pero_theme::TYPE_CAPTION))
+                            .text_color(p.text_muted).whitespace_normal()
+                            .child(format!("{}:{}  ·  {}", data.unwrap().path, item.line, item.headings.join(" / "))))
                         .when(item.checked, |el| {
                             el.child(
                                 div()
@@ -407,19 +397,28 @@ impl Workbench {
                                     .flex()
                                     .flex_wrap()
                                     .gap(px(8.))
-                                    .children(agents.iter().enumerate().map(|(i, agent)| {
-                                        Button::new(("roadmap-agent", i))
-                                            .ghost()
-                                            .small()
-                                            .label(agent.name.clone())
-                                            .toggled(agent_index == i)
-                                            .disabled(!agent.available || session.is_some())
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                this.chat
-                                                    .update(cx, |chat, _| chat.agent_index = i);
-                                                cx.notify();
-                                            }))
-                                    }))
+                                    .items_center()
+                                    .when(session.is_none(), |el| {
+                                        let owner = cx.weak_entity();
+                                        let options = agents.iter().map(|agent| (agent.name.clone(), agent.available)).collect::<Vec<_>>();
+                                        el.child(div().text_size(chrome.text(pero_theme::TYPE_CAPTION)).text_color(p.text_muted)
+                                            .child(self.t("field.agent")))
+                                            .child(Button::new("roadmap-agent").ghost().small().label(agent_label)
+                                                .dropdown_caret(true)
+                                                .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
+                                                    options.iter().enumerate().fold(menu, |menu, (index, (name, available))| {
+                                                        let owner = owner.clone();
+                                                        menu.item(PopupMenuItem::new(name.clone()).checked(index == agent_index)
+                                                            .disabled(!available).on_click(move |_, _, cx| {
+                                                                let _ = owner.update(cx, |this, cx| {
+                                                                    this.chat.update(cx, |chat, _| chat.agent_index = index);
+                                                                    cx.notify();
+                                                                });
+                                                            }))
+                                                    })
+                                                }))
+                                    })
+                                    .child(div().flex_1())
                                     .child(
                                         Button::new("local-roadmap-start")
                                             .primary()

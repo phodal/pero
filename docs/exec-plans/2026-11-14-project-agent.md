@@ -355,3 +355,8 @@ Overview edits the research goal as Markdown with a source editor and draft
 preview. Saved goals use the same Markdown renderer. Project Settings owns
 name and directory editing. Goal-only saves keep the current project metadata
 and use the existing local research project persistence path.
+
+Local task details place Back in the source toolbar. The inspector shows the
+task title, description, explicit acceptance clause and source location before
+the execution controls. A single Agent picker keeps unavailable options
+disabled. A task with an existing session opens its conversation directly.
