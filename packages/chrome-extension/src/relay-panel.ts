@@ -105,4 +105,17 @@ chrome.tabs.onUpdated.addListener((_tabId, change, tab) => {
     void render();
   }
 });
-void render();
+const handoff = new URLSearchParams(location.hash.slice(1)).get('pair');
+if (handoff) {
+  history.replaceState(null, '', location.pathname);
+  void action(async () => {
+    // Restore the previous active tab in the browser window for tab review.
+    const currentTab = await chrome.tabs.getCurrent();
+    if (currentTab?.id) {
+      await chrome.windows.create({ tabId: currentTab.id, type: 'popup', width: 460, height: 440 });
+    }
+    await render(await request({ type: 'pair', code: handoff }));
+  });
+} else {
+  void render();
+}

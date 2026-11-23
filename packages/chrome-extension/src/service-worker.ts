@@ -14,6 +14,8 @@ type Peer = { socket: WebSocket; state: 'connecting' | 'paired' | 'authorizing' 
   lastPong: number; lastId: number; busy: boolean; review?: Review; claims: Map<number, Claim>; opened: Map<number, string>;
   authorizing?: string; opening?: number };
 
+void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
 let peer: Peer | undefined;
 let failure: string | undefined;
 
@@ -251,7 +253,7 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('relay.html')) return false;
+  if (sender.id !== chrome.runtime.id || sender.url?.split('#', 1)[0] !== chrome.runtime.getURL('relay.html')) return false;
   const handle = async () => {
     if (message.type === 'status') return status();
     if (message.type === 'pair') { connect(message.code); return status(); }

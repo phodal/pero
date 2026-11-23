@@ -129,8 +129,8 @@ Read the six-character code visually from the first cell's browser screenshot. I
         code = await readFile(pairing, 'utf8').catch(() => '');
         return code.length;
       }, { timeout: 25_000 }).toBeGreaterThan(0);
-      await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(code);
-      await panel.getByRole('button', { name: 'Pair with Pero' }).click();
+      await panel.goto('about:blank');
+      await panel.goto(worker.url().replace(/\/service-worker\.js$/, '/relay.html#') + new URLSearchParams({ pair: code }));
       await expect(panel.locator('#status')).toContainText('Paired · awaiting tab approval');
       await panel.getByRole('combobox', { name: 'Chrome tab' }).selectOption({ label: 'Native REPL fixture · ' + new URL(url).origin });
       await panel.getByRole('button', { name: 'Review tab' }).click();

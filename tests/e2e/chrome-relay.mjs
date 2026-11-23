@@ -155,8 +155,9 @@ try {
       code = await app.evaluate(({ clipboard }) => clipboard.readText());
       try { return JSON.parse(code).protocol; } catch { return null; }
     }).toBe('pero-browser-connector/2');
-    await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(code);
-    await panel.getByRole('button', { name: 'Pair with Pero' }).click();
+    // Exercise the Native deep link with a real one-time ticket from the Host.
+    await panel.goto('about:blank');
+    await panel.goto(extensionOrigin + '/relay.html#' + new URLSearchParams({ pair: code }));
     await expect(status).toContainText('Paired · awaiting tab approval');
     return code;
   };
@@ -304,6 +305,7 @@ try {
     await expect.poll(extensionAttached).toBe(false);
     assert.equal(target.isClosed(), false);
     await expect(target.getByTestId('result')).toBeVisible();
+    if (!await panel.locator('#code').isVisible()) await panel.getByText('Enter a pairing code manually').click();
     await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(oneTimeCode);
     await panel.getByRole('button', { name: 'Pair with Pero' }).click();
     await expect(panel.locator('#error')).toContainText('pairing code');
