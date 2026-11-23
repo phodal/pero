@@ -493,12 +493,14 @@ real Codex adapter. Local screenshots are in `test-results/chrome-sidebar/`.
 
 ## Project sources from Chrome Collector
 
-Chrome Collector can save reviewed page text or a selection to a saved local
+Chrome Collector can save reviewed page text or a selection to a local or shared
 Project. Choose the destination in **Save to** before saving. The Project's
 **Materials → Web sources** section opens the excerpt, collection reason and
-research question independently of the paired conversation. The current
-profile owns the source and its receipt. The receipt identifies the Project
-and the reviewed capture; retrying the same input returns the same record.
+research question independently of the paired conversation. Local captures
+stay in the current profile. Choose **Shared Project** to store the reviewed
+capture in Cloud for members of that Project. The destination is bound to the
+selected Cloud service and account. Retrying an identical capture in the same
+Project returns its original receipt.
 
 `node tests/e2e/chrome-sidebar.mjs` uses a headed Chromium extension, the
 actual Relay and Rust Host, and a deterministic paired conversation.
@@ -509,5 +511,21 @@ Host restart. An identical retry returned the same receipt, while changed
 content under that capture ID and access from a second Project were refused.
 A separate running macOS Native development build opened a source seeded by
 the same Host command and displayed its URL, edited text, reason and question.
-The Chrome test uses a loopback page. Signed installation and shared Project
-synchronization were outside these checks.
+
+The optional `TestSharedWebSourcesNativeChromeToMaterials` test uses two
+independent macOS Native profiles with separate client identities, headed
+Chromium, and the real Cloud API backed by PostgreSQL. It saves a Unicode
+selection through Collector and reads the same capture and digest through the
+second profile's Materials view. The companion API test verifies that another
+Project cannot read the capture and that an edited retry is rejected. The test
+uses a loopback source page and a development build. Signed installations and a
+hosted Cloud deployment still need acceptance.
+
+Build Native with `--features native-probe`, the connector helpers and the
+Chrome extension, then run the tests from the repo root with
+`PERO_TEST_DATABASE_URL` set to a test database.
+
+```sh
+PERO_TEST_SHARED_SOURCES_NATIVE="$PWD/tests/e2e/native-shared-project-sources.mjs" \
+  go -C server test -race ./internal/httpapi -run '^TestSharedWebSources' -v
+```
