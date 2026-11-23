@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { AppInputs } from '../app-inputs.ts';
 import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { BrowserPopupResult, BrowserUsePort } from './browser-use.ts';
+import type { BrowserDialog, BrowserDialogAnswer } from './dialog.ts';
 import { documentScript, type DocumentCommand, type DocumentResult } from './document.ts';
 import { browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserRequest, type BrowserRequest, type FrameSelector } from './request.ts';
@@ -16,7 +17,8 @@ export const nativeActions = [
   'tabs', 'open', 'activate', 'closeTab', 'back', 'forward', 'reload', 'scroll', 'screenshot', 'status', 'files', 'observe', 'locate', 'wait', 'click', 'dblclick', 'hover',
   'fill', 'press', 'typeSequentially', 'scrollIntoView', 'setChecked', 'selectOption', 'upload', 'download', 'navigate',
 ] as const;
-type WorkbenchAction = typeof nativeActions[number];
+export const chromeActions = [...nativeActions, 'getJsDialog', 'handleJsDialog'] as const;
+type WorkbenchAction = typeof chromeActions[number];
 type WorkbenchRequest = Extract<BrowserRequest, { action: WorkbenchAction }>;
 
 export type DriverTab = {
@@ -24,7 +26,8 @@ export type DriverTab = {
   stamp: string | null; grantId: string; loadError: string | null;
 };
 type HistoryAction = 'back' | 'forward' | 'reload';
-export type TabAction = { kind: 'open'; url: string } | { kind: 'activate' } | { kind: 'close' };
+export type TabAction = { kind: 'open'; url: string } | { kind: 'activate' } | { kind: 'close' }
+  | { kind: 'getJsDialog' } | ({ kind: 'handleJsDialog' } & BrowserDialogAnswer);
 type ScreenshotClip = Extract<BrowserRequest, { action: 'screenshot' }>['clip'];
 type Observed = { thread: string; id: string; stamp: string; url: string; frame?: FrameSelector[]; frameUrl?: string };
 export type DriverInput =
@@ -46,8 +49,6 @@ export type DriverRequest =
   | { op: 'revoke'; thread?: string }
   | { op: 'manage'; thread: string; tab: string; grant: string; command: TabAction }
   | { op: 'run'; thread: string; tab: string; stamp: string; operation: DriverOperation };
-
-export const chromeActions: readonly WorkbenchAction[] = nativeActions;
 
 export class NativeBrowserUse implements BrowserUsePort {
   readonly tool: BrowserUsePort['tool'];
@@ -144,6 +145,30 @@ export class NativeBrowserUse implements BrowserUsePort {
           : { kind: request.action === 'activate' ? 'activate' : 'close' };
         if (action.kind === 'close') this.observations.delete(tabId);
         return await this.rpc<Record<string, unknown>>({ op: 'manage', thread, tab: tabId, grant: grantId, command: action });
+      }
+      if (request.action === 'getJsDialog') {
+        const dialog = await this.rpc<BrowserDialog | null>({ op: 'manage', thread, tab: tabId, grant: grantId,
+          command: { kind: 'getJsDialog' } });
+        return { kind: 'jsDialog', tabId, dialog };
+      }
+      if (request.action === 'handleJsDialog') {
+        this.observations.delete(tabId);
+        const { dialogId, decision, promptText } = request;
+        const { id, entry, record } = await startBrowserReceipt(this.evidenceRoot, {
+          thread, tabId, grantId, url, origin, action: request.action,
+        });
+        await record('.intent', { ...entry, dialogId, decision });
+        signal.throwIfAborted();
+        let effect: { outcome: 'dispatched' | 'rejected' | 'unknown'; reason?: string };
+        try {
+          const result = await this.rpc<{ rejected: string } | null>({ op: 'manage', thread, tab: tabId, grant: grantId,
+            command: { kind: 'handleJsDialog', dialogId, decision, promptText } });
+          effect = result ? { outcome: 'rejected', reason: result.rejected } : { outcome: 'dispatched' };
+        } catch (error) {
+          effect = { outcome: 'unknown', reason: error instanceof Error ? error.message : String(error) };
+        }
+        await record('.result', { id, dialogId, decision, ...effect });
+        return { receiptId: id, dialogId, decision, ...effect, verified: false };
       }
       if (!stamp) throw new Error('Activate the selected tab and wait for the page to finish loading.');
       const run = async <T>(operation: DriverOperation) => {

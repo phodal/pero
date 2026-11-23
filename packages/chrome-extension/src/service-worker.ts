@@ -4,12 +4,14 @@ import { parseRelayPairing, webOrigin, MAX_FRAME, MAX_TRANSFER_BYTES, RELAY_PATH
 import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../../../desktop/src/main/browser-use/input.ts';
 import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
 import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
+import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 
 import { readVisiblePage } from './collector-capture.js';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
-type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void> };
+type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>;
+  dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
 type Command = { kind: 'inspect' } | { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
@@ -80,7 +82,14 @@ async function snapshot(connection: Peer, handle: TabHandle) {
 
 async function debuggerFor(connection: Peer, handle: TabHandle) {
   const target = { tabId: handle.tabId };
-  const attachment = handle.attachment ??= chrome.debugger.attach(target, '1.3');
+  const attachment = handle.attachment ??= (async () => {
+    await chrome.debugger.attach(target, '1.3');
+    try { await chrome.debugger.sendCommand(target, 'Page.enable'); }
+    catch (error) {
+      await chrome.debugger.detach(target).catch(() => {});
+      throw error;
+    }
+  })();
   try { await attachment; } catch (error) {
     if (handle.attachment === attachment) handle.attachment = undefined;
     throw error;
@@ -90,6 +99,16 @@ async function debuggerFor(connection: Peer, handle: TabHandle) {
       throw new Error('The Chrome debugging session ended.');
     return chrome.debugger.sendCommand(target, method, params);
   };
+}
+
+async function untilDialog<T>(handle: TabHandle, operation: () => Promise<T>) {
+  const opened = Promise.withResolvers<{ dialogOpened: true }>();
+  handle.dialogOpened = () => opened.resolve({ dialogOpened: true });
+  try {
+    return await Promise.race([operation().then(value => ({ value })), opened.promise]);
+  } finally {
+    handle.dialogOpened = undefined;
+  }
 }
 
 async function run(connection: Peer, command: Command) {
@@ -102,6 +121,8 @@ async function run(connection: Peer, command: Command) {
   }
   const handle = [...connection.tabs.values()].find(handle => handle.id === command.tab);
   if (!handle) throw new Error('The selected Chrome tab is unavailable. List tabs again.');
+  if (command.kind === 'run' && handle.pendingInput && !handle.dialog)
+    await untilDialog(handle, () => handle.pendingInput!);
   const tab = await snapshot(connection, handle);
   const origin = webOrigin(tab.url)!;
   if (command.kind === 'manage') {
@@ -112,6 +133,20 @@ async function run(connection: Peer, command: Command) {
     if (command.action.kind === 'close') {
       await chrome.tabs.remove(handle.tabId);
       return { kind: 'tabClosed', tabId: 'chrome:' + handle.id };
+    }
+    if (command.action.kind === 'getJsDialog' || command.action.kind === 'handleJsDialog') {
+      if (!tab.active) throw new Error('Activate the Chrome tab before handling its JavaScript dialog.');
+      const cdp = await debuggerFor(connection, handle);
+      const current = await snapshot(connection, handle);
+      if (!current.active || current.url !== tab.url) throw new Error('The selected Chrome tab or document changed.');
+      const dialog = handle.dialog?.origin === origin ? handle.dialog.value : undefined;
+      if (command.action.kind === 'getJsDialog') return dialog ?? null;
+      const rejected = dialogRefusal(dialog, command.action);
+      if (rejected) return { rejected };
+      const { decision, promptText } = command.action;
+      await cdp('Page.handleJavaScriptDialog', { accept: decision === 'accept', ...(promptText !== undefined && { promptText }) });
+      if (handle.dialog?.value === dialog) handle.dialog = undefined;
+      return null;
     }
     if (!tab.active || !tab.ready || webOrigin(command.action.url) !== origin)
       throw new Error('Open a same-origin page from the active Chrome tab.');
@@ -142,18 +177,22 @@ async function run(connection: Peer, command: Command) {
   if (!tab.active || !tab.ready || command.stamp !== `${tab.revision}:${tab.url}`)
     throw new Error('The selected Chrome tab or document changed.');
   const operation = command.operation;
+  if (handle.dialog) throw new Error('A JavaScript dialog is open. Use getJsDialog or close it in Chrome.');
   if (operation.kind === 'check') return null;
   if (operation.kind === 'checkFrames') return checkFrames(handle.tabId, origin);
   const cdp = await debuggerFor(connection, handle);
   const current = await snapshot(connection, handle);
   if (!current.active || !current.ready || command.stamp !== `${current.revision}:${current.url}`)
     throw new Error('The selected Chrome tab or document changed.');
+  if (handle.dialog) throw new Error('A JavaScript dialog is open. Use getJsDialog or close it in Chrome.');
   const world = 'PeroBrowserUse-' + handle.id;
   if (operation.kind === 'evaluate') {
     const limit = operation.files ? Math.ceil(MAX_TRANSFER_BYTES / 3) * 4 + 100_000 : 100_000;
     if (typeof operation.script !== 'string' || operation.script.length > limit)
       throw new Error('Invalid Chrome Browser Use document operation.');
-    return evaluateDocument(cdp, world, origin, operation.script);
+    const result = await untilDialog(handle, () => evaluateDocument(cdp, world, origin, operation.script));
+    if ('dialogOpened' in result) throw new Error('Chrome opened a JavaScript dialog. Read it with getJsDialog.');
+    return result.value;
   }
   if (operation.kind === 'screenshot') {
     const frames = await checkFrames(handle.tabId, origin);
@@ -184,8 +223,18 @@ async function run(connection: Peer, command: Command) {
       else throw new Error('Invalid Chrome click count.');
     }
     const connected = () => peer === connection && connection.tabs.get(handle.tabId) === handle;
+    const dispatch = () => untilDialog(handle, () => {
+      const input = sendBrowserInput(cdp, connected, event);
+      // A dialog can block the CDP response until it closes. Preserve the
+      // original input's release without holding the Relay request open.
+      const settled = input.catch(() => {}).finally(() => {
+        if (handle.pendingInput === settled) handle.pendingInput = undefined;
+      });
+      handle.pendingInput = settled;
+      return input;
+    });
     if (operation.kind === 'dispatch') {
-      await sendBrowserInput(cdp, connected, event);
+      await dispatch();
       return null;
     }
     if (event.kind !== 'click' || event.count !== 1) throw new Error('Watching for a popup requires a single click.');
@@ -199,8 +248,9 @@ async function run(connection: Peer, command: Command) {
     chrome.webNavigation.onCreatedNavigationTarget.addListener(created);
     const timer = setTimeout(() => popup.resolve({ kind: 'notObserved', reason: 'Chrome did not report a new web tab.' }), 5000);
     try {
-      await sendBrowserInput(cdp, connected, event);
-      const result = await popup.promise;
+      const dispatched = await dispatch();
+      const result = 'dialogOpened' in dispatched
+        ? { kind: 'notObserved', reason: 'Chrome opened a JavaScript dialog.' } : await popup.promise;
       if (!connected()) throw new Error('The Chrome debugging session ended.');
       return result;
     } finally {
@@ -273,11 +323,27 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
   if (handle && (change.status === 'loading' || change.url)) handle.revision++;
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => peer?.tabs.delete(tabId));
+chrome.debugger.onEvent.addListener(({ tabId }, method, params) => {
+  const handle = tabId === undefined ? undefined : peer?.tabs.get(tabId);
+  if (!handle?.attachment) return;
+  if (method === 'Page.javascriptDialogOpening') {
+    const { type, url, message } = params ?? {};
+    if (type !== 'alert' && type !== 'confirm' && type !== 'prompt' && type !== 'beforeunload') return;
+    handle.dialog = { origin: typeof url === 'string' ? webOrigin(url) : undefined,
+      value: { id: crypto.randomUUID(), type, message: typeof message === 'string' ? message.slice(0, 2048) : '' } };
+    handle.revision++;
+    handle.dialogOpened?.();
+  } else if (method === 'Page.javascriptDialogClosed') {
+    handle.dialog = undefined;
+    handle.revision++;
+  }
+});
 chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: string) => {
   const connection = peer;
   const handle = tabId === undefined ? undefined : connection?.tabs.get(tabId);
   if (!connection || !handle?.attachment) return;
   handle.attachment = undefined;
+  handle.dialog = undefined;
   if (reason === 'canceled_by_user') {
     void release(connection, 'Chrome stopped Browser Use.');
   } else {

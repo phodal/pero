@@ -33,6 +33,7 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
   args: [resolve(source, 'tests/fixtures/browser-use-agent.mjs')] }]));
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
+let leaveRequests = 0;
 const otherOrigin = createServer((request, response) => {
   if (request.url === '/inventory-window' || request.url === '/popup-destination') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -49,6 +50,7 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (request.url === '/leave-fixture') leaveRequests++;
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
     return;
@@ -70,6 +72,9 @@ const site = createServer((request, response) => {
 <a href="${foreignUrl}" download>Outside download</a>
 <a href="/?popup" target="_blank">Open fixture link</a>
 <button id="popup">Open delayed popup</button>
+<button id="confirm">Open confirmation</button><button id="prompt">Open prompt</button>
+<button id="alert">Open alert</button><output data-testid="dialog-result"></output>
+<a href="/leave-fixture">Leave fixture</a>
 <div aria-hidden="true" style="position:absolute;top:1550px;left:0;right:0;height:40px;background:#2468b4"></div>
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
@@ -81,6 +86,10 @@ document.querySelector('#upload').onchange = async event => {
 };
 document.querySelector('#blob').href = URL.createObjectURL(new Blob(['Blob from the approved tab']));
 document.querySelector('#popup').onclick = () => setTimeout(() => window.open(${JSON.stringify(popupUrl)}, '_blank'), 60);
+const dialogResult = document.querySelector('[data-testid="dialog-result"]');
+document.querySelector('#confirm').onclick = () => { dialogResult.textContent = String(confirm('Continue fixture?')); };
+document.querySelector('#prompt').onclick = () => { dialogResult.textContent = prompt('Fixture name?', 'Default'); };
+document.querySelector('#alert').onclick = () => { alert('Fixture alert'); dialogResult.textContent = 'Alert closed'; };
 </script>`);
 });
 await new Promise((done, fail) => { site.once('error', fail); site.listen(0, '127.0.0.1', done); });
@@ -364,6 +373,102 @@ try {
       popupReceipts.push(receipt);
     }
 
+    const nativeDialogs = [];
+    target.on('dialog', dialog => nativeDialogs.push({ type: dialog.type(), message: dialog.message() }));
+    const dialogReceipts = [];
+    let previousDialogId;
+    for (const [name, type, message, decision, promptText, expected] of [
+      ['Open confirmation', 'confirm', 'Continue fixture?', 'accept', undefined, 'true'],
+      ['Open confirmation', 'confirm', 'Continue fixture?', 'dismiss', undefined, 'false'],
+      ['Open prompt', 'prompt', 'Fixture name?', 'accept', 'Pero 已验证 🌱', 'Pero 已验证 🌱'],
+      ['Open alert', 'alert', 'Fixture alert', 'dismiss', undefined, 'Alert closed'],
+    ]) {
+      const [, clicked, inspected] = await prompt([
+        { action: 'observe', tabId }, { action: 'click', tabId, name }, { action: 'getJsDialog', tabId },
+      ]);
+      assert.equal(clicked.outcome, 'dispatched', JSON.stringify(clicked));
+      assert.equal(inspected.kind, 'jsDialog', JSON.stringify(inspected));
+      const { id: dialogId } = inspected.dialog;
+      assert.notEqual(dialogId, previousDialogId);
+      assert.deepEqual(inspected.dialog, { id: dialogId, type, message });
+      assert.deepEqual(nativeDialogs.at(-1), { type, message });
+      if (previousDialogId) {
+        const [stale] = await prompt([{ action: 'handleJsDialog', tabId, dialogId: previousDialogId, decision }]);
+        assert.equal(stale.outcome, 'rejected', JSON.stringify(stale));
+      } else {
+        const [blocked] = await prompt([{ action: 'observe', tabId }]);
+        assert.equal(blocked.isError, true, JSON.stringify(blocked));
+        assert.match(blocked.error, /JavaScript dialog/);
+      }
+      if (type === 'prompt' || type === 'alert') {
+        const [invalid, stillOpen] = await prompt([
+          { action: 'handleJsDialog', tabId, dialogId, decision: 'accept' }, { action: 'getJsDialog', tabId },
+        ]);
+        assert.equal(invalid.outcome, 'rejected');
+        assert.equal(stillOpen.dialog.id, dialogId);
+      }
+      const [handled, cleared] = await prompt([
+        { action: 'handleJsDialog', tabId, dialogId, decision, promptText }, { action: 'getJsDialog', tabId },
+      ]);
+      assert.equal(handled.outcome, 'dispatched', JSON.stringify(handled));
+      assert.equal(cleared.dialog, null);
+      await expect(target.getByTestId('dialog-result')).toHaveText(expected);
+      const intent = JSON.parse(await readFile(resolve(evidence, handled.receiptId + '.intent.json'), 'utf8'));
+      assert.equal(intent.promptText, undefined);
+      assert.equal(intent.dialogId, dialogId);
+      const receipt = JSON.parse(await readFile(resolve(evidence, handled.receiptId + '.result.json'), 'utf8'));
+      assert.deepEqual(receipt, { id: handled.receiptId, dialogId, decision, outcome: 'dispatched' });
+      dialogReceipts.push(receipt);
+      previousDialogId = dialogId;
+    }
+    const [scriptedOpen, scriptedHandle] = await prompt([
+      { action: 'repl', tool: 'javascript_repl', code: `
+const dialogTab = ${JSON.stringify(tabId)};
+const located = await cua.browser({action:'locate',tabId:dialogTab,locator:{by:'role',role:'button',name:'Open confirmation'}});
+await cua.browser({action:'click',tabId:dialogTab,ref:located.nodes[0].ref});
+const openedDialog = (await cua.browser({action:'getJsDialog',tabId:dialogTab})).dialog;
+nodeRepl.write(openedDialog.type);` },
+      { action: 'repl', tool: 'javascript_repl', code: `
+const answer = await cua.browser({action:'handleJsDialog',tabId:dialogTab,dialogId:openedDialog.id,decision:'accept'});
+nodeRepl.write(answer.outcome);` },
+    ]);
+    assert.equal(scriptedOpen.text.trim(), 'confirm', JSON.stringify(scriptedOpen));
+    assert.equal(scriptedHandle.text.trim(), 'dispatched', JSON.stringify(scriptedHandle));
+    await expect(target.getByTestId('dialog-result')).toHaveText('true');
+
+    await target.evaluate(() => {
+      window.onbeforeunload = event => { event.preventDefault(); event.returnValue = ''; };
+    });
+    const [, leave, beforeUnload] = await prompt([
+      { action: 'observe', tabId }, { action: 'click', tabId, name: 'Leave fixture' }, { action: 'getJsDialog', tabId },
+    ]);
+    assert.equal(leave.outcome, 'dispatched', JSON.stringify(leave));
+    assert.equal(beforeUnload.dialog?.type, 'beforeunload', JSON.stringify(beforeUnload));
+    assert.equal(nativeDialogs.at(-1).type, 'beforeunload');
+    const { id: leaveDialogId } = beforeUnload.dialog;
+    const [declined, stayed, closedDialog] = await prompt([
+      { action: 'handleJsDialog', tabId, dialogId: leaveDialogId, decision: 'accept' },
+      { action: 'handleJsDialog', tabId, dialogId: leaveDialogId, decision: 'dismiss' },
+      { action: 'getJsDialog', tabId },
+    ]);
+    assert.equal(declined.outcome, 'rejected');
+    assert.equal(stayed.outcome, 'dispatched');
+    assert.equal(closedDialog.dialog, null);
+    // Playwright's navigation expectation can keep waiting for a commit that
+    // was cancelled. Read the live renderer independently through CDP.
+    const inspector = await chrome.newCDPSession(target);
+    try {
+      const { result } = await inspector.send('Runtime.evaluate', {
+        expression: `window.onbeforeunload = null;
+          ({ url: location.href, marker: document.querySelector('[data-testid="dialog-result"]').textContent })`,
+        returnByValue: true,
+      });
+      assert.deepEqual(result.value, { url: siteUrl, marker: 'true' });
+      assert.equal(leaveRequests, 0);
+    } finally {
+      await inspector.detach();
+    }
+
     await clickNewChat(page);
     await expect.poll(async () => (await active())?.id).not.toBe(original);
     const other = await prompt([{ action: 'tabs' }, { action: 'observe', tabId }]);
@@ -379,7 +484,7 @@ try {
     assert.equal(afterStop[1].isError, true);
     await expect.poll(extensionAttached).toBe(false);
     assert.equal(target.isClosed(), false);
-    await expect(target.getByTestId('result')).toBeVisible();
+    await expect.poll(() => worker.evaluate(async url => (await chrome.tabs.query({ url })).some(tab => tab.active), siteUrl)).toBe(true);
     if (!await panel.locator('#code').isVisible()) await panel.getByText('Enter a pairing code manually').click();
     await panel.getByRole('textbox', { name: 'Pairing code from Pero' }).fill(oneTimeCode);
     await panel.getByRole('button', { name: 'Pair with Pero' }).click();
@@ -400,7 +505,8 @@ try {
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
-      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts,
+      historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts, dialogReceipts,
+      beforeUnloadDismissed: true, dialogHandledThroughRepl: true,
       foreignRedirectRefused: true, foreignFrameScreenshotRefused: true, foreignDownloadRefused: true,
       pairingReplayDenied: true, chromeTakeoverReleasedDebugger: true, workbenchStopReleasedDebugger: true,
       operation: operations[5].nodes[0].text,

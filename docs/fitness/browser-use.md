@@ -133,6 +133,17 @@ ID. The paired conversation can use that ID after the new tab loads, including
 when the page opens another site. If no event is observed, the click outcome
 is recorded separately from `popup.kind: notObserved`.
 
+Extension 0.3.4 also supports JavaScript dialogs on the active tab in the
+paired Chrome profile. `getJsDialog` returns the current dialog ID, type and
+bounded message. Use that ID with `handleJsDialog` and `decision` of `accept`
+or `dismiss`. Accepting a `prompt` requires `promptText`. `alert` and
+`beforeunload` support `dismiss`, which keeps the current page open when
+dismissing `beforeunload`. The dialog ID expires when the dialog closes.
+Chrome can hold a renderer input response while a dialog is open. Relay
+returns control on the dialog event so the next request can handle it, then
+settles the original input before the next page operation. Dialog action
+receipts record the decision and ID. The prompt answer stays out of the receipt.
+
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
@@ -143,7 +154,10 @@ viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
 back, forward and reload. It also follows an actual `target="_blank"` link
 and a delayed cross-site `window.open` by the IDs in their saved receipts.
-An ordinary click checks the timeout result. The suite checks isolation from other conversations,
+An ordinary click checks the timeout result. Dialog coverage verifies the
+page's confirmation result (including across two REPL cells), the Unicode
+prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
+that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
 inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
 Evidence is written to `test-results/chrome-relay/`.
 
