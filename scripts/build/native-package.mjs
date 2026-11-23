@@ -14,7 +14,7 @@ if (!runtime || !existsSync(join(runtime, 'bin/node')) || !existsSync(join(runti
 const pythonSource = process.env.PERO_NATIVE_PYTHON_ROOT;
 if (!pythonSource || !existsSync(join(pythonSource, 'bin/python3'))) throw new Error('Set PERO_NATIVE_PYTHON_ROOT to the verified standalone CPython runtime.');
 const product = Product.parse(JSON.parse(readFileSync(join(root, 'products/pero.json'), 'utf8')));
-const directory = join(root, 'target/native-package');
+const directory = resolve(root, process.env.PERO_NATIVE_PACKAGE_DIR ?? 'target/native-package');
 const app = join(directory, 'Pero Native.app');
 rmSync(app, { recursive: true, force: true });
 mkdirSync(join(app, 'Contents/MacOS'), { recursive: true });
