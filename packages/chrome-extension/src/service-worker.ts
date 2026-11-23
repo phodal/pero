@@ -6,6 +6,7 @@ import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } fro
 import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
 import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
+import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
 
 import { readVisiblePage } from './collector-capture.js';
 
@@ -24,6 +25,17 @@ void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 let peer: Peer | undefined;
 let failure: string | undefined;
+let collectorBusy = false;
+const pendingKey = 'pendingProjectSourceSave';
+type CollectRequest = Extract<SidebarRequest, { kind: 'collect' }>;
+type PendingProjectSourceSave = {
+  sessionId: string;
+  request: CollectRequest & { project: NonNullable<CollectRequest['project']> };
+};
+
+async function pendingSourceSave(): Promise<PendingProjectSourceSave | undefined> {
+  return (await chrome.storage.session.get(pendingKey))[pendingKey];
+}
 
 function status() {
   return { state: peer?.state ?? 'disconnected', label: peer?.label, error: failure };
@@ -40,6 +52,22 @@ function send(connection: Peer, message: object) {
   if (new TextEncoder().encode(body).length > MAX_FRAME || connection.socket.bufferedAmount > MAX_FRAME)
     throw new Error('The Chrome Relay message exceeds its limit.');
   connection.socket.send(body);
+}
+
+function sidebarReply(connection: Peer, sessionId: string | undefined, request: unknown) {
+  const id = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const finish = (response: { value?: unknown; error?: string }) => {
+      clearTimeout(timer);
+      connection.sidebar.delete(id);
+      if (response.error) reject(new Error(response.error));
+      else resolve(response.value);
+    };
+    const timer = setTimeout(() => finish({ error: 'Pero did not confirm the request.' }), 35000);
+    connection.sidebar.set(id, finish);
+    try { send(connection, { type: 'sidebar', id, sessionId, request }); }
+    catch (error) { finish({ error: String(error) }); }
+  });
 }
 
 async function release(connection: Peer, reason?: string) {
@@ -361,11 +389,31 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!panel && !collector && source !== chrome.runtime.getURL('relay.html')) return false;
   const handle = async () => {
     if (message.type === 'status') return status();
+    if (collector && ['collectorPending', 'collectorForget'].includes(message.type)) {
+      const pending = await pendingSourceSave();
+      if (!pending) return null;
+      const { captureId: id, id: projectId, shared } = pending.request.project;
+      if (message.type === 'collectorForget') {
+        if (id !== message.key) throw new Error('The pending save changed. Reopen Collector.');
+        await chrome.storage.session.remove(pendingKey);
+        return null;
+      }
+      return { id, projectId, shared: !!shared, title: pending.request.title };
+    }
     if (panel || collector) {
       const connection = peer;
       if (connection?.state !== 'paired') throw new Error('Write a draft here. To send it, pair from Pero Native → Settings → Browser Use.');
       let request = message.request;
+      if (collector && message.type === 'collectorRecover') {
+        const pending = await pendingSourceSave();
+        if (!pending || pending.request.project.captureId !== message.key)
+          throw new Error('The pending save changed. Reopen Collector.');
+        if (pending.sessionId !== message.sessionId)
+          throw new Error('Pair the original conversation to recover this save.');
+        return sidebarReply(connection, pending.sessionId, pending.request);
+      }
       if (message.type === 'capture' || message.type === 'share') {
+        if (collector && await pendingSourceSave()) throw new Error('Resolve the pending Project save first.');
         if (!Number.isInteger(message.tabId)) throw new Error('Select a regular Chrome tab.');
         const handle = tabHandle(connection, message.tabId);
         const before = await snapshot(connection, handle);
@@ -396,6 +444,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       }
       if (message.type !== 'sidebar') throw new Error('Unsupported sidebar request.');
       if (collector && request?.kind === 'collect') {
+        if (await pendingSourceSave()) throw new Error('Resolve the pending Project save first.');
         const captured = connection.capture;
         const handle = captured && connection.tabs.get(captured.tabId);
         if (!captured || !handle || message.key !== captured.key) throw new Error('Read this page again.');
@@ -406,19 +455,15 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
           id: projectId, captureId: captured.key, scope: captured.scope,
           truncated: captured.truncated, capturedAt: captured.capturedAt, shared: sharedProject,
         } : undefined };
+        if (request.project) {
+          if (typeof message.sessionId !== 'string' || !message.sessionId)
+            throw new Error('Pair the conversation before saving to a Project.');
+          const pending: PendingProjectSourceSave = { sessionId: message.sessionId, request };
+          await chrome.storage.session.set({ [pendingKey]: pending });
+        }
       } else if (collector ? !['snapshot', 'collectorTargets'].includes(request?.kind)
           : ['collect', 'collectorTargets'].includes(request?.kind)) throw new Error('Unsupported sidebar operation.');
-      const id = crypto.randomUUID();
-      return new Promise((resolve, reject) => {
-        const finish = (response: {value?: unknown; error?: string}) => {
-          clearTimeout(timer); connection.sidebar.delete(id);
-          if (response.error) reject(new Error(response.error)); else resolve(response.value);
-        };
-        const timer = setTimeout(() => finish({error:'Pero did not confirm the request. Check the conversation before retrying.'}), 35000);
-        connection.sidebar.set(id, finish);
-        try { send(connection, { type: 'sidebar', id, sessionId: message.sessionId, request }); }
-        catch (error) { finish({error: String(error)}); }
-      });
+      return sidebarReply(connection, message.sessionId, request);
     }
     if (message.type === 'pair') { connect(message.code); return status(); }
     if (message.type === 'stop') {
@@ -431,6 +476,15 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     }
     throw new Error('Unknown Pero Relay action.');
   };
-  void handle().then(value => respond({ ok: true, value }), error => respond({ ok: false, error: error.message }));
+  const collect = collector && (['capture', 'collectorRecover', 'collectorForget'].includes(message.type) ||
+    message.type === 'sidebar' && message.request?.kind === 'collect');
+  const runRequest = async () => {
+    if (!collect) return handle();
+    if (collectorBusy) throw new Error('Collector is processing another request.');
+    collectorBusy = true;
+    try { return await handle(); }
+    finally { collectorBusy = false; }
+  };
+  void runRequest().then(value => respond({ ok: true, value }), error => respond({ ok: false, error: error.message }));
   return true;
 });

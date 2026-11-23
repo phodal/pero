@@ -512,6 +512,14 @@ content under that capture ID and access from a second Project were refused.
 A separate running macOS Native development build opened a source seeded by
 the same Host command and displayed its URL, edited text, reason and question.
 
+Extension 0.3.6 freezes a reviewed Project save in extension session storage
+until Collector receives its receipt. The test disconnected the Relay after
+the real Host saved the source, navigated the source tab, reopened Collector
+and restarted the Host. A different conversation could not recover the save.
+After pairing the original conversation, **Recover save** returned the same
+receipt, and the Project still contained one matching source. Closing the
+Chrome browser session clears the pending draft.
+
 The optional `TestSharedWebSourcesNativeChromeToMaterials` test uses two
 independent macOS Native profiles with separate client identities, headed
 Chromium, and the real Cloud API backed by PostgreSQL. It saves a Unicode

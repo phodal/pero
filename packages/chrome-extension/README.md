@@ -55,8 +55,14 @@ and New chat select a Native conversation in the current workspace.
 
 Use **More → Collector** on an active Chrome web page. Choose page text or
 selected text, read and edit the preview, and optionally add a reason and a
-question. **Save to conversation** writes the reviewed Markdown, including its
-source URL, to that conversation’s Artifacts. The chat and Collector surfaces
+question. Choose the conversation to save the reviewed Markdown to Artifacts,
+or choose a local or shared Project to make it available in Materials.
+If a Project save loses its confirmation, reopen Collector and pair the
+original conversation, then choose **Recover save**. It resends the reviewed
+excerpt under the same capture ID and Project. **Discard pending save** clears
+the draft from the Chrome session while preserving any saved source. Pending
+drafts live in Chrome's extension session storage until its browser session
+ends. The chat and Collector surfaces
 adapt Point’s extension at revision `16e092464404c7a1e6d78a6a9bbed6920c785976`.
 In a Native chat, select the `pero-browser-use` skill for the external Chrome
 workflow and Python REPL examples.

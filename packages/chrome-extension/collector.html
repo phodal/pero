@@ -17,6 +17,15 @@
         <a class="collector-link" href="sidepanel.html" data-copy="chat">Chat</a>
       </header>
       <p id="destination" role="status"></p>
+      <section id="collector-pending" class="collector-card collector-pending" aria-labelledby="collector-pending-title" hidden>
+        <h2 id="collector-pending-title">Unconfirmed Project save</h2>
+        <p id="collector-pending-source"></p>
+        <p class="collector-muted">Pair the original conversation to recover the receipt. Discarding clears the pending save and keeps any saved source.</p>
+        <div class="collector-actions">
+          <button id="collector-recover" class="collector-primary" type="button">Recover save</button>
+          <button id="collector-discard" type="button">Discard pending save</button>
+        </div>
+      </section>
       <section class="collector-card" aria-labelledby="collector-capture-label">
         <label id="collector-capture-label" for="collector-capture-scope" data-copy="scope">Capture</label>
         <div class="collector-capture-row"><select id="collector-capture-scope"><option value="page" data-copy="pageText">Page text</option><option value="selection" data-copy="selectionText">Selected text</option></select><button id="collector-capture" class="collector-primary" type="button" data-copy="capture" disabled>Read current page</button></div>

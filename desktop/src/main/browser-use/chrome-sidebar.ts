@@ -24,7 +24,8 @@ export const sidebarRequest = z.discriminatedUnion('kind', [
       shared: z.strictObject({ origin: z.string().max(2048), accountId: z.string().min(1).max(128) }).optional() }).optional(),
   }),
 ]);
-export type SidebarPort = (thread: string, request: z.infer<typeof sidebarRequest>, check: () => void) => Promise<unknown>;
+export type SidebarRequest = z.infer<typeof sidebarRequest>;
+export type SidebarPort = (thread: string, request: SidebarRequest, check: () => void) => Promise<unknown>;
 
 export function projectSourceCommand(request: z.infer<typeof sidebarRequest>) {
   if (request.kind === 'collectorTargets') return { kind: 'projects' };

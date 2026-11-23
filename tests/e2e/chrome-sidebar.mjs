@@ -56,16 +56,22 @@ async function projectRequest(request, expectOk = true) {
 const output = resolve('test-results/chrome-sidebar');
 await mkdir(output, { recursive: true });
 const thread = 'acceptance';
+let selectedThread = thread;
 const messages = [];
 const composer = { text: '', model: 'one', models: [['one','One'],['two','Two']], references: [], items: [] };
-let saved, savedProjectRequest;
-const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () => thread, root,
-  async (_, request, check) => {
+let saved, savedProjectRequest, loseProjectReply = true;
+const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () => selectedThread, root,
+  async (sessionId, request, check) => {
     const source = projectSourceCommand(request);
     if (source) {
       check();
       if (source.kind === 'save') savedProjectRequest = source;
-      return projectRequest(source);
+      const value = await projectRequest(source);
+      if (source.kind === 'save' && loseProjectReply) {
+        loseProjectReply = false;
+        owner.relay.revoke(thread);
+      }
+      return value;
     }
     if (request.kind === 'edit') {
       assert.equal(composer.text, request.before);
@@ -82,7 +88,7 @@ const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () =>
       saved = request;
       return { artifactReceipt: { id: 'reviewed-source' } };
     }
-    return { sessionId: thread, title: 'Browser acceptance', workspace: root, projectCollector: true, messages, composer, sessions: [] };
+    return { sessionId, title: 'Browser acceptance', workspace: root, projectCollector: true, messages, composer, sessions: [] };
   });
 const site = createServer((_req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -143,8 +149,10 @@ try {
   await panel.locator('#collector-question').fill('Which source supports it?');
   const exported = await panel.locator('#collector-final-preview').textContent();
   await panel.locator('#collector-save').click();
-  await expect(panel.locator('#collector-receipt')).toContainText('Saved to Project · Observatory');
-  await panel.screenshot({ path: resolve(output, 'testing-project-collector.png') });
+  await expect(panel.getByRole('heading', { name: 'Unconfirmed Project save' })).toBeVisible();
+  await expect(panel.locator('#collector-capture')).toBeDisabled();
+  await expect(panel.locator('#collector-editor')).toBeHidden();
+  await panel.screenshot({ path: resolve(output, 'pending-project-collector.png') });
   assert.equal(savedProjectRequest.projectId, project.id);
   const { id } = savedProjectRequest.source;
   const { sources: [receipt] } = await projectRequest({ kind: 'list', projectId: project.id });
@@ -152,18 +160,40 @@ try {
   assert.equal(receipt.scope, 'selection');
   assert.equal(receipt.url, url);
   assert.equal(receipt.sha256, createHash('sha256').update(exported).digest('hex'));
+  await target.goto(url + '?later');
+  await panel.reload();
+  await expect(panel.getByRole('heading', { name: 'Unconfirmed Project save' })).toBeVisible();
+  selectedThread = 'another-conversation';
+  const wrong = await chrome.newPage();
+  await wrong.goto(origin + '/relay.html#' + new URLSearchParams({ pair: await owner.relay.pairing('Another session') }));
+  await expect(wrong.locator('#status')).toContainText('Connected');
+  await panel.getByRole('button', { name: 'Recover save' }).click();
+  await expect(panel.getByRole('alert')).toContainText('Pair the original conversation');
+  await expect(panel.getByRole('heading', { name: 'Unconfirmed Project save' })).toBeVisible();
+  selectedThread = thread;
+  await stopHost();
+  startHost();
+  const recovery = await chrome.newPage();
+  await recovery.goto(origin + '/relay.html#' + new URLSearchParams({ pair: await owner.relay.pairing('Recovered session') }));
+  await expect(recovery.locator('#status')).toContainText('Connected');
+  await panel.getByRole('button', { name: 'Recover save' }).click();
+  await expect(panel.locator('#collector-receipt')).toContainText('Saved to Project · Observatory');
+  await expect(panel.getByRole('heading', { name: 'Unconfirmed Project save' })).toBeHidden();
+  await panel.screenshot({ path: resolve(output, 'testing-project-collector.png') });
+  assert.deepEqual(await projectRequest({ kind: 'list', projectId: project.id }), { sources: [receipt] });
+  await panel.reload();
+  await expect(panel.locator('#collector-capture')).toBeEnabled();
+  await expect(panel.getByRole('heading', { name: 'Unconfirmed Project save' })).toBeHidden();
   assert.deepEqual((await projectRequest(savedProjectRequest)).sourceReceipt, receipt);
   assert.match(await projectRequest({ ...savedProjectRequest, source: { ...savedProjectRequest.source, content: 'Different text' } }, false), /different content/);
   assert.deepEqual(await projectRequest({ kind: 'list', projectId: otherProject.id }), { sources: [] });
   await projectRequest({ kind: 'read', projectId: otherProject.id, id }, false);
   await projectRequest({ ...savedProjectRequest, projectId: '../unavailable-project' }, false);
   await projectRequest({ ...savedProjectRequest, source: { ...savedProjectRequest.source, id: randomUUID(), content: '研'.repeat(5600) } }, false);
-  await stopHost();
-  startHost();
   const { source } = await projectRequest({ kind: 'read', projectId: project.id, id });
   assert.deepEqual(source.source, savedProjectRequest.source);
   assert.equal(source.sha256, receipt.sha256);
-  console.log('Verified Chrome collection to conversation and Project, scoped Project reads, review bytes, retry and Host restart.');
+  console.log('Verified Chrome collection, scope, review bytes and original Project receipt recovery after a dropped reply, panel reload, navigation and Host restart.');
 } finally {
   owner.relay.close();
   await chrome?.close();
