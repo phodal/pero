@@ -6,7 +6,7 @@ extern "C" {
     fn artifact_surface(json:&str)->Result<(),wasm_bindgen::JsValue>;
 }
 impl Workbench {
-    pub(crate) fn sync_artifact_preview(&mut self, _cx:&mut Context<Self>) {
-        if !self.chat_visible() {let _=artifact_surface("{\"visible\":false}");}
+    pub(crate) fn sync_artifact_preview(&mut self, cx:&mut Context<Self>) {
+        if !self.chat_visible(cx) {let _=artifact_surface("{\"visible\":false}");}
     }
 }

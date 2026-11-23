@@ -422,7 +422,14 @@ impl Render for Workbench {
         if self.project_agent_active() && width - layout.sidebar_width < crate::project_agent::PROJECT_SPLIT_MIN {
             layout.narrow = true;
         }
+        let project_chat_was_hidden = self.project_context_in_place(cx);
         self.layout = layout;
+        if project_chat_was_hidden != self.project_context_in_place(cx) {
+            let workbench = cx.entity().downgrade();
+            cx.defer(move |cx| {
+                let _ = workbench.update(cx, |this, cx| this.sync_follow(cx));
+            });
+        }
         #[cfg(not(target_family = "wasm"))]
         let app_window_modal = self.native_window_modal(cx);
         let external_resource_navigation =

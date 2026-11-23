@@ -432,7 +432,7 @@ impl Workbench {
             pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
         });
-        let visible = self.chat_visible();
+        let visible = self.chat_visible(cx);
         let show_return = self
             .chat
             .read(cx)
@@ -901,7 +901,7 @@ pub fn snapshot() -> String {
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
         value["chatCloseButtonBounds"] = ui.view_bounds.chat_close.snapshot()["float-chat-close"].clone();
-        value["chatVisible"] = serde_json::json!(ui.chat_visible());
+        value["chatVisible"] = serde_json::json!(ui.chat_visible(cx));
         value["pullRequests"]=json!(ui.pull_requests.iter().map(|view|json!({"reference":view.state.reference,"pending":view.state.pending,"error":view.state.error,"tab":view.state.tab,"selectedFile":view.state.selected_file,"snapshot":view.state.snapshot,"discussions":view.discussions.snapshot(cx)})).collect::<Vec<_>>());
         value["prControls"]=ui.view_bounds.pull_request.snapshot();
         value["webDocuments"]=json!(ui.web_documents);

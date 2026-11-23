@@ -120,7 +120,7 @@ impl Workbench {
     }
 
     pub(crate) fn sync_artifact_preview(&mut self, cx: &mut Context<Self>) {
-        let visible = self.chat_visible() && !self.chat.read(cx).artifact_surface_covered();
+        let visible = self.chat_visible(cx) && !self.chat.read(cx).artifact_surface_covered();
         let state = self.chat.read(cx).artifact_browser_state();
         if let Some(preview) = &self.artifact_preview {
             let state = state.filter(|state| state.thread_id == preview.thread_id);

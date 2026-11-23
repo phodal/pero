@@ -101,7 +101,7 @@ impl Workbench {
         });
     }
     pub(crate) fn sync_inline_mcp(&mut self, cx: &mut Context<Self>) {
-        let visible = self.chat_visible();
+        let visible = self.chat_visible(cx);
         let context = (
             pero_theme::UiAppearance::global(cx).dark,
             self.locale.clone(),

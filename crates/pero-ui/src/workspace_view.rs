@@ -429,14 +429,14 @@ impl Workbench {
         cx.notify();
     }
 
-    pub(crate) fn chat_visible(&self) -> bool {
-        self.active_app_chat_slot().is_some()
+    pub(crate) fn chat_visible(&self, cx: &App) -> bool {
+        !self.project_context_in_place(cx) && (self.active_app_chat_slot().is_some()
             || self.layout.chat != ChatPlacement::Hidden
             || self
                 .navigation
                 .pane_layout()
                 .filter(|_| self.navigation.pane_layout_visible())
-                .is_some_and(|layout| layout.conversation().is_some())
+                .is_some_and(|layout| layout.conversation().is_some()))
     }
 
     pub(crate) fn chat_dock_visible(&self) -> bool {
