@@ -84,7 +84,7 @@ impl Manager {
     pub(super) fn saved_project(&self, id: &str) -> Result<ResearchProject, String> {
         request_key(id)?;
         let settings = self.settings_path.as_deref().ok_or("Projects need a persistent Host profile")?;
-        pero_runtime::settings::load_notebook_projects(settings).map_err(|error| error.to_string())?
+        pero_runtime::settings::load_research_projects(settings).map_err(|error| error.to_string())?
             .research_projects.into_iter().find(|project| project.id == id).ok_or("The saved Project is unavailable".into())
     }
 

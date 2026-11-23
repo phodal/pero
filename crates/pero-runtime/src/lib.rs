@@ -5,6 +5,7 @@ pub mod skill_market;
 pub mod context;
 pub mod file_documents;
 pub mod session_artifacts;
+pub mod project_sources;
 pub mod roadmap;
 pub mod apps;
 pub mod environments;

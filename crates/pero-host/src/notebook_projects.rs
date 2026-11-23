@@ -25,7 +25,7 @@ pub(crate) fn execute(store: &mut AppStore, settings: Option<&Path>, caller: &Ap
     if caller.as_str() != "notebook" { return Err("Notebook origin required".into()); }
     store.sdk_context(caller)?;
     let path = settings.ok_or("Host project settings are unavailable")?;
-    let preferences = pero_runtime::settings::load_notebook_projects(path).map_err(|error| error.to_string())?;
+    let preferences = pero_runtime::settings::load_research_projects(path).map_err(|error| error.to_string())?;
     let catalog = ProjectResources::resolve(store, caller, &mut |_| {})?.read()?;
     let entries = json!(catalog.resources.iter().map(|item| json!({
         "id":item.reference.id,"revision":item.reference.revision,"title":item.title
