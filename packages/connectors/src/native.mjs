@@ -11,6 +11,7 @@ import { cp } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { freezeDownloadBytes } from '../../../desktop/src/main/browser-use/download.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
 import { ConnectorMcp } from './mcp.ts';
 import { ConversationRepl } from '../../../desktop/src/main/repl/repl.ts';
@@ -51,7 +52,19 @@ const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'co
 const browserEvidence = join(dirname(root), 'browser-use-evidence');
 const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchBrowserUse(
   new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
-  selected, browserEvidence,
+  selected, browserEvidence, async (thread, request, check) => {
+    const surface = request => effect('surface', { value: { action: 'sidebar', thread, request } });
+    if (request.kind !== 'collect') return surface(request);
+    const { workspace } = await surface({ kind: 'snapshot' });
+    if (!workspace) throw new Error('Choose a conversation workspace in Pero before collecting.');
+    const markdown = [`# ${request.title}`, request.url, request.content,
+      request.reason && `## Why collect it?\n${request.reason}`,
+      request.question && `## Question\n${request.question}`].filter(Boolean).join('\n\n');
+    if (Buffer.byteLength(markdown) > 16384) throw new Error('The reviewed source exceeds 16 KiB.');
+    return freezeDownloadBytes({ url: request.url, name: 'Collected page.md' }, '', Buffer.from(markdown),
+      { thread, workspace }, (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }),
+      check, AbortSignal.timeout(30000));
+  },
 ) : undefined;
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),

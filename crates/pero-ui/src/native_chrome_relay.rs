@@ -128,6 +128,10 @@ impl Workbench {
         )
     }
 
+    pub(super) fn pair_sidebar_conversation(&mut self, thread: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.native_chrome_relay(ChromeAction::Pair(thread), window, cx)
+    }
+
     fn native_chrome_relay(
         &mut self,
         action: ChromeAction,

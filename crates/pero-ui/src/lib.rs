@@ -108,6 +108,8 @@ pub(crate) mod native_web;
 mod native_browser;
 #[cfg(all(feature = "native", target_os = "macos"))]
 mod native_chrome_relay;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_browser_sidebar;
 #[cfg(all(feature = "native", feature = "native-probe", target_os = "macos"))]
 mod native_browser_probe;
 #[cfg(all(feature="native-probe",not(target_family="wasm")))]

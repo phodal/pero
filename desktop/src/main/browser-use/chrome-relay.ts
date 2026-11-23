@@ -10,6 +10,8 @@ import type { BrowserUsePort } from './browser-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserRequest } from './request.ts';
 
+import { sidebarRequest, type SidebarPort } from './chrome-sidebar.ts';
+
 const pair = z.strictObject({
   type: z.literal('pair'), protocol: z.literal(RELAY_PROTOCOL), ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
@@ -23,6 +25,7 @@ const incoming = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('approve'), tab: snapshot }),
   z.strictObject({ type: z.literal('response'), id: z.number().int().positive().safe(), value: z.unknown().optional(), error: z.string().max(500).optional() }),
   z.strictObject({ type: z.literal('tabRevoked'), grant: grantId }),
+  z.strictObject({ type: z.literal('sidebar'), id: z.uuid(), sessionId: z.string().optional(), request: sidebarRequest }),
   z.strictObject({ type: z.literal('ping') }),
   z.strictObject({ type: z.literal('revoke') }),
 ]);
@@ -42,7 +45,10 @@ class ChromeRelay {
 
   private readonly selected: () => Promise<string | undefined>;
 
-  constructor(selected: () => Promise<string | undefined>, evidenceRoot: string) {
+  private readonly sidebar?: SidebarPort;
+
+  constructor(selected: () => Promise<string | undefined>, evidenceRoot: string, sidebar?: SidebarPort) {
+    this.sidebar = sidebar;
     this.selected = selected;
     this.browser = new NativeBrowserUse(request => this.request(request), evidenceRoot, 'chrome');
   }
@@ -144,6 +150,23 @@ class ChromeRelay {
           this.send(socket, { type: 'pong' });
         } else if (message.type === 'revoke') {
           this.disconnect(current, 'Chrome access revoked.');
+        } else if (message.type === 'sidebar') {
+          const request = message.request;
+          const check = () => {
+            if (current !== this.connection || (request.kind === 'collect' && (!current.grants.has(request.grant) || current.grants.get(request.grant) !== webOrigin(request.url))))
+              throw new Error('Chrome authorization changed.');
+          };
+          let result;
+          try {
+            check();
+            if (!this.sidebar || await this.selected() !== current.thread ||
+                (request.kind !== 'snapshot' && message.sessionId !== current.thread))
+              throw new Error('Pair this conversation in Pero Native.');
+            result = { value: await this.sidebar(current.thread, request, check) };
+          } catch (error) {
+            result = { error: error instanceof Error ? error.message : String(error) };
+          }
+          if (this.connection === current) this.send(current.socket, { type: 'sidebarReply', id: message.id, ...result });
         } else if (message.type === 'approve') {
           const origin = webOrigin(message.tab.url);
           if (!origin || !message.tab.active || !message.tab.ready ||
@@ -231,9 +254,9 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
   private readonly embedded: BrowserUsePort;
   readonly relay: ChromeRelay;
 
-  constructor(embedded: BrowserUsePort, selected: () => Promise<string | undefined>, evidenceRoot: string) {
+  constructor(embedded: BrowserUsePort, selected: () => Promise<string | undefined>, evidenceRoot: string, sidebar?: SidebarPort) {
     this.embedded = embedded;
-    this.relay = new ChromeRelay(selected, evidenceRoot);
+    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
     const inputSchema = embedded instanceof NativeBrowserUse ? this.relay.browser.tool.inputSchema : tool.inputSchema;
     this.tool = { ...tool, inputSchema, description: tool.description + ' Pero Chrome Relay tabs use a chrome: tabId. Pair from the Workbench, then approve the specific tab in the extension. Chrome supports ' +

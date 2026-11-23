@@ -429,6 +429,11 @@ impl Workbench {
         let apps=crate::native::apps();
         let result=(|| -> anyhow::Result<Option<Value>> {
             match input["action"].as_str() {
+                #[cfg(target_os="macos")]
+                Some("sidebar") => Ok(Some(self.native_sidebar(
+                    input["thread"].as_str().ok_or_else(||anyhow::anyhow!("Missing conversation"))?,
+                    serde_json::from_value(input["request"].clone())?, _window, cx
+                )?)),
                 Some("selected")=>{
                     let chat=self.chat.read(cx);
                     Ok(Some(chat.active_chat.and_then(|index|chat.chats.get(index)).map(|chat|json!(chat.id)).unwrap_or(Value::Null)))
