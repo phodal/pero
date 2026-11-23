@@ -1155,6 +1155,8 @@
   "research.goal_empty": "Add a research goal to describe the question this project addresses.",
   "research.linked": "Materials & experiments",
   "research.web_sources": "Web sources",
+  "research.web_sources_local": "Local Project",
+  "research.web_sources_shared": "Shared Project",
   "research.web_sources_empty": "Use Collector in paired Chrome to save a source to this project.",
   "research.web_sources_loading": "Loading web sources…",
   "research.web_sources_reason": "Why collect it?",

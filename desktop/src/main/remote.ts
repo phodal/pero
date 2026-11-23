@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DesktopLogin } from './desktop-login';
 import { safeStorage, shell } from 'electron';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { z } from 'zod';
 import schema from '../../../protocol/generated/remote.schema.json';
 import type { Detail, RemoteState, Task, TaskSpec, TaskPage, Worker, Identity, GitHubStatus, GitHubSyncResult, EnrollWorker, WorkerCredential } from '../../../protocol/generated/remote';
 import { connectCloudBrowser } from './browser-use/cloud-use.ts';
@@ -18,6 +19,16 @@ const defaultTaskCenter = 'https://app.openpero.com';
 export type StoredRemoteConnection = { url: string; mode: Mode; encrypted_token: string };
 export type RemotePreferences = { load(): unknown; save(connection: StoredRemoteConnection | null): Promise<void> };
 type BrowserRun = { url: string; owner: string; runId: string; sessionId: string; title: string };
+const sourceTarget = z.strictObject({
+  projectId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  origin: z.string().min(1).max(2048),
+  accountId: z.string().min(1).max(128),
+});
+const sharedSourceRead = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('list'), target: sourceTarget }),
+  z.strictObject({ kind: z.literal('read'), target: sourceTarget,
+    id: z.string().regex(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/) }),
+]);
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 ajv.addSchema(schema);
 function checked<T>(name: string, value: unknown): T {
@@ -197,6 +208,17 @@ export class RemoteAdapter {
     catch { throw new RemoteRequestError('invalid_response'); }
   }
   get contributionIdentity() { return this.state.identity; }
+  async sharedWebSource(input: unknown): Promise<unknown> {
+    const request = sharedSourceRead.parse(input);
+    await this.initialize();
+    const { target } = request;
+    const identity = this.state.identity;
+    if (this.closed || !this.clientMode || !this.token || this.base !== target.origin ||
+        identity?.role !== 'client' || identity.id !== target.accountId || !identity.projects.includes(target.projectId))
+      throw new Error('The shared Project or Cloud account changed. Select the destination again.');
+    const path = `/api/client/v1/projects/${target.projectId}/web-sources`;
+    return this.request(request.kind === 'read' ? `${path}/${request.id}` : path);
+  }
   async contributionRequest(path: string, method = 'GET', body?: unknown): Promise<unknown> {
     await this.initialize();
     if (!this.state.configured || !this.clientMode) throw new Error('Sign in with a GitHub contributor account first.');

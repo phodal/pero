@@ -1,6 +1,8 @@
 //! Local research presentation. App records remain with their owning backends.
 mod editor;
 mod web_sources;
+#[cfg(all(feature = "native-probe", target_os = "macos"))]
+pub(crate) use web_sources::shared_probe;
 use crate::{app::Workbench, projects::{Project, ProjectTab}, workspace::WorkspaceItem};
 use gpui_kit::{
     component::{
@@ -447,6 +449,16 @@ impl Workbench {
     }
 
     pub(crate) fn research_resources(&self, cx: &mut Context<Self>) -> AnyElement {
+        if self.saved_research_project().is_none() {
+            return div()
+                .id("shared-research-resources")
+                .p(px(pero_theme::WorkbenchStyle::PAGE))
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .children(self.project_web_sources(cx))
+                .into_any_element();
+        }
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let references = self.saved_research_project().map(|project| project.resources.as_slice()).unwrap_or_default();
         let saving = self.research.pending.is_some() && self.error.is_none();

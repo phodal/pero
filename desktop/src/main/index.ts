@@ -620,6 +620,15 @@ app.whenReady().then(async () => {
         host.stdin.write(JSON.stringify(command)+'\n',error=>{if(error){clearTimeout(timer);preferenceWrites.delete(id);rejectWrite(error);}});
       });return;
     }
+    if (method === 'shared_project_sources') {
+      const { request_id, request } = command as { request_id?: unknown; request?: unknown };
+      if (typeof request_id !== 'string' || !request_id || request_id.length > 128 || JSON.stringify(command).length > 4096)
+        throw new Error('Invalid shared Project source reader request');
+      const data = await remote.sharedWebSource(request)
+        .then(value => ({ ok: true, value }), error => ({ ok: false, error: error instanceof Error ? error.message : 'Project sources are unavailable' }));
+      send({ version: 1, kind: 'project_sources_result', request_id, data, text: '' });
+      return;
+    }
     if (method === 'project_sources') {
       const request = (command as { request?: { kind?: string } }).request;
       if (!['list', 'read'].includes(request?.kind ?? '') || JSON.stringify(command).length > 4096)

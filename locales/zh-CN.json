@@ -1155,6 +1155,8 @@
   "research.goal_empty": "添加研究目标，明确这个项目要解决的问题。",
   "research.linked": "资料与实验",
   "research.web_sources": "网页资料",
+  "research.web_sources_local": "本地项目",
+  "research.web_sources_shared": "共享项目",
   "research.web_sources_empty": "在已配对的 Chrome 中使用 Collector，把网页资料保存到此项目。",
   "research.web_sources_loading": "正在加载网页资料…",
   "research.web_sources_reason": "收藏原因",

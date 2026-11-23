@@ -277,7 +277,8 @@ impl Workbench {
             return self.project_agent_view(cx);
         }
         let project = self.current_project(cx);
-        let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some());
+        let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some())
+            || self.shared_web_source_target(cx).is_some();
         div()
             .flex_1()
             .min_w_0()

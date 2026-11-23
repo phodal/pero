@@ -532,7 +532,7 @@ impl Workbench {
                     self.fail_project_agent_request(id, cx);
                 }
             }
-            if value["method"] == "project_sources" {
+            if value["method"] == "project_sources" || value["method"] == "shared_project_sources" {
                 self.fail_project_web_sources(value["request_id"].as_str(), cx);
             }
             self.chat.update(cx, |panel, cx| {
