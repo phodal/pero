@@ -279,6 +279,10 @@ impl Workbench {
                         this.sync_follow(cx);
                     }
                 }
+                ChatAction::OpenCompute => {
+                    if this.apps.contains_panel("compute", "main") { this.open_app("compute".into(), "main".into(), cx); }
+                }
+                ChatAction::PrepareRemoteTask { project_id, prompt } => this.prepare_composer_task(project_id, prompt, window, cx),
                 ChatAction::ReturnToReview => {
                     this.remote.public_contributions = true;
                     this.navigate(WorkbenchPage::Tasks, cx);

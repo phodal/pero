@@ -355,6 +355,42 @@ impl Workbench {
             cx,
         );
     }
+    pub(crate) fn composer_remote_project(&self, cx: &App) -> Option<String> {
+        if self.remote.creating || self.remote.submitting || self.remote.loading() || !self.remote.configured() { return None; }
+        let chat = self.chat.read(cx);
+        let conversation = chat.active_chat.and_then(|i| chat.chats.get(i));
+        let project = if self.project_agent_active() {
+            self.current_project(cx)?
+        } else {
+            let conversation = conversation?;
+            if conversation.scope.is_some() {return None;}
+            let mut candidates = self.project_catalog(cx).into_iter().filter(|p| {
+                if let Some(binding) = &conversation.project_agent { p.research_id() == Some(binding.project_id.as_str()) }
+                else { p.contains_workspace(&conversation.workspace) && p.shared_id.is_some() }
+            });
+            let first = candidates.next()?;
+            if candidates.any(|p| p.shared_id != first.shared_id) { return None; }
+            first
+        };
+        let id = project.shared_id?;
+        (self.remote.operator() || self.remote.client() && self.remote.data["identity"]["projects"]
+            .as_array().is_some_and(|projects| projects.iter().any(|p| p.as_str() == Some(&id)))).then_some(id)
+    }
+
+    pub(crate) fn prepare_composer_task(&mut self, project: &str, prompt: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer_remote_project(cx).as_deref() != Some(project) {
+            self.error = Some(self.t("composer.target_changed").into());
+            return;
+        }
+        self.local_roadmap.show_cloud = true;
+        self.remote.connection.editing = false;
+        self.remote.public_contributions = false;
+        self.navigate(WorkbenchPage::Tasks, cx);
+        self.start_remote_form(window, cx);
+        self.remote.project.update(cx, |input, cx| input.set_value(project.to_string(), window, cx));
+        self.remote.prompt.update(cx, |input, cx| input.set_value(prompt.to_string(), window, cx));
+    }
+
     pub(crate) fn start_remote_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.remote
             .title

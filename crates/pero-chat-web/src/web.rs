@@ -105,7 +105,7 @@ impl ChatWindow {
                         cx.notify();
                         return;
                     }
-                    ChatAction::OpenDocument(..) | ChatAction::StartProjectAgent { .. } | ChatAction::Activated | ChatAction::ReturnToReview | ChatAction::ClosePanel => {
+                    ChatAction::OpenCompute | ChatAction::PrepareRemoteTask {..} | ChatAction::OpenDocument(..) | ChatAction::StartProjectAgent { .. } | ChatAction::Activated | ChatAction::ReturnToReview | ChatAction::ClosePanel => {
                         cx.notify();
                         return;
                     }

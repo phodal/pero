@@ -57,6 +57,8 @@ pub enum ChatAction {
     CompactNeedsSpace,
     ClosePanel,
     Activated,
+    OpenCompute,
+    PrepareRemoteTask { project_id: String, prompt: String },
     ReturnToReview,
 }
 
