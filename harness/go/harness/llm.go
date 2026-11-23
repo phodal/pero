@@ -186,6 +186,13 @@ func validatePreparedAdapterCall(provider, model string, prepared PreparedAdapte
 			request.toolHistoryProjected = true
 		}
 		return dispatch(ctx, request, emit)
+		if request.promptReceipt != nil {
+			var err error
+			ctx, err = recordPromptReceipt(ctx, request)
+			if err != nil {
+				return Completion{}, err
+			}
+		}
 	}
 	prepared.validated = true
 	return prepared, nil

@@ -312,7 +312,9 @@ func (a *Agent) worker(ctx context.Context) error {
 			var stopRequestCancel func() bool
 			becameRunning := false
 			if hasWork {
-				workContext := ctx
+				// The worker owns the turn lifetime. Copy only the tracing identity from
+				// the queued caller context when transferring execution ownership.
+				workContext := WithPromptReceiptID(ctx, promptReceiptID(work.ctx))
 				if work.owned != nil {
 					workContext = context.WithValue(workContext, ownedFollowupExecutionKey{}, work.owned)
 				}

@@ -156,8 +156,8 @@ func TestHarnessRunsToolContinuationAndLogsModelVisibleState(t *testing.T) {
 		types = append(types, event.Type)
 	}
 	wantTypes := []string{
-		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context", "assistant/message", "tool/call", "tool/batch-budget", "tool/result", "step/end",
-		"step/start", "assistant/chunk", "assistant/message", "step/end", "turn/end",
+		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context", "request/prompt-receipt", "assistant/message", "tool/call", "tool/batch-budget", "tool/result", "step/end",
+		"step/start", "request/prompt-receipt", "assistant/chunk", "assistant/message", "step/end", "turn/end",
 	}
 	if !reflect.DeepEqual(types, wantTypes) {
 		t.Fatalf("event types = %v, want %v", types, wantTypes)
@@ -366,7 +366,7 @@ func TestAgentCancellationClosesStepAndTurn(t *testing.T) {
 	for _, event := range agent.Session().Events() {
 		types = append(types, event.Type)
 	}
-	if want := []string{"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "assistant/attempt", "step/end", "turn/end"}; !reflect.DeepEqual(types, want) {
+	if want := []string{"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/prompt-receipt", "assistant/attempt", "step/end", "turn/end"}; !reflect.DeepEqual(types, want) {
 		t.Fatalf("event types = %v, want %v", types, want)
 	}
 	if err := harness.Dispose(ctx); err != nil {

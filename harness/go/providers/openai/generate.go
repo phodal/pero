@@ -159,17 +159,20 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	}
 	if request.Agent != nil {
 		hash := sha256.Sum256(payload)
+		promptID, promptReceiptSeq := harness.PromptReceiptLink(ctx)
 		_, err := request.Agent.Session().Append("request/wire-size", struct {
 			Stage                  string `json:"stage"`
 			Purpose                string `json:"purpose,omitempty"`
 			Turn                   int    `json:"turn,omitempty"`
 			Step                   int    `json:"step,omitempty"`
+			PromptID               string `json:"promptId,omitempty"`
+			PromptReceiptSeq       uint64 `json:"promptReceiptSeq,omitempty"`
 			PayloadBytes           int    `json:"payload_bytes"`
 			ToolsBytes             int    `json:"tools_bytes"`
 			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
 			ToolResults            int    `json:"tool_results"`
 			SHA256                 string `json:"payload_sha256"`
-		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, promptID, promptReceiptSeq, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
 		if err != nil {
 			return harness.Completion{}, err
 		}

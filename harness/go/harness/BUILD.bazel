@@ -65,6 +65,7 @@ go_library(
         "profile_owner_visibility.go",
         "profile_owners.go",
         "prompt.go",
+        "prompt_receipt.go",
         "provider_directory.go",
         "provider_error.go",
         "provider_metadata.go",

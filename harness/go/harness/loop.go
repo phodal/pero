@@ -471,6 +471,10 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 		defer func() { resultErr = joinPresentationRelease(resultErr, presentation.Release, ctx) }()
 	}
 	system, runtime := presentation.System, presentation.RuntimeContext
+	var renderedRuntime string
+	if runtime != nil {
+		renderedRuntime = runtime.Text
+	}
 	var admission []Message
 	if len(pending) > 0 {
 		admission = cloneMessages(pending[0])
@@ -510,8 +514,25 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 			return Completion{}, err
 		}
 		request.Tools = BoundToolCatalogs(request.Tools)
+		receipt := &promptRequestReceipt{PromptID: promptReceiptID(ctx), Turn: turn, Step: step, Attempt: requestAttempt + 1, Purpose: "main", Provider: request.Provider, Model: request.Model, Stage: "logical"}
+		if request.Purpose != "" {
+			receipt.Purpose = request.Purpose
+		}
+		if request.System == system {
+			receipt.Sections = append(receipt.Sections, presentation.sections...)
+		} else {
+			receipt.SystemOverridden = true
+		}
 		if presentation.Guidance != nil {
-			guidance, err := presentation.Guidance(ctx, PromptCapabilities{Tools: request.Tools, Model: prepared.ModelInfo})
+			capabilities := PromptCapabilities{Tools: request.Tools, Model: prepared.ModelInfo}
+			var guidance string
+			if presentation.renderGuidance != nil {
+				var sections []promptSectionReceipt
+				guidance, sections, err = presentation.renderGuidance(ctx, capabilities)
+				receipt.Sections = append(receipt.Sections, sections...)
+			} else {
+				guidance, err = presentation.Guidance(ctx, capabilities)
+			}
 			if err != nil {
 				return Completion{}, err
 			}
@@ -519,11 +540,20 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 				request.System = strings.TrimSpace(request.System + "\n\n" + guidance)
 			}
 		}
-		if presentation.RefreshRuntimeContext != nil {
+		if presentation.refreshRuntime != nil {
+			var sections []promptSectionReceipt
+			request.RuntimeContext, sections, err = presentation.refreshRuntime(ctx)
+			if err != nil {
+				return Completion{}, err
+			}
+			receipt.Sections = append(receipt.Sections, sections...)
+		} else if presentation.RefreshRuntimeContext != nil {
 			request.RuntimeContext, err = presentation.RefreshRuntimeContext(ctx)
 			if err != nil {
 				return Completion{}, err
 			}
+		} else if request.RuntimeContext != nil && request.RuntimeContext.Text == renderedRuntime {
+			receipt.Sections = append(receipt.Sections, presentation.runtimeSections...)
 		}
 		if err := ValidateReasoningEffort(prepared.ModelInfo, request.ReasoningEffort); err != nil {
 			return Completion{}, err
@@ -663,6 +693,7 @@ func (a *Agent) generateStepWithRuntime(ctx context.Context, turn, step int, pre
 			return Completion{}, err
 		}
 		attemptStream := newInterruptedStreamAssembly()
+		request.promptReceipt = receipt
 		completion, requestErr := a.generateMainRequest(ctx, prepared, request, func(chunk StreamChunk) error {
 			_, appendErr := a.session.Append("assistant/chunk", struct {
 				Turn  int         `json:"turn"`

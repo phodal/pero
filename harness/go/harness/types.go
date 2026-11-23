@@ -69,6 +69,7 @@ type GenerateRequest struct {
 	// Only trusted adapter dispatch code may mark an already projected boundary.
 	// This provenance is process-local and cannot be supplied over JSON.
 	toolHistoryProjected bool
+	promptReceipt        *promptRequestReceipt
 	Provider             string `json:"provider,omitempty"`
 	Model                string `json:"model,omitempty"`
 	// TransientModel records the dispatched route without replacing the

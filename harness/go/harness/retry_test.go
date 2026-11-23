@@ -77,7 +77,8 @@ func TestHarnessRetriesProviderFailuresWithDurableStepLocalEvents(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := agent.Prompt(ctx, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "hello"}}})
+	const promptID = "host-turn-1234"
+	result, err := agent.Prompt(WithPromptReceiptID(ctx, promptID), Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "hello"}}})
 	if err != nil || result.Reason != FinishStop || adapter.calls != 3 {
 		t.Fatalf("result=%+v error=%v calls=%d", result, err, adapter.calls)
 	}
@@ -85,6 +86,7 @@ func TestHarnessRetriesProviderFailuresWithDurableStepLocalEvents(t *testing.T) 
 	var retries []LLMRetryEvent
 	var started []LLMRetryStartedEvent
 	var headers []RequestHeaderEvent
+	var receipts []promptRequestReceipt
 	var eventTypes []string
 	for _, event := range agent.Session().Events() {
 		eventTypes = append(eventTypes, event.Type)
@@ -95,6 +97,15 @@ func TestHarnessRetriesProviderFailuresWithDurableStepLocalEvents(t *testing.T) 
 				t.Fatal(err)
 			}
 			headers = append(headers, value)
+		case "request/prompt-receipt":
+			var value promptRequestReceipt
+			if err := json.Unmarshal(event.Data, &value); err != nil {
+				t.Fatal(err)
+			}
+			if value.AfterSeq == 0 || value.AfterSeq >= event.Seq {
+				t.Fatalf("receipt anchor = %d, receipt event = %d", value.AfterSeq, event.Seq)
+			}
+			receipts = append(receipts, value)
 		case "llm/retry":
 			var value LLMRetryEvent
 			if err := json.Unmarshal(event.Data, &value); err != nil {
@@ -110,8 +121,9 @@ func TestHarnessRetriesProviderFailuresWithDurableStepLocalEvents(t *testing.T) 
 		}
 	}
 	wantTypes := []string{
-		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context", "assistant/attempt", "llm/retry", "llm/retry-started",
-		"assistant/attempt", "llm/retry", "llm/retry-started", "assistant/message", "step/end", "turn/end",
+		"agent/inbox/spliced", "turn/start", "agent/inbox/spliced", "step/start", "system/message", "user/message", "request/header", "request/context",
+		"request/prompt-receipt", "assistant/attempt", "llm/retry", "llm/retry-started", "request/prompt-receipt", "assistant/attempt", "llm/retry", "llm/retry-started",
+		"request/prompt-receipt", "assistant/message", "step/end", "turn/end",
 	}
 	if !reflect.DeepEqual(eventTypes, wantTypes) {
 		t.Fatalf("event types = %v", eventTypes)
@@ -123,6 +135,17 @@ func TestHarnessRetriesProviderFailuresWithDurableStepLocalEvents(t *testing.T) 
 	}
 	if len(headers) != 1 || headers[0].Reason != "initial" || headers[0].StartsSeries {
 		t.Fatalf("retry request headers = %+v", headers)
+	}
+	if len(receipts) != 3 {
+		t.Fatalf("received %d prompt receipts, want 3", len(receipts))
+	}
+	for index, receipt := range receipts {
+		if receipt.PromptID != promptID || receipt.Attempt != index+1 || receipt.Turn != 1 || receipt.Step != 1 || receipt.Stage != "logical" {
+			t.Fatalf("invalid attempt receipt: %+v", receipt)
+		}
+		if !reflect.DeepEqual(receipt.Messages, receipts[0].Messages) || len(receipt.Messages) != 1 || receipt.Messages[0].Role != RoleUser {
+			t.Fatalf("retry input fingerprint changed: %+v", receipt.Messages)
+		}
 	}
 }
 

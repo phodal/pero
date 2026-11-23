@@ -44,6 +44,12 @@ func (a *Agent) generateMainRequest(ctx context.Context, prepared PreparedAdapte
 	if len(events) > 0 {
 		seq = events[len(events)-1].Seq
 	}
+	if request.promptReceipt != nil {
+		// Anchor to the exact prepared Session prefix exposed to observers.
+		// An observer may append a later event without altering the request.
+		request.promptReceipt.AfterSeq = seq
+		request.promptReceipt.owner = a
+	}
 	input := MainRequestInput{agent: a, provider: request.Provider, model: request.Model, turn: request.Turn, step: request.Step, observedSeq: seq, active: &active}
 	err := func() error { defer active.Store(false); return a.hooks.MainRequest.Emit(ctx, input) }()
 	if err != nil {

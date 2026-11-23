@@ -19,6 +19,10 @@ type PromptPresentation struct {
 	RuntimeContext        *RuntimeContextSnapshot
 	RefreshRuntimeContext func(context.Context) (*RuntimeContextSnapshot, error)
 	Release               func(context.Context) error
+	sections              []promptSectionReceipt
+	runtimeSections       []promptSectionReceipt
+	renderGuidance        func(context.Context, PromptCapabilities) (string, []promptSectionReceipt, error)
+	refreshRuntime        func(context.Context) (*RuntimeContextSnapshot, []promptSectionReceipt, error)
 }
 
 type PromptCapabilities struct {
@@ -141,9 +145,14 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 		return entries[left].id < entries[right].id
 	})
 	sections := make([]string, 0, len(entries))
+	var sectionReceipts []promptSectionReceipt
 	var runtime *RuntimeContextSnapshot
 	var runtimeTexts []string
-	var providers []PromptPresentation
+	var runtimeReceipts []promptSectionReceipt
+	var providers []struct {
+		id string
+		PromptPresentation
+	}
 	var guidanceSections []PromptSection
 	release := func(ctx context.Context) error {
 		var errs []error
@@ -166,7 +175,10 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 		} else if entry.section.Presentation != nil {
 			var value PromptPresentation
 			value, err = entry.section.Presentation(ctx, agent)
-			providers = append(providers, value)
+			providers = append(providers, struct {
+				id string
+				PromptPresentation
+			}{entry.section.ID, value})
 			content = value.System
 			if value.RuntimeContext != nil {
 				if runtime == nil {
@@ -175,6 +187,7 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 				runtime.Sections = append(runtime.Sections, value.RuntimeContext.Sections...)
 				if value.RuntimeContext.Text != "" {
 					runtimeTexts = append(runtimeTexts, value.RuntimeContext.Text)
+					runtimeReceipts = append(runtimeReceipts, promptSectionReceipt{ID: entry.section.ID, Kind: "runtime_context", promptFingerprint: fingerprintPrompt([]byte(value.RuntimeContext.Text))})
 				}
 			}
 		} else {
@@ -185,15 +198,17 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 		}
 		if content = strings.TrimSpace(content); content != "" {
 			sections = append(sections, content)
+			sectionReceipts = append(sectionReceipts, promptSectionReceipt{ID: entry.section.ID, Kind: "system", promptFingerprint: fingerprintPrompt([]byte(content))})
 		}
 	}
 	if runtime != nil {
 		runtime.Text = strings.Join(runtimeTexts, "\n\n")
 	}
-	value := PromptPresentation{System: strings.Join(sections, "\n\n"), RuntimeContext: runtime, Release: release}
+	value := PromptPresentation{System: strings.Join(sections, "\n\n"), RuntimeContext: runtime, Release: release, sections: sectionReceipts, runtimeSections: runtimeReceipts}
 	if len(guidanceSections) > 0 {
-		value.Guidance = func(ctx context.Context, capabilities PromptCapabilities) (string, error) {
+		value.renderGuidance = func(ctx context.Context, capabilities PromptCapabilities) (string, []promptSectionReceipt, error) {
 			var parts []string
+			var receipts []promptSectionReceipt
 			budget := CatalogBudget{Remaining: DefaultCatalogBytes}
 			for _, tool := range capabilities.Tools {
 				if tool.Catalog != nil {
@@ -208,7 +223,7 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 				}
 				text, err := section.Guidance(ctx, agent, captured)
 				if err != nil {
-					return "", err
+					return "", nil, err
 				}
 				if text = strings.TrimSpace(text); text != "" {
 					if section.Catalog {
@@ -222,23 +237,31 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 						text = budget.Render(CatalogText{Rows: []string{text}, Continuation: continuation})
 					}
 					parts = append(parts, text)
+					if text != "" {
+						receipts = append(receipts, promptSectionReceipt{ID: section.ID, Kind: "guidance", promptFingerprint: fingerprintPrompt([]byte(text))})
+					}
 				}
 			}
-			return strings.Join(parts, "\n\n"), nil
+			return strings.Join(parts, "\n\n"), receipts, nil
+		}
+		value.Guidance = func(ctx context.Context, capabilities PromptCapabilities) (string, error) {
+			text, _, err := value.renderGuidance(ctx, capabilities)
+			return text, err
 		}
 	}
 	for _, provider := range providers {
 		if provider.RefreshRuntimeContext != nil {
-			value.RefreshRuntimeContext = func(ctx context.Context) (*RuntimeContextSnapshot, error) {
+			value.refreshRuntime = func(ctx context.Context) (*RuntimeContextSnapshot, []promptSectionReceipt, error) {
 				var result *RuntimeContextSnapshot
 				var texts []string
+				var receipts []promptSectionReceipt
 				for _, p := range providers {
 					current := p.RuntimeContext
 					if p.RefreshRuntimeContext != nil {
 						var err error
 						current, err = p.RefreshRuntimeContext(ctx)
 						if err != nil {
-							return nil, err
+							return nil, nil, err
 						}
 					}
 					if current != nil {
@@ -248,13 +271,18 @@ func (r *PromptRegistry) AssemblePresentation(ctx context.Context, agent *Agent)
 						result.Sections = append(result.Sections, current.Sections...)
 						if current.Text != "" {
 							texts = append(texts, current.Text)
+							receipts = append(receipts, promptSectionReceipt{ID: p.id, Kind: "runtime_context", promptFingerprint: fingerprintPrompt([]byte(current.Text))})
 						}
 					}
 				}
 				if result != nil {
 					result.Text = strings.Join(texts, "\n\n")
 				}
-				return result, nil
+				return result, receipts, nil
+			}
+			value.RefreshRuntimeContext = func(ctx context.Context) (*RuntimeContextSnapshot, error) {
+				snapshot, _, err := value.refreshRuntime(ctx)
+				return snapshot, err
 			}
 			break
 		}
