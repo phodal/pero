@@ -304,3 +304,34 @@ Receipt disclosure requires standalone boundaries and preserves assistant code
 and fences containing additional content. The existing Host and Electron flows
 exercise the changes. Incident scope and validation are recorded in
 `docs/issues/2026-11-14-project-agent-merge-gates.md`.
+
+## Project navigation and coordinator entry, 2026-11-23
+
+In Cursor 3.31.15 on macOS, the Projects section displayed one Pero row while
+the active Chats tab was titled Pero. Opening Agents inside that conversation
+revealed four named workers with individual open and add-to-chat actions.
+The composer showed Send follow-up. Tasks and Pull Requests occupied a separate
+Apps tab group with its own Hide Apps action.
+
+The installed Molten renderer in Cursor.app supplies the following evidence.
+
+| Component | Observed behavior |
+| --- | --- |
+| boot-BXxkQaOp.js | The chat title resolver uses the project title when the session ID equals the project ID. Other session IDs are looked up in sideChats. Worker activity lookup carries coordinatorId and workerId. |
+| thread-reply-DKTFV2Yi.js | The composer resolves editing and mode-specific overrides before choosing its default. Expanded mode advertises Plan, Build, skills and context. The ordinary follow-up default is Send follow-up. |
+| project-thread-view-MPjKnKfc.js | Thread replies carry a threadRootId and a separate reply composer. Opening the Project itself does not require selecting a reply thread. |
+| project-page-NVbaKYyZ.js | Task filtering and list/board selection belong to the project page. They can change while the main conversation stays open. |
+
+Pero uses its saved research ID and the Host's primary session binding. The
+sidebar consumes the full project catalog. Opening an older catalog entry saves
+its identity and replaces the old workspace tab key. Its project row returns to
+the primary transcript. Delegates appear in a menu inside the conversation.
+The former full-page project list and per-page project switcher have been
+removed. The group actions menu owns creation, folder opening and all tasks.
+The right inspector continues to use Pero's existing project views.
+
+The macOS preview showed both local project rows, restored Pero's existing
+follow-up composer, and showed Change directory for the missing pero-ws-b
+directory. Returning to Pero removed that directory alert. The Electron Project
+Agent suite exercised delegation, switching back to the primary, original-session
+follow-up, independent inspector visibility and restart with a fixture provider.
