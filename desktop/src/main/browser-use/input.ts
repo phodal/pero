@@ -1,5 +1,3 @@
-import type { WebContents } from 'electron';
-
 // Chromium key codes and dispatch order adapted from Point's BrowserHost.
 const virtualKey = {
   Enter: 13, Tab: 9, Escape: 27, Backspace: 8, Delete: 46, Space: 32,
@@ -19,17 +17,6 @@ export type BrowserInput =
   | { kind: 'press'; key: string; modifiers?: BrowserModifier[] }
   | { kind: 'typeSequentially'; text: string; checkTarget(): Promise<void> }
   | { kind: 'scroll'; point: ViewportPoint; deltaX: number; deltaY: number };
-
-/** Fixed browser commands for this WebContents only. This attachment never adopts DevTools. */
-export async function dispatchBrowserInput(contents: WebContents, input: BrowserInput) {
-  const client = contents.debugger;
-  client.attach('1.3');
-  try {
-    await sendBrowserInput((method, params) => client.sendCommand(method, params), () => !contents.isDestroyed() && client.isAttached(), input);
-  } finally {
-    if (!contents.isDestroyed() && client.isAttached()) client.detach();
-  }
-}
 
 export async function sendBrowserInput(
   send: (method: string, params: Record<string, unknown>) => Promise<unknown>,

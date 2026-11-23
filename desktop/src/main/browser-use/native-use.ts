@@ -8,7 +8,7 @@ import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { BrowserPopupResult, BrowserUsePort } from './browser-use.ts';
 import type { BrowserDialog, BrowserDialogAnswer } from './dialog.ts';
 import { documentScript, type DocumentCommand, type DocumentResult } from './document.ts';
-import { browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
+import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserRequest, type BrowserRequest, type FrameSelector } from './request.ts';
 import { freezeDownloadBytes } from './download.ts';
 import { downloadLinkScript } from './download-link.ts';
@@ -154,21 +154,11 @@ export class NativeBrowserUse implements BrowserUsePort {
       if (request.action === 'handleJsDialog') {
         this.observations.delete(tabId);
         const { dialogId, decision, promptText } = request;
-        const { id, entry, record } = await startBrowserReceipt(this.evidenceRoot, {
+        const receipt = await startBrowserReceipt(this.evidenceRoot, {
           thread, tabId, grantId, url, origin, action: request.action,
         });
-        await record('.intent', { ...entry, dialogId, decision });
-        signal.throwIfAborted();
-        let effect: { outcome: 'dispatched' | 'rejected' | 'unknown'; reason?: string };
-        try {
-          const result = await this.rpc<{ rejected: string } | null>({ op: 'manage', thread, tab: tabId, grant: grantId,
-            command: { kind: 'handleJsDialog', dialogId, decision, promptText } });
-          effect = result ? { outcome: 'rejected', reason: result.rejected } : { outcome: 'dispatched' };
-        } catch (error) {
-          effect = { outcome: 'unknown', reason: error instanceof Error ? error.message : String(error) };
-        }
-        await record('.result', { id, dialogId, decision, ...effect });
-        return { receiptId: id, dialogId, decision, ...effect, verified: false };
+        return await answerBrowserDialog(receipt, request, () => this.rpc({ op: 'manage', thread, tab: tabId, grant: grantId,
+          command: { kind: 'handleJsDialog', dialogId, decision, promptText } }), signal);
       }
       if (!stamp) throw new Error('Activate the selected tab and wait for the page to finish loading.');
       const run = async <T>(operation: DriverOperation) => {

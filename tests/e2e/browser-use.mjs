@@ -88,6 +88,18 @@ const site = await serve(async (request, response) => {
     response.end('<title>Page opened tab</title><h1>Opened by the page</h1>');
     return;
   }
+  if (request.url === '/dialogs') {
+    response.end(`<!doctype html><title>Embedded JavaScript dialogs</title>
+      <button onclick="document.querySelector('output').textContent = String(confirm('Embedded fixture confirm'))">Open confirmation</button>
+      <button onclick="setTimeout(() => { alert('Embedded fixture alert'); document.querySelector('output').textContent = 'alert closed'; }, 150)">Open delayed alert</button>
+      <output data-testid="dialog-result">Waiting</output>`);
+    return;
+  }
+  if (request.url === '/arrival-dialog') {
+    response.end(`<!doctype html><title>Arrival dialog</title><output data-testid="dialog-result">Waiting</output>
+      <script>alert('Embedded fixture arrival'); document.querySelector('output').textContent = 'arrival resumed';</script>`);
+    return;
+  }
   if (request.url === '/page-effects') {
     response.end(`<!doctype html><title>Browser page effects</title>
       <a href="/popup-target" target="_blank">Open target blank</a>
@@ -799,6 +811,85 @@ try {
   expect(noDownload).not.toHaveProperty('transfer');
   expect((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-'))).toEqual([]);
 
+  const dialogsUrl = site.origin + '/dialogs';
+  await open(dialogsUrl);
+  const [ungranted] = await prompt([{ action: 'getJsDialog', tabId: dialogsUrl }]);
+  expect(ungranted).toMatchObject({ isError: true, error: expect.stringContaining('Allow a Web tab') });
+  await confirm(1);
+  await expect.poll(async () => (await document(dialogsUrl))?.observation.notice).toBe('Browser Use allowed');
+  // Playwright dismisses Chromium dialogs without a subscriber.
+  const visibleDialogs = [];
+  app.context().on('dialog', dialog => visibleDialogs.push({ type: dialog.type(), message: dialog.message() }));
+  await app.evaluate(({ dialog }) => {
+    const original = dialog.showMessageBox;
+    dialog.showMessageBox = (...args) => {
+      const options = args.at(-1);
+      if (!options.message?.startsWith('Embedded fixture')) return original(...args);
+      // Keep Electron's native callback pending while the agent answers the
+      // real renderer dialog. Only presentation is replaced by the fixture.
+      return new Promise(resolve => {
+        const finish = () => resolve({ response: 1, checkboxChecked: false });
+        options.signal.addEventListener('abort', finish, { once: true });
+        globalThis.dismissEmbeddedFixture = finish;
+      });
+    };
+  });
+  const waitDialog = async type => {
+    let reply;
+    await expect.poll(async () => {
+      [reply] = await prompt([{ action: 'getJsDialog', tabId: dialogsUrl }]);
+      return reply.dialog?.type;
+    }).toBe(type);
+    return reply.dialog;
+  };
+  const answerDialog = (dialogId, decision) => ({ action: 'handleJsDialog', tabId: dialogsUrl, dialogId, decision });
+  const embeddedDialogReceipts = [];
+  let previousDialogId;
+  for (const [name, type, decision, marker] of [
+    ['Open confirmation', 'confirm', 'accept', 'true'],
+    ['Open confirmation', 'confirm', 'dismiss', 'false'],
+    ['Open delayed alert', 'alert', 'dismiss', 'alert closed'],
+  ]) {
+    const [, click] = await prompt([target(name), { action: 'click', name }]);
+    expect(click).toMatchObject({ outcome: 'dispatched' });
+    const { id, message } = await waitDialog(type);
+    expect(message).toBe(`Embedded fixture ${type}`);
+    expect(visibleDialogs.at(-1)).toEqual({ type, message });
+    if (previousDialogId) {
+      const [stale] = await prompt([answerDialog(previousDialogId, decision)]);
+      expect(stale).toMatchObject({ outcome: 'rejected' });
+    }
+    const [handled, cleared, effect] = await prompt([answerDialog(id, decision), { action: 'getJsDialog' },
+      { action: 'wait', locator: { by: 'testId', value: 'dialog-result' }, condition: { kind: 'text', value: marker } }]);
+    expect(handled).toMatchObject({ outcome: 'dispatched', dialogId: id });
+    expect(cleared.dialog).toBe(null);
+    expect(effect.matched).toBe(true);
+    const receipt = JSON.parse(await readFile(resolve(effectsEvidence, handled.receiptId + '.result.json'), 'utf8'));
+    expect(receipt).toEqual({ id: handled.receiptId, dialogId: id, decision, outcome: 'dispatched' });
+    embeddedDialogReceipts.push(receipt);
+    previousDialogId = id;
+  }
+  const [arrival] = await prompt([{ action: 'navigate', url: site.origin + '/arrival-dialog' }]);
+  expect(arrival).toMatchObject({ outcome: 'dispatched' });
+  const arrivalDialog = await waitDialog('alert');
+  expect(arrivalDialog.message).toBe('Embedded fixture arrival');
+  const [arrivalHandled] = await prompt([answerDialog(arrivalDialog.id, 'dismiss')]);
+  expect(arrivalHandled).toMatchObject({ outcome: 'dispatched' });
+  await expect.poll(async () => (await document(dialogsUrl))?.observation.load.kind).toBe('ready');
+  const [arrivalEffect] = await prompt([
+    { action: 'wait', locator: { by: 'testId', value: 'dialog-result' }, condition: { kind: 'text', value: 'arrival resumed' } },
+  ]);
+  expect(arrivalEffect.matched).toBe(true);
+  expect((await prompt([{ action: 'back' }]))[0]).toMatchObject({ outcome: 'dispatched', url: dialogsUrl });
+
+  await prompt([target('Open confirmation'), { action: 'click', name: 'Open confirmation' }]);
+  const pending = await waitDialog('confirm');
+  await menu('browser-use-revoke');
+  const [afterRevoke] = await prompt([answerDialog(pending.id, 'accept')]);
+  expect(afterRevoke).toMatchObject({ isError: true, error: expect.stringContaining('Allow a Web tab') });
+  expect(await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(view => view.getURL() === url)?.debugger.isAttached(), dialogsUrl)).toBe(false);
+  await app.evaluate(() => globalThis.dismissEmbeddedFixture?.());
+
   await clickNewChat(page);
   const batchUrl = site.origin + '/batch-inputs';
   await open(batchUrl);
@@ -859,7 +950,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, embeddedDialogReceipts, arrivalDialogHandled: true, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

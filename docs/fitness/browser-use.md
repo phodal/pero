@@ -195,8 +195,9 @@ observation. Pointer actions recheck the node's identity and semantic label
 and hit-test its visible point. `dblclick` checks the same target and point
 again after the first click. A press focuses an observed element and sends a named key
 such as Enter, Tab, Escape or an arrow. Scrolling uses the current observation
-ID and bounded X/Y wheel deltas. Desktop uses a short-lived Chromium debugger
-attachment for fixed input commands. The tool accepts page content as data.
+ID and bounded X/Y wheel deltas. The granted tab keeps a Chromium debugger
+attached for fixed input commands and JavaScript dialog events. Revoking the
+grant or closing the tab releases the debugger. The tool accepts page content as data.
 Observation omits password, hidden and credential-autocomplete inputs. For a
 visible file input it exposes an actionable reference and label without any
 selected filenames or local paths.
@@ -204,6 +205,19 @@ Direct navigation rejects foreign origins and cancels
 cross-origin HTTP redirects before the foreign site receives a request.
 A navigation initiated independently by the page or the user ends the grant
 if it leaves the origin.
+
+Use `getJsDialog` and `handleJsDialog` to inspect and answer an embedded
+Chromium `confirm`, or dismiss an `alert`. Dialogs use the existing grant
+for the visible tab, and dialog IDs expire when their dialog closes. A delayed
+dialog remains discoverable after the click returns. When a page opens a dialog
+while loading, Browser Use returns before the load finishes so the next call can
+answer the dialog. Electron rejects
+`window.prompt()` in the renderer and automatically cancels navigation when
+the page prevents unload. The paired Chrome provider supports both dialog types.
+The Electron acceptance suite verifies page callbacks, navigation resuming
+after a dismissed alert, stale IDs and debugger release on revocation. The
+test replaces native message-box presentation while preserving the renderer
+and debugger dialog lifecycle.
 
 ### Independent tabs, history and files
 
