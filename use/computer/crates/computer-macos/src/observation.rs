@@ -219,13 +219,16 @@ pub fn observe(
             semantic_actions,
         };
         let mut children: Vec<CfRef> = Vec::new();
-        let attrs = if matches!(
+        let attrs: &[_] = if matches!(
             role.as_str(),
             "AXTable" | "AXOutline" | "AXList" | "AXBrowser"
         ) {
-            ["AXRows", "AXVisibleChildren", "AXChildren"]
+            &["AXRows", "AXVisibleChildren", "AXChildren"]
+        } else if role == "AXScrollArea" {
+            // AppKit scroll areas describe their document view separately from scrollbars.
+            &["AXContents", "AXChildren", "AXVisibleChildren", "AXRows"]
         } else {
-            ["AXChildren", "AXVisibleChildren", "AXRows"]
+            &["AXChildren", "AXVisibleChildren", "AXRows"]
         };
         for attr in attrs {
             let found = ffi::ax_retained_elements(&element, attr, 512);
