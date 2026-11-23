@@ -11,10 +11,13 @@ const out = resolve(root, 'test-results/local-project-start');
 await mkdir(out, { recursive: true });
 const settings = resolve(temp, 'settings.json');
 const otherWorkspace = resolve(temp, 'another-workspace');
+const missingWorkspace = resolve(temp, 'missing-workspace');
+const replacement = resolve(temp, 'replacement');
+await mkdir(replacement);
 await mkdir(otherWorkspace);
 await writeFile(resolve(otherWorkspace, 'ROADMAP.md'), '- [ ] Another workspace task\n');
 await writeFile(settings, JSON.stringify({ locale: 'zh-CN', workbench: {
-  appearance: 'light', projects: [{ workspace: otherWorkspace, project_id: 'fixture' }],
+  appearance: 'light', projects: [{ workspace: otherWorkspace, project_id: 'fixture' }, { workspace: missingWorkspace, project_id: 'missing' }],
 } }));
 const agents = resolve(temp, 'agents.json');
 await writeFile(agents, JSON.stringify([{ id: 'fixture', name: 'Fixture', command: process.execPath, args: [resolve(root, 'tests/fixtures/acp-agent.mjs')] }]));
@@ -62,6 +65,19 @@ try {
   await capture('02-local-roadmap');
   await clickControl(`sidebar:open:${first}`);
   await expect.poll(async () => (await state()).selectedProject).toBe(first);
+  await clickControl(`sidebar:open:workspace:${missingWorkspace}`);
+  await expect.poll(async () => (await state()).projectControls['repair-directory']?.width || 0).toBeGreaterThan(0);
+  const missingKey = (await state()).selectedProject;
+  await clickControl(`sidebar:open:${first}`);
+  await expect.poll(async () => (await state()).projectControls['repair-directory']?.width || 0).toBe(0);
+  await clickControl(`sidebar:open:${missingKey}`);
+  await clickControl('repair-directory');
+  await clickControl('research-workspace');
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+  await page.keyboard.insertText(replacement);
+  await clickControl('save');
+  await expect.poll(async () => (await state()).preferences.research_projects.find(p => `research:${p.id}` === missingKey)?.workspace).toBe(replacement);
+  await expect.poll(async () => (await state()).projectControls['repair-directory']?.width || 0).toBe(0);
   await openSettings(page);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
