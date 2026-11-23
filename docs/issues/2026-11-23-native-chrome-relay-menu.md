@@ -36,3 +36,13 @@ A headed Chrome for Testing run exercised the automatic handoff, denial before
 approval, a trusted page click, and revocation from both ends. The macOS Native
 preview opened the settings page, prepared the folder in Finder, and launched
 the installed extension in the Phodal profile of Google Chrome.
+
+With the updated extension loaded in Phodal’s regular Google Chrome
+157.0.8103.80, **Pair in Chrome** opened the extension and displayed the
+selected Native chat with tab approval pending. Reviewing the loopback test
+page and clicking **Allow this tab** exposed exactly one tab to the fixture
+ACP Agent. Its click on **Verify Pero** produced a Native action receipt
+and an independent page callback with `isTrusted=true`. **Stop and take over**
+disconnected Chrome. The same Native conversation then listed zero tabs and
+could no longer observe its old tab ID. Local evidence is under
+`target/browser-preview/`.
