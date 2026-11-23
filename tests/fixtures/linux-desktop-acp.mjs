@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import readline from 'node:readline';
 import { appUseContent } from './app-use-content.mjs';
+import { waitFor } from './computer-app.mjs';
 
 const send = value => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value }) + '\n');
 const sessionId = 'linux-desktop-fixture';
@@ -22,8 +23,12 @@ async function computer(args) {
     image: result.content.find(item => item.type === 'image') };
 }
 async function observe() {
-  const { value } = await computer({ operation: 'targets' });
-  const target = value.targets.find(target => target.application === 'mousepad').reference;
+  const target = await waitFor(async () => {
+    const { value } = await computer({ operation: 'targets' });
+    assert(Array.isArray(value.targets), JSON.stringify(value));
+    return value.targets.find(target => target.application_id === 'mousepad' &&
+      target.title.includes('remote-proof.txt'))?.reference;
+  }, 'Mousepad window for remote-proof.txt');
   const { value: reply, image } = await computer({ operation: 'observe', target });
   assert.equal(image?.mimeType, 'image/jpeg');
   assert.ok(Buffer.from(image.data, 'base64').length > 1000);
