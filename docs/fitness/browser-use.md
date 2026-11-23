@@ -233,15 +233,29 @@ same-project non-owner rejection, wrong-Pod rejection, single attachment,
 single-flight calls, response delivery and cancellation during an in-flight
 call. The TokenReview endpoint is a loopback fixture.
 
-The isolated Agent can opt in with `PERO_AGENT_BROWSER_USE=1`. The fixed Go ACP
+The operator opts in with `runtime.browser_use: true` in the isolated recipe.
+The recipe passes `PERO_AGENT_BROWSER_USE=1` to the Agent. The fixed Go ACP
 process exposes the `browser_use` function for status, observation, locating,
 clicking and filling on the shared tab. The Pod shim uses the rotating projected
 token. The provider receives a bounded text result. The process fixture
 `TestAgentConnectCLIWithGoACP/browser` ran the real ACP and connector binaries
 with a loopback TLS control endpoint and scripted provider. It verified the
 tool result returned to the next provider request and the default lane has no
-Browser Use function. Desktop consent and a browser effect through a hosted
-Kubernetes relay still require end-to-end acceptance.
+Browser Use function.
+
+In Electron Workbench, select the claimed Run in Cloud Tasks, open the Web
+tab, and choose Workbench → Share This Tab with Cloud Run. The confirmation
+shows the task, Cloud origin and page origin. The toolbar marks the tab as
+shared. The stop action and the Workbench emergency shortcut release it.
+
+With `PERO_TEST_CLOUD_BROWSER_ELECTRON` set to the absolute path of
+`tests/e2e/browser-use-cloud.mjs`, the same Go test launches the Electron
+Workbench against that real Gateway and PostgreSQL fixture. It verifies both
+choices at the consent boundary, one trusted Chromium click with independent
+page and server effects, file and other-tab rejection, and revocation.
+The screenshot and receipt are under `test-results/browser-use-cloud/`.
+This ran in a development build with a loopback Pod identity fixture.
+Hosted Kubernetes and external Chrome sharing still require verification.
 
 ### Embedded browser
 
