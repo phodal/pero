@@ -53,6 +53,7 @@ fn main() {
         "ImageIO",
         "CoreGraphics",
         "CoreFoundation",
+        "Vision",
     ] {
         println!("cargo:rustc-link-lib=framework={framework}");
     }

@@ -1,7 +1,7 @@
 //! macOS AX, ScreenCaptureKit and window-scoped input implementation.
 use crate::{bridge, profile};
 
-use computer_core::{Window, WindowBounds};
+use computer_core::{Window, WindowBounds, WindowImage};
 use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
@@ -94,6 +94,9 @@ impl DesktopDriver for Desktop {
         basis: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
         crate::observation::observe(app, options, basis)
+    }
+    fn recognize_text(&self, image: &WindowImage) -> Option<String> {
+        crate::capture::recognize_text(&image.bytes)
     }
     fn input(
         &self,

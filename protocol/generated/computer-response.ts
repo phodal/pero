@@ -113,6 +113,10 @@ export interface ComputerObservationResponse {
   kind: "observation";
   observation: ComputerObservation;
   image?: ComputerImageContent | null;
+  /**
+   * Unverified OCR of the same window image, when available.
+   */
+  recognized_text?: string;
 }
 export interface ComputerObservation {
   id: ComputerRef;

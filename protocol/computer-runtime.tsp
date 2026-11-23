@@ -33,7 +33,14 @@ model ComputerImageContent { media_type: "image/png" | "image/jpeg"; data: strin
 model ComputerStatusResponse { kind: "status"; status: ComputerDriverStatus; ...ComputerClosed; }
 model ComputerTargetsResponse { kind: "targets"; capabilities: ComputerCapabilities; targets: ComputerTarget[]; ...ComputerClosed; }
 model ComputerOpenedResponse { kind: "opened"; target?: ComputerTarget | null; message: string; ...ComputerClosed; }
-model ComputerObservationResponse { kind: "observation"; observation: ComputerObservation; image?: ComputerImageContent | null; ...ComputerClosed; }
+model ComputerObservationResponse {
+  kind: "observation";
+  observation: ComputerObservation;
+  image?: ComputerImageContent | null;
+  /** Unverified OCR of the same window image, when available. */
+  @maxLength(6000) recognized_text?: string;
+  ...ComputerClosed;
+}
 model ComputerReceiptResponse { kind: "receipt"; receipt: ComputerActionReceipt; ...ComputerClosed; }
 model ComputerStoppedResponse { kind: "stopped"; ...ComputerClosed; }
 @oneOf union ComputerResponse { ComputerStatusResponse, ComputerTargetsResponse, ComputerOpenedResponse, ComputerObservationResponse, ComputerReceiptResponse, ComputerStoppedResponse }

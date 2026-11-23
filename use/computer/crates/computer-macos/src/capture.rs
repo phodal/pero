@@ -9,6 +9,7 @@ unsafe extern "C" {
         width: *mut u32,
         height: *mut u32,
     ) -> *mut c_void;
+    fn pero_recognize_window_text(bytes: *const u8, length: usize) -> *mut c_void;
 }
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
@@ -33,6 +34,21 @@ pub fn window(window: u32) -> Option<WindowImage> {
     }
     let (mut width, mut height) = (0, 0);
     let data = unsafe { pero_capture_window(window, 1600, &mut width, &mut height) };
+    let jpeg = take_data(data)?;
+    (width > 0 && height > 0).then_some(WindowImage {
+        jpeg,
+        width,
+        height,
+    })
+}
+
+pub fn recognize_text(jpeg: &[u8]) -> Option<String> {
+    let bytes = take_data(unsafe { pero_recognize_window_text(jpeg.as_ptr(), jpeg.len()) })?;
+    let text = String::from_utf8(bytes).ok()?;
+    Some(text.chars().take(6000).collect())
+}
+
+fn take_data(data: *mut c_void) -> Option<Vec<u8>> {
     if data.is_null() {
         return None;
     }
@@ -40,15 +56,8 @@ pub fn window(window: u32) -> Option<WindowImage> {
     // borrowed only for this synchronous copy.
     let length = unsafe { CFDataGetLength(data) };
     let bytes = unsafe { CFDataGetBytePtr(data) };
-    let jpeg = if length > 0 && !bytes.is_null() {
-        unsafe { std::slice::from_raw_parts(bytes, length as usize) }.to_vec()
-    } else {
-        Vec::new()
-    };
+    let copy = (length > 0 && !bytes.is_null())
+        .then(|| unsafe { std::slice::from_raw_parts(bytes, length as usize) }.to_vec());
     unsafe { CFRelease(data) };
-    (!jpeg.is_empty() && width > 0 && height > 0).then_some(WindowImage {
-        jpeg,
-        width,
-        height,
-    })
+    copy
 }

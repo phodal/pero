@@ -188,6 +188,9 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             width: image.width,
             height: image.height,
         });
+        let recognized_text = image
+            .as_ref()
+            .and_then(|image| self.driver.recognize_text(image));
         let image = image.map(|image| ComputerImageContent {
             media_type: image.media_type,
             data: STANDARD.encode(image.bytes),
@@ -215,7 +218,11 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 },
             );
         }
-        Ok(ComputerResponse::Observation { observation, image })
+        Ok(ComputerResponse::Observation {
+            observation,
+            image,
+            recognized_text,
+        })
     }
     fn act(&mut self, thread: &ComputerRef, action: ComputerAction) -> ComputerActionReceipt {
         let mut receipt = ComputerActionReceipt {

@@ -2,10 +2,56 @@
 #import <Foundation/Foundation.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <ImageIO/ImageIO.h>
+#import <Vision/Vision.h>
 #include <math.h>
 
 bool pero_modern_capture(void) {
     return NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 14;
+}
+
+static NSData *recognize_window_text(NSData *jpeg) {
+    VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithData:jpeg options:@{}];
+    VNRecognizeTextRequest *request = [VNRecognizeTextRequest new];
+    request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
+    request.automaticallyDetectsLanguage = YES;
+    request.minimumTextHeight = 0.012f;
+    NSArray<NSString *> *supported = [request supportedRecognitionLanguagesAndReturnError:NULL];
+    NSMutableArray<NSString *> *languages = [NSMutableArray new];
+    for (NSString *language in @[@"zh-Hans", @"zh-Hant", @"en-US"]) {
+        if ([supported containsObject:language]) [languages addObject:language];
+    }
+    if (languages.count) request.recognitionLanguages = languages;
+    if (![handler performRequests:@[request] error:NULL]) return nil;
+    NSMutableArray<NSString *> *lines = [NSMutableArray new];
+    for (VNRecognizedTextObservation *line in request.results) {
+        NSString *text = [line topCandidates:1].firstObject.string;
+        if (text.length) [lines addObject:text];
+        if (lines.count == 96) break;
+    }
+    return lines.count ? [[lines componentsJoinedByString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding] : nil;
+}
+
+// First-use Vision initialization can outlast the Computer Use request. Return
+// the image on time and skip OCR while a previous frame is still being processed.
+CFDataRef pero_recognize_window_text(const uint8_t *bytes, size_t length) {
+    @autoreleasepool {
+        static dispatch_semaphore_t available;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{ available = dispatch_semaphore_create(1); });
+        if (dispatch_semaphore_wait(available, DISPATCH_TIME_NOW) != 0) return NULL;
+        NSData *jpeg = [NSData dataWithBytes:bytes length:length];
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        __block NSData *result = nil;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            @autoreleasepool {
+                result = recognize_window_text(jpeg);
+                dispatch_semaphore_signal(available);
+                dispatch_semaphore_signal(done);
+            }
+        });
+        if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC)) != 0) return NULL;
+        return CFBridgingRetain(result);
+    }
 }
 
 // Returns a retained CFData owned by the Rust caller. Completion blocks retain

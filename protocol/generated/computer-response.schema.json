@@ -519,6 +519,11 @@
               "type": "null"
             }
           ]
+        },
+        "recognized_text": {
+          "type": "string",
+          "maxLength": 6000,
+          "description": "Unverified OCR of the same window image, when available."
         }
       },
       "required": [

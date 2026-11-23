@@ -72,6 +72,8 @@ pub enum ComputerResponse {
     Observation {
         observation: ComputerObservation,
         image: Option<ComputerImageContent>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        recognized_text: Option<String>,
     },
     Receipt {
         receipt: ComputerActionReceipt,
