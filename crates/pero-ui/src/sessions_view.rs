@@ -133,6 +133,19 @@ impl Workbench {
                         this.select_primary_project_agent(key);
                         this.open_project(key.clone(), window, cx);
                     }
+                    SidebarAction::OpenFolder => this.command(serde_json::json!({"action":"choose_workspace"}), cx),
+                    SidebarAction::AllTasks => {
+                        this.selected_project = None;
+                        this.project_tab = crate::projects::ProjectTab::Tasks;
+                        this.navigate(WorkbenchPage::Tasks, cx);
+                        this.command(serde_json::json!({"action":"remote_select","task_id":null}), cx);
+                    }
+                    SidebarAction::ToggleProjects => this.projects_collapsed = !this.projects_collapsed,
+                    SidebarAction::NewProject => {
+                        this.projects_collapsed = false;
+                        this.navigate(WorkbenchPage::Projects, cx);
+                        this.edit_research_project(true, window, cx);
+                    }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         if !this.collapsed_projects.remove(key) {

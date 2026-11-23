@@ -8,7 +8,6 @@ use gpui_kit::{
     component::{
         button::*,
         input::Input,
-        menu::{DropdownMenu, PopupMenuItem},
         *,
     },
     prelude::*,
@@ -181,14 +180,6 @@ impl Workbench {
         self.sync_follow(cx);
     }
 
-    fn project_groups(&self, cx: &App) -> [(&'static str, Vec<Project>); 2] {
-        let (research, workspaces): (Vec<_>, Vec<_>) = self
-            .project_catalog(cx)
-            .into_iter()
-            .partition(|project| project.research_id().is_some());
-        [("research.projects", research), ("project.workspaces", workspaces)]
-    }
-
     pub(crate) fn projects_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
         // Chrome borrows the appearance global for its whole lifetime, so each
         // command is styled and released before the next listener borrows `cx`.
@@ -237,67 +228,6 @@ impl Workbench {
         .relative()
         .child(self.view_bounds.projects.probe("new".into()))
         .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(true, window, cx)));
-        let sections = self
-            .project_groups(cx)
-            .into_iter()
-            .filter(|(_, projects)| !projects.is_empty())
-            .map(|(label, projects)| {
-                let count = projects.len();
-                let rows = projects
-                    .into_iter()
-                    .map(|project| {
-                        let caption = project
-                            .research_id()
-                            .and_then(|id| {
-                                self.preferences
-                                    .research_projects
-                                    .iter()
-                                    .find(|saved| saved.id == id)
-                            })
-                            .map(|saved| saved.goal.clone())
-                            .filter(|goal| !goal.is_empty())
-                            .or(project.workspace)
-                            .or(project.shared_id);
-                        let key = project.key;
-                        let open_label = format!("{} {}", self.t("project.open"), project.name);
-                        let row_id = SharedString::from(format!("project-row:{key}"));
-                        let action = Button::new("open-project")
-                            .ghost()
-                            .small()
-                            .label(self.t("project.open"))
-                            .accessibility_label(open_label)
-                            .relative()
-                            .child(self.view_bounds.projects.probe(format!("open:{key}")))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.open_project(key.clone(), window, cx)
-                            }));
-                        let chrome = pero_theme::Chrome::from_app(cx);
-                        pero_theme::list_row(
-                            row_id,
-                            project.name,
-                            caption.map(Into::into),
-                            None,
-                            false,
-                            Some(action.into_any_element()),
-                            chrome,
-                        )
-                        .into_any_element()
-                    })
-                    .collect::<Vec<_>>();
-                let chrome = pero_theme::Chrome::from_app(cx);
-                div()
-                    .id(SharedString::from(format!("projects-section-{label}")))
-                    .w_full()
-                    .flex()
-                    .flex_col()
-                    .child(div().px(chrome.geo(pero_theme::SPACE_12)).py(chrome.geo(pero_theme::SPACE_8))
-                        .flex().items_center().gap(chrome.geo(pero_theme::SPACE_8))
-                        .text_size(chrome.text(pero_theme::TYPE_TAB)).text_color(chrome.palette.text_muted)
-                        .child(self.t(label)).child(count.to_string()))
-                    .children(rows)
-                    .into_any_element()
-            })
-            .collect::<Vec<_>>();
         let editor = self.active_research_editor().is_some()
             .then(|| self.research_editor(cx));
         let chrome = pero_theme::Chrome::from_app(cx);
@@ -353,7 +283,7 @@ impl Workbench {
                     .bg(chrome.list())
                     .child(
                         div()
-                            .id("projects-list")
+                            .id("project-start")
                             .flex_1()
                             .min_h_0()
                             .w_full()
@@ -370,65 +300,8 @@ impl Workbench {
                                         .child(editor),
                                 )
                             })
-                            .child(div().w_full().max_w(px(960.)).mx_auto().p(chrome.geo(pero_theme::SPACE_16))
-                                .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_16)).children(sections)),
                     ),
             )
-    }
-
-    fn project_switcher(&self, project: &Project, cx: &mut Context<Self>) -> impl IntoElement {
-        let owner = cx.entity().downgrade();
-        let selected = project.key.clone();
-        let groups = self.project_groups(cx).map(|(label, projects)| (self.t(label), projects));
-        let mut names = std::collections::BTreeMap::new();
-        for project in groups.iter().flat_map(|(_, projects)| projects) {
-            *names.entry(project.name.clone()).or_insert(0usize) += 1;
-        }
-        let browse = self.t("project.browse");
-        let appearance = pero_theme::UiAppearance::global(cx);
-        Button::new("project-switcher")
-            .ghost()
-            .h(px(appearance.typography.row_height() + 4.))
-            .px(px(4.))
-            .text_size(appearance.text(pero_theme::TextRole::Heading))
-            .label(project.name.clone())
-            .dropdown_caret(true)
-            .accessibility_label(format!("{} · {}", self.t("project.switch"), project.name))
-            .disabled(self.active_research_editor().is_some())
-            .relative()
-            .child(self.view_bounds.projects.probe("project-switcher".into()))
-            .dropdown_menu(move |mut menu, _, _| {
-                menu = menu.scrollable(true);
-                for (label, projects) in &groups {
-                    if projects.is_empty() {
-                        continue;
-                    }
-                    menu = menu.item(PopupMenuItem::label(*label));
-                    for project in projects {
-                        let key = project.key.clone();
-                        let current = key == selected;
-                        let title = if names[&project.name] > 1 {
-                            project.workspace.as_ref().or(project.shared_id.as_ref())
-                                .map(|path| format!("{} · {path}", project.name))
-                                .unwrap_or_else(|| project.name.clone())
-                        } else {
-                            project.name.clone()
-                        };
-                        let owner = owner.clone();
-                        menu = menu.item(PopupMenuItem::new(title).checked(current).on_click(
-                            move |_, window, cx| {
-                                if !current {
-                                    let _ = owner.update(cx, |this, cx| this.open_project(key.clone(), window, cx));
-                                }
-                            },
-                        ));
-                    }
-                }
-                let owner = owner.clone();
-                menu.separator().item(PopupMenuItem::new(browse).on_click(move |_, _, cx| {
-                    let _ = owner.update(cx, |this, cx| this.navigate(WorkbenchPage::Projects, cx));
-                }))
-            })
     }
 
     pub(crate) fn select_project_view(&mut self, tab: ProjectTab, cx: &mut Context<Self>) {
@@ -531,7 +404,7 @@ impl Workbench {
                     .flex_shrink_0()
                     .child(div().flex().items_center().min_w_0().child(
                         if let Some(project) = &project {
-                            self.project_switcher(project, cx).into_any_element()
+                            div().child(project.name.clone()).into_any_element()
                         } else {
                             div()
                             .text_size(

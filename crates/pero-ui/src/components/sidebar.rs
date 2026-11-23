@@ -47,6 +47,7 @@ pub(crate) struct SidebarProps<'a> {
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
     pub environment: Option<EnvironmentStatus>,
+    pub projects_collapsed: bool,
     pub projects: Vec<Project>,
     pub active_project: Option<&'a str>,
     pub project_sessions: Option<ProjectGroup>,
@@ -76,6 +77,10 @@ pub(crate) enum SidebarAction {
     SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
     OpenProject(String),
+    AllTasks,
+    OpenFolder,
+    ToggleProjects,
+    NewProject,
     OpenApp { name: String, panel: String },
     OpenEnvironment { name: String, panel: String },
     PrepareEnvironment { name: String },
@@ -460,10 +465,25 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         .text_size(chrome.text(pero_theme::TYPE_BODY))
         .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
             .relative().child(props.shortcut_bounds.probe("sessions".into())))
-        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", props.active_project.is_none() && matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects))
-            .relative().child(props.shortcut_bounds.probe("projects".into())))
+        .child(div().flex().items_center().when(collapsed, |row| row.flex_col())
+            .child(nav("sidebar-projects", ui.t("nav.projects"), if props.projects_collapsed { "icons/chevron-right.svg" } else { "icons/chevron-down.svg" }, false, SidebarAction::ToggleProjects)
+                .flex_1().relative().child(props.shortcut_bounds.probe("projects".into())))
+            .child(pero_theme::ghost_icon_button("project-actions", chrome, cx)
+                .icon(Icon::default().path("icons/ellipsis.svg")).accessibility_label(ui.t("nav.projects"))
+                .dropdown_menu({
+                    let on_action = on_action.clone();
+                    let items = [(ui.t("research.new"), SidebarAction::NewProject), (ui.t("project.open_folder"), SidebarAction::OpenFolder), (ui.t("project.all_tasks"), SidebarAction::AllTasks)];
+                    move |mut menu, _, _| {
+                        for (title, action) in &items {
+                            let handler = on_action.clone();
+                            let action = action.clone();
+                            menu = menu.item(PopupMenuItem::new(*title).on_click(move |_, window, cx| handler(&action, window, cx)));
+                        }
+                        menu
+                    }
+                })))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
-            .children(projects)
+            .when(!props.projects_collapsed, |el| el.children(projects))
             .children(app_rows(primary))
             .when(!workspace.is_empty(), |scroll| scroll.child(pero_theme::sidebar_group(None, true, chrome).children(app_rows(workspace))))
             .child(pero_theme::sidebar_group(None, true, chrome)

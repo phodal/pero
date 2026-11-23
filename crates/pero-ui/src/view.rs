@@ -75,11 +75,9 @@ impl Workbench {
                 active: app.shortcut_selected(current_app.as_deref(), connectors_enabled),
             })
         }).collect();
-        let projects = self.project_catalog(cx).into_iter()
-            .filter(|project| project.research_id().is_some())
-            .collect();
+        let projects = self.project_catalog(cx);
         let active_project = match self.navigation.current() {
-            Some(WorkspaceItem::Project(key)) if key.starts_with("research:") => Some(key.as_str()),
+            Some(WorkspaceItem::Project(key)) => Some(key.as_str()),
             _ => None,
         };
         let project_sessions = self.project_agent_navigation(cx);
@@ -89,6 +87,7 @@ impl Workbench {
             project_bounds: &self.view_bounds.projects,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed,
+            projects_collapsed: self.projects_collapsed,
             apps, environment, projects, active_project, project_sessions,
         }, settings, actions, cx)
     }

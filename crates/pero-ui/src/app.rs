@@ -101,6 +101,7 @@ pub(crate) struct Workbench {
     pub collapsed_projects: std::collections::HashSet<String>,
     pub revealed_sessions: std::collections::HashMap<String, usize>,
     /// Hides the sidebar column. Project expansion and revealed session counts stay.
+    pub projects_collapsed: bool,
     pub sidebar_collapsed: bool,
     pub project_tab: crate::projects::ProjectTab,
     pub(crate) local_roadmap: crate::local_roadmap::RoadmapState,
@@ -388,6 +389,7 @@ impl Workbench {
             project_binding,
             collapsed_projects: Default::default(),
             revealed_sessions: Default::default(),
+            projects_collapsed: false,
             sidebar_collapsed: false,
             project_tab: Default::default(),
             local_roadmap: Default::default(),
