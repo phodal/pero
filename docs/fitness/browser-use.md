@@ -237,11 +237,18 @@ The operator opts in with `runtime.browser_use: true` in the isolated recipe.
 The recipe passes `PERO_AGENT_BROWSER_USE=1` to the Agent. The fixed Go ACP
 process exposes the `browser_use` function for status, observation, locating,
 clicking and filling on the shared tab. The Pod shim uses the rotating projected
-token. The provider receives a bounded text result. The process fixture
+token. Text recipes receive bounded text results. The process fixture
 `TestAgentConnectCLIWithGoACP/browser` ran the real ACP and connector binaries
 with a loopback TLS control endpoint and scripted provider. It verified the
 tool result returned to the next provider request and the default lane has no
 Browser Use function.
+
+A vision recipe can additionally opt in with `runtime.browser_screenshots`.
+The share confirmation discloses the screenshot transfer. `screenshot` returns
+the visible viewport or a requested clip as PNG. The Go Agent checks the PNG
+against the Desktop receipt. The provider receives the receipt as a tool
+result and the inline PNG in the next vision message. The ACP stream carries
+the receipt. Text recipes refuse screenshot calls.
 
 In Electron Workbench, select the claimed Run in Cloud Tasks. Use Workbench →
 Share This Tab with Cloud Run for the embedded Web tab, or Share Active Chrome
@@ -257,10 +264,14 @@ Workbench and a headed Chrome fixture against that real Gateway and PostgreSQL
 fixture. It verifies both choices at the consent boundary, one trusted click in
 each browser with independent page and server effects, file and other-tab
 rejection, Chrome window and tab switching, and revocation.
+It also verifies that the mock provider receives the same SHA-256 as each
+browser receipt. A separate real Go ACP process test verified the same bytes
+using `PERO_TEST_CLOUD_SCREENSHOT` with each browser-produced PNG, and an image
+larger than the ACP frame limit.
 The screenshot and receipt are under `test-results/browser-use-cloud/`.
 This ran in a development build with a loopback Pod identity fixture.
-Hosted Kubernetes transport and a signed Workbench build still require
-verification.
+Hosted Kubernetes, an external vision model and a signed Workbench build still
+require verification.
 
 ### Embedded browser
 
