@@ -22,6 +22,155 @@
       "additionalProperties": {},
       "description": "ACP payload forwarded unchanged; its shape is owned by the ACP schema."
     },
+    "AcpPromptBlockReceipt": {
+      "title": "AcpPromptBlockReceipt",
+      "type": "object",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "user"
+            },
+            {
+              "type": "string",
+              "const": "user_selected"
+            },
+            {
+              "type": "string",
+              "const": "app_use"
+            },
+            {
+              "type": "string",
+              "const": "app_plugin"
+            },
+            {
+              "type": "string",
+              "const": "project_instructions"
+            },
+            {
+              "type": "string",
+              "const": "project_context"
+            },
+            {
+              "type": "string",
+              "const": "memory"
+            }
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "text"
+            },
+            {
+              "type": "string",
+              "const": "image"
+            },
+            {
+              "type": "string",
+              "const": "resource"
+            }
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "source",
+        "kind",
+        "sha256",
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "AcpPromptReceipt": {
+      "title": "AcpPromptReceipt",
+      "type": "object",
+      "properties": {
+        "promptId": {
+          "type": "string"
+        },
+        "acpSessionId": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string",
+          "const": "prepared"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AcpPromptBlockReceipt"
+          }
+        },
+        "suppressedSources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "app_use"
+          }
+        }
+      },
+      "required": [
+        "promptId",
+        "acpSessionId",
+        "stage",
+        "blocks",
+        "suppressedSources"
+      ],
+      "additionalProperties": false,
+      "description": "Ordered fingerprints of the final ACP session/prompt content blocks."
+    },
+    "AcpPromptReceiptEvent": {
+      "title": "AcpPromptReceiptEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "acp_prompt_receipt"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AcpPromptReceipt"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "AgentApp": {
       "title": "AgentApp",
       "type": "object",
@@ -18671,6 +18820,9 @@
         },
         {
           "$ref": "#/$defs/UserMessageEvent"
+        },
+        {
+          "$ref": "#/$defs/AcpPromptReceiptEvent"
         },
         {
           "$ref": "#/$defs/SessionUpdateEvent"

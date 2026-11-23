@@ -39,7 +39,9 @@ async function rpc(method, params, signal) {
 }
 async function run(scenario, signal, prompt) {
   if(scenario==='context'){
-    const contexts=prompt.filter(block=>block.type==='text'&&block.text.startsWith('User-selected context (data)')).map(block=>{const data=block.text.split('\n\n').slice(1).join('\n\n');return JSON.parse(data);});
+    const contexts = prompt.filter(block => block.type === 'text').map(block => block.text.trimStart())
+      .filter(text => text.startsWith('User-selected context (data)'))
+      .map(text => JSON.parse(text.split('\n\n').slice(1).join('\n\n')));
     assert.ok(contexts.some(context=>context.schema==='pero.app-object.v1'));
     assert.ok(contexts.some(context=>context.schema==='pero.app-annotation.v1'));
     assert.equal(prompt.filter(block=>block.type==='image').length,1);

@@ -1,5 +1,8 @@
 use super::configuration::Configuration;
-use super::prompt::{project_prompt_blocks, prompt_blocks};
+use super::prompt::{
+    project_prompt_blocks, prompt_blocks, PromptLayers, ReceiptMode, APP_USE_CONTEXT_CAPABILITY,
+    TURN_RECEIPT_CAPABILITY,
+};
 use super::AgentConfig;
 use agent_client_protocol::schema::{v1::*, ProtocolVersion};
 use agent_client_protocol::{
@@ -439,6 +442,12 @@ async fn run(
             ).map_err(|message| failure(&message))?;
             let science_negotiated = initialized["agentCapabilities"]["_meta"][super::science::CAPABILITY] == json!(1);
             let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
+            let app_use_context_negotiated = initialized["agentCapabilities"]["_meta"][APP_USE_CONTEXT_CAPABILITY] == json!(1);
+            let receipt_mode = match (acquire_workspace, initialized["agentCapabilities"]["_meta"][TURN_RECEIPT_CAPABILITY] == json!(1)) {
+                (false, _) => ReceiptMode::Disabled,
+                (true, true) => ReceiptMode::Correlate,
+                (true, false) => ReceiptMode::Record,
+            };
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
             // Never start a session under a protocol version this client does not implement.
             if initialized.protocol_version != ProtocolVersion::V1 {
@@ -594,22 +603,18 @@ async fn run(
                                 .filter(|_| text.len() == 8 || text.as_bytes().get(8).is_some_and(|c| c.is_ascii_whitespace()))
                                 .map(|s| s.trim_start().to_string()).unwrap_or(text)
                         } else { text };
-                        let mut blocks = match prompt_blocks(text, context, &initialized.agent_capabilities.prompt_capabilities) {
-                            Ok(blocks) => blocks,
+                        let layers = PromptLayers {
+                            app_use: app_use.is_some() && initialized.agent_capabilities.mcp_capabilities.http,
+                            tag_app_use: app_use_context_negotiated,
+                            app_plugin: &config.session_instructions,
+                            project: project_prompt.as_ref(),
+                            memory: &config.memory_instructions,
+                        };
+                        let (request, receipt) = match prompt_blocks(text, context, &initialized.agent_capabilities.prompt_capabilities, layers)
+                            .and_then(|assembly| assembly.into_request(session_id.clone(), receipt_mode)) {
+                            Ok(prepared) => prepared,
                             Err(error) => { event(&tx, &thread, "session_error", error.to_string(), Value::Null); continue; },
                         };
-                        if app_use.is_some() && initialized.agent_capabilities.mcp_capabilities.http {
-                            blocks.push(ContentBlock::Text(TextContent::new(format!("Host-provided App Use workflow:\n{}",super::APP_USE_SKILL))));
-                        }
-                        if !config.session_instructions.is_empty() {
-                            blocks.push(ContentBlock::Text(TextContent::new(format!("Host-mounted App Agent Plugin instructions:\n{}", config.session_instructions))));
-                        }
-                        if let Some(project_prompt) = &project_prompt {
-                            blocks.extend(project_prompt.iter().cloned());
-                        }
-                        if !config.memory_instructions.is_empty() {
-                            blocks.push(ContentBlock::Text(TextContent::new(config.memory_instructions.clone())));
-                        }
                         event(&tx, &thread, "turn_started", "正在思考", Value::Null);
                         let changes = if acquire_workspace {
                             let workspace = cwd.clone(); let capture_thread = thread.clone();
@@ -622,9 +627,10 @@ async fn run(
                                 }
                             } else {None}
                         } else {None};
-                        let prompt = connection.send_request(PromptRequest::new(
-                            session_id.clone(), blocks,
-                        )).block_task();
+                        if let Some(receipt) = receipt {
+                            event(&tx, &thread, "acp_prompt_receipt", "", receipt);
+                        }
+                        let prompt = connection.send_request(request).block_task();
                         tokio::pin!(prompt);
                         let mut cancelled_at = None;
                         let result = loop {

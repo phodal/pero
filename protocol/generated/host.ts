@@ -347,6 +347,7 @@ export type ThreadEvent =
   | AppAgentCancelEvent
   | SessionCreatedEvent
   | UserMessageEvent
+  | AcpPromptReceiptEvent
   | SessionUpdateEvent
   | SessionUsageEvent
   | SessionReadyEvent
@@ -3592,6 +3593,30 @@ export interface UserMessageEvent {
 }
 export interface UserMessageContext {
   contexts: ContextReference[];
+}
+export interface AcpPromptReceiptEvent {
+  kind: "acp_prompt_receipt";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: AcpPromptReceipt;
+}
+/**
+ * Ordered fingerprints of the final ACP session/prompt content blocks.
+ */
+export interface AcpPromptReceipt {
+  promptId: string;
+  acpSessionId: string;
+  stage: "prepared";
+  blocks: AcpPromptBlockReceipt[];
+  suppressedSources: "app_use"[];
+}
+export interface AcpPromptBlockReceipt {
+  source: "user" | "user_selected" | "app_use" | "app_plugin" | "project_instructions" | "project_context" | "memory";
+  kind: "text" | "image" | "resource";
+  sha256: string;
+  bytes: number;
 }
 /**
  * `data` is the ACP SessionUpdate.

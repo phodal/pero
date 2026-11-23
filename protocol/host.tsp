@@ -485,6 +485,25 @@ model SessionCreatedData { agent: string; workspace: string; scope?: AppChatScop
 model SessionCreatedEvent { kind: "session_created"; ...ThreadEventBase; data: SessionCreatedData }
 model UserMessageContext {contexts: ContextReference[]; ...Closed}
 model UserMessageEvent { kind: "user_message"; ...ThreadEventBase; data?: UserMessageContext }
+alias AcpPromptBlockSource = "user" | "user_selected" | "app_use" | "app_plugin"
+  | "project_instructions" | "project_context" | "memory";
+model AcpPromptBlockReceipt {
+  source: AcpPromptBlockSource;
+  kind: "text" | "image" | "resource";
+  @pattern("^[a-f0-9]{64}$") sha256: string;
+  @minValue(0) bytes: integer;
+  ...Closed;
+}
+/** Ordered fingerprints of the final ACP session/prompt content blocks. */
+model AcpPromptReceipt {
+  promptId: string;
+  acpSessionId: string;
+  stage: "prepared";
+  blocks: AcpPromptBlockReceipt[];
+  suppressedSources: "app_use"[];
+  ...Closed;
+}
+model AcpPromptReceiptEvent { kind: "acp_prompt_receipt"; ...ThreadEventBase; data: AcpPromptReceipt }
 model SessionConnectingEvent { kind: "session_connecting"; ...ThreadEventBase }
 /** `data` is the ACP InitializeResponse. */
 model AgentInfoEvent { kind: "agent_info"; ...ThreadEventBase; data: AcpPayload }
@@ -572,6 +591,7 @@ union ThreadEvent {
   AppAgentCancelEvent,
   SessionCreatedEvent,
   UserMessageEvent,
+  AcpPromptReceiptEvent,
   SessionUpdateEvent,
   SessionUsageEvent,
   SessionReadyEvent,

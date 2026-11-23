@@ -165,10 +165,11 @@ fn app_use_prefix_is_interpreted_only_by_explicit_app_use_sessions() {
                     assert_eq!(
                         wire["prompt"][1]["text"],
                         format!(
-                            "Host-provided App Use workflow:\n{}",
+                            "\n\nHost-provided App Use workflow:\n{}",
                             crate::acp::APP_USE_SKILL
                         )
                     );
+                    assert!(wire["prompt"][1].get("_meta").is_none(), "standard ACP agent did not negotiate App Use context");
                 } else {
                     assert_eq!(wire["mcpServers"], json!([]));
                     assert_eq!(wire["prompt"].as_array().unwrap().len(), 1);

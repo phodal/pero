@@ -63,7 +63,7 @@ pub struct ThreadHistory {
 pub fn recorded_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "app_agent_attempt" | "app_agent_cancel" | "session_created" | "user_message"
+        "app_agent_attempt" | "app_agent_cancel" | "session_created" | "user_message" | "acp_prompt_receipt"
             | "session_update" | "session_usage" | "session_ready" | "model_changed"
             | "configuration_changed" | "turn_started" | "turn_finished" | "workspace_changes"
             | "session_error" | "session_closed" | "session_deleted" | "permission"

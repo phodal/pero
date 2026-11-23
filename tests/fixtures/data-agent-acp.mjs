@@ -9,7 +9,9 @@ async function rpc(method,params){
   const reply=await response.json();assert.equal(reply.error,undefined);return reply.result;
 }
 async function exercise(prompt){
-  const contexts=prompt.filter(block=>block.type==='text'&&block.text.startsWith('User-selected context (data)')).map(block=>JSON.parse(block.text.split('\n\n').slice(1).join('\n\n')));
+  const contexts = prompt.filter(block => block.type === 'text').map(block => block.text.trimStart())
+    .filter(text => text.startsWith('User-selected context (data)'))
+    .map(text => JSON.parse(text.split('\n\n').slice(1).join('\n\n')));
   const context=contexts.find(value=>value.schema==='pero.app-object.v1'&&value.objectId==='dataset-view');
   assert.ok(context,'selected dataset reaches ACP as an inspectable object reference');
   assert.equal(context.scope.app,'data');assert.equal(context.selection.selectedCount,2);
