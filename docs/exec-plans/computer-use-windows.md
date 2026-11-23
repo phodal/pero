@@ -23,7 +23,20 @@ WinForms 源码，由本机工具编译到临时目录；测试工具依赖不�
 - [bridge](../../use/computer/crates/computer-windows/src/bridge.rs)：Point 与 Pero 的唯一值转换。
 - [vendored Windows](../../use/computer/vendor/point/crates/point-computer-windows/src/lib.rs)：
   UIA、WGC/PrintWindow、按键/鼠标与停止相关原生代码。
-- 新建 fixture 和 `tests/e2e/computer-windows.mjs`，沿用现有 NDJSON 与证据格式。
+- [WinForms fixture](../../tests/fixtures/computer-app-windows.cs) 和
+  [验收入口](../../tests/e2e/computer-windows.mjs) 使用现有 NDJSON 协议和证据目录。
+
+在已解锁桌面的普通 PowerShell 中运行。需要系统自带的 .NET Framework 4 C# 编译器。
+
+```powershell
+node scripts/build/computer.mjs
+$env:PERO_COMPUTER_NATIVE = '1'
+node tests/e2e/computer-windows.mjs
+```
+
+入口只选择本次创建的两个 WinForms 窗口，并用应用事件验证输入效果。
+`target/computer-verification/windows-winforms.json` 记录回执和应用状态，
+`windows-winforms.jpg` 保存目标窗口图像。SSH 的 Session 0 可编译驱动，GUI 入口会在启动窗口前退出。
 
 ## 第一阶段：已有能力的实际效果
 
