@@ -551,7 +551,7 @@ pub fn run() -> anyhow::Result<()> {
         }
         let (window, view) = gpui_kit::open_window(options, cx, move |window, cx| {
             hide_titlebar_separator(window);
-            window.set_window_title(if packaged { "Pero Native" } else { "Pero Native Preview — local sessions" });
+            window.set_window_title(if packaged { "Pero" } else { "Pero Preview — local sessions" });
             cx.new(|cx| {
                 let mut view = Workbench::new(palettes, system_dark, locale, window, cx);
                 view._subscriptions.push(cx.observe_window_appearance(window, |view, window, cx| {
@@ -846,7 +846,7 @@ mod tests {
         let icon = temp.join("AppIcon.icns");
         std::fs::write(&exe, b"bin").unwrap();
         std::fs::write(&icon, b"icns").unwrap();
-        let app = temp.join("Pero Native.app");
+        let app = temp.join("Pero.app");
         super::stage_native_bundle(&exe, &app, Some(icon.as_path())).unwrap();
         let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).unwrap();
         assert!(plist.contains("<key>CFBundleIconFile</key><string>AppIcon.icns</string>"));
@@ -883,7 +883,7 @@ fn relaunch_in_bundle() {
         return;
     }
     let Some(dir) = exe.parent() else { return };
-    let app = dir.join("Pero Native.app");
+    let app = dir.join("Pero.app");
     let bundled = app.join("Contents/MacOS/pero-native");
     let icon = std::env::var_os("PERO_NATIVE_ICON")
         .map(PathBuf::from)
@@ -939,8 +939,8 @@ const BUNDLE_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.openpero.native-preview</string>
-<key>CFBundleName</key><string>Pero Native</string>
-<key>CFBundleDisplayName</key><string>Pero Native Preview</string>
+<key>CFBundleName</key><string>Pero</string>
+<key>CFBundleDisplayName</key><string>Pero Preview</string>
 <key>CFBundleExecutable</key><string>pero-native</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>

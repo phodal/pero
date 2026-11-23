@@ -26,13 +26,13 @@ test('release verification rejects a DMG missing Paper’s plugin even when the 
     git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'fixture');
     git('tag', env.RELEASE_TAG);
     put('products/pero.json', { schemaVersion: 1, id: 'com.openpero.desktop', name: 'Pero', version: '0.1.0', shell: 'workbench', apps: ['paper-agent'], python: 'system' });
-    const payload = 'target/package/Pero.app/Contents/Resources/app';
+    const payload = 'target/package/Pero Electron.app/Contents/Resources/app';
     const paper = payload + '/apps/paper-agent';
-    const app = join(root, 'target/package/Pero.app');
-    const archive = join(root, 'target/package', `Pero-macos-${process.arch}.dmg`);
+    const app = join(root, 'target/package/Pero Electron.app');
+    const archive = join(root, 'target/package', `Pero-Electron-macos-${process.arch}.dmg`);
     const checksums = archive.replace(/\.dmg$/, '.SHA256SUMS');
     put('target/package/size.json', { dmgBytes: 1 });
-    put('target/package/Pero.app/Contents/Info.plist', '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.openpero.desktop</string><key>CFBundleExecutable</key><string>Pero</string></dict></plist>');
+    put('target/package/Pero Electron.app/Contents/Info.plist', '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.openpero.desktop</string><key>CFBundleExecutable</key><string>Pero</string></dict></plist>');
     put(payload + '/desktop/dist/release.json', { sourceRevision: git('rev-parse', 'HEAD'), releaseTag: env.RELEASE_TAG, taskCenter: 'https://app.openpero.com', productId: 'com.openpero.desktop', platform: 'darwin', arch: process.arch, buildProvider: 'GitHub Actions' });
     put(payload + '/desktop/dist/main.cjs', 'const taskCenter = "https://app.openpero.com";');
     put(paper + '/app.json', { requiresAgentPlugins: ['paper-autoresearch'] });

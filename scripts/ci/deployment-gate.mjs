@@ -21,7 +21,7 @@ const workerReleaseArchive = 'Pero-Worker-linux-x64.tar.gz';
 /** Dispatch publication includes Desktop and the standalone Worker. Virtual Cell stays a canary. */
 export const dispatchReleaseArchives = Object.freeze([
   'Pero-macos-arm64.dmg',
-  'Pero-Native-macos-arm64.dmg',
+  'Pero-Electron-macos-arm64.dmg',
   'Pero-linux-x64.tar.gz',
   'Pero-windows-x64.zip',
   workerReleaseArchive,

@@ -19,7 +19,9 @@ const native = process.env.RELEASE_PRODUCT === 'pero-native';
 const platform = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
 const product = Product.parse(JSON.parse(readFileSync(resolve(root, standalone ? 'products/virtual-cell/product.json' : 'products/pero.json'), 'utf8')));
 const productId = native ? 'com.openpero.native' : product.id;
-const asset = `${native ? 'Pero-Native' : product.artifactStem()}-${platform}-${process.arch}`;
+const macElectron = platform === 'macos' && !native && !standalone;
+const appName = macElectron ? `${product.name} Electron` : product.name;
+const asset = `${product.artifactStem()}${macElectron ? '-Electron' : ''}-${platform}-${process.arch}`;
 if ((!localSmoke && process.env.GITHUB_ACTIONS !== 'true') || !platform || ((standalone || native) && process.platform !== 'darwin')) {
   throw new Error('Release packages require a native GitHub Actions runner; Virtual Cell requires macOS.');
 }
@@ -40,7 +42,7 @@ if (canary) {
   }
 }
 const packageDir = resolve(root, native ? 'target/native-package' : standalone ? 'target/products/package-com.openpero.virtualcell' : 'target/package');
-const app = join(packageDir, process.platform === 'darwin' ? `${native ? 'Pero Native' : product.name}.app` : asset);
+const app = join(packageDir, process.platform === 'darwin' ? `${appName}.app` : asset);
 const executable = process.platform === 'darwin' ? join(app, native ? 'Contents/MacOS/pero-native' : 'Contents/MacOS/Pero') : join(app, process.platform === 'win32' ? 'Pero.exe' : 'pero');
 const payload = join(app, process.platform === 'darwin' ? 'Contents/Resources/app' : 'resources/app');
 const archive = join(packageDir, asset + (process.platform === 'darwin' ? '.dmg' : process.platform === 'win32' ? '.zip' : '.tar.gz'));

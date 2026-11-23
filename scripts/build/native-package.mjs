@@ -15,7 +15,7 @@ const pythonSource = process.env.PERO_NATIVE_PYTHON_ROOT;
 if (!pythonSource || !existsSync(join(pythonSource, 'bin/python3'))) throw new Error('Set PERO_NATIVE_PYTHON_ROOT to the verified standalone CPython runtime.');
 const product = Product.parse(JSON.parse(readFileSync(join(root, 'products/pero.json'), 'utf8')));
 const directory = resolve(root, process.env.PERO_NATIVE_PACKAGE_DIR ?? 'target/native-package');
-const app = join(directory, 'Pero Native.app');
+const app = join(directory, 'Pero.app');
 rmSync(app, { recursive: true, force: true });
 mkdirSync(join(app, 'Contents/MacOS'), { recursive: true });
 const payload = join(app, 'Contents/Resources/app');
@@ -54,27 +54,27 @@ writeFileSync(join(app, 'Contents/Info.plist'), `<?xml version="1.0" encoding="U
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.openpero.native</string>
-<key>CFBundleName</key><string>Pero Native</string>
-<key>CFBundleDisplayName</key><string>Pero Native</string>
+<key>CFBundleName</key><string>Pero</string>
+<key>CFBundleDisplayName</key><string>Pero</string>
 <key>CFBundleExecutable</key><string>pero-native</string>
 <key>CFBundleIconFile</key><string>AppIcon.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>${product.version}</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>NSHighResolutionCapable</key><true/>
-<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Pero Native</string><key>CFBundleURLSchemes</key><array><string>pero</string></array></dict></array>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Pero</string><key>CFBundleURLSchemes</key><array><string>pero</string></array></dict></array>
 </dict></plist>`);
 execFileSync('/usr/bin/plutil', ['-lint', join(app, 'Contents/Info.plist')], { stdio: 'inherit' });
 signNativeCode(app, signingIdentity);
 execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' });
-const archive = join(directory, `Pero-Native-macos-${process.arch}.dmg`);
+const archive = join(directory, `Pero-macos-${process.arch}.dmg`);
 // Both apps must be siblings on disk. Screen Capture can attribute a nested
 // executable to the outer app even when Accessibility uses the nested identity.
 const staging = mkdtempSync(join(directory, '.image-'));
 try {
-  cpSync(app, join(staging, 'Pero Native.app'), { recursive: true, verbatimSymlinks: true });
+  cpSync(app, join(staging, 'Pero.app'), { recursive: true, verbatimSymlinks: true });
   cpSync(helper, join(staging, 'Pero Computer Use.app'), { recursive: true, verbatimSymlinks: true });
-  createMacOSDmg(staging, 'Pero Native', archive);
+  createMacOSDmg(staging, 'Pero', archive);
 } finally {
   rmSync(staging, { recursive: true, force: true });
 }
