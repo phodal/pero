@@ -98,9 +98,9 @@ impl CapabilitySelection {
 
     pub fn prompt(&self) -> String {
         let instruction = match self {
-            Self::Browser => "Use browser_use. Call tabs to discover tab titles and URLs. Check tab authorization before reading page contents or acting.",
+            Self::Browser => "Use browser_use. Call tabs to discover the available tabs and use the intended tab ID for page operations.",
             Self::BrowserTab { .. } => {
-                "Use browser_use with this tabId and origin. Stop if the selected tab is no longer authorized."
+                "Use browser_use with this tabId and origin. Stop if the selected tab is no longer available."
             }
             Self::Computer | Self::RemoteDesktop { .. } => {
                 "Use computer_use on the selected desktop. Check status and observe the requested window before acting."

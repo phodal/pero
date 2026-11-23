@@ -74,11 +74,11 @@ those IDs after restart, and restore independent Chromium form values.
 ## Full-page screenshots
 
 Pass `fullPage: true` to `browser_use` screenshot on an embedded Electron tab
-or an approved `chrome:` tab. Full-page capture and viewport cropping are
+or a tab from the paired Chrome profile. Full-page capture and viewport cropping are
 mutually exclusive. Chromium captures the whole laid-out document while
 preserving its scroll position. The receipt includes `fullPage`, PNG
 dimensions and SHA-256. Page dimensions and encoded bytes are bounded. All
-frames must match the approved origin. Embedded Native WebKit supports viewport
+frames must match the page's origin. Embedded Native WebKit supports viewport
 and clipped screenshots.
 
 On macOS, the Electron Browser Use and headed Chrome Relay suites observed
@@ -88,7 +88,7 @@ suite used the built unpacked extension and a scripted ACP agent. Evidence is
 in `test-results/browser-use/browser-full-page.png` and
 `test-results/chrome-relay/full-page.png`.
 
-## Native Workbench and external Chrome
+## Native Workbench and external Chrome, historical protocol 2
 
 On macOS 27.2.1, the release-mode Pero Native Preview and Google Chrome for
 Testing 156.0.8078.4 ran with isolated profiles. The Native build used
@@ -116,40 +116,37 @@ both tabs open. The checks and receipt are in
 
 ### External Chrome extension and Relay
 
-The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
-Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
-same local Relay and the same ACP conversation tool. Pairing binds the
-connection to the selected ordinary conversation. `tabs` can then list the
-titles and URLs of regular HTTP(S) tabs across Chrome windows, including
-tabs marked `authorized: false`. Chrome grants page access after the user
-reviews and approves each live tab. A page operation
-requires the approved origin, an active tab in its Chrome window, and a
-current observation. Pero uses the existing Browser Use observation and
-action receipts.
+Electron Desktop and macOS Native use the same local Relay and ACP
+conversation tool. Relay protocol 3 pairs the selected ordinary conversation
+with a Chrome profile. `tabs` lists its regular HTTP(S) tabs across windows.
+Page operations require an active tab in its window and a current document.
+The extension attaches Chrome's debugger only when a page operation needs it.
+Stop and take over or Disconnect Chrome releases the attached tabs.
 
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
-The suite checks inventory across windows before tab approval, refusal of
-page access using an unapproved tab ID, explicit tab approval, an
+The suite checks listing and observing tabs on two origins in separate Chrome
+windows immediately after pairing, lazy debugger attachment, an
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
-back, forward and reload. It checks isolation from other tabs and conversations,
-foreign-origin rejection, replay protection and debugger release on revocation.
+back, forward and reload. It checks isolation from other conversations,
+inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
 Evidence is written to `test-results/chrome-relay/`.
 
-The Native development connector was also exercised with actual Chrome and a
-scripted ACP agent. The paired conversation listed two regular web tabs in
-separate Chrome windows before either was approved. Status reported no page
-grant and page observation was denied.
+A separate run used the Native development workbench, its connector and
+headed Chrome for Testing with a scripted ACP agent. Without any per-tab
+action in Chrome, the conversation listed both fixture windows and observed
+actual page text. Native exit disconnected the extension. Evidence is in
+`test-results/native-chrome-pairing/`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with
 `PERO_NATIVE_REPL_REAL_AGENT=1` and `PERO_NATIVE_REPL_INSTALLED_APP`.
-The probe pairs headed Chrome for Testing through the Native connector and
-reviews the fixture tab in the actual extension. Codex uses bundled CPython
+The probe pairs headed Chrome for Testing through the Native connector.
+Codex uses bundled CPython
 across two cells. The test independently checks the trusted click and the
 image-only marker read by Codex, plus the PNG hash in both the Host evidence
 and Codex's ACP transcript. Evidence is written to
