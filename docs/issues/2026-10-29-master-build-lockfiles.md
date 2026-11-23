@@ -219,3 +219,9 @@ tracked above, not an npm dependency change.
 `bazel test --config=ci //:checks` passed all seven frozen checks on macOS.
 No dependency or lockfile versions changed. The cache repair is included in
 PR #231; the remote CI rerun remains separate verification.
+
+## 2026-11-23 recurrence
+
+Master CI run 45117578229 failed during frozen npm translation. Regenerating
+with Bazel 9.2.0 refreshed the manifest and lock hashes and sorted the existing
+markdown-it importer entry. All seven frozen generated checks passed locally.

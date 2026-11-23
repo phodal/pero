@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "06c89aa64 PR #225 shared computational sessions and scientific Reviewer; exact per-file hashes below",
+  "right_ref": "4ff6a03a2f59c46b81daaaa6956f564b882b0a98",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -16,7 +16,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "1010fffe1a8521b1822f3438ff57cbc0ae42a067d51e870e716ed6a949ddf42b"
+        "sha256": "ba917cebf63c39c60f58a85d28b9421dd70d2fc4682bb1dfb9717eb399ec1f2c"
       },
       "notes": "Shared stop contract. Different loop decomposition: an official step maps to part of the Go whole-turn method. Tree structure is evidence for review, never semantic equivalence. Go turn entry separately rejects already canceled contexts and retired scopes before claiming queued input; native lifecycle tests validate that local admission rule. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
@@ -55,7 +55,7 @@
         "path": "harness/go/harness/loop.go",
         "language": "go",
         "symbol": "Agent.runTurn",
-        "sha256": "1010fffe1a8521b1822f3438ff57cbc0ae42a067d51e870e716ed6a949ddf42b"
+        "sha256": "ba917cebf63c39c60f58a85d28b9421dd70d2fc4682bb1dfb9717eb399ec1f2c"
       },
       "notes": "Once any step reaches output limit, a later normal follow-up cannot downgrade the turn result. Error/cancel precedence must still be checked by tests. The follow-up applies opt-in historical clearing before PreStep and permits stop continuation for explicit unlimited steps; native behavior tests cover these separately from the output-limit landmarks.",
       "landmarks": [
@@ -239,7 +239,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "86b21ad55ad25a25a790cb03a62a61d0c01230b59df8c592b855f16e7076abd1"
+        "sha256": "e6ad9b987008579cd487aefcc45b681f5ab63ce3dfb17301810aebd18217b5bf"
       },
       "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence.",
       "landmarks": [
@@ -278,7 +278,7 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "cd890fe6dc35d21f23da60a4baf9680bc6764bfb838dfea5ba889831a32e3fdd"
+        "sha256": "b5fcd92e4125628535baeb540f38b836b1f5c4dc7a5a68f8795562725d540311"
       },
       "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity.",
       "landmarks": [
@@ -307,7 +307,7 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "86b21ad55ad25a25a790cb03a62a61d0c01230b59df8c592b855f16e7076abd1"
+        "sha256": "e6ad9b987008579cd487aefcc45b681f5ab63ce3dfb17301810aebd18217b5bf"
       },
       "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence.",
       "landmarks": [
