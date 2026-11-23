@@ -17,6 +17,8 @@ mod composer_workspace;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod composer_actions;
 #[cfg(any(target_family = "wasm", feature = "native"))]
+mod composer_catalog;
+#[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod composer_picker;
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 pub mod composer_state;

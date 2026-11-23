@@ -60,33 +60,7 @@ impl ChatPanel {
         let agent_choices = self.agents.clone();
         let agent_workbench = cx.entity().downgrade();
         let agent_menu = agent_workbench.clone();
-        let context_workbench = cx.entity().downgrade();
-        let context_open_workbench = context_workbench.clone();
         let paste_workbench = cx.entity().downgrade();
-        let context_sources = [
-            ContextKind::File,
-            ContextKind::Directory,
-            ContextKind::Symbol,
-            ContextKind::Thread,
-            ContextKind::Skill,
-            ContextKind::Image,
-            ContextKind::Selection,
-            ContextKind::BranchDiff,
-            ContextKind::Fetch,
-        ]
-        .map(|kind| (kind, self.context_kind_label(kind).to_string()));
-        let browse_sources = [
-            (ContextKind::File, self.t("composer.browse").to_string()),
-            (
-                ContextKind::Image,
-                self.t("composer.browse_image").to_string(),
-            ),
-            (
-                ContextKind::Directory,
-                self.t("composer.browse_directory").to_string(),
-            ),
-        ];
-        let supports_images = chat.is_some_and(|chat| chat.capabilities.images);
         let model_picker = chat.filter(|chat| !chat.models.is_empty()).map(|chat| {
             let models = chat.models.clone();
             let selected = chat.model.clone();
@@ -190,52 +164,7 @@ impl ChatPanel {
             .bg(p.surface_muted)
             .accessibility_label(self.t("composer.context"))
             .tooltip(self.t("composer.context"))
-            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, _, _| {
-                let menu = context_sources.iter().fold(
-                    menu.min_w(px(W::MENU_WIDTH)),
-                    |menu, (kind, label)| {
-                        let kind = *kind;
-                        let workbench = context_workbench.clone();
-                        menu.item(
-                            PopupMenuItem::new(label.clone())
-                                .icon(Icon::default().path(Self::context_kind_icon(kind)))
-                                .disabled(
-                                    kind == ContextKind::Selection
-                                        || kind == ContextKind::Image && !supports_images,
-                                )
-                                .on_click(move |_, window, cx| {
-                                    let _ = workbench.update(cx, |this, cx| {
-                                        this.open_context_source(kind, window, cx)
-                                    });
-                                }),
-                        )
-                    },
-                );
-                browse_sources
-                    .iter()
-                    .fold(menu.separator(), |menu, (kind, label)| {
-                        let kind = *kind;
-                        let workbench = context_workbench.clone();
-                        menu.item(
-                            PopupMenuItem::new(label.clone())
-                                .icon(Icon::default().path(Self::context_kind_icon(kind)))
-                                .disabled(kind == ContextKind::Image && !supports_images)
-                                .on_click(move |_, _, cx| {
-                                    let _ = workbench.update(cx, |this, cx| {
-                                        this.browse_composer_context(kind, cx)
-                                    });
-                                }),
-                        )
-                    })
-            })
-            .on_open_change(move |open, _, cx| {
-                let _ = context_open_workbench.update(cx, |this, cx| {
-                    this.dock_menu = *open;
-                    if *open && this.compact {
-                        cx.emit(crate::ChatAction::CompactNeedsSpace);
-                    }
-                });
-            });
+            .on_click(cx.listener(|this, _, window, cx| this.open_composer_add(window, cx)));
         let (compact_context, normal_context) = if inline {
             (Some(context_button), None)
         } else {

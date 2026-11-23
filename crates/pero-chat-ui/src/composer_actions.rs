@@ -40,6 +40,7 @@ impl ChatPanel {
             .choices
             .iter()
             .map(|choice| match choice {
+                ComposerChoice::Capability(_) | ComposerChoice::RemoteTask(_) | ComposerChoice::OpenCompute | ComposerChoice::Browse(_) => self.catalog_item(choice),
                 ComposerChoice::Source(kind) => PickerItem {
                     icon: Self::context_kind_icon(*kind),
                     label: self.context_kind_label(*kind).into(),
@@ -63,8 +64,8 @@ impl ChatPanel {
     }
 
     pub(crate) fn close_composer_picker(&mut self, cx: &mut Context<Self>) {
-        self.composer_state.dismissed = self.composer_state.completion.clone();
         self.composer_state.open = false;
+        self.composer_state.add_anchor = None;
         self.composer_state.request = None;
         cx.notify();
     }
@@ -78,7 +79,16 @@ impl ChatPanel {
         for reference in &self.attachments {
             self.context_preview_bounds.entry(reference.id.clone()).or_default();
         }
-        let completion = CompletionQuery::at(&editor.value(), editor.cursor()).filter(|q| {
+        let value = editor.value();
+        let cursor = editor.cursor();
+        let add = self.composer_state.add_anchor.as_ref().and_then(|(prefix, suffix)| {
+            let query = value.get(prefix.len()..cursor)?;
+            (value.starts_with(prefix) && value.get(cursor..) == Some(suffix) && !query.contains('\n')).then(|| CompletionQuery {
+                kind: CompletionKind::Add, query: query.into(), range: prefix.len()..cursor,
+            })
+        });
+        if add.is_none() { self.composer_state.add_anchor = None; }
+        let completion = add.or_else(|| CompletionQuery::at(&editor.value(), editor.cursor())).filter(|q| {
             !editor
                 .tokens()
                 .iter()
@@ -92,29 +102,30 @@ impl ChatPanel {
         }
         self.composer_state.completion = completion.clone();
         self.composer_state.request = None;
+        self.composer_state.resolve_range = None;
         self.composer_state.loading = false;
         self.composer_state.error = None;
         self.composer_state.selected = 0;
+        self.composer_state.navigated = false;
         self.composer_state.choices.clear();
-        let Some(completion) =
-            completion.filter(|q| Some(q) != self.composer_state.dismissed.as_ref())
-        else {
+        let Some(completion) = completion else {
             self.composer_state.open = false;
             return;
         };
+        if !self.composer_state.open { self.request_composer_catalog(cx); }
         self.composer_state.open = true;
         if self.compact {
             cx.emit(crate::ChatAction::CompactNeedsSpace);
         }
-        self.composer_state.query = completion.query.clone();
         match completion.kind {
-            CompletionKind::Mention(None) => {
-                self.composer_state.title = self.t("composer.context").into();
+            CompletionKind::Add | CompletionKind::Mention(None) => {
+                self.composer_state.title = self.t("composer.add").into();
+                self.refresh_composer_shortcuts();
                 let images = self
                     .active_chat
                     .and_then(|i| self.chats.get(i))
                     .is_some_and(|c| c.capabilities.images);
-                self.composer_state.choices = [
+                let sources = [
                     ContextKind::File,
                     ContextKind::Directory,
                     ContextKind::Symbol,
@@ -133,7 +144,12 @@ impl ChatPanel {
                             .contains(&completion.query.to_lowercase())
                 })
                 .map(ComposerChoice::Source)
-                .collect();
+                .collect::<Vec<_>>();
+                self.composer_state.choices.extend(sources);
+                if completion.kind == CompletionKind::Add && completion.query.is_empty() {
+                    self.composer_state.choices.extend([ContextKind::File, ContextKind::Image, ContextKind::Directory]
+                        .into_iter().filter(|kind| *kind != ContextKind::Image || images).map(ComposerChoice::Browse));
+                }
                 // Unqualified @foo also searches workspace files.
                 if !completion.query.is_empty() {
                     self.search_composer_context(ContextKind::File, &completion.query, cx);
@@ -153,29 +169,10 @@ impl ChatPanel {
                 self.search_composer_context(kind, &completion.query, cx);
             }
             CompletionKind::Slash => {
-                self.composer_state.title = self.t("composer.commands").into();
-                self.refresh_composer_commands();
+                self.composer_state.title = self.t("composer.add").into();
+                self.refresh_composer_shortcuts();
                 self.search_composer_context(ContextKind::Skill, &completion.query, cx);
             }
-        }
-    }
-
-    pub(crate) fn refresh_composer_commands(&mut self) {
-        let query = self.composer_state.query.to_lowercase();
-        self.composer_state
-            .choices
-            .retain(|c| !matches!(c, ComposerChoice::Command { .. }));
-        if let Some(chat) = self.active_chat.and_then(|i| self.chats.get(i)) {
-            let commands = chat
-                .commands
-                .iter()
-                .filter(|c| c.name.to_lowercase().contains(&query))
-                .map(|c| ComposerChoice::Command {
-                    name: c.name.clone(),
-                    description: c.description.clone(),
-                })
-                .collect::<Vec<_>>();
-            self.composer_state.choices.splice(0..0, commands);
         }
     }
 
@@ -217,7 +214,6 @@ impl ChatPanel {
             .filter(|_| self.composer_state.open)
             .map(|q| q.range.clone())
             .unwrap_or_else(|| self.composer.read(cx).selected_range());
-        self.composer_state.dismissed = None;
         let prefix = if range.start > 0
             && !self.composer.read(cx).value()[..range.start].ends_with(char::is_whitespace)
         {
@@ -252,13 +248,39 @@ impl ChatPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.composer_state.loading {
+        if self.composer_state.loading && self.composer_state.resolve_range.is_some() {
             return;
         }
         let Some(choice) = self.composer_state.choices.get(index).cloned() else {
             return;
         };
         match choice {
+            ComposerChoice::Capability(capability) => {
+                if let Some(query) = self.composer_state.completion.clone() {
+                    let label = self.catalog_item(&ComposerChoice::Capability(capability.clone())).label;
+                    self.insert_composer_reference(capability.selection.reference(label), query.range, window, cx);
+                }
+            }
+            ComposerChoice::Browse(kind) => self.browse_composer_context(kind, cx),
+            ComposerChoice::RemoteTask(project_id) => {
+                if let Some(query) = self.composer_state.completion.clone() {
+                    self.close_composer_picker(cx);
+                    self.replace_composer_range(query.range, "", window, cx);
+                    let content = self.composer.read(cx).content();
+                    let mut prompt = content.text().to_string();
+                    for span in content.tokens().iter().rev() {
+                        prompt.replace_range(span.range(), "");
+                    }
+                    cx.emit(crate::ChatAction::PrepareRemoteTask { project_id, prompt });
+                }
+            }
+            ComposerChoice::OpenCompute => {
+                if let Some(query) = self.composer_state.completion.clone() {
+                    self.close_composer_picker(cx);
+                    self.replace_composer_range(query.range, "", window, cx);
+                    cx.emit(crate::ChatAction::OpenCompute);
+                }
+            }
             ComposerChoice::Source(kind) => self.open_context_source(kind, window, cx),
             ComposerChoice::Command { name, .. } => {
                 if let Some(query) = self.composer_state.completion.clone() {
@@ -284,6 +306,10 @@ impl ChatPanel {
     }
 
     pub(crate) fn receive_composer(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        if event.kind == "composer_catalog" {
+            self.receive_composer_catalog(event, cx);
+            return true;
+        }
         if !matches!(
             event.kind.as_str(),
             "context_candidates" | "context_resolved" | "context_error"
@@ -375,6 +401,7 @@ impl ChatPanel {
             "up" | "down" => {
                 let count = self.composer_state.choices.len();
                 if count > 0 {
+                    self.composer_state.navigated = true;
                     self.composer_state.selected = if key == "down" {
                         (self.composer_state.selected + 1) % count
                     } else {
@@ -421,6 +448,7 @@ impl ChatPanel {
     }
 
     pub(crate) fn apply_composer_context(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer_state.validated { self.send_chat(window, cx); }
         if let Some(draft) = self.composer_restore.take() {
             self.composer
                 .update(cx, |input, cx| input.set_value(draft, window, cx));

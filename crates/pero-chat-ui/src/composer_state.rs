@@ -6,6 +6,7 @@ use std::ops::Range;
 pub enum CompletionKind {
     Mention(Option<ContextKind>),
     Slash,
+    Add,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,8 +52,12 @@ impl CompletionQuery {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ComposerChoice {
+    Capability(pero_contracts::capability_selection::ComposerCapability),
+    RemoteTask(String),
+    OpenCompute,
+    Browse(ContextKind),
     Source(ContextKind),
     Context(ContextCandidate),
     Command { name: String, description: String },
@@ -64,17 +69,27 @@ pub struct ComposerState {
     pub loading: bool,
     pub error: Option<String>,
     pub selected: usize,
+    pub navigated: bool,
     pub title: String,
-    pub query: String,
     pub completion: Option<CompletionQuery>,
     pub choices: Vec<ComposerChoice>,
+    pub add_anchor: Option<(String, String)>,
+    pub catalog: Vec<pero_contracts::capability_selection::ComposerCapability>,
+    pub catalog_request: Option<String>,
+    pub verifying: Option<(String, Vec<ContextReference>)>,
+    pub validated: bool,
     pub request: Option<String>,
     pub resolve_range: Option<Range<usize>>,
-    pub dismissed: Option<CompletionQuery>,
     pub resolved: Option<ContextReference>,
     pub references: std::collections::HashMap<String, ContextReference>,
     pub pending_files: Vec<ContextReference>,
     pub paste_requests: std::collections::HashSet<String>,
+}
+
+impl ComposerState {
+    pub fn loading_choices(&self) -> bool {
+        self.loading || self.open && self.catalog_request.is_some()
+    }
 }
 
 #[cfg(test)]
@@ -89,6 +104,7 @@ mod tests {
                 Some((CompletionKind::Mention(Some(ContextKind::File)), "src", 7)),
             ),
             ("hello@world", 11, None),
+            ("@app", 4, Some((CompletionKind::Mention(None), "app", 0))),
             ("/", 1, Some((CompletionKind::Slash, "", 0))),
             ("/compact", 8, Some((CompletionKind::Slash, "compact", 0))),
             ("/compact now", 12, None),

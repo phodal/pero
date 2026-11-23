@@ -447,6 +447,8 @@ impl Workbench {
             .is_some_and(|chat| {
                 self.contribution.data["local"]["thread_id"].as_str() == Some(chat.id.as_str())
             });
+        let remote_project = self.composer_remote_project(cx);
+        let compute_available = self.apps.contains_panel("compute", "main");
         let compact = self.active_app_chat_slot().is_none() && self.floating_chat && !self.floating_chat_expanded && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
         self.chat.update(cx, |chat, cx| {
             if !visible { chat.set_visible(false, cx); }
@@ -460,6 +462,7 @@ impl Workbench {
                     chat.restore_scope_chat(cx);
                 }
             }
+            chat.set_composer_destinations(remote_project, compute_available, cx);
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
             if chat.compact != compact { chat.compact = compact; cx.notify(); }

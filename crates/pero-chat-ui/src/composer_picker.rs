@@ -64,7 +64,7 @@ impl ChatPanel {
                             .on_click(cx.listener(|this, _, _, cx| this.close_composer_picker(cx))),
                     ),
             )
-            .when(self.composer_state.loading, |el| {
+            .when(self.composer_state.loading_choices(), |el| {
                 el.child(
                     div()
                         .px(px(12.))
@@ -83,7 +83,7 @@ impl ChatPanel {
                 )
             })
             .when(
-                !self.composer_state.loading
+                !self.composer_state.loading_choices()
                     && self.composer_state.error.is_none()
                     && items.is_empty(),
                 |el| {
@@ -106,6 +106,8 @@ impl ChatPanel {
                     .overflow_y_scroll()
                     .p(px(4.))
                     .children(items.iter().enumerate().map(|(index, item)| {
+                        let setup = matches!(self.composer_state.choices.get(index),
+                            Some(crate::composer_state::ComposerChoice::Capability(cap)) if cap.needs.is_some());
                         let first_group = index == 0 || items[index - 1].group != item.group;
                         div()
                             .when(first_group && !item.group.is_empty(), |el| {
@@ -124,7 +126,7 @@ impl ChatPanel {
                                     .id(("composer-candidate", index))
                                     .role(Role::ListBoxOption)
                                     .aria_selected(index == selected)
-                                    .aria_label(item.label.clone())
+                                    .aria_label(format!("{} {}", item.label, item.detail))
                                     .flex()
                                     .items_center()
                                     .gap(px(8.))
@@ -146,23 +148,19 @@ impl ChatPanel {
                                             .small()
                                             .text_color(p.text_muted),
                                     )
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .min_w_0()
-                                            .truncate()
-                                            .child(item.label.clone()),
-                                    )
-                                    .when(!item.detail.is_empty(), |el| {
-                                        el.child(
-                                            div()
-                                                .max_w(relative(0.5))
-                                                .truncate()
+                                    .child(div().flex_1().min_w_0().flex()
+                                        .when(setup, |el| el.flex_col())
+                                        .when(!setup, |el| el.items_center().gap(px(8.)))
+                                        .child(div().min_w_0().truncate()
+                                            .when(!setup, |el| el.flex_1())
+                                            .child(item.label.clone()))
+                                        .when(!item.detail.is_empty(), |el| el.child(
+                                            div().min_w_0().truncate()
+                                                .when(!setup, |el| el.max_w(relative(0.5)))
                                                 .text_size(pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption))
                                                 .text_color(p.text_muted)
-                                                .child(item.detail.clone()),
-                                        )
-                                    }),
+                                                .child(item.detail.clone())
+                                        ))),
                             )
                     })),
             )

@@ -307,6 +307,7 @@ impl ChatPanel {
         let draft = self.current_composer_draft(cx);
         let text = draft.content.text().trim_end().to_owned();
         let contexts = crate::conversation::ComposerDraft::contexts(&draft.content, &draft.references);
+        if !self.verify_composer_selection(&text, &contexts, cx) { return; }
         if self.project_composer.scope.is_some() {
             if self.validate_submission(&text, &contexts, cx) { self.start_project_from_composer(draft, cx); }
             return;
@@ -844,14 +845,14 @@ impl ChatPanel {
         if let Some(value) = followup {
             self.command(value, cx);
         }
-        if self.composer_state.open
-            && matches!(
-                self.composer_state.completion.as_ref().map(|q| &q.kind),
-                Some(crate::composer_state::CompletionKind::Slash)
-            )
-            && event.data["sessionUpdate"] == "available_commands_update"
+        if self.active_chat == Some(index)
+            && (matches!(event.kind.as_str(), "session_ready" | "mcp_runtime" | "session_closed")
+                || event.data["sessionUpdate"] == "available_commands_update")
         {
-            self.refresh_composer_commands();
+            if event.kind == "session_ready" && self.composer_state.open {
+                self.request_composer_catalog(cx);
+            }
+            self.refresh_composer_shortcuts();
         }
         self.sync_follow(cx);
         cx.notify();
