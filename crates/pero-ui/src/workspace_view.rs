@@ -525,9 +525,72 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn content_tabs(&self, ruled: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn workspace_content_tab(&self, item: &WorkspaceItem, cx: &mut Context<Self>) -> AnyElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let current = self.navigation.current();
+        let (title, icon) = self.content_label(item, cx);
+        let select = item.clone();
+        let close = item.clone();
+        pero_theme::content_tab(
+            SharedString::from(format!("workspace-tab-shell:{item:?}")),
+            pero_theme::ContentTabState { active: current == Some(item), focused: true, pinned: false },
+            pero_theme::Chrome::from_app(cx),
+        )
+            .on_mouse_down(MouseButton::Left, |_, _, cx| { cx.stop_propagation(); })
+            .child(
+                Button::new(SharedString::from(format!(
+                    "workspace-tab:{item:?}"
+                )))
+                .custom(ButtonCustomVariant::new(cx).foreground(
+                    if current == Some(item) { p.accent_text } else { p.text_muted }
+                ))
+                .small()
+                .flex_1()
+                .min_w_0()
+                .h(px(pero_theme::UiAppearance::global(cx)
+                    .typography
+                    .control_height()))
+                .justify_start()
+                .text_size(pero_theme::Chrome::from_app(cx).text(pero_theme::TYPE_TAB))
+                .icon(
+                    Icon::default()
+                        .size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON))
+                        .path(pero_chat_ui::icon_theme::asset_path(&icon)),
+                )
+                .child(pero_theme::content_tab_label(title.clone().into(), false, pero_theme::Chrome::from_app(cx)))
+                .tooltip(title.clone())
+                .accessibility_label(title.clone())
+                .toggled(current == Some(item))
+                .on_click(
+                    cx.listener(move |this, _, window, cx| {
+                        this.activate_content(select.clone(), window, cx)
+                    }),
+                ),
+            )
+            .child(
+                pero_theme::content_tab_close_button(SharedString::from(format!(
+                    "workspace-tab-close:{item:?}"
+                )), pero_theme::Chrome::from_app(cx), cx)
+                .icon(Icon::default().size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON)).path("icons/x.svg"))
+                .tooltip(self.t("workspace.close_tab"))
+                .when(matches!(item, WorkspaceItem::Project(_)), |button| {
+                    button.relative().child(self.view_bounds.projects.probe("agent:close".into()))
+                })
+                .accessibility_label(format!(
+                    "{}: {title}",
+                    self.t("workspace.close_tab")
+                ))
+                .on_click(
+                    cx.listener(move |this, _, window, cx| {
+                        this.close_content(&close, window, cx)
+                    }),
+                ),
+            )
+            .into_any_element()
+    }
+
+    pub(crate) fn content_tabs(&self, ruled: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let chat = self.chat.read(cx);
         let attention = chat
             .active_chat
@@ -574,63 +637,7 @@ impl Workbench {
                     .children(
                         self.navigation
                             .titlebar_tabs()
-                            .map(|item| {
-                                let (title, icon) = self.content_label(item, cx);
-                                let select = item.clone();
-                                let close = item.clone();
-                                pero_theme::content_tab(
-                                    SharedString::from(format!("workspace-tab-shell:{item:?}")),
-                                    pero_theme::ContentTabState { active: current == Some(item), focused: true, pinned: false },
-                                    pero_theme::Chrome::from_app(cx),
-                                )
-                                    .on_mouse_down(MouseButton::Left, |_, _, cx| { cx.stop_propagation(); })
-                                    .child(
-                                        Button::new(SharedString::from(format!(
-                                            "workspace-tab:{item:?}"
-                                        )))
-                                        .custom(ButtonCustomVariant::new(cx).foreground(
-                                            if current == Some(item) { p.accent_text } else { p.text_muted }
-                                        ))
-                                        .small()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .h(px(pero_theme::UiAppearance::global(cx)
-                                            .typography
-                                            .control_height()))
-                                        .justify_start()
-                                        .text_size(pero_theme::Chrome::from_app(cx).text(pero_theme::TYPE_TAB))
-                                        .icon(
-                                            Icon::default()
-                                                .size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON))
-                                                .path(pero_chat_ui::icon_theme::asset_path(&icon)),
-                                        )
-                                        .child(pero_theme::content_tab_label(title.clone().into(), false, pero_theme::Chrome::from_app(cx)))
-                                        .tooltip(title.clone())
-                                        .accessibility_label(title.clone())
-                                        .toggled(current == Some(item))
-                                        .on_click(
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.activate_content(select.clone(), window, cx)
-                                            }),
-                                        ),
-                                    )
-                                    .child(
-                                        pero_theme::content_tab_close_button(SharedString::from(format!(
-                                            "workspace-tab-close:{item:?}"
-                                        )), pero_theme::Chrome::from_app(cx), cx)
-                                        .icon(Icon::default().size(pero_theme::Chrome::from_app(cx).text(pero_theme::CONTENT_TAB_ICON)).path("icons/x.svg"))
-                                        .tooltip(self.t("workspace.close_tab"))
-                                        .accessibility_label(format!(
-                                            "{}: {title}",
-                                            self.t("workspace.close_tab")
-                                        ))
-                                        .on_click(
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.close_content(&close, window, cx)
-                                            }),
-                                        ),
-                                    )
-                            }),
+                            .map(|item| self.workspace_content_tab(item, cx)),
                     )
                     .child(div().flex_1().h_full().min_w(px(8.))),
             )

@@ -376,26 +376,9 @@ impl Workbench {
             .gap(px(pero_theme::SPACE_8))
             .px(px(pero_theme::SPACE_16))
             .py(px(0.))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .text_ellipsis()
-                    .whitespace_nowrap()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(
-                        selected
-                            .map(|session| {
-                                if session.binding.parent_thread.is_none() {
-                                    self.t("project.agent.primary").to_owned()
-                                } else {
-                                    session.binding.label.clone()
-                                }
-                            })
-                            .unwrap_or_else(|| project.title.clone()),
-                    ),
-            )
+            .child(div().flex_1().min_w_0().children(
+                self.navigation.current().map(|item| self.workspace_content_tab(item, cx))
+            ))
             .when(primary.is_some(), |el| {
                 el.child(
                     Button::new("project-agent-summarize")

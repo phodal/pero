@@ -1,7 +1,7 @@
 //! Real pane tab commands adapt the pure navigation model to retained views.
 use crate::{
     app::Workbench,
-    workspace::WorkspaceRoute,
+    workspace::{WorkspaceItem, WorkspaceRoute},
 };
 use gpui_kit::{prelude::*, *};
 use pero_contracts::{
@@ -71,6 +71,15 @@ impl Workbench {
         cx.notify();
     }
     pub(crate) fn close_keyboard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(item @ (WorkspaceItem::Project(_) | WorkspaceItem::Task(_))) = self.navigation.current().cloned() {
+            self.close_content(&item, window, cx);
+            cx.stop_propagation();
+            return;
+        }
+        if !self.navigation.pane_layout_visible() {
+            cx.stop_propagation();
+            return;
+        }
         if let Some(view) = self.navigation.keyboard_close_view() {
             self.close_pane_tab(view, window, cx);
         } else {
