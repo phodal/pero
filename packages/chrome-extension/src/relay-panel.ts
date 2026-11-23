@@ -13,6 +13,7 @@ let busy = false;
 
 async function request(message: object) {
   const response = await chrome.runtime.sendMessage(message);
+  if (!response) throw new Error('Reload Pero Browser Use in Chrome, then pair again from Pero settings.');
   if (!response.ok) throw new Error(response.error);
   return response.value;
 }
