@@ -29,6 +29,7 @@ type Gateway struct {
 	ingress  chan struct{}
 }
 type pair struct {
+	scope           runtimechannel.Scope
 	ready           chan struct{}
 	done            chan struct{}
 	once            sync.Once
@@ -122,7 +123,7 @@ func (g *Gateway) attach(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), runtimechannel.MaxDuration)
 	defer cancel()
 	admit, stop := context.WithTimeout(ctx, 4*time.Second)
-	_, err := g.db.AttachRuntimeChannel(admit, runID, sessionID, role, secret, identity)
+	session, err := g.db.AttachRuntimeChannel(admit, runID, sessionID, role, secret, identity)
 	stop()
 	if err != nil {
 		status := 409
@@ -135,7 +136,7 @@ func (g *Gateway) attach(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	p := g.pairs[runID]
 	if p == nil {
-		p = &pair{ready: make(chan struct{}), done: make(chan struct{})}
+		p = &pair{scope: session.Scope, ready: make(chan struct{}), done: make(chan struct{})}
 		p.workerR, p.workerW = io.Pipe()
 		p.agentR, p.agentW = io.Pipe()
 		g.pairs[runID] = p

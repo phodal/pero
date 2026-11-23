@@ -13,5 +13,5 @@ go_test(
     srcs = ["channel_test.go", "agent_test.go", "cli_test.go"],
     embed = [":remoteacp"],
     deps = ["//server/internal/runtimegateway"],
-    env_inherit = ["PERO_REMOTE_AGENT_BINARY", "PERO_REMOTE_CONNECT_BINARY"],
+    env_inherit = ["PERO_REMOTE_AGENT_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_SCREENSHOT"],
 )

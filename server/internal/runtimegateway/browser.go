@@ -16,7 +16,6 @@ import (
 
 const (
 	maxBrowserRequest = 16 << 10
-	maxBrowserReply   = 256 << 10
 	browserCallLimit  = 25 * time.Second
 )
 
@@ -104,12 +103,16 @@ func (g *Gateway) browserDesktopReady(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusBadRequest)
 		return
 	}
-	if _, _, err := g.admitBrowserDesktop(r.Context(), runID, token); err != nil {
+	_, scope, err := g.admitBrowserDesktop(r.Context(), runID, token)
+	if err != nil {
 		deny(w, http.StatusForbidden)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = io.WriteString(w, `{"available":true}`)
+	_ = json.NewEncoder(w).Encode(struct {
+		Available   bool `json:"available"`
+		Screenshots bool `json:"screenshots"`
+	}{Available: true, Screenshots: scope.BrowserScreenshots})
 }
 
 func (g *Gateway) attachBrowser(w http.ResponseWriter, r *http.Request) {
@@ -176,12 +179,13 @@ func (g *Gateway) attachBrowser(w http.ResponseWriter, r *http.Request) {
 	}
 	// Read replies even when idle so Desktop EOF releases the grant immediately.
 	replies := make(chan browserFrame)
+	replyLimit := runtimechannel.BrowserReplyLimit(scope.BrowserScreenshots)
 	go func() {
 		defer close(replies)
-		reader := bufio.NewReaderSize(r.Body, maxBrowserReply+1)
+		reader := bufio.NewReaderSize(r.Body, replyLimit+1)
 		for {
 			line, readErr := reader.ReadSlice('\n')
-			if readErr != nil || len(line) > maxBrowserReply || !json.Valid(line) {
+			if readErr != nil || len(line) > replyLimit || !json.Valid(line) {
 				return
 			}
 			var reply browserFrame
@@ -260,7 +264,8 @@ func (g *Gateway) callBrowser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBrowserRequest))
-	if err != nil || !validBrowserObject(raw) {
+	var request *struct{ Action string }
+	if err != nil || json.Unmarshal(raw, &request) != nil || request == nil || request.Action == "" {
 		deny(w, http.StatusBadRequest)
 		return
 	}
@@ -272,6 +277,10 @@ func (g *Gateway) callBrowser(w http.ResponseWriter, r *http.Request) {
 	session, err := g.db.AuthorizeRuntimeChannel(ctx, runID)
 	if err != nil || !session.BrowserAvailable() || !session.Scope.Accepts(identity) {
 		deny(w, http.StatusForbidden)
+		return
+	}
+	if request.Action == "screenshot" && !session.Scope.BrowserScreenshots {
+		http.Error(w, "Browser screenshots require an image-capable Cloud Run", http.StatusForbidden)
 		return
 	}
 	g.mu.Lock()

@@ -3,6 +3,8 @@ package httpapi_test
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,14 +27,47 @@ import (
 )
 
 func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
-	t.Run("disabled recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, false) })
-	t.Run("opted-in recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, true) })
+	t.Run("disabled recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, false, false) })
+	t.Run("text recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, true, false) })
+	t.Run("vision recipe", func(t *testing.T) { checkCloudBrowserRuntime(t, true, true) })
 }
 
-func checkCloudBrowserRuntime(t *testing.T, enabled bool) {
+func checkCloudBrowserRuntime(t *testing.T, enabled, screenshots bool) {
 	t.Helper()
 	const podToken = "fixture-pod-token"
 	const wrongPodToken = "wrong-pod-token"
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Messages []struct {
+				Role    string
+				Content json.RawMessage
+			}
+		}
+		if r.Header.Get("Authorization") != "Bearer fixture" || json.NewDecoder(r.Body).Decode(&input) != nil ||
+			len(input.Messages) != 2 || input.Messages[0].Role != "tool" || input.Messages[1].Role != "user" {
+			t.Error("provider did not receive the tool receipt followed by a vision message")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var parts []struct {
+			ImageURL struct{ URL string } `json:"image_url"`
+		}
+		if json.Unmarshal(input.Messages[1].Content, &parts) != nil || len(parts) != 2 {
+			t.Error("provider did not receive an inline screenshot")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		encoded, ok := strings.CutPrefix(parts[1].ImageURL.URL, "data:image/png;base64,")
+		png, err := base64.StdEncoding.DecodeString(encoded)
+		if !ok || err != nil {
+			t.Error("provider did not receive a PNG data URI")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"sha256":"%x"}`, sha256.Sum256(png))
+	}))
+	defer provider.Close()
 	reviews := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			Spec struct {
@@ -62,16 +97,23 @@ func checkCloudBrowserRuntime(t *testing.T, enabled bool) {
 		t.Fatal(err)
 	}
 	budget := runtimechannel.ProviderBudget{MaxRequests: 1, MaxConcurrent: 1, MaxOutputTokens: 64, MaxRequestBytes: 1024, MaxResponseBytes: 1024, TimeoutSeconds: 5}
+	if screenshots {
+		budget.MaxRequests = 2
+		budget.MaxRequestBytes = runtimechannel.ProviderRequestMaxBytes
+	}
 	var db *store.Store
 	server := testAPI(t, func(s *store.Store) http.Handler {
 		db = s
-		gateway, err := runtimegateway.New(s, reviewer, runtimegateway.ProviderConfig{Endpoint: reviews.URL + "/chat/completions", Model: "fixture", APIKey: "fixture", Budget: budget})
+		gateway, err := runtimegateway.New(s, reviewer, runtimegateway.ProviderConfig{Endpoint: provider.URL + "/chat/completions", Model: "fixture", APIKey: "fixture", Budget: budget})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return httpapi.HandlerWithIsolatedRuntime(s, "test-operator", nil, gateway, reviewer, nil)
 	})
 	electronFixture := os.Getenv("PERO_TEST_CLOUD_BROWSER_ELECTRON")
+	if !screenshots {
+		electronFixture = ""
+	}
 	timeout := 15 * time.Second
 	if electronFixture != "" {
 		timeout = 2 * time.Minute
@@ -96,7 +138,8 @@ func checkCloudBrowserRuntime(t *testing.T, enabled bool) {
 		ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64),
 		WorkspaceRevision: strings.Repeat("c", 40), TTLSeconds: 3600, RuntimeClass: "runsc",
 		ServiceAccount: "agent", ServiceAccountUID: "sa-one", Audience: runtimechannel.Audience, BrowserUse: enabled,
-		ControlURL: "https://fixture.invalid", ImageRef: "fixture@sha256:" + strings.Repeat("a", 64),
+		BrowserScreenshots: screenshots,
+		ControlURL:         "https://fixture.invalid", ImageRef: "fixture@sha256:" + strings.Repeat("a", 64),
 		Model: "fixture", StorageClass: "retained", StorageAccessMode: "ReadWriteOnce", VolumeSize: "1Gi",
 	}
 	if err = db.ConfigureRuntimeWorker(ctx, config); err != nil {
@@ -174,7 +217,13 @@ func checkCloudBrowserRuntime(t *testing.T, enabled bool) {
 		request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusForbidden)
 		return
 	}
-	request(t, server, "GET", desktopPath, ownerToken, nil, "", http.StatusOK)
+	ready := parse[struct{ Screenshots bool }](t, request(t, server, "GET", desktopPath, ownerToken, nil, "", http.StatusOK))
+	if ready.Screenshots != screenshots {
+		t.Fatal("Desktop screenshot readiness differs from the recipe")
+	}
+	if !screenshots {
+		request(t, server, "POST", callPath, podToken, `{"action":"screenshot"}`, "", http.StatusForbidden)
+	}
 	request(t, server, "POST", callPath, wrongPodToken, `{"action":"observe"}`, "", http.StatusForbidden)
 	request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusConflict)
 	if electronFixture != "" {
