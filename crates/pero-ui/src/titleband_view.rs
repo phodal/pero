@@ -316,7 +316,9 @@ impl Workbench {
                     .bg(bg)
                     .child(self.resources_segment(&segment, toolbar_width, dragging, window, cx)),
             )
-            .child(div().flex_1().min_h_0().min_w_0().overflow_hidden().bg(bg).child(body))
+            .child(div().flex_1().min_h_0().min_w_0().overflow_hidden().bg(bg)
+                .when(segment.primary == Primary::Resource(titleband::ResourcePrimary::Project), |el| el.flex().flex_col())
+                .child(body))
             .into_any_element()
     }
 
