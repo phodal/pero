@@ -150,7 +150,14 @@ document.addEventListener('pointerdown', (event) => {
   }
 });
 
+const draftPrefix = 'pero.chat.draft.' + (await chrome.windows.getCurrent()).id + '.';
 let previousMessages, previousSessions, draftSession;
+const draftKey = () => draftPrefix + (draftSession || 'unpaired');
+function storeDraft() {
+  if (nodes.prompt.value) localStorage.setItem(draftKey(), nodes.prompt.value);
+  else localStorage.removeItem(draftKey());
+}
+nodes.prompt.value = localStorage.getItem(draftKey()) || '';
 function render() {
   const ready = !!snapshot,
     running = snapshot?.running;
@@ -160,7 +167,7 @@ function render() {
       ? 'Responding…'
       : ready
         ? 'Ready'
-        : 'Pair from Pero settings';
+        : 'Pair to send';
   nodes.connection.textContent = ready ? 'Connected to Pero Native' : 'Disconnected';
   nodes['connection-dot'].dataset.state = ready ? 'ready' : 'error';
   nodes['more-trigger'].dataset.state = ready ? '' : 'offline';
@@ -209,7 +216,7 @@ function render() {
   nodes['draft-attachments'].replaceChildren();
   draftAttachments.forEach((a, i) => appendAttachment(nodes['draft-attachments'], a, i));
   nodes['open-point'].disabled = !ready || busy;
-  nodes.prompt.disabled = !ready || busy || !!running;
+  nodes.prompt.readOnly = busy;
   for (const id of ['share-tab', 'attach', 'new-chat', 'session-trigger'])
     nodes[id].disabled = !ready || busy || !!running;
   nodes.send.hidden = !!running;
@@ -220,12 +227,18 @@ async function refresh() {
   clearTimeout(timer);
   try {
     const next = await rpc('snapshot');
-    if (draftSession && next.sessionId !== draftSession) {
-      nodes.prompt.value = '';
+    if (next.sessionId !== draftSession) {
+      const unpaired = !draftSession && nodes.prompt.value;
+      draftSession = next.sessionId;
+      nodes.prompt.value = unpaired || localStorage.getItem(draftKey()) || '';
+      if (unpaired) {
+        storeDraft();
+        localStorage.removeItem(draftPrefix + 'unpaired');
+      }
+      resizeComposer();
       draftAttachments = [];
       draftError = '';
     }
-    draftSession = next.sessionId;
     snapshot = next;
     unavailable = '';
   } catch (error) {
@@ -283,6 +296,7 @@ async function addFiles(files) {
 }
 
 nodes.prompt.addEventListener('input', () => {
+  storeDraft();
   resizeComposer();
   render();
 });
@@ -328,6 +342,7 @@ nodes.send.onclick = () =>
     }));
     await rpc('send', { text: nodes.prompt.value.trim(), contexts });
     nodes.prompt.value = '';
+    storeDraft();
     draftAttachments = [];
     draftError = '';
     resizeComposer();

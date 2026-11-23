@@ -271,7 +271,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === 'status') return status();
     if (panel || collector) {
       const connection = peer;
-      if (!connection || !['paired','approved'].includes(connection.state)) throw new Error('Pair in Pero Native → Settings → Browser Use.');
+      if (!connection || !['paired','approved'].includes(connection.state)) throw new Error('Write a draft here. To send it, pair from Pero Native → Settings → Browser Use.');
       let request = message.request;
       if (message.type === 'capture' || message.type === 'share') {
         const claim = connection.claims.get(message.tabId);
