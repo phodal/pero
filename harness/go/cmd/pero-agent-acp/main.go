@@ -266,8 +266,9 @@ func run() (resultErr error) {
 		}
 		resultErr = errors.Join(resultErr, disposeErr, h.Drain(cleanup), native.Close(), science.Close(), pluginWorkflows.Close(), webApp.Close(), lspApp.Close(), skillCatalog.Close(), instructions.Close(), pluginHooks.Close())
 	}()
-	if os.Getenv("PERO_ISOLATED_BROWSER_USE") == "1" {
-		if err := mountCloudBrowser(ctx, h, *endpoint); err != nil {
+	cloudBrowser := os.Getenv("PERO_ISOLATED_BROWSER_USE") == "1"
+	if cloudBrowser {
+		if err := mountCloudBrowser(ctx, h, *endpoint, budget.ImageInput); err != nil {
 			return err
 		}
 	}
@@ -533,6 +534,7 @@ func run() (resultErr error) {
 	}
 	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
+	serverOptions.OmitToolImages = cloudBrowser
 	serverOptions.ScientificReviewer = reviewer
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
 	if science != nil {

@@ -51,9 +51,12 @@ type Options struct {
 	OutputLimitRecoveries int
 	Compaction            *harness.BasicCompactionConfig
 	ToolResultPruner      *harness.ToolResultPruneConfig
-	Name                  string
-	Version               string
-	SessionListPageSize   int
+	// OmitToolImages keeps the receipt in ACP notifications when the host
+	// transport cannot carry raster bytes. Model context and journal are intact.
+	OmitToolImages      bool
+	Name                string
+	Version             string
+	SessionListPageSize int
 	// HoldAssistantText and RenderAssistantText let a MessageDisplay hook
 	// replace one completed assistant message on the wire. Nil leaves streaming
 	// unchanged. The stored message stays the original text.
@@ -84,6 +87,7 @@ type Server struct {
 	outputLimitRecoveries    int
 	compaction               *harness.BasicCompactionConfig
 	toolResultPruner         *harness.ToolResultPruneConfig
+	omitToolImages           bool
 	name                     string
 	version                  string
 	sessionListPageSize      int
@@ -179,8 +183,8 @@ func NewServer(options Options) (*Server, error) {
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		registerAppDeferredTools: options.RegisterAppDeferredTools,
 		provider:                 options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
-		outputLimitRecoveries: options.OutputLimitRecoveries,
-		name:                  options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
+		outputLimitRecoveries: options.OutputLimitRecoveries, omitToolImages: options.OmitToolImages,
+		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		science:            options.Science,
 		scientificReviewer: options.ScientificReviewer,
