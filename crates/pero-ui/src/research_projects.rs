@@ -1,9 +1,10 @@
 //! Local research presentation. App records remain with their owning backends.
+mod editor;
 use crate::{app::Workbench, projects::{Project, ProjectTab}, workspace::WorkspaceItem};
 use gpui_kit::{
     component::{
         button::*,
-        input::{Input, InputEvent, InputState, Textarea, TextareaState},
+        input::{Input, InputEvent, InputState, Editor, EditorState},
         *,
     },
     prelude::*,
@@ -29,10 +30,15 @@ pub(crate) struct ResearchProjectsView {
     resolving_workspace: Option<(ResearchProject, Option<String>)>,
     error: Option<String>,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProjectEdit { New, Details, Goal }
+
 pub(crate) struct ProjectEditor {
+    mode: ProjectEdit,
+    preview: bool,
     source_key: Option<String>,
     title: Entity<InputState>,
-    goal: Entity<TextareaState>,
+    goal: Entity<EditorState>,
     workspace: Entity<InputState>,
     _subscriptions: Vec<Subscription>,
 }
@@ -76,13 +82,17 @@ impl Workbench {
             .find(|project| project.id == id)
     }
 
-    pub(crate) fn edit_research_project(&mut self, new: bool, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn edit_research_project(&mut self, mode: ProjectEdit, window: &mut Window, cx: &mut Context<Self>) {
+        let new = mode == ProjectEdit::New;
         let original = (!new).then(|| self.saved_research_project().cloned()).flatten();
         let source_key = if new { None } else { self.selected_project.clone() };
         self.research.choosing = false;
         self.research.error = None;
-        if let Some(editor) = source_key.as_ref().and_then(|key| self.research.saved_editors.get(key)) {
-            editor.title.update(cx, |input, cx| input.focus(window, cx));
+        if let Some(editor) = source_key.as_ref().and_then(|key| self.research.saved_editors.get_mut(key)) {
+            editor.mode = mode;
+            editor.preview = false;
+            if mode == ProjectEdit::Goal { editor.goal.update(cx, |input, cx| input.focus(window, cx)); }
+            else { editor.title.update(cx, |input, cx| input.focus(window, cx)); }
             cx.notify();
             return;
         }
@@ -99,15 +109,17 @@ impl Workbench {
             .or_else(|| directory.and_then(|p| p.workspace))
             .unwrap_or_default();
         let title = cx.new(|cx| InputState::new(window, cx).default_value(title));
-        let goal = cx.new(|cx| TextareaState::new(window, cx).default_value(goal));
+        let goal = cx.new(|cx| EditorState::new(window, cx).language("markdown").line_number(false).soft_wrap(true).default_value(goal));
         let workspace = cx.new(|cx| InputState::new(window, cx).default_value(workspace));
         let mut subscriptions: Vec<_> = [&title, &workspace]
             .into_iter()
             .map(|input| cx.subscribe(input, |_, _, _: &InputEvent, cx| cx.notify()))
             .collect();
         subscriptions.push(cx.subscribe(&goal, |_, _, _: &InputEvent, cx| cx.notify()));
-        title.update(cx, |input, cx| input.focus(window, cx));
+        if mode == ProjectEdit::Goal { goal.update(cx, |input, cx| input.focus(window, cx)); }
+        else { title.update(cx, |input, cx| input.focus(window, cx)); }
         let editor = ProjectEditor {
+            mode, preview: false,
             source_key: source_key.clone(),
             title,
             goal,
@@ -176,6 +188,7 @@ impl Workbench {
         let Some(editor) = self.active_research_editor() else {
             return;
         };
+        let goal_only = editor.mode == ProjectEdit::Goal;
         let title = editor.title.read(cx).value().to_string();
         let goal = editor.goal.read(cx).value().to_string();
         let workspace = editor.workspace.read(cx).value().trim().to_string();
@@ -186,14 +199,18 @@ impl Workbench {
                 self.research_error(ResearchProjectError::InvalidId, cx);
                 return;
             };
-            project.edit(title, goal, workspace).map(|_| project)
+            if goal_only {
+                project.edit(project.title.clone(), goal, project.workspace.clone()).map(|_| project)
+            } else {
+                project.edit(title, project.goal.clone(), workspace).map(|_| project)
+            }
         } else {
             ResearchProject::new(self.new_research_id(), title, goal, workspace)
         };
         self.research.resolving_workspace = None;
         match candidate {
             Ok(project) => {
-                if let Some(path) = project.workspace.as_ref().filter(|path| **path != self.workspace) {
+                if let Some(path) = project.workspace.as_ref().filter(|path| !goal_only && **path != self.workspace) {
                     let path = path.clone();
                     let id = project.id.clone();
                     self.research.resolving_workspace = Some((project, source_key));
@@ -349,116 +366,6 @@ impl Workbench {
         true
     }
 
-    pub(crate) fn research_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(editor) = self.active_research_editor() else {
-            return div().into_any_element();
-        };
-        let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        let saving =
-            (self.research.pending.is_some() || self.research.resolving_workspace.is_some()) && self.error.is_none();
-        let field = |label: &str, id: &str, element: AnyElement| {
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.))
-                .child(div().text_color(p.text_muted).child(label.to_string()))
-                .child(
-                    div()
-                        .relative()
-                        .child(element)
-                        .child(self.view_bounds.projects.probe(id.to_string())),
-                )
-        };
-        div()
-            .id("research-editor")
-            .w_full()
-            .max_w(px(760.))
-            .py(px(12.))
-            .flex()
-            .flex_col()
-            .gap(px(12.))
-            .child(field(
-                self.t("research.title"),
-                "research-title",
-                pero_theme::WorkbenchStyle::input(Input::new(&editor.title), cx)
-                    .aria_label(self.t("research.title"))
-                    .disabled(saving)
-                    .into_any_element(),
-            ))
-            .child(field(
-                self.t("research.goal"),
-                "research-goal",
-                Textarea::new(&editor.goal)
-                    .aria_label(self.t("research.goal"))
-                    .h(px(80.))
-                    .disabled(saving)
-                    .into_any_element(),
-            ))
-            .child(field(
-                self.t("research.workspace"),
-                "research-workspace",
-                pero_theme::WorkbenchStyle::input(Input::new(&editor.workspace), cx)
-                    .aria_label(self.t("research.workspace"))
-                    .disabled(saving)
-                    .into_any_element(),
-            ))
-            .when_some(
-                self.research
-                    .error
-                    .clone()
-                    .or_else(|| self.error.as_ref().map(|error| self.t(error).to_string())),
-                |el, error| {
-                    el.child(
-                        div()
-                            .id("research-alert")
-                            .role(Role::Alert)
-                            .text_color(p.error)
-                            .whitespace_normal()
-                            .child(error),
-                    )
-                },
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap(px(8.))
-                    .child(
-                        Button::new("research-save")
-                            .primary()
-                            .label(self.t("research.save"))
-                            .loading(saving)
-                            .disabled(saving)
-                            .relative()
-                            .child(self.view_bounds.projects.probe("save".into()))
-                            .on_click(cx.listener(|this, _, _, cx| this.save_research_editor(cx))),
-                    )
-                    .child(
-                        Button::new("research-cancel")
-                            .relative().child(self.view_bounds.projects.probe("edit-cancel".into()))
-                            .ghost()
-                            .label(self.t("worker.local.cancel"))
-                            .disabled(saving)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let source = this.active_research_editor().and_then(|editor| editor.source_key.clone());
-                                if let Some(key) = source.as_ref().filter(|key| this.research.saved_editors.contains_key(key.as_str())) {
-                                    this.research.saved_editors.remove(key);
-                                } else {
-                                    this.research.transient_editor = None;
-                                }
-                                this.research.error = None;
-                                if this.research.pending.as_ref().is_some_and(|(_, key, _)| key == &source) {
-                                    this.research.pending = None;
-                                }
-                                if this.research.resolving_workspace.as_ref().is_some_and(|(_, key)| key == &source) {
-                                    this.research.resolving_workspace = None;
-                                }
-                                cx.notify();
-                            })),
-                    ),
-            )
-            .into_any_element()
-    }
-
     pub(crate) fn project_overview(&self, project: Option<&Project>, cx: &mut Context<Self>) -> AnyElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let saved = self.saved_research_project();
@@ -489,7 +396,7 @@ impl Workbench {
             }
                 .disabled(saving)
                 .relative().child(self.view_bounds.projects.probe("edit".into()))
-                .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx)));
+                .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(ProjectEdit::Goal, window, cx)));
             return overview.child(
                 div().flex_shrink_0().p(chrome.geo(pero_theme::SPACE_16))
                     .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_8))
@@ -501,7 +408,7 @@ impl Workbench {
                     .child(div().whitespace_normal()
                         .text_size(chrome.text(if has_goal { pero_theme::TYPE_BODY } else { pero_theme::TYPE_CAPTION }))
                         .text_color(if has_goal { p.text } else { p.text_muted })
-                        .child(if has_goal { saved.goal.clone() } else { self.t("research.goal_empty").to_owned() })),
+                        .child(if has_goal { gpui_kit::component::text::TextView::markdown("project-goal", saved.goal.clone()).selectable(true).into_any_element() } else { div().child(self.t("research.goal_empty")).into_any_element() })),
             ).into_any_element();
         }
         overview.p(px(pero_theme::WorkbenchStyle::PAGE)).child(
@@ -529,7 +436,7 @@ impl Workbench {
                                     .ghost()
                                     .label(self.t("research.from_workspace"))
                                     .disabled(saving)
-                                    .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
+                                    .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(crate::research_projects::ProjectEdit::Details, window, cx))),
                             )
                         }),
                 ),

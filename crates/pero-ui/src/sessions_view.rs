@@ -144,7 +144,7 @@ impl Workbench {
                     SidebarAction::NewProject => {
                         this.projects_collapsed = false;
                         this.navigate(WorkbenchPage::Projects, cx);
-                        this.edit_research_project(true, window, cx);
+                        this.edit_research_project(crate::research_projects::ProjectEdit::New, window, cx);
                     }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);

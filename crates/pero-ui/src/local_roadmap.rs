@@ -68,7 +68,7 @@ impl Workbench {
                         .label(self.t("research.edit"))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.select_project_view(crate::projects::ProjectTab::Overview, cx);
-                            this.edit_research_project(false, window, cx);
+                            this.edit_research_project(crate::research_projects::ProjectEdit::Details, window, cx);
                         })),
                 );
         }

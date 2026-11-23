@@ -1097,6 +1097,7 @@
   "research.view_resources": "View materials & experiments",
   "research.new": "New research project",
   "research.title": "Project name",
+  "research.edit_details": "Edit project details",
   "research.goal": "Research goal",
   "research.workspace": "Local directory (optional)",
   "research.save": "Save project",

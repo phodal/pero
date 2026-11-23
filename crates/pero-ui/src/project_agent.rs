@@ -655,7 +655,7 @@ impl Workbench {
                             this.project_agents.context_open = true;
                             this.project_agents.wide_context_hidden = false;
                             this.select_project_view(crate::projects::ProjectTab::Overview, cx);
-                            this.edit_research_project(false, window, cx);
+                            this.edit_research_project(crate::research_projects::ProjectEdit::Details, window, cx);
                         }))))
             })
             .child(self.project_conversation_toolbar(cx))

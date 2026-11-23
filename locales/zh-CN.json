@@ -1097,6 +1097,7 @@
   "research.view_resources": "查看资料与实验",
   "research.new": "新建研究项目",
   "research.title": "项目名称",
+  "research.edit_details": "编辑项目信息",
   "research.goal": "研究目标",
   "research.workspace": "本地目录（可选）",
   "research.save": "保存项目",
