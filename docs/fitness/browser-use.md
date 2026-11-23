@@ -61,6 +61,28 @@ Native 验收通过实际的 GPUI、Rust Host、确定性 ACP 和 WebKit，测�
 
 ## Electron Runtime
 
+### External Chrome extension and Relay
+
+The [Pero Chrome extension](../../packages/chrome-extension/README.md) adapts
+Point’s pairing and tab review flow. Electron Desktop and macOS Native use the
+same local Relay and the same ACP conversation tool. Pairing binds the
+connection to the selected ordinary conversation. Chrome grants access only
+after the user reviews and approves a specific live tab. A page operation
+requires the approved origin, an active tab in its Chrome window, and a
+current observation. Pero uses the existing Browser Use observation and
+action receipts.
+
+`node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
+Relay, real Host and deterministic ACP Agent with headed Google Chrome for
+Testing. It loads the actual unpacked extension in a temporary Chrome profile.
+The suite checks pairing without tab access, explicit tab approval, an
+independently observed trusted click after filling and its stored receipt,
+isolation from another tab and conversation, rejection of a replayed code,
+and debugger release after revocation from either Chrome or Pero. Evidence is written to
+`test-results/chrome-relay/`.
+
+### Embedded browser
+
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
 `browser/src/browser-dom-semantics.mjs` and the isolated-world approach from
 `browser/src/browser-expanded-dom.mjs`. The adapted TypeScript is part of
