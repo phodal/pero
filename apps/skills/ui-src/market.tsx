@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useAppContext, useHostCapability, useInstalledSkill} from '@pero/app-sdk';
-import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, LibraryHeader, ListRow, SearchField, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
+import {AppBar, Button, Checkbox, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, InspectorHeader, ListRow, SearchField, Select, Switch, Tabs, TabsContent, TabsList, TabsTrigger} from '@pero/app-sdk/ui';
 import {findSkills, installationBlock, skillCopy as copy} from './catalog.mjs';
 import {SkillHub, SkillHubHistory, skillHubId, type SkillHubInstallFailure} from './skillhub';
 import type {SkillHubEntry} from '../../../protocol/generated/host';
@@ -41,7 +41,7 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
   const [targetRevision, setTargetRevision] = useState('');
   const hub = view === 'skillhub';
   const viewingInstalled = view === 'installed';
-  const [expandedReason, setExpandedReason] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(''), [detailTab,setDetailTab] = useState('overview');
   const [onlyReady,setOnlyReady] = useState(false), [sort,setSort] = useState('flow'), [queueOpen,setQueueOpen] = useState(true), [opening,setOpening] = useState('');
@@ -202,14 +202,7 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
   function primary(target:Skill, compact=false) {
     const saved=records.find(value=>value.id===target.id), pending=busy[target.id];
     if(saved)return <Button variant={compact?'ghost':'primary'} disabled={!!pending} busy={opening===target.id} onClick={()=>void useSkill(target)}>{compact?text('去使用','Use skill'):text('在新会话中使用','Use in new chat')}<Icon name="arrow" size={14}/></Button>;
-    if (installationBlock(target)) {
-      if (!compact) return null;
-      const expanded = expandedReason === target.id;
-      return <Button variant="secondary" aria-expanded={expanded} aria-controls={expanded ? `reason-${target.id}` : undefined}
-        onClick={()=>setExpandedReason(expanded ? '' : target.id)}>
-        {text('暂不可安装','Install unavailable')}<Icon name="chevron-down" size={14}/>
-      </Button>;
-    }
+    if (installationBlock(target)) return compact ? <span className="skills-unavailable">{text('暂不可安装','Install unavailable')}</span> : null;
     return <Button variant={compact?'secondary':'primary'} disabled={!!pending||!installed} busy={!!pending} onClick={()=>void operate('install',target)}>{text('安装技能','Install')}</Button>;
   }
   function retry(target:Skill) {
@@ -228,8 +221,8 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
     setPage(0);
     setValue(value);
   }
-  const clearFilters = () => {setPage(0);setQuery('');setCategory('');setScope('');setOnlyReady(false);};
-  const viewTitle = hub ? 'SkillHub' : view === 'installed' ? text('已安装','Installed') : text('发现技能','Discover');
+  const clearFilters = () => {setPage(0);setQuery('');setCategory('');setScope('');setOnlyReady(false);setSort('flow');};
+  const activeFilters = Number(Boolean(scope)) + Number(Boolean(category)) + Number(onlyReady) + Number(sort !== 'flow');
   return <main className={embedded ? 'skills-market skills-market-embedded' : 'skills-market'}>
         <Tabs className="skills-frame" value={view} onValueChange={value=>changeFilter(setView,value)}>
           <AppBar scope={<TabsList variant="navigation" aria-label={text('技能视图','Skill views')}>
@@ -238,19 +231,21 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
             <TabsTrigger value="installed">{text('已安装','Installed')}{installed?` (${records.length})`:''}</TabsTrigger>
           </TabsList>} utilities={<IconButton label={text('刷新','Refresh')} busy={!hub && (viewingInstalled ? inventoryLoading : loading)} disabled={!capability} onClick={() => hub ? setHubRefresh(value=>value+1) : viewingInstalled ? void loadInstalled() : void load()}><Icon name="refresh" size={14}/></IconButton>} />
           <ContentPane id="skills-catalog" label={hub ? 'SkillHub' : text('技能列表','Skill results')} as="div" surface="list" inset="compact" scroll="pane" bodyRef={scroller}
-            header={<LibraryHeader density="compact" title={viewTitle} subtitle={hub ? text('浏览社区技能并选择要安装的发布版本。','Browse community skills and choose a release to install.') : (viewingInstalled ? installed : catalog) && shown ? <span className="skills-catalog-total"><strong>{shown.total.toLocaleString(locale)} {filtered ? text('项匹配', shown.total===1?'match':'matches') : text('项技能', shown.total===1?'skill':'skills')}</strong> · {text('在聊天中手动选用。安装不会自动启用。','Choose skills in Chat. Installing does not turn them on.')}</span> : undefined} />}
-            toolbar={<div className="pero-catalog-tools">
+            toolbar={<><div className="pero-catalog-tools">
             <SearchField ref={searchInput} aria-label={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')}
               placeholder={hub ? text('搜索 SkillHub','Search SkillHub') : text('搜索技能','Search skills')} value={hub ? hubQuery : query}
               onChange={event=>hub ? setHubQuery(event.target.value) : changeFilter(setQuery,event.target.value)}/>
-            {!hub && <>
+            {!hub && <Button variant="ghost" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(!filtersOpen)}>
+              {text('筛选','Filters')}{activeFilters ? ` (${activeFilters})` : ''}
+            </Button>}
+            </div>
+            {!hub && filtersOpen && <div className="pero-catalog-tools">
             <Select label={text('技能范围','Skill scope')} value={scope} options={[{value:'',label:text('全部','All')},{value:'general',label:text('通用','General')},{value:'research',label:text('科研','Research')}]} onChange={value=>changeFilter(setScope,value)}/>
             <Select label={text('任务分类','Task category')} value={category} options={[{value:'',label:text('全部任务分类','All categories')},...categories]} onChange={value=>changeFilter(setCategory,value)}/>
             <label className="skills-ready"><Checkbox checked={onlyReady} onCheckedChange={checked=>changeFilter(setOnlyReady,checked===true)}/>{text('可直接安装','Ready to install')}</label>
             <Select label={text('排序方式','Sort skills')} value={sort} options={[{value:'flow',label:text('按任务','Task')},{value:'name',label:text('按名称','Name')}]} onChange={value=>changeFilter(setSort,value)}/>
-            {filtered && <Button variant="ghost" onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>}
-            </>}
-          </div>}
+            {(filtered || activeFilters > 0) && <Button variant="ghost" onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>}
+            </div>}</>}
             feedback={<div className="skills-status">
             {!hub&&!viewingInstalled&&loading&&<Feedback>{catalog?text('正在刷新，保留当前目录。','Refreshing; the current catalog remains visible.'):text('正在读取技能目录…','Loading the skill catalog…')}</Feedback>}
             {!hub&&!viewingInstalled&&error&&<Feedback kind="error">{text('读取未完成，已保留可用内容。','Loading is incomplete; available content is retained.')} {error} <Button variant="link" disabled={loading} onClick={()=>void load()}>{text('重试','Retry')}</Button></Feedback>}
@@ -258,42 +253,30 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
             {(hub || viewingInstalled) && inventoryLoading && !installed && <Feedback>{text('正在读取已安装技能…','Loading installed skills…')}</Feedback>}
             {noCapability&&<Feedback kind="error">{text('此 Host 不提供 Skills 市场能力。请更新 Pero 后重试。','This Host does not provide the Skills market capability. Update Pero and retry.')}</Feedback>}
           </div>}
-            footer={shown && shown.pages > 1 && <nav className="skills-pagination" aria-label={text('技能分页','Skill pages')}>
-              <span>{text(`显示 ${shown.start+1}–${shown.start+shown.items.length} 项`, `Showing ${shown.start+1}–${shown.start+shown.items.length}`)}</span>
-              <div>
+            footer={shown && (viewingInstalled ? installed : catalog) && <nav className="skills-pagination" aria-label={text('技能分页','Skill pages')}>
+              <span className="skills-catalog-total">{shown.total.toLocaleString(locale)} {filtered ? text('项匹配', shown.total===1?'match':'matches') : text('项技能', shown.total===1?'skill':'skills')}{shown.pages > 1 && <> · {text(`显示 ${shown.start+1}–${shown.start+shown.items.length} 项`, `Showing ${shown.start+1}–${shown.start+shown.items.length}`)}</>}</span>
+              {shown.pages > 1 && <div>
                 <IconButton label={text('上一页','Previous')} disabled={shown.page===0} onClick={()=>setPage(shown.page-1)}><Icon name="chevron-left"/></IconButton>
                 <span>{shown.page+1} / {shown.pages}</span>
                 <IconButton label={text('下一页','Next')} disabled={shown.page+1===shown.pages} onClick={()=>setPage(shown.page+1)}><Icon name="chevron-right"/></IconButton>
-              </div>
+              </div>}
             </nav>}>
           <TabsContent value={view}>
             {hub ? <SkillHub query={hubQuery} refresh={hubRefresh} installed={installed} busy={busy} onOpen={item=>setHubHistory({item,versionId:hubFailures[skillHubId(item)]?.at(-1)?.versionId})} onPageChange={()=>scroller.current?.scrollTo(0,0)}/> : !shown || (viewingInstalled ? !installed : !catalog) ? null : <div className="skills-layout">
               <section className="skills-results" aria-label={text('技能列表','Skill results')}>
                 {shown.items.length ? <ul className="skills-directory">{shown.items.map(value=>{
-                  const saved=records.find(row=>row.id===value.id), pending=busy[value.id];
-                  const revision = saved?.revision || value.source.commit;
-                  const status = pending ? <span className="skills-pending-label">{text('处理中','Working')}</span>
-                    : outcomes[value.id]?.error ? <span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>
-                    : saved ? <span className="skills-installed-label"><Icon name="check" size={12}/>{text('已安装','Installed')}</span>
-                    : null;
                   return <li key={value.id}><ListRow onOpen={()=>open(value)}
-                    title={<><span className="skills-result-name" title={title(value)}>{title(value)}</span><span className="skills-result-category">{categoryLabel(value)}</span></>}
+                    title={<span className="skills-result-name" title={title(value)}>{title(value)}</span>}
                     meta={description(value)}
-                    trailing={<>
-                      <div className="skills-result-source">
-                        <span className="skills-card-publisher" title={value.source.repository}>{value.source.repository}</span>
-                        <span className="skills-card-version" title={revision}>{value.source.release || `Git ${revision.slice(0,8)}`}</span>
-                      </div>
-                      <div className="skills-result-action">{status}{primary(value,true)}</div>
-                    </>}/>
-                    {expandedReason === value.id && !saved && installationBlock(value) &&
-                      <div className="skills-block-reason" id={`reason-${value.id}`}>{reasonContent(value)}</div>}
+                    trailing={<div className="skills-result-action">
+                      {outcomes[value.id]?.error && <span className="skills-failed-label">{text('操作未完成','Action incomplete')}</span>}
+                      {primary(value,true)}
+                    </div>}/>
                   </li>;
                 })}</ul> : <EmptyState icon={<EmptyIllustration kind={viewingInstalled && records.length === 0 ?'data':'search'} size="compact"/>} heading={viewingInstalled && records.length === 0 ?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={viewingInstalled && records.length > 0
                   ? <Button onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>
                   : <Button onClick={()=>{clearFilters();setView('discover');}}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
               </section>
-              <p className="skills-source-note"><Icon name="info" size={15}/>{text('目录保留固定来源与许可依据。安装成功不代表科研方法已经验证。','Sources and license evidence are preserved. Installation does not establish scientific validation.')}</p>
             </div>}
           </TabsContent>
           </ContentPane>
@@ -348,7 +331,7 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
         {itemBusy&&<Feedback>{itemBusy.notice||text('正在处理，可关闭详情继续浏览。','Working; close details to keep browsing.')} {['install','update'].includes(itemBusy.operation)&&<Button variant="link" disabled={itemBusy.cancelling} onClick={()=>void cancel(item.id)}>{text('取消','Cancel')}</Button>}</Feedback>}
         {!itemBusy&&outcomes[item.id]?.error&&<Feedback kind="error">{outcomes[item.id].message}<Button variant="link" onClick={()=>retry(item)}>{text('重试','Retry')}</Button></Feedback>}
         <Tabs value={detailTab} onValueChange={setDetailTab}><TabsList variant="navigation" aria-label={text('技能详情视图','Skill detail views')}><TabsTrigger value="overview">{text('用途与条件','Overview')}</TabsTrigger><TabsTrigger value="examples">{text('示例任务','Examples')}</TabsTrigger><TabsTrigger value="source">{text('来源与版本','Source and version')}</TabsTrigger></TabsList>
-          <TabsContent value="overview"><ContentSection id="skill-does" title={text('这项技能能帮你做什么','What this skill does')}><p>{description(item)}</p></ContentSection>
+          <TabsContent value="overview">
             <div className="skills-io-grid">{(['inputs','outputs'] as const).map(key=><ContentSection id={`skill-${key}`} key={key} title={key==='inputs'?text('准备什么','Inputs'):text('得到什么','Outputs')}>{zh&&copy(item)&&<p>{key==='inputs'?copy(item)?.input:copy(item)?.output}</p>}<SkillEvidence sections={item[key]} missing={missingEvidence}/></ContentSection>)}</div>
             <ContentSection id="skill-before" title={text('使用前了解','Before you use it')}><dl className="skills-facts"><dt>{text('来源','Repository')}</dt><dd>{item.source.repository}</dd><dt>{text('许可','License')}</dt><dd>{item.license.spdx||text('未知','Unknown')}</dd><dt>{text('运行条件','Requirements')}</dt><dd>{item.compatibility?.declared?.join(', ')||text('未单列声明，请以原文为准','Not explicitly declared; review the original skill.')}</dd><dt>{text('条目类型','Entry type')}</dt><dd>{item.kind==='general_skill'?text('通用技能','General skill'):item.kind==='internal_dependency'?text('内部依赖','Internal dependency'):item.kind==='research_support'?text('科研辅助','Research support'):text('科研技能','Research skill')}</dd><dt>{text('兼容状态','Compatibility')}</dt><dd>{item.compatibility?.status==='unverified'?text('尚未验证','Unverified'):({static_instructions:text('静态指引已审查；执行环境待核查','Static instructions reviewed; execution environment unchecked'),requires_adaptation:text('需要宿主或工具适配','Host or tool adaptation required')})[item.compatibility?.status as 'static_instructions'|'requires_adaptation']||item.compatibility?.status||text('未声明','Not declared')}</dd><dt>{text('实际运行','Runtime evidence')}</dt><dd>{item.verification?.runtime==='not_run'?text('未执行','Not run'):item.verification?.runtime||text('未提供','Not provided')}</dd></dl></ContentSection>
             <ContentSection id="skill-dependencies" title={text('运行依赖','Dependencies')}><SkillEvidence sections={item.dependencies} missing={missingEvidence}/></ContentSection>
