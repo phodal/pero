@@ -37,37 +37,31 @@ try {
   await launch();
   expect((await state()).localExecution.setup.onboarding_complete).toBe(false);
   expect((await state()).remote.state.configured).toBe(false);
+  async function clickControl(key) {
+    let bounds;
+    await expect.poll(async () => {
+      bounds = (await state()).projectControls[key];
+      return bounds?.width || 0;
+    }).toBeGreaterThan(0);
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  }
+  await clickControl(`sidebar:open:workspace:${root}`);
+  await expect.poll(async () => (await state()).selectedProject).toMatch(/^research:/);
+  const first = (await state()).selectedProject;
   await clickAppShortcut(page, 'projects');
-  await capture('01-fresh-local-projects');
-  const workspace = (await state()).projectControls[`open:workspace:${root}`];
-  await page.mouse.click(workspace.x + workspace.width / 2, workspace.y + workspace.height / 2);
-  await expect.poll(async () => (await state()).selectedProject).toBe(`workspace:${root}`);
-  await expect.poll(async () => (await state()).localRoadmap.data.items.length).toBeGreaterThan(0);
-  expect((await state()).localRoadmap.show_cloud).toBe(false);
-  expect((await state()).projectTab).toBe('overview');
-  expect((await state()).projectControls['tab:research.linked']).toBeUndefined();
-  await capture('02-workspace-overview');
-  const tasks = (await state()).projectControls['view-tasks'];
-  await page.mouse.click(tasks.x + tasks.width / 2, tasks.y + tasks.height / 2);
-  await expect.poll(async () => (await state()).projectTab).toBe('tasks');
-  await capture('02-local-roadmap');
-  const switcher = (await state()).projectControls['project-switcher'];
-  await page.mouse.click(switcher.x + switcher.width / 2, switcher.y + switcher.height / 2);
-  await capture('02-project-switcher');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
-  await expect.poll(async () => (await state()).selectedProject).toBe(`workspace:${otherWorkspace}`);
-  expect((await state()).projectTab).toBe('overview');
-  expect((await state()).activeTabBounds).toBeUndefined();
+  await expect.poll(async () => (await state()).projectControls[`sidebar:open:${first}`]?.width || 0).toBe(0);
+  expect((await state()).selectedProject).toBe(first);
+  await clickAppShortcut(page, 'projects');
+  await clickControl(`sidebar:open:workspace:${otherWorkspace}`);
+  await expect.poll(async () => (await state()).preferences.research_projects.length).toBe(2);
+  await expect.poll(async () => (await state()).projectControls['agent:conversation']?.width || 0).toBeGreaterThan(0);
+  if (!((await state()).projectControls['agent:context']?.width > 0)) await clickControl('agent:materials');
+  await clickControl('tab:nav.tasks');
   await expect.poll(async () => (await state()).localRoadmap.data?.items.map(item => item.title))
     .toEqual(['Another workspace task']);
-  const settingsTab = (await state()).projectControls['tab:settings.title'];
-  await page.mouse.click(settingsTab.x + settingsTab.width / 2, settingsTab.y + settingsTab.height / 2);
-  await expect.poll(async () => (await state()).projectTab).toBe('settings');
-  await frame();
-  expect((await state()).projectControls['tab:settings.title'].y).toBe(settingsTab.y);
-  await capture('02-project-settings');
+  await capture('02-local-roadmap');
+  await clickControl(`sidebar:open:${first}`);
+  await expect.poll(async () => (await state()).selectedProject).toBe(first);
   await openSettings(page);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
@@ -86,7 +80,7 @@ try {
   expect((await state()).remote.state.configured).toBe(false);
   await capture('06-restart-local');
   expect(errors).toEqual([]);
-  console.log('Passed: fresh/restarted local projects, offline ROADMAP, keyboard project switching, account entry, dark/narrow.');
+  console.log('Passed: fresh/restarted local projects, offline ROADMAP, sidebar project switching, account entry, dark/narrow.');
 } catch (error) {
   if (page) { await capture('failure'); await writeFile(resolve(out, 'failure-state.json'), JSON.stringify(await state(), null, 2)); }
   throw error;

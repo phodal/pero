@@ -525,10 +525,12 @@ try {
   await capture('06-provider-failure');
   const projectChildren = (await sessions()).filter(session => session.binding.parent_thread);
   await clickAppShortcut(page, 'projects');
-  await expect.poll(async () => (await state()).projectControls[`open:${projectKey}`]?.width || 0).toBeGreaterThan(0);
+  await expect.poll(async () => (await state()).projectControls[`sidebar:open:${projectKey}`]?.width || 0).toBe(0);
+  await clickAppShortcut(page, 'projects');
+  await expect.poll(async () => (await state()).projectControls[`sidebar:open:${projectKey}`]?.width || 0).toBeGreaterThan(0);
   await capture('06-clean-project-catalog');
-  for (const child of projectChildren) expect((await state()).projectControls[`open:workspace:${child.workspace}`]?.width || 0).toBe(0);
-  await control(`open:${projectKey}`);
+  for (const child of projectChildren) expect((await state()).projectControls[`sidebar:open:workspace:${child.workspace}`]?.width || 0).toBe(0);
+  await control(`sidebar:open:${projectKey}`);
   await showProjectInspector();
   await wideColumns(main);
   checks.push('project-catalog-excludes-delegated-workspaces-and-keeps-saved-project-entry');

@@ -37,8 +37,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(app => app.name === name)).toBe(true);
-  await clickAppShortcut(page, 'projects');
-  await expect.poll(async () => (await state()).projectControls.new?.width).toBeGreaterThan(0);
+  await expect.poll(async () => (await state()).projectControls['sidebar:actions']?.width).toBeGreaterThan(0);
   expect((await state()).projectControls['sidebar:new']).toBeUndefined();
   await shot('projects-light.png');
   await clickAppShortcut(page, 'sessions');

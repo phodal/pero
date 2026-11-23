@@ -68,8 +68,7 @@ async function selectProjectView(label) {
   await clickControl(`tab:${label}`);
 }
 async function projectOverview() {
-  await clickAppShortcut(page, 'projects');
-  await clickControl(`open:${projectKey}`);
+  await clickControl(`sidebar:open:${projectKey}`);
   await expect.poll(async () => (await state()).selectedProject).toBe(projectKey);
   await selectProjectView('project.overview');
   await expect.poll(async () => (await state()).projectTab).toBe('overview');
@@ -120,8 +119,9 @@ try {
   await hideReadyBanner();
   checks.push('real-app-backend-synthetic-records-without-execution');
 
-  await clickAppShortcut(page, 'projects');
-  await clickControl('new');
+  await clickControl('sidebar:actions');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
   await clickControl('save');
   await expect.poll(async () => (await state()).researchProjects.error).not.toBeNull();
   expect((await state()).preferences.research_projects).toEqual([]);
