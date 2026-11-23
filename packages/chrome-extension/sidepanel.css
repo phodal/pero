@@ -122,7 +122,7 @@ button svg { width: 20px; height: 20px; fill: none; stroke: currentcolor; stroke
   max-width: 82%;
   border-radius: 22px;
   padding: var(--point-space-4, 8px) var(--point-space-7, 14px);
-  background: var(--surface-container);
+  background: var(--user-bubble, var(--surface-container));
   line-height: 1.58;
   white-space: pre-wrap;
 }
@@ -284,3 +284,28 @@ textarea:focus-visible { outline: none; }
 .status-button:hover:not(:disabled) { background: var(--surface-container); }
 .status-panel summary { min-height: 28px; color: var(--muted); cursor: pointer; }
 .status-panel ol { margin: var(--space-1) 0 0; padding-left: var(--point-space-10, 20px); color: var(--muted); }
+
+@media (prefers-color-scheme: light) {
+  :root body {
+    --background: #fcfcfc;
+    --surface: #fcfcfc;
+    --surface-raised: #fff;
+    --surface-container: #f1f1f1;
+    --border: #e8e8e8;
+    --text: #171717;
+    --muted: #626262;
+    --user-bubble: #fbeef4;
+    --shadow: 0 2px 10px rgb(0 0 0 / 5%);
+  }
+}
+.conversation-header { border-bottom-color: transparent; background: var(--background); }
+.composer-shell { position: relative; }
+#native-picker {
+  position: absolute; bottom: 100%; inset-inline: var(--space-3); z-index: 3;
+  max-height: min(36vh, 280px); overflow: auto; padding: 4px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-raised); box-shadow: var(--shadow);
+}
+#native-picker button { display: block; width: 100%; text-align: start; color: var(--text); background: transparent; border: 0; padding: 7px 10px; border-radius: 8px; }
+#native-picker button:hover, #native-picker button[aria-selected=true] { background: var(--surface-container); }
+#native-model { max-width: 34%; border: 0; background: var(--surface-raised); color: var(--text); }
+#native-references:not(:empty) { padding: 4px 12px; font-size: 12px; color: var(--muted); }
