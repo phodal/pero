@@ -1,5 +1,5 @@
 use super::{ActionHandler, Ui, click};
-use crate::workspace::WorkbenchPage;
+use crate::{projects::Project, workspace::WorkbenchPage};
 use gpui_kit::{
     component::{
         menu::{DropdownMenu, PopupMenuItem},
@@ -40,6 +40,7 @@ pub(crate) struct AppShortcut {
 pub(crate) struct SidebarProps<'a> {
     pub shortcut_bounds: &'a crate::view_bounds::ViewBounds,
     pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
+    pub project_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub catalog_open: bool,
     pub terminal_open: bool,
@@ -47,7 +48,9 @@ pub(crate) struct SidebarProps<'a> {
     pub collapsed: bool,
     pub apps: Vec<AppShortcut>,
     pub environment: Option<EnvironmentStatus>,
-    pub context_navigation: Option<AnyElement>,
+    pub projects: Vec<Project>,
+    pub active_project: Option<&'a str>,
+    pub project_sessions: Option<ProjectGroup>,
 }
 /// Global environment activity. Progress is a status; a missing or failed
 /// environment is the prepare or retry action.
@@ -73,6 +76,8 @@ pub(crate) enum SidebarAction {
     ToggleSessionSearch,
     SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
+    OpenProject(String),
+    NewProject,
     OpenApp { name: String, panel: String },
     OpenEnvironment { name: String, panel: String },
     PrepareEnvironment { name: String },
@@ -358,20 +363,6 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
                 )
 }
 
-/// Current Project's Agent conversations share the ordinary session row owner.
-pub(crate) fn project_navigation(ui: Ui<'_>, group: ProjectGroup, on_action: ActionHandler<SidebarAction>, cx: &App) -> AnyElement {
-    let chrome = ui.chrome();
-    let header = project_header(ui, 300000, &group, &on_action, chrome, cx);
-    let more = group.rows.len() > group.revealed;
-    let rows = group.rows.into_iter().take(group.revealed).enumerate().map(|(index,row)|
-        recent_row(ui,row,300000+index,&on_action,cx).into_any_element()).collect::<Vec<_>>();
-    div().id("project-agent-navigation").w_full().flex().flex_col()
-        .child(header)
-        .when(!group.collapsed, |el| el.children(rows).when(more, |el|
-            el.child(show_more(ui,300000,group.key,&on_action,chrome,cx))))
-        .into_any_element()
-}
-
 pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings: AnyElement, on_action: ActionHandler<SidebarAction>, cx: &App) -> Stateful<Div> {
     let p = ui.palette; let chrome = ui.chrome(); let collapsed = props.collapsed;
     let nav = |id: &'static str, label: &'static str, icon: &'static str, selected: bool, action: SidebarAction| {
@@ -412,6 +403,60 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 };
                 div().relative().w_full().flex().justify_center().child(element).child(props.shortcut_bounds.probe(app.name))
             }).collect::<Vec<_>>();
+    let mut sessions = props.project_sessions;
+    let projects = props.projects.into_iter().map(|project| {
+        let selected = props.active_project == Some(project.key.as_str());
+        let id = format!("sidebar-project:{}", project.key);
+        let icon = Icon::default()
+            .path("icons/folder.svg")
+            .text_color(pero_theme::project_accent(&project.key, chrome));
+        let open = click(&on_action, SidebarAction::OpenProject(project.key.clone()));
+        let probe = props.project_bounds.probe(format!("sidebar:open:{}", project.key));
+        let row = if collapsed {
+            pero_theme::ghost_icon_button(id, chrome, cx)
+                .icon(icon)
+                .selected(selected)
+                .when(selected, |button| button.bg(chrome.navigation_selected()).text_color(p.text))
+                .tooltip(project.name.clone())
+                .accessibility_label(project.name)
+                .on_click(open)
+        } else {
+            pero_theme::sidebar_row(
+                id,
+                project.name.clone(),
+                None,
+                None,
+                selected,
+                pero_theme::RowLevel::Sub,
+                Some(icon.into_any_element()),
+                chrome,
+                cx,
+                open,
+            )
+            .tooltip(project.name)
+        };
+        let group = selected.then(|| sessions.take()).flatten();
+        div().w_full().flex().flex_col().child(
+            div().w_full().flex().justify_center().items_center()
+                .child(div().relative().min_w_0().when(!collapsed, |el| el.flex_1()).child(row).child(probe))
+                .when_some(group.as_ref(), |el, group| {
+                    let label = format!("{} {}", ui.t(if group.collapsed { "project.expand" } else { "project.collapse" }), group.name);
+                    el.child(pero_theme::ghost_icon_button("sidebar-project-disclosure", chrome, cx)
+                        .icon(Icon::default().path(if group.collapsed { "icons/chevron-right.svg" } else { "icons/chevron-down.svg" }))
+                        .accessibility_label(label.clone()).tooltip(label)
+                        .on_click(click(&on_action, SidebarAction::ToggleProject(group.key.clone()))))
+                }),
+        )
+        .when_some(group.filter(|group| !group.collapsed), |el, group| {
+            let more = group.rows.len() > group.revealed;
+            el.child(div().id("project-agent-navigation").w_full().flex().flex_col()
+                .pl(chrome.geo(pero_theme::SPACE_8))
+                .children(group.rows.into_iter().take(group.revealed).enumerate().map(|(index, row)| {
+                    recent_row(ui, row, 300000 + index, &on_action, cx)
+                }))
+                .when(more, |el| el.child(show_more(ui, 300000, group.key, &on_action, chrome, cx))))
+        })
+    }).collect::<Vec<_>>();
     pero_theme::sidebar_surface("sidebar", width, chrome)
         .text_size(chrome.text(pero_theme::TYPE_BODY))
         .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::SPACE_4))
@@ -425,10 +470,17 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                     .tooltip(ui.t("chat.new")).accessibility_label(ui.t("chat.new"))
                     .on_click(click(&on_action, SidebarAction::NewChat)))
                 .child(props.new_chat_bounds.probe("new-chat".into()))))
-        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).relative().child(props.shortcut_bounds.probe("projects".into())))
-        .children(app_rows(primary))
+        .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::SPACE_4))
+            .when(collapsed, |row| row.flex_col())
+            .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", props.active_project.is_none() && matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).flex_1().min_w_0().relative().child(props.shortcut_bounds.probe("projects".into())))
+            .child(pero_theme::ghost_icon_button("sidebar-new-project", chrome, cx)
+                .icon(Icon::default().path("icons/plus.svg"))
+                .tooltip(ui.t("research.new")).accessibility_label(ui.t("research.new"))
+                .relative().child(props.project_bounds.probe("sidebar:new".into()))
+                .on_click(click(&on_action, SidebarAction::NewProject))))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
-            .children(props.context_navigation)
+            .children(projects)
+            .children(app_rows(primary))
             .when(!workspace.is_empty(), |scroll| scroll.child(pero_theme::sidebar_group(None, true, chrome).children(app_rows(workspace))))
             .child(pero_theme::sidebar_group(None, true, chrome)
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))

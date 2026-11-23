@@ -75,13 +75,22 @@ impl Workbench {
                 active: app.shortcut_selected(current_app.as_deref(), connectors_enabled),
             })
         }).collect();
-        let context_navigation = self.project_agent_navigation(cx);
+        let projects = self.project_catalog(cx).into_iter()
+            .filter(|project| project.research_id().is_some())
+            .collect();
+        let active_project = match self.navigation.current() {
+            Some(WorkspaceItem::Project(key)) if key.starts_with("research:") => Some(key.as_str()),
+            _ => None,
+        };
+        let project_sessions = self.project_agent_navigation(cx);
         let environment = self.sidebar_environment(current_app.as_deref());
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
             new_chat_bounds: &self.view_bounds.new_chat,
+            project_bounds: &self.view_bounds.projects,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
-            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed, apps, environment, context_navigation,
+            terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed,
+            apps, environment, projects, active_project, project_sessions,
         }, settings, actions, cx)
     }
 

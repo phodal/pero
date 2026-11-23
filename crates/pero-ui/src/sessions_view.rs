@@ -7,7 +7,7 @@ use crate::{
     workspace::{ConversationTab, WorkbenchPage, WorkspaceItem},
 };
 use gpui_kit::{
-    AnyElement, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, Role, Window,
+    App, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, Role, Window,
     component::Sizable, div, prelude::*, px,
 };
 use std::rc::Rc;
@@ -136,6 +136,14 @@ impl Workbench {
                             this.refresh_apps(cx);
                         }
                     }
+                    SidebarAction::OpenProject(key) => {
+                        this.select_primary_project_agent(key);
+                        this.open_project(key.clone(), window, cx);
+                    }
+                    SidebarAction::NewProject => {
+                        this.navigate(WorkbenchPage::Projects, cx);
+                        this.edit_research_project(true, window, cx);
+                    }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
                         if !this.collapsed_projects.remove(key) {
@@ -159,6 +167,7 @@ impl Workbench {
                             });
                         if let Some(thread) = project_thread {
                             this.open_project_agent_session(&thread, cx);
+                            this.focus_project_composer(window, cx);
                         } else {
                             this.focus_chat(Some(*index), ConversationTab::Chat, cx);
                         }
@@ -228,7 +237,7 @@ impl Workbench {
                 && binding.map_or(
                     self.navigation.page() == WorkbenchPage::Conversation,
                     |binding| {
-                        self.project_tab == crate::projects::ProjectTab::Agent
+                        self.project_agent_active()
                             && self
                                 .selected_project
                                 .as_deref()
@@ -248,7 +257,7 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn project_agent_navigation(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(crate) fn project_agent_navigation(&self, cx: &App) -> Option<sidebar::ProjectGroup> {
         if self.sidebar_collapsed || !self.project_agent_active() {
             return None;
         }
@@ -277,7 +286,7 @@ impl Workbench {
             return None;
         }
         let key = format!("research:{}", project.id);
-        let group = sidebar::ProjectGroup {
+        Some(sidebar::ProjectGroup {
             collapsed: self.collapsed_projects.contains(&key),
             revealed: self
                 .revealed_sessions
@@ -288,9 +297,7 @@ impl Workbench {
             name: project.title.clone(),
             workspace: None,
             rows,
-        };
-        let actions = self.navigation_actions(cx);
-        Some(sidebar::project_navigation(self.ui(cx), group, actions, cx))
+        })
     }
 
     pub(crate) fn sessions_panel(

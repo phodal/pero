@@ -256,6 +256,12 @@ impl Workbench {
             && matches!(self.navigation.current(), Some(crate::workspace::WorkspaceItem::Project(key)) if Some(key.as_str()) == self.selected_project.as_deref())
     }
 
+    pub(crate) fn select_primary_project_agent(&mut self, key: &str) {
+        if let Some(id) = key.strip_prefix("research:") {
+            self.project_agents.selected_threads.remove(id);
+        }
+    }
+
     pub(crate) fn project_agent_thread(&self) -> Option<&str> {
         let project = self.saved_research_project()?;
         let snapshot = self.project_agents.snapshot_for(&project.id)?;
