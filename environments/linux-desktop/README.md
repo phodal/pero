@@ -37,6 +37,24 @@ when launching Electron. You can supply `PERO_REMOTE_DESKTOP_IMAGE` to both
 commands for a locally built alternative image. The guest runs as a non-root
 user with no published ports, host mounts or external network.
 
+## Blender desktop
+
+The optional Blender image opens a fresh Blender application in the same
+managed X11 desktop. Build the image and launch the current Electron build:
+
+```sh
+./environments/linux-desktop/run.sh build-blender
+PERO_REMOTE_DESKTOP_IMAGE=pero/linux-desktop:blender npm start
+```
+
+Start it from the same Linux Desktop panel. Save or export files out of a
+disposable desktop before stopping it.
+
+`node tests/e2e/linux-desktop-blender.mjs` starts a separate container and
+drives Blender through the native Computer Use stream. It records GUI
+captures, receipts, a saved scene and matching OBJ geometry in
+`test-results/linux-desktop-blender/`.
+
 ## Run independently
 
 ```sh

@@ -348,6 +348,25 @@ with relay-only ICE and a real coturn instance. Public TLS deployment,
 separate physical devices, signed Desktop, and a live model provider
 were not part of this acceptance.
 
+### Blender desktop, 2026-11-23
+
+The optional Blender image ran on the dedicated arm64 Colima Linux desktop.
+`node tests/e2e/linux-desktop-blender.mjs` used the managed desktop's real
+Computer Use stream and a Blender 3.4.1 window. A foreground drag changed
+the default cube's X location. The GUI saved the scene, and a separate
+Blender process read the saved value back as approximately 0.01 m.
+
+Another edit exercised the Save Changes dialog. Discard closed the original
+window and preserved the source SHA-256. The fixture relaunched the saved
+scene, waited for its rendered viewport, and used the File menu to export OBJ.
+The eight exported vertices had the same X centroid as the saved cube.
+Reusing the first drag's observation was rejected as stale. The test tore down
+its container before recording a pass.
+
+This lane used deterministic Computer Use requests in an X11 guest and
+fixture-owned files. Receipts, screenshots, hashes, the BLEND and the OBJ with
+its MTL are in `test-results/linux-desktop-blender/`.
+
 ```sh
 npm run build:desktop
 node tests/e2e/linux-desktop.mjs
