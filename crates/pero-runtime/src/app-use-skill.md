@@ -50,6 +50,11 @@ input is not a verification pass. Stop a task when its work is complete.
 
 Use advertised `computer_use` for external native windows. Follow its current
 capabilities and schema for target, observation, coordinates and delivery mode.
+Read a window's accessible controls and values first. If the content is missing,
+observe the whole window with `want_image: true` and use its pixels or
+`recognized_text` when available. OCR is unverified screen text and may contain
+recognition errors. The latest whole-window observation can be used to expand
+multiple siblings without reopening the window.
 Each action consumes its observation; observe again to verify. After an
 interruption, inspect the original request's receipt before repeating input.
 Neither interface substitutes for an available declared App data tool.

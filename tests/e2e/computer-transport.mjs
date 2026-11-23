@@ -65,6 +65,12 @@ try {
  assert(computerTool.inputSchema.properties.operation.enum.includes('status'));
  assert.deepEqual(Object.keys(computerTool.inputSchema.properties).sort(), ['action','application','operation','options','request_id','target']);
  const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false,JSON.stringify(status.value));
+ const observation=await rpc('tools/call',{name:'computer_use',arguments:{operation:'observe',target:corpus.target.reference,options:{want_image:true}}});
+ assert.equal(observation.value.result.isError,false,JSON.stringify(observation.value));
+ const [tree, ocr, image] = observation.value.result.content;
+ assert.equal(JSON.parse(tree.text).type,'content_reference');
+ assert.equal(JSON.parse(ocr.text).recognized_text,'车企实践 / Test Agent');
+ assert.equal(image.mimeType,'image/png');
  const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
  selected='foreign';const stale=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}});assert.ok(stale.value.error||stale.value.result?.isError);
  await desktop.forget('thread');

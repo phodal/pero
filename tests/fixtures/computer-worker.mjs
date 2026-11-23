@@ -9,7 +9,21 @@ for await (const line of createInterface({input:process.stdin})) {
   let value;
   if(request.operation==='status') value={kind:'status',status};
   else if(request.operation==='targets') value={kind:'targets',capabilities:fixture.capabilities,targets:[fixture.target]};
-  else if(request.operation==='observe') value={kind:'observation',observation:fixture.observation,image:null};
+  else if(request.operation==='observe') {
+    value={kind:'observation',observation:fixture.observation,image:null};
+    if (request.options?.want_image) {
+      const media_type = 'image/png';
+      value.observation = {
+        ...fixture.observation,
+        screenshot: { id: 'fixture-image', media_type, width: 1, height: 1 },
+        elements: Array.from({ length: 100 }, (_, index) => ({
+          ...fixture.observation.elements[0], id: `control-${index}`, label: 'fixture line '.repeat(30),
+        })),
+      };
+      value.image = { media_type, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9xkAAAAASUVORK5CYII=' };
+      value.recognized_text = '车企实践 / Test Agent';
+    }
+  }
   else if(request.operation==='act') {
     appendFileSync(output,JSON.stringify({pid:process.pid,action:request.action})+'\n');
     if(mode==='interrupt') continue; // The caller observes the effect before cancelling.

@@ -542,7 +542,17 @@ export class DesktopAppUse {
           ((message.params?.name === 'browser_use' && this.browser) || (message.params?.name === 'computer_use' && this.computer))) {
           const capability = message.params.name === 'browser_use' ? 'browser' : 'computer';
           const { value, image, isError } = await this.callCua(thread, capability, message.params.arguments, controller.signal);
-          result = { content: [{ type: 'text', text: await this.results.select(thread, value) }, ...(image ? [image] : [])], isError };
+          if (capability === 'computer' && value && typeof value === 'object' && 'recognized_text' in value) {
+            // A large AX tree may be offloaded. Keep the bounded OCR alongside its screenshot.
+            const { recognized_text, ...observation } = value;
+            result = { content: [
+              { type: 'text', text: await this.results.select(thread, observation) },
+              { type: 'text', text: JSON.stringify({ recognized_text }) },
+              ...(image ? [image] : []),
+            ], isError };
+          } else {
+            result = { content: [{ type: 'text', text: await this.results.select(thread, value) }, ...(image ? [image] : [])], isError };
+          }
         } else if (message.method === 'tools/call' && message.params?.name === 'app_use' && this.uiAvailable) {
           const value = await this.authority.call(thread, message.params.arguments, controller.signal);
           const content: object[] = [];
