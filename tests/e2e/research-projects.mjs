@@ -64,10 +64,15 @@ async function fillControl(id, text) {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
   await page.keyboard.insertText(text);
 }
+async function selectProjectView(label) {
+  await clickControl('agent:views-overflow');
+  await clickControl(`agent:views-select:${label}`);
+}
 async function projectOverview() {
   await clickAppShortcut(page, 'projects');
   await clickControl(`open:${projectKey}`);
   await expect.poll(async () => (await state()).selectedProject).toBe(projectKey);
+  await selectProjectView('project.overview');
   await expect.poll(async () => (await state()).projectTab).toBe('overview');
   await expect.poll(async () => (await state()).researchProjects.loading).toEqual([]);
 }
@@ -77,7 +82,8 @@ async function openApp(name) {
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeAttached({ timeout: 120000 });
   if (name === 'paper-agent') await expect(frame.getByRole('button', { name: 'Add papers', exact: true }).first()).toBeVisible({ timeout: 120000 });
-  else await expect(frame.getByRole('heading', { name: name === 'lab' ? 'Lab' : 'Control Lab', exact: true }).first()).toBeVisible({ timeout: 120000 });
+  else if (name === 'lab') await expect(frame.getByRole('button', { name: 'Saved experiments', exact: true })).toBeVisible({ timeout: 120000 });
+  else await expect(frame.getByRole('heading', { name: 'Control Lab', exact: true }).first()).toBeVisible({ timeout: 120000 });
   return frame;
 }
 async function api(frame, path, data) {
@@ -131,22 +137,25 @@ try {
   await capture('01-project-without-directory');
   checks.push('invalid-title-recovery-and-project-without-directory');
 
-  await clickControl('research-continue');
+  await selectProjectView('research.linked');
   await expect.poll(async () => (await state()).projectTab).toBe('research_resources');
+  await clickControl('link');
   expect((await state()).researchProjects.choosing).toBe(true);
   await attach('paper-agent', seeds.paper.id, 1);
   await attach('control-lab', seeds.control.id, 2);
   await attach('lab', seeds.lab.id, 3);
   await capture('02-three-linked-app-records');
   checks.push('explicit-cross-app-resource-links');
-  await clickControl('tab:project.overview');
+  await selectProjectView('project.overview');
   for (const [index, name, record] of [[0, 'paper-agent', seeds.paper], [1, 'control-lab', seeds.control], [2, 'lab', seeds.lab]]) {
-    await clickControl('research-continue');
+    await selectProjectView('research.linked');
     await clickControl(`resource-open:${index}`);
     await expect.poll(async () => (await state()).activeApp?.name).toBe(name);
     frame = page.frameLocator(`iframe[title="${name}"]`);
     if (name === 'lab') {
-      await expect(frame.getByRole('combobox', { name: 'Saved experiments', exact: true })).toHaveValue(record.id);
+      await expect(frame.locator('[aria-label="Saved experiments"]')).toHaveAttribute('data-value', record.id, { timeout: 20000 });
+    } else if (name === 'control-lab') {
+      await expect(frame.locator('[aria-label="Open experiment"]')).toHaveAttribute('data-value', record.id, { timeout: 20000 });
     } else {
       await expect(frame.getByRole('heading', { name: record.title, exact: true }).first()).toBeVisible({ timeout: 120000 });
     }
@@ -206,11 +215,11 @@ try {
   await expect.poll(async () => (await savedProject()).workspace).toBe(canonicalWorkspace);
   expect((await savedProject()).id).toBe(projectId);
   expect((await savedProject()).resources).toEqual(beforeDirectory.resources);
-  await clickControl('tab:nav.tasks');
+  await selectProjectView('nav.tasks');
   await expect.poll(async () => (await state()).localRoadmap.data.workspace).toBe(canonicalWorkspace);
   await expect.poll(async () => (await state()).localRoadmap.data.items.map(item => item.title)).toEqual(['Canonical project task']);
   await capture('04-canonical-workspace-plan');
-  await clickControl('tab:project.overview');
+  await selectProjectView('project.overview');
   await expect.poll(async () => (await state()).projectTab).toBe('overview');
   checks.push('host-canonicalizes-symlink-directory-before-persisting-and-loads-its-plan');
   await setAppearance(page, 'dark'); await capture('04-dark');
@@ -228,7 +237,7 @@ try {
   await writeFile(settings, JSON.stringify(persisted));
   await launch(); await projectOverview();
   expect((await savedProject()).id).toBe(projectId); expect((await savedProject()).resources).toHaveLength(3);
-  await clickControl('research-continue');
+  await selectProjectView('research.linked');
   await capture('06-restart-persistent-links');
   checks.push('rename-stable-identity-and-restart-persistence');
   const currentPaper = (await state()).researchProjects.catalogs['paper-agent'].resources.find(item => item.reference.id === seeds.paper.id);
@@ -247,7 +256,7 @@ try {
   await clickAppShortcut(page, 'lab');
   frame = page.frameLocator('iframe[title="lab"]');
   expect(await api(frame, `/api/experiments/${seeds.lab.id}`)).toEqual(seeds.lab);
-  await projectOverview(); await clickControl('research-continue');
+  await projectOverview(); await selectProjectView('research.linked');
   await capture('07-unlinked-reference-only');
   checks.push('unlink-keeps-owning-app-data');
   await close();
@@ -257,13 +266,16 @@ try {
   await launch(); await projectOverview();
   expect((await savedProject()).resources).toHaveLength(2);
   expect((await state()).researchProjects.catalogs['paper-agent'].resources.some(item => item.reference.id === seeds.paper.id)).toBe(false);
-  await clickControl('research-continue');
+  await selectProjectView('research.linked');
   expect((await state()).projectControls['resource-open:0']).toBeUndefined();
   expect((await state()).projectControls['unlink:0']).toBeDefined();
   await capture('08-missing-original-record');
   checks.push('missing-original-retains-link-and-recovery-action');
   expect(errors).toEqual([]);
-  expect((await state()).chats).toEqual([]);
+  const final = await state();
+  expect(final.activeChat).toBeNull();
+  expect(final.projectAgent.snapshots[projectId].sessions).toEqual([]);
+  expect(final.chats.filter(chat => chat.session_id || chat.messages.length || chat.tools.length || chat.queued !== null)).toEqual([]);
   await writeFile(resolve(out, 'results.json'), JSON.stringify({ level: 'L1', records: 'synthetic inputs in real App backends', checks, errors, project: await savedProject(), seeds }, null, 2));
   console.log(`Research Projects passed: ${checks.join(', ')}.`);
 } catch (error) {
