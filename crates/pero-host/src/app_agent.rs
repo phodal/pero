@@ -114,7 +114,6 @@ impl Manager {
                 agent.mcp_servers.push(server.clone());
                 agent.required_mcp_servers.insert("pero-project".into());
             }
-            agent.session_instructions.push_str(&format!("\n{}", project.instructions));
             if let Some(index) = agent.args.iter().position(|argument| argument == "--workspace") {
                 if let Some(argument) = agent.args.get_mut(index + 1) {*argument = workspace.to_string_lossy().into_owned();}
             }
@@ -166,10 +165,13 @@ impl Manager {
         }
         if project.is_some() || binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
-        let initial_settings = project.map(|project| project.initial_settings).unwrap_or_default();
+        let options = project.map(|project| acp::SessionStartOptions {
+            initial_settings: project.initial_settings,
+            project_prompt: Some(project.agent_prompt),
+        }).unwrap_or_default();
         self.sessions.insert(
             thread_id.clone(),
-            acp::start_interactive_configured(agent.clone(),workspace,thread_id,self.tx.clone(),app_use,resume_id,initial_settings),
+            acp::start_interactive_configured(agent,workspace,thread_id,self.tx.clone(),app_use,resume_id,options),
         );
         Ok(())
     }

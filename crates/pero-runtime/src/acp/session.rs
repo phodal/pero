@@ -1,5 +1,5 @@
 use super::configuration::Configuration;
-use super::prompt::prompt_blocks;
+use super::prompt::{project_prompt_blocks, prompt_blocks};
 use super::AgentConfig;
 use agent_client_protocol::schema::{v1::*, ProtocolVersion};
 use agent_client_protocol::{
@@ -8,6 +8,8 @@ use agent_client_protocol::{
 use pero_contracts::context::ContextReference;
 use pero_contracts::{
     composer_capabilities::AgentCapabilities,
+    project_agent::prompt::ProjectAgentPrompt,
+    session_settings::SettingSelection,
     usage::{SessionUsage, UsageCost},
     HostEvent,
 };
@@ -51,6 +53,13 @@ pub enum SessionCommand {
     Close,
 }
 pub(super) type Permissions = Arc<Mutex<HashMap<String, oneshot::Sender<Option<String>>>>>;
+
+#[derive(Default)]
+pub struct SessionStartOptions {
+    pub initial_settings: Vec<SettingSelection>,
+    pub project_prompt: Option<ProjectAgentPrompt>,
+}
+
 pub struct SessionHandle {
     app_approvals: Arc<Mutex<super::mcp_session::AppApprovals>>,
     pub user_questions: Arc<super::QuestionInbox>,
@@ -82,7 +91,7 @@ pub fn start(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, None, None, false, vec![])
+    start_with_workspace_access(config, cwd, thread, tx, true, None, None, false, SessionStartOptions::default())
 }
 
 /// A scoped Desktop conversation may use the Host-selected App Use endpoint.
@@ -93,7 +102,7 @@ pub fn start_app(
     tx: Sender<HostEvent>,
     endpoint: super::AppUseEndpoint,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None, false, vec![])
+    start_with_workspace_access(config, cwd, thread, tx, true, Some(endpoint), None, false, SessionStartOptions::default())
 }
 
 /// The independent Worker supervisor already owns this checkout's write lease.
@@ -103,23 +112,23 @@ pub fn start_supervised(
     thread: String,
     tx: Sender<HostEvent>,
 ) -> SessionHandle {
-    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, vec![])
+    start_with_workspace_access(config, cwd, thread, tx, false, None, None, false, SessionStartOptions::default())
 }
 
 /// Explicitly resume an existing ACP Session; never fall back to session/new.
 pub fn resume_app(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,session_id:String)->SessionHandle {
-    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id),false,vec![])
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,Some(session_id),false,SessionStartOptions::default())
 }
 
 /// Only an interactive Host with a mounted question UI opts into human input.
 pub fn start_interactive(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>)->SessionHandle {
-    start_interactive_configured(config,cwd,thread,tx,app_use,resume_id,vec![])
+    start_interactive_configured(config,cwd,thread,tx,app_use,resume_id,SessionStartOptions::default())
 }
 
 /// Apply trusted inherited settings through the Agent's existing configuration
 /// acknowledgement before exposing readiness or admitting a queued prompt.
-pub fn start_interactive_configured(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>,initial_settings:Vec<pero_contracts::session_settings::SettingSelection>)->SessionHandle {
-    start_with_workspace_access(config,cwd,thread,tx,true,app_use,resume_id,true,initial_settings)
+pub fn start_interactive_configured(config:AgentConfig,cwd:PathBuf,thread:String,tx:Sender<HostEvent>,app_use:Option<super::AppUseEndpoint>,resume_id:Option<String>,options:SessionStartOptions)->SessionHandle {
+    start_with_workspace_access(config,cwd,thread,tx,true,app_use,resume_id,true,options)
 }
 
 fn start_with_workspace_access(
@@ -131,7 +140,7 @@ fn start_with_workspace_access(
     app_use: Option<super::AppUseEndpoint>,
     resume_id: Option<String>,
     interactive: bool,
-    initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
+    options: SessionStartOptions,
 ) -> SessionHandle {
     let (commands, rx) = mpsc::unbounded_channel();
     static NEXT_MCP_INCARNATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -167,7 +176,7 @@ fn start_with_workspace_access(
             runtime_snapshot.clone(),
             questions.clone(),
             interactive,
-            initial_settings,
+            options,
         ));
         questions.clear();
         pending.lock().unwrap().clear();
@@ -276,9 +285,12 @@ async fn run(
     mcp_runtime: Arc<Mutex<pero_contracts::mcp_runtime::McpRuntimeSession>>,
     user_questions: Arc<super::QuestionInbox>,
     interactive: bool,
-    initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
+    options: SessionStartOptions,
 ) -> Result<(), String> {
     config.validate_mcp()?;
+    let SessionStartOptions { initial_settings, project_prompt } = options;
+    let project_prompt = project_prompt.as_ref().map(project_prompt_blocks).transpose()
+        .map_err(|error| error.to_string())?;
     event(
         &tx,
         &thread,
@@ -591,6 +603,9 @@ async fn run(
                         }
                         if !config.session_instructions.is_empty() {
                             blocks.push(ContentBlock::Text(TextContent::new(format!("Host-mounted App Agent Plugin instructions:\n{}", config.session_instructions))));
+                        }
+                        if let Some(project_prompt) = &project_prompt {
+                            blocks.extend(project_prompt.iter().cloned());
                         }
                         if !config.memory_instructions.is_empty() {
                             blocks.push(ContentBlock::Text(TextContent::new(config.memory_instructions.clone())));

@@ -1,6 +1,7 @@
 //! Project membership joins existing ACP conversations, history and permissions.
 use super::Manager;
 use pero_contracts::{
+    project_agent::prompt::{ProjectAgentPrompt, ProjectAgentRole, ProjectPromptAgent},
     project_agent::{request_key, ProjectAgentAction, ProjectAgentRequest, ProjectAgentSession, ProjectAgentSnapshot, ProjectSessionBinding, ProjectAgentEvidence, ProjectAgentEvidenceUpdate, ProjectDelegationPolicy},
     research_project::ResearchProject,
     HostCommand, HostEvent,
@@ -13,7 +14,7 @@ use std::{collections::HashMap, path::{Path, PathBuf}};
 pub(crate) struct Launch {
     pub binding: ProjectSessionBinding,
     pub workspace: PathBuf,
-    pub instructions: String,
+    pub agent_prompt: ProjectAgentPrompt,
     pub server: Option<acp::sdk::schema::v1::McpServer>,
     pub initial_prompt: Option<String>,
     pub initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
@@ -196,18 +197,17 @@ impl Manager {
     }
 
     fn project_launch(&self, project: &ResearchProject, binding: ProjectSessionBinding, thread: &str, workspace: PathBuf, initial_prompt: Option<String>) -> Result<Launch, String> {
-        let primary = binding.parent_thread.is_none();
-        let agents: Vec<_> = self.agents.iter().filter(|agent| agent.available()).map(|agent| json!({"id":agent.id,"name":agent.name})).collect();
-        let instructions = format!(
-            "Project: {} ({})\nPersistent goal: {}\nProject source directory: {}\nThis conversation workspace: {}\nLinked context references (content remains with its original owner): {}\n\n{}\nAvailable Agents: {}\n\nReport evidence precisely. Cite exact conversation IDs and workspace paths, commands, checks, output files or linked App revisions. Separate completed execution, verified results and unverified claims. Do not invent results or treat Agent text as independent scientific acceptance. Child workspaces and Git changes are retained; no automatic merge or publication occurs.",
-            project.title, project.id, project.goal, project.workspace.as_deref().unwrap_or("No source directory"), workspace.display(),
-            serde_json::to_string(&project.resources).map_err(|error| error.to_string())?,
-            if primary {"You are this Project's primary Agent. Break the user's request into bounded work, delegate with project_work using agent_id/title/prompt, then use project_work list to inspect original results. Work is asynchronous: return progress while children run and ask the user to request a summary later if needed; do not poll repeatedly. Use followup or cancel only for your child threads. Keep task-specific instructions in the prompt. The user can open every original conversation and resolve its existing permissions."}
-            else {"You are working on one delegated task. Follow the supplied scope. Your workspace is isolated from the primary Agent. Git worktrees start from committed HEAD, so uncommitted source edits are not included. For a non-Git Project, this is an empty task workspace; the source path above is context, not a new filesystem grant. Return a concise result with evidence and explicit limitations."},
-            serde_json::to_string(&agents).map_err(|error| error.to_string())?,
-        );
-        let server = if primary {Some(self.project_tools.as_ref().ok_or("Project delegation tools are unavailable")?.server(thread)?)} else {None};
-        Ok(Launch {binding, workspace, instructions, server, initial_prompt, initial_settings: vec![]})
+        let (role, server) = if binding.parent_thread.is_none() {
+            let server = self.project_tools.as_ref().ok_or("Project delegation tools are unavailable")?.server(thread)?;
+            let available_agents = self.agents.iter().filter(|agent| agent.available())
+                .map(|agent| ProjectPromptAgent { id: agent.id.clone(), name: agent.name.clone() })
+                .collect();
+            (ProjectAgentRole::Coordinator { available_agents }, Some(server))
+        } else {
+            (ProjectAgentRole::Child, None)
+        };
+        let agent_prompt = ProjectAgentPrompt::new(role, project.clone(), workspace.display().to_string());
+        Ok(Launch {binding, workspace, agent_prompt, server, initial_prompt, initial_settings: vec![]})
     }
 
     fn resume_project_session(&mut self, session: &ProjectAgentSession, project: &ResearchProject) -> Result<(), String> {
@@ -323,7 +323,7 @@ impl Manager {
                     content: pero_contracts::context::ContextContent::Text {text: serde_json::to_string_pretty(&evidence).map_err(|error| error.to_string())?},
                 };
                 if !self.command(HostCommand::Prompt {thread_id: thread_id.clone(),
-                    text: "Summarize project progress using the attached execution evidence. Cite original conversations and concrete checks or files, and identify unfinished, failed, cancelled or unverified work. Report omitted_sessions when nonzero. Child Agent text is reported evidence, not independent verification.".into(), contexts: vec![context],
+                    text: "Summarize project progress using the attached execution evidence. Identify unfinished, failed, cancelled or unverified work and report omitted_sessions when nonzero.".into(), contexts: vec![context],
                 }) {return Err("The summary request could not reach the original Session".into());}
                 (project.id, Some(thread_id))
             }

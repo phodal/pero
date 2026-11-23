@@ -29,42 +29,43 @@ export async function projectAgentProvider() {
       const messages = body.messages || [];
       const userIndex = messages.findLastIndex(message => message.role === 'user');
       const prompt = plain(messages[userIndex]);
+      const invoked = marker => prompt.startsWith(marker);
       const tools = body.tools || [];
       const projectTool = tools.find(tool => /project_work$/.test(tool.function?.name));
       const toolAfterUser = messages.slice(userIndex + 1).filter(message => message.role === 'tool');
       const callTool = (name, args) => ({ tool_calls: [{ index: 0, id: `project-fixture-${calls.length}`,
         type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
       let delta, finish = 'stop';
-      if (prompt.includes('PROJECT_CHILD_FAIL')) {
+      if (invoked('PROJECT_CHILD_FAIL')) {
         response.writeHead(400, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ error: { message: 'PROJECT_FIXTURE_EXPECTED_PROVIDER_FAILURE', type: 'invalid_request_error' } }));
         return;
       }
-      if (prompt.includes('PROJECT_CHILD_EVIDENCE') || prompt.includes('PROJECT_FOLLOWUP') || prompt.includes('PROJECT_CHILD_WAIT') || prompt.includes('PROJECT_CHILD_READONLY')) {
+      if (invoked('PROJECT_CHILD_EVIDENCE') || invoked('PROJECT_FOLLOWUP') || invoked('PROJECT_CHILD_WAIT') || invoked('PROJECT_CHILD_READONLY')) {
         if (!toolAfterUser.length) {
           assert(tools.some(tool => tool.function?.name === 'shell'), 'Child must retain the real shell tool');
-          const command = prompt.includes('PROJECT_CHILD_READONLY')
+          const command = invoked('PROJECT_CHILD_READONLY')
             ? "printf 'must not write\\n' > read-only-proof.txt"
-            : prompt.includes('PROJECT_CHILD_WAIT')
+            : invoked('PROJECT_CHILD_WAIT')
             ? `${JSON.stringify(process.execPath)} -e "require('fs').writeFileSync('slow-ready','ready');setInterval(()=>{},1000)"`
-            : prompt.includes('PROJECT_FOLLOWUP')
+            : invoked('PROJECT_FOLLOWUP')
               ? "printf 'followup evidence\\n' >> evidence.txt; cat evidence.txt; pwd"
               : "printf 'observed fixture evidence\\n' > evidence.txt; cat evidence.txt; pwd";
           delta = callTool('shell', { command }); finish = 'tool_calls';
         } else {
           const observed = toolAfterUser.map(plain).join('\n');
-          if (prompt.includes('PROJECT_CHILD_READONLY')) {
+          if (invoked('PROJECT_CHILD_READONLY')) {
             assert(/permission|denied|rejected|not permitted|not allowed/i.test(observed), observed);
             delta = { content: `PROJECT_READONLY_DENIED: no write was accepted. ${observed}` };
           } else {
-            assert(observed.includes('observed fixture evidence') || prompt.includes('PROJECT_CHILD_WAIT'), observed);
+            assert(observed.includes('observed fixture evidence') || invoked('PROJECT_CHILD_WAIT'), observed);
             delta = { content: `The shell check wrote \`evidence.txt\` in its isolated workspace. This records execution evidence; scientific acceptance remains unverified.\n\n${observed}` };
           }
         }
-      } else if (prompt.includes('PROJECT_DELEGATE') || prompt.includes('PROJECT_WAIT') || prompt.includes('PROJECT_FAIL')) {
+      } else if (invoked('PROJECT_DELEGATE') || invoked('PROJECT_WAIT') || invoked('PROJECT_FAIL')) {
         assert(projectTool, `Primary must have project_work: ${tools.map(tool => tool.function?.name).join(', ')}`);
         if (!toolAfterUser.length) {
-          const wait = prompt.includes('PROJECT_WAIT'), fail = prompt.includes('PROJECT_FAIL');
+          const wait = invoked('PROJECT_WAIT'), fail = invoked('PROJECT_FAIL');
           delta = callTool(projectTool.function.name, { action: 'delegate', title: wait ? 'Cancellation check' : fail ? 'Failed check' : 'Evidence check',
             prompt: wait ? 'PROJECT_CHILD_WAIT' : fail ? 'PROJECT_CHILD_FAIL' : 'PROJECT_CHILD_EVIDENCE' });
           finish = 'tool_calls';
@@ -78,7 +79,7 @@ export async function projectAgentProvider() {
           assert(child, receipt);
           delta = { content: `Delegated **${child.binding.label}** to a separate Agent. Open its original conversation in the sidebar to inspect the execution evidence.` };
         }
-      } else if (prompt.includes('PROJECT_SUMMARY') || /summariz|summary|汇总/i.test(prompt)) {
+      } else if (invoked('PROJECT_SUMMARY') || invoked('Summarize project progress ')) {
         assert(projectTool, 'Summary must use the original project tool');
         if (!toolAfterUser.length) {
           delta = callTool(projectTool.function.name, { action: 'list' }); finish = 'tool_calls';

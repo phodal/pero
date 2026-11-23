@@ -2,6 +2,8 @@
 use serde::{Deserialize, Serialize};
 use crate::session_settings::{SessionSettings, SettingSelection};
 
+pub mod prompt;
+
 /// A child's initial policy is the primary's acknowledged policy, not a default.
 pub struct ProjectDelegationPolicy {
     pub initial_settings: Vec<SettingSelection>,

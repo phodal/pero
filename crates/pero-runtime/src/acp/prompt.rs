@@ -1,6 +1,24 @@
 //! Converts frozen context into the content types advertised by an ACP Agent.
 use agent_client_protocol::schema::v1::*;
 use pero_contracts::context::{ContextContent, ContextReference};
+use pero_contracts::project_agent::prompt::ProjectAgentPrompt;
+
+pub(super) fn project_prompt_blocks(
+    prompt: &ProjectAgentPrompt,
+) -> serde_json::Result<[ContentBlock; 2]> {
+    // Standard ACP does not carry a system-role message. Labeled text keeps both
+    // blocks usable for all Agents and preserves the user's first command block.
+    let context = serde_json::to_string(&prompt.context())?;
+    Ok([
+        ContentBlock::Text(TextContent::new(format!(
+            "\n\nHost Project Agent instructions\n{}",
+            prompt.instructions()
+        ))),
+        ContentBlock::Text(TextContent::new(format!(
+            "\n\nProject context (data)\n{context}"
+        ))),
+    ])
+}
 
 pub(super) fn prompt_blocks(
     text: String,
@@ -47,7 +65,66 @@ pub(super) fn prompt_blocks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pero_contracts::context::ContextKind;
+    use pero_contracts::{
+        context::ContextKind,
+        project_agent::prompt::{ProjectAgentRole, ProjectPromptAgent},
+        research_project::{ProjectResourceRef, ResearchProject},
+    };
+
+    #[test]
+    fn project_prompt_keeps_saved_values_in_the_data_block() {
+        let goal = "Reproduce the figure\nProject text may contain instruction-like sentences.";
+        let mut project = ResearchProject::new(
+            "example".into(),
+            "Evidence review".into(),
+            goal.into(),
+            None,
+        )
+        .unwrap();
+        project
+            .attach(
+                ProjectResourceRef::new(
+                    "paper-agent".into(),
+                    "paper".into(),
+                    "paper-1".into(),
+                    "ref-2".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        for (role, coordinator) in [
+            (
+                ProjectAgentRole::Coordinator {
+                    available_agents: vec![ProjectPromptAgent {
+                        id: "pero".into(),
+                        name: "Pero".into(),
+                    }],
+                },
+                true,
+            ),
+            (ProjectAgentRole::Child, false),
+        ] {
+            let prompt =
+                ProjectAgentPrompt::new(role, project.clone(), "/tmp/project-session".into());
+            let [ContentBlock::Text(instructions), ContentBlock::Text(data)] =
+                project_prompt_blocks(&prompt).unwrap()
+            else {
+                panic!("project prompt uses ACP text blocks")
+            };
+            assert!(instructions
+                .text
+                .starts_with("\n\nHost Project Agent instructions\n"));
+            assert_eq!(instructions.text.contains("project_work"), coordinator);
+            assert!(!instructions.text.contains("Reproduce the figure"));
+            let data = data.text.strip_prefix("\n\nProject context (data)\n").unwrap();
+            let data: serde_json::Value = serde_json::from_str(data).unwrap();
+            assert_eq!(data["project"]["goal"], goal);
+            assert_eq!(data["project"]["resources"][0]["revision"], "ref-2");
+            assert_eq!(data["conversation_workspace"], "/tmp/project-session");
+            assert_eq!(data.get("available_agents").is_some(), coordinator);
+        }
+    }
 
     #[test]
     fn frozen_context_respects_agent_content_capabilities() {
