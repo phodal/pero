@@ -23,6 +23,15 @@ internal static class ComputerFixture
     [DllImport("user32.dll")]
     private static extern bool SetProcessDPIAware();
 
+    [DllImport("user32.dll")]
+    private static extern uint GetMessagePos();
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowRect { public int Left, Top, Right, Bottom; }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out WindowRect value, int size);
+
     private static bool HasInteractiveDesktop(int session)
     {
         if (session == 0) return false;
@@ -39,6 +48,12 @@ internal static class ComputerFixture
     }
 
     private static object Position(Point point) { return new { x = point.X, y = point.Y }; }
+
+    private static Point MouseMessagePosition()
+    {
+        uint packed = GetMessagePos();
+        return new Point(unchecked((short)packed), unchecked((short)(packed >> 16)));
+    }
 
     private static object Geometry(Rectangle rect)
     {
@@ -77,28 +92,41 @@ internal static class ComputerFixture
         int count = 0, guardCount = 0;
         button.Click += delegate { count++; };
         guardButton.Click += delegate { guardCount++; };
+        int dragPresses = 0, dragMoves = 0, dragReleases = 0;
         Point dragOrigin = Point.Empty;
         Point start = Point.Empty;
         square.MouseDown += delegate(object sender, MouseEventArgs e) {
-            if (e.Button == MouseButtons.Left) { start = square.Location; dragOrigin = Cursor.Position; square.Capture = true; }
+            if (e.Button != MouseButtons.Left) return;
+            dragPresses++;
+            start = square.Location;
+            dragOrigin = MouseMessagePosition();
+            square.Capture = true;
         };
         square.MouseMove += delegate(object sender, MouseEventArgs e) {
-            if (square.Capture) { Point cursor = Cursor.Position; square.Location = new Point(start.X + cursor.X - dragOrigin.X, start.Y + cursor.Y - dragOrigin.Y); }
+            if (!square.Capture || e.Button != MouseButtons.Left) return;
+            dragMoves++;
+            Point cursor = MouseMessagePosition();
+            square.Location = new Point(start.X + cursor.X - dragOrigin.X, start.Y + cursor.Y - dragOrigin.Y);
         };
-        square.MouseUp += delegate { square.Capture = false; };
+        square.MouseUp += delegate { dragReleases++; square.Capture = false; };
 
         var json = new JavaScriptSerializer();
         using (var timer = new Timer { Interval = 75 }) {
             timer.Tick += delegate {
                 IntPtr foreground = GetForegroundWindow();
+                WindowRect visible;
+                const int extendedFrameBounds = 9;
+                bool hasVisibleBounds = DwmGetWindowAttribute(target.Handle, extendedFrameBounds, out visible,
+                    Marshal.SizeOf(typeof(WindowRect))) == 0;
                 Console.WriteLine(json.Serialize(new {
                     session = process.SessionId,
                     count, guardCount, fieldFocused = field.Focused, text = field.Text,
                     foreground = foreground == target.Handle ? "target" : foreground == guard.Handle ? "guard" : "other",
                     pointer = Position(Cursor.Position), frame = Geometry(target.Bounds),
+                    visibleFrame = hasVisibleBounds ? Geometry(Rectangle.FromLTRB(visible.Left, visible.Top, visible.Right, visible.Bottom)) : null,
                     button = Geometry(button.RectangleToScreen(button.ClientRectangle)),
                     square = Geometry(square.RectangleToScreen(square.ClientRectangle)), squarePosition = Position(square.Location),
-                    topRow = list.TopIndex
+                    topRow = list.TopIndex, dragPresses, dragMoves, dragReleases
                 }));
             };
             target.Shown += delegate {

@@ -113,18 +113,21 @@ try {
   assert.equal(sample.image?.media_type, image.media_type);
   const bytes = Buffer.from(sample.image.data, 'base64');
   assert.equal(bytes.readUInt16BE(0), 0xffd8);
-  assert.ok(Math.abs(image.width - invokedState.frame.width) <= 20);
-  assert.ok(Math.abs(image.height - invokedState.frame.height) <= 20);
   await writeFile(resolve(out, 'windows-winforms.jpg'), bytes);
   results.screenshot = { ...image, sha256: createHash('sha256').update(bytes).digest('hex') };
-  const buttonPixel = { kind: 'pixel', screenshot_id: image.id, point: point(image, invokedState.frame, invokedState.button) };
+  const capture = [invokedState.visibleFrame, invokedState.frame].find(frame =>
+    frame && image.width === frame.width && image.height === frame.height);
+  assert.ok(capture, 'The screenshot geometry must match the visible or full WinForms frame');
+  const buttonPixel = { kind: 'pixel', screenshot_id: image.id, point: point(image, capture, invokedState.button) };
   await act(sample.observation, click(buttonPixel), 'background', 'unsupported');
   assert.equal((await state(value => value.foreground === 'guard')).count, 1);
   results.cases.push('JPEG tied to the owned window and background pixel refusal');
 
   sample = await observe(true);
   await act(sample.observation, click({ ...buttonPixel, screenshot_id: sample.observation.screenshot.id }), 'foreground');
-  await state(value => value.count === 2 && value.foreground === 'target');
+  const clicked = await state(value => value.count === 2 && value.foreground === 'target');
+  assert.ok(Math.abs(clicked.pointer.x - (clicked.button.x + clicked.button.width / 2)) <= 2);
+  assert.ok(Math.abs(clicked.pointer.y - (clicked.button.y + clicked.button.height / 2)) <= 2);
   sample = await observe();
   await act(sample.observation, click(element(sample.observation, 'Fixture Unicode text')), 'foreground');
   await state(value => value.fieldFocused);
@@ -143,9 +146,11 @@ try {
   sample = await observe(true);
   const screenshot = sample.observation.screenshot;
   await act(sample.observation, { kind: 'drag', screenshot_id: screenshot.id,
-    from: point(screenshot, scrolled.frame, scrolled.square), to: point(screenshot, scrolled.frame, scrolled.square, 60, 40) }, 'foreground');
+    from: point(screenshot, capture, scrolled.square), to: point(screenshot, capture, scrolled.square, 60, 40) }, 'foreground');
   const final = await state(value => Math.abs(value.squarePosition.x - scrolled.squarePosition.x - 60) <= 3
-    && Math.abs(value.squarePosition.y - scrolled.squarePosition.y - 40) <= 3);
+    && Math.abs(value.squarePosition.y - scrolled.squarePosition.y - 40) <= 3 && value.dragReleases === 1);
+  assert.equal(final.dragPresses, 1);
+  assert.ok(final.dragMoves >= 1);
   assert.equal(final.count, 2);
   assert.equal(final.guardCount, 0);
   results.cases.push('Actual list scrolling and 60 × 40 pixel drag verified by WinForms');

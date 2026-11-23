@@ -131,6 +131,8 @@ pub struct Snapshot {
 	pub image_path: String,
 	pub image_width: u32,
 	pub image_height: u32,
+	/// Screen-space rectangle represented by the image, before scaling.
+	pub image_bounds: Option<Frame>,
 	/// 目标窗口的屏幕矩形(左上原点)—— 元素 frame 的参照原点。
 	/// 窗口列表无可用 bounds 时为 None,此时元素 frame 也为 None
 	/// (而非悄悄变成屏幕绝对)。

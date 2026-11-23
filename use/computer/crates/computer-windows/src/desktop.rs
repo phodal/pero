@@ -122,11 +122,17 @@ impl DesktopDriver for Desktop {
                 "Window input geometry is unavailable",
             )
         })?;
-        let point = |p: ComputerPoint| {
-            (
-                bounds.x + f64::from(p.x) * bounds.w / f64::from(snap.image_width),
-                bounds.y + f64::from(p.y) * bounds.h / f64::from(snap.image_height),
-            )
+        let point = |p: ComputerPoint| -> Result<(f64, f64), ComputerError> {
+            let frame = snap.image_bounds.ok_or_else(|| {
+                error(
+                    ComputerErrorCode::Unsupported,
+                    "Window screenshot geometry is unavailable",
+                )
+            })?;
+            Ok((
+                frame.x + f64::from(p.x) * frame.w / f64::from(snap.image_width),
+                frame.y + f64::from(p.y) * frame.h / f64::from(snap.image_height),
+            ))
         };
         let element = |anchor: &ComputerAnchor| {
             let ComputerAnchor::Element { element_id } = anchor else {
@@ -138,7 +144,7 @@ impl DesktopDriver for Desktop {
         };
         let location = |anchor: &ComputerAnchor| -> Result<(f64, f64), ComputerError> {
             match anchor {
-                ComputerAnchor::Pixel { point: p, .. } => Ok(point(*p)),
+                ComputerAnchor::Pixel { point: p, .. } => point(*p),
                 _ => element(anchor)
                     .and_then(|e| e.frame)
                     .map(|f| (bounds.x + f.x + f.w / 2., bounds.y + f.y + f.h / 2.))
@@ -202,8 +208,8 @@ impl DesktopDriver for Desktop {
                 app,
                 native::DragRequest {
                     method: native::ClickMethod::Global,
-                    start: point(from),
-                    end: point(to),
+                    start: point(from)?,
+                    end: point(to)?,
                     ..Default::default()
                 },
             ),

@@ -6,7 +6,8 @@ use std::os::windows::ffi::OsStringExt;
 use std::ptr;
 use std::sync::OnceLock;
 
-use point_computer_core::types::MouseButton;
+use point_computer_core::types::{Frame, MouseButton};
+use windows::Win32::Graphics::Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
 
 use super::sys::{
 	self, BITMAPINFO, BITMAPINFOHEADER, BOOL, DWORD, HANDLE, HBITMAP, HWND, INPUT, INPUT_UNION, KEYBDINPUT, LONG,
@@ -38,6 +39,17 @@ pub fn window_list() -> Vec<WindowInfo> {
 	let mut out: Vec<WindowInfo> = Vec::new();
 	unsafe { sys::EnumWindows(enum_windows_cb, &mut out as *mut Vec<WindowInfo> as LPARAM) };
 	out
+}
+
+pub fn visible_window_frame(window_id: u32) -> Option<Frame> {
+	let mut rect = windows::Win32::Foundation::RECT::default();
+	let hwnd = windows::Win32::Foundation::HWND(window_id as usize as _);
+	unsafe {
+		DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ptr::from_mut(&mut rect).cast(), size_of_val(&rect) as u32)
+	}.ok()?;
+	let w = rect.right - rect.left;
+	let h = rect.bottom - rect.top;
+	(w > 0 && h > 0).then_some(Frame { x: rect.left.into(), y: rect.top.into(), w: w.into(), h: h.into() })
 }
 
 unsafe extern "C" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
