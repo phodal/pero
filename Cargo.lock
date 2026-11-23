@@ -5982,6 +5982,7 @@ dependencies = [
  "base64 0.22.1",
  "data-url",
  "gpui-kit",
+ "image",
  "js-sys",
  "latex-rust",
  "markdown",

@@ -13,6 +13,7 @@ pero-theme.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 data-url = "0.3"
 markdown = "1"
 latex-rust = "=3.0.1"

@@ -3,7 +3,7 @@ use crate::session_state::SessionState;
 use crate::{content_reader::ContentReader, stream::StreamText};
 use pero_contracts::content_document::{ContentDocument,DocumentSource};
 use pero_contracts::content_origin::ContentOrigin;
-use gpui_kit::{App, AppContext as _, Entity};
+use gpui_kit::{App, AppContext as _, Entity, Image};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -105,6 +105,8 @@ pub struct Tool {
     /// Original ACP output, including diffs and terminal references. Arguments
     /// are intentionally kept out of the default tool presentation.
     pub output: Vec<Value>,
+    #[serde(skip)]
+    pub(crate) images: Vec<std::sync::Arc<Image>>,
     pub transcript: crate::tool_transcript::ToolTranscript,
     pub input_open: bool,
     #[serde(skip)]
@@ -463,6 +465,7 @@ impl Conversation {
                             content: String::new(),
                             source_revision:0,
                             output: vec![],
+                            images: vec![],
                             transcript: Default::default(),
                             input_open: false,
                             input_view: None,
@@ -534,7 +537,11 @@ impl Conversation {
                 let paths: Vec<String> = tool.locations.iter().map(|location| location.path.clone()).collect();
                 tool.activity = crate::tool_activity::ToolActivity::from_acp(&tool.kind, &tool.title, &paths, tool.transcript.input.as_ref());
                 tool.output = tool.transcript.output();
-                if tool.status == "completed" && !tool.cancelled { self.images.observe(&tool.output); }
+                if tool.status == "completed" && !tool.cancelled {
+                    tool.images = self.images.observe(&tool.output);
+                } else {
+                    tool.images.clear();
+                }
                 if let Some(view) = &tool.input_view {
                     let text = tool.transcript.input_text().unwrap_or_default();
                     view.update(cx, |view, cx| view.replace(&format!("```json\n{text}\n```"), cx));

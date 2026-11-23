@@ -10,40 +10,41 @@ const MAX_IMAGE_BYTES: usize = 4 * 1024 * 1024;
 pub struct InlineImage {
     pub uri: String,
     pub bytes: Vec<u8>,
+    media_type: String,
 }
 impl InlineImage {
     pub fn from_content(value: &Value) -> Option<Self> {
         #[derive(Deserialize)]
-        struct Content {
+        struct Content<'a> {
             #[serde(rename = "type")]
-            kind: String,
+            kind: &'a str,
             #[serde(rename = "mimeType")]
-            mime_type: String,
-            data: String,
+            mime_type: &'a str,
+            data: &'a str,
         }
-        let image: Content = serde_json::from_value(value.clone()).ok()?;
-        if image.kind != "image"
-            || image.mime_type != "image/png"
-            || image.data.len() > MAX_IMAGE_BYTES.div_ceil(3) * 4
-        {
+        let image = Content::deserialize(value).ok()?;
+        if image.kind != "image" || image.data.len() > MAX_IMAGE_BYTES.div_ceil(3) * 4 {
             return None;
         }
-        let bytes = STANDARD.decode(&image.data).ok()?;
-        if bytes.len() < 45
-            || bytes.len() > MAX_IMAGE_BYTES
-            || &bytes[..8] != b"\x89PNG\r\n\x1a\n"
-            || &bytes[12..16] != b"IHDR"
-        {
+        let format = match image.mime_type {
+            "image/png" => image::ImageFormat::Png,
+            "image/jpeg" => image::ImageFormat::Jpeg,
+            _ => return None,
+        };
+        let bytes = STANDARD.decode(image.data).ok()?;
+        if bytes.len() > MAX_IMAGE_BYTES {
             return None;
         }
-        let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
-        let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+        let (width, height) = image::ImageReader::with_format(std::io::Cursor::new(&bytes), format)
+            .into_dimensions()
+            .ok()?;
         if !(1..=2048).contains(&width) || !(1..=2048).contains(&height) {
             return None;
         }
         Some(Self {
             uri: format!("pero-image://{:x}", Sha256::digest(&bytes)),
             bytes,
+            media_type: image.mime_type.to_owned(),
         })
     }
 }
@@ -65,9 +66,10 @@ mod view {
         references: crate::image_references::ImageReferences,
     }
     impl ConversationImages {
-        pub fn observe(&self, output: &[Value]) {
+        pub fn observe(&self, output: &[Value]) -> Vec<Arc<Image>> {
             let mut registry = self.0.lock().expect("conversation images");
-            let mut delivered = Vec::new();
+            let mut uris = Vec::new();
+            let mut images = Vec::new();
             for item in output {
                 // Only actual ACP image content is eligible. JSON prose and
                 // arbitrary document URLs cannot register a conversation image.
@@ -75,16 +77,24 @@ mod view {
                     continue;
                 }
                 if let Some(image) = InlineImage::from_content(&item["content"]) {
-                    delivered.push(image.uri.clone());
-                    registry.images.entry(image.uri).or_insert_with(|| {
-                        Arc::new(Image::from_bytes(ImageFormat::Png, image.bytes))
-                    });
+                    let format = ImageFormat::from_mime_type(&image.media_type).unwrap();
+                    uris.push(image.uri.clone());
+                    let rendered = registry
+                        .images
+                        .entry(image.uri)
+                        .or_insert_with(|| Arc::new(Image::from_bytes(format, image.bytes)));
+                    images.push(rendered.clone());
                 }
             }
-            registry.references.observe(output, &delivered);
+            registry.references.observe(output, &uris);
+            images
         }
         pub fn link_markdown(&self, source: &str) -> String {
-            self.0.lock().expect("conversation images").references.link_markdown(source)
+            self.0
+                .lock()
+                .expect("conversation images")
+                .references
+                .link_markdown(source)
         }
         pub fn resolve(&self, uri: &SharedUri) -> ImageSource {
             let mut registry = self.0.lock().expect("conversation images");
@@ -130,6 +140,14 @@ mod tests {
                 Sha256::digest(STANDARD.decode(PNG).unwrap())
             )
         );
+        let mut jpeg = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new(&mut jpeg)
+            .encode(&[0, 0, 0], 1, 1, image::ExtendedColorType::Rgb8)
+            .unwrap();
+        let valid_jpeg =
+            json!({"type":"image","mimeType":"image/jpeg","data":STANDARD.encode(&jpeg)});
+        let preview = InlineImage::from_content(&valid_jpeg).unwrap();
+        assert_eq!(preview.bytes, jpeg);
         for value in [
             json!({"type":"text","text":valid.to_string()}),
             json!({"type":"image","mimeType":"image/jpeg","data":PNG}),
