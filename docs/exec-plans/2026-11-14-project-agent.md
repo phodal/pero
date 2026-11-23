@@ -350,3 +350,8 @@ Its local view tabs use the shared rounded navigation selection. The reading
 surface starts below the titlebar, with a single divider in wide and narrow
 layouts. Overview and materials use a 16 px section inset and caption text for
 empty guidance. The goal action adds an empty goal or edits the saved text.
+
+Overview edits the research goal as Markdown with a source editor and draft
+preview. Saved goals use the same Markdown renderer. Project Settings owns
+name and directory editing. Goal-only saves keep the current project metadata
+and use the existing local research project persistence path.

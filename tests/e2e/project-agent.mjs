@@ -302,10 +302,17 @@ try {
   expect(overviewEditing.projectControls['research-goal'].x).toBeGreaterThanOrEqual(overviewEditing.projectControls['agent:context'].x);
   expect(overviewEditing.composer).toBe('Overview keeps the central draft');
   await capture('01-overview-editor-right');
-  const editedGoal = 'Unsaved Project goal to retain when the view closes.';
+  const editedGoal = '## Research question\n\n- Inspect **original evidence**.\n- Record the result.';
   await control('research-goal');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
   await page.keyboard.insertText(editedGoal);
+  await expect.poll(async () => (await state()).researchProjects.editor?.goal).toBe(editedGoal);
+  expect(overviewEditing.projectControls['research-title']?.width || 0).toBe(0);
+  expect(overviewEditing.projectControls['research-workspace']?.width || 0).toBe(0);
+  await control('goal-preview');
+  await expect.poll(async () => (await state()).projectControls['research-goal']?.width || 0).toBe(0);
+  await capture('01-goal-markdown-preview');
+  await control('goal-preview');
   await expect.poll(async () => (await state()).researchProjects.editor?.goal).toBe(editedGoal);
   await control('agent:context-close');
   await expect.poll(async () => (await state()).projectControls['agent:context']?.width || 0).toBe(0);
@@ -400,6 +407,11 @@ try {
     await expect.poll(async () => (await state()).researchProjects.editor).toBeNull();
     await expect.poll(async () => (await state()).preferences.research_projects.find(project => project.id === projectId).goal).toBe(goal);
   }
+  await saveGoal(editedGoal);
+  await capture('01-saved-goal-markdown');
+  await control('edit');
+  expect((await state()).researchProjects.editor.goal).toBe(editedGoal);
+  await control('edit-cancel');
   await saveGoal(longGoal);
   await resize(920, 740);
   await showProjectInspector();
