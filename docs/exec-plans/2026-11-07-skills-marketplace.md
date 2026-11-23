@@ -26,6 +26,8 @@ github_url: https://github.com/phodal/pero/issues/156
 - 刷新失败保留已有目录，安装失败局限于对应任务。窄窗详情使用全视口，不把来源信息挤出操作区。
 - 移除旧 split 样式；Skills builder 不再复制未使用的文档阅读器，避免无关载荷导致受管 App 更新失败。
 
+- 自定义 → 发现技能沿用共享 ListRow 和 Button，把行尾「查看条件」改为「暂不可安装」展开按钮。就地展示 Host 给出的原因与来源链接；标题仍打开完整详情，来源列过长时省略。
+
 ## 验证与剩余范围
 
 原工作区已观察 Host 拒绝 capability、排序错误、并发阻塞及无用阅读器打包等失败，之后使用同一行为测试验证修复。PR 从最新上游独立移植，重新运行目录、App、Rust、Go、工程检查与接线测试；详细结果统一维护在[验证记录](../fitness/skills-marketplace.md)。市场专用 CI 配置已准备，但提交账号令牌缺少 `workflow` scope，GitHub 拒绝工作流修改；该配置保留为本地补丁，本次 PR 包含可直接运行的专项测试和本地验收证据。公共 Git 和付费模型保持显式 opt-in。

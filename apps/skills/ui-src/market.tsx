@@ -13,6 +13,15 @@ function SkillEvidence({sections, missing}: {sections?: EvidenceSection[]; missi
 const glyphs:Record<string,string> = {writing:'quote',literature:'skill',statistics:'simulation',visualization:'palette','research-design':'light',presentation:'browser',ai:'circuit',data:'table','scientific-computing':'protein',laboratory:'microscope',workflow:'nodes',documents:'document',review:'checklist'};
 function SkillGlyph({skill}:{skill:Skill}) {return <span className="skills-glyph"><Icon name={glyphs[skill.category] || 'skill'} size={20}/></span>;}
 
+const admissionReasonsZh: Record<string, string> = {
+  'License evidence is missing; open the source and verify its terms first': '缺少适用于该技能的许可依据，可前往来源核对许可条款。',
+  'This catalog record is a dependency or reference, not an independent skill': '此条目是依赖或参考资料，无法单独安装。',
+  'This general skill requires a compatibility review or host adaptation; review its requirements': '此技能需要兼容性审查或宿主适配，可在原文中查看运行要求。',
+  'Selected source is not a supported pinned Git skill; archive members require a separate adapter': '安装需要受支持的固定 Git 来源。压缩包内的技能需要单独适配。',
+  'Invalid skill catalog entry': '技能目录记录无效。',
+  'Admission not provided by Host; refresh or update Pero.': '尚未取得安装条件，请刷新目录或更新 Pero。',
+};
+
 export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false, searchRef }: {
   embedded?: boolean;
   searchRef?: React.RefObject<HTMLInputElement | null>;
@@ -32,6 +41,7 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
   const [targetRevision, setTargetRevision] = useState('');
   const hub = view === 'skillhub';
   const viewingInstalled = view === 'installed';
+  const [expandedReason, setExpandedReason] = useState('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(''), [detailTab,setDetailTab] = useState('overview');
   const [onlyReady,setOnlyReady] = useState(false), [sort,setSort] = useState('flow'), [queueOpen,setQueueOpen] = useState(true), [opening,setOpening] = useState('');
@@ -182,11 +192,25 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
     }
   }
 
+  function reasonContent(target: Skill) {
+    const reason = installationBlock(target);
+    return <><span>{zh ? admissionReasonsZh[reason] ?? reason : reason}</span>
+      <a href={target.source.url} target="_blank" rel="noreferrer">{text('查看技能原文','View skill source')}</a>
+      {target.license.evidence_url && target.license.evidence_url !== target.source.url &&
+        <a href={target.license.evidence_url} target="_blank" rel="noreferrer">{text('许可依据','License evidence')}</a>}</>;
+  }
   function primary(target:Skill, compact=false) {
     const saved=records.find(value=>value.id===target.id), pending=busy[target.id];
     if(saved)return <Button variant={compact?'ghost':'primary'} disabled={!!pending} busy={opening===target.id} onClick={()=>void useSkill(target)}>{compact?text('去使用','Use skill'):text('在新会话中使用','Use in new chat')}<Icon name="arrow" size={14}/></Button>;
-    if(installationBlock(target) && compact)return <Button variant="ghost" onClick={()=>open(target)}>{text('查看条件','View conditions')}</Button>;
-    return <Button variant={compact?'secondary':'primary'} disabled={!!installationBlock(target)||!!pending||!installed} busy={!!pending} onClick={()=>void operate('install',target)}>{text('安装技能','Install')}</Button>;
+    if (installationBlock(target)) {
+      if (!compact) return null;
+      const expanded = expandedReason === target.id;
+      return <Button variant="secondary" aria-expanded={expanded} aria-controls={expanded ? `reason-${target.id}` : undefined}
+        onClick={()=>setExpandedReason(expanded ? '' : target.id)}>
+        {text('暂不可安装','Install unavailable')}<Icon name="chevron-down" size={14}/>
+      </Button>;
+    }
+    return <Button variant={compact?'secondary':'primary'} disabled={!!pending||!installed} busy={!!pending} onClick={()=>void operate('install',target)}>{text('安装技能','Install')}</Button>;
   }
   function retry(target:Skill) {
     const outcome=outcomes[target.id];
@@ -261,7 +285,10 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
                         <span className="skills-card-version" title={revision}>{value.source.release || `Git ${revision.slice(0,8)}`}</span>
                       </div>
                       <div className="skills-result-action">{status}{primary(value,true)}</div>
-                    </>}/></li>;
+                    </>}/>
+                    {expandedReason === value.id && !saved && installationBlock(value) &&
+                      <div className="skills-block-reason" id={`reason-${value.id}`}>{reasonContent(value)}</div>}
+                  </li>;
                 })}</ul> : <EmptyState icon={<EmptyIllustration kind={viewingInstalled && records.length === 0 ?'data':'search'} size="compact"/>} heading={viewingInstalled && records.length === 0 ?text('尚未安装技能','No installed skills'):text('没有匹配的技能','No matching skills')} description={text('换一个任务关键词，或清除分类条件再试试。','Try another task keyword or clear the category filter.')} actions={viewingInstalled && records.length > 0
                   ? <Button onClick={clearFilters}>{text('清除筛选','Clear filters')}</Button>
                   : <Button onClick={()=>{clearFilters();setView('discover');}}>{text('浏览全部技能','Browse all skills')}</Button>}/>}
@@ -314,10 +341,10 @@ export const SkillsMarket = React.memo(function SkillsMarket({ embedded = false,
       saved={records.find(record=>record.id===skillHubId(hubHistory.item))} ready={!!installed}
       busy={!!busy[skillHubId(hubHistory.item)]} failures={hubFailures[skillHubId(hubHistory.item)]}
       onInstall={(item, versionId)=>void installFromHub(item, versionId)}/>}
-    {item&&<Dialog presentation="drawer" className="skills-detail" title={text('技能详情','Skill details')} closeLabel={text('关闭详情','Close details')} onClose={()=>setSelected('')} footerStart={<span className="skills-footer-note"><Icon name={record?'check':'local'} size={14}/>{record?text('已安装在本地','Installed locally'):text('安装到当前 Pero','Install in this Pero')}</span>} footer={primary(item)}>
+    {item&&<Dialog presentation="drawer" className="skills-detail" title={text('技能详情','Skill details')} closeLabel={text('关闭详情','Close details')} onClose={()=>setSelected('')} footerStart={(record || !installationBlock(item)) && <span className="skills-footer-note"><Icon name={record?'check':'local'} size={14}/>{record?text('已安装在本地','Installed locally'):text('安装到当前 Pero','Install in this Pero')}</span>} footer={primary(item)}>
       <div className="skills-detail-content">
         <InspectorHeader title={title(item)} identity={<span className="skills-detail-identity"><SkillGlyph skill={item}/><span className="skills-category">{categoryLabel(item)}</span></span>} subtitle={<code>{item.name}</code>} status={record ? text('已安装','Installed') : text('未安装','Not installed')} /><p className="skills-description">{description(item)}</p>
-        {!record&&installationBlock(item)&&<Feedback>{installationBlock(item)} <a href={item.license.evidence_url||item.source.url} target="_blank" rel="noreferrer">{text('查看许可依据','License evidence')}</a></Feedback>}
+        {!record&&installationBlock(item)&&<Feedback><strong>{text('暂不可安装','Install unavailable')}</strong><div className="skills-block-reason">{reasonContent(item)}</div></Feedback>}
         {itemBusy&&<Feedback>{itemBusy.notice||text('正在处理，可关闭详情继续浏览。','Working; close details to keep browsing.')} {['install','update'].includes(itemBusy.operation)&&<Button variant="link" disabled={itemBusy.cancelling} onClick={()=>void cancel(item.id)}>{text('取消','Cancel')}</Button>}</Feedback>}
         {!itemBusy&&outcomes[item.id]?.error&&<Feedback kind="error">{outcomes[item.id].message}<Button variant="link" onClick={()=>retry(item)}>{text('重试','Retry')}</Button></Feedback>}
         <Tabs value={detailTab} onValueChange={setDetailTab}><TabsList variant="navigation" aria-label={text('技能详情视图','Skill detail views')}><TabsTrigger value="overview">{text('用途与条件','Overview')}</TabsTrigger><TabsTrigger value="examples">{text('示例任务','Examples')}</TabsTrigger><TabsTrigger value="source">{text('来源与版本','Source and version')}</TabsTrigger></TabsList>
