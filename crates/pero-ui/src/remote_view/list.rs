@@ -191,9 +191,7 @@ impl Workbench {
                                         .small()
                                         .label(self.t("project.binding"))
                                         .on_click(cx.listener(|this, _, _, cx| {
-                                            this.project_tab =
-                                                crate::projects::ProjectTab::Settings;
-                                            cx.notify();
+                                            this.select_project_view(crate::projects::ProjectTab::Settings, cx);
                                         })),
                                 ),
                             )

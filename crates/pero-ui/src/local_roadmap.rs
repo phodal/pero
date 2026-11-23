@@ -49,7 +49,10 @@ impl Workbench {
             return div().flex_1().p(px(12.)).flex().flex_col().gap(px(12.))
                 .child(self.t("research.directory_needed"))
                 .child(Button::new("research-add-directory").outline().label(self.t("research.edit"))
-                    .on_click(cx.listener(|this,_,window,cx| {this.project_tab=crate::projects::ProjectTab::Overview;this.edit_research_project(false,window,cx);} )));
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.select_project_view(crate::projects::ProjectTab::Overview, cx);
+                        this.edit_research_project(false, window, cx);
+                    })));
         }
         let local = self
             .current_project(cx)
