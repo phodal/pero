@@ -122,7 +122,13 @@ try {
   await panel.getByRole('button', { name: 'Send message' }).click();
   await expect(panel.locator('.bubble')).toContainText('Chrome sidebar message');
   await panel.setViewportSize({ width: 420, height: 760 });
+  await target.bringToFront();
+  await panel.getByRole('button', { name: 'Tab screenshot', exact: true }).evaluate(button => button.click());
+  const removeScreenshot = panel.getByRole('button', { name: 'Remove Tab screenshot.png' });
+  await expect(removeScreenshot).toBeVisible();
   await panel.screenshot({ path: resolve(output, 'testing-chat.png') });
+  await removeScreenshot.click();
+  await expect(panel.getByRole('button', { name: 'Send message' })).toBeDisabled();
   await panel.getByRole('button', { name: 'More' }).click();
   await panel.getByRole('menuitem', { name: 'Collector' }).click();
   await target.bringToFront();

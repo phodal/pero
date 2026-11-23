@@ -22,7 +22,7 @@ for Relay protocol 3.
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the
-active agent.
+active agent. **Tab screenshot** attaches a PNG of the active tab to the draft.
 
 Chrome Relay supports observation, locators, waits, same-origin frames,
 forms, keyboard, mouse and scroll. Use `tabs`, `open`, `activate` and

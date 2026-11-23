@@ -381,7 +381,7 @@ nodes['share-tab'].onclick = () =>
     const bytes = Math.ceil((image.base64.length * 3) / 4);
     if (draftAttachments.reduce((n, a) => n + a.bytes, bytes) > MAX_IMAGE_BYTES)
       throw new Error('Attachments exceed 8 MiB.');
-    draftAttachments.push({ name: 'Approved tab.png', mediaType: 'image/png', data: image.base64, bytes });
+    draftAttachments.push({ name: 'Tab screenshot.png', mediaType: 'image/png', data: image.base64, bytes });
     draftError = '';
   });
 nodes.send.onclick = () =>
