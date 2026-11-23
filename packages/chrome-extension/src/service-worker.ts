@@ -5,6 +5,8 @@ import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../..
 import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 
+import { readVisiblePage } from './collector-capture.js';
+
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type Review = { nonce: string; tabId: number; url: string; expiresAt: number };
 type Claim = { id: string; tabId: number; origin: string; revision: number; world: string; navigating?: boolean };
@@ -12,6 +14,8 @@ type Command = { kind: 'inspect' } | { kind: 'run'; grant: string; stamp: string
   { kind: 'manage'; grant: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired' | 'authorizing' | 'approved'; label: string; timer?: number;
   lastPong: number; lastId: number; busy: boolean; review?: Review; claims: Map<number, Claim>; opened: Map<number, string>;
+  sidebar: Map<string, (reply: {value?: unknown; error?: string}) => void>;
+  capture?: { key: string; grant: string; url: string; revision: number };
   authorizing?: string; opening?: number };
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -40,6 +44,8 @@ function send(connection: Peer, message: object) {
 async function release(connection: Peer, reason?: string) {
   if (peer !== connection) return;
   peer = undefined;
+  for (const finish of connection.sidebar.values()) finish({ error: 'The paired conversation disconnected.' });
+  connection.sidebar.clear();
   failure = reason;
   clearInterval(connection.timer);
   connection.socket.close();
@@ -179,7 +185,7 @@ function connect(code: string) {
   if (peer) throw new Error('Disconnect the current Pero session first.');
   const pairing = parseRelayPairing(code.trim());
   const socket = new WebSocket(pairing.baseUrl.replace('http:', 'ws:') + RELAY_PATH);
-  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, claims: new Map(), opened: new Map() };
+  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, claims: new Map(), opened: new Map(), sidebar: new Map() };
   peer = connection;
   failure = undefined;
   publish();
@@ -200,6 +206,10 @@ function connect(code: string) {
       if (typeof event.data !== 'string' || new TextEncoder().encode(event.data).length > MAX_FRAME)
         throw new Error('Invalid Pero Relay frame.');
       const message = JSON.parse(event.data);
+      if (message.type === 'sidebarReply') {
+        connection.sidebar.get(message.id)?.(message);
+        return;
+      }
       if (message.type === 'pong') { connection.lastPong = Date.now(); return; }
       if (message.type === 'paired' && connection.state === 'connecting') {
         connection.state = 'paired';
@@ -253,9 +263,63 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  if (sender.id !== chrome.runtime.id || sender.url?.split('#', 1)[0] !== chrome.runtime.getURL('relay.html')) return false;
+  const source = sender.url?.split('#', 1)[0];
+  if (sender.id !== chrome.runtime.id) return false;
+  const panel = source === chrome.runtime.getURL('sidepanel.html'), collector = source === chrome.runtime.getURL('collector.html');
+  if (!panel && !collector && source !== chrome.runtime.getURL('relay.html')) return false;
   const handle = async () => {
     if (message.type === 'status') return status();
+    if (panel || collector) {
+      const connection = peer;
+      if (!connection || !['paired','approved'].includes(connection.state)) throw new Error('Pair in Pero Native → Settings → Browser Use.');
+      let request = message.request;
+      if (message.type === 'capture' || message.type === 'share') {
+        const claim = connection.claims.get(message.tabId);
+        if (!claim) throw new Error('Review and allow this tab before reading it.');
+        const before = await snapshot(connection, claim);
+        if (!before.active || !before.ready) throw new Error('Activate the approved tab first.');
+        const cdp = (method: string, params?: Record<string, unknown>) => chrome.debugger.sendCommand({tabId: claim.tabId}, method, params);
+        let value;
+        if (message.type === 'share' && panel) {
+          const frames = await checkFrames(claim.tabId, claim.origin);
+          value = await screenshot(cdp, undefined);
+          if (frames !== await checkFrames(claim.tabId, claim.origin)) throw new Error('Frames changed during capture.');
+        } else if (collector && ['page','selection'].includes(message.scope)) {
+          value = await evaluateDocument(cdp, claim.world, claim.origin,
+            `(${readVisiblePage.toString()})(${JSON.stringify(message.scope)}, 200000)`);
+          if (value.error) throw new Error(value.error);
+        } else throw new Error('Unsupported capture.');
+        const after = await snapshot(connection, claim);
+        if (!after.active || !after.ready || before.url !== after.url || before.revision !== after.revision)
+          throw new Error('The reviewed document changed.');
+        if (collector) {
+          const key = crypto.randomUUID();
+          connection.capture = { key, grant: claim.id, url: before.url, revision: before.revision };
+          return { ...value, key };
+        }
+        return value;
+      }
+      if (message.type !== 'sidebar') throw new Error('Unsupported sidebar request.');
+      if (collector && request?.kind === 'collect') {
+        const captured = connection.capture;
+        const claim = [...connection.claims.values()].find(item => item.id === captured?.grant);
+        if (!captured || !claim || message.key !== captured.key) throw new Error('Read this approved page again.');
+        const current = await snapshot(connection, claim);
+        if (current.url !== captured.url || current.revision !== captured.revision) throw new Error('The source page changed.');
+        request = { ...request, grant: captured.grant, url: captured.url };
+      } else if (collector ? request?.kind !== 'snapshot' : request?.kind === 'collect') throw new Error('Unsupported sidebar operation.');
+      const id = crypto.randomUUID();
+      return new Promise((resolve, reject) => {
+        const finish = (response: {value?: unknown; error?: string}) => {
+          clearTimeout(timer); connection.sidebar.delete(id);
+          if (response.error) reject(new Error(response.error)); else resolve(response.value);
+        };
+        const timer = setTimeout(() => finish({error:'Pero did not confirm the request. Check the conversation before retrying.'}), 35000);
+        connection.sidebar.set(id, finish);
+        try { send(connection, { type: 'sidebar', id, sessionId: message.sessionId, request }); }
+        catch (error) { finish({error: String(error)}); }
+      });
+    }
     if (message.type === 'pair') { connect(message.code); return status(); }
     if (message.type === 'stop') {
       if (peer) {
