@@ -252,8 +252,17 @@ From a fresh ZIP extraction on Windows, the Host emitted `ready`, the Go ACP
 binary printed its help, and the Electron executable ran Node in ARM64 mode.
 The packaged Computer Use binary returned `WINDOWS_NONINTERACTIVE_SESSION`
 in the SSH session. The archive, checksum and process receipt are in
-`target/package/` under the `Pero-windows-arm64` name. Workbench window launch
-and the new WinForms input scenarios require an interactive desktop.
+`target/package/` under the `Pero-windows-arm64` name.
+
+The release smoke test now waits for the Workbench loading overlay to clear.
+The earlier test could write a passing receipt while its screenshot still
+showed “Opening the workbench…”. With the corrected test, a fresh extraction of
+the same ZIP rendered the Workbench navigation, connected the Host and exited
+successfully in Windows SSH Session 0. The default Task Center was
+`https://app.openpero.com` and no page errors were reported. The receipt and
+screenshot are `Pero-windows-arm64.workbench-smoke.json` and `.png` in
+`target/package/`. The operator's interactive desktop and the new WinForms
+input scenarios remain unverified.
 
 ## Pero Native and real Pero (DeepSeek), 2026-11-22
 
