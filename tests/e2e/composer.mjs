@@ -1,7 +1,7 @@
 // Composer behavior against the actual Electron/GPUI renderer and a bounded ACP fixture.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickNewChat, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, clickNewChat, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -82,6 +82,34 @@ try {
   await frame();
   await expect.poll(async () => (await state()).chats[0].agent).toBe('fixture');
   await expect.poll(async () => (await state()).chats[0].state).toBe('idle');
+  await input('@');
+  await expect.poll(async () => (await state()).completion.items.slice(0, 2)).toEqual(['Browser Use', 'Computer Use']);
+  await frame();
+  await page.screenshot({ path: resolve(output, 'capabilities.png') });
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await state()).completion.open).toBe(false);
+  await input('@');
+  await choose('Browser Use');
+  await expect.poll(async () => (await state()).attachments).toEqual(['Browser Use']);
+  expect((await state()).chats[0].messages).toHaveLength(0);
+  await input('检查 @browser-use');
+  await choose('Browser Use');
+  await expect.poll(async () => (await state()).composer).toBe('检查 @Browser Use ');
+  await send();
+  expect(JSON.stringify((await promptLog()).at(-1))).toContain('Use browser_use.');
+
+  await input('/computer');
+  await choose('Computer Use');
+  await expect.poll(async () => (await state()).attachments).toEqual(['Computer Use']);
+  expect((await state()).chats[0].messages.filter(message => message.role === 'user')).toHaveLength(1);
+  await page.screenshot({ path: resolve(output, 'computer-use-draft.png') });
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state()).completion.error).toBe('Enable Computer Use in Settings');
+  expect((await state()).attachments).toEqual(['Computer Use']);
+  await page.evaluate(() => window.pero.computerCommand({action: 'computer_set', enabled: true}));
+  await send();
+  expect(JSON.stringify((await promptLog()).at(-1))).toContain('Use computer_use on the selected desktop');
+
   await input('composer fixture ready');
   await send();
   await expect.poll(async () => (await state()).chats[0].commands?.map(command => command.name)).toContain('compact');
@@ -144,6 +172,12 @@ try {
   expect(filePrompt.some(block => block.type === 'resource' && block.resource.text.includes('FROZEN_COMPOSER_CONTEXT_42'))).toBe(true);
   expect(JSON.stringify(filePrompt)).not.toContain('CHANGED_AFTER_SELECTION');
 
+  await input('@app');
+  await choose('App Use · Data · Data tools');
+  await send();
+  const appContext = (await promptLog()).at(-1).find(block => block.type === 'text' && block.text.includes('User-selected capability'));
+  expect(JSON.parse(appContext.text.split('Target: ')[1])).toEqual({kind:'app_data', app:'data', panel:'main'});
+
   await input('/com');
   await choose('compact');
   await expect.poll(async () => (await state()).composer).toBe('/compact ');
@@ -166,6 +200,7 @@ try {
 
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, resolve(workspace, 'notes.txt'));
   await clickComposer('context');
+  await expect.poll(async () => (await state()).completion.items).toContain('Browser Use');
   // Footer order is files, image, directory. Up begins at the final enabled item.
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowUp');
@@ -239,8 +274,10 @@ try {
   await input('@');
   await expect.poll(async () => (await state()).completion.open).toBe(true);
   await page.screenshot({ path: resolve(output, 'mention-types.png') });
-  await page.keyboard.press('ArrowDown');
-  await expect.poll(async () => (await state()).completion.selected).toBe(1);
+  const directoryIndex = (await state()).completion.items.indexOf('Directories');
+  expect(directoryIndex).toBeGreaterThan(0);
+  for (let i = 0; i < directoryIndex; i++) await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => (await state()).completion.selected).toBe(directoryIndex);
   await page.keyboard.press('Tab');
   await expect.poll(async () => (await state()).composer).toBe('@directory ');
   await page.keyboard.press('Escape');
@@ -273,8 +310,21 @@ try {
   await expect.poll(async () => (await state()).completion.error).toBe('This Agent does not support images.');
   expect((await state()).attachments).toEqual([]);
   await page.screenshot({ path: resolve(output, 'unsupported-image.png') });
+  await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setSize(1488, 1000));
+  await clickAppShortcut(page, 'insights');
+  const appFrame = page.frameLocator('iframe[title="Insights" i]');
+  await appFrame.locator('body').waitFor({state:'attached'});
+  await appFrame.locator('body').evaluate(() => parent.postMessage({type:'pero:app:chat', text:'Review this session.'}, '*'));
+  await expect.poll(async () => (await state()).scope?.app).toBe('insights');
+  await input('@app');
+  await expect.poll(async () => (await state()).completion.items).toContain('App Use · Insights · Current panel');
+  expect((await state()).completion.items.filter(label => label.startsWith('App Use')).every(label => label.includes('Insights'))).toBe(true);
+  await page.screenshot({path:resolve(output,'app-use-picker.png')});
+  await choose('App Use · Insights · Current panel');
+  await expect.poll(async () => (await state()).attachments).toEqual(['App Use · Insights · Current panel']);
+  expect((await state()).chats[(await state()).activeChat].messages).toHaveLength(0);
   expect(errors).toEqual([]);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ checks: ['advertised-controls', 'advertised-thinking-off', 'context-type-menu', 'mention-file', 'reference-delete-undo', 'frozen-resource', 'slash-command', 'slash-skill', 'image-content', 'browser-image-paste', 'native-file-picker', 'permission', 'arrow-tab-completion', 'escape', 'dark', 'narrow', 'unsupported-image'], state: await state(), errors }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ checks: ['app-data-target', 'scoped-app-use', 'shared-add-menu', 'disabled-target-keeps-draft', 'advertised-controls', 'advertised-thinking-off', 'context-type-menu', 'mention-file', 'reference-delete-undo', 'frozen-resource', 'slash-command', 'slash-skill', 'image-content', 'browser-image-paste', 'native-file-picker', 'permission', 'arrow-tab-completion', 'escape', 'dark', 'narrow', 'unsupported-image'], state: await state(), errors }, null, 2));
   console.log(JSON.stringify({ checks: 'composer parity', errors, output }));
 } catch (error) {
   const page = await app.firstWindow();

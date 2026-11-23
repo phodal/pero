@@ -101,3 +101,34 @@ separate arguments/results and session title notifications. Expanded reasoning
 is additionally muted. Actual UI and real Qoder acceptance, including the
 provider's missing title-notification boundary, are recorded in
 [streaming presentation](../fitness/streaming-presentation.md).
+
+## Composer capability discovery
+
+Opening the add button, typing `@`, or typing `/` exposes the same capability
+choices. Each entry identifies what the Agent can use and, where applicable,
+the specific target. A thread-scoped shell query returns targets from the browser
+grant inventory, Computer Use route, current App surface and data declarations,
+and enabled connectors. Chat intersects those targets with the Agent's mounted
+tools. Agents that report their MCP inventory must report the corresponding
+tool on a connected server. A session with an opaque MCP inventory uses its
+configured server and the shell's actual capabilities.
+
+| Choice | What the user selects | Owner at execution |
+| --- | --- | --- |
+| Browser Use | Browser, or an authorized tab and origin | Browser Use grant owner |
+| Computer Use | Local desktop | Computer Use settings and permission checks |
+| App Use | App data tools, or the current panel instance | App declarations and App Use |
+| Remote Use | Attached Linux desktop, bound project task draft, or Compute | Desktop attachment, existing task form, or Compute's SSH/Slurm flow |
+| Connector | Enabled connector in this conversation | Connector owner |
+| Project delegation | Primary project Agent | Project work tool |
+| Notebook | Python or R in a negotiated shared science session | ACP Agent session |
+
+Chat stores selections as typed `ContextReference` values. On send it queries
+the active thread again and checks the target before passing the prompt to ACP.
+Removing a browser grant, replacing a panel instance or detaching the selected
+desktop leaves the draft editable. The add menu also retains the native file
+dialogs. Slash commands and project skills keep their original semantics.
+
+The Workbench owns navigation to Compute and creation of a remote task draft.
+A task draft copies the editable prompt into the existing form for the bound
+project. The user chooses a Worker and submits through the normal task flow.

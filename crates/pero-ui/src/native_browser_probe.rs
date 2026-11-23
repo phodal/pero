@@ -17,6 +17,8 @@ struct Turn {
     permission: Option<Permission>,
     #[serde(default)]
     attachments: bool,
+    #[serde(default)]
+    check_catalog: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +43,7 @@ pub(crate) async fn verify(
     let mut chat_created = false;
     let mut sent = 0;
     let mut duplicate = None;
+    let mut checking_catalog = false;
     let mut last = Value::Null;
     let mut surface = String::new();
     while started.elapsed() < Duration::from_secs(60) {
@@ -84,16 +87,34 @@ pub(crate) async fn verify(
                 (&turn.permission, &page.document.observation.load), (Some(Permission::Revoke), WebLoad::Failed(_))));
             if !ready { return Ok(None); }
             if tab.starts_with("web-tab:") { duplicate = Some(tab.clone()); }
-            match turn.permission {
-                Some(Permission::Allow) => {
-                    // Supply the consent decision at the product's grant boundary.
-                    anyhow::ensure!(root.native_browser_allow(&tab, cx), "Native could not approve a visible Web tab");
+            if checking_catalog {
+                let picker = &snapshot["completion"];
+                last["picker"] = picker.clone();
+                if picker["open"] != true || picker["loading"] == true { return Ok(None); }
+                let targets = picker["items"].as_array().ok_or_else(|| anyhow::anyhow!("Missing native composer items"))?;
+                anyhow::ensure!(targets.iter().filter_map(Value::as_str).any(|item| item.starts_with("Browser Use · ")),
+                    "The native composer did not discover the authorized tab: {picker}");
+                let input = root.chat.read(cx).composer.clone();
+                input.update(cx, |editor, cx| editor.set_value("", window, cx));
+                checking_catalog = false;
+            } else {
+                match turn.permission {
+                    Some(Permission::Allow) => {
+                        // Supply the consent decision at the product's grant boundary.
+                        anyhow::ensure!(root.native_browser_allow(&tab, cx), "Native could not approve a visible Web tab");
+                        if turn.check_catalog {
+                            let input = root.chat.read(cx).composer.clone();
+                            input.update(cx, |editor, cx| { editor.focus(window, cx); editor.insert("@browser", window, cx); });
+                            checking_catalog = true;
+                            return Ok(None);
+                        }
+                    }
+                    Some(Permission::Revoke) => {
+                        anyhow::ensure!(root.native_browser_granted(&tab, cx), "Expected a live grant before revoke");
+                        root.native_browser_toggle(&tab, window, cx);
+                    }
+                    None => {}
                 }
-                Some(Permission::Revoke) => {
-                    anyhow::ensure!(root.native_browser_granted(&tab, cx), "Expected a live grant before revoke");
-                    root.native_browser_toggle(&tab, window, cx);
-                }
-                None => {}
             }
             let mut commands = turn.commands.clone();
             for command in &mut commands {

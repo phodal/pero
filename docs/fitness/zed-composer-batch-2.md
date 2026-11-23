@@ -192,3 +192,21 @@ Electron Workbench and standalone App Chat share these owners.
 
 Verification is recorded with the conversation changes run in
 [session-artifacts](session-artifacts.md#workspace-comparisons--2026-11-06).
+
+## Capability picker and destinations (2026-11-23)
+
+- `npm run test:composer` exercises the actual Electron composer with an ACP
+  fixture. Coverage includes the shared add menu, scoped App panel selection,
+  typed App data targets, and retaining the draft when Computer Use is disabled.
+- `node tests/e2e/cua-repl.mjs` opens an authorized browser tab in Electron,
+  attaches it, revokes its grant and checks that the pending prompt stays in
+  the composer. The macOS Native development probe (`--native`) checks that
+  the granted tab appears in its picker, then uses it through the Python REPL.
+- `PERO_TEST_DATABASE_URL=… node tests/e2e/composer-remote.mjs` uses the
+  Electron workbench, a loopback control plane and isolated PostgreSQL data.
+  It checks the bound project's task form, retained chat prompt, and navigation
+  to Compute. The fixture observes zero task creation or dispatch requests.
+- Screenshots are under `test-results/composer` and
+  `test-results/composer-remote`. SSH/Slurm execution and third-party connector
+  credentials require separate runtime acceptance.
+- The separate `workbench-floating` script stopped at its initial sidebar coordinate assertion. The scoped floating picker was exercised by the Composer suite.

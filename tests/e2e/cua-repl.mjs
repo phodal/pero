@@ -121,7 +121,7 @@ try {
     const env = { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: profile, PERO_ENV_FILE: '/dev/null',
       PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '',
       PERO_LOCALE: 'en', PERO_NATIVE_BROWSER_PROBE_URL: url, PERO_NATIVE_BROWSER_PROBE_WORKSPACE: temp,
-      PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns) };
+      PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns.map(turn => turn.permission === 'allow' && !installed ? {...turn, checkCatalog:true} : turn)) };
     if (installed) {
       delete env.PERO_NATIVE_HOST;
       delete env.PERO_ADAPTER_NODE;
@@ -139,7 +139,9 @@ try {
     const timer = setTimeout(() => child.kill('SIGTERM'), 70_000);
     try { assert.deepEqual(await once(child, 'exit'), [0, null]); }
     finally { clearTimeout(timer); }
-    ({ replies, thread } = JSON.parse(await readFile(report, 'utf8')));
+    const nativeReport = JSON.parse(await readFile(report, 'utf8'));
+    assert.ok(nativeReport.passed, JSON.stringify(nativeReport));
+    ({ replies, thread } = nativeReport);
   } else {
     app = await electron.launch({
       args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root,
@@ -166,6 +168,20 @@ try {
     for (const turn of turns) {
       await page.evaluate(url => window.pero.webCommand({ action: 'web_open', url }), url);
       await expect.poll(async () => (await state()).webDocuments.find(item => item.id === url)?.observation.load.kind).toBe('ready');
+      if (turn.permission === 'revoke') {
+        const box = (await state()).composerBounds.input;
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await page.keyboard.insertText('@browser');
+        await expect.poll(async () => {
+          const picker = (await state()).completion;
+          return !picker.loading && picker.items.some(label => label.startsWith('Browser Use · '));
+        }).toBe(true);
+        const picker = (await state()).completion;
+        const target = picker.items.findIndex(label => label.startsWith('Browser Use · '));
+        for (let n = (target - picker.selected + picker.items.length) % picker.items.length; n; n--) await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+        await expect.poll(async () => (await state()).attachments).toEqual([picker.items[target]]);
+      }
       if (turn.permission) {
         await menu(turn.permission === 'allow' ? 'browser-use-allow' : 'browser-use-revoke');
         await expect.poll(async () => (await state()).webDocuments.find(item => item.id === url)?.observation.notice ?? null)
@@ -176,6 +192,14 @@ try {
       const input = (await state()).composerBounds.input;
       await page.mouse.click(input.x + input.width / 2, input.y + input.height / 2);
       await expect.poll(async () => (await state()).composerFocused).toBe(true);
+      if (turn.permission === 'revoke') {
+        await page.keyboard.press('Enter');
+        await expect.poll(async () => (await state()).completion.error).toContain('no longer available');
+        expect((await active()).messages.length).toBe(previous);
+        expect((await state()).attachments).toHaveLength(1);
+        await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+        await page.keyboard.press('Backspace');
+      }
       await page.keyboard.insertText(JSON.stringify(turn.commands));
       await page.keyboard.press('Enter');
       let result;
