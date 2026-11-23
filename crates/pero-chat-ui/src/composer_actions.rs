@@ -11,6 +11,15 @@ use pero_contracts::{
 use serde_json::json;
 
 impl ChatPanel {
+    pub fn select_chat_model(&mut self, thread: &str, model: &str, cx: &mut Context<Self>) {
+        let Some(chat) = self.chats.iter_mut().find(|c| c.id == thread) else { return };
+        if chat.model == model || chat.state != SessionState::Idle || chat.pending_model.is_some()
+            || chat.pending_setting.is_some() || !chat.models.iter().any(|(id, _)| id == model) { return; }
+        chat.pending_model = Some(model.to_owned());
+        chat.error = None;
+        self.command(json!({"action":"model","thread_id":thread,"model_id":model}), cx);
+    }
+
     pub(crate) fn select_session_setting(
         &mut self,
         thread: &str,
@@ -35,7 +44,7 @@ impl ChatPanel {
         );
     }
 
-    pub(crate) fn composer_picker_items(&self) -> Vec<PickerItem> {
+    pub fn composer_picker_items(&self) -> Vec<PickerItem> {
         self.composer_state
             .choices
             .iter()
@@ -63,14 +72,14 @@ impl ChatPanel {
             .collect()
     }
 
-    pub(crate) fn close_composer_picker(&mut self, cx: &mut Context<Self>) {
+    pub fn close_composer_picker(&mut self, cx: &mut Context<Self>) {
         self.composer_state.open = false;
         self.composer_state.add_anchor = None;
         self.composer_state.request = None;
         cx.notify();
     }
 
-    pub(crate) fn update_composer_completion(&mut self, cx: &mut Context<Self>) {
+    pub fn update_composer_completion(&mut self, cx: &mut Context<Self>) {
         let editor = self.composer.read(cx);
         self.attachments = ComposerDraft::contexts(&editor.content(), &self.composer_state.references);
         let rows = editor.value().split('\n').count();
@@ -227,7 +236,7 @@ impl ChatPanel {
             .update(cx, |input, cx| input.focus(window, cx));
     }
 
-    pub(crate) fn replace_composer_range(
+    pub fn replace_composer_range(
         &mut self,
         range: std::ops::Range<usize>,
         text: &str,
@@ -242,7 +251,7 @@ impl ChatPanel {
         });
     }
 
-    pub(crate) fn select_composer_candidate(
+    pub fn select_composer_candidate(
         &mut self,
         index: usize,
         window: &mut Window,
@@ -447,7 +456,7 @@ impl ChatPanel {
         cx.notify();
     }
 
-    pub(crate) fn apply_composer_context(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn apply_composer_context(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.composer_state.validated { self.send_chat(window, cx); }
         if let Some(draft) = self.composer_restore.take() {
             self.composer
@@ -473,7 +482,7 @@ impl ChatPanel {
         }
     }
 
-    pub(crate) fn insert_composer_reference(
+    pub fn insert_composer_reference(
         &mut self,
         reference: ContextReference,
         range: std::ops::Range<usize>,

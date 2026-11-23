@@ -87,14 +87,7 @@ impl ChatPanel {
                         menu.item(PopupMenuItem::new(label.clone()).checked(model == selected)
                             .on_click(move |_, _, cx| {
                                 let _ = workbench.update(cx, |this, cx| {
-                                    let Some(index) = this.chats.iter().position(|chat| chat.id == thread) else { return; };
-                                    let chat = &mut this.chats[index];
-                                    if chat.model == model || chat.busy() || chat.pending_model.is_some() { return; }
-                                    // The active model is authoritative ACP state. Keep its
-                                    // label until the Agent acknowledges this selection.
-                                    chat.pending_model = Some(model.clone());
-                                    chat.error = None;
-                                    this.command(json!({"action":"model","thread_id":thread,"model_id":model}), cx);
+                                    this.select_chat_model(&thread, &model, cx);
                                 });
                             }))
                     })
