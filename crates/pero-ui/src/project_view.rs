@@ -118,7 +118,7 @@ impl Workbench {
         self.navigation.open(canonical);
         self.selected_project = Some(project.key.clone());
         self.project_tab = project.research_id().map(|id| self.project_agents.right_tab(id)).unwrap_or_default();
-        self.cancel_research_editor();
+        self.clear_transient_research_editor();
         self.research.choosing = false;
         self.refresh_project_resources(cx);
         self.refresh_project_agents(cx);
@@ -298,7 +298,7 @@ impl Workbench {
                     .into_any_element()
             })
             .collect::<Vec<_>>();
-        let editor = self.research.editor.is_some()
+        let editor = self.active_research_editor().is_some()
             .then(|| self.research_editor(cx));
         let chrome = pero_theme::Chrome::from_app(cx);
         div()
@@ -394,7 +394,7 @@ impl Workbench {
             .label(project.name.clone())
             .dropdown_caret(true)
             .accessibility_label(format!("{} · {}", self.t("project.switch"), project.name))
-            .disabled(self.research.editor.is_some())
+            .disabled(self.active_research_editor().is_some())
             .relative()
             .child(self.view_bounds.projects.probe("project-switcher".into()))
             .dropdown_menu(move |mut menu, _, _| {

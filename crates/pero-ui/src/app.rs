@@ -890,7 +890,7 @@ pub fn snapshot() -> String {
             "locale": ui.locale, "labels": { "tasks": ui.t("nav.tasks"), "send": ui.t("probe.send") },
             "tab": ui.tab.legacy_index(), "events": ui.events, "workspace": ui.workspace,
         });
-        value["researchProjects"] = ui.research.snapshot(cx); value["projectAgent"] = ui.project_agents.snapshot(cx);
+        value["researchProjects"] = ui.research_projects_snapshot(cx); value["projectAgent"] = ui.project_agents.snapshot(cx);
         value["projectControls"] = ui.view_bounds.projects.snapshot();
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();

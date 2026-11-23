@@ -19,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
 pub(crate) struct ResearchProjectsView {
-    pub editor: Option<ProjectEditor>,
+    transient_editor: Option<ProjectEditor>,
+    saved_editors: BTreeMap<String, ProjectEditor>,
     pub choosing: bool,
     catalogs: BTreeMap<String, ProjectResourceCatalog>,
     loading: BTreeSet<String>,
@@ -28,27 +29,42 @@ pub(crate) struct ResearchProjectsView {
     error: Option<String>,
 }
 pub(crate) struct ProjectEditor {
-    original: Option<ResearchProject>,
     source_key: Option<String>,
     title: Entity<InputState>,
     goal: Entity<TextareaState>,
     workspace: Entity<InputState>,
     _subscriptions: Vec<Subscription>,
 }
-impl ResearchProjectsView {
+impl Workbench {
     #[cfg(target_family = "wasm")]
-    pub fn snapshot(&self, cx: &App) -> serde_json::Value {
-        json!({"choosing":self.choosing,"loading":self.loading,"catalogs":self.catalogs,"error":self.error,
-            "saving":self.pending.is_some() || self.resolving_workspace.is_some(),"editor":self.editor.as_ref().map(|editor|json!({
+    pub(crate) fn research_projects_snapshot(&self, cx: &App) -> serde_json::Value {
+        let research = &self.research;
+        json!({"choosing":research.choosing,"loading":research.loading,"catalogs":research.catalogs,"error":research.error,
+            "saving":research.pending.is_some() || research.resolving_workspace.is_some(),"editor":self.active_research_editor().map(|editor|json!({
                 "title":editor.title.read(cx).value().as_ref(),"goal":editor.goal.read(cx).value().as_ref(),
                 "workspace":editor.workspace.read(cx).value().as_ref()}))})
     }
-}
 
-impl Workbench {
-    pub(crate) fn cancel_research_editor(&mut self) {
-        self.research.editor = None;
-        self.research.resolving_workspace = None;
+    pub(crate) fn active_research_editor(&self) -> Option<&ProjectEditor> {
+        let transient = self.research.transient_editor.as_ref();
+        match self.navigation.current() {
+            Some(WorkspaceItem::Project(key)) => self.research.saved_editors.get(key).or_else(|| {
+                transient.filter(|editor| editor.source_key.as_ref() == Some(key))
+            }),
+            None if self.navigation.page() == crate::workspace::WorkbenchPage::Projects => {
+                transient.filter(|editor| editor.source_key.is_none())
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn clear_transient_research_editor(&mut self) {
+        if let Some(editor) = self.research.transient_editor.take() {
+            if self.research.resolving_workspace.as_ref().is_some_and(|(_, key)| *key == editor.source_key) {
+                self.research.resolving_workspace = None;
+            }
+        }
+        self.research.error = None;
     }
 
     pub(crate) fn saved_research_project(&self) -> Option<&ResearchProject> {
@@ -61,6 +77,14 @@ impl Workbench {
 
     pub(crate) fn edit_research_project(&mut self, new: bool, window: &mut Window, cx: &mut Context<Self>) {
         let original = (!new).then(|| self.saved_research_project().cloned()).flatten();
+        let source_key = if new { None } else { self.selected_project.clone() };
+        self.research.choosing = false;
+        self.research.error = None;
+        if let Some(editor) = source_key.as_ref().and_then(|key| self.research.saved_editors.get(key)) {
+            editor.title.update(cx, |input, cx| input.focus(window, cx));
+            cx.notify();
+            return;
+        }
         let directory = (!new).then(|| self.current_project(cx)).flatten();
         let title = original
             .as_ref()
@@ -82,17 +106,19 @@ impl Workbench {
             .collect();
         subscriptions.push(cx.subscribe(&goal, |_, _, _: &InputEvent, cx| cx.notify()));
         title.update(cx, |input, cx| input.focus(window, cx));
-        self.research.editor = Some(ProjectEditor {
-            original,
-            source_key: if new { None } else { self.selected_project.clone() },
+        let editor = ProjectEditor {
+            source_key: source_key.clone(),
             title,
             goal,
             workspace,
             _subscriptions: subscriptions,
-        });
-        self.research.choosing = false;
-        self.research.resolving_workspace = None;
-        self.research.error = None;
+        };
+        if let Some(key) = source_key.filter(|_| original.is_some()) {
+            self.research.saved_editors.insert(key, editor);
+        } else {
+            self.clear_transient_research_editor();
+            self.research.transient_editor = Some(editor);
+        }
         cx.notify();
     }
 
@@ -131,7 +157,7 @@ impl Workbench {
     }
 
     fn save_research_editor(&mut self, cx: &mut Context<Self>) {
-        let Some(editor) = self.research.editor.as_ref() else {
+        let Some(editor) = self.active_research_editor() else {
             return;
         };
         let title = editor.title.read(cx).value().to_string();
@@ -139,8 +165,12 @@ impl Workbench {
         let workspace = editor.workspace.read(cx).value().trim().to_string();
         let workspace = (!workspace.is_empty()).then_some(workspace);
         let source_key = editor.source_key.clone();
-        let candidate = if let Some(mut original) = editor.original.clone() {
-            original.edit(title, goal, workspace).map(|_| original)
+        let candidate = if let Some(id) = source_key.as_deref().and_then(|key| key.strip_prefix("research:")) {
+            let Some(mut project) = self.preferences.research_projects.iter().find(|item| item.id == id).cloned() else {
+                self.research_error(ResearchProjectError::InvalidId, cx);
+                return;
+            };
+            project.edit(title, goal, workspace).map(|_| project)
         } else {
             ResearchProject::new(self.new_research_id(), title, goal, workspace)
         };
@@ -179,14 +209,23 @@ impl Workbench {
     }
 
     pub(crate) fn research_saved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((project, previous, close_editor)) = self.research.pending.take() else {
+        let Some((project, _, _)) = self.research.pending.as_ref() else {
             return;
         };
-        if !self.preferences.research_projects.contains(&project) {
+        if !self.preferences.research_projects.contains(project) {
             return;
         }
+        let (project, previous, close_editor) = self.research.pending.take().unwrap();
         let key = format!("research:{}", project.id);
         let new_project = previous.as_deref() != Some(key.as_str());
+        if !new_project {
+            if close_editor {
+                self.research.saved_editors.remove(&key);
+            }
+            if !matches!(self.navigation.current(), Some(WorkspaceItem::Project(current)) if current == &key) {
+                return;
+            }
+        }
         if let Some(previous) = previous {
             self.navigation
                 .replace_identity(&WorkspaceItem::Project(previous), WorkspaceItem::Project(key.clone()));
@@ -196,8 +235,8 @@ impl Workbench {
             self.project_tab = self.project_agents.right_tab(&project.id);
         }
         self.selected_project = Some(key);
-        if close_editor {
-            self.research.editor = None;
+        if close_editor && new_project {
+            self.research.transient_editor = None;
         }
         self.research.error = None;
         if let Some(path) = project.workspace {
@@ -271,7 +310,7 @@ impl Workbench {
     }
 
     pub(crate) fn research_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(editor) = self.research.editor.as_ref() else {
+        let Some(editor) = self.active_research_editor() else {
             return div().into_any_element();
         };
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
@@ -360,10 +399,19 @@ impl Workbench {
                             .label(self.t("worker.local.cancel"))
                             .disabled(saving)
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.research.editor = None;
+                                let source = this.active_research_editor().and_then(|editor| editor.source_key.clone());
+                                if let Some(key) = source.as_ref().filter(|key| this.research.saved_editors.contains_key(key.as_str())) {
+                                    this.research.saved_editors.remove(key);
+                                } else {
+                                    this.research.transient_editor = None;
+                                }
                                 this.research.error = None;
-                                this.research.pending = None;
-                                this.research.resolving_workspace = None;
+                                if this.research.pending.as_ref().is_some_and(|(_, key, _)| key == &source) {
+                                    this.research.pending = None;
+                                }
+                                if this.research.resolving_workspace.as_ref().is_some_and(|(_, key)| key == &source) {
+                                    this.research.resolving_workspace = None;
+                                }
                                 cx.notify();
                             })),
                     ),
@@ -384,7 +432,7 @@ impl Workbench {
             .flex()
             .flex_col()
             .overflow_y_scroll();
-        if self.research.editor.as_ref().is_some() {
+        if self.active_research_editor().is_some() {
             return overview.p(px(pero_theme::WorkbenchStyle::PAGE))
                 .child(self.research_editor(cx)).into_any_element();
         }
@@ -497,7 +545,7 @@ impl Workbench {
                     )),
             )
             .when_some(
-                self.error.as_ref().filter(|_| self.research.editor.as_ref().is_none()),
+                self.error.as_ref().filter(|_| self.active_research_editor().is_none()),
                 |el, error| {
                     el.child(
                         div()
