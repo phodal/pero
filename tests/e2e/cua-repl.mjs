@@ -12,6 +12,7 @@ import { clickNewChat } from './sidebar-controls.mjs';
 import { computerFixture, waitFor } from '../fixtures/computer-app.mjs';
 
 const native = process.argv.includes('--native');
+const installed = native ? process.env.PERO_NATIVE_REPL_INSTALLED_APP : undefined;
 const language = native ? 'python' : 'javascript';
 const desktopInput = process.platform === 'darwin' && process.env.PERO_COMPUTER_NATIVE === '1';
 const fixtureName = `PeroReplFixture${process.pid}`;
@@ -59,6 +60,7 @@ try:
 except PermissionError:
     pass
 print(json.dumps({"receipt": receipt["receiptId"], "effect": any(n.get("text") == "Trusted input" for n in verified["nodes"])}))
+cua.emit_image(await cua.browser({"action":"screenshot"}))
 ` : `
 let count = 1;
 const locator = {by:"role", role:"button", name:"Apply"};
@@ -72,6 +74,7 @@ const second = cell(native ? `
 count += 1
 desktop = await cua.computer({"operation":"status"})
 print(count, desktop["kind"], locator["name"])
+${installed ? 'import sys; print(sys.executable)' : ''}
 ` : `
 const desktop = await cua.computer({operation:"status"});
 nodeRepl.write(++count, desktop.kind, locator.name, typeof process);
@@ -115,25 +118,28 @@ try {
   if (native) {
     assert.equal(process.platform, 'darwin');
     const report = resolve(temp, 'native.json');
-    child = spawn(process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native'),
-      ['--verify-apps', report, 'browser'], {
-        cwd: root,
-        env: { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: profile,
-          PERO_AGENTS_FILE: agents, PERO_ADAPTER_NODE: process.execPath, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '',
-          PERO_LOCALE: 'en', PERO_NATIVE_BROWSER_PROBE_URL: url, PERO_NATIVE_BROWSER_PROBE_WORKSPACE: temp,
-          PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns),
-          PERO_NATIVE_BROWSER_PROBE_COMMANDS: JSON.stringify([...turns[1].commands, ...turns[2].commands]) },
-        stdio: ['ignore', 'ignore', 'inherit'],
-      });
+    const env = { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: profile, PERO_ENV_FILE: '/dev/null',
+      PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '',
+      PERO_LOCALE: 'en', PERO_NATIVE_BROWSER_PROBE_URL: url, PERO_NATIVE_BROWSER_PROBE_WORKSPACE: temp,
+      PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns) };
+    if (installed) {
+      delete env.PERO_NATIVE_HOST;
+      delete env.PERO_ADAPTER_NODE;
+      env.HOME = temp;
+      env.PATH = '/usr/bin:/bin';
+      env.DEVELOPER_DIR = resolve(temp, 'no-developer-tools');
+    } else {
+      env.PERO_ADAPTER_NODE = process.execPath;
+    }
+    const binary = installed ? resolve(installed, 'Contents/MacOS/pero-native')
+      : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+    child = spawn(binary, ['--verify-apps', report, 'browser'], {
+      cwd: installed ? temp : root, env, stdio: ['ignore', 'ignore', 'inherit'],
+    });
     const timer = setTimeout(() => child.kill('SIGTERM'), 70_000);
     try { assert.deepEqual(await once(child, 'exit'), [0, null]); }
     finally { clearTimeout(timer); }
     ({ replies, thread } = JSON.parse(await readFile(report, 'utf8')));
-    if (replies.length === 3) {
-      const [before, [scripted, ...continued], revoked] = replies;
-      for (const [result] of [before, revoked]) assert.deepEqual(result, { authorized: false, isError: false });
-      replies = [[], [scripted], continued, []];
-    }
   } else {
     app = await electron.launch({
       args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root,
@@ -183,7 +189,7 @@ try {
     thread = (await active()).id;
   }
   const [[before], [scripted], [persisted, timedOut, afterTimeout, assigned, reset, afterReset, clickedDesktop], [revoked]] = replies;
-  for (const refusal of [before, revoked].filter(Boolean)) {
+  for (const refusal of [before, revoked]) {
     assert.equal(refusal.isError, true);
     assert.match(refusal.text, /allow.*tab|grant/i);
   }
@@ -191,12 +197,17 @@ try {
   const { receipt, effect } = JSON.parse(scripted.text);
   assert.equal(effect, true);
   assert.match(receipt, /^[0-9a-f-]{36}$/);
-  if (!native) assert.match(scripted.images[0], /^[0-9a-f]{64}$/);
+  assert.match(scripted.images[0], /^[0-9a-f]{64}$/);
   const directory = createHash('sha256').update(thread).digest('hex');
   const saved = JSON.parse(await readFile(resolve(profile, 'browser-use-evidence', directory, receipt + '.result.json'), 'utf8'));
   assert.equal(saved.outcome, 'dispatched');
   assert.equal(persisted.isError, false, persisted.text);
-  assert.equal(persisted.text.trim(), native ? '2 status Apply' : '2 status Apply undefined');
+  if (installed) {
+    const expected = await realpath(resolve(installed, 'Contents/Resources/app/runtime/python/bin/python3'));
+    assert.equal(persisted.text.trim(), '2 status Apply\n' + expected);
+  } else {
+    assert.equal(persisted.text.trim(), native ? '2 status Apply' : '2 status Apply undefined');
+  }
   assert.equal(timedOut.isError, true);
   assert.match(timedOut.text, /timed out/);
   assert.equal(assigned.isError, false, assigned.text);

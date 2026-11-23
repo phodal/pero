@@ -31,6 +31,9 @@ pub(crate) async fn verify(
     cx: &mut AsyncApp,
 ) -> anyhow::Result<Value> {
     let url = std::env::var("PERO_NATIVE_BROWSER_PROBE_URL")?;
+    if let Ok(prompt) = std::env::var("PERO_NATIVE_REPL_PROBE_PROMPT") {
+        return verify_repl_agent(root, window, cx, &url, prompt).await;
+    }
     let turns: Vec<Turn> =
         serde_json::from_str(&std::env::var("PERO_NATIVE_BROWSER_PROBE_TURNS")?)?;
     let workspace = std::env::var("PERO_NATIVE_BROWSER_PROBE_WORKSPACE")?;
@@ -121,4 +124,65 @@ pub(crate) async fn verify(
             .await;
     }
     anyhow::bail!("Native Browser Use timed out after {sent} turns: {surface}; {last}");
+}
+
+async fn verify_repl_agent(
+    root: &Entity<Workbench>,
+    window: AnyWindowHandle,
+    cx: &mut AsyncApp,
+    url: &str,
+    prompt: String,
+) -> anyhow::Result<Value> {
+    let agent = std::env::var("PERO_NATIVE_REPL_PROBE_AGENT")?;
+    let workspace = std::env::var("PERO_NATIVE_BROWSER_PROBE_WORKSPACE")?;
+    let started = Instant::now();
+    let mut chat_created = false;
+    let mut sent = false;
+    let mut last = Value::Null;
+    while started.elapsed() < Duration::from_secs(180) {
+        let complete = window.update(cx, |_, window, cx| root.update(cx, |root, cx| {
+            let chat = root.chat.read(cx);
+            if !chat_created && chat.connected && chat.agents.iter().any(|entry| entry.id == agent && entry.available) {
+                root.chat.update(cx, |chat, _| chat.workspace = workspace.clone());
+                root.new_chat(cx);
+                chat_created = true;
+            }
+            let snapshot = root.chat.read(cx).snapshot(cx);
+            let Some(chat) = snapshot["activeChat"].as_u64().and_then(|index| snapshot["chats"].get(index as usize)) else {
+                return Ok(None);
+            };
+            last = json!({"agent":chat["agent"], "state":chat["state"], "error":chat["error"],
+                "tools":chat["tools"].as_array().into_iter().flatten().map(|tool| (&tool["title"], &tool["status"])).collect::<Vec<_>>()});
+            anyhow::ensure!(chat["agent"] == agent, "Native REPL selected a different Agent: {last}");
+            anyhow::ensure!(chat["state"] != "closed", "Native Chat closed: {last}");
+            if chat["state"] != "idle" { return Ok(None); }
+            if sent {
+                let reply = chat["messages"].as_array().into_iter().flatten()
+                    .filter(|message| message["role"] == "assistant")
+                    .filter_map(|message| message["text"].as_str()).collect::<Vec<_>>().join("\n");
+                if !reply.is_empty() || !chat["error"].is_null() {
+                    return Ok(Some(json!({"agent":chat["agent"], "model":chat["model"], "thread":chat["id"],
+                        "mcp":chat["mcp"], "tools":chat["tools"], "reply":reply, "error":chat["error"]})));
+                }
+                return Ok(None);
+            }
+            if !matches!(root.navigation.current(), Some(WorkspaceItem::Web(id)) if id == url) {
+                root.web_command(json!({"action":"web_open","url":url}), window, cx);
+                return Ok(None);
+            }
+            if !root.native_web_pages.get(url).is_some_and(|page| page.view.read(cx).browser_view(cx).is_ok()) {
+                return Ok(None);
+            }
+            anyhow::ensure!(root.native_browser_allow(url, cx), "Native could not approve the visible fixture tab");
+            anyhow::ensure!(root.chat.update(cx, |chat, cx| chat.submit_prompt(prompt.clone(), Vec::new(), cx)),
+                "Native Chat could not submit the REPL acceptance prompt");
+            sent = true;
+            Ok::<_, anyhow::Error>(None)
+        }))??;
+        if let Some(result) = complete {
+            return Ok(result);
+        }
+        cx.background_executor().timer(Duration::from_millis(100)).await;
+    }
+    anyhow::bail!("Native real Agent REPL timed out (prompt submitted: {sent}): {last}");
 }

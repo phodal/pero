@@ -180,3 +180,35 @@ The actual package ran on macOS 27.2.1. Each walkthrough launched the packaged e
 After recovering Paper, the authenticated Codex integration rejected the first selected model for the test account. A supported model completed the public-PDF question and saved a report with three sections and 13 evidence entries. After restarting, **Research results** opened the report and the first evidence control returned to PDF page 4. The native download flow produced JSON and Markdown. The report still showed **Conclusions not verified**. This was one bounded question on the public sample. Autonomous research and scientific acceptance were outside the walk-through.
 
 Visual evidence and expected results are included in the [Paper](https://openpero.com/docs/paper/), [Data](https://openpero.com/docs/data/), and [Notebook](https://openpero.com/docs/notebook/) tutorial sources. Windows, Linux, Native, upgrade, and Gatekeeper acceptance were outside this run.
+
+## Native CPython REPL, 2026-11-23
+
+The macOS arm64 Native packager uses the existing CPython 3.12.16 pin. It copies
+the standalone distribution into `Contents/Resources/app/runtime/python`, signs
+the interpreter and dynamic modules, then seals the App. Installed Native
+supplies that executable to the connector. The development build continues to
+discover Apple Python through `xcrun`. Both run cells through the same macOS
+sandbox and Pero Host tool contracts.
+
+The local ad-hoc signed DMG measured 168,091,922 bytes. Both mounted Apps
+passed strict signature verification, and the production App passed the
+relocated installation smoke with a clean home, a system-only PATH, and an
+invalid developer-tools directory. A separately signed copy with the
+`native-probe` binary ran the deterministic ACP fixture and returned the exact
+bundled `python3.12` path from inside a cell. WebKit authorization, trusted
+input, image return, state retention, reset, timeout, and sandbox file/network
+refusals passed. The physical test machine still has Xcode installed.
+
+Codex `gpt-5.6-sol` ran the two cells through the packaged ACP adapter. With
+the DMG's new companion, WebKit produced one trusted click and the model read
+`164EBD` from the returned image. macOS reported Accessibility and Screen
+Recording as `not_detected` for that companion and refused window discovery.
+
+A comparison run kept the signed Native probe and bundled CPython, using
+the already authorized companion in `~/Applications`. Codex read a new
+canvas-only code, the AppKit fixture recorded exactly one background press
+and Count=1, and the Host and ACP image bytes matched for one 2360 × 1838
+WebKit PNG and two 1200 × 944 AppKit JPEGs. Evidence is in
+`target/native-repl-final/native-repl-codex/`. The DMG companion's fresh
+permission grant, Developer ID signing, and notarization remain separate
+acceptance conditions.

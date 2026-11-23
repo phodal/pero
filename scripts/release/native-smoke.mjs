@@ -14,14 +14,21 @@ cpSync(source, app, { recursive: true, verbatimSymlinks: true });
 const payload = join(app, 'Contents/Resources/app');
 const executable = join(app, 'Contents/MacOS/pero-native');
 const node = join(payload, 'bin/node');
+const python = realpathSync(join(payload, 'runtime/python/bin/python3'));
 const computer = join(scratch, 'Pero Computer Use.app');
 cpSync(join(root, 'target/native-package/Pero Computer Use.app'), computer, { recursive: true, verbatimSymlinks: true });
 execFileSync('/usr/bin/codesign', ['--verify', '--strict', computer]);
 const helperId = execFileSync('/usr/bin/plutil', ['-extract', 'CFBundleIdentifier', 'raw', join(computer, 'Contents/Info.plist')], { encoding: 'utf8' }).trim();
 assert.equal(helperId, 'com.openpero.computer-use');
-const env = { ...process.env, HOME: scratch, PATH: '/usr/bin:/bin', PERO_NATIVE_DATA_DIR: join(scratch, 'data'), PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_ENV_FILE: '/dev/null' };
+const env = { ...process.env, HOME: scratch, PATH: '/usr/bin:/bin', DEVELOPER_DIR: join(scratch, 'no-developer-tools'),
+  PERO_NATIVE_DATA_DIR: join(scratch, 'data'), PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_ENV_FILE: '/dev/null' };
 for (const key of ['PERO_NATIVE_HOST', 'PERO_ADAPTER_NODE', 'PERO_AGENT_ROOT', 'PERO_BUILTIN_APPS_ROOT', 'PERO_BUILTIN_APPS', 'PERO_REQUIRED_APPS', 'DEEPSEEK_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN']) delete env[key];
 for (const name of ['codex-acp', 'claude-agent-acp']) assert.ok(execFileSync(node, [join(payload, 'adapters', `${name}.mjs`), '--version'], { cwd: scratch, env, timeout: 30000 }).toString().trim());
+execFileSync('/usr/bin/codesign', ['--verify', '--strict', python]);
+const pythonInfo = JSON.parse(execFileSync(python, ['-I', '-S', '-c',
+  'import asyncio, json, platform, sys; print(json.dumps({"executable": sys.executable, "version": platform.python_version()}))',
+], { cwd: scratch, env, timeout: 10_000, encoding: 'utf8' }));
+assert.equal(pythonInfo.executable, python);
 const receipt = join(scratch, 'receipt.json');
 const child = spawn(executable, ['--verify-installation', receipt], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
@@ -41,6 +48,6 @@ try {
   assert.equal(result.root, realpathSync(payload));
   const product = JSON.parse(readFileSync(join(payload, 'products/pero.json'), 'utf8'));
   assert.deepEqual(result.apps, product.apps);
-  writeFileSync(join(output, 'smoke.json'), JSON.stringify(result, null, 2) + '\n');
-  console.log('Portable Native passed: actual GPUI window, bundled Host/Node/adapters/Apps, clean home, no source checkout or system Node.');
+  writeFileSync(join(output, 'smoke.json'), JSON.stringify({ ...result, python: pythonInfo }, null, 2) + '\n');
+  console.log('Portable Native passed: GPUI window and bundled Host, Node, adapters, Apps and CPython from a clean profile.');
 } finally { clearTimeout(timeout); child.kill(); rmSync(scratch, { recursive: true, force: true }); }
