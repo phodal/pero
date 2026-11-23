@@ -23,6 +23,7 @@ func main() {
 	flag.StringVar(&c.Model, "model", c.Model, "fixed provider model")
 	flag.StringVar(&c.SessionDir, "session-dir", c.SessionDir, "private Agent session directory")
 	flag.BoolVar(&c.BrowserUse, "browser-use", os.Getenv("PERO_AGENT_BROWSER_USE") == "1", "enable scoped Cloud Browser Use")
+	flag.BoolVar(&c.BrowserScreenshots, "browser-screenshots", os.Getenv("PERO_AGENT_BROWSER_SCREENSHOTS") == "1", "enable bounded browser screenshots for a reviewed vision model")
 	flag.Parse()
 	c.Args = flag.Args()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

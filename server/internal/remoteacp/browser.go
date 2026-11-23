@@ -6,13 +6,15 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/phodal/pero/server/internal/runtimechannel"
 )
 
 // The Pod shim fixes the destination and uses the projected identity for each
 // call. The ACP process only receives the existing loopback endpoint.
 func proxyBrowser(c AgentConfig, client *http.Client, w http.ResponseWriter, r *http.Request) {
 	const requestLimit = 16 << 10
-	const replyLimit = 256 << 10
+	replyLimit := runtimechannel.BrowserReplyLimit(c.BrowserScreenshots)
 	if r.URL.RawQuery != "" || r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "invalid Browser Use request", http.StatusBadRequest)
 		return
@@ -46,7 +48,7 @@ func proxyBrowser(c AgentConfig, client *http.Client, w http.ResponseWriter, r *
 		return
 	}
 	defer response.Body.Close()
-	result, err := io.ReadAll(io.LimitReader(response.Body, replyLimit+1))
+	result, err := io.ReadAll(io.LimitReader(response.Body, int64(replyLimit)+1))
 	if err != nil || len(result) > replyLimit {
 		http.Error(w, "Browser Use result unavailable. Verify the page before retrying.", http.StatusBadGateway)
 		return
