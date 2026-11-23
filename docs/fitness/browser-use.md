@@ -273,6 +273,12 @@ This ran in a development build with a loopback Pod identity fixture.
 Hosted Kubernetes, an external vision model and a signed Workbench build still
 require verification.
 
+On 2026-11-23, a read-only preflight of `app.openpero.com` returned 200 for
+health and both existing client and operator APIs. The shared Project source
+route and Browser Use readiness route returned plain-text 404. No task was
+dispatched. The deployed API needs the new routes and an enabled isolated
+vision recipe before this acceptance can run there.
+
 ### Embedded browser
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
