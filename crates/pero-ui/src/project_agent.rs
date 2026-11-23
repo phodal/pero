@@ -581,7 +581,7 @@ impl Workbench {
             .when_some(self.research.unavailable_workspaces.get(&id).filter(|path| Some(path.as_str()) == project.workspace.as_deref()), |el, path| {
                 el.child(div().id("project-directory-alert").role(Role::Alert).flex().items_center().bg(p.error_bg).text_color(p.error).px(px(12.))
                     .child(div().flex_1().child(format!("{} · {path}", self.t("project.workspace_unavailable"))))
-                    .child(Button::new("replace-project-directory").ghost().label(self.t("project.change_directory"))
+                    .child(Button::new("replace-project-directory").relative().child(self.view_bounds.projects.probe("repair-directory".into())).ghost().label(self.t("project.change_directory"))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.project_agents.context_open = true;
                             this.project_agents.wide_context_hidden = false;

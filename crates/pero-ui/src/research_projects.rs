@@ -193,9 +193,10 @@ impl Workbench {
             Ok(project) => {
                 if let Some(path) = project.workspace.as_ref().filter(|path| **path != self.workspace) {
                     let path = path.clone();
+                    let id = project.id.clone();
                     self.research.resolving_workspace = Some((project, source_key));
                     self.error = None;
-                    self.command(json!({"action":"workspace","path":path}), cx);
+                    self.command(json!({"action":"workspace","path":path,"project_id":id}), cx);
                 } else {
                     self.persist_research(project, true, cx);
                     if let Some(pending) = &mut self.research.pending {
@@ -207,19 +208,34 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn research_workspace_ready(&mut self, path: &str, cx: &mut Context<Self>) {
-        let Some((mut project, source_key)) = self.research.resolving_workspace.take() else {
-            return;
+    pub(crate) fn receive_project_workspace(&mut self, event: &HostEvent, cx: &mut Context<Self>) -> bool {
+        let available = match event.kind.as_str() {
+            "project_workspace_available" => true,
+            "project_workspace_unavailable" => false,
+            _ => return false,
         };
-        match project.edit(project.title.clone(), project.goal.clone(), Some(path.to_owned())) {
-            Ok(()) => {
-                self.persist_research(project, true, cx);
+        let Some(id) = event.data["project_id"].as_str() else { return false };
+        let resolving = self.research.resolving_workspace.as_ref().is_some_and(|(candidate, _)| {
+            candidate.id == id && candidate.workspace.as_deref() == Some(event.text.as_str())
+        });
+        if resolving {
+            let (mut candidate, source) = self.research.resolving_workspace.take().unwrap();
+            if available {
+                candidate.workspace = Some(self.workspace.clone());
+                self.persist_research(candidate, true, cx);
                 if let Some(pending) = &mut self.research.pending {
-                    pending.1 = source_key;
+                    pending.1 = source;
                 }
+            } else {
+                self.research.error = Some(format!("{} · {}", self.t("project.workspace_unavailable"), event.text));
             }
-            Err(error) => self.research_error(error, cx),
+        } else if available {
+            self.research.unavailable_workspaces.remove(id);
+        } else {
+            self.research.unavailable_workspaces.insert(id.to_owned(), event.text.clone());
         }
+        cx.notify();
+        true
     }
 
     pub(crate) fn research_saved(&mut self, window: &mut Window, cx: &mut Context<Self>) {

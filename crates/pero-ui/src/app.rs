@@ -578,15 +578,7 @@ impl Workbench {
     ) {
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
-        if matches!(event.kind.as_str(), "project_workspace_unavailable" | "project_workspace_available") {
-            if let Some(id) = event.data["project_id"].as_str() {
-                if event.kind == "project_workspace_available" {
-                    self.research.unavailable_workspaces.remove(id);
-                } else {
-                    self.research.unavailable_workspaces.insert(id.to_owned(), event.text);
-                }
-            }
-            cx.notify();
+        if self.receive_project_workspace(&event, cx) {
             return;
         }
         if event.kind=="scientific_paper_open" {
@@ -632,7 +624,6 @@ impl Workbench {
                 if self.settings_panel.is_some() {
                     self.command(serde_json::json!({"method":"settings.engram.get"}), cx);
                 }
-                self.research_workspace_ready(&event.text,cx);
                 if let Ok(identity) = serde_json::from_value::<
                     pero_contracts::workbench::WorkspaceIdentity,
                 >(event.data.clone())
