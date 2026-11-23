@@ -77,7 +77,7 @@ export async function projectAgentProvider() {
           const child = snapshot.sessions.find(session => session.thread_id === snapshot.selected_thread)
             || snapshot.sessions.filter(session => session.binding.parent_thread).at(-1);
           assert(child, receipt);
-          delta = { content: `Delegated **${child.binding.label}** to a separate Agent. Open its original conversation in the sidebar to inspect the execution evidence.` };
+          delta = { content: `Delegated **${child.binding.label}** to a separate Agent. Open its original conversation from Agents to inspect the execution evidence.` };
         }
       } else if (invoked('PROJECT_SUMMARY') || invoked('Summarize project progress ')) {
         assert(projectTool, 'Summary must use the original project tool');

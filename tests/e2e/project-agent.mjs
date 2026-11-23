@@ -144,8 +144,7 @@ async function open(id) {
     if (index < 0) await control(`sidebar:open:${projectKey}`);
     else {
       await control('agent:delegates');
-      for (let i = 0; i <= index; i++) await page.keyboard.press('ArrowDown');
-      await page.keyboard.press('Enter');
+      await control(`delegate:open:${id}`);
     }
   }
   await expect.poll(async () => { const s = await state(); return s.chats[s.activeChat]?.id; }).toBe(id);
@@ -425,6 +424,8 @@ try {
   const child = (await sessions()).find(session => session.binding.parent_thread);
   const delegatedState = await state();
   expect(delegatedState.chats[delegatedState.activeChat].id).toBe(main);
+  const followupDraft = "Compare the evidence with the project goal. ";
+  await draft(followupDraft);
   await approve(child.thread_id);
   await completed(child.thread_id);
   expect(child.workspace).not.toBe(workspace);
@@ -439,6 +440,22 @@ try {
   const toolKey = `${child.thread_id}/${tool.tool}`;
   expect(childState.expandedTools).not.toContain(toolKey);
   await capture('02-child-evidence');
+  await project();
+  await control('agent:delegates');
+  await capture('02-delegate-roster');
+  await control(`delegate:open:${child.thread_id}`);
+  await control('agent:delegates');
+  const mainTurns = (await state()).chats.find(chat => chat.id === main).messages.length;
+  await control(`delegate:cite:${child.thread_id}`);
+  await expect.poll(async () => (await state()).attachments).toContain(child.binding.label);
+  const cited = await state();
+  expect(cited.chats[cited.activeChat].id).toBe(main);
+  expect(cited.composer).toContain(followupDraft.trim());
+  checks.push('delegate-result-enters-original-primary-draft-without-sending');
+  expect(cited.chats[cited.activeChat].messages).toHaveLength(mainTurns);
+  await capture('02-delegate-result-in-main-draft');
+  await open(child.thread_id);
+
   await click(async () => (await state()).toolBounds.find(item => item.chat === child.thread_id && item.tool === tool.tool)?.bounds);
   await expect.poll(async () => (await state()).expandedTools.includes(toolKey)).toBe(true);
   await capture('02-expanded-execution-evidence');

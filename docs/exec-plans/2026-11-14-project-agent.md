@@ -325,7 +325,7 @@ The installed Molten renderer in Cursor.app supplies the following evidence.
 Pero uses its saved research ID and the Host's primary session binding. The
 sidebar consumes the full project catalog. Opening an older catalog entry saves
 its identity and replaces the old workspace tab key. Its project row returns to
-the primary transcript. Delegates appear in a menu inside the conversation.
+the primary transcript. The Agents button expands a roster inside the conversation. Each delegate opens its original session. When a result exists, Add result to main chat appends a frozen reference to the primary draft for review before sending.
 The former full-page project list and per-page project switcher have been
 removed. The group actions menu owns creation, folder opening and all tasks.
 The right inspector continues to use Pero's existing project views.
