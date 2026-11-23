@@ -31,15 +31,11 @@ impl ChatPanel {
         thread: &str,
         state: &ArtifactCollection,
         compact: bool,
-        // The workbench column header owns this toolbar, so it does not draw a second edge under itself.
-        band: bool,
+        titleband_width: Option<f32>,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        let narrow_band = band
-            && self
-                .resource_column
-                .is_some_and(|column| column.width < Self::RESOURCE_TOOLBAR_MIN);
+        let narrow_band = titleband_width.is_some_and(|width| width < Self::RESOURCE_TOOLBAR_MIN);
         let files = self.files.selection.tab == ResourceTab::Files && !state.show_changes;
         let artifacts = self.files.selection.tab == ResourceTab::Artifacts && !state.show_changes;
         let picker_thread = thread.to_owned();
@@ -489,7 +485,7 @@ impl ChatPanel {
                 el.flex_col().items_stretch().justify_center().py(px(3.))
             })
             .when(!compact, |el| el.items_center())
-            .when(!band, |el| el.border_b(px(0.5)).border_color(p.border))
+            .when(titleband_width.is_none(), |el| el.border_b(px(0.5)).border_color(p.border))
             .child(destinations)
             .children(leading_identity)
             .child(actions)

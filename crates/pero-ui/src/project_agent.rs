@@ -390,8 +390,7 @@ impl Workbench {
                         this.layout.narrow && !this.project_agents.context_open;
                     cx.notify();
                 })),
-            )
-            .children(self.main_actions(&[crate::titleband::Action::Search], cx));
+            );
         div()
             .w_full()
             .h_full()

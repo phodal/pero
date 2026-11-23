@@ -38,7 +38,7 @@ pub(crate) const TRAFFIC_LIGHT_INSET: f32 = 78.;
 /// Leading padding when the window has no traffic lights.
 pub(crate) const WINDOW_LEADING_INSET: f32 = 8.;
 
-/// Where the sidebar toggle is painted.
+/// Where Search and the sidebar toggle are painted.
 ///
 /// The sidebar header keeps it when that column clears the leading window
 /// controls. A collapsed rail is narrower than the traffic lights, so the
@@ -50,9 +50,9 @@ pub(crate) enum SidebarToggleSlot {
     Main { inset: f32 },
 }
 
-pub(crate) fn sidebar_toggle_slot(sidebar_width: f32, leading_inset: f32) -> SidebarToggleSlot {
-    let button = pero_theme::GHOST_ICON_BUTTON + pero_theme::SPACE_8;
-    if sidebar_width >= leading_inset + button {
+pub(crate) fn sidebar_toggle_slot(sidebar_width: f32, leading_inset: f32, button_width: f32) -> SidebarToggleSlot {
+    let controls = button_width * 2. + pero_theme::SPACE_4 + pero_theme::SPACE_8;
+    if sidebar_width >= leading_inset + controls {
         SidebarToggleSlot::Sidebar
     } else {
         SidebarToggleSlot::Main {
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn sidebar_toggle_moves_off_a_rail_that_covers_the_traffic_lights() {
-        let button = pero_theme::GHOST_ICON_BUTTON + pero_theme::SPACE_8;
+        let controls = pero_theme::GHOST_ICON_BUTTON * 2. + pero_theme::SPACE_4 + pero_theme::SPACE_8;
         let cases = [
             (
                 "open sidebar",
@@ -565,26 +565,26 @@ mod tests {
                 },
             ),
             (
-                "rail without traffic lights",
+                "collapsed rail without traffic lights",
                 SIDEBAR_RAIL,
                 WINDOW_LEADING_INSET,
-                SidebarToggleSlot::Sidebar,
+                SidebarToggleSlot::Main { inset: 0. },
             ),
             (
                 "fits exactly",
-                TRAFFIC_LIGHT_INSET + button,
+                TRAFFIC_LIGHT_INSET + controls,
                 TRAFFIC_LIGHT_INSET,
                 SidebarToggleSlot::Sidebar,
             ),
             (
                 "one pixel short of the sidebar header",
-                TRAFFIC_LIGHT_INSET + button - 1.,
+                TRAFFIC_LIGHT_INSET + controls - 1.,
                 TRAFFIC_LIGHT_INSET,
                 SidebarToggleSlot::Main { inset: 0. },
             ),
         ];
         for (name, width, inset, expected) in cases {
-            assert_eq!(sidebar_toggle_slot(width, inset), expected, "{name}");
+            assert_eq!(sidebar_toggle_slot(width, inset, pero_theme::GHOST_ICON_BUTTON), expected, "{name}");
         }
     }
 

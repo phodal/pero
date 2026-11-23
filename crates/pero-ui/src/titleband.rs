@@ -21,6 +21,7 @@ pub(crate) struct MainColumn {
     pub open_chat: bool,
     pub close_chat: bool,
     pub chrome_relay: bool,
+    pub conversation_resources: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,6 +85,7 @@ pub(crate) enum Primary {
 pub(crate) enum Action {
     SidebarToggle,
     Search,
+    Artifacts,
     OpenChat,
     CloseChat,
     ChromeRelay,
@@ -117,14 +119,14 @@ impl Titleband {
     }
 }
 
-/// Columns in, header segments out. Search stays on the main segment.
+/// Columns in, header segments out.
 pub(crate) fn project(columns: &WorkbenchColumns) -> Titleband {
     let mut segments = vec![
         Segment {
             column: ColumnKind::Sidebar,
             width: SegmentWidth::Fixed(columns.sidebar_width),
             primary: Primary::Inset,
-            actions: vec![Action::SidebarToggle],
+            actions: vec![Action::Search, Action::SidebarToggle],
         },
         main_segment(&columns.main),
     ];
@@ -135,6 +137,11 @@ pub(crate) fn project(columns: &WorkbenchColumns) -> Titleband {
             primary: Primary::Resource(resources.primary),
             actions: vec![Action::ResourceToolbar],
         });
+    }
+    if columns.main.conversation_resources {
+        if let Some(rightmost) = segments.last_mut() {
+            rightmost.actions.push(Action::Artifacts);
+        }
     }
     Titleband { segments }
 }
@@ -168,7 +175,6 @@ fn main_segment(main: &MainColumn) -> Segment {
     if main.chrome_relay {
         actions.push(Action::ChromeRelay);
     }
-    actions.push(Action::Search);
     Segment {
         column: ColumnKind::Main,
         width: SegmentWidth::Fill,
@@ -212,6 +218,7 @@ mod tests {
             open_chat: false,
             close_chat: false,
             chrome_relay: false,
+            conversation_resources: false,
         }
     }
 
@@ -229,62 +236,55 @@ mod tests {
         let cases = [
             (
                 "ordinary Native conversation with Chrome Relay",
-                columns(
-                    MainColumn { chrome_relay: true, ..main(MainFocus::Tabs, None) },
-                    None,
-                ),
+                columns(MainColumn { chrome_relay: true, conversation_resources: true, ..main(MainFocus::Tabs, None) }, None),
                 None,
-                vec![Action::ChromeRelay, Action::Search],
+                vec![Action::ChromeRelay, Action::Artifacts],
             ),
             (
                 "resources closed",
                 columns(main(MainFocus::Tabs, None), None),
                 None,
-                vec![Action::Search],
+                vec![],
             ),
             (
                 "resources open at W",
                 columns(
-                    main(MainFocus::Tabs, None),
+                    MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) },
                     Some(ResourcesColumn {
                         width: 420.,
                         primary: ResourcePrimary::Files,
                     }),
                 ),
                 Some(420.),
-                vec![Action::Search],
+                vec![],
             ),
             (
                 "focused app actions",
                 columns(main(MainFocus::Tabs, Some(ready)), None),
                 None,
-                vec![app_action("import"), Action::Search],
+                vec![app_action("import")],
             ),
             (
                 "failed app retries",
                 columns(main(MainFocus::Tabs, Some(failed)), None),
                 None,
-                vec![Action::Retry, Action::Search],
+                vec![Action::Retry],
             ),
             (
                 "web document",
                 columns(main(MainFocus::Web, None), None),
                 None,
-                vec![Action::WebRefresh, Action::Search],
+                vec![Action::WebRefresh],
             ),
         ];
         for (name, input, resources_width, main_actions) in cases {
             let band = project(&input);
             let sidebar = band.segment(ColumnKind::Sidebar).expect(name);
             assert_eq!(sidebar.width, SegmentWidth::Fixed(240.), "{name}");
-            assert_eq!(sidebar.actions, vec![Action::SidebarToggle], "{name}");
+            assert_eq!(sidebar.actions, vec![Action::Search, Action::SidebarToggle], "{name}");
             let main = band.segment(ColumnKind::Main).expect(name);
             assert_eq!(main.width, SegmentWidth::Fill, "{name}");
             assert_eq!(main.actions, main_actions, "{name}");
-            assert!(
-                main.actions.contains(&Action::Search),
-                "{name}: search stays on the main segment"
-            );
             assert!(
                 !main.actions.contains(&Action::ResourceToolbar),
                 "{name}: resource actions stay off the main segment"
@@ -294,8 +294,7 @@ mod tests {
                 Some(width) => {
                     let resources = band.segment(ColumnKind::Resources).expect(name);
                     assert_eq!(resources.width, SegmentWidth::Fixed(width), "{name}");
-                    assert_eq!(resources.actions, vec![Action::ResourceToolbar], "{name}");
-                    assert!(!resources.actions.contains(&Action::Search), "{name}");
+                    assert_eq!(resources.actions, vec![Action::ResourceToolbar, Action::Artifacts], "{name}");
                 }
             }
         }

@@ -413,12 +413,13 @@ impl Render for Workbench {
         self.layout = layout;
         #[cfg(not(target_family = "wasm"))]
         let app_window_modal = self.native_window_modal(cx);
-        let project_conversation = self.project_agent_active();
+        let external_resource_navigation =
+            self.project_agent_active() || self.conversation_resources_in_titleband();
         self.chat.update(cx,|chat,cx| {
             #[cfg(not(target_family = "wasm"))]
             let covered = covered || app_window_modal.is_some();
             chat.set_artifact_surface_covered(covered,cx);
-            chat.external_resource_navigation = project_conversation;
+            chat.external_resource_navigation = external_resource_navigation;
             let docked = layout.chat == ChatPlacement::Dock;
             if chat.docked != docked { chat.docked = docked; cx.notify(); }
         });

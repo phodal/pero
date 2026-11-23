@@ -5,6 +5,7 @@ use crate::{
     session_artifacts::{ArtifactCollection, ArtifactPaneResize},
 };
 use gpui_kit::{
+    base::Selectable,
     component::{Disableable, Icon, Sizable, button::*, input::Input},
     prelude::*,
     *,
@@ -104,7 +105,32 @@ impl ChatPanel {
         cx.notify();
     }
 
-    pub fn resource_column_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn titlebar_artifacts(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let thread = &self.chats.get(self.active_chat?)?.id;
+        let active = self.files.selection.tab == ResourceTab::Artifacts
+            && self.artifacts.conversations.get(thread).is_some_and(|state| state.open && !state.show_changes);
+        let action = self.t(if active { "artifacts.close" } else { "artifacts.title" });
+        Some(
+            pero_theme::ghost_icon_button("titleband-artifacts", pero_theme::Chrome::from_app(cx), cx)
+            .icon(Icon::default().path(UiIcon::Box.path()))
+            .selected(active)
+            .toggled(active)
+            .tooltip(action)
+            .accessibility_label(action)
+            .relative()
+            .children(self.artifact_probe(thread, "toggle"))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if active {
+                    this.close_resource_pane(cx);
+                } else {
+                    this.open_resource_tab(ResourceTab::Artifacts, cx);
+                }
+            }))
+            .into_any_element(),
+        )
+    }
+
+    pub fn resource_column_toolbar(&self, width: f32, cx: &mut Context<Self>) -> AnyElement {
         let Some(thread) = self
             .active_chat
             .and_then(|index| self.chats.get(index))
@@ -115,12 +141,12 @@ impl ChatPanel {
         let Some(state) = self.artifacts.conversations.get(&thread) else {
             return div().into_any_element();
         };
-        self.pane_toolbar(&thread, state, false, true, cx)
+        self.pane_toolbar(&thread, state, false, Some(width), cx)
     }
 
     /// Files, artifacts, or changes for the workbench resources column.
     /// The column header is painted by the shell, so this is only the body.
-    pub fn resource_column_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn resource_column_body(&mut self, toolbar_width: f32, cx: &mut Context<Self>) -> AnyElement {
         let Some(thread) = self
             .active_chat
             .and_then(|index| self.chats.get(index))
@@ -143,7 +169,7 @@ impl ChatPanel {
             .map(|column| column.width)
             .unwrap_or_else(|| self.artifact_pane_width());
         let limit = self.artifacts.side_limit.max(shown);
-        let identity = (shown < Self::RESOURCE_TOOLBAR_MIN).then(|| self.pane_resource_identity(&thread,state,cx)).flatten();
+        let identity = (toolbar_width < Self::RESOURCE_TOOLBAR_MIN).then(|| self.pane_resource_identity(&thread,state,cx)).flatten();
         div()
             .size_full()
             .relative()
@@ -368,7 +394,7 @@ impl ChatPanel {
                         &thread,
                         state.expect("open artifact catalog"),
                         false,
-                        false,
+                        None,
                         cx,
                     )))
                 })
@@ -487,7 +513,7 @@ impl ChatPanel {
                                                 &thread,
                                                 collection,
                                                 compact_toolbar,
-                                                false,
+                                                None,
                                                 cx,
                                             )),
                                         )

@@ -4,7 +4,7 @@ use crate::app::Workbench;
 use crate::components::sidebar::{self, keep_click, window_drag};
 use crate::layout::{ChatPlacement, SidebarToggleSlot, sidebar_toggle_slot};
 use crate::titleband::{self, Action, ColumnKind, MainFocus, Primary, Segment, SegmentWidth};
-use crate::workspace::{WorkbenchPage, WorkspaceItem, WorkspaceRoute};
+use crate::workspace::{ConversationTab, WorkbenchPage, WorkspaceItem, WorkspaceRoute};
 use gpui_kit::{component::Icon, prelude::*, *};
 use serde_json::json;
 
@@ -39,6 +39,13 @@ impl Workbench {
                 .pane_layout()
                 .is_some_and(|layout| layout.leaves().len() > 1);
         web && !multi
+    }
+
+    pub(crate) fn conversation_resources_in_titleband(&self) -> bool {
+        !self.project_agent_active()
+            && (self.layout.chat == ChatPlacement::Main
+                || (self.tab == ConversationTab::Chat
+                    && matches!(self.focused_item(), Some(WorkspaceItem::Conversation(_)))))
     }
 
     fn resource_band_claimed(&self, cx: &App) -> bool {
@@ -172,6 +179,7 @@ impl Workbench {
                 },
                 open_chat: self.titleband_open_chat(),
                 close_chat: self.titleband_close_chat(cx),
+                conversation_resources: self.conversation_resources_in_titleband(),
                 chrome_relay: {
                     #[cfg(all(feature = "native", target_os = "macos"))]
                     {
@@ -231,7 +239,16 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let band = self.project_titleband(cx);
-        let sidebar_toggle_inset = self.sidebar_toggle_main_inset(&band, window);
+        let sidebar_controls = band.segment(ColumnKind::Sidebar).and_then(|sidebar| {
+            match sidebar_toggle_slot(
+                self.layout.sidebar_width,
+                sidebar::traffic_inset(window),
+                self.ui(cx).chrome().control(pero_theme::GHOST_ICON_BUTTON).into(),
+            ) {
+                SidebarToggleSlot::Main { inset } => Some((inset, self.titleband_actions(&sidebar.actions, cx))),
+                SidebarToggleSlot::Sidebar => None,
+            }
+        });
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
         // Tabs stay on the chrome. The rounded app surface begins underneath.
         let bg = self.ui(cx).palette.surface_muted;
@@ -243,7 +260,7 @@ impl Workbench {
             .flex()
             .bg(bg)
             .children(band.segment(ColumnKind::Main).map(|segment| {
-                self.main_segment(segment, sidebar_toggle_inset, dragging, window, cx)
+                self.main_segment(segment, sidebar_controls, dragging, window, cx)
             }))
     }
 
@@ -267,9 +284,15 @@ impl Workbench {
         let bg = resources_surface(&segment, &self.ui(cx).palette);
         let border = self.ui(cx).palette.border;
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
+        let toolbar_width = if segment.actions.contains(&Action::Artifacts) {
+            let button: f32 = self.ui(cx).chrome().control(pero_theme::GHOST_ICON_BUTTON).into();
+            width - button - pero_theme::SPACE_8
+        } else {
+            width
+        };
         let body = self
             .chat
-            .update(cx, |chat, cx| chat.resource_column_body(cx));
+            .update(cx, |chat, cx| chat.resource_column_body(toolbar_width, cx));
         div()
             .id("titleband-resources-column")
             .w(px(width))
@@ -287,7 +310,7 @@ impl Workbench {
                     .w_full()
                     .flex_shrink_0()
                     .bg(bg)
-                    .child(self.resources_segment(&segment, dragging, window, cx)),
+                    .child(self.resources_segment(&segment, toolbar_width, dragging, window, cx)),
             )
             .child(div().flex_1().min_h_0().min_w_0().overflow_hidden().bg(bg).child(body))
             .into_any_element()
@@ -306,14 +329,14 @@ impl Workbench {
         };
         let height = self.ui(cx).chrome().control(pero_theme::WINDOW_TITLEBAR);
         let bg = self.ui(cx).palette.surface_muted;
-        let toggle_here = segment
-            .actions
-            .iter()
-            .any(|action| matches!(action, Action::SidebarToggle))
-            && matches!(
-                sidebar_toggle_slot(width, sidebar::traffic_inset(window)),
-                SidebarToggleSlot::Sidebar
-            );
+        let controls_here = matches!(
+            sidebar_toggle_slot(
+                width,
+                sidebar::traffic_inset(window),
+                self.ui(cx).chrome().control(pero_theme::GHOST_ICON_BUTTON).into(),
+            ),
+            SidebarToggleSlot::Sidebar
+        );
         window_drag(
             div()
                 .id("titleband-sidebar")
@@ -323,33 +346,22 @@ impl Workbench {
                 .flex()
                 .items_center()
                 .justify_end()
-                .when(toggle_here, |el| el.pl(px(sidebar::traffic_inset(window))))
+                .when(controls_here, |el| el.pl(px(sidebar::traffic_inset(window))))
                 .pr(px(pero_theme::SPACE_8))
                 .bg(bg)
-                .when(toggle_here, |el| {
-                    el.child(keep_click(div()).child(self.sidebar_toggle_button(cx)))
+                .when(controls_here, |el| {
+                    el.child(
+                        keep_click(div())
+                            .flex()
+                            .items_center()
+                            .gap(px(pero_theme::SPACE_4))
+                            .children(self.titleband_actions(&segment.actions, cx)),
+                    )
                 }),
             dragging,
             window,
         )
         .into_any_element()
-    }
-
-    /// Leading inset for the toggle once the sidebar column can no longer clear the traffic lights.
-    fn sidebar_toggle_main_inset(&self, band: &titleband::Titleband, window: &Window) -> Option<f32> {
-        let requested = band.segment(ColumnKind::Sidebar).is_some_and(|segment| {
-            segment
-                .actions
-                .iter()
-                .any(|action| matches!(action, Action::SidebarToggle))
-        });
-        if !requested {
-            return None;
-        }
-        match sidebar_toggle_slot(self.layout.sidebar_width, sidebar::traffic_inset(window)) {
-            SidebarToggleSlot::Main { inset } => Some(inset),
-            SidebarToggleSlot::Sidebar => None,
-        }
     }
 
     fn sidebar_toggle_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -368,7 +380,7 @@ impl Workbench {
     fn main_segment(
         &self,
         segment: &Segment,
-        sidebar_toggle_inset: Option<f32>,
+        sidebar_controls: Option<(f32, Vec<AnyElement>)>,
         dragging: &Entity<bool>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -381,7 +393,7 @@ impl Workbench {
             Primary::Tabs => self.main_tabs(cx).into_any_element(),
             _ => div().into_any_element(),
         }};
-        let actions = if self.project_agent_active() { Vec::new() } else { self.main_actions(&segment.actions, cx) };
+        let actions = if self.project_agent_active() { Vec::new() } else { self.titleband_actions(&segment.actions, cx) };
         window_drag(
             div()
                 .id("titleband-main")
@@ -391,7 +403,7 @@ impl Workbench {
                 .flex()
                 .items_center()
                 .bg(bg)
-                .when_some(sidebar_toggle_inset, |el, inset| {
+                .when_some(sidebar_controls, |el, (inset, controls)| {
                     // Margin, not padding: the gap that clears the traffic lights
                     // stays outside this control's hit target.
                     el.child(
@@ -401,7 +413,8 @@ impl Workbench {
                             .flex_shrink_0()
                             .ml(px(inset))
                             .mr(px(pero_theme::SPACE_8))
-                            .child(self.sidebar_toggle_button(cx)),
+                            .gap(px(pero_theme::SPACE_4))
+                            .children(controls),
                     )
                 })
                 .child(
@@ -432,6 +445,7 @@ impl Workbench {
     fn resources_segment(
         &self,
         segment: &Segment,
+        toolbar_width: f32,
         dragging: &Entity<bool>,
         window: &Window,
         cx: &mut Context<Self>,
@@ -441,7 +455,8 @@ impl Workbench {
             .actions
             .iter()
             .any(|action| matches!(action, Action::ResourceToolbar))
-            .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(cx)));
+            .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(toolbar_width, cx)));
+        let trailing_actions = self.titleband_actions(&segment.actions, cx);
         window_drag(
             div()
                 .id("titleband-resources")
@@ -451,7 +466,10 @@ impl Workbench {
                 .flex()
                 .items_center()
                 .bg(bg)
-                .children(toolbar),
+                .child(div().flex_1().min_w_0().h_full().children(toolbar))
+                .when(!trailing_actions.is_empty(), |el| {
+                    el.child(keep_click(div()).flex_shrink_0().pr(px(pero_theme::SPACE_8)).children(trailing_actions))
+                }),
             dragging,
             window,
         )
@@ -484,13 +502,16 @@ impl Workbench {
         }
     }
 
-    pub(crate) fn main_actions(&self, actions: &[Action], cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn titleband_actions(&self, actions: &[Action], cx: &mut Context<Self>) -> Vec<AnyElement> {
         let mut painted = Vec::new();
         for action in actions {
             match action {
                 Action::ChromeRelay => {
                     #[cfg(all(feature = "native", target_os = "macos"))]
                     painted.extend(self.native_chrome_relay_menu(cx));
+                }
+                Action::Artifacts => {
+                    painted.extend(self.chat.update(cx, |chat, cx| chat.titlebar_artifacts(cx)));
                 }
                 Action::Search => {
                     let shortcut =
@@ -561,7 +582,8 @@ impl Workbench {
                     };
                     painted.push(button);
                 }
-                Action::SidebarToggle | Action::ResourceToolbar => {}
+                Action::SidebarToggle => painted.push(self.sidebar_toggle_button(cx).into_any_element()),
+                Action::ResourceToolbar => {}
             }
         }
         painted
