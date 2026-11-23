@@ -82,6 +82,36 @@ func validBrowserObject(raw json.RawMessage) bool {
 	return len(value) > 0 && value[0] == '{' && json.Valid(value)
 }
 
+func (g *Gateway) admitBrowserDesktop(ctx context.Context, runID, token string) (*pair, runtimechannel.Scope, error) {
+	p := g.livePair(runID)
+	if p == nil {
+		return nil, runtimechannel.Scope{}, runtimechannel.ErrAuthority
+	}
+	admit, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	client, err := g.db.AuthenticateClient(admit, token)
+	if err != nil {
+		return nil, runtimechannel.Scope{}, err
+	}
+	session, err := g.db.AuthorizeRuntimeBrowserOwner(admit, runID, client)
+	return p, session.Scope, err
+}
+
+func (g *Gateway) browserDesktopReady(w http.ResponseWriter, r *http.Request) {
+	runID := r.PathValue("id")
+	token, ok := bearer(r)
+	if !ok || r.URL.Query().Get("session_id") != runID || len(r.URL.Query()) != 1 {
+		deny(w, http.StatusBadRequest)
+		return
+	}
+	if _, _, err := g.admitBrowserDesktop(r.Context(), runID, token); err != nil {
+		deny(w, http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, `{"available":true}`)
+}
+
 func (g *Gateway) attachBrowser(w http.ResponseWriter, r *http.Request) {
 	if r.ProtoMajor == 1 {
 		w.Header().Set("Connection", "close")
@@ -102,25 +132,12 @@ func (g *Gateway) attachBrowser(w http.ResponseWriter, r *http.Request) {
 		deny(w, http.StatusBadRequest)
 		return
 	}
-	p := g.livePair(runID)
-	if p == nil {
-		deny(w, http.StatusForbidden)
-		return
-	}
-	admit, endAdmission := context.WithTimeout(ctx, 4*time.Second)
-	client, err := g.db.AuthenticateClient(admit, token)
-	if err != nil {
-		endAdmission()
-		deny(w, http.StatusForbidden)
-		return
-	}
-	session, err := g.db.AuthorizeRuntimeBrowserOwner(admit, runID, client)
-	endAdmission()
+	p, scope, err := g.admitBrowserDesktop(ctx, runID, token)
 	if err != nil {
 		deny(w, http.StatusForbidden)
 		return
 	}
-	carrier := &browserCarrier{scope: session.Scope, pending: make(chan browserExchange), slot: make(chan struct{}, 1), done: make(chan struct{})}
+	carrier := &browserCarrier{scope: scope, pending: make(chan browserExchange), slot: make(chan struct{}, 1), done: make(chan struct{})}
 	g.mu.Lock()
 	accepted := g.pairs[runID] == p && p.browser == nil
 	select {

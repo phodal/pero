@@ -50,6 +50,7 @@ func (g *Gateway) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/channel/{role}", g.attach)
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/provider/v1/chat/completions", g.proxy)
+	mux.HandleFunc("GET /api/runtime/v1/runs/{id}/browser/desktop", g.browserDesktopReady)
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/desktop", g.attachBrowser)
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/call", g.callBrowser)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
