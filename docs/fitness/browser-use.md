@@ -526,8 +526,7 @@ Chromium, and the real Cloud API backed by PostgreSQL. It saves a Unicode
 selection through Collector and reads the same capture and digest through the
 second profile's Materials view. The companion API test verifies that another
 Project cannot read the capture and that an edited retry is rejected. The test
-uses a loopback source page and a development build. Signed installations and a
-hosted Cloud deployment still need acceptance.
+uses a loopback source page and a development build.
 
 Build Native with `--features native-probe`, the connector helpers and the
 Chrome extension, then run the tests from the repo root with
@@ -537,3 +536,12 @@ Chrome extension, then run the tests from the repo root with
 PERO_TEST_SHARED_SOURCES_NATIVE="$PWD/tests/e2e/native-shared-project-sources.mjs" \
   go -C server test -race ./internal/httpapi -run '^TestSharedWebSources' -v
 ```
+
+Set `PERO_TEST_SHARED_SOURCES_APP` to an ad-hoc-signed Native app bundle with
+the probe binary to run the same test against the bundled Host, Node and
+Chrome extension. This lane uses the macOS Keychain and starts the reader
+again without supplying a token. It asserts the same client identity, source
+bytes and receipt after relaunch, then removes the two fixture credentials.
+This passed in an isolated copy of the Native bundle. Evidence is under
+`test-results/installed-shared-project-sources/`. The Cloud API was a loopback
+fixture. A hosted deployment still needs acceptance.

@@ -17,20 +17,22 @@ pub(crate) async fn verify(
         origin.starts_with("http://127.0.0.1:"),
         "Expected a loopback Cloud fixture"
     );
-    let token = std::env::var("PERO_SHARED_SOURCES_CLIENT")?;
     let files = PathBuf::from(
         std::env::var_os("PERO_SHARED_SOURCES_FILES")
             .ok_or_else(|| anyhow::anyhow!("Missing fixture path"))?,
     );
     let phase = std::env::args().nth(4).unwrap_or_default();
-    cx.update(|cx| {
-        root.update(cx, |root, cx| {
-            root.command(
-                json!({"action":"remote_configure","url":origin,"token":token,"mode":"client"}),
-                cx,
-            );
-        })
-    });
+    if phase != "restore" {
+        let token = std::env::var("PERO_SHARED_SOURCES_CLIENT")?;
+        cx.update(|cx| {
+            root.update(cx, |root, cx| {
+                root.command(
+                    json!({"action":"remote_configure","url":origin,"token":token,"mode":"client"}),
+                    cx,
+                );
+            })
+        });
+    }
     let mut opened = false;
     let mut asked = false;
     let mut paired = false;
@@ -48,6 +50,10 @@ pub(crate) async fn verify(
                 else {
                     return Ok(None);
                 };
+                anyhow::ensure!(
+                    root.remote.data["connection"]["url"] == origin,
+                    "Unexpected Cloud service"
+                );
                 if phase == "write" {
                     if !opened
                         && root.chat.read(cx).connected
@@ -63,7 +69,10 @@ pub(crate) async fn verify(
                     }
                     return Ok(None);
                 }
-                anyhow::ensure!(phase == "read", "Unknown fixture phase");
+                anyhow::ensure!(
+                    matches!(phase.as_str(), "read" | "restore"),
+                    "Unknown fixture phase"
+                );
                 if !opened {
                     root.open_project("shared:lab".into(), window, cx);
                     root.select_project_view(ProjectTab::ResearchResources, cx);
