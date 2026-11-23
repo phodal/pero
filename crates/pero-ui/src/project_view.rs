@@ -144,8 +144,8 @@ impl Workbench {
         let binding = project.shared_id.clone().unwrap_or_default();
         self.project_binding
             .update(cx, |input, cx| input.set_value(binding, window, cx));
-        if let Some(workspace) = project.workspace {
-            self.command(json!({"action":"workspace","path":workspace}), cx);
+        if let Some(workspace) = &project.workspace {
+            self.command(json!({"action":"workspace","path":workspace,"project_id":project.research_id()}), cx);
         }
         self.command(json!({"action":"remote_select","task_id":null}), cx);
         if self.project_agent_active() { self.select_project_conversation(cx); }

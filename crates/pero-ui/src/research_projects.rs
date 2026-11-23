@@ -22,6 +22,7 @@ pub(crate) struct ResearchProjectsView {
     transient_editor: Option<ProjectEditor>,
     saved_editors: BTreeMap<String, ProjectEditor>,
     pub choosing: bool,
+    pub unavailable_workspaces: BTreeMap<String, String>,
     catalogs: BTreeMap<String, ProjectResourceCatalog>,
     loading: BTreeSet<String>,
     pending: Option<(ResearchProject, Option<String>, bool)>,
@@ -254,7 +255,7 @@ impl Workbench {
         self.research.error = None;
         if let Some(path) = project.workspace {
             if path != self.workspace {
-                self.command(json!({"action":"workspace","path":path}), cx);
+                self.command(json!({"action":"workspace","path":path,"project_id":project.id}), cx);
             }
         }
         self.refresh_project_resources(cx);

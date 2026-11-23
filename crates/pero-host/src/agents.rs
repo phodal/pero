@@ -388,11 +388,15 @@ impl Manager {
                 event.data = serde_json::json!({"active":active});
                 let _ = self.tx.send(event);
             }
-            HostCommand::Workspace { path } => match dunce::canonicalize(path) {
+            HostCommand::Workspace { path, project_id } => match dunce::canonicalize(&path) {
                 Ok(path) if path.is_dir() => {
                     self.workspace = path;
                     self.publish_workspace();
+                    if let Some(project_id) = project_id {
+                        self.send("project_workspace_available", path, serde_json::json!({"project_id":project_id}));
+                    }
                 }
+                _ if project_id.is_some() => self.send("project_workspace_unavailable", path, serde_json::json!({"project_id":project_id})),
                 _ => self.send("error", "Workspace is unavailable", serde_json::Value::Null),
             },
             HostCommand::AttachFiles { paths } => {

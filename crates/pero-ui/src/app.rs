@@ -578,6 +578,17 @@ impl Workbench {
     ) {
         #[cfg(not(target_family="wasm"))]
         self.receive_native_app(&event,window,cx);
+        if matches!(event.kind.as_str(), "project_workspace_unavailable" | "project_workspace_available") {
+            if let Some(id) = event.data["project_id"].as_str() {
+                if event.kind == "project_workspace_available" {
+                    self.research.unavailable_workspaces.remove(id);
+                } else {
+                    self.research.unavailable_workspaces.insert(id.to_owned(), event.text);
+                }
+            }
+            cx.notify();
+            return;
+        }
         if event.kind=="scientific_paper_open" {
             if self.apps.contains_panel("paper-agent","main") { self.open_app("paper-agent".into(),"main".into(),cx); }
             return;

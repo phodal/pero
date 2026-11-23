@@ -770,6 +770,8 @@
   "project.no_recent": "No recent work",
   "project.show_more": "Show more",
   "project.unassigned": "Unassigned",
+  "project.workspace_unavailable": "Directory unavailable",
+  "project.change_directory": "Change directory",
   "project.open_folder": "Open folder…",
   "project.all_tasks": "All project tasks",
   "project.browse": "Browse all projects",

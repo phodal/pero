@@ -90,6 +90,8 @@ pub enum HostCommand {
     },
     Workspace {
         path: String,
+        #[serde(default)]
+        project_id: Option<String>,
     },
     LoadRoadmap,
     AttachFiles {
