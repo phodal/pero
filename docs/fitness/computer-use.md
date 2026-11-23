@@ -241,6 +241,20 @@ extended WinForms fixture against .NET Framework 4 reference assemblies passed.
 The new WinForms scenarios for overlap, pointer placement, button events and
 mid-hold cancellation still require an unlocked Windows desktop run.
 
+The unsigned Windows ARM64 portable build of Pero 0.1.1 uses source
+`5e3da1141a16d8ad5d4ba49c871b55d20da7b697`. The platform-neutral Wasm and
+Electron bundles were built on macOS from that checkout. The native binaries,
+App assets and ZIP were built on Windows ARM64. The full Computer Use workspace
+and shared action contract tests passed on ARM64. The ZIP's CRCs, SHA-256 and
+all six executable architectures were verified after transfer.
+
+From a fresh ZIP extraction on Windows, the Host emitted `ready`, the Go ACP
+binary printed its help, and the Electron executable ran Node in ARM64 mode.
+The packaged Computer Use binary returned `WINDOWS_NONINTERACTIVE_SESSION`
+in the SSH session. The archive, checksum and process receipt are in
+`target/package/` under the `Pero-windows-arm64` name. Workbench window launch
+and the new WinForms input scenarios require an interactive desktop.
+
 ## Pero Native and real Pero (DeepSeek), 2026-11-22
 
 The GPUI workbench uses the shared runtime through its existing App Use MCP
