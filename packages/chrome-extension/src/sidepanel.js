@@ -209,8 +209,8 @@ const drawComposer = bindNativeComposer(
 function render() {
   const ready = !!snapshot,
     running = snapshot?.running;
-  nodes.status.textContent = busy ? 'Sending…' : running ? 'Responding…' : snapshot?.composer?.sessionReady === false ? 'Resume in Pero Native' : ready ? 'Ready' : 'Pair to send';
-  nodes.connection.textContent = ready ? 'Connected to Pero Native' : 'Disconnected';
+  nodes.status.textContent = busy ? 'Sending…' : running ? 'Responding…' : snapshot?.composer?.sessionReady === false ? 'Resume in Pero' : ready ? 'Ready' : 'Pair to send';
+  nodes.connection.textContent = ready ? 'Connected to Pero' : 'Disconnected';
   nodes['connection-dot'].dataset.state = ready ? 'ready' : 'error';
   nodes['more-trigger'].dataset.state = ready ? '' : 'offline';
   nodes['session-label'].textContent = snapshot?.title || 'Pero Chat';
@@ -252,7 +252,7 @@ function render() {
     if (atEnd) nodes.messages.scrollTop = nodes.messages.scrollHeight;
   }
   nodes.attention.textContent =
-    unavailable || snapshot?.composer?.error || snapshot?.error || (snapshot?.attention ? 'Review the request in Pero Native.' : '');
+    unavailable || snapshot?.composer?.error || snapshot?.error || (snapshot?.attention ? 'Review the request in Pero.' : '');
   nodes.attention.hidden = !nodes.attention.textContent;
   nodes['attachment-error'].textContent = draftError;
   nodes['attachment-error'].hidden = !draftError;

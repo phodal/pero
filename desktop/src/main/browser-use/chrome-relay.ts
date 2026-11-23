@@ -209,7 +209,7 @@ class ChromeRelay {
             check();
             if (!this.sidebar || await this.selected() !== current.thread ||
                 (request.kind !== 'snapshot' && message.sessionId !== current.thread))
-              throw new Error('Pair this conversation in Pero Native.');
+              throw new Error('Pair this conversation in Pero.');
             result = { value: await this.sidebar(current.thread, request, check) };
           } catch (error) {
             result = { error: error instanceof Error ? error.message : String(error) };
