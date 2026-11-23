@@ -21,8 +21,9 @@ export type BrowserNode = {
 };
 
 export type DocumentCommand =
-  | ({ observation: string } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
-  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick' | 'typeSequentially'> | 'scroll' }>
+  | ({ observation: string; linksOnly?: true } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
+  | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick' | 'typeSequentially' | 'download'> | 'scroll' }>
+  | (Extract<BrowserRequest, { action: 'download' }> & { linksOnly?: true })
   | (Extract<BrowserRequest, { action: 'dblclick' }> & { recheck?: true })
   | (Extract<BrowserRequest, { action: 'typeSequentially' }> & { recheck?: true })
   | { action: 'upload'; ref: string; files: { name: string; mediaType: string; base64: string }[] };
@@ -165,7 +166,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (checkable(node) && !disabled(node)) actions.push('setChecked');
       if (tag(node, 'select') && !disabled(node)) actions.push('selectOption');
       if (fileInput(node) && !disabled(node)) actions.push('upload');
-      if ((tag(node, 'a') && node.hasAttribute('href')) || (nodeRole === 'button' && clickable(node, nodeRole))) actions.push('download');
+      if ((tag(node, 'a') && node.hasAttribute('href')) || (!('linksOnly' in command && command.linksOnly) && nodeRole === 'button' && clickable(node, nodeRole))) actions.push('download');
       if (pointerTarget(node, nodeRole, nodeName)) {
         actions.push('hover');
         if (!disabled(node)) actions.push('dblclick');
@@ -306,9 +307,10 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       if (!node.href.startsWith('blob:')) return { kind: 'download', url: node.href, name: node.download || undefined };
       if (!URL.canParse(node.href) || new URL(node.href).origin !== origin || !node.hasAttribute('download'))
         return reject('Choose a same-origin Blob link with a download attribute.');
+      if (command.linksOnly) return { kind: 'download', url: node.href, name: node.download || undefined };
       downloadUrl = node.href;
-    } else if (target.role !== 'button' || !clickable(node, target.role)) {
-      return reject('Choose an observed download link or enabled button.');
+    } else if (command.linksOnly || target.role !== 'button' || !clickable(node, target.role)) {
+      return reject(command.linksOnly ? 'Choose an observed download link.' : 'Choose an observed download link or enabled button.');
     }
   }
   if (command.action === 'fill') {

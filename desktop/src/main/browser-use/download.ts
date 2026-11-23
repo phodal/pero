@@ -89,11 +89,20 @@ export async function downloadArtifact(
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
   const { url, disposition, data } = await readDownload(requestDownload, session, source.url, approve, check, bounded);
   check();
+  return freezeDownloadBytes({ ...source, url }, disposition, data, scope, deliver, check, bounded);
+}
+
+export function freezeDownloadBytes(
+  source: { url: string; name?: string }, disposition: string, data: Buffer, scope: DownloadScope,
+  deliver: ArtifactDeliveryPort, check: () => void, signal: AbortSignal,
+) {
+  if (data.length > LIMIT) throw new Error('The browser download exceeds 10 MiB.');
+  const { url } = source;
   const encoded = /(?:^|;)\s*filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
   const suggested = /(?:^|;)\s*filename=(?:"([^"]*)"|([^;]*))/i.exec(disposition);
   const fallback = new URL(url).pathname.split('/').pop();
   const title = downloadTitle(source.name || (encoded ? decodeURIComponent(encoded) : suggested?.[1] ?? suggested?.[2]) || fallback || 'download');
-  return freezeDownload(scope, deliver, check, bounded, async directory => {
+  return freezeDownload(scope, deliver, check, signal, async directory => {
     const path = join(directory, title);
     await writeFile(path, data, { flag: 'wx', mode: 0o600 });
     return { path, title, bytes: data.length, url };

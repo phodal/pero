@@ -1,20 +1,25 @@
 // Point Relay's reviewed-tab gate and socket lifecycle, adapted for Pero's local
 // conversation endpoint. Point source: browser/chrome-extension/relay.mjs (2449d4b98).
-import { parseRelayPairing, webOrigin, MAX_FRAME, RELAY_PATH, RELAY_PROTOCOL } from './protocol.ts';
+import { parseRelayPairing, webOrigin, MAX_FRAME, MAX_TRANSFER_BYTES, RELAY_PATH, RELAY_PROTOCOL } from './protocol.ts';
 import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../../../desktop/src/main/browser-use/input.ts';
-import type { DriverOperation } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
+import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type Review = { nonce: string; tabId: number; url: string; expiresAt: number };
-type Claim = { tabId: number; origin: string; revision: number; world: string };
+type Claim = { id: string; tabId: number; origin: string; revision: number; world: string; navigating?: boolean };
+type Command = { kind: 'inspect' } | { kind: 'run'; grant: string; stamp: string; operation: DriverOperation } |
+  { kind: 'manage'; grant: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired' | 'authorizing' | 'approved'; label: string; timer?: number;
-  lastPong: number; lastId: number; busy: boolean; review?: Review; claim?: Claim };
+  lastPong: number; lastId: number; busy: boolean; review?: Review; claims: Map<number, Claim>; opened: Map<number, string>;
+  authorizing?: string; opening?: number };
 
 let peer: Peer | undefined;
 let failure: string | undefined;
 
 function status() {
-  return { state: peer?.state ?? 'disconnected', label: peer?.label, origin: peer?.claim?.origin, error: failure };
+  return { state: peer?.state ?? 'disconnected', label: peer?.label,
+    approvedTabIds: [...(peer?.claims.keys() ?? [])], error: failure };
 }
 
 function publish() {
@@ -36,32 +41,84 @@ async function release(connection: Peer, reason?: string) {
   failure = reason;
   clearInterval(connection.timer);
   connection.socket.close();
-  const claim = connection.claim;
-  connection.claim = undefined;
-  if (claim) await chrome.debugger.detach({ tabId: claim.tabId }).catch(() => {});
+  const tabs = [...connection.claims.keys()];
+  if (connection.opening !== undefined) tabs.push(connection.opening);
+  connection.claims.clear();
+  await Promise.all(tabs.map(tabId => chrome.debugger.detach({ tabId }).catch(() => {})));
   publish();
 }
 
-function inScope(tab: ChromeTab, origin: string) {
+async function revokeTab(connection: Peer, claim: Claim) {
+  if (connection.claims.get(claim.tabId) !== claim) return;
+  connection.claims.delete(claim.tabId);
+  if (connection.authorizing === claim.id) connection.authorizing = undefined;
+  connection.state = connection.authorizing ? 'authorizing' : connection.claims.size ? 'approved' : 'paired';
+  send(connection, { type: 'tabRevoked', grant: claim.id });
+  publish();
+  await chrome.debugger.detach({ tabId: claim.tabId }).catch(() => {});
+}
+
+function inScope(tab: ChromeTab, origin: string, navigating = false) {
   return !tab.incognito && !!tab.url && webOrigin(tab.url) === origin &&
-    (!tab.pendingUrl || webOrigin(tab.pendingUrl) === origin);
+    (navigating || !tab.pendingUrl || webOrigin(tab.pendingUrl) === origin);
 }
 
 async function snapshot(connection: Peer, claim: Claim) {
   const tab: ChromeTab = await chrome.tabs.get(claim.tabId);
-  if (peer !== connection || connection.claim !== claim || !inScope(tab, claim.origin))
-    throw new Error('The Chrome tab left its authorization.');
+  if (!inScope(tab, claim.origin, claim.navigating)) throw new Error('The Chrome tab left its authorization.');
   const window = tab.windowId === undefined ? undefined : await chrome.windows.get(tab.windowId);
-  if (peer !== connection || connection.claim !== claim) throw new Error('The Chrome tab left its authorization.');
-  return { url: tab.url!, title: (tab.title ?? '').slice(0, 160), active: !!tab.active && window?.state !== 'minimized',
+  if (peer !== connection || connection.claims.get(claim.tabId) !== claim)
+    throw new Error('The Chrome tab left its authorization.');
+  return { id: claim.id, url: tab.url!, title: (tab.title ?? '').slice(0, 160),
+    active: !!tab.active && window?.state !== 'minimized',
     ready: tab.status === 'complete' && (!tab.pendingUrl || tab.pendingUrl === tab.url), revision: claim.revision };
 }
 
-async function run(connection: Peer, command: { kind: 'inspect' } | { kind: 'run'; stamp: string; operation: DriverOperation }) {
-  const claim = connection.claim;
-  if (connection.state !== 'approved' || !claim) throw new Error('Allow this Chrome tab before using it.');
+async function run(connection: Peer, command: Command) {
+  if (command.kind === 'inspect') {
+    const tabs = await Promise.allSettled([...connection.claims.values()].map(claim => snapshot(connection, claim)));
+    return tabs.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+  }
+  const claim = [...connection.claims.values()].find(claim => claim.id === command.grant);
+  if (!claim) throw new Error('Allow this Chrome tab before using it.');
   const tab = await snapshot(connection, claim);
-  if (command.kind === 'inspect') return tab;
+  if (command.kind === 'manage') {
+    if (command.action.kind === 'activate') {
+      await chrome.tabs.update(claim.tabId, { active: true });
+      return { kind: 'tabActivated', tabId: 'chrome:' + claim.id };
+    }
+    if (command.action.kind === 'close') {
+      await chrome.tabs.remove(claim.tabId);
+      return { kind: 'tabClosed', tabId: 'chrome:' + claim.id };
+    }
+    if (!tab.active || !tab.ready || webOrigin(command.action.url) !== claim.origin)
+      throw new Error('Open a same-origin page from the active approved Chrome tab.');
+    const source: ChromeTab = await chrome.tabs.get(claim.tabId);
+    const opened = await chrome.tabs.create({ windowId: source.windowId, url: 'about:blank', active: true });
+    if (opened.id === undefined) throw new Error('Chrome did not open the requested tab.');
+    const target = { tabId: opened.id };
+    try {
+      if (peer !== connection) throw new Error('The Pero Relay disconnected.');
+      connection.opening = opened.id;
+      await chrome.debugger.attach(target, '1.3');
+      try {
+        if (peer !== connection) throw new Error('The Pero Relay disconnected.');
+        const cdp = (method: string, params?: Record<string, unknown>) => chrome.debugger.sendCommand(target, method, params);
+        const result = await navigate(cdp, opened.id, claim.origin, { kind: 'navigate', url: command.action.url }, true);
+        if (result) throw new Error(result.rejected);
+      } finally {
+        await chrome.debugger.detach(target).catch(() => {});
+      }
+    } catch (error) {
+      await chrome.tabs.remove(opened.id).catch(() => {});
+      throw error;
+    } finally {
+      connection.opening = undefined;
+    }
+    const id = crypto.randomUUID();
+    connection.opened.set(opened.id, id);
+    return { kind: 'tabOpened', tabId: 'chrome:' + id, url: command.action.url, authorized: false };
+  }
   if (command.kind !== 'run') throw new Error('Unknown Chrome Relay command.');
   if (!tab.active || !tab.ready || command.stamp !== `${tab.revision}:${tab.url}`)
     throw new Error('The selected Chrome tab or document changed.');
@@ -70,20 +127,30 @@ async function run(connection: Peer, command: { kind: 'inspect' } | { kind: 'run
   const cdp = (method: string, params?: Record<string, unknown>) =>
     chrome.debugger.sendCommand(target, method, params);
   if (operation.kind === 'check') return null;
+  if (operation.kind === 'checkFrames') return checkFrames(claim.tabId, claim.origin);
   if (operation.kind === 'evaluate') {
-    if (typeof operation.script !== 'string' || operation.script.length > 100_000)
+    const limit = operation.files ? Math.ceil(MAX_TRANSFER_BYTES / 3) * 4 + 100_000 : 100_000;
+    if (typeof operation.script !== 'string' || operation.script.length > limit)
       throw new Error('Invalid Chrome Browser Use document operation.');
-    const { frameTree } = await cdp('Page.getFrameTree');
-    const frame = frameTree?.frame;
-    if (!frame || webOrigin(frame.url) !== claim.origin)
-      throw new Error('The Chrome tab left its authorization.');
-    const { executionContextId } = await cdp('Page.createIsolatedWorld', { frameId: frame.id, worldName: claim.world });
-    const result = await cdp('Runtime.evaluate', {
-      expression: operation.script, contextId: executionContextId, returnByValue: true, silent: true,
-    });
-    if (result.exceptionDetails || !result.result || result.result.value === undefined)
-      throw new Error('The authorized Chrome document did not answer.');
-    return result.result.value;
+    return evaluateDocument(cdp, claim.world, claim.origin, operation.script);
+  }
+  if (operation.kind === 'screenshot') {
+    const frames = await checkFrames(claim.tabId, claim.origin);
+    const image = await screenshot(cdp, operation.clip);
+    if (frames !== await checkFrames(claim.tabId, claim.origin))
+      throw new Error('The Chrome document changed during screenshot capture.');
+    return image;
+  }
+  if (operation.kind === 'download') return downloadLink(cdp, claim.world, claim.origin, operation.url);
+  if (operation.kind === 'navigate' || operation.kind === 'history') {
+    claim.navigating = true;
+    try {
+      const result = await navigate(cdp, claim.tabId, claim.origin, operation);
+      if (!result) claim.revision++;
+      return result;
+    } finally {
+      claim.navigating = false;
+    }
   }
   if (operation.kind === 'dispatch') {
     const input = operation.input;
@@ -100,7 +167,7 @@ async function run(connection: Peer, command: { kind: 'inspect' } | { kind: 'run
       else if (input.count === 1 || input.count === 2) event = { kind: 'click', point, count: input.count };
       else throw new Error('Invalid Chrome click count.');
     }
-    await sendBrowserInput(cdp, () => peer === connection && connection.claim === claim, event);
+    await sendBrowserInput(cdp, () => peer === connection && connection.claims.get(claim.tabId) === claim, event);
     return null;
   }
   throw new Error('This action is unavailable in the Pero Chrome extension.');
@@ -110,7 +177,7 @@ function connect(code: string) {
   if (peer) throw new Error('Disconnect the current Pero session first.');
   const pairing = parseRelayPairing(code.trim());
   const socket = new WebSocket(pairing.baseUrl.replace('http:', 'ws:') + RELAY_PATH);
-  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false };
+  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, claims: new Map(), opened: new Map() };
   peer = connection;
   failure = undefined;
   publish();
@@ -139,12 +206,15 @@ function connect(code: string) {
         publish();
         return;
       }
-      if (message.type === 'approved' && connection.state === 'authorizing' && connection.claim) {
-        connection.state = 'approved';
+      if (message.type === 'approved') {
+        if (connection.authorizing === message.grant) {
+          connection.authorizing = undefined;
+          connection.state = 'approved';
+        }
         publish();
         return;
       }
-      if (message.type !== 'request' || connection.state !== 'approved' || connection.busy ||
+      if (message.type !== 'request' || connection.state === 'connecting' || connection.busy ||
           !Number.isSafeInteger(message.id) || message.id <= connection.lastId)
         throw new Error('Invalid Pero Relay request.');
       connection.lastId = message.id;
@@ -165,17 +235,19 @@ function connect(code: string) {
 }
 
 chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url?: string }, tab: ChromeTab) => {
-  const connection = peer, claim = connection?.claim;
-  if (!connection || !claim || claim.tabId !== tabId) return;
-  if (!inScope(tab, claim.origin)) void release(connection, 'The Chrome tab left the authorized site.');
+  const connection = peer, claim = connection?.claims.get(tabId);
+  if (!connection || !claim) return;
+  if (!inScope(tab, claim.origin, claim.navigating)) void revokeTab(connection, claim).catch(error => void release(connection, error.message));
   else if (change.status === 'loading' || change.url) claim.revision++;
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
-  if (peer?.claim?.tabId === tabId) void release(peer, 'The authorized Chrome tab closed.');
+  const connection = peer, claim = connection?.claims.get(tabId);
+  connection?.opened.delete(tabId);
+  if (connection && claim) void revokeTab(connection, claim).catch(error => void release(connection, error.message));
 });
 chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }) => {
-  const connection = peer;
-  if (connection?.claim && connection.claim.tabId === tabId) void release(connection, 'Chrome detached Browser Use.');
+  const connection = peer, claim = tabId === undefined ? undefined : connection?.claims.get(tabId);
+  if (connection && claim) void revokeTab(connection, claim).catch(error => void release(connection, error.message));
 });
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
@@ -192,10 +264,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       return status();
     }
     const connection = peer;
-    if (!connection || connection.state !== 'paired' || connection.claim)
+    if (!connection || !['paired', 'approved'].includes(connection.state))
       throw new Error('Pair with Pero before allowing a Chrome tab.');
     if (message.type === 'preview') {
-      if (!Number.isInteger(message.tabId)) throw new Error('Choose a Chrome tab to review.');
+      if (!Number.isInteger(message.tabId) || connection.claims.has(message.tabId)) throw new Error('Choose a Chrome tab to review.');
       const tab: ChromeTab = await chrome.tabs.get(message.tabId);
       const origin = tab.url && webOrigin(tab.url);
       if (!tab.active || tab.status !== 'complete' || !origin || !inScope(tab, origin) || peer !== connection)
@@ -211,7 +283,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         throw new Error('Review this Chrome tab again.');
       const tab: ChromeTab = await chrome.tabs.get(review.tabId);
       if (!tab.active || tab.url !== review.url || tab.status !== 'complete' || tab.pendingUrl && tab.pendingUrl !== tab.url ||
-          peer !== connection || connection.claim) throw new Error('The reviewed tab changed.');
+          peer !== connection || connection.claims.has(review.tabId)) throw new Error('The reviewed tab changed.');
       const target = { tabId: review.tabId };
       connection.state = 'authorizing';
       let attached = false;
@@ -219,14 +291,19 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         await chrome.debugger.attach(target, '1.3');
         attached = true;
         if (peer !== connection) throw new Error('The Pero Relay disconnected.');
-        const claim = connection.claim = { tabId: review.tabId, origin: webOrigin(review.url)!, revision: 0, world: 'PeroBrowserUse-' + crypto.randomUUID() };
+        const id = connection.opened.get(review.tabId) ?? crypto.randomUUID();
+        const claim = { id, tabId: review.tabId, origin: webOrigin(review.url)!, revision: 0, world: 'PeroBrowserUse-' + id };
+        connection.claims.set(review.tabId, claim);
+        connection.authorizing = id;
         const current = await snapshot(connection, claim);
         if (current.url !== review.url || !current.ready || !current.active) throw new Error('The reviewed tab changed.');
         send(connection, { type: 'approve', tab: current });
+        connection.opened.delete(review.tabId);
       } catch (error) {
-        connection.claim = undefined;
+        connection.claims.delete(review.tabId);
+        connection.authorizing = undefined;
         if (attached) await chrome.debugger.detach(target).catch(() => {});
-        if (peer === connection) connection.state = 'paired';
+        if (peer === connection) connection.state = connection.claims.size ? 'approved' : 'paired';
         throw error;
       }
       return status();

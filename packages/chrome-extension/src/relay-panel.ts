@@ -16,24 +16,27 @@ async function request(message: object) {
   if (!response.ok) throw new Error(response.error);
   return response.value;
 }
-async function choices() {
+async function choices(approvedTabIds: number[]) {
   const selected = tabs.value;
   const available = await chrome.tabs.query({ active: true });
-  tabs.replaceChildren(...available.filter(tab => !tab.incognito && Number.isInteger(tab.id) && webOrigin(tab.url ?? '')).map(tab => {
+  const entries = available.filter(tab => tab.status === 'complete' && !tab.incognito &&
+    Number.isInteger(tab.id) && !approvedTabIds.includes(tab.id!) && webOrigin(tab.url ?? '')).map(tab => {
     const entry = document.createElement('option');
     entry.value = String(tab.id);
     entry.textContent = `${tab.title || 'Chrome tab'} · ${webOrigin(tab.url!)}`;
     return entry;
-  }));
+  });
+  tabs.replaceChildren(...(entries.length ? entries : [new Option('Switch to an unapproved tab in Chrome', '')]));
+  tabs.disabled = entries.length === 0;
   if ([...tabs.options].some(option => option.value === selected)) tabs.value = selected;
 }
 function clearReview() {
   consent = undefined;
   node('preview').hidden = true;
 }
-async function render(value?: {state: string; error?: string; label?: string; origin?: string}) {
+async function render(value?: {state: string; error?: string; label?: string; approvedTabIds: number[]}) {
   const state = value ?? await request({ type: 'status' });
-  const paired = state.state === 'paired';
+  const paired = state.state === 'paired' || state.state === 'approved';
   status.textContent = ({
     disconnected: 'Disconnected',
     connecting: 'Connecting to Pero…',
@@ -41,14 +44,15 @@ async function render(value?: {state: string; error?: string; label?: string; or
     authorizing: 'Allowing the reviewed tab…',
     approved: 'Browser Use allowed',
   } as Record<string, string>)[state.state] + (state.state !== 'disconnected' && state.label ? ` · ${state.label}` : '');
-  if (state.origin) status.textContent += ` · ${state.origin}`;
+  const count = state.approvedTabIds.length;
+  if (count) status.textContent += ` · ${count} approved ${count === 1 ? 'tab' : 'tabs'}`;
   node('pair').hidden = state.state !== 'disconnected';
   node('choose').hidden = !paired;
   node('stop').hidden = state.state === 'disconnected';
   node('error').textContent = state.error ?? '';
   node('error').hidden = !state.error;
   if (!paired) clearReview();
-  else await choices();
+  else await choices(state.approvedTabIds);
   review.disabled = busy || !tabs.value;
   pair.disabled = allow.disabled = busy;
 }
@@ -94,5 +98,11 @@ chrome.runtime.onMessage.addListener(message => {
 });
 chrome.tabs.onActivated.addListener(() => {
   if (!node('choose').hidden) { clearReview(); void render(); }
+});
+chrome.tabs.onUpdated.addListener((_tabId, change, tab) => {
+  if (!node('choose').hidden && tab.active && (change.url || change.status === 'complete')) {
+    if (change.url) clearReview();
+    void render();
+  }
 });
 void render();
