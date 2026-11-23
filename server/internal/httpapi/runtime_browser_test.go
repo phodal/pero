@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +65,12 @@ func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
 		}
 		return httpapi.HandlerWithIsolatedRuntime(s, "test-operator", nil, gateway, reviewer, nil)
 	})
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	electronFixture := os.Getenv("PERO_TEST_CLOUD_BROWSER_ELECTRON")
+	timeout := 15 * time.Second
+	if electronFixture != "" {
+		timeout = 2 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 	owner, ownerToken, err := db.CreateClient(ctx, "Desktop owner", []string{"p"})
 	if err != nil {
@@ -154,6 +162,21 @@ func TestCloudBrowserFollowsClaimAndRuntimeChannel(t *testing.T) {
 	callPath := path("/browser/call")
 	request(t, server, "POST", callPath, wrongPodToken, `{"action":"observe"}`, "", http.StatusForbidden)
 	request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusConflict)
+	if electronFixture != "" {
+		if !filepath.IsAbs(electronFixture) {
+			t.Fatal("PERO_TEST_CLOUD_BROWSER_ELECTRON must name an absolute fixture path")
+		}
+		cmd := exec.CommandContext(ctx, "node", electronFixture)
+		cmd.Env = append(os.Environ(),
+			"PERO_TEST_CLOUD_BROWSER_ORIGIN="+server.URL, "PERO_TEST_CLOUD_BROWSER_CLIENT="+ownerToken,
+			"PERO_TEST_CLOUD_BROWSER_POD="+podToken, "PERO_TEST_CLOUD_BROWSER_RUN="+run.ID,
+			"PERO_TEST_CLOUD_BROWSER_TASK="+task.ID)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Electron fixture failed: %v\n%s", err, output)
+		}
+		t.Logf("%s", output)
+	}
 	attach("/browser/desktop", peerToken, http.StatusForbidden)
 	desktop, writer := attach("/browser/desktop", ownerToken, http.StatusOK)
 	attach("/browser/desktop", ownerToken, http.StatusConflict)

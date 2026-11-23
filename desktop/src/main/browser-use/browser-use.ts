@@ -145,6 +145,7 @@ export class BrowserUse implements BrowserUsePort {
     this.grants.set(tab.id, grant);
     tab.authorizationChanged(true);
     void grant.dialogs.start().catch(() => {});
+    return grant.cancelled.signal;
   }
 
   private revokeTab(id: string) {

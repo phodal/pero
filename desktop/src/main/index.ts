@@ -17,6 +17,7 @@ import { confirmDoclingSetup } from './docling-runtime-dialog.ts';
 import { confirmReproduction } from './reproduction-approval.ts';
 import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
+import { cloudBrowserRequest } from './browser-use/cloud-use.ts';
 import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
@@ -187,6 +188,32 @@ async function allowBrowserUse() {
     });
   }
 }
+async function shareBrowserWithCloudRun() {
+  try {
+    const browser = browserUse, files = appUse?.inputs;
+    const tab = webPages?.focusedBrowserTab(t('browser_use.cloud_active'));
+    const page = tab && browser?.candidate(tab);
+    const run = remote.browserRun();
+    if (!run || !browser || !files || !tab || !page) throw new Error(t('browser_use.cloud_select'));
+    if (!await remote.browserShareReady(run)) throw new Error(t('browser_use.cloud_not_ready'));
+    const answer = await dialog.showMessageBox(window, {
+      type: 'question', message: t('browser_use.cloud_confirm'),
+      detail: [run.title, run.url, page.title, page.origin, '', t('browser_use.cloud_detail')].join('\n'),
+      buttons: [t('browser_use.deny'), t('browser_use.allow')], defaultId: 0, cancelId: 0,
+    });
+    if (answer.response !== 1) return;
+    const share = `cloud:${run.runId}:${randomUUID()}`;
+    const attachment = await remote.shareBrowser(run, () => {
+      if (webPages?.focusedBrowserTab()?.contents !== tab.contents) throw new Error(t('browser_use.cloud_select'));
+      return browser.allow(share, tab, page.origin);
+    }, (input, signal) => browser.call(share, cloudBrowserRequest(input, tab.id), signal, files));
+    void attachment.closed.then(() => browser.revoke(share));
+  } catch (error) {
+    if (!window.isDestroyed()) await dialog.showMessageBox(window, {
+      type: 'info', message: t('browser_use.unavailable'), detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 async function pairChrome() {
   try {
     if (!appUse?.browser) throw new Error(t('browser_use.unavailable'));
@@ -232,6 +259,10 @@ function updateMenus() {
         { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.browser?.relay.revoke() },
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
+      ...(!sshProfile ? [
+        { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun(); } },
+        { id: 'browser-use-cloud-stop', label: t('browser_use.cloud_stop'), click: () => remote.stopBrowserShare() },
+      ] : []),
       ...(linuxDesktop ? [{ id: 'linux-desktop', label: t('linux_desktop.title'), click: () => {
         void linuxDesktop?.open().catch(error => dialog.showErrorBox(t('linux_desktop.title'), String(error)));
       } }] : []),
@@ -308,6 +339,7 @@ app.whenReady().then(async () => {
     nativeTheme.on('updated', () => linuxDesktop?.publish());
   }
   globalShortcut.register('CommandOrControl+Shift+Escape', () => {
+    remote.stopBrowserShare();
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
   const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
