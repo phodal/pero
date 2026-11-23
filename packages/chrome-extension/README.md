@@ -6,7 +6,7 @@ unpacked**, and choose `~/.pero/chrome-extension`. Pin **Pero Browser Use** so
 you can open it from the toolbar. Upgrade the Workbench and extension together
 for Relay protocol 3.
 
-1. Select an ordinary conversation in Pero Native. Open **Settings → Browser
+1. Select an ordinary conversation in Pero. Open **Settings → Browser
    Use → Pair in Chrome**. Chrome opens the extension and pairs automatically.
 2. In Electron, use **Workbench → Copy Chrome pairing code**. In the extension,
    expand **Enter a pairing code manually**, paste the code and select **Pair

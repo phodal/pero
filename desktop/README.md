@@ -325,7 +325,7 @@ open. Use `npm run dev:native -- --build-only` to build these dependencies witho
 opening a window or starting watchers.
 
 `npm run build:macos-native` still writes the release bundle at
-`target/native/Pero Native.app` and refreshes its checkout's debug Harness adapter.
+`target/native/Pero.app` and refreshes its checkout's debug Harness adapter.
 This preview reuses the GPUI workbench and Rust
 Host without Electron, Chromium or Wasm; embedded Web/App content uses Wry/WebKit. Local ACP sessions use the
 existing installed adapters and model authentication. Preview history and
@@ -348,8 +348,8 @@ remains unverified. See [native verification](../docs/fitness/native-preview.md)
 
 ### Portable Native macOS package
 
-`npm run package:macos-native` writes `target/native-package/Pero Native.app`
-and `Pero-Native-macos-arm64.dmg`. This distribution bundles the Rust Host,
+`npm run package:macos-native` writes `target/native-package/Pero.app`
+and `Pero-macos-arm64.dmg`. This distribution bundles the Rust Host,
 Worker, Apps, connector helpers, ACP JavaScript adapters and checksum-pinned
 official Node 22.23.4. It resolves resources relative to its installed executable;
 the source checkout and a system Node installation are not required. Native
@@ -359,7 +359,7 @@ remain user-installed. Native cloud contribution workspace preparation remains
 unavailable. Builds use ad-hoc signing by default. Set
 `PERO_MACOS_SIGN_IDENTITY` to a Developer ID Application identity to sign both
 Native and its Computer Use app. This build does not notarize them.
-Copy both `Pero Native.app` and `Pero Computer Use.app` from the DMG into the
+Copy both `Pero.app` and `Pero Computer Use.app` from the DMG into the
 same Applications directory.
 
 Release CI builds Native and Electron as separate macOS assets of the same
@@ -382,7 +382,7 @@ names are in [release products](../docs/fitness/release-products.md).
 
 Run `npm run package:macos` on the target Mac architecture. This builds release
 Wasm, optimizes it with pinned Binaryen 132, and packages the release Rust Host,
-Web assets and Electron into `target/package/Pero.app`. Unlike `build:macos-dev`,
+Web assets and Electron into `target/package/Pero Electron.app`. Unlike `build:macos-dev`,
 this bundle contains its resources and does not link to the checkout. Settings
 and history remain in the normal user data directory.
 
@@ -402,7 +402,7 @@ is ad-hoc signed and signature-verified; it is not notarized.
 Run the existing conversation suite against the actual package:
 
 ```sh
-PERO_PACKAGED_EXECUTABLE="$PWD/target/package/Pero.app/Contents/MacOS/Pero" node tests/e2e/workbench.mjs
+PERO_PACKAGED_EXECUTABLE="$PWD/target/package/Pero Electron.app/Contents/MacOS/Pero" node tests/e2e/workbench.mjs
 ```
 
 This starts outside the checkout with an isolated profile and the ACP fixture.
@@ -441,7 +441,7 @@ require a full quit/reopen after granting Accessibility and Screen & System
 Audio Recording; macOS 27 also labels access under Device Control and Data
 Access. Preflight is advisory, so an observed window is the actual access check.
 
-In Pero Native, open each of the two macOS privacy panes from the Computer Use
+In Pero, open each of the two macOS privacy panes from the Computer Use
 settings. Drag `Pero Computer Use.app` into each permission list and enable it.
 **Show Helper in Finder** opens the same signed bundle for the system list's
 Add fallback. Grant access to this helper so the launched worker receives it.

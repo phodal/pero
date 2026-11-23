@@ -86,10 +86,10 @@ Pero 把论文原文、科研 App 和 Agent 对话放进同一个桌面工作台
 
 | 产品 | 平台 | 文件 |
 | --- | --- | --- |
-| Pero，Electron 工作台 | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
+| Pero，原生工作台 | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
 | Pero，Electron 工作台 | Windows x64 | `Pero-windows-x64.zip` |
 | Pero，Electron 工作台 | Linux x64 | `Pero-linux-x64.tar.gz` |
-| Pero Native，GPUI 工作台 | macOS Apple Silicon | `Pero-Native-macos-arm64.dmg` |
+| Pero Electron，可选工作台 | macOS Apple Silicon | `Pero-Electron-macos-arm64.dmg` |
 
 下载页附有构建信息和 SHA256SUMS。macOS 包为 ad-hoc 签名，未经公证；Windows/Linux 包未签名。Electron 与 Native 使用独立配置。首次体验建议用 **Electron**；Native 有[新配置限制](DEVELOPMENT.md#native-fresh-profile-limitation)。详见[发行验证记录](docs/fitness/release-products.md)。
 

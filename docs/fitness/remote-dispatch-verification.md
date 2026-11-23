@@ -193,9 +193,9 @@ then run the scenarios serially:
 
 ```sh
 npm run build:macos-native
-node tests/e2e/native-self-hosted-machines.mjs --preview 'target/native/Pero Native.app'
+node tests/e2e/native-self-hosted-machines.mjs --preview 'target/native/Pero.app'
 npm run package:macos-native
-node tests/e2e/native-self-hosted-machines.mjs --dmg /absolute/path/to/Pero-Native-macos-arm64.dmg
+node tests/e2e/native-self-hosted-machines.mjs --dmg /absolute/path/to/Pero-macos-arm64.dmg
 ```
 
 In the window, open **Settings → All settings… → GitHub Connector**, then
