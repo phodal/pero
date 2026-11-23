@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pero Collector</title>
+    <link rel="stylesheet" href="point-tokens.css">
+    <link rel="stylesheet" href="point-metrics.css">
+    <link rel="stylesheet" href="tokens.css">
+    <link rel="stylesheet" href="sidepanel.css">
+    <link rel="stylesheet" href="collector.css">
+  </head>
+  <body class="collector-page">
+    <main class="collector-main">
+      <header class="collector-header">
+        <div><h1 data-copy="collector">Collector</h1><p data-copy="subtitle">Keep a source with the question it helps answer.</p></div>
+        <a class="collector-link" href="sidepanel.html" data-copy="chat">Chat</a>
+      </header>
+      <p id="destination" role="status"></p>
+      <section class="collector-card" aria-labelledby="collector-capture-label">
+        <label id="collector-capture-label" for="collector-capture-scope" data-copy="scope">Capture</label>
+        <div class="collector-capture-row"><select id="collector-capture-scope"><option value="page" data-copy="pageText">Page text</option><option value="selection" data-copy="selectionText">Selected text</option></select><button id="collector-capture" class="collector-primary" type="button" data-copy="capture" disabled>Read current page</button></div>
+        <p class="collector-muted" data-copy="captureHelp">Read only after you click. The preview stays in Chrome until you save.</p>
+      </section>
+      <section id="collector-editor" class="collector-card" hidden>
+        <label for="collector-source-url" data-copy="sourceUrl">Original URL</label><input id="collector-source-url" readonly>
+        <label for="collector-title" data-copy="title">Title</label><input id="collector-title" maxlength="1024">
+        <label for="collector-content" data-copy="content">Collected text</label><textarea id="collector-content" rows="10" spellcheck="false"></textarea>
+        <p id="collector-truncated" class="collector-warning" data-copy="truncated" hidden>The captured page was truncated.</p>
+        <p class="collector-muted" data-copy="editHelp">Keep the relevant excerpt. The complete source must fit in 16 KiB.</p>
+        <label for="collector-reason" data-copy="reason">Why collect it?</label><textarea id="collector-reason" rows="2" maxlength="2048" data-placeholder="reasonPlaceholder"></textarea>
+        <label for="collector-question" data-copy="question">Question to answer</label><textarea id="collector-question" rows="2" maxlength="2048" data-placeholder="questionPlaceholder"></textarea>
+        <details><summary data-copy="preview">Final source preview</summary><pre id="collector-final-preview"></pre></details>
+        <p id="collector-budget" role="status" aria-live="polite"></p><p id="collector-validation" class="collector-warning" role="status" aria-live="polite" hidden></p>
+        <button id="collector-save" class="collector-primary" type="button" data-copy="save" disabled>Save to conversation</button>
+        <p class="collector-muted" data-copy="permissionNotice">Saved sources appear in the paired conversation’s Artifacts.</p>
+      </section>
+      <section id="collector-success" class="collector-card collector-success" role="status" aria-live="polite" hidden><p id="collector-receipt"></p><button id="collector-another" type="button" data-copy="collectAnother">Collect another page</button></section>
+      <p id="collector-error" class="collector-warning" role="alert" hidden></p>
+    </main>
+    <script type="module" src="collector.js"></script>
+  </body>
+</html>

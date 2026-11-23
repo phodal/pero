@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pero Chat</title>
+    <link rel="stylesheet" href="point-tokens.css">
+    <link rel="stylesheet" href="point-metrics.css">
+    <link rel="stylesheet" href="tokens.css">
+    <link rel="stylesheet" href="sidepanel.css">
+
+  </head>
+  <body>
+    <main>
+      <header class="conversation-header">
+        <h1 id="session-label" class="session-title">New session</h1>
+        <select id="session-select" class="session-native" tabindex="-1" aria-hidden="true"><option value="">New session</option></select>
+        <div class="header-actions" role="group" aria-label="Conversation actions">
+          <button id="reconnect" class="round-button" type="button" aria-label="Pero Desktop isn’t running. Retry" title="Pero Desktop isn’t running · Retry" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4"/></svg>
+          </button>
+          <button id="session-trigger" class="round-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="session-menu" aria-label="Conversation history" title="History">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
+          </button>
+          <button id="new-chat" class="round-button" type="button" aria-label="Start a new chat" title="New chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button id="more-trigger" class="round-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu" aria-label="More" title="More">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5h.01M12 12h.01M12 18.5h.01"/></svg>
+          </button>
+        </div>
+        <div id="session-menu" class="header-menu session-menu" hidden>
+          <input id="session-search" class="session-search" type="search" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" hidden>
+          <div id="session-list" class="session-list" role="listbox" aria-label="Pero conversations"></div>
+          <p id="session-empty" class="session-empty" hidden>No matching conversations</p>
+        </div>
+        <div id="more-menu" class="header-menu more-menu" role="menu" hidden>
+          <a id="open-collector" class="menu-item" role="menuitem" href="collector.html">Collector</a>
+          <button id="open-relay" class="menu-item" role="menuitem" type="button">Review tab access</button>
+          <button id="open-point" class="menu-item" type="button" role="menuitem" disabled>Open in Pero</button>
+          <div role="status" class="menu-item">
+            <span id="connection-dot" class="connection-dot" data-state="connecting" aria-hidden="true"></span>
+            <span id="connection">Connecting to Pero</span>
+          </div>
+        </div>
+      </header>
+
+      <div></div>
+      <section id="messages" class="messages" aria-label="Conversation" aria-live="polite">
+        <div id="empty" class="empty-state">
+          <h1>Continue your work here</h1>
+          <p>Your Pero conversations, models, tools, and approvals stay in sync with Desktop.</p>
+        </div>
+      </section>
+
+      <section class="composer-shell" aria-labelledby="composer-label">
+        <div id="attention" class="attention" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+        <div id="attachment-error" class="field-error" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+        <div class="composer-card">
+          <label id="composer-label" class="visually-hidden" for="prompt">Message Pero</label>
+          <textarea id="prompt" rows="1" maxlength="32768" placeholder="Send a message…"></textarea>
+          <div id="draft-attachments" class="draft-attachments" aria-label="Attachments"></div>
+          <div id="context-status" class="context-status" role="status" hidden></div>
+          <div class="composer-row">
+            <div class="composer-actions" role="group" aria-label="Add context">
+              <input id="attachment-input" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+              <button id="attach" class="tool-button" type="button" aria-label="Attach images" title="Attach images">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button id="share-tab" class="text-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v11H4zM8 20h8M12 17.5V20"/></svg>
+                Share tab
+              </button>
+            </div>
+            <span id="status" role="status" aria-live="polite" aria-atomic="true">Connecting…</span>
+            <button id="stop" class="tool-button stop-button" type="button" aria-label="Stop response" title="Stop" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            </button>
+            <button id="send" class="send-button" type="button" aria-label="Send message" title="Send" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+
+
+  </body>
+</html>
