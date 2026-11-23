@@ -9,6 +9,50 @@ The first increment gives a saved ResearchProject one primary Agent conversation
 that can delegate bounded work to ordinary Host-owned ACP conversations. The
 project's existing goal and resource references remain its durable context.
 
+## Project workspace and prompt composition — 2026-11-23
+
+The Workbench sidebar shows saved Projects by their existing catalog identity.
+A Project row opens its primary conversation. The Project retains its own right
+tab selection while users write, switch to a delegated conversation, or return
+to the coordinator. Overview, linked materials, Tasks, repositories and PRs,
+execution, and settings use their existing view owners. Directory and shared
+workspaces remain available from the Projects library.
+
+The existing ChatPanel Composer replaces the initial Agent selector and Start
+screen. Each unopened Project retains the text and selected reference tokens of
+its own draft. The first send starts the Project-bound primary through the
+existing Host command, then submits the captured draft using the acknowledged
+conversation's ordinary prompt and queue path. During startup the draft stays
+visible. Admission failure leaves it editable. A provider startup failure before
+ACP acknowledgement retains the logical conversation and offers an explicit
+retry; the draft remains available for the next send. Once a conversation exists, the
+same Composer uses its ordinary model, approval, cancellation and history
+controls. Project file suggestions resolve in the saved Project's directory,
+while explicit file selection uses the existing attachment flow.
+
+Host materializes the coordinator or child instructions and saved Project
+context when starting or restoring an ACP session. ACP carries the user text
+and selected references through the original turn path. It appends separate
+text blocks for the shared role and evidence instructions and the serialized
+Project data. The native Harness continues to own its system prompt. This
+migration uses the shared navigation row, right tab, Composer and typography
+roles. Runtime verification belongs in the
+[research Projects record](../fitness/research-projects.md).
+
+The Project name uses the shared Workbench content tab. Its close button and
+keyboard shortcut follow the visible Project route and keep the coordinator,
+its draft, and any running work. Main Agent and child actions belong to the
+conversation toolbar. The right titlebar shows the Project views and its own
+close button. The Project keeps the selected right view when the inspector is
+hidden. Conversation resources keep their existing Files, Artifacts, and
+Changes controls in the same Workbench column. In narrow windows, the
+explicitly opened Project inspector uses the content area and returns focus
+to the Composer on close.
+
+Overview presents the saved goal. Materials and experiments use the Materials
+tab. The existing goal editor retains its unsaved fields by Project key while
+the user navigates, and explicit Save and Cancel finish editing.
+
 ## Concepts and ownership
 
 `ProjectSessionBinding` identifies the saved project, parent conversation and

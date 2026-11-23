@@ -533,3 +533,73 @@ after saving a newer revision without the receipt. Reproduce with
 `cargo build -p pero-host` and `node tests/contracts/app-canvas.mjs`.
 This is a local runtime contract plus component tests, not Native visual,
 second-machine or second-researcher acceptance.
+
+## Project workspace, first turn and recovery — 2026-11-23
+
+The macOS ARM64 development checkout was at
+`e03a3e631ffa7f7906d7e7ce6f6959d4b74a01cb` with the working Project navigation,
+shared Composer, ACP prompt and startup recovery changes. The Wasm/Web and
+Native development builds ran against the same Project Agent Host changes.
+
+- `npm run test:project-agent` passed nine Host cases and 21 actual Electron
+  flows, with 18 loopback model requests and zero renderer errors. The sidebar
+  opened two signed-out Projects with independent drafts. All six right tabs
+  retained the central session and draft. Tasks loaded the workspace ROADMAP.
+- The first submit reached the bound primary once. The wire request contained
+  the original message and frozen attachment, followed by explicitly delimited
+  coordinator instructions and Project context. The original message history
+  retained the submitted text. A rejected Host Start preserved the draft and
+  its reference. A separate ACP initialize failure preserved one copy of the
+  draft, showed Retry and reopened the same logical thread. The error cleared
+  on readiness and one explicit send reached the model. Existing delegation,
+  approval, cancellation, artifacts and restart flows also passed.
+- The visible macOS Native development window at 1440 × 961 logical pixels
+  showed the two projects, centered first Composer and independent right tabs.
+  Switching Project restored the first draft and its selected Tasks tab.
+  The first request delegated work to a child that wrote and returned shell
+  evidence in its isolated worktree under Auto-review. The Host journal and
+  the resulting file verified the parent/child relationship and the effect, and
+  clicking the Project row returned to the coordinator. These captures precede
+  the later title bar review.
+
+Inspected Electron captures include
+`test-results/project-agent/01-ready-light.png`,
+`01-right-tasks-with-central-draft.png` and
+`06-first-acp-start-failure-with-draft.png`. The Native captures and
+`results.json` are in `test-results/project-agent-native-2026-11-23/`, including
+`01-project-empty.jpg`, `03-tasks-retain-draft.jpg`, `04-child-evidence.jpg` and
+`05-return-to-coordinator.jpg`. The ordinary Composer regression passed, and
+the local Project start regression passed on the preceding Wasm build.
+Both model runs used the scripted loopback provider. Real-model behavior,
+signed packages, scientific acceptance and other Native platforms remain
+unverified.
+
+### Closable Project tab and right title bar
+
+The final source through `0dd275f9d` passed 25 Electron flows with zero
+renderer errors. Closing by mouse or keyboard and reopening from the sidebar
+restored the same coordinator and its draft. The shortcut retained the hidden
+Scientific Viewer pane and its view identity. The right-pane close and show actions retained the selected
+view and central draft. At 1100 pixels, the Artifact controls occupied the
+right title bar above the actual Viewer, and the central Project conversation
+stayed visible. Materials remained reachable at Electron's 1000-pixel minimum.
+An unsaved goal survived hiding the inspector, closing the Project tab and
+visiting another Project. Cancel restored the original saved goal.
+
+The matching Electron Research Projects suite passed all ten checks with
+synthetic records in the actual Paper, Control Lab and Lab backends, including
+editing, restart, exact linked-record navigation and unlinking.
+
+The visible macOS Native development build repeated the Project tab close,
+inspector hide/show and goal edit recovery at 1440 × 961 logical pixels.
+A retained first draft delegated an observed shell run under the same Project.
+Native accessibility exposed all six named overflow options, and Up then
+Return chose Settings and displayed it as the active title-bar tab. This
+verified the menu path's labels and keyboard controls.
+
+Inspected Electron captures are in `test-results/project-agent/`, including
+`01-project-inspector-reopened.png`, `01-restored-unsaved-goal.png` and
+`06-midwidth-artifact-titlebar.png`. Native captures are in
+`test-results/project-agent-native-titlebar/`, including `01-project-titlebar.jpg`,
+`04-tab-reopened.jpg`, `06-goal-edit-restored.jpg`, `08-labeled-overflow.jpg` and
+`09-keyboard-selected-settings.jpg`.
