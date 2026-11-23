@@ -36,6 +36,7 @@ type pair struct {
 	workerW, agentW *io.PipeWriter
 	count           int
 	bytes           atomic.Int64
+	browser         *browserCarrier
 }
 
 func New(db *store.Store, reviewer *runtimeauth.Reviewer, provider ProviderConfig) (*Gateway, error) {
@@ -49,6 +50,8 @@ func (g *Gateway) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/channel/{role}", g.attach)
 	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/provider/v1/chat/completions", g.proxy)
+	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/desktop", g.attachBrowser)
+	mux.HandleFunc("POST /api/runtime/v1/runs/{id}/browser/call", g.callBrowser)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")

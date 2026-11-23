@@ -44,6 +44,7 @@ go_test(
         "desktop_connector_test.go",
         "github_test.go",
         "integration_test.go",
+        "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
     env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY"],

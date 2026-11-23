@@ -132,6 +132,43 @@ func (s *Store) AuthorizeRuntimeChannel(ctx context.Context, runID string) (runt
 		return runtimechannel.Session{}, err
 	}
 	defer tx.Rollback(ctx)
+	c, err := authorizedRuntimeChannel(ctx, tx, runID)
+	if err != nil {
+		return c, err
+	}
+	return c, tx.Commit(ctx)
+}
+
+// Browser access is granted by the authenticated Client that currently owns
+// this Task. Project visibility alone does not grant control of an active Run.
+func (s *Store) AuthorizeRuntimeBrowserOwner(ctx context.Context, runID string, client *Client) (runtimechannel.Session, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return runtimechannel.Session{}, err
+	}
+	defer tx.Rollback(ctx)
+	// Lock Task before Run, as ClientCancel and ClientDispatch do.
+	var taskID string
+	err = tx.QueryRow(ctx, `SELECT t.id FROM tasks t JOIN runs r ON r.task_id=t.id
+		WHERE r.id=$1 AND t.current_run_id=r.id AND t.claimed_by_client_id=$2
+		AND t.spec->>'project_id'=ANY($3) FOR SHARE OF t`, runID, client.ID, client.Projects).Scan(&taskID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return runtimechannel.Session{}, ErrForbidden
+	}
+	if err != nil {
+		return runtimechannel.Session{}, err
+	}
+	c, err := authorizedRuntimeChannel(ctx, tx, runID)
+	if err != nil {
+		return c, err
+	}
+	if c.State != runtimechannel.Started {
+		return c, ErrLease
+	}
+	return c, tx.Commit(ctx)
+}
+
+func authorizedRuntimeChannel(ctx context.Context, tx pgx.Tx, runID string) (runtimechannel.Session, error) {
 	scope, now, err := liveChannelScope(ctx, tx, runID)
 	if err != nil {
 		return runtimechannel.Session{}, err
@@ -143,7 +180,7 @@ func (s *Store) AuthorizeRuntimeChannel(ctx context.Context, runID string) (runt
 	if c.Scope != scope || !c.Live(now) {
 		return c, ErrLease
 	}
-	return c, tx.Commit(ctx)
+	return c, nil
 }
 func (s *Store) StopRuntimeChannel(ctx context.Context, runID string, unexpected bool) error {
 	tx, err := s.pool.Begin(ctx)

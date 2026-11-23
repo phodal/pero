@@ -69,6 +69,13 @@ proxy retries and cross-instance reattachment are not supported.
    restarts and lease expiry never replay the prompt. Runtime observation and
    lease checks are bounded polling, not instantaneous revocation/attestation.
 
+The Cloud Browser Use transport is a child of the live ACP pair. The
+authenticated Task claimant can attach one Desktop for the current Run, and
+only the bound Agent Pod can call it. The transport holds no browser profile,
+passwords or cookie API. The Desktop owns the selected tab and origin, and
+admits each Browser Use action. The server closes the transport on Run
+cancellation, lease loss, ACP disconnect or an uncertain call outcome.
+
 The channel bound is deliberately smaller than the worst-case Unicode Task
 payload accepted by a local Worker. Oversized remote ACP messages fail closed,
 not truncated; operators must keep the encoded prompt plus acceptance within

@@ -186,9 +186,7 @@ The Linux Agent used Browser Use on the granted embedded tab and the paired
 Chrome profile in separate turns. The loopback web server recorded one trusted
 click in each engine. The Agent verified each DOM effect and compared the
 received PNG digest with its receipt. Revocation removed access in both lanes.
-The result is in `test-results/browser-use-ssh/`. It covers the SSH Workbench
-route. A Cloud Worker connection through a public relay requires separate
-implementation and verification.
+The result is in `test-results/browser-use-ssh/`.
 
 To rerun, configure the remote Host's Agent entry to run
 `tests/fixtures/browser-use-ssh-acp.py` on the SSH machine. Use the matching
@@ -200,7 +198,9 @@ PERO_SSH_CONFIG=/path/to/ssh.config PERO_TEST_SSH_PROFILE=/path/to/profile.json 
   node tests/e2e/browser-use-ssh.mjs
 ```
 
-A separate run used the Native development workbench, its connector and
+### External Chrome from Native Workbench
+
+The Native development workbench used its connector and
 headed Chrome for Testing with a scripted ACP agent. Without any per-tab
 action in Chrome, the conversation listed both fixture windows and observed
 actual page text. Native exit disconnected the extension. Evidence is in
@@ -216,6 +216,24 @@ across two cells. The test independently checks the trusted click and the
 image-only marker read by Codex, plus the PNG hash in both the Host evidence
 and Codex's ACP transcript. Evidence is written to
 `target/computer-verification/native-chrome-repl-codex/`.
+
+### Cloud Run browser transport
+
+The isolated Runtime Gateway accepts one duplex Desktop attachment per live
+Run. The Desktop authenticates with the Cloud Client that currently holds the
+Task claim. Browser requests come from the Agent Pod whose identity matches
+the Run's active lease and binding in an online TokenReview. The Desktop owns
+browser selection and action admission. The gateway delivers one call at a
+time, closes the attachment on loss of Run authority and does not replay
+requests whose effects may be unknown.
+
+`TestCloudBrowserFollowsClaimAndRuntimeChannel` uses real PostgreSQL and
+full-duplex HTTP with fixture Desktop, Worker and Pod peers. It exercises
+same-project non-owner rejection, wrong-Pod rejection, single attachment,
+single-flight calls, response delivery and cancellation during an in-flight
+call. The TokenReview endpoint is a loopback fixture. Desktop consent, Agent
+MCP integration and a browser effect through a hosted Kubernetes relay still
+require end-to-end acceptance.
 
 ### Embedded browser
 
