@@ -11,7 +11,9 @@ if (process.platform !== 'darwin') throw new Error('macOS packaging requires mac
 const staged = process.env.PERO_PRODUCT_PAYLOAD;
 const product = Product.parse(JSON.parse(readFileSync(staged ? join(staged, 'product.json') : resolve(root, 'products/pero.json'), 'utf8')));
 const destination = staged ? resolve(staged, '../package-' + product.id) : resolve(root, 'target/package');
-const output = join(destination, `${product.name}.app`);
+const name = staged ? product.name : `${product.name} Electron`;
+const artifactStem = staged ? product.artifactStem() : `${product.artifactStem()}-Electron`;
+const output = join(destination, `${name}.app`);
 const source = resolve(root, 'node_modules/electron/dist/Electron.app');
 mkdirSync(destination, { recursive: true });
 rmSync(output, { recursive: true, force: true });
@@ -42,7 +44,7 @@ const plist = join(output, 'Contents/Info.plist');
 let content = readFileSync(plist, 'utf8')
   .replace(/(<key>CFBundleExecutable<\/key>\s*)<string>Electron<\/string>/, '$1<string>Pero</string>')
   .replace('<string>com.github.Electron</string>', `<string>${product.id}</string>`)
-  .replace(/(<key>CFBundle(?:DisplayName|Name)<\/key>\s*)<string>Electron<\/string>/g, `$1<string>${product.name}</string>`)
+  .replace(/(<key>CFBundle(?:DisplayName|Name)<\/key>\s*)<string>Electron<\/string>/g, `$1<string>${name}</string>`)
 ;
 if (!staged) content = content.replace('</dict>\n</plist>', '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Pero Desktop</string><key>CFBundleURLSchemes</key><array><string>pero</string></array></dict></array></dict>\n</plist>');
 content = content.replace(/(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]+/, `$1${product.version}`);
@@ -51,9 +53,9 @@ writeFileSync(plist, content);
 execFileSync('/usr/bin/plutil', ['-lint', plist], { stdio: 'inherit' });
 execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', output], { stdio: 'pipe' });
 execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', output], { stdio: 'pipe' });
-const image = join(destination, `${product.artifactStem()}-macos-${process.arch}.dmg`);
+const image = join(destination, `${artifactStem}-macos-${process.arch}.dmg`);
 rmSync(image, { force: true });
-createMacOSDmg(output, product.name, image);
+createMacOSDmg(output, name, image);
 function bytes(path) {
   const stat = statSync(path);
   return stat.isDirectory() ? readdirSync(path, { withFileTypes: true }).reduce((total, entry) => total + (entry.isSymbolicLink() ? 0 : bytes(join(path, entry.name))), 0) : stat.size;

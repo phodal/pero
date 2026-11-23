@@ -53,7 +53,7 @@ was ended without sending a model prompt. The real reply reported above belongs
 to the earlier 2026-10-28 trial, not this fresh connection check.
 
 Local evidence is `test-results/native-preview/result.json` and `connected.png`.
-The development bundle is `target/native/Pero Native.app` in the release
+The development bundle is `target/native/Pero.app` in the release
 worktree. It still references that checkout and its adapters, so the worktree
 must remain available. It is not added to the portable Electron/Virtual Cell
 release assets, and the cloud/Web App limits above still apply.

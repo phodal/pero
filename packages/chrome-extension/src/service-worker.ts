@@ -402,7 +402,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     }
     if (panel || collector) {
       const connection = peer;
-      if (connection?.state !== 'paired') throw new Error('Write a draft here. To send it, pair from Pero Native → Settings → Browser Use.');
+      if (connection?.state !== 'paired') throw new Error('Write a draft here. To send it, pair from Pero → Settings → Browser Use.');
       let request = message.request;
       if (collector && message.type === 'collectorRecover') {
         const pending = await pendingSourceSave();

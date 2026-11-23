@@ -86,10 +86,10 @@ The [2026-11-04 prerelease](https://github.com/phodal/pero/releases/tag/v0.1.0-d
 
 | Product | Platform | Asset |
 | --- | --- | --- |
-| Pero, Electron workbench | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
+| Pero, native workbench | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
 | Pero, Electron workbench | Windows x64 | `Pero-windows-x64.zip` |
 | Pero, Electron workbench | Linux x64 | `Pero-linux-x64.tar.gz` |
-| Pero Native, GPUI workbench | macOS Apple Silicon | `Pero-Native-macos-arm64.dmg` |
+| Pero Electron, optional workbench | macOS Apple Silicon | `Pero-Electron-macos-arm64.dmg` |
 
 Build metadata and SHA256SUMS accompany the downloads. macOS packages are ad-hoc signed, not notarized; Windows/Linux packages are unsigned. Electron and Native use separate profiles. Use **Electron** for the Paper walkthrough above; Native has a [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation). See [release verification](docs/fitness/release-products.md).
 

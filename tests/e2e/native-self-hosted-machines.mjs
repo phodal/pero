@@ -1,6 +1,7 @@
 // Drive the actual Native window while checking the real control plane and Worker.
 import { expect } from '@playwright/test';
 import { execFileSync, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { access, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -10,7 +11,7 @@ import { setupSelfHostedMachines } from './self-hosted-machines-fixture.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const [mode, path, ...extra] = process.argv.slice(2);
 if (!path || extra.length || !['--preview', '--dmg'].includes(mode) || process.platform !== 'darwin') {
-  throw new Error('On macOS, run with --preview <Pero Native.app> or --dmg <Pero-Native-macos-arm64.dmg>');
+  throw new Error('On macOS, run with --preview <Pero.app> or --dmg <Pero-macos-arm64.dmg>');
 }
 const packaged = mode === '--dmg';
 const out = resolve(root, 'test-results/self-hosted-machines', packaged ? 'native-installed' : 'native-preview');
@@ -34,12 +35,14 @@ try {
   let bundle = input;
   if (packaged) {
     const mount = resolve(scratch, 'mount');
-    bundle = resolve(scratch, 'installed/Pero Native.app');
+    bundle = resolve(scratch, 'installed/Pero.app');
     await mkdir(mount);
     await mkdir(resolve(bundle, '..'), { recursive: true });
     execFileSync('hdiutil', ['attach', input, '-mountpoint', mount, '-readonly', '-nobrowse']);
     try {
-      execFileSync('ditto', [resolve(mount, 'Pero Native.app'), bundle]);
+      const current = resolve(mount, 'Pero.app');
+      const legacy = resolve(mount, 'Pero Native.app');
+      execFileSync('ditto', [existsSync(current) ? current : legacy, bundle]);
     } finally {
       execFileSync('hdiutil', ['detach', mount]);
     }

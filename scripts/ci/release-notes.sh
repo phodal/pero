@@ -41,8 +41,8 @@ fi
 cat > release-notes.md <<'EOF_NOTES'
 Pero packages, built and launch-tested on native GitHub Actions runners.
 
-- Pero: macOS Apple Silicon DMG, Windows x64 portable ZIP, Linux x64 portable tar.gz.
-- Pero Native: separate macOS Apple Silicon DMG using GPUI and system WebKit, with bundled Host, Node and Apps; no source checkout needed. Native and Electron use separate data profiles. Install Pero Native.app and Pero Computer Use.app beside each other, then grant the helper Accessibility and Screen Recording in macOS Settings.
+- Pero: macOS Apple Silicon DMG using GPUI and system WebKit, Windows x64 portable ZIP, and Linux x64 portable tar.gz.
+- Install Pero.app and Pero Computer Use.app beside each other on macOS, then grant the helper Accessibility and Screen Recording in Settings. The optional Pero Electron DMG uses a separate data profile.
 - Task Center defaults to https://app.openpero.com.
 - No source checkout needed: sign in, claim a public task and choose a save folder. Pero clones the repository and creates the task branch.
 - Native local sessions and Apps are available; preparing a cloud contribution workspace is currently supported by Electron only. Python App environments are prepared on first use.

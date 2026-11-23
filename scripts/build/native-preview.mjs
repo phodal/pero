@@ -6,7 +6,7 @@ import { writeIcns } from '../lib/macos-icon.mjs';
 import { stageComputerApp } from './computer-app.mjs';
 const root = resolve(import.meta.dirname, '../..');
 if (process.platform !== 'darwin') throw new Error('This preview bundle is for macOS.');
-const app = resolve(root, 'target/native/Pero Native.app');
+const app = resolve(root, 'target/native/Pero.app');
 rmSync(app, { recursive: true, force: true });
 mkdirSync(resolve(app, 'Contents/MacOS'), { recursive: true });
 cpSync(resolve(root, 'target/release/pero-native'), resolve(app, 'Contents/MacOS/pero-native'));
@@ -19,8 +19,8 @@ writeFileSync(resolve(app, 'Contents/Info.plist'), `<?xml version="1.0" encoding
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.openpero.native-preview</string>
-<key>CFBundleName</key><string>Pero Native</string>
-<key>CFBundleDisplayName</key><string>Pero Native Preview</string>
+<key>CFBundleName</key><string>Pero</string>
+<key>CFBundleDisplayName</key><string>Pero Preview</string>
 <key>CFBundleExecutable</key><string>pero-native</string>
 <key>CFBundleIconFile</key><string>AppIcon.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
