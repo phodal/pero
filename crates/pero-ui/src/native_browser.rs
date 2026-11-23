@@ -26,6 +26,13 @@ pub(super) struct WebGrant {
     origin: String,
 }
 
+pub(super) struct WebPopupWatch {
+    request: String,
+    grant: uuid::Uuid,
+    generation: u64,
+    url: String,
+}
+
 impl WebGrant {
     pub(super) fn matches(&self, value: &str) -> bool {
         origin(value).is_some_and(|candidate| candidate == self.origin)
@@ -133,7 +140,11 @@ enum WebOperation {
     Navigate { url: String },
     History { action: WebHistory },
     Screenshot { clip: Option<ScreenshotClip> },
-    Dispatch { input: WebInput },
+    Dispatch {
+        input: WebInput,
+        #[serde(default, rename = "expectPopup")]
+        expect_popup: bool,
+    },
 }
 
 #[derive(Deserialize)]
@@ -344,15 +355,8 @@ impl Workbench {
                                 grant.matches(&url),
                                 "The address is outside the authorized site."
                             );
-                            let address = WebAddress::try_from(url).map_err(anyhow::Error::msg)?;
                             let origin = grant.origin.clone();
-                            let id = format!("web-tab:{}", uuid::Uuid::new_v4());
-                            let document = WebDocument::restore(id.clone(), address.into(), None)
-                                .map_err(anyhow::Error::msg)?;
-                            self.mount_native_web(document, true, Some(origin), window, cx);
-                            Ok(Some(
-                                json!({"kind":"tabOpened","tabId":id,"authorized":false}),
-                            ))
+                            Ok(Some(self.open_native_browser_tab(&url, origin, window, cx)?))
                         }
                         TabAction::Activate => {
                             let item = WorkspaceItem::Web(tab.clone());
@@ -451,13 +455,51 @@ impl Workbench {
                             });
                             Ok(None)
                         }
-                        WebOperation::Dispatch { input } => {
+                        WebOperation::Dispatch { input, expect_popup } => {
                             anyhow::ensure!(
                                 self.navigation.current() == Some(&WorkspaceItem::Web(tab)),
                                 "Select the authorized Web tab before sending input."
                             );
+                            if !expect_popup {
+                                dispatch(raw, input)?;
+                                return Ok(Some(Value::Null));
+                            }
+                            anyhow::ensure!(
+                                matches!(input, WebInput::Pointer { count: 1, .. }),
+                                "A popup can only be observed after a single click."
+                            );
+                            anyhow::ensure!(
+                                view.browser_popup.is_none(),
+                                "A new tab is already being observed."
+                            );
+                            let watch = WebPopupWatch {
+                                request: request.clone(),
+                                grant: grant.id,
+                                generation,
+                                url,
+                            };
                             dispatch(raw, input)?;
-                            Ok(Some(Value::Null))
+                            page.update(cx, |view, _| view.browser_popup = Some(watch));
+                            let page = page.clone();
+                            let apps = apps.clone();
+                            let request = request.clone();
+                            cx.spawn(async move |_, cx| {
+                                cx.background_executor().timer(std::time::Duration::from_secs(5)).await;
+                                let expired = page.update(cx, |view, _| {
+                                    if view.browser_popup.as_ref().is_some_and(|watch| watch.request == request) {
+                                        view.browser_popup.take();
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                });
+                                if expired {
+                                    reply_browser(&apps, &request, Ok(json!({
+                                        "kind": "notObserved", "reason": "No new tab was observed after the click."
+                                    })));
+                                }
+                            }).detach();
+                            Ok(None)
                         }
                     }
                 }
@@ -468,6 +510,49 @@ impl Workbench {
             Ok(None) => {}
             Err(error) => reply_browser(&apps, &request, Err(error)),
         }
+    }
+
+    fn open_native_browser_tab(
+        &mut self,
+        url: &str,
+        origin: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<Value> {
+        let address = WebAddress::try_from(url.to_owned()).map_err(anyhow::Error::msg)?;
+        let id = format!("web-tab:{}", uuid::Uuid::new_v4());
+        let document = WebDocument::restore(id.clone(), address.into(), None)
+            .map_err(anyhow::Error::msg)?;
+        self.mount_native_web(document, true, Some(origin), window, cx);
+        Ok(json!({"kind":"tabOpened","tabId":id,"authorized":false}))
+    }
+
+    pub(super) fn native_browser_popup(
+        &mut self,
+        source: &Entity<crate::native_web::NativeWebPage>,
+        url: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(watch) = source.update(cx, |view, _| view.browser_popup.take()) else {
+            return false;
+        };
+        let result = (|| -> anyhow::Result<Value> {
+            let view = source.read(cx);
+            let grant = view.browser_grant.as_ref().filter(|grant| grant.id == watch.grant)
+                .ok_or_else(|| anyhow::anyhow!("The source tab's authorization ended."))?;
+            let (engine, generation) = view.browser_view(cx)?;
+            anyhow::ensure!(generation == watch.generation && engine.url()? == watch.url
+                && self.browser_thread(cx).as_deref() == Some(grant.thread.as_str())
+                && self.navigation.current() == Some(&WorkspaceItem::Web(view.document.id.clone())),
+                "The source tab or conversation changed.");
+            anyhow::ensure!(grant.matches(url), "The new tab is outside the authorized site.");
+            let origin = grant.origin.clone();
+            self.open_native_browser_tab(url, origin, window, cx)
+        })();
+        let effect = result.unwrap_or_else(|error| json!({"kind":"blocked","reason":error.to_string()}));
+        reply_browser(&crate::native::apps(), &watch.request, Ok(effect));
+        true
     }
 }
 

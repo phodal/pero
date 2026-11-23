@@ -37,7 +37,9 @@ Native 支持标签清单、观察、定位、条件等待、同源 iframe、同
 帧树检查来源，覆盖封闭 Shadow DOM 内的 iframe。WebKit 未提供所需帧元数据时拒绝截图。
 Native 也可通过 `download` 把已观察的同源 HTTP(S) 或 Blob 链接保存为会话 Artifact。
 HTTP(S) 下载使用该 WebKit 标签的登录态，拒绝重定向，文件上限为 10 MiB。
-网页触发的新标签回执和下载按钮触发的原生下载事件由 Electron 提供。
+`click` 可带 `expectPopup: true`，等待网页打开新标签并在动作回执中记录标签 ID。
+同源目标使用独立标签实例和授权，跨源目标在发出页面请求前拒绝。等待上限为五秒，
+届时若无新标签事件，回执记为 `notObserved`。Electron 也支持下载按钮触发的原生下载事件。
 
 Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试夹具从授权边界提供确认，
 并通过页面事件自带的 `isTrusted`、独立读取和文件内容检查结果。回环服务器还验证了
@@ -45,6 +47,8 @@ Native 验收使用实际的 Workbench、Host 与确定性 ACP 代理。测试�
 授权前后的工具状态和本地回执。Electron 的全量验收也运行同一组第六批场景。
 Native 回环验收另核对了需 HttpOnly Cookie 的 CSV、页面生成的 Blob、Artifact 字节和
 哈希，以及跨源重定向的目标从未被访问。Chrome Relay 也通过既有下载回归。
+新标签验收核对了同源 `_blank` 链接打开后的页面内容、授权前的拒绝、跨源 `window.open`
+请求计数为零，以及无新标签时的超时回执。工具结果与保存的动作回执一致。
 运行方法为构建带 `native-probe` 的 `pero-native` 和 Native 连接器，再执行
 `node tests/e2e/native-browser-use.mjs`。
 

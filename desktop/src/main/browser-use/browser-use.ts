@@ -44,6 +44,7 @@ function webAddress(value: string): URL | undefined {
 }
 
 type PopupEffect = { kind: 'tabOpened'; tabId: string; authorized: false } | { kind: 'blocked'; reason: string };
+export type BrowserPopupResult = PopupEffect | { kind: 'notObserved'; reason: string };
 export type PageEffects = {
   approvePopup(url: string): string | undefined;
   popup(effect: PopupEffect): void;
@@ -342,7 +343,7 @@ export class BrowserUse implements BrowserUsePort {
       let outcome: 'dispatched' | 'rejected' | 'unknown' = 'rejected';
       let reason: string | undefined;
       let transfer: Awaited<ReturnType<typeof downloadArtifact>> | undefined;
-      let popup: PopupEffect | { kind: 'notObserved'; reason: string } | undefined;
+      let popup: BrowserPopupResult | undefined;
       let acceptPopup!: (effect: PopupEffect) => void;
       const popupEvent = new Promise<PopupEffect>(resolve => { acceptPopup = resolve; });
       const trackEffects = (download?: DownloadListener) => grant.tab.trackEffects({

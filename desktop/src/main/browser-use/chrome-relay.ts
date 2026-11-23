@@ -244,8 +244,7 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     this.embedded = embedded;
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
     const tool = embedded.tool;
-    const inputSchema = embedded instanceof NativeBrowserUse ? this.relay.browser.tool.inputSchema : tool.inputSchema;
-    this.tool = { ...tool, inputSchema, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
+    this.tool = { ...tool, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
       chromeActions.join(', ') + '. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
   }
   revoke(thread?: string) { this.embedded.revoke(thread); this.relay.browser.revoke(thread); }

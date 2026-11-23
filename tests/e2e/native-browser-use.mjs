@@ -53,9 +53,16 @@ const server = await listen((request, response) => {
       <a href="/report.csv" download>Protected report</a>
       <a id="blob" download="webkit-blob.txt">Local Blob</a>
       <a href="/download-redirect" download>Redirecting report</a>
-      <script>document.querySelector('#blob').href = URL.createObjectURL(new Blob([${JSON.stringify(blobText)}]));</script>
+      <button id="foreign-popup">Open foreign popup</button>
+      <button>No popup expected</button>
+      <a href="/popup" target="_blank" rel="noopener">Open popup fixture</a>
+      <script>
+        document.querySelector('#blob').href = URL.createObjectURL(new Blob([${JSON.stringify(blobText)}]));
+        document.querySelector('#foreign-popup').onclick = () => window.open(${JSON.stringify(foreignOrigin + '/popup')}, '_blank');
+      </script>
       <p data-testid="wheel">`)
     : path === '/second' ? browserNavigationPage('Second')
+    : path === '/popup' ? browserNavigationPage('Popup fixture')
     : browserInputPage;
   response.end(page);
 });
@@ -80,6 +87,7 @@ try {
   const draft = { action: 'locate', locator: { by: 'label', value: 'Tab draft' } };
   const waitText = (id, value) => ({ action: 'wait', locator: { by: 'testId', value: id }, condition: { kind: 'text', value }, timeoutMs: 3000 });
   const byRole = (role, name) => ({ action: 'locate', locator: { by: 'role', role, name } });
+  const clickForPopup = (role, name) => [byRole(role, name), { action: 'click', name, expectPopup: true }];
   const wheel = { action: 'scroll', deltaX: 0, deltaY: 460 };
   const turns = [
     { commands: [status] },
@@ -87,6 +95,13 @@ try {
     { commands: ['Protected report', 'Local Blob', 'Redirecting report'].flatMap(name => [
       byRole('link', name), { action: 'download', name },
     ]) },
+    { commands: [
+      ...clickForPopup('button', 'No popup expected'),
+      ...clickForPopup('button', 'Open foreign popup'),
+      ...clickForPopup('link', 'Open popup fixture'),
+    ] },
+    { commands: [{ ...status, tabId: '$duplicate' }, { ...observe, tabId: '$duplicate' }] },
+    { permission: 'allow', commands: [{ ...observe, tabId: '$duplicate' }, { action: 'closeTab', tabId: '$duplicate' }] },
     { commands: [
       { action: 'screenshot' }, { action: 'screenshot', clip },
       { action: 'screenshot', clip: { ...clip, x: 10000 } },
@@ -141,7 +156,7 @@ try {
   const session = JSON.parse(await readFile(receipt, 'utf8'));
   assert.equal(session.passed, true, session.error);
   assert(session.mcp.servers.some(server => server.server === 'pero-app-use'));
-  const [before, inputs, downloads, first, unauthorized, approved, history, final, after] = session.replies;
+  const [before, inputs, downloads, popups, popupDenied, popupGranted, first, unauthorized, approved, history, final, after] = session.replies;
   assert.deepEqual(before, [{ authorized: false, isError: false }]);
   verifyBrowserInputs(inputs.slice(0, -1));
   const threadDigest = createHash('sha256').update(session.thread).digest('hex');
@@ -160,6 +175,20 @@ try {
   assert.equal(hits.get('foreign/download') ?? 0, 0);
   assert.equal(hits.get('/report.csv'), 1);
   assert.deepEqual((await readdir(workspace)).filter(name => name.startsWith('.pero-browser-download-')), []);
+  assert.equal(popups[1].popup.kind, 'notObserved', JSON.stringify(popups));
+  assert.equal(popups[3].popup.kind, 'blocked', JSON.stringify(popups));
+  assert.match(popups[3].popup.reason, /outside the authorized site/i);
+  const { popup } = popups[5];
+  assert.equal(popup.kind, 'tabOpened', JSON.stringify(popups));
+  assert.match(popup.tabId, /^web-tab:/);
+  assert.equal(popup.authorized, false);
+  assert.deepEqual(popupDenied[0], { authorized: false, isError: false });
+  assert.equal(popupDenied[1].isError, true);
+  assert.equal(popupGranted[0].url, origin + '/popup');
+  assert(popupGranted[0].nodes.some(node => node.name === 'Browser Use Popup fixture' || node.text === 'Browser Use Popup fixture'));
+  assert.equal(popupGranted[1].tabId, popup.tabId);
+  assert.ok((hits.get('/popup') ?? 0) > 0);
+  assert.equal(hits.get('foreign/popup') ?? 0, 0);
 
   const [viewport, clipped, invalidClip, , fill, , scroll, staleScroll, wheelResult, position, blockedOpen, opened] = first;
   const dispatched = result => {
@@ -220,6 +249,7 @@ try {
     assert(receipts.includes(receiptId + '.intent.json'));
     const result = JSON.parse(await readFile(resolve(directory, receiptId + '.result.json'), 'utf8'));
     assert.equal(result.outcome, action.outcome);
+    if (action.popup) assert.deepEqual(result.popup, action.popup);
   }
   for (const [shot, name] of [[viewport, 'viewport'], [clipped, 'clip']]) {
     assert.equal(shot.kind, 'screenshot', JSON.stringify(shot));
@@ -238,7 +268,7 @@ try {
   const expected = [36, 104, 180, 255];
   for (const [channel, value] of decoded.data.subarray(middle, middle + 4).entries())
     assert(Math.abs(value - expected[channel]) <= 3, 'Screenshot clip sampled the blue viewport marker.');
-  console.log('Native Browser Use passed: independent tabs, approval, history, trusted scroll, guarded screenshots and WebKit downloads.');
+  console.log('Native Browser Use passed: popup outcomes, independent tabs, approval, history, trusted scroll, guarded screenshots and WebKit downloads.');
 } finally {
   clearTimeout(timer);
   child?.kill();

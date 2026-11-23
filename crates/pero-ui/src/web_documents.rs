@@ -239,7 +239,11 @@ impl Workbench {
             let popup = cx.subscribe_in(
                 &view,
                 window,
-                |this, _, event: &crate::native_web::NativeWebPopup, window, cx| {
+                |this, _source, event: &crate::native_web::NativeWebPopup, window, cx| {
+                    #[cfg(target_os = "macos")]
+                    if this.native_browser_popup(&_source, &event.0, window, cx) {
+                        return;
+                    }
                     this.web_command(
                         json!({"action":"web_open","url":event.0}),
                         window,
