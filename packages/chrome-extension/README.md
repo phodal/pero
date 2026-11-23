@@ -1,17 +1,17 @@
 # Pero Browser Use for Chrome
 
-From the repository root, run `node scripts/build/chrome-extension.mjs`. In
+In Native, use **Settings → Browser Use → Prepare extension folder**. From a source checkout, you can also run `node scripts/build/chrome-extension.mjs "$HOME/.pero/chrome-extension"`. In
 Chrome, open `chrome://extensions`, enable **Developer mode**, select **Load
-unpacked**, and choose `target/chrome-extension`. Pin **Pero Browser Use** so
+unpacked**, and choose `~/.pero/chrome-extension`. Pin **Pero Browser Use** so
 you can open it from the toolbar. Upgrade the Workbench and extension together
 for Relay protocol 2.
 
-1. Select an ordinary conversation in Pero. In Native, open the conversation
-   toolbar’s **Chrome** menu. In Electron, open **Workbench**. Select **Copy
-   Chrome pairing code**.
-2. Open the Chrome extension, paste the code and select **Pair with Pero**.
-   The code is valid for two minutes and can be used once.
-3. Select **Review a tab**, choose the Chrome tab and verify its title and
+1. Select an ordinary conversation in Pero Native. Open **Settings → Browser
+   Use → Pair in Chrome**. Chrome opens the extension and pairs automatically.
+2. In Electron, use **Workbench → Copy Chrome pairing code**. In the extension,
+   expand **Enter a pairing code manually**, paste the code and select **Pair
+   with Pero**. Each code expires after two minutes and can be used once.
+3. Choose the Chrome tab, select **Review tab** and verify its title and
    URL. Select **Allow this tab**. Repeat for each tab you want to share with
    the same conversation. The Agent can list those tabs with `browser_use`
    and use their `chrome:` IDs. Page input and capture require the tab to

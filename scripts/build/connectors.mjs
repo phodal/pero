@@ -18,6 +18,10 @@ if (!existsSync(resolve(source, 'node_modules/fflate/package.json'))) {
 execFileSync('cargo', [test ? 'test' : 'build', '--locked', '--manifest-path', resolve(root, 'use/connectors/worker/Cargo.toml'), ...(release ? ['--release'] : [])], { stdio: 'inherit' });
 if (!test) {
   await buildMcpApps(resolve(source,'helpers'));
+  if (process.platform === 'darwin') {
+    execFileSync(process.execPath, [resolve(root, 'scripts/build/chrome-extension.mjs'),
+      resolve(source, 'helpers/chrome-extension')], { stdio: 'inherit' });
+  }
   const binary = `pero-connector-worker${process.platform === 'win32' ? '.exe' : ''}`;
   mkdirSync(resolve(root, 'target', profile), { recursive: true });
   cpSync(resolve(root, 'use/connectors/worker/target', profile, binary), resolve(root, 'target', profile, binary));

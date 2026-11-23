@@ -13,13 +13,15 @@ pub(crate) enum SettingsSection {
     Workers,
     Connections,
     Computer,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    Browser,
     Mcp,
     Harness,
     Shortcuts,
     Memory,
 }
 impl SettingsSection {
-    pub(crate) const ALL: [Self; 12] = [
+    pub(crate) const ALL: &'static [Self] = &[
         Self::General,
         Self::Shortcuts,
         Self::Theme,
@@ -31,6 +33,8 @@ impl SettingsSection {
         Self::Workers,
         Self::Connections,
         Self::Memory,
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        Self::Browser,
         Self::Computer,
     ];
     pub(crate) fn key(self) -> &'static str {
@@ -44,6 +48,8 @@ impl SettingsSection {
             Self::Agents => "settings.page.agents",
             Self::Workers => "nav.workers",
             Self::Connections => "connector.title",
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            Self::Browser => "browser_use.settings",
             Self::Computer => "computer.title",
             Self::Mcp => "mcp.title",
             Self::Harness => "harness.title",

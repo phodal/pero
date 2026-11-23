@@ -7,6 +7,9 @@ import { DesktopComputer } from '../../../desktop/src/main/computer.ts';
 import { DesktopAppUse } from '../../../desktop/src/main/app-use-mcp.ts';
 import { AppWriteRoutes } from '../../../desktop/src/main/app-write-routes.ts';
 import { join, dirname } from 'node:path';
+import { cp } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
 import { ConnectorMcp } from './mcp.ts';
@@ -103,8 +106,12 @@ input.on('line', line => {
     const relay = appUse.browser?.relay;
     const result = request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
+      : request?.operation === 'chrome-extension-folder'
+        ? cp(join(helpers, 'chrome-extension'), join(homedir(), '.pero', 'chrome-extension'), { recursive: true })
+          .then(() => ({ ok: true, folder: join(homedir(), '.pero', 'chrome-extension') }),
+            error => ({ ok: false, message: error.message }))
       : relay && request?.operation === 'chrome-relay-pair'
-        ? relay.pairing(request.label, request.thread).then(code => ({ ok: true, code }),
+        ? relay.pairing(request.label, request.thread).then(code => ({ ok: true, code, url: `chrome-extension://${EXTENSION_ID}/relay.html#${new URLSearchParams({ pair: code })}` }),
           error => ({ ok: false, message: error.message }))
         : relay && request?.operation === 'chrome-relay-stop'
           ? Promise.resolve(relay.revoke()).then(() => ({ ok: true }))

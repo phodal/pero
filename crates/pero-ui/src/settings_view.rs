@@ -105,7 +105,7 @@ impl SettingsPanel {
                     return;
                 };
                 let section = SettingsSection::ALL
-                    .into_iter()
+                    .iter().copied()
                     .find(|section| section.key() == selected.id.as_ref())
                     .or_else(|| {
                         (selected.id.as_ref() == "settings.appearance")
@@ -511,7 +511,7 @@ impl SettingsPanel {
     pub(crate) fn matching_sections(&self, cx: &App) -> Vec<SettingsSection> {
         let query = self.search.read(cx).value().trim().to_lowercase();
         SettingsSection::ALL
-            .into_iter()
+            .iter().copied()
             .filter(|section| {
                 let mut text = self.t(section.key()).to_owned();
                 let keys: &[&str] = match section {
@@ -520,6 +520,8 @@ impl SettingsPanel {
                     SettingsSection::Mcp => &["mcp.agent", "mcp.add"],
                     SettingsSection::Memory => &["engram.enable", "engram.binary", "engram.hint"],
                     SettingsSection::Harness => &["harness.api_key", "harness.endpoint", "harness.model"],
+                    #[cfg(all(feature = "native", target_os = "macos"))]
+                    SettingsSection::Browser => &["browser_use.open_chrome", "browser_use.chrome_stop"],
                     SettingsSection::Computer => &["computer.enable", "computer.permissions", "computer.stop"],
                     SettingsSection::Theme => &["settings.appearance", "settings.accent", "icons.title"],
                     SettingsSection::InterfaceFont => &[
@@ -598,6 +600,8 @@ impl SettingsPanel {
             let body = match section {
                 SettingsSection::Theme => self.theme_settings(cx),
                 SettingsSection::General => self.language_settings(cx),
+                #[cfg(all(feature = "native", target_os = "macos"))]
+                SettingsSection::Browser => self.category_page(section, cx),
                 SettingsSection::Computer => self.computer_settings(cx),
                 SettingsSection::Mcp => self.mcp_settings(cx),
                 SettingsSection::Memory => self.engram_settings(cx),

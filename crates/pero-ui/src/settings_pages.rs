@@ -24,6 +24,8 @@ pub(crate) fn navigation_roots(panel: &SettingsPanel, cx: &App) -> Vec<TreeItem>
         SettingsSection::Workers,
         SettingsSection::Connections,
         SettingsSection::Memory,
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        SettingsSection::Browser,
         SettingsSection::Computer,
     ] {
         if sections.contains(&section) {
@@ -43,6 +45,8 @@ impl SettingsPanel {
             return div().into_any_element();
         };
         workbench.update(cx, |workbench, cx| match section {
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            SettingsSection::Browser => workbench.chrome_settings(cx),
             SettingsSection::Agents => workbench.agent_settings(cx),
             SettingsSection::Workers => workbench.workers_view(cx).into_any_element(),
             SettingsSection::Connections => workbench.remote_connection_view(cx).into_any_element(),
