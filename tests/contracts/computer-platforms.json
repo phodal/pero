@@ -254,7 +254,8 @@
       "delivery": "foreground",
       "supported": [
         "macos",
-        "linux"
+        "linux",
+        "windows"
       ]
     },
     {
@@ -271,7 +272,8 @@
       "delivery": "foreground",
       "supported": [
         "macos",
-        "linux"
+        "linux",
+        "windows"
       ]
     },
     {
@@ -288,7 +290,8 @@
       "delivery": "foreground",
       "supported": [
         "macos",
-        "linux"
+        "linux",
+        "windows"
       ]
     },
     {

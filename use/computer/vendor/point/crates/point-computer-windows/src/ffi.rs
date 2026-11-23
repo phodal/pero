@@ -224,7 +224,8 @@ mod win;
 #[cfg(windows)]
 pub use win::{
 	capture_window_jpeg, cursor_position, foreground_pid, pid_image_name, release_tracked, send_key, send_mouse_click,
-	send_mouse_drag, send_mouse_wheel, send_unicode_text, set_dpi_aware, visible_window_frame, window_list,
+	send_mouse_drag, send_mouse_wheel, send_pointer, send_unicode_text, set_dpi_aware, visible_window_frame, window_list,
+	window_owns_point,
 };
 
 #[cfg(not(windows))]

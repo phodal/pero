@@ -1,11 +1,28 @@
 //! Windows UIA, WGC/PrintWindow and explicit foreground input.
 use crate::{bridge, profile};
 use computer_core::{ControlId, Window, WindowBounds};
-use computer_runtime::{DesktopDriver, WindowObservation, error};
+use computer_runtime::{Cancellation, DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_core::types as native;
 use point_computer_windows::{apps, driver::WindowsBackend, ffi, uia};
+use std::time::Duration;
+
+fn screenshot_point(
+    snap: &native::Snapshot,
+    point: ComputerPoint,
+) -> Result<(f64, f64), ComputerError> {
+    let frame = snap.image_bounds.ok_or_else(|| {
+        error(
+            ComputerErrorCode::Unsupported,
+            "Window screenshot geometry is unavailable",
+        )
+    })?;
+    Ok((
+        frame.x + f64::from(point.x) * frame.w / f64::from(snap.image_width),
+        frame.y + f64::from(point.y) * frame.h / f64::from(snap.image_height),
+    ))
+}
 
 pub struct Desktop {
     driver: WindowsBackend,
@@ -108,12 +125,34 @@ impl DesktopDriver for Desktop {
             .map(bridge::observation)
             .ok_or_else(|| error(ComputerErrorCode::PermissionRequired, result.text))
     }
+    fn admit(&self, snap: &native::Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
+        let anchor = match &action.input {
+            ComputerInput::Move { anchor }
+            | ComputerInput::Hover { anchor, .. }
+            | ComputerInput::Hold { anchor, .. } => anchor,
+            _ => return Ok(()),
+        };
+        let ComputerAnchor::Pixel { point, .. } = anchor else {
+            return Err(error(
+                ComputerErrorCode::Unsupported,
+                "Windows pointer movement and holds require a screenshot pixel",
+            ));
+        };
+        let (x, y) = screenshot_point(snap, *point)?;
+        if !ffi::window_owns_point(snap.app.window_id, snap.app.pid, x, y) {
+            return Err(error(
+                ComputerErrorCode::TargetUnavailable,
+                "Expose the selected window at the requested pixel",
+            ));
+        }
+        Ok(())
+    }
     fn input(
         &self,
         app: &Window,
         snap: &native::Snapshot,
         action: ComputerAction,
-        _: &computer_runtime::Cancellation,
+        cancellation: &Cancellation,
     ) -> Result<Option<ComputerExecution>, ComputerError> {
         let app = &bridge::native_window(app);
         let bounds = snap.window_bounds.ok_or_else(|| {
@@ -122,18 +161,7 @@ impl DesktopDriver for Desktop {
                 "Window input geometry is unavailable",
             )
         })?;
-        let point = |p: ComputerPoint| -> Result<(f64, f64), ComputerError> {
-            let frame = snap.image_bounds.ok_or_else(|| {
-                error(
-                    ComputerErrorCode::Unsupported,
-                    "Window screenshot geometry is unavailable",
-                )
-            })?;
-            Ok((
-                frame.x + f64::from(p.x) * frame.w / f64::from(snap.image_width),
-                frame.y + f64::from(p.y) * frame.h / f64::from(snap.image_height),
-            ))
-        };
+        let point = |point| screenshot_point(snap, point);
         let element = |anchor: &ComputerAnchor| {
             let ComputerAnchor::Element { element_id } = anchor else {
                 return None;
@@ -156,6 +184,12 @@ impl DesktopDriver for Desktop {
                     }),
             }
         };
+        let aim = |anchor: &ComputerAnchor, press| -> Result<(), ComputerError> {
+            let (x, y) = location(anchor)?;
+            cancellation.wait(Duration::ZERO)?;
+            ffi::send_pointer(x, y, press)
+                .map_err(|message| error(ComputerErrorCode::Failed, message))
+        };
         let foreground = action.delivery == ComputerDelivery::Foreground;
         let result = match action.input {
             ComputerInput::Click {
@@ -163,11 +197,7 @@ impl DesktopDriver for Desktop {
                 button,
                 count,
             } => {
-                let button = match button {
-                    ComputerMouseButton::Left => native::MouseButton::Left,
-                    ComputerMouseButton::Right => native::MouseButton::Right,
-                    ComputerMouseButton::Middle => native::MouseButton::Middle,
-                };
+                let button = bridge::mouse_button(button);
                 if !foreground {
                     let target = element(&anchor)
                         .filter(|_| button == native::MouseButton::Left && u8::from(count) == 1);
@@ -193,12 +223,30 @@ impl DesktopDriver for Desktop {
                     )
                 }
             }
-            ComputerInput::Hold { .. }
-            | ComputerInput::Hover { .. }
-            | ComputerInput::FocusWindow {}
+            ComputerInput::Move { anchor } => {
+                aim(&anchor, None)?;
+                return Ok(None);
+            }
+            ComputerInput::Hover { anchor, dwell_ms } => {
+                aim(&anchor, None)?;
+                cancellation.wait(dwell_ms.duration())?;
+                return Ok(None);
+            }
+            ComputerInput::Hold {
+                anchor,
+                button,
+                hold_ms,
+            } => {
+                aim(&anchor, Some(bridge::mouse_button(button)))?;
+                let held = cancellation.wait(hold_ms.duration());
+                ffi::release_tracked()
+                    .map_err(|message| error(ComputerErrorCode::Failed, message))?;
+                held?;
+                return Ok(None);
+            }
+            ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
-            | ComputerInput::PerformAction { .. }
-            | ComputerInput::Move { .. } => {
+            | ComputerInput::PerformAction { .. } => {
                 return Err(error(
                     ComputerErrorCode::Unsupported,
                     "This input is not implemented on this platform",

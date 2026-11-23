@@ -77,7 +77,7 @@ internal static class ComputerFixture
         var target = new Form { Text = args[0] + " Target", StartPosition = FormStartPosition.Manual,
             Location = new Point(workArea.Left + 12, workArea.Top + 12), ClientSize = new Size(400, 300) };
         var guard = new Form { Text = args[0] + " Guard", StartPosition = FormStartPosition.Manual,
-            Location = new Point(target.Right + 12, target.Top), ClientSize = new Size(220, 120) };
+            Location = new Point(target.Right - 50, target.Top), ClientSize = new Size(220, 120) };
         var button = new Button { Text = "Increment fixture", Bounds = new Rectangle(18, 18, 160, 38) };
         var field = new TextBox { AccessibleName = "Fixture Unicode text", Bounds = new Rectangle(18, 65, 350, 28) };
         var list = new ListBox { AccessibleName = "Fixture scrolling list", Bounds = new Rectangle(18, 105, 160, 170) };
@@ -92,6 +92,19 @@ internal static class ComputerFixture
         int count = 0, guardCount = 0;
         button.Click += delegate { count++; };
         guardButton.Click += delegate { guardCount++; };
+        int holdPresses = 0, holdReleases = 0;
+        long pressedAt = 0;
+        double heldMilliseconds = 0;
+        string heldButton = "";
+        canvas.MouseDown += delegate(object sender, MouseEventArgs e) {
+            holdPresses++;
+            pressedAt = Stopwatch.GetTimestamp();
+            heldButton = e.Button.ToString();
+        };
+        canvas.MouseUp += delegate {
+            holdReleases++;
+            heldMilliseconds = (Stopwatch.GetTimestamp() - pressedAt) * 1000.0 / Stopwatch.Frequency;
+        };
         int dragPresses = 0, dragMoves = 0, dragReleases = 0;
         Point dragOrigin = Point.Empty;
         Point start = Point.Empty;
@@ -126,7 +139,9 @@ internal static class ComputerFixture
                     visibleFrame = hasVisibleBounds ? Geometry(Rectangle.FromLTRB(visible.Left, visible.Top, visible.Right, visible.Bottom)) : null,
                     button = Geometry(button.RectangleToScreen(button.ClientRectangle)),
                     square = Geometry(square.RectangleToScreen(square.ClientRectangle)), squarePosition = Position(square.Location),
-                    topRow = list.TopIndex, dragPresses, dragMoves, dragReleases
+                    topRow = list.TopIndex, dragPresses, dragMoves, dragReleases,
+                    canvas = Geometry(canvas.RectangleToScreen(canvas.ClientRectangle)),
+                    holdPresses, holdReleases, heldButton, heldMilliseconds
                 }));
             };
             target.Shown += delegate {

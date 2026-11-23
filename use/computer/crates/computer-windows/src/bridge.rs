@@ -1,7 +1,7 @@
 //! The only Point-to-Pero value conversion for this native library.
 use computer_core::{ControlId, ObservedControl, Window, WindowBounds, WindowImage};
 use computer_runtime::WindowObservation;
-use pero_contracts::computer_use::{ComputerActionKind, ComputerImageType};
+use pero_contracts::computer_use::{ComputerActionKind, ComputerImageType, ComputerMouseButton};
 use point_computer_core::types as native;
 use std::num::NonZeroU32;
 
@@ -29,6 +29,13 @@ pub fn bounds(frame: native::Frame) -> WindowBounds {
         y: frame.y,
         w: frame.w,
         h: frame.h,
+    }
+}
+pub fn mouse_button(button: ComputerMouseButton) -> native::MouseButton {
+    match button {
+        ComputerMouseButton::Left => native::MouseButton::Left,
+        ComputerMouseButton::Right => native::MouseButton::Right,
+        ComputerMouseButton::Middle => native::MouseButton::Middle,
     }
 }
 pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Snapshot> {

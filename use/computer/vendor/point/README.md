@@ -28,6 +28,8 @@ Local adaptations:
   observed editable and scrollable controls to the Pero driver.
 - Keep the DWM visible frame with Windows Graphics Capture images so
   screenshot-relative input uses the pixels that were captured.
+- Expose a Win32 hit test for the selected window and pointer movement with
+  an optional tracked press for the Windows Computer Use adapter.
 
 The splits keep each source file below Pero's 1000-line limit without changing
 driver behavior. Upstream source comments are retained. Their descriptions of

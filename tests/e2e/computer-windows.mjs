@@ -25,6 +25,7 @@ function worker(executable, args, stdin, onLine) {
   const child = spawn(executable, args, { windowsHide: executable !== fixturePath, stdio: [stdin, 'pipe', 'inherit'] });
   const owned = { child, exited: false };
   child.on('exit', code => { owned.exited = true; owned.exitCode = code; });
+  child.on('close', () => { owned.closed = true; });
   child.on('error', error => { owned.error = error; });
   child.stdin?.on('error', error => { owned.error = error; });
   createInterface({ input: child.stdout }).on('line', line => onLine(JSON.parse(line)));
@@ -48,8 +49,9 @@ async function call(request) {
   const id = `winforms-${++sequence}`;
   native.child.stdin.write(JSON.stringify({ id, thread: 'windows-acceptance', request }) + '\n');
   const response = await waitFor(() => {
-    running(native, 'Pero Computer Use');
-    return replies.get(id);
+    const reply = replies.get(id);
+    if (!reply && (native.closed || native.error)) running(native, 'Pero Computer Use');
+    return reply;
   }, `${request.operation} reply`);
   replies.delete(id);
   assert.equal(response.error, undefined, JSON.stringify(response.error));
@@ -68,12 +70,12 @@ const point = (image, frame, rect, dx = 0, dy = 0) => ({
   y: Math.round((rect.y + rect.height / 2 + dy - frame.y) * image.height / frame.height),
 });
 
-async function act(observation, input, delivery, errorCode) {
+async function act(observation, input, delivery, errorCode, outcome = errorCode ? 'rejected' : 'executed') {
   const { receipt } = await call({ operation: 'act', action: {
     request_id: `effect-${sequence}`, target, observation_id: observation.id, delivery, input,
   } });
   results.receipts.push(receipt);
-  assert.equal(receipt.outcome.status, errorCode ? 'rejected' : 'executed', JSON.stringify(receipt));
+  assert.equal(receipt.outcome.status, outcome, JSON.stringify(receipt));
   if (errorCode) assert.equal(receipt.outcome.error.code, errorCode, JSON.stringify(receipt));
 }
 
@@ -124,6 +126,14 @@ try {
   results.cases.push('JPEG tied to the owned window and background pixel refusal');
 
   sample = await observe(true);
+  await act(sample.observation, { kind: 'move', anchor: {
+    kind: 'pixel', screenshot_id: sample.observation.screenshot.id,
+    point: { x: image.width - 20, y: 65 },
+  } }, 'foreground', 'target_unavailable');
+  assert.deepEqual((await state(value => value.foreground === 'guard')).pointer, initial.pointer);
+  results.cases.push('Pointer move refused when an overlapping window in the same process owns the pixel');
+
+  sample = await observe(true);
   await act(sample.observation, click({ ...buttonPixel, screenshot_id: sample.observation.screenshot.id }), 'foreground');
   const clicked = await state(value => value.count === 2 && value.foreground === 'target');
   assert.ok(Math.abs(clicked.pointer.x - (clicked.button.x + clicked.button.width / 2)) <= 2);
@@ -154,6 +164,47 @@ try {
   assert.equal(final.count, 2);
   assert.equal(final.guardCount, 0);
   results.cases.push('Actual list scrolling and 60 × 40 pixel drag verified by WinForms');
+
+  const canvasPixel = (observation, dx) => {
+    const screenshot = observation.screenshot;
+    return { kind: 'pixel', screenshot_id: screenshot.id, point: point(screenshot, capture, final.canvas, dx, -55) };
+  };
+  const pointerAtCanvas = (value, dx) => Math.abs(value.pointer.x - (final.canvas.x + final.canvas.width / 2 + dx)) <= 2
+    && Math.abs(value.pointer.y - (final.canvas.y + final.canvas.height / 2 - 55)) <= 2;
+  sample = await observe(true);
+  await act(sample.observation, { kind: 'move', anchor: canvasPixel(sample.observation, -50) }, 'foreground');
+  assert.equal((await state(value => pointerAtCanvas(value, -50))).holdPresses, 0);
+  sample = await observe(true);
+  const hoverStarted = performance.now();
+  await act(sample.observation, { kind: 'hover', anchor: canvasPixel(sample.observation, 30), dwell_ms: 300 }, 'foreground');
+  assert.ok(performance.now() - hoverStarted >= 300);
+  const hovered = await state(value => pointerAtCanvas(value, 30));
+  assert.equal(hovered.holdPresses, 0);
+  assert.equal(hovered.count, 2);
+  results.cases.push('Move and timed hover reach separate owned points without a button press');
+
+  sample = await observe(true);
+  await act(sample.observation, { kind: 'hold', anchor: canvasPixel(sample.observation, 30), button: 'left', hold_ms: 400 }, 'foreground');
+  const held = await state(value => value.holdReleases === 1);
+  assert.equal(held.holdPresses, 1);
+  assert.equal(held.heldButton, 'Left');
+  assert.ok(held.heldMilliseconds >= 375);
+
+  sample = await observe(true);
+  const pending = act(sample.observation, { kind: 'hold', anchor: canvasPixel(sample.observation, 30), button: 'right', hold_ms: 9_000 },
+    'foreground', 'cancelled', 'unknown');
+  await Promise.race([
+    state(value => value.holdPresses === 2 && value.holdReleases === 1),
+    pending.then(() => assert.fail('Hold ended before the fixture observed the press')),
+  ]);
+  native.child.stdin.end();
+  await pending;
+  const cancelled = await state(value => value.holdReleases === 2);
+  assert.equal(cancelled.holdPresses, 2);
+  assert.equal(cancelled.heldButton, 'Right');
+  assert.ok(cancelled.heldMilliseconds < 9_000);
+  assert.equal(cancelled.guardCount, 0);
+  results.cases.push('One release per hold, including when the owning connection closes mid-hold');
   results.passed = true;
   console.log(`Windows WinForms passed (${results.cases.length} scenarios, ${results.receipts.length} receipts).`);
 } catch (error) {
