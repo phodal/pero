@@ -258,6 +258,13 @@ The embedded toolbar marks the tab as shared. The stop action and Workbench
 emergency shortcut release the Cloud share. The Chrome extension's Disconnect
 action also releases a Cloud share of that profile.
 
+In macOS Native Workbench, pair Chrome from an ordinary conversation and open
+the claimed Run. Its execution card offers **Share Active Chrome Tab with Cloud
+Run**. The confirmation identifies the task and both origins and discloses
+whether screenshots can reach the model. After approval the card marks the
+share as active and offers **Stop Cloud Browser Sharing**. Both shells recheck
+the tab, origin and pairing after the confirmation.
+
 With `PERO_TEST_CLOUD_BROWSER_ELECTRON` set to the absolute path of
 `tests/e2e/browser-use-cloud.mjs`, the same Go test launches the Electron
 Workbench and a headed Chrome fixture against that real Gateway and PostgreSQL
@@ -268,6 +275,13 @@ It also verifies that the mock provider receives the same SHA-256 as each
 browser receipt. A separate real Go ACP process test verified the same bytes
 using `PERO_TEST_CLOUD_SCREENSHOT` with each browser-produced PNG, and an image
 larger than the ACP frame limit.
+With `PERO_TEST_CLOUD_BROWSER_NATIVE` pointing to the same script, the
+`native-probe` build drives the actual Native Workbench, connector and headed
+Chrome against the same PostgreSQL/Gateway fixture. The probe supplies the
+dialog decision at the confirmation boundary. It verifies refusal before
+approval and after switching to a different tab during confirmation, a trusted
+click with an independent page effect, a PNG matching the fixture model's
+SHA-256, and stream revocation while the ordinary Chrome pairing stays connected.
 The screenshot and receipt are under `test-results/browser-use-cloud/`.
 This ran in a development build with a loopback Pod identity fixture.
 Hosted Kubernetes, an external vision model and a signed Workbench build still

@@ -5,6 +5,9 @@ use crate::{
 };
 use gpui_kit::*;
 use serde_json::{Value, json};
+#[cfg(target_os = "macos")]
+#[path = "native_cloud_browser_probe.rs"]
+mod cloud_browser;
 use std::{path::PathBuf, time::Duration};
 
 const START: &str = r#"(()=>{
@@ -36,6 +39,8 @@ pub(crate) fn attach(
             Some("startup") => verify_startup(&root, cx).await,
             #[cfg(target_os = "macos")]
             Some("browser") => crate::native_browser_probe::verify(&root, window, cx).await,
+            #[cfg(target_os = "macos")]
+            Some("cloud-browser") => cloud_browser::verify(&root, cx).await,
             #[cfg(target_os = "macos")]
             Some("computer") => crate::native_computer_probe::verify(&root, window, cx).await,
             #[cfg(target_os = "macos")]

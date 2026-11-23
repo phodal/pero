@@ -1,9 +1,10 @@
 // Run via TestCloudBrowserFollowsClaimAndRuntimeChannel, which owns the
 // temporary PostgreSQL binding, HTTP Gateway and projected Pod fixture.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
@@ -44,8 +45,160 @@ const call = async args => {
   const text = await response.text();
   return { status: response.status, value: response.ok ? JSON.parse(text) : text };
 };
-let app, chrome;
-try {
+const shared = () => expect.poll(async () => {
+  const result = await call({ action: 'status' });
+  return result.status === 200 && result.value.authorized;
+}, { timeout: 10000 }).toBe(true);
+const screenshot = async lane => {
+  const result = await call({ action: 'screenshot', clip: { x: 0, y: 0, width: 450, height: 250 } });
+  assert.equal(result.value.kind, 'screenshot', JSON.stringify(result.value).slice(0, 300));
+  const png = Buffer.from(result.value.png, 'base64');
+  const { receipt } = result.value;
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.deepEqual([receipt.width, receipt.height], [450, 250]);
+  assert.equal(receipt.bytes, png.length);
+  assert.equal(receipt.sha256, createHash('sha256').update(png).digest('hex'));
+  const model = new URL(`/api/runtime/v1/runs/${runId}/provider/v1/chat/completions`, origin);
+  model.searchParams.set('session_id', runId);
+  const response = await fetch(model, {
+    method: 'POST',
+    signal: AbortSignal.timeout(5000),
+    headers: { Authorization: `Bearer ${pod}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'fixture', messages: [{ role: 'tool', tool_call_id: 'shot',
+      content: [{ type: 'text', text: JSON.stringify(receipt) },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,' + result.value.png } }] }] }),
+  });
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal((await response.json()).sha256, receipt.sha256);
+  await writeFile(resolve(output, lane + '-cloud-model.png'), png);
+  return receipt;
+};
+const clickFixture = async () => {
+  const match = await call({ action: 'locate', locator: { by: 'role', role: 'button', name: 'Mark fixture' } });
+  assert.equal(match.value.kind, 'observation', JSON.stringify(match.value));
+  const ref = match.value.nodes.find(node => node.name === 'Mark fixture')?.ref;
+  assert(ref, JSON.stringify(match.value));
+  const click = (await call({ action: 'click', ref })).value;
+  assert.equal(click.outcome, 'dispatched', JSON.stringify(click));
+  const result = (await call({ action: 'observe' })).value;
+  assert(JSON.stringify(result).includes('Trusted Cloud click'));
+  return click;
+};
+let app, chrome, native, nativeExit;
+
+async function expectActiveChromeTab(panel, target) {
+  await expect.poll(() => panel.evaluate(async () => {
+    const window = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    const [tab] = await chrome.tabs.query({ windowId: window.id, active: true });
+    return tab?.url;
+  })).toBe(target.url());
+}
+
+async function pairedChrome(ticket) {
+  const extension = resolve(root, 'target/chrome-extension');
+  chrome = await chromium.launchPersistentContext(resolve(temp, 'chrome'), {
+    executablePath: chromium.executablePath(), headless: false,
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+  });
+  const target = chrome.pages()[0] ?? await chrome.newPage();
+  await target.goto(new URL('/chrome', url).href);
+  const sibling = await chrome.newPage();
+  await sibling.goto(new URL('/sibling', url).href);
+  const panel = await chrome.newPage();
+  await panel.goto(`chrome-extension://${EXTENSION_ID}/relay.html#` + new URLSearchParams({ pair: ticket }));
+  await expect(panel.locator('#status')).toContainText('Connected');
+  await target.bringToFront();
+  await expectActiveChromeTab(panel, target);
+  return { target, sibling, panel };
+}
+
+async function runNative() {
+  assert.equal(process.platform, 'darwin');
+  const receipt = resolve(temp, 'native.json');
+  native = spawn(process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native'),
+    ['--verify-apps', receipt, 'cloud-browser'], {
+      cwd: root,
+      env: { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: resolve(temp, 'native'),
+        PERO_NATIVE_CLOUD_BROWSER_FIXTURE: temp, PERO_ADAPTER_NODE: process.execPath,
+        PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  let log = '', exit;
+  native.stdout.on('data', chunk => { log += chunk; });
+  native.stderr.on('data', chunk => { log += chunk; });
+  nativeExit = new Promise(done => {
+    native.once('error', error => { exit = { error: error.message }; done(exit); });
+    native.once('close', (code, signal) => { exit = { code, signal }; done(exit); });
+  });
+  const step = name => writeFile(resolve(temp, name), '');
+  async function read(name) {
+    let value;
+    await expect.poll(async () => {
+      try { value = JSON.parse(await readFile(resolve(temp, name), 'utf8')); }
+      catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        if (exit) {
+          const failure = await readFile(receipt, 'utf8').catch(() => log);
+          throw new Error(`Native exited before ${name}: ${failure}`);
+        }
+      }
+      return value ? 'ready' : 'waiting';
+    }, { timeout: 15000 }).toBe('ready');
+    return value;
+  }
+  try {
+    const { code } = await read('ticket.json');
+    const { target, sibling, panel } = await pairedChrome(code);
+    for (const decision of ['deny', 'changed', 'approve']) {
+      await step('prepare-' + decision);
+      const consent = await read(`confirm-${decision}.json`);
+      assert.equal(consent.taskTitle, 'Browser fixture');
+      assert.equal(consent.cloudOrigin, origin);
+      assert.equal(consent.pageTitle, 'Cloud Browser fixture chrome');
+      assert.equal(consent.pageOrigin, new URL(url).origin);
+      assert.equal(consent.screenshots, true);
+      assert.equal((await call({ action: 'status' })).status, 409);
+      if (decision === 'changed') {
+        await sibling.bringToFront();
+        await expectActiveChromeTab(panel, sibling);
+      }
+      await step(decision);
+      await read(`done-${decision}.json`);
+      if (decision === 'changed') {
+        assert.equal((await call({ action: 'status' })).status, 409);
+        await target.bringToFront();
+        await expectActiveChromeTab(panel, target);
+      }
+    }
+    await shared();
+    for (const blocked of [{ action: 'open', url }, { action: 'files' }, { action: 'observe', tabId: 'other-tab' },
+      { action: 'screenshot', fullPage: true }])
+      assert.equal((await call(blocked)).value.kind, 'error');
+    await sibling.bringToFront();
+    await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(false);
+    assert.equal((await call({ action: 'observe' })).value.kind, 'error');
+    await target.bringToFront();
+    await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(true);
+    const click = await clickFixture();
+    const chromeScreenshot = await screenshot('native-chrome');
+    await expect(target.getByTestId('effect')).toHaveText('Trusted Cloud click');
+    await expect(sibling.getByTestId('effect')).toHaveText('Waiting');
+    await expect.poll(() => effects).toEqual(['/effect/chrome']);
+    await step('stop');
+    await expect.poll(async () => (await call({ action: 'status' })).status).toBe(409);
+    await expect(panel.locator('#status')).toContainText('Connected');
+    const result = await read('native.json');
+    assert.equal(result.passed, true, result.error);
+    assert.equal(result.stopped, true);
+    await expect.poll(() => exit, { timeout: 5000, message: log }).toEqual({ code: 0, signal: null });
+    await writeFile(resolve(output, 'result-native.json'), JSON.stringify({ ...result, click, effects, chromeScreenshot }, null, 2));
+    console.log('Native Workbench shared a paired Chrome tab, delivered the verified PNG, and revoked the live Cloud stream.');
+  } finally {
+    await writeFile(resolve(output, 'native.log'), log);
+  }
+}
+
+async function runElectron() {
   app = await electron.launch({ args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root, env: {
     PATH: process.env.PATH, HOME: process.env.HOME, PERO_LOCALE: 'en',
     PERO_CLOUD_URL: origin, PERO_CLIENT_TOKEN: client, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'),
@@ -83,49 +236,10 @@ try {
   assert.equal((await call({ action: 'status' })).status, 409);
   await app.evaluate(() => { globalThis.cloudBrowserApproved = true; });
   await menu('browser-use-cloud-share');
-  const shared = () => expect.poll(async () => {
-    const result = await call({ action: 'status' });
-    return result.status === 200 && result.value.authorized;
-  }, { timeout: 10000 }).toBe(true);
   await shared();
   for (const blocked of [{ action: 'open', url }, { action: 'files' }, { action: 'observe', tabId: 'other-tab' }])
     assert.equal((await call(blocked)).value.kind, 'error');
   assert.equal((await call({ action: 'screenshot', fullPage: true })).value.kind, 'error');
-  const screenshot = async lane => {
-    const result = await call({ action: 'screenshot', clip: { x: 0, y: 0, width: 450, height: 250 } });
-    assert.equal(result.value.kind, 'screenshot', JSON.stringify(result.value).slice(0, 300));
-    const png = Buffer.from(result.value.png, 'base64');
-    const { receipt } = result.value;
-    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-    assert.deepEqual([receipt.width, receipt.height], [450, 250]);
-    assert.equal(receipt.bytes, png.length);
-    assert.equal(receipt.sha256, createHash('sha256').update(png).digest('hex'));
-    const model = new URL(`/api/runtime/v1/runs/${runId}/provider/v1/chat/completions`, origin);
-    model.searchParams.set('session_id', runId);
-    const response = await fetch(model, {
-      method: 'POST',
-      signal: AbortSignal.timeout(5000),
-      headers: { Authorization: `Bearer ${pod}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'fixture', messages: [{ role: 'tool', tool_call_id: 'shot',
-        content: [{ type: 'text', text: JSON.stringify(receipt) },
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,' + result.value.png } }] }] }),
-    });
-    assert.equal(response.status, 200, await response.clone().text());
-    assert.equal((await response.json()).sha256, receipt.sha256);
-    await writeFile(resolve(output, lane + '-cloud-model.png'), png);
-    return receipt;
-  };
-  const clickFixture = async () => {
-    const match = await call({ action: 'locate', locator: { by: 'role', role: 'button', name: 'Mark fixture' } });
-    assert.equal(match.value.kind, 'observation', JSON.stringify(match.value));
-    const ref = match.value.nodes.find(node => node.name === 'Mark fixture')?.ref;
-    assert(ref, JSON.stringify(match.value));
-    const click = (await call({ action: 'click', ref })).value;
-    assert.equal(click.outcome, 'dispatched', JSON.stringify(click));
-    const result = (await call({ action: 'observe' })).value;
-    assert(JSON.stringify(result).includes('Trusted Cloud click'));
-    return click;
-  };
   const click = await clickFixture();
   const embeddedScreenshot = await screenshot('embedded');
   await expect.poll(() => effects).toEqual(['/effect/embedded']);
@@ -149,27 +263,18 @@ try {
     return value && JSON.parse(value).protocol;
   }).toBe(RELAY_PROTOCOL);
   const ticket = await app.evaluate(() => globalThis.cloudChromeTicket);
-  const extension = resolve(root, 'target/chrome-extension');
-  chrome = await chromium.launchPersistentContext(resolve(temp, 'chrome'), {
-    executablePath: chromium.executablePath(), headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const target = chrome.pages()[0] ?? await chrome.newPage();
-  await target.goto(new URL('/chrome', url).href);
-  const sibling = await chrome.newPage();
-  await sibling.goto(new URL('/sibling', url).href);
-  const panel = await chrome.newPage();
-  await panel.goto(`chrome-extension://${EXTENSION_ID}/relay.html#` + new URLSearchParams({ pair: ticket }));
-  await expect(panel.locator('#status')).toContainText('Connected');
+  const { target, sibling, panel } = await pairedChrome(ticket);
   const mainWindow = await panel.evaluate(async () => (await chrome.tabs.getCurrent()).windowId);
   const otherWindow = await panel.evaluate(async url => (await chrome.windows.create({ url, type: 'normal', focused: true })).id,
     new URL('/second-window', url).href);
   const focusChromeWindow = id => panel.evaluate(id => chrome.windows.update(id, { focused: true }), id);
   await focusChromeWindow(mainWindow);
   await target.bringToFront();
+  await expectActiveChromeTab(panel, target);
+  await app.evaluate(() => { globalThis.cloudBrowserDialog = undefined; });
   await menu('browser-use-cloud-chrome');
+  await expect.poll(async () => (await consent())?.detail).toContain('Cloud Browser fixture chrome');
   await shared();
-  assert.match((await consent()).detail, /Cloud Browser fixture chrome/);
   await focusChromeWindow(otherWindow);
   await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(false);
   await focusChromeWindow(mainWindow);
@@ -192,7 +297,14 @@ try {
     embeddedScreenshot, chromeScreenshot, inactiveChromeTabBlocked: true, revoked: true, chromePairRetained: true,
   }, null, 2));
   console.log('Electron and paired Chrome each completed one trusted click through the real Cloud Runtime Gateway.');
+}
+
+try {
+  if (process.argv.includes('--native')) await runNative();
+  else await runElectron();
 } finally {
+  if (native && native.exitCode === null && native.signalCode === null) native.kill('SIGTERM');
+  await nativeExit;
   await chrome?.close();
   await app?.close();
   site.close();

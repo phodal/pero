@@ -110,12 +110,16 @@ func checkCloudBrowserRuntime(t *testing.T, enabled, screenshots bool) {
 		}
 		return httpapi.HandlerWithIsolatedRuntime(s, "test-operator", nil, gateway, reviewer, nil)
 	})
-	electronFixture := os.Getenv("PERO_TEST_CLOUD_BROWSER_ELECTRON")
+	desktopFixture := os.Getenv("PERO_TEST_CLOUD_BROWSER_ELECTRON")
+	var fixtureArgs []string
+	if native := os.Getenv("PERO_TEST_CLOUD_BROWSER_NATIVE"); native != "" {
+		desktopFixture, fixtureArgs = native, []string{"--native"}
+	}
 	if !screenshots {
-		electronFixture = ""
+		desktopFixture = ""
 	}
 	timeout := 15 * time.Second
-	if electronFixture != "" {
+	if desktopFixture != "" {
 		timeout = 2 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), timeout)
@@ -226,18 +230,18 @@ func checkCloudBrowserRuntime(t *testing.T, enabled, screenshots bool) {
 	}
 	request(t, server, "POST", callPath, wrongPodToken, `{"action":"observe"}`, "", http.StatusForbidden)
 	request(t, server, "POST", callPath, podToken, `{"action":"observe"}`, "", http.StatusConflict)
-	if electronFixture != "" {
-		if !filepath.IsAbs(electronFixture) {
-			t.Fatal("PERO_TEST_CLOUD_BROWSER_ELECTRON must name an absolute fixture path")
+	if desktopFixture != "" {
+		if !filepath.IsAbs(desktopFixture) {
+			t.Fatal("Cloud Browser Workbench fixture must be an absolute path")
 		}
-		cmd := exec.CommandContext(ctx, "node", electronFixture)
+		cmd := exec.CommandContext(ctx, "node", append([]string{desktopFixture}, fixtureArgs...)...)
 		cmd.Env = append(os.Environ(),
 			"PERO_TEST_CLOUD_BROWSER_ORIGIN="+server.URL, "PERO_TEST_CLOUD_BROWSER_CLIENT="+ownerToken,
 			"PERO_TEST_CLOUD_BROWSER_POD="+podToken, "PERO_TEST_CLOUD_BROWSER_RUN="+run.ID,
 			"PERO_TEST_CLOUD_BROWSER_TASK="+task.ID)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			t.Fatalf("Electron fixture failed: %v\n%s", err, output)
+			t.Fatalf("Desktop fixture failed: %v\n%s", err, output)
 		}
 		t.Logf("%s", output)
 	}
