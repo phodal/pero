@@ -45,10 +45,28 @@ await withPreview('long', async app => {
 });
 
 await withPreview('empty', async app => {
+  const first = app.getByRole('heading', {name: 'Create your first automation'});
+  const search = app.getByRole('searchbox', {name: 'Search automations'});
+  await expect(first).toBeVisible();
+  await expect(search).toHaveCount(0);
+  await expect(app.getByRole('button', {name: 'Templates', exact: true})).toHaveCount(0);
+  await app.getByRole('button', {name: 'Use template · Daily research brief'}).press('Enter');
+  await expect(app.getByLabel('Name', {exact: true})).toBeFocused();
+  await expect(app.getByLabel('Enable after saving')).not.toBeChecked();
+  await app.getByRole('button', {name: 'Close', exact: true}).click();
+  await expect(first).toBeVisible();
   await app.getByRole('radio', {name: 'Calendar'}).click();
   await app.getByRole('button', {name: 'Templates', exact: true}).click();
   await expect(app.getByRole('button', {name: 'Daily research brief'})).toBeVisible();
-  await expect(app.getByRole('radio', {name: 'List'})).not.toHaveAttribute('data-unstyled');
+  await app.getByRole('button', {name: 'Daily research brief'}).click();
+  await app.getByRole('button', {name: 'Save automation', exact: true}).click();
+  await app.getByRole('radio', {name: 'List'}).click();
+  await expect(first).toHaveCount(0);
+  await expect(app.getByRole('button', {name: 'Use template · Daily research brief'})).toHaveCount(0);
+  await search.fill('No such task');
+  await expect(app.getByText('No matching automations')).toBeVisible();
+  await app.getByRole('button', {name: 'Clear filters'}).click();
+  await expect(app.getByRole('button', {name: 'Daily research brief', exact: true})).toBeVisible();
 });
 
 function pageWait(app, ms) {

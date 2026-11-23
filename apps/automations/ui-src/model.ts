@@ -7,7 +7,7 @@ export const templates = [
   {name:'Daily research brief',prompt:'Review research material in this workspace. Summarize changes and cite the files used. Do not modify files.',schedule:'daily' as const},
   {name:'Weekly project review',prompt:'Review this workspace and summarize progress, open questions and suggested next steps. Do not modify files.',schedule:'weekly' as const},
   {name:'Check experiment results',prompt:'Inspect available experiment outputs. Report missing evidence and failed checks; do not equate execution success with scientific validity.',schedule:'manual' as const},
-];
+] as const;
 export function newDraft():Draft {return {name:'',prompt:'',schedule:'manual',hour:9,minute:0,monthDay:1,interval:1,days:['MO'],timezone:'Local',rule:'',enabled:false};}
 export function editDraft(record:Automation):Draft {return {...newDraft(),id:record.id,name:record.name,prompt:record.prompt,timezone:record.timezone,enabled:record.enabled,rule:record.rule,schedule:record.rule?'custom':'manual'};}
 export function scheduleRule(draft:Draft):string {

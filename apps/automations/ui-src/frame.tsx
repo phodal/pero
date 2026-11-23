@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppProvider, useAppContext} from '@pero/app-sdk';
-import {AppFrame, Badge, Button, Checkbox, ContentPane, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
+import {AppFrame, Badge, Button, Card, Checkbox, ContentPane, EmptyIllustration, EmptyState, Feedback, Icon, IconButton, Input, InspectorHeader, LibraryHeader, Select, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, ToggleGroup, ToggleGroupItem} from '@pero/app-sdk/ui';
 import {automationHostFailure, automationRequest, openSession} from './transport';
 import {draftBody, editDraft, newDraft, templates, weekdays, type Automation, type Draft, type Run, type Schedule} from './model';
 import './frame.css';
@@ -9,11 +9,11 @@ import './frame.css';
 const path = (id: string) => `/api/automations/${encodeURIComponent(id)}`;
 const enCopy = {
   title: 'Automations',
-  subtitle: 'Hand a clear, repeatable job to the local assistant.',
+  useTemplate: 'Use template',
   create: 'New automation',
   templates: 'Templates',
   templatesLabel: 'Templates',
-  templateNote: 'Choosing a template only fills a draft. It does not run until you enable it and save.',
+  templateNote: 'Start with an editable draft. Enable and save it when you are ready to run.',
   list: 'List',
   calendar: 'Calendar',
   view: 'Automation view',
@@ -67,8 +67,7 @@ const enCopy = {
   dash: '—',
   noRuns: 'No runs yet.',
   noRunHint: 'A finished run is shown here. The task text stays above.',
-  noAutomations: 'No automations yet',
-  noAutomationsHint: 'Create one or choose a template.',
+  firstAutomation: 'Create your first automation',
   noMatches: 'No matching automations',
   noMatchesHint: 'Try a different search.',
   clear: 'Clear filters',
@@ -103,11 +102,11 @@ const enCopy = {
 type Copy = {[K in keyof typeof enCopy]: string};
 const zhCopy: Copy = {
   title: '自动化',
-  subtitle: '把明确、重复的工作，交给本地助手。',
+  useTemplate: '使用模板',
   create: '新建自动化',
   templates: '模板',
   templatesLabel: '场景模板',
-  templateNote: '选择模板只会填入草稿。启用并保存之前不会运行。',
+  templateNote: '选择模板后可编辑草稿。保存并启用后，任务才可运行。',
   list: '列表',
   calendar: '日历',
   view: '自动化视图',
@@ -161,8 +160,7 @@ const zhCopy: Copy = {
   dash: '—',
   noRuns: '还没有运行。',
   noRunHint: '完成后的运行会显示在这里。任务正文仍在上方。',
-  noAutomations: '还没有自动化',
-  noAutomationsHint: '新建一个，或从场景模板开始。',
+  firstAutomation: '创建第一条自动化',
   noMatches: '没有匹配的自动化',
   noMatchesHint: '试试其他关键词，或清除筛选。',
   clear: '清除筛选',
@@ -269,17 +267,30 @@ function newestSession(runs: Run[]) {
   for (let index = runs.length - 1; index >= 0; index -= 1) if (runs[index].session_id) return runs[index];
 }
 
-function TemplateCatalog({zh, t, onPick}: {zh: boolean; t: Copy; onPick: (template: typeof templates[number]) => void}) {
-  return <section aria-label={t.templates} className="templates">
-    <header><h2>{t.templatesLabel} <span>{templates.length}</span></h2></header>
-    <div className="template-grid">{templates.map(template => <Button type="button" key={template.name} className="template-card" aria-label={templateTitle(template.name, zh)} onClick={() => onPick(template)}>
-      <Icon name="nodes" size={20}/>
-      <Icon className="template-arrow" name="arrow" size={16}/>
-      <strong>{templateTitle(template.name, zh)}</strong>
-      <span className="template-desc">{templateBlurb(template.name, template.prompt, zh)}</span>
-      <small className="template-flow"><span>{t[template.schedule]}</span><Icon name="arrow" size={12}/><span>{t.localRun}</span></small>
-    </Button>)}</div>
-    <p className="muted">{t.templateNote}</p>
+const templatePresentation = {
+  'Daily research brief': {icon: 'notebook', summary: ['Summarize changes in research materials and cite the source files.', '汇总研究材料的变化，并列出来源文件。']},
+  'Weekly project review': {icon: 'calendar', summary: ['Review project progress, open questions and next steps.', '整理项目进展、待解决的问题和下一步行动。']},
+  'Check experiment results': {icon: 'flask', summary: ['Find missing evidence and failed checks in experiment outputs.', '从实验输出中找出缺失的证据和未通过的检查。']},
+} as const;
+
+function TemplateCatalog({first, zh, t, onPick}: {first: boolean; zh: boolean; t: Copy; onPick: (template: typeof templates[number]) => void}) {
+  return <section id="automation-templates" aria-labelledby="template-heading" className={first ? 'templates first-automation' : 'templates'}>
+    <header>
+      <h2 id="template-heading">{first ? t.firstAutomation : t.templatesLabel}</h2>
+      <p>{t.templateNote}</p>
+    </header>
+    <div className="template-grid">{templates.map(template => {
+      const {icon, summary} = templatePresentation[template.name];
+      const title = templateTitle(template.name, zh);
+      const descriptionId = `template-${icon}-summary`;
+      return <Card asChild className="template-card" key={template.name}>
+        <button type="button" aria-label={`${t.useTemplate} · ${title}`} aria-describedby={descriptionId} onClick={() => onPick(template)}>
+          <span className="template-title"><span className="template-icon"><Icon name={icon} size={20}/></span><strong>{title}</strong></span>
+          <span className="template-desc" id={descriptionId}>{summary[zh ? 1 : 0]}</span>
+          <span className="template-footer"><small>{t[template.schedule]} · {t.localRun}</small><span>{t.useTemplate}<Icon name="arrow" size={14}/></span></span>
+        </button>
+      </Card>;
+    })}</div>
   </section>;
 }
 
@@ -402,16 +413,17 @@ function Automations() {
   const [items, setItems] = useState<Automation[]>([]), [selected, select] = useState<string>();
   const [draft, setDraft] = useState<Draft>(), [gallery, setGallery] = useState(false), [query, search] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all'), [view, setView] = useState<'list' | 'calendar'>('list');
+  const [listError, setListError] = useState('');
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const refresh = async () => {
     const result = await automationRequest<{items: Automation[]}>('GET', '/api/automations');
     setItems(result.items);
-    setError(current => hostFailure(current) ? '' : current);
+    setListError('');
     setLoading(false);
   };
   useEffect(() => {
     let stopped = false; let timer: ReturnType<typeof setTimeout>;
-    const tick = async () => { try { if (!stopped) await refresh(); } catch (reason) { if (!stopped) { setError((reason as Error).message); setLoading(false); } } finally { if (!stopped) timer = setTimeout(tick, 5000); } };
+    const tick = async () => { try { if (!stopped) await refresh(); } catch (reason) { if (!stopped) { setListError((reason as Error).message); setLoading(false); } } finally { if (!stopped) timer = setTimeout(tick, 5000); } };
     void tick(); return () => { stopped = true; clearTimeout(timer); };
   }, []);
   const perform = async (operation: () => Promise<void>) => {
@@ -438,8 +450,8 @@ function Automations() {
     unavailable: queried.filter(item => matchesStatus(item, 'unavailable')).length,
   };
   const record = items.find(item => item.id === selected);
-  const filtered = query.trim() !== '' || status !== 'all';
-  const showCatalog = gallery || (!items.length && !filtered && !loading);
+  const firstVisit = view === 'list' && !items.length && !loading && !listError;
+  const showCatalog = !draft && (firstVisit || gallery);
   const stage = useRef<HTMLDivElement>(null);
   const openedTitle = useRef<HTMLHeadingElement>(null);
   const [reveal, setReveal] = useState(0);
@@ -452,27 +464,31 @@ function Automations() {
     const field = node.querySelector<HTMLElement>('[data-panel-focus]');
     (field ?? openedTitle.current)?.focus();
   }, [reveal]);
+  const editorOnly = !!draft && items.length === 0;
+  const feedback = <>
+    {(listError || error) && <Feedback kind="error" variant="block" className="feedback">{visibleError(error || listError, t)}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
+    {notice && <Feedback>{notice}</Feedback>}
+  </>;
   return <AppFrame className="automation-app" label={t.title}
     scope={<ToggleGroup type="single" value={view} aria-label={t.view} onValueChange={value => { if (value === 'list' || value === 'calendar') setView(value); }}>
       <ToggleGroupItem value="list"><Icon name="list" size={16}/>{t.list}</ToggleGroupItem>
       <ToggleGroupItem value="calendar"><Icon name="calendar" size={16}/>{t.calendar}</ToggleGroupItem>
     </ToggleGroup>}
-    commands={<Button type="button" variant="ghost" onClick={() => setGallery(value => !value)}>{t.templates}</Button>}
+    commands={!firstVisit && !draft && <Button type="button" variant="ghost" aria-expanded={gallery} onClick={() => setGallery(value => !value)}>{t.templates}</Button>}
     primary={draft ? undefined : <Button variant="primary" onClick={() => { setDraft(newDraft()); setGallery(false); revealPanel(); }}><Icon name="plus" size={16}/>{t.create}</Button>}>
-    <div className="automation-page automation-column">
-      <ContentPane id="automation-catalog" label={t.listLabel} as="div" surface="list" inset="regular" scroll="pane"
-        header={<LibraryHeader density="compact" title={t.title} subtitle={t.subtitle} />}
-        feedback={<>
-          {error && <Feedback kind="error" variant="block" className="feedback">{visibleError(error, t)}<Button type="button" disabled={busy} onClick={() => void perform(refresh)}>{t.retry}</Button></Feedback>}
-          {notice && <Feedback>{notice}</Feedback>}
-        </>}>
-      {showCatalog && <TemplateCatalog zh={zh} t={t} onPick={pickTemplate}/>}
-      <section className="catalog" aria-label={t.listLabel}>
-        <div className="toolbar"><div className="search"><Icon name="search" size={16}/><Input aria-label={t.search} type="search" placeholder={t.search} value={query} onChange={event => search(event.target.value)}/></div></div>
-        <ToggleGroup className="filter-strip" type="single" value={status} aria-label={t.statusFilter} onValueChange={value => { if (value === 'all' || value === 'enabled' || value === 'paused' || value === 'unavailable') setStatus(value); }}>
-          {(['all', 'enabled', 'paused', 'unavailable'] as const).map(value => <ToggleGroupItem className="filter-chip" key={value} value={value}>{t[value]}<span>{counts[value]}</span></ToggleGroupItem>)}
-        </ToggleGroup>
-        {loading ? <Feedback>{t.loading}</Feedback> : view === 'calendar' ? <Calendar items={visible} locale={zh ? 'zh-CN' : 'en'} t={t} onOpen={id => { select(id); setDraft(undefined); revealPanel(); }}/> : <div className="task-list">
+    <div className="automation-page automation-column" data-first-editor={editorOnly || undefined}>
+      {editorOnly ? feedback : <ContentPane id="automation-catalog" label={t.listLabel} as="div" surface="list" inset="regular" scroll="pane"
+        header={!!items.length && <LibraryHeader density="compact" title={t.title} />}
+        feedback={feedback}>
+      {showCatalog && <TemplateCatalog first={firstVisit} zh={zh} t={t} onPick={pickTemplate}/>}
+      {(loading || items.length > 0 || (view === 'calendar' && !listError)) && <section className="catalog" aria-label={t.listLabel}>
+        {!!items.length && <div className="toolbar">
+          <ToggleGroup className="filter-strip" type="single" value={status} aria-label={t.statusFilter} onValueChange={value => { if (value === 'all' || value === 'enabled' || value === 'paused' || value === 'unavailable') setStatus(value); }}>
+            {(['all', 'enabled', 'paused', 'unavailable'] as const).map(value => <ToggleGroupItem className="filter-chip" key={value} value={value}>{t[value]}<span>{counts[value]}</span></ToggleGroupItem>)}
+          </ToggleGroup>
+          <div className="search"><Icon name="search" size={16}/><Input aria-label={t.search} type="search" placeholder={t.search} value={query} onChange={event => search(event.target.value)}/></div>
+        </div>}
+        {loading ? <Feedback>{t.loading}</Feedback> : view === 'calendar' && (visible.length > 0 || (!items.length && !listError)) ? <Calendar items={visible} locale={zh ? 'zh-CN' : 'en'} t={t} onOpen={id => { select(id); setDraft(undefined); revealPanel(); }}/> : !!items.length && <div className="task-list">
           {visible.length ? <div role="table" aria-label={t.listLabel}>
             <div role="row" className="task-head"><span>{t.task}</span><span>{t.schedule}</span><span>{t.latest}</span><span>{t.actions}</span></div>
             {visible.map(item => {
@@ -500,11 +516,11 @@ function Automations() {
                   </>}</div>
                 </div>;
               })}
-            </div> : <EmptyState icon={<EmptyIllustration kind={filtered ? 'search' : 'data'} size={filtered ? 'compact' : undefined}/>} heading={filtered ? t.noMatches : t.noAutomations} description={filtered ? t.noMatchesHint : t.noAutomationsHint} actions={filtered ? <Button type="button" onClick={() => { search(''); setStatus('all'); }}>{t.clear}</Button> : undefined}/>}
+            </div> : <EmptyState icon={<EmptyIllustration kind="search" size="compact"/>} heading={t.noMatches} description={t.noMatchesHint} actions={<Button type="button" onClick={() => { search(''); setStatus('all'); }}>{t.clear}</Button>}/>}
             {!!visible.length && <p className="scope">{t.scope}</p>}
           </div>}
-        </section>
-      </ContentPane>
+        </section>}
+      </ContentPane>}
       {(draft || record) && <div className="automation-stage" ref={stage}>{draft ? <Editor draft={draft} busy={busy} t={t} onPatch={patch} onClose={() => setDraft(undefined)} onSave={() => void save()}/> : <Detail key={record!.id} record={record!} t={t} when={when} zh={zh} titleRef={openedTitle} onEdit={() => { setDraft(editDraft(record!)); revealPanel(); }} onDismiss={() => select(undefined)}/>}</div>}
     </div>
   </AppFrame>;
