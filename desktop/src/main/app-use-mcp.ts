@@ -20,6 +20,7 @@ import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
 import { AppAgentPluginBinding } from './app-agent-plugin.ts';
 import { DELIVER_ARTIFACT_TOOL, PRESENT_ARTIFACT_TOOL, parseArtifactDelivery, parseArtifactPresentation, type ArtifactDeliveryPort } from './artifact-delivery.ts';
 import type { BrowserUsePort } from './browser-use/browser-use.ts';
+import { ChromeRelay, WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
 
 type Event = {
   version: number;
@@ -84,7 +85,8 @@ export class DesktopAppUse {
   readonly computer?: DesktopComputer;
   private readonly uiAvailable: boolean;
   private readonly inspector?: NotebookInspector;
-  private readonly browser?: BrowserUsePort;
+  private readonly browser: BrowserUsePort;
+  readonly chromeRelay: ChromeRelay;
   constructor(
     surface: (() => BrowserWindow) | AppUsePorts,
     send: (event: Event) => void,
@@ -100,7 +102,6 @@ export class DesktopAppUse {
   ) {
     this.deliverArtifact = deliverArtifact;
     this.inspector = inspector;
-    this.browser = browser;
     this.computer = computer;
     this.uiAvailable = typeof surface === 'function';
     this.results = new ContentArtifacts(join(evidenceRoot, 'content'));
@@ -172,6 +173,8 @@ export class DesktopAppUse {
         }),
     };
     this.authority = new AppUse(ports);
+    this.chromeRelay = new ChromeRelay(() => this.authority.selectedOrdinaryConversation(), join(evidenceRoot, '..', 'browser-use-evidence'));
+    this.browser = new WorkbenchBrowserUse(browser, this.chromeRelay);
     this.draftContext = new AppChatContext(ports, (scope, thread, refs) => this.goals.approve(scope, thread, refs));
   }
   accept(event: AppUseEvent) {
@@ -250,6 +253,7 @@ export class DesktopAppUse {
   }
   async close() {
     this.reset();
+    this.chromeRelay.close();
     this.server?.close();
     await this.computer?.stop();
   }
@@ -525,6 +529,7 @@ export class DesktopAppUse {
         );
       }
     });
+    this.chromeRelay.attach(this.server);
     await new Promise<void>((resolve, reject) => {
       this.server!.once('error', reject);
       this.server!.listen(0, '127.0.0.1', () => {
