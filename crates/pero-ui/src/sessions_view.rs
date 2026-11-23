@@ -81,13 +81,6 @@ impl Workbench {
                             );
                         }
                     }
-                    SidebarAction::NewChat => {
-                        this.pending_session_workspace.clear();
-                        this.chat.update(cx, |panel, _| panel.deleting_chat = None);
-                        this.new_chat(cx);
-                        let composer = this.chat.read(cx).composer.clone();
-                        composer.update(cx, |input, cx| input.focus(window, cx));
-                    }
                     SidebarAction::OpenEnvironment { name, panel } => {
                         if panel.is_empty() {
                             this.navigate(WorkbenchPage::Apps, cx);
@@ -139,10 +132,6 @@ impl Workbench {
                     SidebarAction::OpenProject(key) => {
                         this.select_primary_project_agent(key);
                         this.open_project(key.clone(), window, cx);
-                    }
-                    SidebarAction::NewProject => {
-                        this.navigate(WorkbenchPage::Projects, cx);
-                        this.edit_research_project(true, window, cx);
                     }
                     SidebarAction::ToggleProject(key) => {
                         this.chat.update(cx, |panel, _| panel.deleting_chat = None);
@@ -407,6 +396,7 @@ impl Workbench {
             width,
             sidebar::SessionsProps {
                 searching: self.session_search_open || !query.is_empty(),
+                search_button_probe: self.view_bounds.session_search.probe("search".into()).into_any_element(),
                 empty_text: self.t(if query.is_empty() {
                     "sessions.empty"
                 } else {

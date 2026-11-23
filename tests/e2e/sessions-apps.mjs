@@ -1,7 +1,7 @@
 // Real Desktop navigation: session ownership stays in Host, Apps stay in its catalog.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, clickAppOpen, clickNewChat, clickSessionRow, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, clickAppOpen, pressNewChat, clickSessionRow, clickSessionSearch, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -37,6 +37,10 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected, undefined, { timeout: 60000 });
   await expect.poll(async () => (await state()).apps?.some(app => app.name === name)).toBe(true);
+  await clickAppShortcut(page, 'projects');
+  await expect.poll(async () => (await state()).projectControls.new?.width).toBeGreaterThan(0);
+  expect((await state()).projectControls['sidebar:new']).toBeUndefined();
+  await shot('projects-light.png');
   await clickAppShortcut(page, 'sessions');
   await expect.poll(async () => Object.keys((await state()).sessionRowBounds || {}).sort()).toEqual(['assay-reading', 'model-review']);
   await clickSessionRow(page, 'model-review');
@@ -51,9 +55,7 @@ try {
   await page.mouse.click(groupName.x,groupName.y);
   await expect.poll(async()=>Object.keys((await state()).sessionRowBounds||{}).length).toBe(2);
   await shot('sessions-light.png');
-  // Focus the search directly beneath the measured New chat control.
-  const button = (await state()).newChatButtonBounds;
-  await page.mouse.click(button.x - 90, button.y + button.height + 20);
+  await clickSessionSearch(page);
   await page.keyboard.type('assay');
   await expect.poll(async () => Object.keys((await state()).sessionRowBounds || {})).toEqual(['assay-reading']);
   await shot('sessions-filtered.png');
@@ -72,15 +74,17 @@ try {
   await expect(frame.getByRole('textbox', { name: 'Retained draft' })).toHaveValue('keep this draft');
   await clickAppShortcut(page, 'apps');
   await expect.poll(async () => Object.keys((await state()).appOpenButtonBounds || {}).includes(name)).toBe(true);
-  await expect.poll(async () => Object.keys((await state()).sidebarButtonBounds || {}).sort()).toEqual(['apps', 'sessions', 'terminal', 'connectors', 'data', 'insights', name].sort());
+  await expect.poll(async () => Object.keys((await state()).sidebarButtonBounds || {}).sort()).toEqual(['apps', 'sessions', 'projects', 'terminal', 'connectors', 'data', 'insights', name].sort());
   const shortcuts=(await state()).sidebarButtonBounds;
   expect(shortcuts.apps.y).toBeLessThan(shortcuts.connectors.y);
   expect(shortcuts.terminal.y).toBeGreaterThan(shortcuts[name].y);
   await shot('apps-light.png');
   await clickAppOpen(page, name);
   await expect(frame.getByRole('textbox', { name: 'Retained draft' })).toHaveValue('keep this draft');
-  await clickNewChat(page);
+  const chatCount = (await state()).chats.length;
+  await pressNewChat(page);
   await expect.poll(async () => (await state()).navigation).toBe(0);
+  await expect.poll(async () => (await state()).chats.length).toBe(chatCount + 1);
   await setAppearance(page, 'dark');
   await shot('sessions-dark.png');
   await clickAppShortcut(page, 'apps');

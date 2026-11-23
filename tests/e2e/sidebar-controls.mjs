@@ -1,4 +1,4 @@
-// Shared gestures for visible sidebar controls; no internal navigation actions.
+// Shared gestures for Workbench controls and shortcuts.
 import { expect } from '@playwright/test';
 const state = page => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 // Bounds come from the actual GPUI paint, so title bars and reordered rows do
@@ -12,9 +12,16 @@ async function clickBounds(page, select) {
   }).toBe(true);
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
-export async function clickNewChat(page) {
-  if (!(await state(page)).newChatButtonBounds) await clickAppShortcut(page, 'sessions');
-  await clickBounds(page, snapshot => snapshot.newChatButtonBounds);
+export async function pressNewChat(page) {
+  // Bring keyboard focus back to the Workbench canvas from retained App frames.
+  await clickAppShortcut(page, 'sessions');
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n');
+}
+// Keep the existing test entry point for suites that used the sidebar button.
+export { pressNewChat as clickNewChat };
+
+export async function clickSessionSearch(page) {
+  await clickBounds(page, snapshot => snapshot.sessionSearchButtonBounds);
 }
 export async function clickSessionRow(page, sessionId) {
   if (!(await state(page)).sessionRowBounds?.[sessionId]) await clickAppShortcut(page, 'sessions');

@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readFile, writeFile, appendFile, realpath, rm } from 'n
 import { tmpdir } from 'node:os';
 import { basename, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { openSettings, setAppearance, setSidebarLocale } from './sidebar-controls.mjs';
+import { openSettings, pressNewChat, setAppearance, setSidebarLocale } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/sidebar');
@@ -233,7 +233,7 @@ try{
   await expect.poll(async()=>(await state()).error).toBe(null);
   await setAppearance(page,'light');
   await openSettings(page);await page.keyboard.press('Escape');
-  await page.mouse.click(100,28);
+  await pressNewChat(page);
   await expect.poll(async()=>(await state()).navigation).toBe(0);
   await expect.poll(async()=>(await state()).chats.length).toBe(2);
   await capture('12-new-chat');

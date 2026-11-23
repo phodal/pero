@@ -86,7 +86,6 @@ impl Workbench {
         let environment = self.sidebar_environment(current_app.as_deref());
         sidebar::sidebar(self.ui(cx), width, sidebar::SidebarProps {
             shortcut_bounds: &self.view_bounds.sidebar,
-            new_chat_bounds: &self.view_bounds.new_chat,
             project_bounds: &self.view_bounds.projects,
             navigation: self.navigation.page(), catalog_open: self.navigation.current().is_none(),
             terminal_open: self.terminal.visible, local_connected: self.connected, collapsed: self.sidebar_collapsed,

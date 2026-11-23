@@ -57,3 +57,18 @@ resolved its settings rejection.
 Light theme, narrow-window rendering, Wasm interaction and signed-package
 acceptance were not exercised in this increment. Narrow sizing is covered by
 the contract value tests. No real model request was submitted.
+
+## Sidebar creation actions (2026-11-23)
+
+The shared GPUI sidebar uses full-width navigation rows for Sessions and
+Projects. Sessions can start a chat from the workspace group or with the New
+Chat shortcut. The Projects page exposes New Research Project in its action bar.
+
+On macOS, the local debug build passed visual inspection of both selected
+rows in a Native window with an isolated profile. The Electron
+`sessions-apps.mjs` fixture passed against the rebuilt WASM and local Host,
+including the Projects page action, session search, and a new chat from the
+keyboard shortcut. It captures both selected states in
+`test-results/sessions-apps/{projects-light,sessions-light}.png`.
+The older `test:sidebar` suite stops at its fixed-coordinate click for the
+inferred workspace project, which is listed on the Projects page.

@@ -39,7 +39,6 @@ pub(crate) struct AppShortcut {
 }
 pub(crate) struct SidebarProps<'a> {
     pub shortcut_bounds: &'a crate::view_bounds::ViewBounds,
-    pub new_chat_bounds: &'a crate::view_bounds::ViewBounds,
     pub project_bounds: &'a crate::view_bounds::ViewBounds,
     pub navigation: WorkbenchPage,
     pub catalog_open: bool,
@@ -65,19 +64,18 @@ pub(crate) struct EnvironmentStatus {
 pub(crate) struct SessionsProps {
     pub empty_text: &'static str,
     pub searching: bool,
+    pub search_button_probe: AnyElement,
     pub groups: Vec<ProjectGroup>, pub ungrouped: Vec<RecentRow>,
 }
 
 #[derive(Clone)]
 pub(crate) enum SidebarAction {
     Terminal,
-    NewChat,
     NewProjectChat(String),
     ToggleSessionSearch,
     SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
     OpenProject(String),
-    NewProject,
     OpenApp { name: String, panel: String },
     OpenEnvironment { name: String, panel: String },
     PrepareEnvironment { name: String },
@@ -266,6 +264,7 @@ pub(crate) fn sessions(ui: Ui<'_>, width: f32, props: SessionsProps, search: Any
             .child(pero_theme::ghost_icon_button("session-search-toggle", chrome, cx)
                 .selected(props.searching).icon(Icon::default().path("icons/search.svg"))
                 .tooltip(ui.t("sessions.search")).accessibility_label(ui.t("sessions.search"))
+                .relative().child(props.search_button_probe)
                 .on_click(click(&on_action, SidebarAction::ToggleSessionSearch))))
         .when(props.searching, |el| el.child(div().mt(chrome.geo(pero_theme::SPACE_4)).mb(chrome.geo(pero_theme::SPACE_8)).child(search)))
         .when(empty, |el| el.child(div().p(px(8.)).text_color(p.text_muted).child(props.empty_text)))
@@ -459,25 +458,10 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
     }).collect::<Vec<_>>();
     pero_theme::sidebar_surface("sidebar", width, chrome)
         .text_size(chrome.text(pero_theme::TYPE_BODY))
-        .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::SPACE_4))
-            .when(collapsed, |row| row.flex_col())
-            .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
-                .flex_1().min_w_0().relative().child(props.shortcut_bounds.probe("sessions".into())))
-            // Independent sibling controls keep navigation and creation separate.
-            .child(div().relative().flex_shrink_0()
-                .child(pero_theme::ghost_icon_button("sidebar-new", chrome, cx)
-                    .icon(Icon::default().path("icons/plus.svg"))
-                    .tooltip(ui.t("chat.new")).accessibility_label(ui.t("chat.new"))
-                    .on_click(click(&on_action, SidebarAction::NewChat)))
-                .child(props.new_chat_bounds.probe("new-chat".into()))))
-        .child(div().w_full().flex().items_center().gap(chrome.geo(pero_theme::SPACE_4))
-            .when(collapsed, |row| row.flex_col())
-            .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", props.active_project.is_none() && matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects)).flex_1().min_w_0().relative().child(props.shortcut_bounds.probe("projects".into())))
-            .child(pero_theme::ghost_icon_button("sidebar-new-project", chrome, cx)
-                .icon(Icon::default().path("icons/plus.svg"))
-                .tooltip(ui.t("research.new")).accessibility_label(ui.t("research.new"))
-                .relative().child(props.project_bounds.probe("sidebar:new".into()))
-                .on_click(click(&on_action, SidebarAction::NewProject))))
+        .child(nav("sidebar-sessions", ui.t("nav.sessions"), "icons/message-circle.svg", props.navigation == WorkbenchPage::Conversation, SidebarAction::Navigate(WorkbenchPage::Conversation))
+            .relative().child(props.shortcut_bounds.probe("sessions".into())))
+        .child(nav("sidebar-projects", ui.t("nav.projects"), "icons/folder.svg", props.active_project.is_none() && matches!(props.navigation, WorkbenchPage::Projects | WorkbenchPage::Tasks), SidebarAction::Navigate(WorkbenchPage::Projects))
+            .relative().child(props.shortcut_bounds.probe("projects".into())))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
             .children(projects)
             .children(app_rows(primary))

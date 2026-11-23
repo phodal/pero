@@ -897,7 +897,7 @@ pub fn snapshot() -> String {
         value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
         value["settingsButtonBounds"] = ui.view_bounds.settings.snapshot()["settings"].clone();
         value["settingsMenuOpen"] = serde_json::json!(ui.settings_menu_open);
-        value["newChatButtonBounds"] = ui.view_bounds.new_chat.snapshot()["new-chat"].clone();
+        value["sessionSearchButtonBounds"] = ui.view_bounds.session_search.snapshot()["search"].clone();
         value["sessionRowBounds"] = ui.view_bounds.sessions.snapshot();
         value["appOpenButtonBounds"] = ui.view_bounds.app_open.snapshot();
         value["chatCloseButtonBounds"] = ui.view_bounds.chat_close.snapshot()["float-chat-close"].clone();
