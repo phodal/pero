@@ -53,6 +53,9 @@ writeFileSync(agents, JSON.stringify([
    mcp_servers: [{type:'http',name:'docs',url:'http://127.0.0.1/mcp',headers:[]}] },
 ]));
 writeFileSync(resolve(temp, 'notes.txt'), 'Context file for the contract test.\n');
+const projectDirectory = resolve(temp, 'context-project');
+mkdirSync(projectDirectory);
+writeFileSync(resolve(projectDirectory, 'project-notes.txt'), 'Context from the selected Project.\n');
 const env = { ...process.env, PERO_APPS_ROOT: resolve(temp, 'installed'), PERO_BUILTIN_APPS_ROOT: builtins,
   PERO_BUILTIN_APPS: 'fixture', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en', PERO_SETTINGS_PATH: resolve(temp, 'settings.json'), PERO_HISTORY_PATH: resolve(temp, 'sessions.jsonl'), PERO_AGENTS_FILE: agents };
 
@@ -152,7 +155,10 @@ try {
   const migrated = await host.next('workbench_settings');
   const expectedLegacy={...legacyWorkbench,shortcuts:{macos:{},other:{}},research_projects:[],accent:'teal',typography:{ui_size:14,chat_size:12,code_size:null},layout:{chat_width:420,chat_open:false,sidebar_width:260,sessions_width:280,artifact_pane_width:280,artifact_view:'icons',resource_tab:'artifacts',link_surface:'in_app',diff_soft_wrap:true}};
   if (!isDeepStrictEqual(migrated.data,expectedLegacy)) failures.push('Legacy workbench preferences did not restore default layout');
-  const workbench = {...expectedLegacy,shortcuts:{macos:{new_chat:['alt-cmd-n'],toggle_sidebar:[]},other:{}},accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true,sidebar_width:260,sessions_width:360,artifact_pane_width:640,artifact_view:'gallery',resource_tab:'files',link_surface:'in_app',diff_soft_wrap:false}};
+  const workbench = {...expectedLegacy,shortcuts:{macos:{new_chat:['alt-cmd-n'],toggle_sidebar:[]},other:{}},accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true,sidebar_width:260,sessions_width:360,artifact_pane_width:640,artifact_view:'gallery',resource_tab:'files',link_surface:'in_app',diff_soft_wrap:false}, research_projects: [
+    { id: 'with-directory', title: 'Checkout Project', goal: '', workspace: projectDirectory, resources: [] },
+    { id: 'without-directory', title: 'Research Project', goal: '', workspace: null, resources: [] },
+  ]};
   host.send({method:'settings.workbench',preferences:workbench});
   const applied = await host.next('workbench_settings');
   if (!isDeepStrictEqual(applied.data,workbench)) failures.push('Workbench preferences were not acknowledged');
@@ -212,6 +218,27 @@ try {
   const context = await host.next('context_resolved',e=>e.request_id==='context-select');
   host.send({action:'resolve_context',request_id:'context-missing',kind:'file',source:resolve(temp,'missing.txt')});
   await host.next('context_error',e=>e.request_id==='context-missing');
+
+  host.send({action:'search_context',request_id:'project-context-search',project_id:'with-directory',kind:'file',query:'notes.txt'});
+  const scopedCandidates = await host.next('context_candidates', e => e.request_id === 'project-context-search');
+  if (!isDeepStrictEqual(scopedCandidates.data.map(candidate => candidate.label), ['project-notes.txt'])) {
+    failures.push('Project picker included files outside the saved Project directory');
+  }
+  host.send({action:'resolve_context',request_id:'project-context-select',project_id:'with-directory',kind:'file',source:'project-notes.txt'});
+  const scopedContext = await host.next('context_resolved', e => e.request_id === 'project-context-select');
+  if (scopedContext.data.content.text !== 'Context from the selected Project.\n') failures.push('Project file resolved under the wrong directory');
+  const invalidProjectLookups = [
+    {action:'resolve_context',request_id:'outside-project',project_id:'with-directory',kind:'file',source:selected.source},
+    {action:'search_context',request_id:'no-project-directory',project_id:'without-directory',kind:'file',query:'notes.txt'},
+    {action:'resolve_context',request_id:'absolute-without-directory',project_id:'without-directory',kind:'file',source:selected.source},
+  ];
+  for (const lookup of invalidProjectLookups) {
+    host.send(lookup);
+    await host.next('context_error', e => e.request_id === lookup.request_id);
+  }
+  host.send({action:'search_context',request_id:'project-skill-search',project_id:'without-directory',kind:'skill',query:'app-use'});
+  const projectSkills = await host.next('context_candidates', e => e.request_id === 'project-skill-search');
+  if (!projectSkills.data.some(candidate => candidate.source === 'pero-skill:app-use')) failures.push('Directory-free Project lost built-in Skills');
 
   const thread = 'contract-thread';
   const inThread = (e) => e.thread_id === thread;

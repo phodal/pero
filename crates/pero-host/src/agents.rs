@@ -4,7 +4,7 @@ use pero_contracts::{
 };
 use pero_runtime::acp::{self, AgentConfig, SessionCommand, SessionHandle};
 use pero_runtime::apps::agent::AppSessionBinding;
-use pero_runtime::context::ContextSources;
+use pero_runtime::context::{ContextSources, ContextWorkspace};
 #[path = "app_agent.rs"]
 mod app_agent;
 #[path = "app_agent_run.rs"]
@@ -25,7 +25,7 @@ use session_journal::SessionJournal;
 use pero_contracts::session_history::{SessionHistorySaveFailure, SessionHistoryStatus, recorded_kind};
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         mpsc::{self, Sender},
         Arc, Mutex,
@@ -324,6 +324,25 @@ impl Manager {
         self.command(command);
     }
 
+    fn with_context_sources<T>(
+        &self,
+        project_id: Option<&str>,
+        kind: ContextKind,
+        lookup: impl FnOnce(&ContextSources<'_>) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let project = project_id.map(|id| self.saved_project(id)).transpose()?;
+        let workspace = match &project {
+            Some(project) => ContextWorkspace::Project(project.workspace.as_deref().map(Path::new)),
+            None => ContextWorkspace::Workbench(&self.workspace),
+        };
+        let history = if kind == ContextKind::Thread { self.visible_history() } else { Vec::new() };
+        lookup(&ContextSources {
+            workspace,
+            history: &history,
+            home: std::env::var_os("HOME").map(PathBuf::from),
+        })
+    }
+
     fn command(&mut self, command: HostCommand) -> bool {
         if self.automation_owns_command(&command) {
             self.send("error", "Automation executions are controlled through Automation", serde_json::Value::Null);
@@ -408,18 +427,10 @@ impl Manager {
                 request_id,
                 kind,
                 query,
+                project_id,
             } => {
-                let history = if kind == ContextKind::Thread {
-                    self.visible_history()
-                } else {
-                    vec![]
-                };
-                let sources = ContextSources {
-                    workspace: &self.workspace,
-                    history: &history,
-                    home: std::env::var_os("HOME").map(PathBuf::from),
-                };
-                let result = sources.search(kind, &query).and_then(|mut items| {
+                let result = self.with_context_sources(project_id.as_deref(), kind, |sources| {
+                    let mut items = sources.search(kind, &query)?;
                     if kind == ContextKind::Skill {
                         if let Some(apps) = &self.apps {
                             let mut installed = apps.market_context_candidates(&query)?;
@@ -447,21 +458,16 @@ impl Manager {
                 source,
                 start_line,
                 end_line,
+                project_id,
             } => {
-                let history = if kind == ContextKind::Thread {
-                    self.visible_history()
-                } else {
-                    vec![]
-                };
-                let sources = ContextSources {
-                    workspace: &self.workspace,
-                    history: &history,
-                    home: std::env::var_os("HOME").map(PathBuf::from),
-                };
-                let resolved = if kind == ContextKind::Skill && source.starts_with(pero_runtime::skill_market::CONTEXT_SOURCE_PREFIX) {
-                    self.apps.as_ref().ok_or_else(|| "Skills market is unavailable".to_string())
-                        .and_then(|apps| apps.resolve_market_context(&source))
-                } else { sources.resolve(kind, &source, start_line, end_line) };
+                let resolved = self.with_context_sources(project_id.as_deref(), kind, |sources| {
+                    if kind == ContextKind::Skill && source.starts_with(pero_runtime::skill_market::CONTEXT_SOURCE_PREFIX) {
+                        self.apps.as_ref().ok_or_else(|| "Skills market is unavailable".to_string())?
+                            .resolve_market_context(&source)
+                    } else {
+                        sources.resolve(kind, &source, start_line, end_line)
+                    }
+                });
                 let event = match resolved {
                     Ok(reference) => {
                         let mut event =

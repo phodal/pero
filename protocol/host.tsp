@@ -269,8 +269,8 @@ model ImageContextContent { type: "image"; data: string; mime_type: "image/png" 
 @oneOf union ContextContent {TextContextContent, ImageContextContent}
 model ContextCandidate { kind: ContextKind; label: string; source: string; detail: string; ...Closed }
 model ContextReference { id: string; kind: ContextKind; label: string; source: string; content: ContextContent; ...Closed }
-model SearchContextCommand {action: "search_context"; request_id: string; kind: ContextKind; query: string; ...Closed}
-model ResolveContextCommand {action: "resolve_context"; request_id: string; kind: ContextKind; source: string; start_line?: uint32 | null; end_line?: uint32 | null; ...Closed}
+model SearchContextCommand {action: "search_context"; request_id: string; kind: ContextKind; query: string; project_id?: string | null; ...Closed}
+model ResolveContextCommand {action: "resolve_context"; request_id: string; kind: ContextKind; source: string; start_line?: uint32 | null; end_line?: uint32 | null; project_id?: string | null; ...Closed}
 model AuthenticateCommand { action: "authenticate"; thread_id: string; method_id: string; ...Closed }
 model AppChatScope { app: string; panel: string; ...Closed }
 model NewSessionCommand { action: "new_session"; thread_id: ThreadId; agent_id: string; scope?: AppChatScope; ...Closed }

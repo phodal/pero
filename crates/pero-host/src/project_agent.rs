@@ -70,11 +70,11 @@ impl Manager {
         }
     }
 
-    fn saved_agent_project(&self, id: &str) -> Result<ResearchProject, String> {
+    pub(super) fn saved_project(&self, id: &str) -> Result<ResearchProject, String> {
         request_key(id)?;
-        let settings = self.settings_path.as_deref().ok_or("Project Agent needs a persistent Host profile")?;
+        let settings = self.settings_path.as_deref().ok_or("Projects need a persistent Host profile")?;
         pero_runtime::settings::load_notebook_projects(settings).map_err(|error| error.to_string())?
-            .research_projects.into_iter().find(|project| project.id == id).ok_or("Save the research Project before starting its Agent".into())
+            .research_projects.into_iter().find(|project| project.id == id).ok_or("The saved Project is unavailable".into())
     }
 
     fn project_sessions(&self, project: &str) -> Vec<ProjectAgentSession> {
@@ -223,16 +223,16 @@ impl Manager {
 
     pub(super) fn resume_project_prompt(&mut self, thread: &str) -> Result<(), String> {
         let Ok(session) = self.project_session(thread) else { return Ok(()); };
-        let project = self.saved_agent_project(&session.binding.project_id)?;
+        let project = self.saved_project(&session.binding.project_id)?;
         self.resume_project_session(&session, &project)
     }
 
     pub(crate) fn project_agent_request(&mut self, request: &str, command: ProjectAgentAction) -> Result<ProjectAgentSnapshot, String> {
         request_key(request)?;
         let (project, selected) = match command {
-            ProjectAgentAction::Snapshot {project_id} => {self.saved_agent_project(&project_id)?; (project_id, None)},
+            ProjectAgentAction::Snapshot {project_id} => {self.saved_project(&project_id)?; (project_id, None)},
             ProjectAgentAction::Start {project_id, agent_id, prompt} => {
-                let project = self.saved_agent_project(&project_id)?;
+                let project = self.saved_project(&project_id)?;
                 if let Some(text) = &prompt {prompt_valid(text)?;}
                 let thread = format!("project-{}-primary-{}", digest(&project_id), &digest(request)[..12]);
                 if let Some(existing) = self.project_sessions(&project_id).into_iter().find(|session| session.binding.parent_thread.is_none()) {
@@ -264,7 +264,7 @@ impl Manager {
                 prompt_valid(&prompt)?;
                 let primary = self.project_session(&thread_id)?;
                 let binding = primary.binding.child(thread_id.clone(), title)?;
-                let project = self.saved_agent_project(&binding.project_id)?;
+                let project = self.saved_project(&binding.project_id)?;
                 let thread = format!("project-{}-{}", digest(&binding.project_id), digest(request));
                 if let Ok(existing) = self.project_session(&thread) {
                     let original = self.visible_history().into_iter().find(|event| event.kind == "session_created"
@@ -295,7 +295,7 @@ impl Manager {
             ProjectAgentAction::Followup {thread_id, prompt} => {
                 prompt_valid(&prompt)?;
                 let session = self.project_session(&thread_id)?;
-                let project = self.saved_agent_project(&session.binding.project_id)?;
+                let project = self.saved_project(&session.binding.project_id)?;
                 self.resume_project_session(&session, &project)?;
                 self.project_prompt(&thread_id, prompt)?;
                 (project.id, Some(thread_id))
@@ -312,7 +312,7 @@ impl Manager {
             ProjectAgentAction::Summarize {thread_id} => {
                 let primary = self.project_session(&thread_id)?;
                 if primary.binding.parent_thread.is_some() {return Err("Open the primary Agent to summarize this Project".into());}
-                let project = self.saved_agent_project(&primary.binding.project_id)?;
+                let project = self.saved_project(&primary.binding.project_id)?;
                 self.resume_project_session(&primary, &project)?;
                 let evidence = ProjectAgentSnapshot {project_id: project.id.clone(), selected_thread: None,
                     sessions: self.project_sessions(&project.id).into_iter().filter(|session| primary.binding.owns_child(&thread_id, &session.binding)).collect(),

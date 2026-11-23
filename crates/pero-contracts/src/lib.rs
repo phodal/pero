@@ -99,6 +99,8 @@ pub enum HostCommand {
         request_id: String,
         kind: context::ContextKind,
         query: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        project_id: Option<String>,
     },
     ResolveContext {
         request_id: String,
@@ -108,6 +110,8 @@ pub enum HostCommand {
         start_line: Option<u32>,
         #[serde(default)]
         end_line: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        project_id: Option<String>,
     },
     Authenticate {
         thread_id: String,

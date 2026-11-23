@@ -1771,6 +1771,7 @@ export interface SearchContextCommand {
   request_id: string;
   kind: ContextKind;
   query: string;
+  project_id?: string | null;
 }
 export interface ResolveContextCommand {
   action: "resolve_context";
@@ -1779,6 +1780,7 @@ export interface ResolveContextCommand {
   source: string;
   start_line?: number | null;
   end_line?: number | null;
+  project_id?: string | null;
 }
 export interface AuthenticateCommand {
   action: "authenticate";

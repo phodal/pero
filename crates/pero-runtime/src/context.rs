@@ -18,8 +18,31 @@ const MAX_TEXT: usize = 128_000;
 pub const MAX_RESULTS: usize = 100;
 const MAX_SCAN: usize = 10_000;
 
+#[derive(Clone, Copy)]
+pub enum ContextWorkspace<'a> {
+    Workbench(&'a Path),
+    Project(Option<&'a Path>),
+}
+
+impl<'a> ContextWorkspace<'a> {
+    fn directory(self) -> Option<&'a Path> {
+        match self {
+            Self::Workbench(path) => Some(path),
+            Self::Project(path) => path,
+        }
+    }
+
+    fn require(self) -> Result<&'a Path, String> {
+        let path = self.directory().ok_or("This Project has no local directory")?;
+        if matches!(self, Self::Project(_)) && !path.is_dir() {
+            return Err("The Project directory is unavailable".into());
+        }
+        Ok(path)
+    }
+}
+
 pub struct ContextSources<'a> {
-    pub workspace: &'a Path,
+    pub workspace: ContextWorkspace<'a>,
     pub history: &'a [HostEvent],
     pub home: Option<PathBuf>,
 }
@@ -36,7 +59,8 @@ impl ContextSources<'_> {
             | ContextKind::Image
             | ContextKind::Symbol => {
                 let query = query.to_lowercase();
-                for entry in ignore::WalkBuilder::new(self.workspace)
+                let workspace = self.workspace.require()?;
+                for entry in ignore::WalkBuilder::new(workspace)
                     .hidden(false)
                     .require_git(false)
                     .filter_entry(|entry| !excluded(entry.path()))
@@ -48,7 +72,7 @@ impl ContextSources<'_> {
                     let Some(file_type) = entry.file_type() else {
                         continue;
                     };
-                    if file_type.is_symlink() || path == self.workspace {
+                    if file_type.is_symlink() || path == workspace {
                         continue;
                     }
                     if path.components().any(|c| {
@@ -60,7 +84,7 @@ impl ContextSources<'_> {
                         continue;
                     }
                     let relative = path
-                        .strip_prefix(self.workspace)
+                        .strip_prefix(workspace)
                         .unwrap_or(path)
                         .to_string_lossy();
                     if kind == ContextKind::Symbol
@@ -144,7 +168,7 @@ impl ContextSources<'_> {
                                 .into()
                         });
                         let description = front_matter(&text, "description").unwrap_or_default();
-                        let origin = if root.starts_with(self.workspace) {
+                        let origin = if self.workspace.directory().is_some_and(|workspace| root.starts_with(workspace)) {
                             "project"
                         } else {
                             "global"
@@ -170,12 +194,13 @@ impl ContextSources<'_> {
                 items.dedup_by(|a, b| a.source == b.source);
             }
             ContextKind::BranchDiff => {
+                let workspace = self.workspace.require()?;
                 let base = if query.trim().is_empty() {
-                    self.default_base()?
+                    Self::default_base(workspace)?
                 } else {
                     query.trim().to_string()
                 };
-                self.git(&["rev-parse", "--verify", &format!("{base}^{{commit}}")])?;
+                Self::git(workspace, &["rev-parse", "--verify", &format!("{base}^{{commit}}")])?;
                 items.push(ContextCandidate {
                     kind,
                     label: format!("Branch Diff (vs {base})"),
@@ -276,8 +301,9 @@ impl ContextSources<'_> {
                 ContextContent::Text { text }
             }
             ContextKind::BranchDiff => {
-                self.git(&["rev-parse", "--verify", &format!("{source}^{{commit}}")])?;
-                let text = self.git(&[
+                let workspace = self.workspace.require()?;
+                Self::git(workspace, &["rev-parse", "--verify", &format!("{source}^{{commit}}")])?;
+                let text = Self::git(workspace, &[
                     "diff",
                     "--no-ext-diff",
                     "--no-textconv",
@@ -295,7 +321,7 @@ impl ContextSources<'_> {
                 ContextContent::Text { text }
             }
             ContextKind::Image => {
-                let path = self.path(source)?;
+                let path = self.path(kind, source)?;
                 if fs::metadata(&path).map_err(|e| e.to_string())?.len() > 10_000_000 {
                     return Err("Image exceeds 10 MB".into());
                 }
@@ -325,7 +351,7 @@ impl ContextSources<'_> {
                 }
             }
             ContextKind::Directory => {
-                let path = self.path(source)?;
+                let path = self.path(kind, source)?;
                 if !path.is_dir() {
                     return Err("Selected source is not a directory".into());
                 }
@@ -403,7 +429,7 @@ impl ContextSources<'_> {
                     .ok_or("Invalid symbol definition range")?;
                 let start = start.parse::<u32>().map_err(|_| "Invalid symbol start")?;
                 let end = end.parse::<u32>().map_err(|_| "Invalid symbol end")?;
-                let path = self.path(file)?;
+                let path = self.path(kind, file)?;
                 let text = read_text(&path)?;
                 let definitions = symbols::definitions(&path, &text, "");
                 let definition = definitions
@@ -420,7 +446,7 @@ impl ContextSources<'_> {
                 }
             }
             ContextKind::File | ContextKind::Skill | ContextKind::Selection => {
-                let path = self.path(source)?;
+                let path = self.path(kind, source)?;
                 let text = read_text(&path)?;
                 label = if kind == ContextKind::Skill {
                     front_matter(&text, "name").unwrap_or_else(|| {
@@ -459,21 +485,31 @@ impl ContextSources<'_> {
         Ok(reference)
     }
 
-    fn path(&self, source: &str) -> Result<PathBuf, String> {
+    fn path(&self, kind: ContextKind, source: &str) -> Result<PathBuf, String> {
         let path = Path::new(source);
-        fs::canonicalize(if path.is_absolute() {
-            path.to_owned()
+        let root = if matches!(self.workspace, ContextWorkspace::Project(_)) && kind != ContextKind::Skill {
+            Some(fs::canonicalize(self.workspace.require()?).map_err(|error| error.to_string())?)
+        } else { None };
+        let path = if path.is_absolute() {
+            fs::canonicalize(path)
         } else {
-            self.workspace.join(path)
-        })
-        .map_err(|e| e.to_string())
+            let workspace = match &root {
+                Some(root) => root.as_path(),
+                None => self.workspace.require()?,
+            };
+            fs::canonicalize(workspace.join(path))
+        }.map_err(|error| error.to_string())?;
+        if root.is_some_and(|root| !path.starts_with(root)) {
+            return Err("The selected source is outside this Project directory".into());
+        }
+        Ok(path)
     }
     fn skill_roots(&self) -> Vec<PathBuf> {
-        let mut roots = vec![
-            self.workspace.join(".agents/skills"),
-            self.workspace.join(".claude/skills"),
-            self.workspace.join(".codex/skills"),
-        ];
+        let mut roots = self.workspace.directory().into_iter().flat_map(|workspace| [
+            workspace.join(".agents/skills"),
+            workspace.join(".claude/skills"),
+            workspace.join(".codex/skills"),
+        ]).collect::<Vec<_>>();
         if let Some(home) = &self.home {
             roots.extend([
                 home.join(".agents/skills"),
@@ -504,10 +540,10 @@ impl ContextSources<'_> {
         threads.retain(|_, text| !text.is_empty());
         threads
     }
-    fn git(&self, args: &[&str]) -> Result<String, String> {
+    fn git(workspace: &Path, args: &[&str]) -> Result<String, String> {
         let output = Command::new("git")
             .arg("-C")
-            .arg(self.workspace)
+            .arg(workspace)
             .args(args)
             .output()
             .map_err(|e| e.to_string())?;
@@ -516,9 +552,9 @@ impl ContextSources<'_> {
         }
         String::from_utf8(output.stdout).map_err(|_| "Git returned non-UTF8 data".into())
     }
-    fn default_base(&self) -> Result<String, String> {
+    fn default_base(workspace: &Path) -> Result<String, String> {
         for base in ["origin/main", "main", "origin/master", "master", "HEAD"] {
-            if self.git(&["rev-parse", "--verify", base]).is_ok() {
+            if Self::git(workspace, &["rev-parse", "--verify", base]).is_ok() {
                 return Ok(base.into());
             }
         }
@@ -611,7 +647,7 @@ mod tests {
         )
         .unwrap();
         let sources = ContextSources {
-            workspace: &workspace.0,
+            workspace: ContextWorkspace::Workbench(&workspace.0),
             history: &[],
             home: None,
         };
@@ -693,7 +729,7 @@ mod tests {
         reply.data = serde_json::json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Answer"}});
         let history = [user, reply];
         let sources = ContextSources {
-            workspace: &workspace.0,
+            workspace: ContextWorkspace::Workbench(&workspace.0),
             history: &history,
             home: None,
         };
@@ -757,7 +793,7 @@ mod tests {
         };
         let workspace = Workspace::new();
         let sources = ContextSources {
-            workspace: &workspace.0,
+            workspace: ContextWorkspace::Workbench(&workspace.0),
             history: &[],
             home: None,
         };
@@ -834,7 +870,7 @@ mod tests {
         ]);
         fs::write(workspace.0.join("value.txt"), "selected\n").unwrap();
         let sources = ContextSources {
-            workspace: &workspace.0,
+            workspace: ContextWorkspace::Workbench(&workspace.0),
             history: &[],
             home: None,
         };
