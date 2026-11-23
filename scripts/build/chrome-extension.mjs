@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { copyFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -7,6 +8,10 @@ const source = resolve(root, 'packages/chrome-extension');
 const output = resolve(process.argv[2] ?? resolve(root, 'target/chrome-extension'));
 await mkdir(output, { recursive: true });
 await Promise.all(['manifest.json', 'relay.html', 'relay.css', 'sidepanel.html', 'sidepanel.css', 'collector.html', 'collector.css', 'tokens.css', 'point-tokens.css', 'point-metrics.css'].map(file => copyFile(resolve(source, file), resolve(output, file))));
+for (const size of [16, 32, 48, 128]) {
+  execFileSync('rsvg-convert', ['--width', String(size), '--height', String(size),
+    '--output', resolve(output, `icon-${size}.png`), resolve(root, 'resources/app-icon.svg')]);
+}
 await build({ absWorkingDir: source, entryPoints: ['src/service-worker.ts', 'src/relay-panel.ts', 'src/sidepanel.js', 'src/collector.js'], outdir: output,
   bundle: true, format: 'esm', platform: 'browser', target: 'chrome125' });
 console.log(output);
