@@ -26,7 +26,8 @@ enum Section {
 impl Section {
     fn of(choice: &ComposerChoice) -> Self {
         match choice {
-            ComposerChoice::RemoteTask(_) | ComposerChoice::OpenCompute => Self::Remote,
+            ComposerChoice::OpenDesktop => Self::Remote,
+            ComposerChoice::OpenCompute => Self::Apps,
             ComposerChoice::Capability(cap) => match &cap.selection {
                 Sel::RemoteDesktop { .. } => Self::Remote,
                 Sel::AppData { .. } | Sel::AppPanel { .. } => Self::Apps,
@@ -68,12 +69,14 @@ impl ChatPanel {
         &mut self,
         project: Option<String>,
         compute: bool,
+        desktop: bool,
         cx: &mut Context<Self>,
     ) {
-        if self.remote_project == project && self.compute_available == compute {
+        if self.remote_project == project && self.compute_available == compute && self.desktop_available == desktop {
             return;
         }
         self.remote_project = project;
+        self.desktop_available = desktop;
         self.compute_available = compute;
         self.refresh_composer_shortcuts();
         cx.notify();
@@ -106,7 +109,7 @@ impl ChatPanel {
                     ),
                     Sel::RemoteDesktop { .. } => (
                         "icons/devices.svg",
-                        "Remote Use · Linux Desktop".into(),
+                        self.t("composer.attached_desktop").into(),
                         "composer.linux_detail",
                     ),
                     Sel::AppData { app, panel } | Sel::AppPanel { app, panel, .. } => {
@@ -178,6 +181,7 @@ impl ChatPanel {
                 self.t("composer.remote_task").into(),
                 format!("{} · {project}", self.t("composer.remote_task_detail")),
             ),
+            ComposerChoice::OpenDesktop => ("icons/devices.svg", "Remote Use · Linux Desktop".into(), self.t("composer.desktop_detail").into()),
             ComposerChoice::OpenCompute => (
                 "icons/terminal.svg",
                 self.t("composer.remote_compute").into(),
@@ -276,6 +280,7 @@ impl ChatPanel {
             .into_iter()
             .map(ComposerChoice::Capability)
             .collect();
+        if self.desktop_available && self.scope.is_none() { choices.insert(0, ComposerChoice::OpenDesktop); }
         if let Some(project) = &self.remote_project {
             choices.push(ComposerChoice::RemoteTask(project.clone()));
         }

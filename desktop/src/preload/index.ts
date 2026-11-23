@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+contextBridge.exposeInMainWorld('peroLinuxDesktopAvailable', process.platform !== 'win32');
 contextBridge.exposeInMainWorld('pero', {
   connect: () => ipcRenderer.invoke('pero:connect'),
   getLocale: () => ipcRenderer.invoke('pero:locale:get'),

@@ -40,7 +40,7 @@ impl ChatPanel {
             .choices
             .iter()
             .map(|choice| match choice {
-                ComposerChoice::Capability(_) | ComposerChoice::RemoteTask(_) | ComposerChoice::OpenCompute | ComposerChoice::Browse(_) => self.catalog_item(choice),
+                ComposerChoice::Capability(_) | ComposerChoice::RemoteTask(_) | ComposerChoice::OpenDesktop | ComposerChoice::OpenCompute | ComposerChoice::Browse(_) => self.catalog_item(choice),
                 ComposerChoice::Source(kind) => PickerItem {
                     icon: Self::context_kind_icon(*kind),
                     label: self.context_kind_label(*kind).into(),
@@ -274,11 +274,11 @@ impl ChatPanel {
                     cx.emit(crate::ChatAction::PrepareRemoteTask { project_id, prompt });
                 }
             }
-            ComposerChoice::OpenCompute => {
+            ComposerChoice::OpenDesktop | ComposerChoice::OpenCompute => {
                 if let Some(query) = self.composer_state.completion.clone() {
                     self.close_composer_picker(cx);
                     self.replace_composer_range(query.range, "", window, cx);
-                    cx.emit(crate::ChatAction::OpenCompute);
+                    cx.emit(if matches!(choice, ComposerChoice::OpenDesktop) {crate::ChatAction::OpenDesktop} else {crate::ChatAction::OpenCompute});
                 }
             }
             ComposerChoice::Source(kind) => self.open_context_source(kind, window, cx),

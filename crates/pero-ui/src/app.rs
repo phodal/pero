@@ -279,6 +279,7 @@ impl Workbench {
                         this.sync_follow(cx);
                     }
                 }
+                ChatAction::OpenDesktop => this.command(json!({"action":"linux_desktop_open"}), cx),
                 ChatAction::OpenCompute => {
                     if this.apps.contains_panel("compute", "main") { this.open_app("compute".into(), "main".into(), cx); }
                 }
@@ -462,7 +463,11 @@ impl Workbench {
                     chat.restore_scope_chat(cx);
                 }
             }
-            chat.set_composer_destinations(remote_project, compute_available, cx);
+            #[cfg(target_family="wasm")]
+            let desktop = js_sys::Reflect::get(&js_sys::global(), &"peroLinuxDesktopAvailable".into()).ok().and_then(|v|v.as_bool()).unwrap_or(false);
+            #[cfg(not(target_family="wasm"))]
+            let desktop = false;
+            chat.set_composer_destinations(remote_project, compute_available, desktop, cx);
             chat.set_visible(visible, cx);
             chat.show_return_to_review = show_return;
             if chat.compact != compact { chat.compact = compact; cx.notify(); }

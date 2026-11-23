@@ -56,6 +56,7 @@ impl CompletionQuery {
 pub enum ComposerChoice {
     Capability(pero_contracts::capability_selection::ComposerCapability),
     RemoteTask(String),
+    OpenDesktop,
     OpenCompute,
     Browse(ContextKind),
     Source(ContextKind),
