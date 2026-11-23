@@ -55,13 +55,20 @@ if docker container inspect openpero >/dev/null 2>&1; then
     docker stop openpero >/dev/null
     docker rename openpero openpero-previous
 fi
+server_config=(--env-file /etc/openpero/server.env)
+if [[ -f /etc/openpero/runtime/profile.json ]]; then
+    server_config+=(
+        --mount type=bind,source=/etc/openpero/runtime,target=/run/pero/control,readonly
+        --env PERO_SANDBOX_CONFIG=/run/pero/control/profile.json
+    )
+fi
 started=false
 if docker run -d --name openpero --restart unless-stopped \
     --network openpero -p 127.0.0.1:18796:8787 \
     --memory 80m --memory-swap 80m --cpus 0.25 --pids-limit 64 \
     --read-only --cap-drop ALL --security-opt no-new-privileges \
     --log-opt max-size=5m --log-opt max-file=2 \
-    --env-file /etc/openpero/server.env "openpero:$release" >/dev/null; then
+    "${server_config[@]}" "openpero:$release" >/dev/null; then
     started=true
 fi
 ready=false

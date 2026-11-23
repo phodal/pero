@@ -44,6 +44,14 @@ enabling an [isolated runtime](../agent-sandbox/ISOLATED.md). The runtime gatewa
 owns stream, frame and provider limits, and the vhost allows the runtime's
 15-minute stream lifetime. The ordinary Task Center API has a 512 KiB body cap.
 
+For an approved isolated runtime, place its profile at
+`/etc/openpero/runtime/profile.json` with the control-plane credentials and CA
+files it references in the same directory. Use `/run/pero/control/` for these
+server-side file paths and grant read access to the server's container UID
+10001. The activation script mounts that directory read-only and passes the
+profile path only when `profile.json` exists. Keep the profile and credentials
+off the release and out of the repository.
+
 The service runs as UID 10001 in a read-only image, with 80 MiB memory and 0.25 CPU.
 PostgreSQL 17.11 Alpine has 128 MiB and 0.25 CPU, with its own network and
 `/var/lib/openpero/postgres` data directory. Both restart unless explicitly stopped.
