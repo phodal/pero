@@ -634,11 +634,6 @@ impl Workbench {
                     )
                     .child(div().flex_1().h_full().min_w(px(8.))),
             )
-            .map(|bar| {
-                #[cfg(all(feature = "native", target_os = "macos"))]
-                let bar = bar.children(self.native_chrome_relay_menu(cx));
-                bar
-            })
             .when(self.navigation.route().can_clone_pane(), |strip| {
                 strip.child(self.workspace_split_control(cx))
             })

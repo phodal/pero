@@ -18,6 +18,7 @@ impl Workbench {
                 .ghost()
                 .small()
                 .label(self.t("browser_use.chrome_menu"))
+                .accessibility_label(self.t("browser_use.chrome_menu"))
                 .dropdown_menu(move |menu, _, _| {
                     let start_owner = owner.clone();
                     let stop_owner = owner.clone();

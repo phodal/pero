@@ -67,6 +67,30 @@ Use `PERO_CONTENT_TEST_ROOT` for an already staged build. The suite checks that
 two tabs with the same URL are checkpointed under separate IDs, reappear under
 those IDs after restart, and restore independent Chromium form values.
 
+## Native Workbench and external Chrome
+
+On macOS 27.2.1, the release-mode Pero Native Preview and Google Chrome for
+Testing 156.0.8078.4 ran with isolated profiles. The Native build used
+`a5d918c42` with the menu placement fix and concurrent worktree changes.
+The actual **Chrome → Copy
+Chrome pairing code** menu copied the code from the ordinary conversation
+view. The unpacked Pero extension accepted the code and reported that it
+was awaiting tab approval. At that point the Native Agent had no tab access.
+
+After reviewing and allowing the first tab, the deterministic ACP Agent
+filled a field and clicked the fixture’s button through the real Rust Host
+and `browser_use`. An independent loopback request from the page reported
+`isTrusted=true`, and the Native profile stored the matching click receipt.
+Switching to another tab at the same origin exposed only the original,
+inactive grant and page operations were refused. After revoking in Chrome,
+the second tab received a distinct ID only after a new pairing and approval.
+
+**Stop and take over** in the extension and **Chrome → Disconnect Chrome**
+in Native both invalidated the respective grant for the same conversation.
+Chrome showed **Disconnected**, removed its debugger indicator, and kept
+both tabs open. The checks and receipt are in
+`test-results/native-chrome-relay/result.json`.
+
 ## Electron Runtime
 
 ### External Chrome extension and Relay

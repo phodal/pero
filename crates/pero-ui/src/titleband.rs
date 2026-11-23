@@ -20,6 +20,7 @@ pub(crate) struct MainColumn {
     pub app: Option<FocusedApp>,
     pub open_chat: bool,
     pub close_chat: bool,
+    pub chrome_relay: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,6 +86,7 @@ pub(crate) enum Action {
     Search,
     OpenChat,
     CloseChat,
+    ChromeRelay,
     Retry,
     App {
         id: String,
@@ -163,6 +165,9 @@ fn main_segment(main: &MainColumn) -> Segment {
     if main.close_chat {
         actions.push(Action::CloseChat);
     }
+    if main.chrome_relay {
+        actions.push(Action::ChromeRelay);
+    }
     actions.push(Action::Search);
     Segment {
         column: ColumnKind::Main,
@@ -206,6 +211,7 @@ mod tests {
             app,
             open_chat: false,
             close_chat: false,
+            chrome_relay: false,
         }
     }
 
@@ -221,6 +227,15 @@ mod tests {
             actions: vec![import],
         };
         let cases = [
+            (
+                "ordinary Native conversation with Chrome Relay",
+                columns(
+                    MainColumn { chrome_relay: true, ..main(MainFocus::Tabs, None) },
+                    None,
+                ),
+                None,
+                vec![Action::ChromeRelay, Action::Search],
+            ),
             (
                 "resources closed",
                 columns(main(MainFocus::Tabs, None), None),

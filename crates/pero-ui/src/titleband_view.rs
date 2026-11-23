@@ -172,6 +172,15 @@ impl Workbench {
                 },
                 open_chat: self.titleband_open_chat(),
                 close_chat: self.titleband_close_chat(cx),
+                chrome_relay: {
+                    #[cfg(all(feature = "native", target_os = "macos"))]
+                    {
+                        self.browser_thread(cx).is_some()
+                            && crate::native::chrome_relay_owner().is_some()
+                    }
+                    #[cfg(not(all(feature = "native", target_os = "macos")))]
+                    false
+                },
             },
             resources,
         })
@@ -479,6 +488,10 @@ impl Workbench {
         let mut painted = Vec::new();
         for action in actions {
             match action {
+                Action::ChromeRelay => {
+                    #[cfg(all(feature = "native", target_os = "macos"))]
+                    painted.extend(self.native_chrome_relay_menu(cx));
+                }
                 Action::Search => {
                     let shortcut =
                         self.shortcut_label(pero_contracts::shortcuts::CommandId::SearchWorkspace, cx);
