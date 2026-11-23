@@ -478,23 +478,29 @@ impl Workbench {
         }
         if let Some(saved) = saved {
             let has_goal = !saved.goal.is_empty();
+            let chrome = pero_theme::Chrome::from_app(cx);
+            let edit = if has_goal {
+                pero_theme::action_button("project-overview-edit", self.t("research.edit"),
+                    pero_theme::ActionKind::Ghost, chrome, cx)
+            } else {
+                pero_theme::ghost_icon_button("project-overview-edit", chrome, cx)
+                    .icon(Icon::default().path("icons/plus.svg"))
+                    .accessibility_label(self.t("research.add_goal")).tooltip(self.t("research.add_goal"))
+            }
+                .disabled(saving)
+                .relative().child(self.view_bounds.projects.probe("edit".into()))
+                .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx)));
             return overview.child(
-                div().flex_shrink_0().px(px(pero_theme::SPACE_16)).pt(px(pero_theme::SPACE_12))
-                    .flex().flex_col().gap(px(pero_theme::SPACE_8))
-                    .child(div().whitespace_normal().text_color(if has_goal { p.text } else { p.text_muted })
-                        .child(
-                            div().flex().items_center().justify_between()
-                                .text_size(px(pero_theme::TYPE_CAPTION)).text_color(p.text_muted)
-                                .child(self.t("research.goal"))
-                                .child(
-                                    Button::new("project-overview-edit")
-                                        .ghost().small()
-                                        .label(self.t("research.edit"))
-                                        .disabled(saving)
-                                        .relative().child(self.view_bounds.projects.probe("edit".into()))
-                                        .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(false, window, cx))),
-                                ),
-                        )
+                div().flex_shrink_0().p(chrome.geo(pero_theme::SPACE_16))
+                    .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_8))
+                    .child(div().flex().items_center().gap(chrome.geo(pero_theme::SPACE_8))
+                        .child(self.icon("target").text_color(p.text_muted))
+                        .child(div().flex_1().text_size(chrome.text(pero_theme::TYPE_BODY))
+                            .font_weight(FontWeight::SEMIBOLD).child(self.t("research.goal")))
+                        .child(edit))
+                    .child(div().whitespace_normal()
+                        .text_size(chrome.text(if has_goal { pero_theme::TYPE_BODY } else { pero_theme::TYPE_CAPTION }))
+                        .text_color(if has_goal { p.text } else { p.text_muted })
                         .child(if has_goal { saved.goal.clone() } else { self.t("research.goal_empty").to_owned() })),
             ).into_any_element();
         }
@@ -539,7 +545,7 @@ impl Workbench {
             .id("research-resources")
             .when(!compact, |el| el.flex_1().min_h_0().overflow_y_scroll())
             .when(compact, |el| el.flex_shrink_0())
-            .p(px(pero_theme::WorkbenchStyle::PAGE))
+            .p(px(if compact { pero_theme::SPACE_16 } else { pero_theme::WorkbenchStyle::PAGE }))
             .flex()
             .flex_col()
             .gap(px(12.))
@@ -598,7 +604,9 @@ impl Workbench {
                 },
             )
             .when(references.is_empty() && !self.research.choosing, |el| {
-                el.child(div().text_color(p.text_muted).child(self.t("research.links_empty")))
+                el.child(div().text_color(p.text_muted).whitespace_normal()
+                    .when(compact, |el| el.text_size(pero_theme::Chrome::from_app(cx).text(pero_theme::TYPE_CAPTION)))
+                    .child(self.t("research.links_empty")))
             })
             .children(references.iter().enumerate().map(|(index, reference)| {
                 let catalog = self.research.catalogs.get(&reference.app);

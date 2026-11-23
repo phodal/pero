@@ -344,3 +344,9 @@ the local list. Section captions group the tasks. Opening a row reveals its
 source path and line together with the existing execution actions. The Cloud
 inspector uses a status menu and inline status labels while the standalone
 task table keeps its columns and status buttons.
+
+The project inspector uses the same window chrome surface as the project tab.
+Its local view tabs use the shared rounded navigation selection. The reading
+surface starts below the titlebar, with a single divider in wide and narrow
+layouts. Overview and materials use a 16 px section inset and caption text for
+empty guidance. The goal action adds an empty goal or edits the saved text.
