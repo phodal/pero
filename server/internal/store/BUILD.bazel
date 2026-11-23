@@ -4,6 +4,7 @@ go_library(
     name = "store",
     srcs = [
         "clients.go",
+        "project_sources.go",
         "artifacts.go",
         "artifact_objects.go",
         "runtime_channels.go",
@@ -28,6 +29,7 @@ go_library(
     deps = [
         "//server/migrations",
         "//server/internal/runtimebinding",
+        "//server/internal/projectsource",
         "//server/internal/artifacts",
         "//server/internal/runtimechannel",
         "@com_github_jackc_pgx_v5//:pgx",

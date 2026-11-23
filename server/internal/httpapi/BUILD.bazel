@@ -4,6 +4,7 @@ go_library(
     name = "httpapi",
     srcs = [
         "clients.go",
+        "project_sources.go",
         "artifacts.go",
         "artifact_collector.go",
         "runtime_channel.go",
@@ -19,6 +20,7 @@ go_library(
     deps = [
         "//server/internal/github",
         "//server/internal/store",
+        "//server/internal/projectsource",
         "//server/internal/sandbox",
         "//server/internal/runtimebinding",
         "//server/internal/artifacts",
@@ -34,6 +36,7 @@ go_test(
     name = "httpapi_test",
     srcs = [
         "clients_test.go",
+        "project_sources_test.go",
         "artifacts_test.go",
         "isolated_process_test.go",
         "isolated_live_test.go",
@@ -47,7 +50,7 @@ go_test(
         "runtime_browser_test.go",
     ],
     env = {"PERO_REQUIRE_TEST_DATABASE": "1"},
-    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON"],
+    env_inherit = ["PERO_TEST_DATABASE_URL", "PERO_ISOLATED_PROCESS_E2E", "PERO_SANDBOX_WORKER_BINARY", "PERO_REMOTE_BRIDGE_BINARY", "PERO_REMOTE_CONNECT_BINARY", "PERO_TEST_CLOUD_BROWSER_ELECTRON", "PERO_TEST_SHARED_SOURCES_NATIVE"],
     tags = [
         "external",  # Always rerun against the current database, including locally.
         "local",
