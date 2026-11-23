@@ -498,15 +498,8 @@ impl Workbench {
             .child(self.view_bounds.projects.probe("agent:views-overflow".into()))
             .dropdown_menu_with_anchor(Anchor::TopRight, move |mut menu, _, _| {
                 for (view, label) in views {
-                    let probe_owner = workbench.clone();
                     let activate = workbench.clone();
-                    let item = PopupMenuItem::element(move |_, cx| {
-                        div().w_full().relative().child(label).when_some(probe_owner.upgrade(), |el, owner| {
-                            el.child(owner.read(cx).view_bounds.projects.probe(
-                                format!("agent:views-select:{}", view.label_key()),
-                            ))
-                        })
-                    })
+                    let item = PopupMenuItem::new(label)
                     .checked(current == view)
                     .on_click(move |_, _, cx| {
                         let _ = activate.update(cx, |this, cx| this.select_project_view(view, cx));

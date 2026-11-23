@@ -65,8 +65,7 @@ async function fillControl(id, text) {
   await page.keyboard.insertText(text);
 }
 async function selectProjectView(label) {
-  await clickControl('agent:views-overflow');
-  await clickControl(`agent:views-select:${label}`);
+  await clickControl(`tab:${label}`);
 }
 async function projectOverview() {
   await clickAppShortcut(page, 'projects');

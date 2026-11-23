@@ -84,7 +84,11 @@ async function rightTab(key, tab, fromMenu = false) {
     await control(`tab:${key}`);
   } else {
     await control('agent:views-overflow');
-    await control(`agent:views-select:${key}`);
+    const views = ['overview', 'research_resources', 'tasks', 'sources', 'execution', 'settings'];
+    for (let position = 0; position <= views.indexOf(tab); position++) {
+      await page.keyboard.press('ArrowDown');
+    }
+    await page.keyboard.press('Enter');
   }
   await expect.poll(async () => (await state()).projectTab).toBe(tab);
 }
