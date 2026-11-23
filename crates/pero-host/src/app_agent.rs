@@ -1,5 +1,5 @@
 //! App adapter into the existing Host session owner, journal and approval path.
-use super::Manager;
+use super::{Manager, project_agent::LaunchOrigin};
 use pero_contracts::{
     context::{ContextContent, ContextKind, ContextReference},
     HostCommand, HostEvent,
@@ -137,33 +137,37 @@ impl Manager {
         if agent.provider_credential_missing(|name| std::env::var(name).unwrap_or_default()) {
             return Err(acp::CREDENTIAL_REQUIRED.into());
         }
-        let mut event = HostEvent::new("session_created", None, String::new());
-        event.thread_id = Some(thread_id.clone());
-        event.data = serde_json::json!({"agent":agent.id,"workspace":workspace});
-        if let Some(project) = &project {
-            event.data["projectAgent"] = serde_json::json!(project.binding);
-            if let Some(prompt) = &project.initial_prompt {event.data["projectPrompt"] = serde_json::json!(prompt);}
-        }
-        if !market_skills.is_empty() {
-            event.data["skillSelections"] = serde_json::json!(market_skills.iter().map(|skill|serde_json::json!({"id":skill.id,"revision":skill.revision})).collect::<Vec<_>>());
-        }
-        if let Some(plugins) = &plugins {
-            if let Some(assembly) = &plugins.assembly {
-                event.data["appPlugin"] = serde_json::to_value(assembly).map_err(|error| error.to_string())?;
+        if !matches!(project.as_ref().map(|project| &project.origin), Some(LaunchOrigin::Retain)) {
+            let mut event = HostEvent::new("session_created", None, String::new());
+            event.thread_id = Some(thread_id.clone());
+            event.data = serde_json::json!({"agent":agent.id,"workspace":workspace});
+            if let Some(project) = &project {
+                event.data["projectAgent"] = serde_json::json!(project.binding);
+                if let LaunchOrigin::Record(Some(prompt)) = &project.origin {
+                    event.data["projectPrompt"] = serde_json::json!(prompt);
+                }
             }
-            event.data["agentPlugins"] = serde_json::to_value(&plugins.dependencies.plugins).map_err(|error| error.to_string())?;
+            if !market_skills.is_empty() {
+                event.data["skillSelections"] = serde_json::json!(market_skills.iter().map(|skill|serde_json::json!({"id":skill.id,"revision":skill.revision})).collect::<Vec<_>>());
+            }
+            if let Some(plugins) = &plugins {
+                if let Some(assembly) = &plugins.assembly {
+                    event.data["appPlugin"] = serde_json::to_value(assembly).map_err(|error| error.to_string())?;
+                }
+                event.data["agentPlugins"] = serde_json::to_value(&plugins.dependencies.plugins).map_err(|error| error.to_string())?;
+            }
+            if let Some(scope) = scope {
+                event.data["scope"] = serde_json::json!(scope);
+            }
+            if let Some(binding) = binding {
+                event.data["appBinding"] =
+                    serde_json::to_value(binding).map_err(|error| error.to_string())?;
+            }
+            if project.is_some() || binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         }
         let app_use = self.app_use.clone().map(|endpoint| {
             if plugins.as_ref().is_some_and(|plugins| plugins.assembly.is_some()) { endpoint.require_http() } else { endpoint }
         });
-        if let Some(scope) = scope {
-            event.data["scope"] = serde_json::json!(scope);
-        }
-        if let Some(binding) = binding {
-            event.data["appBinding"] =
-                serde_json::to_value(binding).map_err(|error| error.to_string())?;
-        }
-        if project.is_some() || binding.is_some_and(|binding|binding.run.is_some()) { self.run_journal.append(&self.tx,event)?; } else { let _ = self.tx.send(event); }
         if let Some(plugins) = plugins { self.app_plugins.insert(thread_id.clone(), plugins); }
         let options = project.map(|project| acp::SessionStartOptions {
             initial_settings: project.initial_settings,

@@ -16,8 +16,18 @@ pub(crate) struct Launch {
     pub workspace: PathBuf,
     pub agent_prompt: ProjectAgentPrompt,
     pub server: Option<acp::sdk::schema::v1::McpServer>,
-    pub initial_prompt: Option<String>,
+    pub origin: LaunchOrigin,
     pub initial_settings: Vec<pero_contracts::session_settings::SettingSelection>,
+}
+
+pub(crate) enum LaunchOrigin {
+    Record(Option<String>),
+    Retain,
+}
+
+enum ProjectResume {
+    Load,
+    RetryUnacknowledgedPrimary,
 }
 
 struct ProjectConversationHistory {
@@ -196,7 +206,7 @@ impl Manager {
         dunce::canonicalize(workspace).map_err(|error| error.to_string())
     }
 
-    fn project_launch(&self, project: &ResearchProject, binding: ProjectSessionBinding, thread: &str, workspace: PathBuf, initial_prompt: Option<String>) -> Result<Launch, String> {
+    fn project_launch(&self, project: &ResearchProject, binding: ProjectSessionBinding, thread: &str, workspace: PathBuf, origin: LaunchOrigin) -> Result<Launch, String> {
         let (role, server) = if binding.parent_thread.is_none() {
             let server = self.project_tools.as_ref().ok_or("Project delegation tools are unavailable")?.server(thread)?;
             let available_agents = self.agents.iter().filter(|agent| agent.available())
@@ -207,24 +217,38 @@ impl Manager {
             (ProjectAgentRole::Child, None)
         };
         let agent_prompt = ProjectAgentPrompt::new(role, project.clone(), workspace.display().to_string());
-        Ok(Launch {binding, workspace, agent_prompt, server, initial_prompt, initial_settings: vec![]})
+        Ok(Launch {binding, workspace, agent_prompt, server, origin, initial_settings: vec![]})
     }
 
-    fn resume_project_session(&mut self, session: &ProjectAgentSession, project: &ResearchProject) -> Result<(), String> {
+    fn resume_project_session(&mut self, session: &ProjectAgentSession, project: &ResearchProject, resume: ProjectResume) -> Result<(), String> {
         if session.active {return Ok(());}
-        let remote = self.visible_history().iter().rev()
-            .find(|event| event.kind == "session_ready" && event.thread_id.as_deref() == Some(&session.thread_id))
-            .and_then(|event| event.data["sessionId"].as_str().map(str::to_owned))
-            .ok_or("Original ACP Session was never acknowledged; inspect its history before creating new work")?;
+        let (remote, origin) = {
+            let history = self.history.lock().unwrap();
+            let mut events = history.events().iter().rev()
+                .filter(|event| event.thread_id.as_deref() == Some(&session.thread_id));
+            let ready = events.clone().find(|event| event.kind == "session_ready");
+            const UNACKNOWLEDGED: &str = "Original ACP Session was never acknowledged; inspect its history before creating new work";
+            if let Some(event) = ready {
+                let id = event.data["sessionId"].as_str().filter(|id| !id.is_empty()).ok_or(UNACKNOWLEDGED)?;
+                (Some(id.to_owned()), LaunchOrigin::Record(None))
+            } else if matches!(resume, ProjectResume::RetryUnacknowledgedPrimary)
+                && session.binding.parent_thread.is_none()
+                && !events.any(|event| matches!(event.kind.as_str(), "turn_started" | "turn_finished"))
+            {
+                (None, LaunchOrigin::Retain)
+            } else {
+                return Err(UNACKNOWLEDGED.into());
+            }
+        };
         let workspace = dunce::canonicalize(&session.workspace).map_err(|error| format!("Original workspace is unavailable; no work was replayed: {error}"))?;
-        let launch = self.project_launch(project, session.binding.clone(), &session.thread_id, workspace, None)?;
-        self.create_session_with_origin(session.thread_id.clone(), &session.agent_id, None, None, Some(remote), Some(launch))
+        let launch = self.project_launch(project, session.binding.clone(), &session.thread_id, workspace, origin)?;
+        self.create_session_with_origin(session.thread_id.clone(), &session.agent_id, None, None, remote, Some(launch))
     }
 
     pub(super) fn resume_project_prompt(&mut self, thread: &str) -> Result<(), String> {
         let Ok(session) = self.project_session(thread) else { return Ok(()); };
         let project = self.saved_project(&session.binding.project_id)?;
-        self.resume_project_session(&session, &project)
+        self.resume_project_session(&session, &project, ProjectResume::Load)
     }
 
     pub(crate) fn project_agent_request(&mut self, request: &str, command: ProjectAgentAction) -> Result<ProjectAgentSnapshot, String> {
@@ -247,14 +271,15 @@ impl Manager {
                             return Err("This request already belongs to different Project instructions".into());
                         }
                     }
-                    self.resume_project_session(&existing, &project)?;
+                    let resume = if prompt.is_none() { ProjectResume::RetryUnacknowledgedPrimary } else { ProjectResume::Load };
+                    self.resume_project_session(&existing, &project, resume)?;
                     (project_id, Some(existing.thread_id))
                 } else {
                     self.project_agent_available(&agent_id)?;
                     let binding = ProjectSessionBinding::primary(project_id.clone(), "Project Agent".into())?;
                     self.admit_session(&thread)?;
                     let workspace = self.project_workspace(&project, &thread, false)?;
-                    let launch = self.project_launch(&project, binding, &thread, workspace, prompt.clone())?;
+                    let launch = self.project_launch(&project, binding, &thread, workspace, LaunchOrigin::Record(prompt.clone()))?;
                     self.create_session_with_origin(thread.clone(), &agent_id, None, None, None, Some(launch))?;
                     if let Some(text) = prompt {self.project_prompt(&thread, text)?;}
                     (project_id, Some(thread))
@@ -285,7 +310,7 @@ impl Manager {
                     let policy = ProjectDelegationPolicy::inherit(&primary.agent_id, &agent_id, &settings)?;
                     self.admit_session(&thread)?;
                     let workspace = self.project_workspace(&project, &thread, true)?;
-                    let mut launch = self.project_launch(&project, binding.clone(), &thread, workspace, Some(prompt.clone()))?;
+                    let mut launch = self.project_launch(&project, binding.clone(), &thread, workspace, LaunchOrigin::Record(Some(prompt.clone())))?;
                     launch.initial_settings = policy.initial_settings;
                     self.create_session_with_origin(thread.clone(), &agent_id, None, None, None, Some(launch))?;
                     self.project_prompt(&thread, prompt)?;
@@ -296,7 +321,7 @@ impl Manager {
                 prompt_valid(&prompt)?;
                 let session = self.project_session(&thread_id)?;
                 let project = self.saved_project(&session.binding.project_id)?;
-                self.resume_project_session(&session, &project)?;
+                self.resume_project_session(&session, &project, ProjectResume::Load)?;
                 self.project_prompt(&thread_id, prompt)?;
                 (project.id, Some(thread_id))
             }
@@ -313,7 +338,7 @@ impl Manager {
                 let primary = self.project_session(&thread_id)?;
                 if primary.binding.parent_thread.is_some() {return Err("Open the primary Agent to summarize this Project".into());}
                 let project = self.saved_project(&primary.binding.project_id)?;
-                self.resume_project_session(&primary, &project)?;
+                self.resume_project_session(&primary, &project, ProjectResume::Load)?;
                 let evidence = ProjectAgentSnapshot {project_id: project.id.clone(), selected_thread: None,
                     sessions: self.project_sessions(&project.id).into_iter().filter(|session| primary.binding.owns_child(&thread_id, &session.binding)).collect(),
                 }.child_evidence();
