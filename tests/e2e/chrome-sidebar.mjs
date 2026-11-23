@@ -13,15 +13,26 @@ const output = resolve('test-results/chrome-sidebar');
 await mkdir(output, { recursive: true });
 const thread = 'acceptance';
 const messages = [];
+const composer = { text: '', model: 'one', models: [['one','One'],['two','Two']], references: [], items: [] };
 let saved;
 const owner = new WorkbenchBrowserUse({ tool: { description: '' } }, async () => thread, root,
   async (_, request) => {
-    if (request.kind === 'send') messages.push({ role: 'user', text: request.text });
+    if (request.kind === 'edit') {
+      assert.equal(composer.text, request.before);
+      const bytes = Buffer.from(composer.text);
+      composer.text = bytes.subarray(0,request.start).toString() + request.insert + bytes.subarray(request.end).toString();
+    }
+    if (request.kind === 'model') composer.model = request.id;
+    if (request.kind === 'submit') {
+      assert.equal(request.text, composer.text);
+      messages.push({ role: 'user', text: request.text });
+      composer.text = '';
+    }
     if (request.kind === 'collect') {
       saved = request;
       return { artifactReceipt: { id: 'reviewed-source' } };
     }
-    return { sessionId: thread, title: 'Browser acceptance', workspace: root, messages, sessions: [] };
+    return { sessionId: thread, title: 'Browser acceptance', workspace: root, messages, composer, sessions: [] };
   });
 const site = createServer((_req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -49,6 +60,8 @@ try {
   await review.goto(origin + '/relay.html#' + new URLSearchParams({ pair: pairing }));
   await expect(review.locator('#status')).toContainText('awaiting tab approval');
   await expect(panel.getByRole('textbox', { name: 'Message Pero' })).toHaveValue('Chrome sidebar message');
+  await panel.getByLabel('Model', {exact:true}).selectOption('two');
+  await expect.poll(() => composer.model).toBe('two');
   await panel.getByRole('button', { name: 'Send message' }).click();
   await expect(panel.locator('.bubble')).toContainText('Chrome sidebar message');
   await panel.setViewportSize({ width: 420, height: 760 });

@@ -56,9 +56,11 @@
       <section class="composer-shell" aria-labelledby="composer-label">
         <div id="attention" class="attention" role="status" aria-live="polite" aria-atomic="true" hidden></div>
         <div id="attachment-error" class="field-error" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+        <div id="native-picker" role="listbox" aria-label="Composer suggestions" hidden></div>
         <div class="composer-card">
           <label id="composer-label" class="visually-hidden" for="prompt">Message Pero</label>
           <textarea id="prompt" rows="1" maxlength="32768" placeholder="Send a message…"></textarea>
+          <div id="native-references" aria-live="polite"></div>
           <div id="draft-attachments" class="draft-attachments" aria-label="Attachments"></div>
           <div id="context-status" class="context-status" role="status" hidden></div>
           <div class="composer-row">
@@ -72,6 +74,7 @@
                 Share tab
               </button>
             </div>
+            <select id="native-model" aria-label="Model" hidden></select>
             <span id="status" role="status" aria-live="polite" aria-atomic="true">Connecting…</span>
             <button id="stop" class="tool-button stop-button" type="button" aria-label="Stop response" title="Stop" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>

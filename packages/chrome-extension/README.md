@@ -20,6 +20,11 @@ for Relay protocol 2.
    to end access to all tabs. Closing a tab or leaving its approved origin
    ends that tab’s grant.
 
+The side panel shares its paired Native conversation’s draft, model selection,
+`@` context suggestions and `/` commands. Use the arrow keys to navigate
+suggestions and Tab to choose one. Model choices and commands come from the
+active agent. Chat works before sharing a tab.
+
 Chrome Relay supports observation, locators, waits, same-origin frames,
 forms, keyboard, mouse and scroll. Use `tabs`, `open`, `activate` and
 `closeTab` to work with multiple tabs. A tab opened by the Agent requires

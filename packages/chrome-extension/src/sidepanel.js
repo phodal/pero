@@ -1,4 +1,5 @@
 // Conversation controls and keyboard navigation ported from Point's side panel.
+import { bindNativeComposer, editorChange } from './native-composer.js';
 import MarkdownIt from 'markdown-it';
 import { request, currentTab } from './sidebar-client.js';
 const md = new MarkdownIt({ html: false });
@@ -158,16 +159,57 @@ function storeDraft() {
   else localStorage.removeItem(draftKey());
 }
 nodes.prompt.value = localStorage.getItem(draftKey()) || '';
+let chain = Promise.resolve(),
+  dirty = false;
+function enqueue(fn) {
+  const result = chain.then(fn);
+  chain = result.catch(() => {});
+  return result;
+}
+function accept(next) {
+  snapshot = next;
+  if (!dirty && next?.composer && nodes.prompt.value !== next.composer.text) {
+    nodes.prompt.value = next.composer.text;
+    storeDraft();
+    resizeComposer();
+  }
+}
+async function syncDraft() {
+  if (!snapshot?.composer || !dirty) return;
+  const text = nodes.prompt.value;
+  if (snapshot.composer.text !== text) {
+    let next;
+    try {
+      next = await rpc('edit', editorChange(snapshot.composer.text, text));
+    } catch (error) {
+      if (error.message.includes('The draft changed in Pero')) {
+        dirty = false;
+        draftError = error.message;
+      }
+      throw error;
+    }
+    dirty = text !== nodes.prompt.value;
+    accept(next);
+  } else dirty = false;
+}
+const drawComposer = bindNativeComposer(
+  nodes.prompt,
+  nodes['native-model'],
+  nodes['native-picker'],
+  nodes['native-references'],
+  (kind, fields) =>
+    perform(() =>
+      enqueue(async () => {
+        await syncDraft();
+        accept(await rpc(kind, fields));
+        nodes.prompt.focus();
+      }),
+    ),
+);
 function render() {
   const ready = !!snapshot,
     running = snapshot?.running;
-  nodes.status.textContent = busy
-    ? 'Sending…'
-    : running
-      ? 'Responding…'
-      : ready
-        ? 'Ready'
-        : 'Pair to send';
+  nodes.status.textContent = busy ? 'Sending…' : running ? 'Responding…' : snapshot?.composer?.sessionReady === false ? 'Resume in Pero Native' : ready ? 'Ready' : 'Pair to send';
   nodes.connection.textContent = ready ? 'Connected to Pero Native' : 'Disconnected';
   nodes['connection-dot'].dataset.state = ready ? 'ready' : 'error';
   nodes['more-trigger'].dataset.state = ready ? '' : 'offline';
@@ -181,6 +223,7 @@ function render() {
     nodes['session-select'].value = snapshot?.sessionId || '';
     renderSessionMenu();
   }
+  drawComposer(snapshot?.composer, running);
   const messages = JSON.stringify(snapshot?.messages || []);
   if (previousMessages !== messages) {
     previousMessages = messages;
@@ -209,7 +252,7 @@ function render() {
     if (atEnd) nodes.messages.scrollTop = nodes.messages.scrollHeight;
   }
   nodes.attention.textContent =
-    unavailable || snapshot?.error || (snapshot?.attention ? 'Review the request in Pero Native.' : '');
+    unavailable || snapshot?.composer?.error || snapshot?.error || (snapshot?.attention ? 'Review the request in Pero Native.' : '');
   nodes.attention.hidden = !nodes.attention.textContent;
   nodes['attachment-error'].textContent = draftError;
   nodes['attachment-error'].hidden = !draftError;
@@ -221,32 +264,39 @@ function render() {
     nodes[id].disabled = !ready || busy || !!running;
   nodes.send.hidden = !!running;
   nodes.stop.hidden = !running;
-  nodes.send.disabled = !ready || busy || !!running || (!nodes.prompt.value.trim() && !draftAttachments.length);
+  nodes.send.disabled =
+    !ready || busy || !!running || snapshot?.composer?.sessionReady === false || (!nodes.prompt.value.trim() && !draftAttachments.length);
 }
 async function refresh() {
   clearTimeout(timer);
   try {
-    const next = await rpc('snapshot');
-    if (next.sessionId !== draftSession) {
-      const unpaired = !draftSession && nodes.prompt.value;
-      draftSession = next.sessionId;
-      nodes.prompt.value = unpaired || localStorage.getItem(draftKey()) || '';
-      if (unpaired) {
-        storeDraft();
-        localStorage.removeItem(draftPrefix + 'unpaired');
+    await enqueue(async () => {
+      await syncDraft();
+      const next = await rpc('snapshot');
+      if (next.sessionId !== draftSession) {
+        const unpaired = !draftSession && nodes.prompt.value;
+        draftSession = next.sessionId;
+        nodes.prompt.value = unpaired || localStorage.getItem(draftKey()) || '';
+        if (unpaired) {
+          storeDraft();
+          localStorage.removeItem(draftPrefix + 'unpaired');
+        }
+        dirty = !!nodes.prompt.value && !next.composer?.text;
+        resizeComposer();
+        draftAttachments = [];
+        draftError = '';
       }
-      resizeComposer();
-      draftAttachments = [];
-      draftError = '';
-    }
-    snapshot = next;
-    unavailable = '';
+      accept(next);
+      await syncDraft();
+      unavailable = '';
+    });
   } catch (error) {
     snapshot = undefined;
     unavailable = error.message;
   }
   render();
-  timer = setTimeout(refresh, snapshot?.running ? 450 : 1400);
+  clearTimeout(timer);
+  timer = setTimeout(refresh, snapshot?.composer?.open ? 250 : snapshot?.running ? 450 : 1400);
 }
 async function perform(action) {
   if (busy) return;
@@ -296,6 +346,9 @@ async function addFiles(files) {
 }
 
 nodes.prompt.addEventListener('input', () => {
+  dirty = true;
+  clearTimeout(timer);
+  timer = setTimeout(refresh, 100);
   storeDraft();
   resizeComposer();
   render();
@@ -340,6 +393,16 @@ nodes.send.onclick = () =>
       label: a.name,
       content: { type: 'image', mime_type: a.mediaType, data: a.data },
     }));
+    if (snapshot?.composer) {
+      await enqueue(async () => {
+        await syncDraft();
+        accept(await rpc('submit', { text: nodes.prompt.value, contexts }));
+      });
+      draftAttachments = [];
+      draftError = '';
+      await refresh();
+      return;
+    }
     await rpc('send', { text: nodes.prompt.value.trim(), contexts });
     nodes.prompt.value = '';
     storeDraft();
