@@ -298,6 +298,19 @@ retained. The deployed service has no isolated runtime configuration, so the
 Browser Use readiness route still returns 404. No Task was dispatched.
 The read-only API receipts are in `test-results/cloud-browser-hosted/`.
 
+The hosted Nginx vhost now forwards Run requests without buffering or retries.
+The prior vhost stalled before answering a still-open streaming request. A
+loopback test with Nginx 1.25.3, the hosted version, verified the new vhost with
+TLS and the Desktop connector. A synthetic 1 MiB screenshot reply and a 3 MiB
+provider request passed; the ordinary API still rejected bodies above 512 KiB.
+Both Workbench vision fixtures then passed the Go race test through the same
+runtime location over loopback HTTP. Electron delivered a trusted click per
+browser. Native refused the tab switch during confirmation and clicked the
+approved Chrome tab. All three PNG hashes matched the fixture provider, and
+sharing stopped in both shells. The test overlay only routed the fixture's
+requests through Nginx. The live vhost passed its syntax and HTTPS health checks
+after reload. The live server still has no isolated profile mounted.
+
 ### Embedded browser
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied
