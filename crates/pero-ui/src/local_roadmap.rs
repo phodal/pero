@@ -26,6 +26,8 @@ pub(crate) struct RoadmapState {
     pub loading: bool,
     #[serde(skip)]
     sessions: Vec<RoadmapSession>,
+    #[serde(skip)]
+    expanded_sections: std::collections::BTreeMap<(String, Vec<String>), bool>,
 }
 
 struct RoadmapSession {
@@ -343,7 +345,7 @@ impl Workbench {
                                         .child(self.t("roadmap.empty")),
                                 )
                             })
-                            .children(self.roadmap_rows(&visible, p, cx)),
+                            .children(self.roadmap_rows(&visible, &workspace, !query.is_empty(), p, cx)),
                     )
                 },
             )
@@ -470,67 +472,125 @@ impl Workbench {
     fn roadmap_rows(
         &self,
         items: &[&RoadmapItem],
+        workspace: &str,
+        searching: bool,
         p: &pero_theme::Palette,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let caption = pero_theme::UiAppearance::global(cx).text(pero_theme::TextRole::Caption);
         let mut rows = Vec::new();
-        let mut section = String::new();
-        for item in items {
-            let next = item.headings.last().cloned().unwrap_or_default();
-            if next != section {
-                section = next;
-                if !section.is_empty() {
-                    rows.push(
+        for (index, group) in items
+            .chunk_by(|left, right| left.headings == right.headings)
+            .enumerate()
+        {
+            let first = group[0];
+            if let Some(section) = first.headings.last() {
+                let key = (workspace.to_owned(), first.headings.clone());
+                let expanded = searching
+                    || self
+                        .local_roadmap
+                        .expanded_sections
+                        .get(&key)
+                        .copied()
+                        .unwrap_or(index == 0);
+                let header = div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .text_size(caption)
+                    .text_color(p.text_muted)
+                    .child(
+                        self.icon(if expanded {
+                            "chevron-down"
+                        } else {
+                            "chevron-right"
+                        })
+                        .size(px(12.)),
+                    )
+                    .child(
                         div()
-                            .pt(px(12.))
-                            .px(px(6.))
-                            .pb(px(4.))
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_size(caption)
-                            .text_color(p.text_muted)
-                            .child(section.clone())
-                            .into_any_element(),
-                    );
+                            .child(section.clone()),
+                    )
+                    .child(group.len().to_string());
+                rows.push(
+                    div()
+                        .pt(px(6.))
+                        .child(if searching {
+                            div()
+                                .px(px(8.))
+                                .py(px(4.))
+                                .flex()
+                                .child(header)
+                                .into_any_element()
+                        } else {
+                            Button::new(("roadmap-section", first.line))
+                                .ghost()
+                                .small()
+                                .w_full()
+                                .accessibility_label(format!("{section} ({})", group.len()))
+                                .tooltip(first.headings.join(" / "))
+                                .child(header)
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.local_roadmap
+                                        .expanded_sections
+                                        .insert(key.clone(), !expanded);
+                                    cx.notify();
+                                }))
+                                .into_any_element()
+                        })
+                        .into_any_element(),
+                );
+                if !expanded {
+                    continue;
                 }
             }
-            let line = item.line;
-            let title = format!("{}{}", if item.checked { "✓  " } else { "○  " }, item.title);
-            rows.push(
-                div()
-                    .child(
-                        Button::new(("local-roadmap-item", line))
-                            .ghost()
-                            .w_full()
-                            .h_auto()
-                            .min_h(px(30.))
-                            .justify_start()
-                            .tooltip(format!("{} · L{line}", item.title))
-                            .accessibility_label(item.title.clone())
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(8.))
-                                    .pl(px(if item.parent_line.is_some() { 16. } else { 0. }))
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .min_w_0()
-                                            .whitespace_normal()
-                                            .when(item.checked, |el| el.text_color(p.text_muted))
-                                            .child(title),
-                                    ),
-                            )
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.local_roadmap.selected_line = Some(line);
-                                cx.notify();
-                            })),
-                    )
-                    .into_any_element(),
-            );
+            for item in group {
+                let line = item.line;
+                let title = format!("{}{}", if item.checked { "✓  " } else { "○  " }, item.title);
+                rows.push(
+                    div()
+                        .child(
+                            Button::new(("local-roadmap-item", line))
+                                .ghost()
+                                .w_full()
+                                .h_auto()
+                                .min_h(px(30.))
+                                .justify_start()
+                                .tooltip(format!("{} · L{line}", item.title))
+                                .accessibility_label(item.title.clone())
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.))
+                                        .pl(px(if item.parent_line.is_some() { 16. } else { 0. }))
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .whitespace_normal()
+                                                .when(item.checked, |el| {
+                                                    el.text_color(p.text_muted)
+                                                })
+                                                .child(title),
+                                        ),
+                                )
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.local_roadmap.selected_line = Some(line);
+                                    cx.notify();
+                                })),
+                        )
+                        .into_any_element(),
+                );
+            }
         }
         rows
     }
