@@ -2,8 +2,8 @@ import { startComputerProcess, type ComputerProcess } from './computer-process.t
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
-import type { ComputerRequest, ComputerPreviewRequest, ComputerWorkerOperation } from '../../../protocol/generated/computer-request';
-import type { ComputerResponse, ComputerWorkerResponse, ComputerWorkerResult, ComputerPreviewResponse, ComputerError } from '../../../protocol/generated/computer-response';
+import type { ComputerPreviewRequest, ComputerRequest, ComputerWorkerOperation, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
+import type { ComputerAppshotResponse, ComputerPreviewResponse, ComputerResponse, ComputerWorkerResponse, ComputerWorkerValue, ComputerError } from '../../../protocol/generated/computer-response';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(schema);
@@ -21,28 +21,40 @@ export class ComputerClient {
   private connection?: ComputerProcess;
   private starting?: { controller: AbortController; ready: Promise<void> };
   private closing?: Promise<void>;
+  private exiting?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
   private queued = 0;
-  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerWorkerResult): void; reject(error: Error): void; dispose(): void };
+  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerWorkerValue): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
-  async request(thread: string, request: ComputerRequest, signal: AbortSignal): Promise<ComputerResponse> {
-    const value = await this.exchange(thread, request, signal);
-    if (value.kind === 'preview_frame') throw new Error('Unexpected Computer Use preview frame');
+  async request(thread: string, request: ComputerRequest, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerResponse> {
+    const value = await this.send(thread, request, signal, allowedApplications);
+    if (value.kind === 'appshot' || value.kind === 'preview_frame') throw new Error('Unexpected Computer Use reply');
     return value;
   }
-  async preview(thread: string, request: ComputerPreviewRequest): Promise<ComputerPreviewResponse | undefined> {
-    if (this.queued || !this.connection) return undefined;
-    const value = await this.exchange(thread, request, new AbortController().signal);
-    if (value.kind !== 'preview_frame') throw new Error('Computer Use preview frame was not returned');
+
+  async appshot(foreground_pid: number, signal: AbortSignal): Promise<ComputerAppshotResponse> {
+    const value = await this.send('user-appshot', { operation: 'appshot', foreground_pid }, signal);
+    if (value.kind !== 'appshot') throw new Error('Invalid Appshot reply');
     return value;
   }
-  private exchange(thread: string, request: ComputerWorkerOperation, signal: AbortSignal): Promise<ComputerWorkerResult> {
+
+  async preview(thread: string, target: ComputerPreviewRequest['target'], signal: AbortSignal, allowedApplications: string[]): Promise<ComputerPreviewResponse | undefined> {
+    if (!this.connection) throw new ComputerFailure({ code: 'target_unavailable', message: 'The preview worker has closed.' });
+    if (this.queued) return undefined;
+    const value = await this.send(thread, { operation: 'preview_frame', target }, signal, allowedApplications);
+    if (value.kind !== 'preview_frame') throw new Error('Invalid Computer Use preview reply');
+    return value;
+  }
+
+  private send(thread: string, request: ComputerWorkerOperation, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerWorkerValue> {
     this.queued++;
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
       if (!this.connection) {
+        if (request.operation === 'preview_frame')
+          throw new ComputerFailure({ code: 'target_unavailable', message: 'The preview worker has closed.' });
         const controller = new AbortController();
         const startup = AbortSignal.any([controller.signal, signal]);
         const ready = this.start(startup);
@@ -57,13 +69,14 @@ export class ComputerClient {
       signal.throwIfAborted();
       const connection = this.connection;
       if (!connection) throw new ComputerFailure({ code: 'cancelled', message: 'Computer Use was interrupted before dispatch.' });
-      return new Promise<ComputerWorkerResult>((resolve, reject) => {
+      return new Promise<ComputerWorkerValue>((resolve, reject) => {
         const abort = () => { void this.stop('cancelled').catch(() => {}); };
         const timer = setTimeout(() => { void this.stop('timeout').catch(() => {}); }, 30_000);
         const id = randomUUID();
         this.pending = { id, dispatched: true, resolve, reject, dispose: () => { clearTimeout(timer); signal.removeEventListener('abort', abort); } };
         signal.addEventListener('abort', abort, { once: true });
-        connection.input.write(JSON.stringify({ id, thread, request }) + '\n', error => {
+        const envelope: ComputerWorkerRequest = { id, thread, request, allowed_applications: allowedApplications };
+        connection.input.write(JSON.stringify(envelope) + '\n', error => {
           if (error) void this.stop('failed').catch(() => {});
         });
       });
@@ -110,6 +123,9 @@ export class ComputerClient {
     };
     void connection.exited.then(stopped);
   }
+  drained(): Promise<void> {
+    return this.exiting ?? Promise.resolve();
+  }
   stop(reason: 'cancelled' | 'timeout' | 'failed' = 'cancelled'): Promise<void> {
     if (this.closing) return this.closing;
     const starting = this.starting;
@@ -119,6 +135,7 @@ export class ComputerClient {
     }
     const connection = this.connection;
     this.connection = undefined;
+    this.exiting = connection?.exited;
     const pending = this.pending; this.pending = undefined;
     pending?.dispose();
     pending?.reject(new ComputerFailure({ code: reason, message: 'Native work was interrupted. Input may have happened; inspect its receipt and observe again.' }, pending.dispatched));
@@ -126,7 +143,7 @@ export class ComputerClient {
     this.closing = new Promise<void>((resolve, reject) => {
       const force = setTimeout(() => connection.kill(), 1500);
       const deadline = setTimeout(() => reject(new Error('Native desktop process exit is unconfirmed')), 4000);
-      void connection.exited.then(() => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; resolve(); });
+      void connection.exited.then(() => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; this.exiting = undefined; resolve(); });
       // EOF asks the native worker to cancel and release held input before exit.
       connection.input.end();
     });

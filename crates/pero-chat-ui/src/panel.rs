@@ -277,11 +277,14 @@ impl ChatPanel {
             self.new_draft(cx);
         }
         if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
-            self.pending_prompts.push(ComposerInsertion {
-                thread_id: chat.id.clone(),
-                text,contexts,replace:false,surface_request:None,
-            });
+            self.compose_in_thread(chat.id.clone(), text, contexts, cx);
         }
+    }
+
+    pub fn compose_in_thread(&mut self, thread_id: String, text: String, contexts: Vec<ContextReference>, cx: &mut Context<Self>) {
+        self.pending_prompts.push(ComposerInsertion {
+            thread_id, text, contexts, replace: false, surface_request: None,
+        });
         cx.notify();
     }
 
@@ -516,7 +519,21 @@ impl ChatPanel {
 
     /// Diagnostic projection used by both shells; never a second history store.
     pub fn snapshot(&self, cx: &App) -> Value {
-        json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
+        let history_notice = self.history_notice();
+        let mcp_history: Vec<Value> = self.chats.iter().enumerate().flat_map(|(chat_index, chat)| {
+            chat.tools.iter().enumerate().filter_map(move |(tool_index, tool)| {
+                let view = tool.mcp_app.as_ref()?;
+                let visible = self.visible && !self.artifacts.surface_covered && self.active_chat == Some(chat_index)
+                    && self.expanded_tools.contains(&format!("{}/{}", chat.id, tool.id))
+                    && crate::chat::process_member_visible(chat, crate::process::ProcessEntry::Tool(tool_index), &self.expanded_tools);
+                let interactive = visible && chat.state != crate::session_state::SessionState::Closed
+                    && chat.mcp.as_ref().is_some_and(|snapshot| view.available(snapshot));
+                let mut row = json!({"chat":chat.id,"tool":tool.id,"historical":view.historical,"interactive":interactive,"server":view.descriptor.server,"resourceUri":view.descriptor.resource_uri});
+                row["notice"] = if visible && !interactive { Value::String(history_notice.into()) } else { Value::Null };
+                Some(row)
+            })
+        }).collect();
+        let mut value = json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
             "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
@@ -548,7 +565,9 @@ impl ChatPanel {
             "toolViews":self.chats.iter().map(|c|c.tools.iter().filter(|t|t.view.is_some()).count()).collect::<Vec<_>>(),
             "scroll":{"y":f32::from(self.chat_scroll.offset().y),"max":f32::from(self.chat_scroll.max_offset().y)},
             "renderStats":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).stats()).collect::<Vec<_>>()).collect::<Vec<_>>(),
-            "renderedBytes":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).rendered_bytes(cx)).collect::<Vec<_>>()).collect::<Vec<_>>()})
+            "renderedBytes":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).rendered_bytes(cx)).collect::<Vec<_>>()).collect::<Vec<_>>()});
+        value["mcpHistory"] = Value::Array(mcp_history);
+        value
     }
 }
 

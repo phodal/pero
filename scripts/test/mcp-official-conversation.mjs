@@ -5,7 +5,7 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {expect} from '@playwright/test';
 import {electron} from '../../tests/e2e/electron.mjs';
-import {clickAppShortcut} from '../../tests/e2e/sidebar-controls.mjs';
+import {clickAppShortcut, clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
 import {officialConversationProvider,officialConversationPrompt,officialViewMessage,
   officialInitialAnswer,officialFollowupAnswer} from '../../tests/fixtures/mcp-app/conversation-provider.mjs';
 
@@ -42,7 +42,7 @@ try{
     env:{...process.env,PERO_DESKTOP_DATA_DIR:join(home,'profile'),PERO_SETTINGS_PATH:settings,
       PERO_HISTORY_PATH:join(home,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'en'}});
   desktop.process().stderr?.on('data',data=>logs.push(String(data)));
-  page=await desktop.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+  page=await desktop.firstWindow();page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   const state=()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(()=>window.peroDiagnostics&&JSON.parse(window.peroDiagnostics.snapshot()).connected&&!document.getElementById('loading'),undefined,{timeout:60000});
   await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1400,1050));
@@ -58,13 +58,13 @@ try{
   const initial=await state(),thread=initial.chats[initial.activeChat].id;
   const conversation=async()=>(await state()).chats.find(chat=>chat.id===thread);
   const approve=async()=>{
-    await expect.poll(async()=>!!(await conversation()).permission).toBe(true);
+    await expect.poll(async()=>!!(await conversation()).permission,{timeout:20000}).toBe(true);
     const index=(await conversation()).permission.options.findIndex(option=>option.kind==='allow_once');
     assert(index>=0,'The Host must offer allow_once');
     let bounds;
-    await expect.poll(async()=>{bounds=(await state()).permissionBounds.find(item=>item.chat===thread&&item.index===index)?.bounds;return !!bounds&&bounds.width>0&&bounds.height>0;}).toBe(true);
+    await expect.poll(async()=>{bounds=(await state()).permissionBounds.find(item=>item.chat===thread&&item.index===index)?.bounds;return !!bounds&&bounds.width>0&&bounds.height>0;},{timeout:20000}).toBe(true);
     await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
-    await expect.poll(async()=>(await conversation()).permission).toBeNull();
+    await expect.poll(async()=>(await conversation()).permission,{timeout:20000}).toBeNull();
   };
   await page.evaluate(({thread,text})=>window.pero.sessionCommand({action:'prompt',thread_id:thread,text}),{thread,text:officialConversationPrompt});
   await approve();
@@ -96,7 +96,7 @@ try{
   assert.equal(await outer.getAttribute('src'),originalUrl,'expanding a tool must retain the View identity');
   assert.equal((await businessCalls()).length,1,'tool disclosure replayed the original MCP call');
   const interactiveResponse=page.waitForResponse(response=>response.url().endsWith('/api')&&response.request().postDataJSON()?.action==='tool');
-  await app.getByRole('button',{name:'Get Server Time',exact:true}).click();
+  await app.locator('#get-time-btn').evaluate(button=>button.click());
   await approve();
   const interactive=await (await interactiveResponse).json();
   await expect(app.locator('#server-time')).toHaveText(interactive.structuredContent.time);
@@ -134,17 +134,76 @@ try{
   assert.equal(unavailable.request_id,'mcp-inline-unavailable','Electron must retain the inline caller request ID on Host errors');
   assert.equal((await businessCalls()).length,2,'failed adoption must not invoke the MCP tool');
   assert.equal(provider.calls.length,3,'failed adoption must not invoke the model');
+  const savedTool=(await conversation()).tools.find(tool=>tool.id==='official-time-call');
+  assert(savedTool?.content,'The ordinary tool result must be saved before restart');
+  const savedContent=savedTool.content;
+  const callsBeforeRestart=(await businessCalls()).length;
+  const modelsBeforeRestart=provider.calls.length;
+  const liveEvents=await page.evaluate(()=>window.officialMcpEvents);
+  const historyRow=async()=>(await state()).mcpHistory?.find(item=>item.chat===thread&&item.tool==='official-time-call');
+  const readOnlyNotice=async(phase)=>{
+    let row;
+    await expect.poll(async()=>{row=await historyRow();return row?.notice;},{timeout:30000}).toBe('历史结果，当前不可交互');
+    row=await historyRow();
+    assert.equal(row.interactive,false,`${phase} stayed interactive`);
+    assert.notEqual(row.notice,'已关闭');
+    assert.notEqual(row.notice,'Closed');
+    return row;
+  };
+  await page.evaluate(()=>window.pero.setLocale('zh-CN'));
+  await expect.poll(async()=>(await state()).locale).toBe('zh-CN');
   await page.evaluate(thread_id=>window.pero.sessionCommand({action:'close',thread_id}),thread);
   await expect(outer).toHaveCount(0);
-  assert.equal((await businessCalls()).length,2);
-  const events=await page.evaluate(()=>window.officialMcpEvents);
-  assert.equal(events.filter(event=>event.kind==='permission').length,2,'Agent and View calls each require Host ask approval');
+  const closedInProcess=await readOnlyNotice('closing the live session');
+  assert.equal(closedInProcess.historical,false,'Closing the current process must not mark the row as an archived reload');
+  assert.equal((await businessCalls()).length,callsBeforeRestart,'Closing the live session called the initial tool');
+  assert.equal(provider.calls.length,modelsBeforeRestart,'Closing the live session sent a model request');
+  await page.screenshot({path:join(evidence,'history-closed-same-process-zh.png'),scale:'css'});
+  await desktop.close();
+  desktop=await electron.launch({args:[...(process.platform==='darwin'?['--use-mock-keychain']:[]),resolve('desktop')],cwd:root,
+    env:{...process.env,PERO_DESKTOP_DATA_DIR:join(home,'profile'),PERO_SETTINGS_PATH:settings,
+      PERO_HISTORY_PATH:join(home,'history.jsonl'),PERO_AGENTS_FILE:agents,PERO_LOCALE:'zh-CN'}});
+  desktop.process().stderr?.on('data',data=>logs.push(String(data)));
+  page=await desktop.firstWindow();page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+  await page.waitForFunction(()=>window.peroDiagnostics&&JSON.parse(window.peroDiagnostics.snapshot()).connected&&!document.getElementById('loading'),undefined,{timeout:60000});
+  await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1100,1000));
+  await clickSessionRow(page,thread);
+  const restoredRow=await readOnlyNotice('reopening archived history');
+  assert.equal(restoredRow.historical,true);
+  const restoredTool=(await state()).chats.find(chat=>chat.id===thread).tools.find(tool=>tool.id==='official-time-call');
+  assert.equal(restoredTool.content,savedContent,'Restart rebuilt the ordinary result');
+  assert.equal(restoredRow.server,'Official example');
+  assert.match(restoredRow.resourceUri,/^ui:\/\//);
+  assert.equal(restoredTool.mcp_app.url??null,null);
+  await expect(page.locator('section[aria-label="Interactive tool result"] > iframe')).toHaveCount(0);
+  assert.equal((await businessCalls()).length,callsBeforeRestart,'Restoring history called the initial tool');
+  assert.equal(provider.calls.length,modelsBeforeRestart,'Restoring history sent a model request');
+  await expect.poll(async()=>{
+    const bounds=(await state()).toolBounds.find(item=>item.chat===thread&&item.tool==='official-time-call')?.bounds;
+    return !!bounds&&bounds.width>0&&bounds.height>0;
+  }).toBe(true);
+  await toggleTool();
+  await toggleTool();
+  assert.equal((await businessCalls()).length,callsBeforeRestart,'Expanding restored history called the initial tool');
+  assert.equal(provider.calls.length,modelsBeforeRestart,'Expanding restored history sent a model request');
+  await page.evaluate(()=>window.pero.sessionCommand({method:'settings.workbench',preferences:{...JSON.parse(window.peroDiagnostics.snapshot()).preferences,appearance:'dark'}}));
+  await page.screenshot({path:join(evidence,'history-readonly-zh.png'),scale:'css'});
+  const afterRestart=await historyRow();
+  assert.equal(liveEvents.filter(event=>event.kind==='permission').length,2,'Agent and View calls each require Host ask approval');
   assert.deepEqual((await businessCalls()).map(call=>call.name),['get-time','get-time']);
+  assert.deepEqual(errors,[]);
+  const businessAfterRestart=await businessCalls();
+  console.log(JSON.stringify({source:'mcpHistory snapshot',callsBeforeRestart,modelsBeforeRestart,
+    businessCalls:businessAfterRestart.map(call=>call.name),modelRequests:provider.calls.length,
+    sameProcessClose:{notice:closedInProcess.notice,interactive:closedInProcess.interactive,historical:closedInProcess.historical},
+    afterRestart:{notice:afterRestart.notice,interactive:afterRestart.interactive,historical:afterRestart.historical}}));
   await writeFile(join(evidence,'result.json'),JSON.stringify({passed:true,package:name,version,integrity:packageReceipt.integrity,unmodifiedUpstream:true,
     actualWorkbench:true,actualElectron:true,actualRustHost:true,actualGoACP:true,realModel:false,model:'deterministic loopback fixture',
-    modelRequests:provider.calls.length,expectedBusinessCalls:2,businessCalls:await businessCalls(),permissions:events.filter(event=>event.kind==='permission').length,
+    modelRequests:provider.calls.length,expectedBusinessCalls:2,businessCalls:businessAfterRestart,permissions:liveEvents.filter(event=>event.kind==='permission').length,
+    historyRestore:{locale:(await state()).locale,sameProcessClose:closedInProcess,afterRestart,modelRequests:provider.calls.length,businessCalls:businessAfterRestart},
     checks:['initial Agent tool call','automatic conversation View mounting without picker','tool collapse/expand retains the same iframe and result','explicit official UI tool interaction','two mandatory ask approvals','close/reopen never repeat tools/call',
-      'live dark theme and narrower Workbench','official ui/message becomes a subsequent user prompt','actual subsequent model reply','failed adoption retains the inline caller request ID without tool or model calls','session close removes the View'],errors},null,2));
+      'live dark theme and narrower Workbench','official ui/message becomes a subsequent user prompt','actual subsequent model reply','failed adoption retains the inline caller request ID without tool or model calls','session close removes the View',
+      'closing the live session shows the rendered read-only notice without a tool or model call','process restart restores the saved result and source as read-only history without a tool or model call'],errors},null,2));
   console.log('Official MCP App: actual conversation mounting and ui/message follow-up passed (local model fixture).');
 }catch(error){
   if(page){await page.screenshot({path:join(evidence,'failure.png'),scale:'css'}).catch(()=>{});

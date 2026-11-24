@@ -1,7 +1,7 @@
 // Opt-in: installed Native probe, signed-in Codex, and two owned local fixtures.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { once } from 'node:events';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -29,6 +29,12 @@ const output = resolve(computerEvidenceDirectory(root), externalChrome ? 'native
 const report = resolve(output, 'session.json');
 const pairing = resolve(run, 'pairing.json');
 const marker = randomBytes(3).toString('hex').toUpperCase();
+const codeAlphabet = '23456789ACDEFHJKMNPQRTUVWXY';
+const codes = new Set();
+while (codes.size < 4) codes.add(Array.from({ length: 6 }, () => codeAlphabet[randomInt(codeAlphabet.length)]).join(''));
+const [first, second, third, confirmation] = codes;
+const challenge = { codes: [first, second, third], target: randomInt(3), confirmation };
+const desktopMarker = challenge.codes[challenge.target];
 const hash = value => createHash('sha256').update(value).digest('hex');
 let browserClicks = 0;
 const server = createServer((request, response) => {
@@ -38,6 +44,10 @@ const server = createServer((request, response) => {
     return;
   }
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  if (request.url === '/secondary') {
+    response.end('<!doctype html><title>Secondary tab fixture</title><button>Verify second tab</button>');
+    return;
+  }
   response.end(`<!doctype html><title>Native REPL fixture</title>
     <h1>Native REPL fixture</h1>
     <button id="apply">Apply</button><output>Waiting</output>
@@ -57,18 +67,31 @@ let log = '';
 try {
   await Promise.all([mkdir(data), mkdir(workspace), mkdir(output, { recursive: true })]);
   await Promise.all([rm(report, { force: true }), rm(resolve(output, 'evidence.json'), { force: true })]);
-  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: !externalChrome } }));
-  if (!externalChrome) fixture = await computerFixture(root, run, false, { background: true });
+  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: !externalChrome, allowed_applications: ['dev.pero.perocomputerfixture'] } }));
+  if (!externalChrome) {
+    const config = resolve(run, 'challenge.json');
+    await writeFile(config, JSON.stringify(challenge), { mode: 0o600 });
+    fixture = await computerFixture(root, run, false, {
+      background: true, source: 'tests/fixtures/computer-visual.swift', arguments: [config],
+    });
+  }
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const url = `http://127.0.0.1:${server.address().port}/`;
-  const prompt = `This is an authorized acceptance test on ${externalChrome ? 'a disposable Chrome tab' : 'two disposable fixtures'}. Use only the Native python_repl tool. Run the following two cells exactly once each, in separate tool calls. You may discover the REPL if needed. Use no shell, files, page source, direct browser/desktop tools, or other tabs/windows.
+  if (externalChrome) {
+    // Both disposable tabs use a single approved origin in the isolated profile.
+    await writeFile(resolve(data, 'chrome-site-access.json'),
+      JSON.stringify({ [new URL(url).origin]: 'allow' }), { mode: 0o600 });
+  }
+  const prompt = `This is an authorized acceptance test on ${externalChrome ? 'two disposable Chrome tabs' : 'two disposable fixtures'}. Run each cell exactly once, in a separate call to the Native MCP tool python_repl from the pero-app-use server. If the tool is deferred, use tool search for "mcp__pero-app-use__python_repl" before deciding that it is unavailable. Use no shell, files, page source, direct browser/desktop tools, or other tabs/windows.
 
 First cell, authorized ${externalChrome ? 'Chrome' : 'WebKit'} fixture:
 import sys
 print(sys.executable)
 proof = 41
-${externalChrome ? 'tabs = (await cua.browser({"action":"tabs"}))["tabs"]\nassert len(tabs) == 1 and tabs[0]["tabId"].startswith("chrome:")' : ''}
+${externalChrome ? `tabs = (await cua.browser({"action":"tabs"}))["tabs"]
+assert len(tabs) == 2 and all(tab["tabId"].startswith("chrome:") for tab in tabs)
+secondary = next(tab["tabId"] for tab in tabs if tab.get("title") == "Secondary tab fixture")` : ''}
 button = await cua.browser({"action":"locate","locator":{"by":"role","role":"button","name":"Apply"}})
 click = await cua.browser({"action":"click","ref":button["nodes"][0]["ref"]})
 assert click["outcome"] == "dispatched"
@@ -78,24 +101,34 @@ cua.emit_image(await cua.browser({"action":"screenshot"}))
 
 Second cell${externalChrome ? '' : ', authorized AppKit fixture'}:
 print("Persisted", proof + 1)
-${externalChrome ? 'assert (await cua.browser({"action":"status"}))["authorized"]' : `status = (await cua.computer({"operation":"status"}))["status"]
+${externalChrome ? `await cua.browser({"action":"activate","tabId":secondary})
+secondary_status = await cua.browser({"action":"status","tabId":secondary})
+assert secondary_status["authorized"], secondary_status
+other = await cua.browser({"action":"locate","tabId":secondary,"locator":{"by":"role","role":"button","name":"Verify second tab"}})
+assert len(other["nodes"]) == 1, other` : `status = (await cua.computer({"operation":"status"}))["status"]
 print(status["accessibility"], status["screen_recording"])
 targets = (await cua.computer({"operation":"targets"}))["targets"]
 owned = [item for item in targets if item.get("application_id") == "dev.pero.perocomputerfixture"]
 assert len(owned) == 1
 target = owned[0]["reference"]
-before = await cua.computer({"operation":"observe","target":target,"options":{"want_image":True}})
+before = await cua.computer({"operation":"screenshot","target":target,"recognize_text":False})
+frame = before["observation"]["screenshot"]
+assert frame is not None, before.get("capture_status")
+assert not before["observation"]["elements"]
+print(frame["width"], frame["height"])
 cua.emit_image(before)
-element = next(e for e in before["observation"]["elements"] if e.get("label") == "Increment")
-action = {"request_id":"native-repl-real-click","target":target,"observation_id":before["observation"]["id"],"delivery":"background","input":{"kind":"click","button":"left","count":1,"anchor":{"kind":"element","element_id":element["id"]}}}
+
+Look at the second cell's native screenshot. Remember the six-character code in the outlined tile and locate the center of that tile in the original screenshot's pixel coordinates. In the third cell below, replace X and Y with those integer coordinates. The origin is the image's top-left corner. Use exactly one background click.
+
+Third cell, click the highlighted tile and capture the resulting window:
+action = {"request_id":"native-repl-real-click","target":target,"observation_id":before["observation"]["id"],"delivery":"background","input":{"kind":"click","button":"left","count":1,"anchor":{"kind":"pixel","screenshot_id":frame["id"],"point":{"x":X,"y":Y}}}}
 receipt = await cua.computer({"operation":"act","action":action})
 assert receipt["receipt"]["outcome"]["status"] == "executed"
-after = await cua.computer({"operation":"observe","target":target,"options":{"want_image":True}})
-assert any("Count: 1" in str(e.get("value")) for e in after["observation"]["elements"])
-cua.emit_image(after)
-print("Count: 1")`}
+after = await cua.computer({"operation":"screenshot","target":target,"recognize_text":False})
+assert after["observation"]["screenshot"] is not None, after.get("capture_status")
+cua.emit_image(after)`}
 
-Read the six-character code visually from the first cell's browser screenshot. If both cells succeeded, reply PERO_NATIVE_REPL_OK and the visually read browser code${externalChrome ? '' : ', followed by Count: 1'}. If either cell failed, stop and report its specific blocker and the browser code if the first image arrived. Do not retry an input.`;
+Read the six-character browser code from the first cell's screenshot. If the cells succeeded, reply PERO_NATIVE_REPL_OK and the browser code${externalChrome ? '' : ', followed by the outlined tile code from the second cell and the confirmation code from the third cell'}. If a cell failed, stop and report its specific blocker and the browser code if the first image arrived. Do not retry an input.`;
   const env = { ...process.env, PATH: '/usr/bin:/bin', DEVELOPER_DIR: resolve(run, 'no-developer-tools'),
     CODEX_CONFIG: JSON.stringify({ model: process.env.PERO_NATIVE_REPL_CODEX_MODEL || 'gpt-5.6-sol' }),
     PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data, PERO_ENV_FILE: '/dev/null', PERO_LOCALE: 'en',
@@ -120,6 +153,9 @@ Read the six-character code visually from the first cell's browser screenshot. I
         ?? await chrome.waitForEvent('serviceworker');
       const target = chrome.pages()[0] ?? await chrome.newPage();
       await target.goto(url);
+      const secondary = await chrome.newPage();
+      await secondary.goto(new URL('/secondary', url).href);
+      await target.bringToFront();
       const popup = chrome.waitForEvent('page');
       await worker.evaluate(url => chrome.windows.create({ url, type: 'popup', width: 480, height: 460 }),
         worker.url().replace(/\/service-worker\.js$/, '/relay.html'));
@@ -142,16 +178,24 @@ Read the six-character code visually from the first cell's browser screenshot. I
   const result = JSON.parse(await readFile(report, 'utf8'));
   assert.equal(result.error, null, result.error ?? result.reply);
   assert.equal(result.agent, 'codex');
+  assert.match(result.reply, /PERO_NATIVE_REPL_OK/);
   assert(result.reply.includes(marker), 'The Agent must read the canvas-only marker from the image.');
   assert.equal(browserClicks, 1, 'The page independently observed one trusted click.');
-  assert.match(result.reply, /PERO_NATIVE_REPL_OK/);
-  if (fixture) assert.equal((await fixture.state()).count, 1, 'The AppKit fixture independently observed one click.');
+  if (fixture) {
+    assert(result.reply.includes(desktopMarker), 'The Agent must read the outlined tile code from the native screenshot.');
+    assert(result.reply.includes(confirmation), 'The Agent must read the confirmation code from the new native screenshot.');
+    assert.deepEqual((await fixture.state()).selections, [desktopMarker], 'The AppKit fixture independently observed one click on the outlined tile.');
+  }
   const repl = result.tools.filter(tool => tool.status === 'completed' && tool.title.includes('python_repl'));
   assert(repl.length >= 2);
   const blocks = repl.flatMap(tool => tool.transcript.raw_output?.result?.content ?? []);
   const text = blocks.filter(block => block.type === 'text').map(block => block.text).join('\n');
   assert(text.includes(bundledPython), 'The worker must report the installed executable.');
   assert(text.includes('Persisted 42'), 'The second cell must see the first cell’s binding.');
+  if (fixture) {
+    assert(!challenge.codes.some(code => text.includes(code)) && !text.includes(confirmation),
+      'Native fixture codes must remain absent from text output.');
+  }
   const delivered = new Set(blocks.filter(block => block.type === 'image').map(block => hash(Buffer.from(block.data, 'base64'))));
   const thread = hash(result.thread);
   const browser = resolve(data, 'browser-use-evidence', thread);
@@ -164,10 +208,13 @@ Read the six-character code visually from the first cell's browser screenshot. I
   assert.equal(clicks.length, 1);
   assert.equal((await readJson(resolve(browser, clicks[0].id + '.result.json'))).outcome, 'dispatched');
   assert.equal(clicks[0].tabId.startsWith('chrome:'), externalChrome);
+  const browserTabCount = new Set(browserRows.filter(row => ['observe', 'locate'].includes(row.action)).map(row => row.tabId)).size;
+  assert.equal(browserTabCount, externalChrome ? 2 : 1, 'The native agent must read each fixture tab.');
   const saved = fixture ? await readJson(resolve(desktop, hash('native-repl-real-click') + '.json')) : undefined;
   if (saved) {
     assert.equal(saved.receipt.outcome.status, 'executed');
     assert.equal(saved.action.delivery, 'background');
+    assert.equal(saved.action.input.anchor.kind, 'pixel');
   }
   const images = [
     ...browserRows.filter(row => row.action === 'screenshot' && row.sha256)
@@ -177,7 +224,12 @@ Read the six-character code visually from the first cell's browser screenshot. I
     })),
   ];
   assert(images.some(image => image.action === 'screenshot'));
-  if (fixture) assert(images.filter(image => image.target).length >= 2);
+  if (saved) {
+    const desktopImages = images.filter(image => image.target);
+    assert.equal(desktopImages.length, 2, 'One native frame must precede the click and one must follow it.');
+    assert(desktopImages.some(image => image.id === saved.action.input.anchor.screenshot_id
+      && image.observation_id === saved.action.observation_id), 'The click must use the delivered native screenshot.');
+  }
   const captures = [];
   for (const { source, ...image } of images) {
     const bytes = await readFile(source);
@@ -190,11 +242,11 @@ Read the six-character code visually from the first cell's browser screenshot. I
   }
   await writeFile(resolve(output, 'evidence.json'), JSON.stringify({ passed: true, app, bundledPython, model: result.model,
     browser: externalChrome ? 'Chrome' : 'WKWebView',
-    browserClicks, desktopCount: fixture ? (await fixture.state()).count : undefined,
-    visualMarker: marker, images: captures, receipt: saved?.receipt }, null, 2));
+    browserClicks, browserTabCount, browserMarker: marker, desktopMarker: fixture ? desktopMarker : undefined,
+    desktopConfirmation: fixture ? confirmation : undefined, images: captures, receipt: saved?.receipt }, null, 2));
   console.log(externalChrome
-    ? 'Installed Native + Codex: bundled Python, trusted external Chrome input, and screenshot round trip passed.'
-    : 'Installed Native + Codex: bundled Python, trusted browser input, background desktop input, and screenshot round trip passed.');
+    ? 'Installed Native + Codex: one Chrome pairing, two tabs, trusted input, and screenshot round trip passed.'
+    : 'Installed Native + Codex: bundled Python, trusted browser input, and native screenshot-guided click passed.');
 } finally {
   child?.kill();
   await chrome?.close();

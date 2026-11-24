@@ -27,7 +27,7 @@ export async function computerFixture(root, run, guard = false, options = {}) {
   await writeFile(resolve(contents, 'Info.plist'), `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>fixture</string><key>CFBundleIdentifier</key><string>dev.pero.${name.toLowerCase()}</string><key>CFBundleName</key><string>${name}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>1</string><key>NSHighResolutionCapable</key><true/><key>NSPrincipalClass</key><string>NSApplication</string></dict></plist>`);
   execFileSync('/usr/bin/codesign', ['--force', '--sign', '-', app]);
   const effects = resolve(run, `${name}-effects.json`);
-  const child = spawn('/usr/bin/open', [...(options.background ? ['-g'] : []), '-n', '-W', app, '--args', effects, ...(guard ? ['guard'] : []), ...(options.background ? ['background'] : [])], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const child = spawn('/usr/bin/open', [...(options.background ? ['-g'] : []), '-n', '-W', app, '--args', effects, ...(options.arguments ?? []), ...(guard ? ['guard'] : []), ...(options.background ? ['background'] : [])], { stdio: ['ignore', 'ignore', 'pipe'] });
   child.stderr.on('data', data => process.stderr.write(data));
   const state = async () => JSON.parse(await readFile(effects, 'utf8'));
   const pid = await waitFor(async () => { if (!existsSync(effects)) return false; return (await state()).pid; }, `${name} readiness`);

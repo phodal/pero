@@ -3,6 +3,7 @@ use std::{env, path::PathBuf, process::Command};
 fn main() {
     println!("cargo:rerun-if-changed=capture.m");
     println!("cargo:rerun-if-changed=applications.m");
+    println!("cargo:rerun-if-changed=pasteboard.m");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
         return;
     }
@@ -12,7 +13,7 @@ fn main() {
         "x86_64" => "x86_64",
         _ => panic!("Unsupported macOS architecture"),
     };
-    for name in ["capture", "applications"] {
+    for name in ["capture", "applications", "pasteboard"] {
         assert!(
             Command::new("xcrun")
                 .args([
@@ -40,6 +41,7 @@ fn main() {
             .arg(output.join("libpero_capture.a"))
             .arg(output.join("capture.o"))
             .arg(output.join("applications.o"))
+            .arg(output.join("pasteboard.o"))
             .status()
             .unwrap()
             .success()

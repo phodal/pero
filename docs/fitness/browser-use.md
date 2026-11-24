@@ -338,11 +338,12 @@ and in same-origin and cross-origin frames. Both check the returned schemas,
 private partner tools staying private, separate discovery and call consent,
 independent page effects, a saved receipt and a stale ID after reload.
 On macOS, `node tests/e2e/native-chrome-site-tools.mjs` uses the Native probe
-build, rebuilt connectors, Chrome for Testing, and Python REPL. System Events
-responds to the real Native approval sheets for the disposable fixture. The
-test checks the declined action leaves the page intact and the approved action
-changes it and saves a receipt. Evidence is written to
-`test-results/native-chrome-site-tools/result.json`.
+build, Chrome for Testing, and Python REPL. Set `PERO_NATIVE_REPL_INSTALLED_APP`
+to use the signed probe bundle and its packaged extension and Python. Set
+`PERO_NATIVE_SITE_TOOLS_MANUAL=1` to respond directly to the two approval
+sheets. The test checks that the approved action is the only page mutation
+and saves a receipt. The combined signed macOS candidate passed this check on
+2026-11-24. Evidence is written to `test-results/native-chrome-site-tools/result.json`.
 
 ### Chromium accessibility snapshots
 
@@ -384,7 +385,10 @@ The parallel fixture holds one navigation response while another tab
 completes trusted input, both through browser MCP calls and through
 `javascript_repl`. Use `node tests/e2e/native-chrome-parallel.mjs` with a
 Native probe build and rebuilt connectors to run the same fixture through
-the Native Python REPL.
+the Native Python REPL. On 2026-11-24 the combined signed macOS candidate
+passed using its bundled Python, the rebuilt extension and headed Chrome.
+The peer tab completed trusted input and released the held navigation, and
+an overlapping observation on the navigating tab was rejected.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.
@@ -623,6 +627,11 @@ approved Chrome tab. All three PNG hashes matched the fixture provider, and
 sharing stopped in both shells. The test overlay only routed the fixture's
 requests through Nginx. The live vhost passed its syntax and HTTPS health checks
 after reload. The live server still has no isolated profile mounted.
+
+The 2026-11-24 read-only recheck returned 200 for health, client identity
+and operator task listing. With the operator credential, the Browser Use
+readiness path still returned a plain-text 404, as did a control path with
+an unknown endpoint. No hosted Run or vision call was started.
 
 ### Embedded browser
 
@@ -909,3 +918,12 @@ bytes and receipt after relaunch, then removes the two fixture credentials.
 This passed in an isolated copy of the Native bundle. Evidence is under
 `test-results/installed-shared-project-sources/`. The Cloud API was a loopback
 fixture. A hosted deployment still needs acceptance.
+# Signed Native Chrome REPL verification
+
+The signed Native candidate ran the real Codex agent over the bundled Python
+REPL and the actual unpacked extension in Chrome for Testing. One pairing
+exposed both ordinary fixture tabs in the isolated profile. The fixture origin
+had one saved site approval. The agent clicked the first tab, read its
+canvas-only code from a screenshot, then activated the second tab and located
+its control. The local server recorded exactly one trusted click. Host evidence
+recorded both tab IDs and matched the image delivered in the ACP transcript.

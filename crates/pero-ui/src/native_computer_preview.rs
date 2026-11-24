@@ -1,4 +1,5 @@
 //! Read-only presentation of the selected conversation's authorized window.
+use crate::native_connectors::NativeConnectors;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use gpui_kit::{component::Icon, prelude::*, *};
 use pero_contracts::{
@@ -9,7 +10,7 @@ use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
     rc::Rc,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::Duration,
 };
 
@@ -40,6 +41,7 @@ enum Picture {
 }
 
 pub(crate) struct ComputerPreview {
+    owner: Weak<NativeConnectors>,
     targets: HashMap<String, Target>,
     thread: Option<String>,
     visible: bool,
@@ -54,6 +56,7 @@ pub(crate) struct ComputerPreview {
 impl ComputerPreview {
     pub(crate) fn new(locale: String) -> Self {
         Self {
+            owner: Weak::new(),
             targets: HashMap::new(),
             thread: None,
             visible: false,
@@ -64,6 +67,10 @@ impl ComputerPreview {
             floating: None,
             poll: None,
         }
+    }
+
+    pub(crate) fn connect(&mut self, owner: &Arc<NativeConnectors>) {
+        self.owner = Arc::downgrade(owner);
     }
 
     pub(crate) fn accept(&mut self, data: serde_json::Value, cx: &mut Context<Self>) {
@@ -151,7 +158,7 @@ impl ComputerPreview {
         let Some(thread) = self.thread.clone() else {
             return;
         };
-        let Some(owner) = crate::native::native_connectors() else {
+        let Some(owner) = self.owner.upgrade() else {
             return;
         };
         let timer = cx.background_executor().clone();
@@ -167,7 +174,11 @@ impl ComputerPreview {
                         _ => Err(()),
                     }
                 }).await;
-                let keep = view.update(cx, |this, cx| match reply {
+                let keep = view.update(cx, |this, cx| {
+                    if this.thread.as_ref() != Some(&thread) || this.target() != Some(&target) {
+                        return false;
+                    }
+                    match reply {
                     Ok(picture) => {
                         if let Some(picture) = picture {
                             this.set_picture(picture, cx);
@@ -177,6 +188,7 @@ impl ComputerPreview {
                     Err(()) => {
                         this.apply(Update { thread: thread.clone(), target: None }, cx);
                         false
+                    }
                     }
                 }).unwrap_or(false);
                 if !keep { break; }

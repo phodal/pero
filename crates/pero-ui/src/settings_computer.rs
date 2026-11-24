@@ -28,6 +28,7 @@ impl Workbench {
                 screen_recording: ComputerPermissionState::NotDetected,
                 message: String::new(),
             },
+            applications: None,
             error: Some(error),
         });
         self.sync_settings_panel(cx);
@@ -249,16 +250,69 @@ impl SettingsPanel {
             )
             .into_any_element(),
         ]);
-        let body = body.child(pero_theme::settings_actions(
+        body = body.child(pero_theme::settings_actions(
             actions,
             pero_theme::Chrome::from_app(cx),
         ));
         #[cfg(any(target_family = "wasm", target_os = "macos"))]
-        let body = body.child(pero_theme::settings_message(
-            self.t("computer.stop_hint"),
-            SettingMessage::Help,
-            pero_theme::Chrome::from_app(cx),
-        ));
+        {
+            body = body.child(pero_theme::settings_message(
+                self.t("computer.stop_hint"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            body = body.child(pero_theme::settings_message(
+                self.t("computer.appshot_hint"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ));
+        }
+        if let Some(applications) = state.and_then(|state| state.applications.as_ref()) {
+            let mut rows = vec![
+                pero_theme::settings_message(
+                    self.t("computer.application_hint"),
+                    SettingMessage::Help,
+                    pero_theme::Chrome::from_app(cx),
+                )
+                .into_any_element(),
+            ];
+            for application in applications {
+                let application_id = application.application_id.clone();
+                rows.push(
+                    pero_theme::settings_check(
+                        application.name.clone(),
+                        Some(application_id.as_str().to_owned().into()),
+                        Checkbox::new(SharedString::from(format!(
+                            "computer-app-{}",
+                            application_id.as_str()
+                        )))
+                        .label(application.name.clone())
+                        .checked(application.allowed)
+                        .disabled(self.computer_pending)
+                        .on_click(cx.listener(move |this, allowed: &bool, _, cx| {
+                            this.computer_control(
+                                ComputerControl::SetApplication {
+                                    application_id: application_id.clone(),
+                                    allowed: *allowed,
+                                },
+                                cx,
+                            );
+                        }))
+                        .into_any_element(),
+                        pero_theme::Chrome::from_app(cx),
+                    )
+                    .into_any_element(),
+                );
+            }
+            body = body.child(pero_theme::settings_group(
+                Some(self.t("computer.application_access").into()),
+                rows,
+                pero_theme::Chrome::from_app(cx),
+            ));
+        }
         body.into_any_element()
     }
 }

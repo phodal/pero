@@ -19,3 +19,6 @@ mod applications;
 mod input;
 #[cfg(target_os = "macos")]
 mod observation;
+
+#[cfg(target_os = "macos")]
+mod paste;

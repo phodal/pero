@@ -16,6 +16,8 @@ export type ComputerInput =
   | ComputerScroll
   | ComputerDrag
   | ComputerSetValue
+  | ComputerSelectText
+  | ComputerPaste
   | ComputerPerformAction
   | ComputerMove
   | ComputerHover
@@ -30,6 +32,11 @@ export type ComputerKey = string;
  * Replacement permits an empty value to clear the field.
  */
 export type ComputerValue = string;
+export type ComputerSelectionType = "text" | "cursor_before" | "cursor_after";
+/**
+ * Logical key names/chords (for example ["Control", "a"]), mapped by the adapter.
+ */
+export type ComputerPasteFormat = "text" | "md" | "html";
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 /**
@@ -51,6 +58,7 @@ export type ComputerErrorCode =
   | "target_unavailable"
   | "stale_observation"
   | "invalid_request"
+  | "busy"
   | "cancelled"
   | "timeout"
   | "failed";
@@ -93,9 +101,6 @@ export interface ComputerTypeText {
   anchor: ComputerAnchor;
   text: ComputerText;
 }
-/**
- * Logical key names/chords (for example ["Control", "a"]), mapped by the adapter.
- */
 export interface ComputerPressKey {
   kind: "press_key";
   anchor: ComputerAnchor;
@@ -132,6 +137,23 @@ export interface ComputerSetValue {
   kind: "set_value";
   element_id: ComputerRef;
   value: ComputerValue;
+}
+export interface ComputerSelectText {
+  kind: "select_text";
+  element_id: ComputerRef;
+  selection: ComputerTextSelection;
+}
+export interface ComputerTextSelection {
+  text: ComputerText;
+  prefix?: ComputerText | null;
+  suffix?: ComputerText | null;
+  selection_type?: ComputerSelectionType;
+}
+export interface ComputerPaste {
+  kind: "paste";
+  anchor: ComputerAnchor;
+  text: ComputerText;
+  format?: ComputerPasteFormat;
 }
 export interface ComputerPerformAction {
   kind: "perform_action";

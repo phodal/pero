@@ -341,6 +341,8 @@ pub const AX_ERR_ACTION_UNSUPPORTED: c_int32_t = -25206;
 /// AXValue/AXEnabled 答它;本 macOS 上每个 application 元素对
 /// AXBundleIdentifier 也答它。
 pub const AX_ERR_ATTRIBUTE_UNSUPPORTED: c_int32_t = -25205;
+/// `kAXErrorAPIDisabled`: macOS has denied this client's Accessibility API access.
+pub const AX_ERR_API_DISABLED: c_int32_t = -25211;
 pub const AX_ERR_NO_VALUE: c_int32_t = -25212;
 
 /// Electron/Chromium 的无障碍自选加入开关。

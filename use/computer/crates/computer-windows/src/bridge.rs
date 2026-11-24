@@ -1,6 +1,7 @@
 //! The only Point-to-Pero value conversion for this native library.
 use computer_core::{ControlId, ObservedControl, Window, WindowBounds, WindowImage};
 use computer_runtime::WindowObservation;
+use pero_contracts::computer_runtime::ComputerCaptureStatus;
 use pero_contracts::computer_use::{ComputerActionKind, ComputerImageType, ComputerMouseButton};
 use point_computer_core::types as native;
 use std::num::NonZeroU32;
@@ -38,7 +39,10 @@ pub fn mouse_button(button: ComputerMouseButton) -> native::MouseButton {
         ComputerMouseButton::Middle => native::MouseButton::Middle,
     }
 }
-pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Snapshot> {
+pub fn observation(
+    mut source: native::Snapshot,
+    want_image: bool,
+) -> WindowObservation<native::Snapshot> {
     source
         .elements
         .retain(|element| !element.subrole.is_empty());
@@ -87,7 +91,11 @@ pub fn observation(mut source: native::Snapshot) -> WindowObservation<native::Sn
         bounds: source.window_bounds.map(bounds),
         truncated: source.truncated || source.depth_truncated,
         elements,
-        image,
+        image: image.ok_or(if want_image {
+            ComputerCaptureStatus::Unavailable
+        } else {
+            ComputerCaptureStatus::NotRequested
+        }),
         source,
     }
 }

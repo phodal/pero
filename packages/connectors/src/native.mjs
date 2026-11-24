@@ -46,15 +46,17 @@ const owner = new HostConnectors({ root, executable, helpers, nodeExecutable: pr
 const mcp = new ConnectorMcp(owner);
 const routes = new AppWriteRoutes((action, fields = {}) => effect('apps', { value: { action, ...fields } }),
   event => effect('surface', { value: { action: 'written', event } }), fetch);
+const saveComputer = async change => {
+  const next = await effect('computer.settings', { value: change });
+  await computer.restore(next.enabled, next.allowed_applications);
+};
 const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'computer-use'),
   event => send({ id: 0, computer_state: event.data }), {
     ...(process.platform === 'darwin' && {
       preview: (thread, target) => send({ id: 0, computer_preview: { thread, target } }),
     }),
-    save: async enabled => {
-      await effect('computer.settings', { value: enabled });
-      await computer.restore(enabled);
-    },
+    save: enabled => saveComputer({ method: 'settings.computer', enabled }),
+    saveApplication: (application_id, allowed) => saveComputer({ method: 'settings.computer.application', application_id, allowed }),
   });
 const browserEvidence = join(dirname(root), 'browser-use-evidence');
 const browserDeveloperMode = new BrowserDeveloperMode(async (thread, origin) =>
@@ -171,7 +173,7 @@ input.on('line', line => {
     else promise?.reject(Object.assign(new Error(message.code), { code: message.code }));
   } else if (message.event) {
     if (message.event.kind === 'computer_settings') {
-      void computer.restore(message.event.data.enabled).then(() => computer.status()).catch(console.error);
+      void computer.restore(message.event.data.enabled, message.event.data.allowed_applications).then(() => computer.status()).catch(console.error);
     } else {
       mcp.accept(message.event);
       appUse.accept(message.event);
@@ -191,8 +193,10 @@ input.on('line', line => {
     const relay = appUse.browser?.relay;
     const result = request?.operation === 'computer-preview'
       ? appUse.computerPreview(request.thread, request.preview_id)
+      : request?.operation === 'appshot'
+        ? computer.appshot(request.foreground_pid)
       : request?.operation === 'app-context'
-        ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
+      ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
       : ['cloud-browser-target', 'cloud-browser-start'].includes(request?.operation)
         ? handleCloudBrowser(request, relay)
       : request?.operation === 'chrome-extension-folder'
@@ -220,7 +224,7 @@ input.on('line', line => {
           : owner.request(request);
     void result.then(
       value => send({ id: message.id, value }),
-      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(message.request?.operation === 'app-context' ? { message: String(error.message) } : {}) } }),
+      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(['app-context', 'appshot'].includes(request?.operation) ? { message: String(error.message) } : {}) } }),
     );
   }
 });

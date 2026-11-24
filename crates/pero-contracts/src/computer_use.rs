@@ -3,6 +3,9 @@
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 
+mod text_selection;
+pub use text_selection::{ComputerSelectionType, ComputerTextRange, ComputerTextSelection};
+
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ComputerRef(String);
@@ -119,6 +122,8 @@ pub enum ComputerActionKind {
     Scroll,
     Drag,
     SetValue,
+    SelectText,
+    Paste,
     PerformAction,
     Move,
     Hover,
@@ -273,6 +278,15 @@ pub enum ComputerAnchor {
         point: ComputerPoint,
     },
 }
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComputerPasteFormat {
+    #[default]
+    Text,
+    Md,
+    Html,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerInput {
@@ -290,6 +304,10 @@ pub enum ComputerInput {
         element_id: ComputerRef,
         value: ComputerValue,
     },
+    SelectText {
+        element_id: ComputerRef,
+        selection: ComputerTextSelection,
+    },
     PerformAction {
         element_id: ComputerRef,
         action: ComputerSemanticAction,
@@ -305,6 +323,12 @@ pub enum ComputerInput {
     TypeText {
         anchor: ComputerAnchor,
         text: ComputerText,
+    },
+    Paste {
+        anchor: ComputerAnchor,
+        text: ComputerText,
+        #[serde(default)]
+        format: ComputerPasteFormat,
     },
     PressKey {
         anchor: ComputerAnchor,
@@ -330,6 +354,8 @@ impl ComputerInput {
             Self::Scroll { .. } => ComputerActionKind::Scroll,
             Self::Drag { .. } => ComputerActionKind::Drag,
             Self::SetValue { .. } => ComputerActionKind::SetValue,
+            Self::SelectText { .. } => ComputerActionKind::SelectText,
+            Self::Paste { .. } => ComputerActionKind::Paste,
             Self::PerformAction { .. } => ComputerActionKind::PerformAction,
             Self::Move { .. } => ComputerActionKind::Move,
             Self::Hover { .. } => ComputerActionKind::Hover,
@@ -356,6 +382,7 @@ pub enum ComputerErrorCode {
     TargetUnavailable,
     StaleObservation,
     InvalidRequest,
+    Busy,
     Cancelled,
     Timeout,
     Failed,

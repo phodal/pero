@@ -51,7 +51,7 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 security-framework = "3.7"
 objc2 = "=0.6.5"
-objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSAlert", "NSButton", "NSControl", "NSTextField", "NSView", "NSWindow", "block2"] }
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSAlert", "NSButton", "NSControl", "NSRunningApplication", "NSTextField", "NSView", "NSWindow", "NSWorkspace", "block2"] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["NSGeometry", "NSString"] }
 objc2-web-kit = { version = "=0.3.2", default-features = false, features = ["WKFrameInfo", "WKSecurityOrigin", "WKUIDelegate", "WKWebView", "block2", "objc2-app-kit"] }
 block2 = "=0.6.2"

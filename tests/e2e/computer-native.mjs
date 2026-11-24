@@ -13,9 +13,16 @@ const out=computerEvidenceDirectory(root);await mkdir(out,{recursive:true});
 await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts')],outfile:resolve(run,'computer.mjs'),bundle:true,platform:'node',format:'esm'});
 const { DesktopComputer }=await import(resolve(run,'computer.mjs'));
 const states=[];
+const fixtureId = 'dev.pero.perocomputerfixture';
+const guardId = 'dev.pero.perocomputerguard';
+const grants = new Set();
 const previews = new Map();
-const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)), {
+const desktop=new DesktopComputer(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)), {
   preview: (thread, target) => previews.set(thread, target),
+  saveApplication: async (id, allowed) => {
+    if (allowed) grants.add(id); else grants.delete(id);
+    await desktop.restore(true, [...grants]);
+  },
 });
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
@@ -40,31 +47,39 @@ try {
  backgroundActivations=(await fixture.state()).activations ?? 0;
  const status=await desktop.status();assert.equal(status.status.accessibility,'granted',JSON.stringify(status));assert.equal(status.status.screen_recording,'granted',JSON.stringify(status));
  await desktop.restore(true);
+ assert.deepEqual((await call({operation:'targets'})).targets, [], 'Legacy enable alone grants no applications');
+ const settings = await desktop.command({action:'computer_get'});
+ assert.ok(settings.applications.find(app => app.application_id === fixtureId && !app.allowed));
+ assert.ok(settings.applications.find(app => app.application_id === guardId && !app.allowed));
+ const grant = await desktop.command({action:'computer_application_set',application_id:fixtureId,allowed:true});
+ assert.ok(grant.applications.find(app => app.application_id === fixtureId && app.allowed));
+ assert.ok((await call({operation:'targets'})).targets.every(app => app.application_id === fixtureId));
+ await assert.rejects(call({operation:'open',application:{kind:'bundle_id',bundle_id:guardId}}), error => error.detail?.code === 'permission_required');
  target=await poll(async()=>{const value=await call({operation:'targets'});return value.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;});
  let observation=await poll(async()=>{const current=await observe();return current.elements.some(e=>e.label==='Increment')?current:false;});
  const button=observation.elements.find(e=>e.label==='Increment');assert.ok(button,'No expected element; inspect test-results/computer/native-failure.json');
  const preview = previews.get('native-acceptance');
- assert.ok(preview?.id, 'An authorized window observation should create a preview');
- const before = await desktop.previewFrame('native-acceptance', preview.id);
- assert.ok(before.image?.data, 'Preview must return real pixels');
- assert.equal((await desktop.previewFrame('another-chat', preview.id)).kind, 'ended');
- // Polling the preview must leave this observation valid for the upcoming input.
+ assert.ok(preview?.id);
+ assert.equal(preview.title, 'Pero Computer Fixture');
+ const nextFrame = () => desktop.previewFrame('native-acceptance', preview.id);
+ const before = await nextFrame();
+ assert.ok(before.image?.data, 'Preview returns pixels from the owning worker');
+ assert.equal((await desktop.previewFrame('other-chat', preview.id)).kind, 'ended');
  const action=await act(observation,{kind:'click',button:'left',anchor:{kind:'element',element_id:button.id},count:1});
  await poll(async()=>(await state()).count===1);
  await poll(async () => {
-   const frame = await desktop.previewFrame('native-acceptance', preview.id);
+   const frame = await nextFrame();
    return frame.image?.data && frame.image.data !== before.image.data;
- }, 'preview pixels following the input without a new Agent observation');
- await fixture.command('secure');
- const protectedFrame = await desktop.previewFrame('native-acceptance', preview.id);
- assert.equal(protectedFrame.kind, 'preview_frame');
- assert.equal(protectedFrame.image, null, 'Protected windows must clear the preview pixels');
- await fixture.command('remove_secure');
- await poll(async() => (await desktop.previewFrame('native-acceptance', preview.id)).image,
-   'preview recovery after the protected control closes');
+ }, 'changed preview pixels without a new agent observation');
  // Same request is answered from its durable journal, never dispatched twice.
  assert.deepEqual((await call({operation:'act',action})).receipt,receipts[0]);assert.equal((await state()).count,1);
  const stale=await call({operation:'act',action:{...action,request_id:'stale'}});assert.equal(stale.receipt.outcome.status,'rejected');assert.equal(stale.receipt.outcome.error.code,'stale_observation');
+ const standalone=await call({operation:'screenshot',target});
+ assert.equal(standalone.capture_status,'captured');
+ assert.equal(standalone.ocr_status,'not_requested');
+ assert.equal(standalone.observation.elements.length,0);
+ assert.ok(standalone.image);
+ assert.notEqual(standalone.observation.id,observation.id);
  const changed=await call({operation:'observe',target,options:{want_image:false}});
  assert.equal(changed.delta?.base_observation_id,observation.id);
  assert.ok(changed.observation.elements.length < observation.elements.length);
@@ -74,13 +89,22 @@ try {
  await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'你好 Pero 🌱'});
  await poll(async()=>(await state()).text==='你好 Pero 🌱');
  observation=await observe();assert.ok(observation.elements.some(e=>e.value==='你好 Pero 🌱'));
+ const selection=await act(observation,{kind:'select_text',element_id:field.id,selection:{text:'Pero 🌱',prefix:'你好 '}});
+ await poll(async()=>{const {selection:range}=await state();return range?.location===3&&range.length===7;},'native Unicode selection');
+ assert.equal((await call({operation:'receipt',request_id:selection.request_id})).receipt.outcome.execution.route,'semantic');
+ observation=await observe();
+ await act(observation,{kind:'select_text',element_id:field.id,selection:{text:'Pero 🌱',selection_type:'cursor_after'}});
+ await poll(async()=>{const {selection:range}=await state();return range?.location===10&&range.length===0;},'native caret after matching text');
+ observation=await observe();
  await act(observation,{kind:'press_key',anchor:{kind:'element',element_id:field.id},keys:['Meta','Shift','ArrowLeft']});
  await poll(async()=>(await state()).selection?.length==='你好 Pero 🌱'.length,'background text selection key chord');
  observation=await observe();await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'Verified'});await poll(async()=>(await state()).text==='Verified');
- observation=await observe();assert.ok(observation.screenshot,'Real capture is required');
+ const pixelFrame=await call({operation:'screenshot',target});
+ observation=pixelFrame.observation;assert.ok(observation.screenshot,'Real capture is required');
  execFileSync('/usr/sbin/screencapture',['-x','-l',String((await state()).windowNumber),resolve(out,'reference.png')]);
  const point={x:Math.round(observation.screenshot.width*0.35),y:Math.round(observation.screenshot.height*0.6)};
  await guard.activate();
+ assert.ok((await nextFrame()).image, 'A preview keeps the saved pixel anchor valid');
  await act(observation,{kind:'click',button:'left',anchor:{kind:'pixel',screenshot_id:observation.screenshot.id,point},count:1});await poll(async()=>(await state()).clicks===1);
  observation=await observe();await act(observation,{kind:'scroll',anchor:{kind:'pixel',screenshot_id:observation.screenshot.id,point},delta_x:0,delta_y:120});await poll(async()=>(await state()).scroll!==0);
  observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}});await poll(async()=>(await state()).drags>0,'background drag');assert.equal((await state()).clicks,2,'One pointer-down per click/drag, without duplicate transport');
@@ -94,6 +118,12 @@ try {
  const secure=await call({operation:'observe',target,options:{max_nodes:1}});
  assert.equal(secure.observation.elements.length,1);
  assert.equal(secure.image,null,'A secure control beyond the returned nodes still blocks the screenshot');
+ assert.equal(secure.capture_status,'secure_content');
+ assert.equal(secure.ocr_status,'no_image');
+ const secureFrame=await call({operation:'screenshot',target});
+ assert.equal(secureFrame.capture_status,'secure_content');
+ assert.equal(secureFrame.image,null);
+ assert.deepEqual(await nextFrame(), { kind: 'preview_frame', image: null });
  await fixture.command('remove_secure');
  const stable = await observe();
  const stableButton = stable.elements.find(element => element.label === 'Increment');
@@ -106,9 +136,11 @@ try {
  assert.equal((await observe()).elements.find(element => element.label === 'Increment').id,stableButton.id);
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
  if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
- await desktop.stop();
- assert.equal((await desktop.previewFrame('native-acceptance', preview.id)).kind, 'ended');
+ const revoked = await desktop.command({action:'computer_application_set',application_id:fixtureId,allowed:false});
+ assert.ok(revoked.applications.find(app => app.application_id === fixtureId && !app.allowed));
  assert.equal(previews.get('native-acceptance'), null);
+ assert.equal((await nextFrame()).kind, 'ended');
+ assert.deepEqual((await call({operation:'targets'})).targets, []);
  const old=await call({operation:'observe',target}).catch(error=>error);assert.equal(old.detail?.code,'target_unavailable');
  const lookup=await call({operation:'receipt',request_id:action.request_id});assert.deepEqual(lookup.receipt,receipts[0]);
  await writeFile(resolve(out,'native-result.json'),JSON.stringify({status:status.status,effects:await state(),guard:await guard.state(),backgroundPreservedForeground:true,foreground,receipts,observations:observations.map(o=>({id:o.id,screenshot:o.screenshot,elements:o.elements})),passed:true},null,2));

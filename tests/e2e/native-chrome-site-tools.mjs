@@ -1,4 +1,4 @@
-// Opt-in macOS acceptance. System Events needs Accessibility access.
+// Opt-in macOS acceptance. System Events needs Accessibility access for automatic approvals.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -29,6 +29,7 @@ const output = resolve(root, targetRouting ? 'test-results/native-chrome-cdp-tar
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
 await rm(resolve(output, 'result.json'), { force: true });
 const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
+const manual = process.env.PERO_NATIVE_SITE_TOOLS_MANUAL === '1';
 const payload = installed && resolve(installed, 'Contents/Resources/app');
 const extension = payload
   ? resolve(payload, 'packages/connectors/helpers/chrome-extension')
@@ -429,7 +430,14 @@ try {
   const targetConsole = [];
   target.on('console', message => targetConsole.push(message.text()));
   await target.goto(origin + fixturePath);
-  if (!cdp) await expect.poll(() => target.evaluate(() => document.body.dataset.ready)).toBe('yes');
+  if (!cdp) {
+    await expect.poll(() => target.evaluate(() => document.body.dataset.ready)).toBe('yes');
+    await target.evaluate(() => {
+      const heading = document.querySelector('h1');
+      window.headingChanges = [];
+      new MutationObserver(() => window.headingChanges.push(heading.textContent)).observe(heading, { childList: true });
+    });
+  }
   let credential;
   await expect
     .poll(
@@ -481,7 +489,10 @@ try {
       )
       .toBe('responded');
   };
-  if (targetLifecycle) {
+  if (manual) {
+    console.log(cdp ? 'Use the Native sheets to respond to the fixture diagnostic requests.'
+      : 'In the Native sheets, click Cancel for “Native tool declined”, then Allow for “Native tool approved”.');
+  } else if (targetLifecycle) {
     for (let i = 0; i < 2; i++) {
       await respond(origin, 'Allow');
       await respond(childOrigin, 'Allow');
@@ -536,7 +547,10 @@ try {
     await expect(target.locator('#cdp-child')).toHaveCount(0);
   }
   if (cdp && !targetNetwork && !targetLifecycle) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
-  if (!cdp) await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
+  if (!cdp) {
+    await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
+    assert.deepEqual(await target.evaluate(() => window.headingChanges), ['Native tool approved']);
+  }
   const evidence = JSON.parse(reply.text);
   if (payload)
     assert.equal(

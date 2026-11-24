@@ -29,7 +29,11 @@ async function open(){
  await page.keyboard.press(process.platform==='darwin'?'Meta+f':'Control+f');await frames();await page.keyboard.type('Computer');
  await expect.poll(async()=>(await state()).settings.matches).toEqual(['computer.title']);await frames();
 }
-async function toggle(){const box=(await state()).settings.scroll.anchors[0];await page.mouse.click(box.x+7,box.y+44);}
+async function toggle(){
+ const section=(await state()).settings.scroll.anchors[0];
+ // The checkbox sits inside the settings row's 16px horizontal padding.
+ await page.mouse.click(section.x+23,section.y+44);
+}
 try {
  await launch();await expect.poll(async()=>(await computer())?.enabled).toBe(false);await open();await capture('settings-light-disabled');
  if(!(await computer()).status.available) {

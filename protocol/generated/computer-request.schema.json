@@ -93,6 +93,48 @@
         }
       ]
     },
+    "ComputerApplicationSetControl": {
+      "title": "ComputerApplicationSetControl",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "computer_application_set"
+        },
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "application_id",
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerAppshotRequest": {
+      "title": "ComputerAppshotRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "appshot"
+        },
+        "foreground_pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "operation",
+        "foreground_pid"
+      ],
+      "additionalProperties": false
+    },
     "ComputerBundleSelector": {
       "title": "ComputerBundleSelector",
       "type": "object",
@@ -153,6 +195,9 @@
         },
         {
           "$ref": "#/$defs/ComputerSetControl"
+        },
+        {
+          "$ref": "#/$defs/ComputerApplicationSetControl"
         },
         {
           "$ref": "#/$defs/ComputerPermissionsControl"
@@ -329,6 +374,12 @@
           "$ref": "#/$defs/ComputerSetValue"
         },
         {
+          "$ref": "#/$defs/ComputerSelectText"
+        },
+        {
+          "$ref": "#/$defs/ComputerPaste"
+        },
+        {
           "$ref": "#/$defs/ComputerPerformAction"
         },
         {
@@ -460,6 +511,41 @@
       ],
       "additionalProperties": false
     },
+    "ComputerPaste": {
+      "title": "ComputerPaste",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "paste"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "format": {
+          "$ref": "#/$defs/ComputerPasteFormat"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPasteFormat": {
+      "title": "ComputerPasteFormat",
+      "type": "string",
+      "enum": [
+        "text",
+        "md",
+        "html"
+      ],
+      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
+    },
     "ComputerPerformAction": {
       "title": "ComputerPerformAction",
       "type": "object",
@@ -565,8 +651,7 @@
         "anchor",
         "keys"
       ],
-      "additionalProperties": false,
-      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
+      "additionalProperties": false
     },
     "ComputerPreviewRequest": {
       "title": "ComputerPreviewRequest",
@@ -584,8 +669,25 @@
         "operation",
         "target"
       ],
-      "additionalProperties": false,
-      "description": "Private Desktop-to-worker envelope. The model only sees ComputerRequest."
+      "additionalProperties": false
+    },
+    "ComputerReadOcrRequest": {
+      "title": "ComputerReadOcrRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "read_ocr"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "operation",
+        "screenshot_id"
+      ],
+      "additionalProperties": false
     },
     "ComputerReceiptRequest": {
       "title": "ComputerReceiptRequest",
@@ -629,6 +731,12 @@
           "$ref": "#/$defs/ComputerObserveRequest"
         },
         {
+          "$ref": "#/$defs/ComputerScreenshotRequest"
+        },
+        {
+          "$ref": "#/$defs/ComputerReadOcrRequest"
+        },
+        {
           "$ref": "#/$defs/ComputerActRequest"
         },
         {
@@ -638,6 +746,27 @@
           "$ref": "#/$defs/ComputerReceiptRequest"
         }
       ]
+    },
+    "ComputerScreenshotRequest": {
+      "title": "ComputerScreenshotRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "screenshot"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "recognize_text": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "target"
+      ],
+      "additionalProperties": false
     },
     "ComputerScroll": {
       "title": "ComputerScroll",
@@ -669,6 +798,37 @@
       ],
       "additionalProperties": false,
       "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
+    },
+    "ComputerSelectionType": {
+      "title": "ComputerSelectionType",
+      "type": "string",
+      "enum": [
+        "text",
+        "cursor_before",
+        "cursor_after"
+      ]
+    },
+    "ComputerSelectText": {
+      "title": "ComputerSelectText",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "select_text"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "selection": {
+          "$ref": "#/$defs/ComputerTextSelection"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "selection"
+      ],
+      "additionalProperties": false
     },
     "ComputerSemanticAction": {
       "title": "ComputerSemanticAction",
@@ -710,6 +870,9 @@
         },
         {
           "$ref": "#/$defs/SetComputerSettings"
+        },
+        {
+          "$ref": "#/$defs/SetComputerApplicationSettings"
         }
       ]
     },
@@ -831,6 +994,42 @@
       "minLength": 1,
       "maxLength": 10000
     },
+    "ComputerTextSelection": {
+      "title": "ComputerTextSelection",
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_type": {
+          "$ref": "#/$defs/ComputerSelectionType"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "ComputerTypeText": {
       "title": "ComputerTypeText",
       "type": "object",
@@ -866,6 +1065,9 @@
           "$ref": "#/$defs/ComputerRequest"
         },
         {
+          "$ref": "#/$defs/ComputerAppshotRequest"
+        },
+        {
           "$ref": "#/$defs/ComputerPreviewRequest"
         }
       ]
@@ -882,6 +1084,12 @@
         },
         "request": {
           "$ref": "#/$defs/ComputerWorkerOperation"
+        },
+        "allowed_applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          }
         }
       },
       "required": [
@@ -889,7 +1097,8 @@
         "thread",
         "request"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Private Desktop-to-worker envelope. The model only sees ComputerRequest."
     },
     "GetComputerSettings": {
       "title": "GetComputerSettings",
@@ -902,6 +1111,32 @@
       },
       "required": [
         "method"
+      ],
+      "additionalProperties": false
+    },
+    "SetComputerApplicationSettings": {
+      "title": "SetComputerApplicationSettings",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.computer.application"
+        },
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "application_id",
+        "allowed"
       ],
       "additionalProperties": false
     },

@@ -431,6 +431,64 @@ impl Workbench {
         }
     }
 
+    pub fn sync_follow(&mut self, cx: &mut Context<Self>) {
+        let pane_thread=self.navigation.pane_layout().filter(|_|self.navigation.pane_layout_visible()).and_then(|layout|layout.conversation().map(str::to_owned));
+        let pinned_thread=pane_thread.or_else(||self.project_agent_active().then(||self.project_agent_thread()).flatten().map(str::to_owned));
+        let origin=pinned_thread.as_ref().map(|id|pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}).or_else(||match self.navigation.current() {
+            Some(WorkspaceItem::App {name,panel})=>Some(pero_contracts::content_origin::ContentOrigin::App {app:name.clone(),panel:panel.clone()}),
+            Some(WorkspaceItem::Conversation(id))=>Some(pero_contracts::content_origin::ContentOrigin::Conversation {thread_id:id.clone()}),
+            Some(WorkspaceItem::Document {origin,..})=>Some(origin.clone()),
+            _=>None,
+        });
+        let pinned=pinned_thread.and_then(|id|self.chat.read(cx).chats.iter().position(|chat|chat.id==id));
+        let project_composer = (pinned.is_none() && self.project_agent_active())
+            .then(|| self.project_composer_scope()).flatten();
+        let scope=origin.and_then(|origin|match origin {
+            pero_contracts::content_origin::ContentOrigin::App {app,panel}=>Some(pero_contracts::AppChatScope {app,panel}),
+            origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
+        });
+        let visible = self.chat_visible(cx);
+        let show_return = self
+            .chat
+            .read(cx)
+            .active_chat
+            .and_then(|i| self.chat.read(cx).chats.get(i))
+            .is_some_and(|chat| {
+                self.contribution.data["local"]["thread_id"].as_str() == Some(chat.id.as_str())
+            });
+        let remote_project = self.composer_remote_project(cx);
+        let compute_available = self.apps.contains_panel("compute", "main");
+        let compact = self.active_app_chat_slot().is_none() && self.floating_chat && !self.floating_chat_expanded && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
+        self.chat.update(cx, |chat, cx| {
+            if !visible { chat.set_visible(false, cx); }
+            let needs_project_draft = project_composer.is_some();
+            let left_project_draft = chat.set_project_composer(project_composer, cx);
+            if !needs_project_draft {
+                chat.set_scope(scope, cx);
+                if let Some(index) = pinned {
+                    if chat.active_chat != Some(index) { chat.focus_chat(Some(index), cx); }
+                } else if left_project_draft && visible && chat.active_chat.is_none() {
+                    chat.restore_scope_chat(cx);
+                }
+            }
+            #[cfg(target_family="wasm")]
+            let desktop = js_sys::Reflect::get(&js_sys::global(), &"peroLinuxDesktopAvailable".into()).ok().and_then(|v|v.as_bool()).unwrap_or(false);
+            #[cfg(not(target_family="wasm"))]
+            let desktop = false;
+            chat.set_composer_destinations(remote_project, compute_available, desktop, cx);
+            chat.set_visible(visible, cx);
+            chat.show_return_to_review = show_return;
+            if chat.compact != compact { chat.compact = compact; cx.notify(); }
+        });
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        {
+            let thread = self.browser_thread(cx);
+            self.computer_preview.update(cx, |preview, cx| {
+                preview.select(thread, visible && !compact, &self.locale, cx);
+            });
+        }
+    }
+
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {
         self.navigation.show(page);
         self.queue_workspace_checkpoint(cx);

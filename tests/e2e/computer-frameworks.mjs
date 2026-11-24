@@ -17,7 +17,7 @@ const desktop = new DesktopComputer(resolve(root, 'target/debug/pero-computer'),
 const call = request => desktop.call('framework-acceptance', request, new AbortController().signal);
 let fixture, child; const results = [];
 try {
-  await desktop.restore(true);
+  await desktop.restore(true, ['dev.pero.peroswiftuifixture', 'com.github.Electron']);
   for (const framework of ['SwiftUI', 'Electron']) {
     if (framework === 'SwiftUI') fixture = await computerFixture(root, run, false, { background: true, source: 'tests/fixtures/computer-swiftui.swift', name: 'PeroSwiftUIFixture' });
     else {

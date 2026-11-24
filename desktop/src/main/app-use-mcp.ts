@@ -233,20 +233,21 @@ export class DesktopAppUse {
       this.repl?.forget(event.thread_id);
     if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind))) this.submitted.delete(event.thread_id);
     this.authority.accept(event);
-    if (event.kind === 'disconnected') this.computer?.endPreview();
-    if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind)))
-      this.computer?.endPreview(event.thread_id);
+    if (event.kind === 'disconnected') void this.computer?.stop().catch(console.error);
+    if (event.thread_id && ['turn_finished', 'session_closed', 'session_error'].includes(event.kind))
+      void this.computer?.endThread(event.thread_id).catch(console.error);
   }
   command(value: { action?: string; thread_id?: string }) {
     if (value.thread_id && ['close', 'delete'].includes(value.action || '')
       && this.plugins.has(value.thread_id)) this.plugins.set(value.thread_id, null);
     if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) {
       this.goals.revoke(value.thread_id);
-      this.computer?.endPreview(value.thread_id);
       this.browser?.revoke(value.thread_id);
       this.repl?.forget(value.thread_id);
     }
     this.authority.command(value);
+    if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || ''))
+      void this.computer?.endThread(value.thread_id).catch(console.error);
   }
   async input(app: string, token: string) {
     const grant = this.inputs.read(app, token, Date.now());
@@ -261,7 +262,6 @@ export class DesktopAppUse {
     this.browser?.revoke();
     this.repl?.forget();
     this.authority.reset(true);
-    this.computer?.endPreview();
   }
   async close() {
     this.reset();
@@ -326,10 +326,13 @@ export class DesktopAppUse {
     const plugin = this.plugins.get(thread);
     return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
   }
+
   async computerPreview(thread: string, id: string) {
     const computer = this.computer;
     if (!computer || !this.authority.isOrdinaryConversation(thread)) return { kind: 'ended' };
     try {
+      // Selection and the running turn gate presentation. Switching chats must
+      // cancel the reply without stopping the background Computer Use worker.
       return await this.authority.access(thread, undefined, () => computer.previewFrame(thread, id),
         new AbortController().signal);
     } catch {
@@ -338,6 +341,7 @@ export class DesktopAppUse {
   }
 
   private async callCua(thread: string, capability: ReplCapability, input: unknown, signal: AbortSignal): Promise<CuaResult> {
+    const background = capability === 'computer' && this.computer?.canRunInBackground(thread, input);
     return this.authority.access(thread, undefined, async (_scope, bounded) => {
       if (capability === 'browser' && this.browser) {
         if (!this.authority.isOrdinaryConversation(thread))
@@ -360,7 +364,7 @@ export class DesktopAppUse {
           isError: value.kind === 'receipt' && value.receipt.outcome.status !== 'executed' };
       }
       throw new AppUseError('CUA_UNAVAILABLE', 'This control capability is unavailable in the current host.');
-    }, signal);
+    }, signal, background ? 'background-computer' : 'selected');
   }
   async start(): Promise<{ PERO_APP_USE_URL: string; PERO_APP_USE_TOKEN: string }> {
     const token = randomBytes(32).toString('hex');
@@ -554,7 +558,7 @@ export class DesktopAppUse {
               throw new AppUseError('REPL_SCOPE', 'REPL is available in ordinary Workbench conversations.');
             return repl.call(thread, message.params.name, message.params.arguments, signal,
               (capability, input, bounded) => this.callCua(thread, capability, input, bounded));
-          }, controller.signal);
+          }, controller.signal, this.computer?.canRunInBackground(thread) ? 'background-computer' : 'selected');
         } else if (message.method === 'tools/call' &&
           ((message.params?.name === 'browser_use' && this.browser) || (message.params?.name === 'computer_use' && this.computer))) {
           const capability = message.params.name === 'browser_use' ? 'browser' : 'computer';

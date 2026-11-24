@@ -117,7 +117,7 @@ apps.artifactSnapshot = artifactDelivery.resolveSnapshot;
 let harness: HarnessPreferences;
 let runtimeSettingsPath = '';
 const preferenceWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-async function savePreference(method: 'settings.remote' | 'settings.computer' | 'settings.harness', fields: object): Promise<void> {
+async function savePreference(method: 'settings.remote' | 'settings.computer' | 'settings.computer.application' | 'settings.harness', fields: object): Promise<void> {
   for (let i = 0; i < 100 && !ready; i++) await new Promise(resolveWait => setTimeout(resolveWait, 20));
   if (!ready || !host?.stdin.writable) throw new Error('The local runtime is unavailable. Reopen Desktop and reconnect.');
   const id = `settings-${randomUUID()}`;
@@ -400,6 +400,8 @@ app.whenReady().then(async () => {
   const hostEnvironment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PERO_')));
   computer = new DesktopComputer(resolve(root, `${app.isPackaged ? 'bin' : 'target/debug'}/pero-computer${process.platform === 'win32' ? '.exe' : ''}`), resolve(app.getPath('userData'),'computer-use'), send, {
     save: enabled => savePreference('settings.computer',{enabled}),
+    saveApplication: (application_id, allowed) => savePreference('settings.computer.application',{application_id,allowed}),
+    applicationGrants: !sshProfile && process.platform === 'darwin',
     ...(sshProfile ? { status: () => {
       const state = linuxDesktop?.session.state;
       const available = Boolean(state?.remoteManaged && (state.phase === 'watching' || state.phase === 'controlling'));
@@ -535,7 +537,7 @@ app.whenReady().then(async () => {
       if(message.kind==='computer_settings'||message.kind==='computer_settings_error'){
         const pending=preferenceWrites.get(message.request_id);
         if(pending){clearTimeout(pending.timer);preferenceWrites.delete(message.request_id);}
-        if(message.kind==='computer_settings')void computer!.restore(message.data.enabled).then(()=>pending?.resolve(),error=>pending?.reject(error));
+        if(message.kind==='computer_settings')void computer!.restore(message.data.enabled, message.data.allowed_applications).then(()=>pending?.resolve(),error=>pending?.reject(error));
         else pending?.reject(new Error('Could not save Computer Use settings'));
         return;
       }

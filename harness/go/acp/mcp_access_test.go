@@ -139,6 +139,21 @@ func TestMCPSessionAccessUsesOwnedHTTPConnection(t *testing.T) {
 	if descriptor.Server != "User Docs" || descriptor.ToolCall != "actual-agent-call" || descriptor.ResourceURI != "ui://app/view" || descriptor.Generation != 1 {
 		t.Fatalf("missing trusted ACP identity: %s", projected.String())
 	}
+	server.omitToolImages = true
+	image := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	omitted, _ := json.Marshal(harness.ContentBlock{Type: harness.BlockToolResult, ToolCallID: outcome.Request.CallID, Content: []harness.ContentBlock{
+		{Type: harness.BlockText, Text: "visible result"},
+		{Type: harness.BlockImage, Data: image, MIMEType: "image/png"},
+	}, Meta: outcome.Result.Meta})
+	projected.Reset()
+	server.project(server.sessions[id], harness.Event{Type: "tool/result", Data: omitted})
+	body := projected.String()
+	if !strings.Contains(body, "visible result") || !strings.Contains(body, `"pero.mcpApp"`) || strings.Contains(body, "iVBORw0KGgo=") {
+		t.Fatalf("image omission dropped the saved MCP snapshot: %s", body)
+	}
+	if calls.Load() != 2 {
+		t.Fatal("projecting an archived snapshot called the tool")
+	}
 	adopted, rpcErr := command(id, harness.MCPSessionRequest{Action: "adopt", Server: descriptor.Server, Generation: descriptor.Generation, ToolCall: descriptor.ToolCall})
 	if rpcErr != nil || !strings.Contains(string(adopted), `"_meta":{"private":"original UI metadata"}`) || !strings.Contains(string(adopted), `"input":{"label":"original"}`) {
 		t.Fatalf("original result serialization: %s %v", adopted, rpcErr)

@@ -10,6 +10,7 @@ computer-core = { path = "../computer-core" }
 computer-runtime = { path = "../computer-runtime" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+markdown = "=1.0.0"
 point-computer-core = { path = "../../vendor/point/crates/point-computer-core" }
 point-computer-backend = { path = "../../vendor/point/crates/point-computer-backend" }
 point-computer-macos = { path = "../../vendor/point/crates/point-computer-macos" }

@@ -4,7 +4,7 @@ use pero_contracts::computer_use::*;
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
-use crate::{ComputerRuntime, DesktopDriver};
+use crate::{ComputerRuntime, DesktopDriver, access::ApplicationAccess};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -12,38 +12,37 @@ struct Request {
     id: ComputerRef,
     thread: ComputerRef,
     request: Operation,
+    allowed_applications: Option<Vec<ComputerRef>>,
 }
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Operation {
     Agent(ComputerRequest),
-    Preview(PreviewRequest),
+    Shell(ShellOperation),
 }
 #[derive(Deserialize)]
-#[serde(tag = "operation", deny_unknown_fields)]
-enum PreviewRequest {
-    #[serde(rename = "preview_frame")]
-    Frame { target: ComputerTargetRef },
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum ShellOperation {
+    Appshot { foreground_pid: i32 },
+    PreviewFrame { target: ComputerTargetRef },
 }
 #[derive(Serialize)]
 #[serde(untagged)]
-enum ResultValue {
+enum Value {
     Agent(ComputerResponse),
-    Preview {
-        kind: &'static str,
-        image: Option<ComputerImageContent>,
-    },
+    Appshot(ComputerAppshotResponse),
+    Preview(ComputerPreviewResponse),
 }
 #[derive(Serialize)]
 #[serde(untagged)]
-enum Response {
+enum Response<'a> {
     Success {
         id: ComputerRef,
-        value: ResultValue,
+        value: &'a Value,
     },
     Failure {
         id: ComputerRef,
-        error: ComputerError,
+        error: &'a ComputerError,
     },
 }
 
@@ -88,16 +87,22 @@ pub fn serve_stream<D: DesktopDriver>(
     });
     for request in receiver {
         let request = request?;
+        let access = request
+            .allowed_applications
+            .as_deref()
+            .map_or(ApplicationAccess::Unrestricted, ApplicationAccess::Allowed);
         let result = match request.request {
-            Operation::Agent(call) => driver.call(request.thread, call).map(ResultValue::Agent),
-            Operation::Preview(PreviewRequest::Frame { target }) => driver
-                .preview_frame(target)
-                .map(|image| ResultValue::Preview {
-                    kind: "preview_frame",
-                    image,
-                }),
+            Operation::Agent(operation) => driver
+                .call_with_access(request.thread, operation, access)
+                .map(Value::Agent),
+            Operation::Shell(ShellOperation::Appshot { foreground_pid }) => {
+                driver.appshot(foreground_pid).map(Value::Appshot)
+            }
+            Operation::Shell(ShellOperation::PreviewFrame { target }) => {
+                driver.preview_frame(&target, access).map(Value::Preview)
+            }
         };
-        let response = match result {
+        let response = match &result {
             Ok(value) => Response::Success {
                 id: request.id,
                 value,

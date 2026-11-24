@@ -1,11 +1,12 @@
 //! macOS AX, ScreenCaptureKit and window-scoped input implementation.
 use crate::{bridge, profile};
 
-use computer_core::{Window, WindowBounds, WindowImage};
+use computer_core::{Window, WindowBounds};
 use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_macos::driver::MacOsBackend;
+use point_computer_macos::ffi;
 use std::cell::RefCell;
 
 pub struct Desktop {
@@ -89,6 +90,32 @@ impl DesktopDriver for Desktop {
             }
         }
     }
+    fn focused_window(&self, pid: i32) -> Result<Window, ComputerError> {
+        let unavailable = || {
+            error(
+                ComputerErrorCode::TargetUnavailable,
+                "Appshot needs a focused application window. Bring the window forward and try again.",
+            )
+        };
+        if pid <= 0 || crate::applications::frontmost_pid() != pid {
+            return Err(unavailable());
+        }
+        let app = ffi::ax_app_element(pid).ok_or_else(unavailable)?;
+        let window = crate::observation::read_element_attribute(&app, "AXFocusedWindow")
+            .map_err(|code| {
+                if code == ffi::AX_ERR_API_DISABLED {
+                    crate::observation::accessibility_required()
+                } else {
+                    unavailable()
+                }
+            })?
+            .ok_or_else(unavailable)?;
+        let id = ffi::ax_window_id(&window);
+        self.targets()?
+            .into_iter()
+            .find(|window| window.pid == pid && window.window_id == id)
+            .ok_or_else(unavailable)
+    }
     fn bounds(&self, app: &Window) -> Option<WindowBounds> {
         crate::observation::bounds(app)
     }
@@ -100,8 +127,8 @@ impl DesktopDriver for Desktop {
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
         crate::observation::observe(app, options, basis, &mut self.ids.borrow_mut())
     }
-    fn recognize_text(&self, image: &WindowImage) -> Option<String> {
-        crate::capture::recognize_text(&image.bytes)
+    fn text_recognizer(&self) -> Option<computer_runtime::TextRecognizer> {
+        Some(crate::capture::recognize_text)
     }
     fn input(
         &self,
