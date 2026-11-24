@@ -186,6 +186,29 @@ impl ProjectTab {
             tab => tab.label_key(),
         }
     }
+
+    pub fn inspector_tabs(
+        self, widths: [f32; Self::ALL.len()], available: f32, gap: f32,
+    ) -> [bool; Self::ALL.len()] {
+        let current = Self::ALL.iter().position(|&tab| tab == self).unwrap();
+        let mut visible = [false; Self::ALL.len()];
+        let mut remaining = available;
+        if widths[current] <= remaining {
+            visible[current] = true;
+            remaining -= widths[current] + gap;
+        }
+        for (index, width) in widths.into_iter().enumerate() {
+            if index == current {
+                continue;
+            }
+            if width > remaining {
+                break;
+            }
+            visible[index] = true;
+            remaining -= width + gap;
+        }
+        visible
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]

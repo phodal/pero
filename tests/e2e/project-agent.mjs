@@ -76,21 +76,21 @@ async function showProjectInspector() {
 }
 async function rightTab(key, tab, fromMenu = false) {
   const controls = (await state()).projectControls;
-  const button = controls[`tab:${key}`];
-  const toolbar = controls['agent:context-toolbar'];
-  const overflow = controls['agent:views-overflow'];
-  const fullyVisible = button?.width > 0 && button.x >= toolbar.x && button.x + button.width <= overflow.x;
-  if (fullyVisible && !fromMenu) {
+  const shown = key => controls[`tab:${key}`]?.width > 0;
+  if (fromMenu) expect(shown(key)).toBe(false);
+  if (shown(key)) {
     await control(`tab:${key}`);
   } else {
     await control('agent:views-overflow');
-    const views = ['overview', 'research_resources', 'tasks', 'sources', 'execution', 'settings'];
-    for (let position = 0; position <= views.indexOf(tab); position++) {
+    const hidden = ['project.overview', 'research.linked', 'nav.tasks', 'project.sources', 'project.execution', 'settings.title']
+      .filter(key => !shown(key));
+    for (let position = 0; position <= hidden.indexOf(key); position++) {
       await page.keyboard.press('ArrowDown');
     }
     await page.keyboard.press('Enter');
   }
   await expect.poll(async () => (await state()).projectTab).toBe(tab);
+  await expect.poll(async () => (await state()).projectControls[`tab:${key}`]?.width || 0).toBeGreaterThan(0);
 }
 async function launch() {
   app = await electron.launch({ args: ['--use-mock-keychain', join(root, 'desktop')], cwd: root, env });

@@ -13,7 +13,7 @@ use crate::design_tokens::{
 };
 use crate::{Palette, TextRole};
 use gpui_kit::{
-    component::{Selectable, Sizable, button::*, input::Input},
+    component::{ActiveTheme, Selectable, Sizable, button::*, input::Input},
     prelude::*,
     *,
 };
@@ -615,19 +615,30 @@ fn ghost_colors(chrome: Chrome, cx: &App, active: Hsla) -> ButtonCustomVariant {
 }
 
 /// Switches the view inside a pane while the object's tab stays open.
-pub fn pane_view_tab(id: impl Into<ElementId>, label: impl Into<SharedString>, selected: bool, chrome: Chrome, cx: &App) -> Button {
-    Button::new(id)
+pub fn pane_view_tab(
+    id: impl Into<ElementId>, label: impl Into<SharedString>, selected: bool,
+    chrome: Chrome, window: &Window, cx: &App,
+) -> (Button, Pixels) {
+    let label = label.into();
+    let family = cx.theme().font_family.clone();
+    let font_size = chrome.text(crate::TYPE_TAB);
+    let padding = chrome.geo(SPACE_8);
+    let run = TextRun { len: label.len(), font: font(family.clone()), ..Default::default() };
+    let width = window.text_system().shape_line(label.clone(), font_size, &[run], None)
+        .width().ceil() + padding * 2.;
+    let button = Button::new(id)
         .custom(ghost_colors(chrome, cx, chrome.navigation_selected()))
         .role(Role::Tab)
         .selected(selected)
         .toggled(selected)
         .small()
-        .min_w_0()
+        .w(width)
         .h(chrome.control(crate::CONTENT_TAB))
-        .px(chrome.geo(SPACE_8))
+        .px(padding)
         .rounded(chrome.geo(RADIUS_SELECTION))
-        .text_size(chrome.text(crate::TYPE_TAB))
-        .label(label)
+        .accessibility_label(label.clone())
+        .child(div().flex_shrink_0().whitespace_nowrap().font_family(family).text_size(font_size).child(label));
+    (button, width)
 }
 
 /// Primary, ghost, and danger share one height, padding, and radius.

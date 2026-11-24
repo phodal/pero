@@ -601,22 +601,49 @@ impl Workbench {
         self.focus_project_composer(window, cx);
     }
 
-    pub(crate) fn project_context_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn project_context_toolbar(&self, width: Pixels, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let narrow = self.layout.narrow;
         let chrome = pero_theme::Chrome::from_app(cx);
-        let views = ProjectTab::ALL.map(|view| (view, self.t(view.label_key())));
+        let gap = chrome.geo(pero_theme::SPACE_4);
+        let padding = chrome.geo(pero_theme::SPACE_8);
+        let action_width = chrome.control(pero_theme::GHOST_ICON_BUTTON);
         let current = self.project_tab;
+        let tabs = ProjectTab::ALL.map(|view| {
+            pero_theme::pane_view_tab(
+                view.label_key(), self.t(view.compact_label_key()), current == view, chrome, window, cx,
+            )
+        });
+        let available = width - (padding + action_width + gap) * 2.;
+        let visible = current.inspector_tabs(tabs.each_ref().map(|(_, width)| f32::from(*width)), available.into(), gap.into());
+        let hidden: Vec<_> = ProjectTab::ALL.into_iter().zip(visible)
+            .filter_map(|(view, shown)| (!shown).then(|| (view, self.t(view.label_key()))))
+            .collect();
+        let has_hidden = !hidden.is_empty();
+        let tabs = div()
+            .id("project-view-tabs")
+            .role(Role::TabList)
+            .aria_label(self.t("project.actions"))
+            .flex_1().min_w_0().h_full().flex().items_center().gap(gap)
+            .children(ProjectTab::ALL.into_iter().zip(tabs).zip(visible).filter_map(|((view, (button, _)), shown)| {
+                shown.then(|| {
+                    let key = view.label_key();
+                    let label = self.t(key);
+                    button.accessibility_label(label).tooltip(label)
+                        .relative().child(self.view_bounds.projects.probe(format!("tab:{key}")))
+                        .on_click(cx.listener(move |this, _, _, cx| this.select_project_view(view, cx)))
+                })
+            }));
         let workbench = cx.entity().downgrade();
         let project_key = self.selected_project.clone();
         let delete_label = self.t("research.delete_action");
         let menu = pero_theme::ghost_icon_button("project-inspector-views", chrome, cx)
             .icon(Icon::default().path("icons/dots.svg"))
-            .accessibility_label(self.t("project.actions"))
-            .tooltip(self.t("project.actions"))
+            .accessibility_label(self.t("project.inspector.more"))
+            .tooltip(self.t("project.inspector.more"))
             .relative()
             .child(self.view_bounds.projects.probe("agent:views-overflow".into()))
             .dropdown_menu_with_anchor(Anchor::TopRight, move |mut menu, _, _| {
-                for (view, label) in views {
+                for &(view, label) in &hidden {
                     let activate = workbench.clone();
                     let item = PopupMenuItem::new(label)
                     .checked(current == view)
@@ -627,7 +654,10 @@ impl Workbench {
                 }
                 if let Some(key) = project_key.clone() {
                     let owner = workbench.clone();
-                    menu = menu.separator().item(PopupMenuItem::new(delete_label)
+                    if has_hidden {
+                        menu = menu.separator();
+                    }
+                    menu = menu.item(PopupMenuItem::new(delete_label)
                         .on_click(move |_, window, cx| {
                             let (owner, key) = (owner.clone(), key.clone());
                             window.defer(cx, move |window, cx| {
@@ -663,16 +693,16 @@ impl Workbench {
             .min_w_0()
             .flex()
             .items_center()
-            .gap(chrome.geo(pero_theme::SPACE_4))
-            .px(chrome.geo(pero_theme::SPACE_8))
+            .gap(gap)
+            .px(padding)
             .bg(chrome.palette.surface_muted)
-            .child(self.project_view_tabs(true, cx))
+            .child(tabs)
             .child(menu)
             .child(close)
             .into_any_element()
     }
 
-    pub(crate) fn project_agent_view(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn project_agent_view(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
         let Some(project) = self.saved_research_project() else {
             return div().into_any_element();
@@ -683,6 +713,7 @@ impl Workbench {
         let error = self.project_agents.errors.get(&id);
         if self.project_context_in_place(cx) {
             let chrome = pero_theme::Chrome::from_app(cx);
+            let width = window.viewport_size().width - px(self.layout.sidebar_width);
             return div()
                 .id("project-inspector-in-place")
                 .size_full()
@@ -693,7 +724,7 @@ impl Workbench {
                 .child(div()
                     .h(chrome.control(pero_theme::WINDOW_TITLEBAR))
                     .flex_shrink_0()
-                    .child(self.project_context_toolbar(cx)))
+                    .child(self.project_context_toolbar(width, window, cx)))
                 .child(self.project_context_body(cx))
                 .into_any_element();
         }

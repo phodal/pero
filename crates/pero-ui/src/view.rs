@@ -904,7 +904,7 @@ impl Render for Workbench {
                                         .when(
                                             self.navigation.page() == WorkbenchPage::Tasks,
                                             |el| {
-                                                el.child(self.project_workspace(layout.narrow, cx))
+                                                el.child(self.project_workspace(layout.narrow, window, cx))
                                             },
                                         )
                                         .when(

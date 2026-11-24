@@ -215,13 +215,8 @@ impl Workbench {
         cx.notify();
     }
 
-    pub(crate) fn project_view_tabs(&self, research: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn project_view_tabs(&self, research: bool, cx: &mut Context<Self>) -> AnyElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
-        let compact = self.project_agent_active();
-        let third = match self.project_tab {
-            ProjectTab::Sources | ProjectTab::Execution | ProjectTab::Settings => self.project_tab,
-            _ => ProjectTab::Tasks,
-        };
         div()
             .id("project-view-tabs")
             .role(Role::TabList)
@@ -229,31 +224,17 @@ impl Workbench {
             .flex()
             .items_center()
             .gap_x(px(pero_theme::SPACE_4))
-            .when(compact, |tabs| tabs.flex_1().min_w_0().h_full())
-            .when(!compact, |tabs| {
-                tabs.flex_shrink_0().flex_wrap().border_b(px(0.5)).border_color(p.border)
-            })
+            .flex_shrink_0().flex_wrap().border_b(px(0.5)).border_color(p.border)
             .children(ProjectTab::ALL.into_iter().enumerate()
-                .filter(|(_, tab)| {
-                    if compact {
-                        matches!(tab, ProjectTab::Overview | ProjectTab::ResearchResources) || *tab == third
-                    } else {
-                        *tab != ProjectTab::ResearchResources || research
-                    }
-                })
+                .filter(|(_, tab)| *tab != ProjectTab::ResearchResources || research)
                 .map(|(i, tab)| {
                     let label = self.t(tab.label_key());
                     let selected = self.project_tab == tab;
-                    let button = if compact {
-                        pero_theme::pane_view_tab(("project-tab", i), self.t(tab.compact_label_key()), selected,
-                            pero_theme::Chrome::from_app(cx), cx)
-                    } else {
-                        Button::new(("project-tab", i)).role(Role::Tab).ghost().small().flex_shrink_0()
-                            .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
-                            .rounded_none().label(label).selected(selected).toggled(selected)
-                            .border_b_2().border_color(if selected { p.action } else { p.text.opacity(0.) })
-                    };
-                    button.accessibility_label(label).tooltip(label)
+                    Button::new(("project-tab", i)).role(Role::Tab).ghost().small().flex_shrink_0()
+                        .h(px(pero_theme::UiAppearance::global(cx).typography.row_height()))
+                        .rounded_none().label(label).selected(selected).toggled(selected)
+                        .border_b_2().border_color(if selected { p.action } else { p.text.opacity(0.) })
+                        .accessibility_label(label).tooltip(label)
                         .relative().child(self.view_bounds.projects.probe(format!("tab:{}", tab.label_key())))
                         .on_click(cx.listener(move |this, _, _, cx| this.select_project_view(tab, cx)))
                 }))
@@ -275,10 +256,11 @@ impl Workbench {
     pub(crate) fn project_workspace(
         &self,
         narrow: bool,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         if self.project_agent_active() {
-            return self.project_agent_view(cx);
+            return self.project_agent_view(window, cx);
         }
         let project = self.current_project(cx);
         let is_research = project.as_ref().is_some_and(|project| project.research_id().is_some())

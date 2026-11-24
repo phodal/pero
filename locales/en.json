@@ -1419,6 +1419,7 @@
   "cloud.worker.disabled": "Disabled",
   "cloud.worker.attention": "Needs review",
   "project.actions": "Project views",
+  "project.inspector.more": "More project views and actions",
   "project.inspector.show": "Show project views",
   "project.resize_inspector": "Resize project panel",
   "project.inspector.hide": "Hide project views",

@@ -452,7 +452,9 @@ impl Workbench {
     ) -> AnyElement {
         let bg = resources_surface(segment, &self.ui(cx).palette);
         let toolbar = if segment.primary == Primary::Resource(titleband::ResourcePrimary::Project) {
-            Some(keep_click(div().size_full().child(self.project_context_toolbar(cx))).into_any_element())
+            Some(keep_click(div().size_full()
+                .child(self.project_context_toolbar(px(toolbar_width - 1.), window, cx)))
+                .into_any_element())
         } else {
             segment.actions.contains(&Action::ResourceToolbar)
                 .then(|| self.chat.update(cx, |chat, cx| chat.resource_column_toolbar(toolbar_width, cx)))
