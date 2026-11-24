@@ -47,6 +47,8 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 url = { version = "2.5", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 security-framework = "3.7"
 objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["NSAlert", "NSButton", "NSControl", "NSTextField", "NSView", "NSWindow", "block2"] }

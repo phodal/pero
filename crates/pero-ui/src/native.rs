@@ -109,6 +109,10 @@ pub(super) fn computer_control(control: pero_contracts::computer_runtime::Comput
 }
 #[cfg(target_os = "macos")]
 pub(crate) fn chrome_relay_owner() -> Option<std::sync::Arc<crate::native_connectors::NativeConnectors>> {
+    native_connectors()
+}
+#[cfg(target_os = "macos")]
+pub(crate) fn native_connectors() -> Option<std::sync::Arc<crate::native_connectors::NativeConnectors>> {
     CONNECTORS.with(|slot| slot.borrow().as_ref().and_then(std::sync::Weak::upgrade))
 }
 
@@ -601,7 +605,20 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     continue;
                 }
-                if event.kind == "disconnected" { apps().disconnect(); }
+                #[cfg(target_os = "macos")]
+                if event.kind == "native_computer_preview" {
+                    let _ = view.update(cx, |workbench, cx| {
+                        workbench.computer_preview.update(cx, |preview, cx| preview.accept(event.data, cx));
+                    });
+                    continue;
+                }
+                if event.kind == "disconnected" {
+                    apps().disconnect();
+                    #[cfg(target_os = "macos")]
+                    let _ = view.update(cx, |workbench, cx| {
+                        workbench.computer_preview.update(cx, |preview, cx| preview.disconnect(cx));
+                    });
+                }
                 if verifying_installation {
                     match event.kind.as_str() {
                         "ready" => host_ready = true,
