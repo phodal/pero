@@ -1,7 +1,7 @@
 // Managed Data Agent -> dataset -> GPUI Kit chart -> provenance and persistence.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {clickAppShortcut} from './sidebar-controls.mjs';
+import {openCatalogApp} from './sidebar-controls.mjs';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -25,7 +25,7 @@ try {
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
   await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
-  await clickAppShortcut(page,'data');
+  await openCatalogApp(page,'data');
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);
   let frame=page.frameLocator('iframe[title="data"]');
   await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:30000});
@@ -115,7 +115,7 @@ try {
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
   await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
-  await clickAppShortcut(page,'data');
+  await openCatalogApp(page,'data');
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);
   frame=page.frameLocator('iframe[title="data"]');panel=frame.locator('.data-chart-panel');
   await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:30000});

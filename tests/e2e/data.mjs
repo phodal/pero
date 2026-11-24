@@ -1,7 +1,7 @@
 // Real Electron -> App SDK -> Host -> Data Python backend. Disposable local files only.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { openCatalogApp, setAppearance } from './sidebar-controls.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
@@ -49,7 +49,7 @@ async function openData() {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  await clickAppShortcut(page, 'data');
+  await openCatalogApp(page, 'data');
   await expect.poll(async () => (await desktop()).activeContent).toEqual({ kind: 'app', value: { name: 'data', panel: 'main' } });
   frame = page.frameLocator('iframe[title="data"]');
   await expect(frame.getByRole('button', { name: 'Add data', exact: true })).toBeEnabled({ timeout: 20000 });

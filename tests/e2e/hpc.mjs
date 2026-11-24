@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, clickAppShortcut } from './sidebar-controls.mjs';
+import { openCatalogApp } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const out = resolve(root, 'test-results/hpc');
@@ -45,12 +45,7 @@ async function open() {
   await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('locale-en').click());
   await expect.poll(async () => (await state()).apps?.some(item => item.name === 'hpc')).toBe(true);
   await expect.poll(async () => (await state()).appsLoading).toBe(false);
-  // The enabled App stays in the sidebar. Its catalog Open control is a small canvas target.
-  if ((await state()).sidebarButtonBounds?.hpc) await clickAppShortcut(page, 'hpc');
-  else {
-    await clickAppShortcut(page, 'apps');
-    await clickAppOpen(page, 'hpc');
-  }
+  await openCatalogApp(page, 'hpc');
   frame = page.frameLocator('iframe[title="hpc"]');
   await expect(frame.getByRole('heading', { name: 'HPC Benchmarks', exact: true })).toBeVisible({ timeout: 30000 });
   await expect.poll(async () => (await get('/api/state')).runtime.reframeAvailable).toBe(true);

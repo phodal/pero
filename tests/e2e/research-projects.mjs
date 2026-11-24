@@ -2,7 +2,7 @@
 // their existing APIs. No model, remote service, solver or physical experiment runs.
 import { expect } from '@playwright/test';
 import { electron, focusPage } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp, setAppearance } from './sidebar-controls.mjs';
 import { mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -75,7 +75,8 @@ async function projectOverview() {
   await expect.poll(async () => (await state()).researchProjects.loading).toEqual([]);
 }
 async function openApp(name) {
-  await clickAppShortcut(page, name);
+  if (name === 'paper-agent') await clickAppShortcut(page, name);
+  else await openCatalogApp(page, name);
   await expect.poll(async () => (await state()).activeApp?.name).toBe(name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeAttached({ timeout: 120000 });
@@ -252,7 +253,7 @@ try {
 
   await clickControl('unlink:2');
   await expect.poll(async () => (await savedProject()).resources.length).toBe(2);
-  await clickAppShortcut(page, 'lab');
+  await openCatalogApp(page, 'lab');
   frame = page.frameLocator('iframe[title="lab"]');
   expect(await api(frame, `/api/experiments/${seeds.lab.id}`)).toEqual(seeds.lab);
   await projectOverview(); await selectProjectView('research.linked');

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, clickAppShortcut } from './sidebar-controls.mjs';
+import { clickAppShortcut } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const profile = await mkdtemp(resolve(tmpdir(), 'pero-notebook-desktop-'));
@@ -37,11 +37,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60_000 });
   await expect.poll(async () => (await state()).apps?.some(entry => entry.name === 'notebook')).toBe(true);
-  if ((await state()).sidebarButtonBounds?.notebook) await clickAppShortcut(page, 'notebook');
-  else {
-    await page.mouse.click(80, await page.evaluate(() => innerHeight - 76));
-    await clickAppOpen(page, 'notebook');
-  }
+  await clickAppShortcut(page, 'notebook');
   const frame = page.frameLocator('iframe[title="notebook"]');
   await frame.getByRole('button', { name: 'New notebook' }).click({ timeout: 20_000 });
   await frame.getByRole('textbox', { name: 'Notebook title' }).fill('Notebook in Pero');

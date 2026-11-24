@@ -1,7 +1,7 @@
 // Explicit live Host/Electron acceptance. Uses a previously prepared disposable PC-Gym profile.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {openCatalogApp,setAppearance} from './sidebar-controls.mjs';
 import {chooseSelect} from './select-control.mjs';
 import {cp,mkdtemp,mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -24,7 +24,7 @@ const list=()=>frame.locator('body').evaluate(async()=>{const r=await fetch('/ho
 try {
   app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
-  await clickAppShortcut(page,'environments');frame=page.frameLocator('iframe[title="environments"]');
+  await openCatalogApp(page,'environments');frame=page.frameLocator('iframe[title="environments"]');
   await frame.getByRole('tab',{name:'Compute',exact:true}).click();
   await frame.getByRole('button',{name:'Managed PC-Gym',exact:true}).click();
   await expect(frame.getByText('PC-Gym · Fixed recipe · PyPI',{exact:true})).toBeVisible();

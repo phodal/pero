@@ -4,7 +4,7 @@ import {electron} from './electron.mjs';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {openCatalogApp,setAppearance} from './sidebar-controls.mjs';
 const root=resolve(import.meta.dirname,'../..');
 const distribution=resolve(process.env.PERO_CONTENT_TEST_ROOT||root);
 const output=resolve(root,'test-results/data');await mkdir(output,{recursive:true});
@@ -24,7 +24,7 @@ try{
   await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1488,1086));
   await expect.poll(async()=>(await state()).apps?.some(value=>value.name==='data')).toBe(true);
-  await clickAppShortcut(page,'data');
+  await openCatalogApp(page,'data');
   await expect.poll(async()=>(await state()).appsLoading).toBe(false);await paint();
   const frame=page.frameLocator('iframe[title="data"]');
   await expect(frame.getByRole('button',{name:'Add data',exact:true})).toBeVisible({timeout:20000});
@@ -77,7 +77,7 @@ try{
   await page.mouse.click(80,await page.evaluate(()=>innerHeight-52));
   await expect.poll(async()=>(await state()).navigation).toBe(7);
   await paint();
-  await clickAppShortcut(page,'data');
+  await openCatalogApp(page,'data');
   await expect(slot).toHaveAttribute('data-mounted','true');
   await expect.poll(async()=>(await state()).composer).toBe('Keep this embedded draft');
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,800));

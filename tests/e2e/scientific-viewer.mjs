@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';import {tmpdir} from 'node:os';
 import {electron} from './electron.mjs';import {closeOwnedElectron} from './owned-electron-close.mjs';
-import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {openCatalogApp,setAppearance} from './sidebar-controls.mjs';
 import {examples} from '../../apps/scientific-viewer/ui-src/examples.ts';
 const root=resolve(import.meta.dirname,'../..'),out=resolve(root,'test-results/scientific-viewer');await mkdir(out,{recursive:true});
 const temp=await mkdtemp(resolve(tmpdir(),'pero-viewer-')),errors=[],checks=[];
@@ -40,7 +40,7 @@ async function open(){
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(app=>app.name==='scientific-viewer'&&app.enabled))).toBe(true);
  await page.waitForFunction(()=>{const canvas=document.querySelector('canvas');return canvas?.width===Math.round(innerWidth*devicePixelRatio)&&canvas.height===Math.round(innerHeight*devicePixelRatio);});
  // Enabled catalog Apps also have a direct sidebar shortcut, measured at paint.
- await clickAppShortcut(page,'scientific-viewer');
+ await openCatalogApp(page,'scientific-viewer');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).activeApp)).toMatchObject({name:'scientific-viewer',panel:'viewer'});
  frame=page.frameLocator('iframe[title="scientific-viewer"]');
  await expect(fileTrigger()).toBeVisible();

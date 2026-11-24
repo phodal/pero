@@ -381,17 +381,18 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         div().w_full().flex().justify_center().child(element)
     };
     use crate::apps::AppPlacement;
-    let mut automation = Vec::new(); let mut primary = Vec::new(); let mut workspace = Vec::new(); let mut catalog = Vec::new(); let mut customize = Vec::new();
+    let mut automation = Vec::new(); let mut primary = Vec::new(); let mut research = Vec::new(); let mut customize = Vec::new(); let mut skills = Vec::new();
     for (index, app) in props.apps.into_iter().enumerate() {
         match app.placement {
             AppPlacement::Automation => automation.push((index, app)),
-            AppPlacement::Primary => primary.push((index, app)),
-            AppPlacement::Workspace | AppPlacement::WorkspaceCatalog => workspace.push((index, app)),
+            AppPlacement::Research => research.push((index, app)),
             AppPlacement::Customize => customize.push((index, app)),
-            AppPlacement::Catalog => catalog.push((index, app)),
+            AppPlacement::Skills => skills.push((index, app)),
+            AppPlacement::Primary => primary.push((index, app)),
+            AppPlacement::Catalog => {},
         }
     }
-    workspace.sort_by_key(|(_, app)| if app.name == "paper-agent" { 0 } else { 1 });
+    research.sort_by_key(|(_, app)| app.name != "paper-agent");
     let app_rows = |apps: Vec<(usize, AppShortcut)>| apps.into_iter().map(|(index, app)| {
                 let action = SidebarAction::OpenApp { name: app.name.clone(), panel: app.panel };
                 let element = if collapsed {
@@ -462,11 +463,11 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 })))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
             .when(!props.projects_collapsed, |el| el.children(projects))
+            .when(!research.is_empty(), |el| el.child(pero_theme::sidebar_group(None, false, chrome).children(app_rows(research))))
+            .child(pero_theme::sidebar_group(None, false, chrome)
             .children(app_rows(primary))
-            .when(!workspace.is_empty(), |scroll| scroll.child(pero_theme::sidebar_group(None, true, chrome).children(app_rows(workspace))))
-            .child(pero_theme::sidebar_group(None, true, chrome)
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
-            .children(app_rows(catalog))))
+            .children(app_rows(skills))))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))
         .when(!props.local_connected && !collapsed, |el| el.child(div().px(px(8.)).py(px(6.)).text_color(p.warning).text_size(px(12.)).child(ui.t("status.disconnected"))))
         .children(app_rows(customize))

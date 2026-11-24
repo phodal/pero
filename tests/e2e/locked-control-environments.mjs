@@ -1,7 +1,7 @@
 // Opt-in, actual Electron -> Host preparation and Control Lab solver. No model.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {openCatalogApp,setAppearance} from './sidebar-controls.mjs';
 import {chooseSelect} from './select-control.mjs';
 import {execFileSync} from 'node:child_process';
 import {mkdtemp,mkdir,writeFile,readFile} from 'node:fs/promises';
@@ -35,10 +35,10 @@ async function savedTrial(){
 try{
  app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env});page=await app.firstWindow();
  await page.waitForFunction(()=>window.peroDiagnostics&&!document.getElementById('loading'),undefined,{timeout:60000});
- await clickAppShortcut(page,'control-lab');control=page.frameLocator('iframe[title="control-lab"]');
+ await openCatalogApp(page,'control-lab');control=page.frameLocator('iframe[title="control-lab"]');
  await expect(control.getByLabel('Template',{exact:true})).toBeVisible({timeout:30000});
  const old=await savedTrial();const servicePid=pid();expect(servicePid).toHaveLength(1);
- await clickAppShortcut(page,'environments');frame=page.frameLocator('iframe[title="environments"]');
+ await openCatalogApp(page,'environments');frame=page.frameLocator('iframe[title="environments"]');
  await frame.getByRole('tab',{name:'Compute',exact:true}).click();
  await expect(frame.getByText('No locked compute profiles yet',{exact:true})).toBeVisible();await screenshot('01-empty-light');
  page.on('response',async response=>{if(response.url().endsWith('/host/environment/profiles')&&response.ok()){const request=response.request().postDataJSON();if(request.operation==='list'&&request.compute){const rows=await response.json().catch(()=>[]);observed.push(...rows.map(v=>({id:v.id,state:v.state,log:v.log})));}}});
@@ -62,14 +62,14 @@ try{
  await expect(frame.getByText('Currently selected',{exact:true})).toBeVisible({timeout:30000});
  const first=(await profiles()).find(v=>v.bound);expect(first.label).toBe('Control locked A');expect(pid()).toEqual(servicePid);
  await screenshot('03-selected-light');
- await clickAppShortcut(page,'control-lab');await control.locator('body').evaluate(()=>location.reload());
+ await openCatalogApp(page,'control-lab');await control.locator('body').evaluate(()=>location.reload());
  await chooseSelect(control,'Open experiment',old.record.id);
  await control.getByRole('button',{name:'Verify locked candidate',exact:true}).click();
  await expect(control.getByRole('alert')).toContainText('Compute selection changed');await screenshot('04-historical-rejection');
  expect((await read(control,`/api/experiments/${old.record.id}/export`)).artifacts).toEqual(old.exported.artifacts);
  const computed=await savedTrial();
  const receipt=computed.exported.artifacts.find(a=>a.name==='compute-profile.json');expect(JSON.parse(receipt.text).lock_sha256).toBe(first.prepared.lock_sha256);
- await clickAppShortcut(page,'environments');
+ await openCatalogApp(page,'environments');
  await frame.getByRole('button',{name:'Rebuild from same lock',exact:true}).click();
  await frame.getByLabel('Environment name',{exact:true}).fill('Control locked B');
  await frame.getByRole('button',{name:'Create copy',exact:true}).click();
@@ -99,7 +99,7 @@ try{
  expect((await profiles()).some(v=>v.bound)).toBe(false);expect(pid()).toEqual(servicePid);
  expect(JSON.parse(await readFile(resolve(profile,'settings.json'),'utf8')).app_python).toEqual(initialSettings);
  await app.evaluate(({Menu,BrowserWindow})=>{Menu.getApplicationMenu().getMenuItemById('locale-en').click();BrowserWindow.getAllWindows()[0].setSize(1280,850);});
- await clickAppShortcut(page,'control-lab');await control.locator('body').evaluate(()=>location.reload());await chooseSelect(control,'Open experiment',old.record.id);
+ await openCatalogApp(page,'control-lab');await control.locator('body').evaluate(()=>location.reload());await chooseSelect(control,'Open experiment',old.record.id);
  await control.getByRole('button',{name:'Verify locked candidate',exact:true}).click();
  await expect.poll(async()=>(await read(control,`/api/experiments/${old.record.id}`)).status,{timeout:60000}).not.toBe('running');
  const recovered=await read(control,`/api/experiments/${old.record.id}`);expect(recovered.trials.every(t=>t.status==='completed')).toBe(true);

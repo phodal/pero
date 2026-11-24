@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp, setAppearance } from './sidebar-controls.mjs';
 
 if (process.env.PERO_RESEARCH_WATCH_LIVE !== '1') throw Error('Set PERO_RESEARCH_WATCH_LIVE=1 for the official arXiv metadata check');
 const root = resolve(import.meta.dirname, '../..');
@@ -29,7 +29,8 @@ async function launch() {
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
 }
 async function open(name) {
-  await clickAppShortcut(page, name);
+  if (name !== 'data') await clickAppShortcut(page, name);
+  else await openCatalogApp(page, name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeVisible({ timeout: 20000 });
   return frame;

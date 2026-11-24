@@ -2,7 +2,7 @@
 // No solver, training, preparation, Agent or scientific verdict is exercised.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -28,8 +28,8 @@ const post = (frame, body) => frame.locator('body').evaluate(async (_, body) => 
   return { status: response.status, text: await response.text() };
 }, body);
 async function open(name) {
-  if (name === 'paper-agent' || name === 'environments') await clickAppShortcut(page, name);
-  else { await clickAppShortcut(page, 'apps'); await clickAppOpen(page, name); }
+  if (name === 'paper-agent') await clickAppShortcut(page, name);
+  else await openCatalogApp(page, name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeVisible({ timeout: 30000 });
   return frame;

@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { electron, focusPage } from './electron.mjs';
-import { clickAppShortcut, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp, setAppearance } from './sidebar-controls.mjs';
 import { projectAgentProvider } from '../fixtures/project-agent-provider.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -376,7 +376,7 @@ try {
   expect(mouseReopened.composer).toBe('Overview keeps the central draft');
   await capture('01-project-tab-reopened');
 
-  await clickAppShortcut(page, 'scientific-viewer');
+  await openCatalogApp(page, 'scientific-viewer');
   await expect.poll(async () => (await state()).activeApp?.name).toBe('scientific-viewer');
   const appState = await state();
   const appPane = appState.workspaceNavigation.panes.root;
@@ -388,7 +388,7 @@ try {
   await expect.poll(async () => (await state()).contentTabs.some(item => item.kind === 'project' && item.value === projectKey)).toBe(false);
   expect((await state()).activeContent?.value).not.toBe(projectKey);
   expect((await state()).workspaceNavigation.panes.root.view.tabs.items).toContainEqual(appView);
-  await clickAppShortcut(page, 'scientific-viewer');
+  await openCatalogApp(page, 'scientific-viewer');
   await expect.poll(async () => (await state()).activeContent).toEqual(appState.activeContent);
   await project();
   const keyboardReopened = await state();

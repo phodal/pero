@@ -1,7 +1,7 @@
 // Real Desktop navigation: session ownership stays in Host, Apps stay in its catalog.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppShortcut, clickAppOpen, pressNewChat, clickSessionRow, clickSessionSearch, setAppearance } from './sidebar-controls.mjs';
+import { clickAppShortcut, clickAppOpen, openCatalogApp, pressNewChat, clickSessionRow, clickSessionSearch, setAppearance } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -25,7 +25,7 @@ await mkdir(resolve(appRoot, 'dist'), { recursive: true });
 await writeFile(resolve(appRoot, '.installation.json'), '{"enabled":true}');
 await writeFile(resolve(appRoot, 'app.json'), JSON.stringify({ schemaVersion: 1, name, version: '1.0.0', displayName: 'Library sample', description: 'A local App used to verify navigation.', contributes: { panels: [{ id: 'main', title: 'Sample', entry: 'dist/index.html' }] } }));
 await writeFile(resolve(appRoot, 'dist/index.html'), `<html><body><h1>Library sample</h1><input aria-label="Retained draft"><script>parent.postMessage({type:'pero:app:ready'},'*')</script></body></html>`);
-const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), PERO_SETTINGS_PATH: settings, PERO_HISTORY_PATH: journal, PERO_APPS_ROOT: resolve(temp, 'apps'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'data,insights,connectors', PERO_LOCALE: 'en' };
+const env = { ...process.env, PERO_DESKTOP_DATA_DIR: resolve(temp, 'desktop'), PERO_SETTINGS_PATH: settings, PERO_HISTORY_PATH: journal, PERO_APPS_ROOT: resolve(temp, 'apps'), PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: 'data,compute,environments,notebook,paper-agent,insights,connectors', PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
 let desktop, page;
 const errors = [];
@@ -39,6 +39,28 @@ try {
   await expect.poll(async () => (await state()).apps?.some(app => app.name === name)).toBe(true);
   await expect.poll(async () => (await state()).projectControls['sidebar:actions']?.width).toBeGreaterThan(0);
   expect((await state()).projectControls['sidebar:new']).toBeUndefined();
+  const expectedShortcuts = ['apps', 'sessions', 'projects', 'terminal', 'connectors', 'paper-agent', 'notebook'];
+  const storeApps = ['compute', 'data', 'environments', name];
+  const relevantApps = new Set([...expectedShortcuts, ...storeApps]);
+  const expectShortcuts = () => expect.poll(async () => Object.keys((await state()).sidebarButtonBounds || {})
+    .filter(name => relevantApps.has(name)).sort()).toEqual([...expectedShortcuts].sort());
+  const projectRows = snapshot => Object.entries(snapshot.projectControls)
+    .filter(([key]) => key.startsWith('sidebar:open:')).map(([, bounds]) => bounds);
+  await expectShortcuts();
+  await expect.poll(async () => projectRows(await state()).length).toBeGreaterThan(0);
+  const expanded = await state();
+  const shortcuts = expanded.sidebarButtonBounds;
+  expect(shortcuts.projects.y).toBeLessThan(shortcuts['paper-agent'].y);
+  for (const row of projectRows(expanded)) expect(row.y + row.height).toBeLessThan(shortcuts['paper-agent'].y);
+  expect(shortcuts['paper-agent'].y).toBeLessThan(shortcuts.notebook.y);
+  expect(shortcuts.notebook.y).toBeLessThan(shortcuts.apps.y);
+  expect(shortcuts.apps.y).toBeLessThan(shortcuts.terminal.y);
+  await clickAppShortcut(page, 'projects');
+  await expect.poll(async () => projectRows(await state()).length).toBe(0);
+  await expectShortcuts();
+  await shot('projects-collapsed-light.png');
+  await clickAppShortcut(page, 'projects');
+  await expect.poll(async () => projectRows(await state()).length).toBeGreaterThan(0);
   await shot('projects-light.png');
   await clickAppShortcut(page, 'sessions');
   await expect.poll(async () => Object.keys((await state()).sessionRowBounds || {}).sort()).toEqual(['assay-reading', 'model-review']);
@@ -61,7 +83,7 @@ try {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
   await page.keyboard.press('Backspace');
   await expect.poll(async () => Object.keys((await state()).sessionRowBounds || {}).length).toBe(2);
-  await clickAppShortcut(page, name);
+  await openCatalogApp(page, name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.getByRole('heading', { name: 'Library sample' })).toBeVisible();
   await frame.getByRole('textbox', { name: 'Retained draft' }).fill('keep this draft');
@@ -96,14 +118,11 @@ try {
   await clickAppShortcut(page, 'sessions');
   await clickSessionRow(page, 'assay-reading');
   await expect.poll(async () => (await state()).activeContent).toEqual({ kind: 'conversation', value: 'assay-reading' });
-  await clickAppShortcut(page, name);
+  await openCatalogApp(page, name);
   await expect(frame.getByRole('textbox', { name: 'Retained draft' })).toHaveValue('keep this draft');
   await clickAppShortcut(page, 'apps');
-  await expect.poll(async () => Object.keys((await state()).appOpenButtonBounds || {}).includes(name)).toBe(true);
-  await expect.poll(async () => Object.keys((await state()).sidebarButtonBounds || {}).sort()).toEqual(['apps', 'sessions', 'projects', 'terminal', 'connectors', 'data', 'insights', name].sort());
-  const shortcuts=(await state()).sidebarButtonBounds;
-  expect(shortcuts.apps.y).toBeLessThan(shortcuts.connectors.y);
-  expect(shortcuts.terminal.y).toBeGreaterThan(shortcuts[name].y);
+  await expect.poll(async () => Object.keys((await state()).appOpenButtonBounds || {}).sort()).toEqual([...storeApps].sort());
+  await expectShortcuts();
   await shot('apps-light.png');
   await clickAppOpen(page, name);
   await expect(frame.getByRole('textbox', { name: 'Retained draft' })).toHaveValue('keep this draft');
@@ -122,7 +141,7 @@ try {
   expect(errors).toEqual([]);
   const saved = await readFile(journal, 'utf8');
   for (const id of ['model-review', 'assay-reading']) expect(saved).toContain(id);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, checks: ['dedicated session list', 'real session selection', 'workspace name folds in place', 'session search', 'enabled Apps in sidebar', 'App grid opens real local panel', 'App ChatDock creates a focused scoped draft without leaving the App', 'App draft retained across Sessions navigation', 'new chat within Sessions', 'light/dark and narrow window', 'Host journal preserved'], errors }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, checks: ['dedicated session list', 'real session selection', 'workspace name folds in place', 'session search', 'Paper and Notebook stay visible when Projects folds', 'Data, Compute and Environments are in the App Store', 'App grid opens real local panel', 'App ChatDock creates a focused scoped draft without leaving the App', 'App draft retained across Sessions navigation', 'new chat within Sessions', 'light/dark and narrow window', 'Host journal preserved'], errors }, null, 2));
   await rm(resolve(out, 'failure.png'), { force: true });
   console.log('Sessions / Apps navigation passed.');
 } catch (error) {

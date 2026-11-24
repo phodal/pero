@@ -49,13 +49,13 @@ pub(crate) struct InstalledApp {
     pub column_header: ColumnHeaderContribution,
 }
 
-/// App shortcut placement and optional catalog management.
+/// Where the Workbench lets users open an installed App.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AppPlacement { Primary, Workspace, WorkspaceCatalog, Customize, Automation, Catalog }
+pub(crate) enum AppPlacement { Primary, Research, Customize, Automation, Skills, Catalog }
 
 impl AppPlacement {
     pub fn in_catalog(self) -> bool {
-        matches!(self, Self::Catalog | Self::WorkspaceCatalog)
+        matches!(self, Self::Catalog | Self::Skills)
     }
 }
 
@@ -71,22 +71,21 @@ impl InstalledApp {
     pub fn placement(&self) -> AppPlacement {
         match self.name.as_str() {
             "insights" => AppPlacement::Primary,
-            "paper-agent" | "data" | "notebook" => AppPlacement::Workspace,
-            "environments" | "compute" => AppPlacement::WorkspaceCatalog,
+            "paper-agent" | "notebook" => AppPlacement::Research,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
+            "skills" => AppPlacement::Skills,
             _ => AppPlacement::Catalog,
         }
-    }
-    /// Workspace tools stay discoverable before first activation; optional
-    /// catalog Apps join the sidebar only after the user enables them.
-    pub fn has_sidebar_entry(&self) -> bool {
-        self.enabled || self.placement() != AppPlacement::Catalog
     }
     /// Skills is a section of Customize once Connectors can open. It keeps its
     /// own shortcut only when that host is not enabled.
     pub fn listed_in_sidebar(&self, connectors_enabled: bool) -> bool {
-        self.has_sidebar_entry() && !(self.name == "skills" && connectors_enabled)
+        match self.placement() {
+            AppPlacement::Catalog => false,
+            AppPlacement::Skills => self.enabled && !connectors_enabled,
+            _ => true,
+        }
     }
     /// The Customize shortcut stays selected while its Skills section is open.
     pub fn shortcut_selected(&self, current: Option<&str>, skills_folded_into_customize: bool) -> bool {
@@ -583,6 +582,7 @@ mod surface {
                         let toggle_name = name.clone();
                         let remove_name = name.clone();
                         let enabled = app.enabled;
+                        let open_label = self.t(if enabled { "apps.open" } else { "apps.enable" });
                         let toggle_label = self.t(if enabled { "apps.disable" } else { "apps.enable" });
                         let remove_label = self.t("apps.remove");
                         let menu_caption = format!("{}  {}", title, app.version);
@@ -607,7 +607,8 @@ mod surface {
                                         .font_weight(FontWeight::SEMIBOLD).text_size(chrome.text(pero_theme::TYPE_BODY)).child(title.clone()))
                                     .child(div().flex_shrink_0().flex().items_center().gap(px(2.))
                                         .child(Button::new(("app-open", index)).small()
-                                            .label(self.t(if enabled { "apps.open" } else { "apps.enable" }))
+                                            .label(open_label)
+                                            .accessibility_label(format!("{}: {}", title, open_label))
                                             .disabled(busy)
                                             .relative().children((enabled && !busy).then(|| self.view_bounds.app_open.probe(name.clone())))
                                             .on_click(cx.listener(move |this, _, _, cx| {
@@ -648,23 +649,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn workspace_tools_remain_discoverable_before_activation() {
+    fn research_shortcuts_and_store_apps_remain_discoverable_before_activation() {
         for (name, enabled, shortcut, catalog) in [
             ("hpc", false, false, true),
-            ("hpc", true, true, true),
-            ("compute", false, true, true),
-            ("compute", true, true, true),
-            ("environments", false, true, true),
-            ("environments", true, true, true),
+            ("hpc", true, false, true),
+            ("compute", false, false, true),
+            ("compute", true, false, true),
+            ("data", false, false, true),
+            ("data", true, false, true),
+            ("environments", false, false, true),
+            ("environments", true, false, true),
             ("paper-agent", false, true, false),
+            ("notebook", true, true, false),
             ("virtual-cell", false, false, true),
-            ("virtual-cell", true, true, true),
+            ("virtual-cell", true, false, true),
         ] {
             let app: InstalledApp = serde_json::from_value(serde_json::json!({
                 "name": name, "version": "1", "displayName": name,
                 "enabled": enabled, "panels": []
             })).unwrap();
-            assert_eq!(app.has_sidebar_entry(), shortcut, "{name}, enabled={enabled}");
+            assert_eq!(app.listed_in_sidebar(false), shortcut, "{name}, enabled={enabled}");
             assert_eq!(app.placement().in_catalog(), catalog, "{name}");
         }
     }

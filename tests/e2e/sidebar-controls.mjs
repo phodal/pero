@@ -30,6 +30,10 @@ export async function clickSessionRow(page, sessionId) {
 export async function clickAppOpen(page, appName) {
   await clickBounds(page, snapshot => snapshot.appOpenButtonBounds?.[appName]);
 }
+export async function openCatalogApp(page, appName) {
+  await clickAppShortcut(page, 'apps');
+  await clickAppOpen(page, appName);
+}
 export async function clickAppShortcut(page, appName) {
   await clickBounds(page, snapshot => snapshot.sidebarButtonBounds?.[appName]);
 }

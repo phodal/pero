@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
-import { clickAppShortcut } from './sidebar-controls.mjs';
+import { openCatalogApp } from './sidebar-controls.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(root, 'test-results/app-chat-dedup');
@@ -31,8 +31,7 @@ async function focusComposer() {
 try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1488, 1000));
   await page.waitForFunction(() => window.peroDiagnostics && !document.getElementById('loading'), undefined, { timeout: 60000 });
-  await expect.poll(async () => !!(await state()).sidebarButtonBounds?.hpc).toBe(true);
-  await clickAppShortcut(page, 'hpc');
+  await openCatalogApp(page, 'hpc');
   const frame = page.frameLocator('iframe[title="hpc"]');
   const button = frame.getByRole('button', { name: 'Discuss with Agent', exact: true });
   await expect(button).toBeEnabled({ timeout: 60000 });

@@ -3,7 +3,7 @@ import { selectPaperOption } from './paper-research-ui-controls.mjs';
 import { exerciseImageOnly, reopenImageOnly, isImageOnlyStudyRejectionConsole } from './paper-image-only-flow.mjs';
 import { paperBackendFixture } from './paper-backend-fixture.mjs';
 import { chatState, fillPaperChat, closePaperChat, showPaperReport } from './paper-chat-controls.mjs';
-import { clickAppShortcut } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp } from './sidebar-controls.mjs';
 import { exerciseLocalSearch, exerciseTextSearchLocations } from './paper-search-flow.mjs';
 import { exerciseTextImportNavigation } from './paper-import-flow.mjs';
 // Real Electron -> Rust Host -> Python App; Agent output is a labelled ACP fixture.
@@ -87,7 +87,8 @@ async function openPaper(page, name = 'paper-agent') {
     const canvas = document.querySelector('canvas');
     return canvas?.width === Math.round(innerWidth * devicePixelRatio) && canvas.height === Math.round(innerHeight * devicePixelRatio);
   });
-  await clickAppShortcut(page, name);
+  if (name === 'paper-agent') await clickAppShortcut(page, name);
+  else await openCatalogApp(page, name);
   await expect.poll(async () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()).activeApp?.name)).toBe(name);
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.locator('body')).toBeAttached({ timeout: 20000 });

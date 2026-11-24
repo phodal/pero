@@ -1,7 +1,7 @@
 // Explicit opt-in: installs the real Control Lab Python dependencies from PyPI.
 import { expect } from '@playwright/test';
 import { electron } from './electron.mjs';
-import { clickAppOpen, setAppearance, clickAppShortcut } from './sidebar-controls.mjs';
+import { clickAppOpen, setAppearance, clickAppShortcut, openCatalogApp } from './sidebar-controls.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, rm, access, realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -40,7 +40,7 @@ try {
   await expect(access(environment)).rejects.toMatchObject({ code: 'ENOENT' });
   const originalSettings = await readFile(settings, 'utf8');
   await page.evaluate(() => window.pero.appsCommand({ action: 'apps_project_resources', name: 'control-lab' }));
-  await clickAppShortcut(page, 'control-lab');
+  await openCatalogApp(page, 'control-lab');
   await expect.poll(() => page.evaluate(() => window.preparationEvents.length)).toBeGreaterThanOrEqual(3);
   expect(await page.evaluate(() => window.preparationEvents.every(event => event.phase === 'required'))).toBe(true);
   await expect(access(environment)).rejects.toMatchObject({ code: 'ENOENT' });

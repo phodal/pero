@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { electron } from './electron.mjs';
-import { clickAppShortcut } from './sidebar-controls.mjs';
+import { clickAppShortcut, openCatalogApp } from './sidebar-controls.mjs';
 import { setPaperAppearance } from './paper-pdf-flow.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -68,7 +68,7 @@ async function exercise() {
   const dataFile = 'context-sample.csv';
   let dataset;
   if (linkData) {
-    await clickAppShortcut(page, 'data');
+    await openCatalogApp(page, 'data');
     const data = page.frameLocator('iframe[title="data"]');
     await data.getByRole('button', { name: 'Add data', exact: true }).click();
     const dialog = data.getByRole('dialog');

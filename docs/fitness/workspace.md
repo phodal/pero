@@ -147,3 +147,24 @@ Electron development profile, opening Insights showed `Insights` in the sidebar
 and active tab in both locales. Screenshots: `test-results/insights-naming/zh-CN.png`
 and `test-results/insights-naming/en.png`. This checks the development Electron
 surface; macOS Native and installed packages were not checked.
+
+## Sidebar research shortcuts and App Store — 2026-11-24
+
+Source `ff89b3f1c` with local changes. The shared GPUI `SidebarGroup` and
+`SidebarRow` render Papers and Notebook as their own group immediately after
+the Projects list. Whitespace separates the groups. The Projects disclosure
+only toggles project rows. Data, Compute, Environments and the other catalog
+Apps open from the existing App Store cards. Existing App tabs, installation
+state and saved content use their original owners.
+
+- The isolated macOS Native development preview showed the borderless layout
+  in Chinese with two project rows and nine App Store cards. With Projects
+  collapsed, Papers and Notebook each opened a tab. Data, Compute and
+  Environments each opened a tab through the store.
+- The isolated Electron Sessions / Apps suite passed with real pointer
+  navigation, including project disclosure, catalog placement and retention of
+  an App draft after leaving and reopening its panel. Inspected `apps-light.png`,
+  `apps-dark.png` and `apps-narrow.png` under `test-results/sessions-apps/`.
+- The Data suite opened Data from the store and imported a fixture. Its duplicate
+  row assertion expected only the count, while the existing preview also renders
+  the button label in the same field. Installed packages were outside this pass.

@@ -1,7 +1,7 @@
 // Opt-in: creates real venvs, downloads wheels and binds the actual App backend.
 import {expect} from '@playwright/test';
 import {electron} from './electron.mjs';
-import {clickAppShortcut,setAppearance} from './sidebar-controls.mjs';
+import {openCatalogApp,setAppearance} from './sidebar-controls.mjs';
 import {mkdtemp,mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -17,7 +17,7 @@ try{
  page=await app.firstWindow();
  await page.waitForFunction(()=>window.peroDiagnostics && !document.getElementById('loading'),undefined,{timeout:60000});
  await expect.poll(()=>page.evaluate(()=>JSON.parse(window.peroDiagnostics.snapshot()).apps?.some(a=>a.name==='environments'))).toBe(true);
- await clickAppShortcut(page,'environments');
+ await openCatalogApp(page,'environments');
  const frame=page.frameLocator('iframe[title="environments"]');
  await page.screenshot({path:resolve(out,'catalog-empty.png')});
  await frame.getByRole('button',{name:'Create environment',exact:true}).click();
@@ -119,7 +119,7 @@ try{
  expect(settings.app_python.apps['control-lab']).toContain('/environment/profiles/env-');
  await expect(frame.getByRole('button',{name:'Prepare environment',exact:true})).toHaveCount(0);
  await page.screenshot({path:resolve(out,'bound-light.png')});
- await clickAppShortcut(page,'control-lab');
+ await openCatalogApp(page,'control-lab');
  const control=page.frameLocator('iframe[title="control-lab"]');
  await expect(control.getByRole('heading',{name:'Control Lab',exact:true})).toBeVisible({timeout:30000});
  const calculation=await control.locator('body').evaluate(async()=>{
@@ -132,7 +132,7 @@ try{
  expect(result.trials.length).toBeGreaterThan(0);
  expect(result.trials.every(t=>t.status!=='failed')).toBe(true);
  await writeFile(resolve(out,'calculation.json'),JSON.stringify(result,null,2));
- await clickAppShortcut(page,'environments');
+ await openCatalogApp(page,'environments');
  await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].setMinimumSize(480,600);BrowserWindow.getAllWindows()[0].setSize(720,800);});
  await setAppearance(page,'dark');
  await expect.poll(()=>frame.locator('html').evaluate(el=>el.style.colorScheme)).toBe('dark');
