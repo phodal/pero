@@ -1,31 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './connectors-page.css';
 import { validateResearchSettings } from './connector-definition.mjs';
 import { matchesProvider } from './shared/catalog-search.mjs';
 import { useConnectorDetail } from './use-connector-detail.ts';
 import { useInstallRecords } from './use-install-records.ts';
 import { useConnectorsSnapshot } from './use-connectors-snapshot';
-import { ConnectorDetailDialog, PROVIDER_NAMES_EN, StatusDot } from './connector-detail-dialog.tsx';
+import { ConnectorDetailDialog, PROVIDER_NAMES_EN } from './connector-detail-dialog.tsx';
 import { JsonEditor, jsonProblem } from './connector-editor.tsx';
 import type { DirectoryEntry, ConnectionView, Reply, ImportDraft } from './connector-types.ts';
 import { PROVIDER_SUMMARIES_EN, PROVIDER_SUMMARIES, AUTH_MODE_TEXT_EN, ProviderIcon, IMPORT_EXAMPLES } from './connectors-catalog.tsx';
-import {
-  ACTION_LABELS, ACTION_LABELS_EN, AUTH_MODE_TEXT, BADGE_LABELS, BADGE_LABELS_EN,
-  STATE_LABELS, STATE_LABELS_EN, LIFECYCLE_HINTS, LIFECYCLE_HINTS_EN, cardTitle, errorText, explain, summaryLine,
-} from './shared/connection-copy.mjs';
+import { AUTH_MODE_TEXT, cardTitle, errorText } from './shared/connection-copy.mjs';
 import { importConnectorJSON } from './shared/import-json.mjs';
-import { CAPABILITY_GUIDES, capabilityGuides, visibleCapabilityGuides } from './capability-guides.mjs';
 
 import { connectorSections, connectorShelf } from './connector-categories.mjs';
-import { CustomMcps, type CustomMcpBar } from './custom-mcps';
 import { errorMessage } from './error-message.ts';
 import type { PointBrowserOpener, PointBrowserRequest } from './bridge.ts';
-import { AppBar, Button, CatalogCard, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LibraryHeader, ListRow, LoadingSkeleton, RadioGroup, RadioGroupItem, SearchField, Select, SkeletonCards, SkeletonText, Tabs, TabsContent, TabsList, TabsTrigger, ToggleGroup, ToggleGroupItem } from './ui';
+import { AppBar, Button, CatalogCard, ContentPane, ContentSection, Dialog, EmptyIllustration, EmptyState, Icon, IconButton, InfoTip, LoadingSkeleton, SearchField, Select, SkeletonCards, Tabs, TabsList, TabsTrigger } from './ui';
 import { SkillsMarket } from '../../skills/ui-src/market';
 
-
-const ATTENTION = new Set(['needs-attention', 'needs-authorization', 'needs-configuration', 'not-verified']);
-const READY = new Set(['connected', 'verified']);
 
 export { connectorRequest as connectorsRequest } from './bridge';
 import { connectorRequest as connectorsRequest } from './bridge';
@@ -66,28 +58,20 @@ function validateDraft(connectorId: string, definition: any, locale = 'zh'): { f
   return null;
 }
 
-type CapabilityGuide = (typeof CAPABILITY_GUIDES)[number];
-
 /**
  * The Connectors page. With `openProvider` it renders only that provider's
  * configuration dialog (its connection when one exists, else the install
  * form) and calls `onClosed` when the dialog closes — how Pulse connects
  * GitHub or Linear in place instead of sending the person to this page.
  */
-type ConnectorMode = 'catalog' | 'manage' | 'custom';
 type CustomizeSection = 'skills' | 'mcp';
-export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openConnection, settingsOnly = false, initialMode = 'catalog', initialSection = 'mcp', onModeChange, locale = 'zh' }: { locale?: 'zh' | 'en'; initialMode?: ConnectorMode; initialSection?: CustomizeSection; onOpenUrl?: PointBrowserOpener; onModeChange?: (mode: ConnectorMode) => void; onTry?: (prompt: string) => void | Promise<void>; openProvider?: string; openConnection?: string; settingsOnly?: boolean; onClosed?: () => void } = {}) {
+export function ConnectorsPage({ onOpenUrl, openProvider, onClosed, openConnection, settingsOnly = false, initialSection = 'mcp', locale = 'zh' }: { locale?: 'zh' | 'en'; initialSection?: CustomizeSection; onOpenUrl?: PointBrowserOpener; openProvider?: string; openConnection?: string; settingsOnly?: boolean; onClosed?: () => void } = {}) {
   const copy = (zh: string, en: string) => locale === 'zh' ? zh : en;
   const { directory, connections, entries, error, loading, refreshing, reload } = useConnectorsSnapshot(locale);
   const dialogOnly = !!openProvider;
   const openedFor = useRef('');
-  const [mode, updateMode] = useState<ConnectorMode>(initialMode);
   const [section, setSection] = useState<CustomizeSection>(initialSection);
   const searchField = useRef<HTMLInputElement>(null);
-  const [customBar, setCustomBar] = useState<CustomMcpBar | null>(null);
-  const onCustomBar = useCallback((bar: CustomMcpBar | null) => setCustomBar(bar), []);
-  const setMode = (next: ConnectorMode) => { updateMode(next); onModeChange?.(next); };
-  useEffect(() => updateMode(initialMode), [initialMode]);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !event.altKey) {
@@ -103,11 +87,6 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   const [removeTarget, setRemoveTarget] = useState<ConnectionView | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [stateFilter, setStateFilter] = useState<'all' | 'attention' | 'ready' | 'paused'>('all');
-  const [guideId, setGuideId] = useState<string | null>(null);
-  const [exampleId, setExampleId] = useState<string | null>(null);
-  const [guideError, setGuideError] = useState('');
-  const [trying, setTrying] = useState(false);
 
   const [toolSelection, setToolSelection] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState('');
@@ -132,7 +111,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     setEditMode, secretReference, secretValue, setSecretValue, setFieldError, provider, view, isDirty,
     openDetail, closeDetail } = detail;
   const [configurationRequest, setConfigurationRequest] = useState({ connectionId: '', revision: 0 });
-  const installRecords = useInstallRecords(connectorsRequest, mode === 'catalog' && !dialogOnly && !detailOpen);
+  const installRecords = useInstallRecords(connectorsRequest, section === 'mcp' && !dialogOnly && !detailOpen);
 
   // Falls back to 'all' once the directory loads if the selected category
   // turns out not to exist in it (or, transiently, while directory is still
@@ -208,7 +187,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     // state instead of re-deriving from (stale) directory/connections here;
     // the next render resolves `view`/`raw` fresh from the reloaded state.
     void run('put', () => connectorsRequest({ operation: 'put', connectorId: savedId, definition, ...(view ? { expectedRevision: view.revision } : {}) }), copy('正在保存配置…', 'Saving configuration…'))
-      .then(outcome => { if (outcome) { detail.markSaved(savedId, savedText, generation); setMode('manage'); say(copy('配置已保存。', 'Configuration saved.')) } });
+      .then(outcome => { if (outcome) { detail.markSaved(savedId, savedText, generation); say(copy('配置已保存。', 'Configuration saved.')) } });
   };
 
   const importPasted = () => {
@@ -284,38 +263,9 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
   const categoriesAvailable = connectorSections(directory, locale);
   const shelfCounts = Object.fromEntries(connectorSections(matchesSearch, locale).map(section => [section.id, section.entries.length]));
   const catalogSections = connectorSections(matchesCatalog, locale);
-  const matchesManage = connections.filter(view => (view.connectionId.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || view.displayName.toLocaleLowerCase().includes(search.toLocaleLowerCase()) || view.origin.toLocaleLowerCase().includes(search.toLocaleLowerCase())) &&
-    (stateFilter === 'all' || (stateFilter === 'attention' ? ATTENTION.has(view.state) : stateFilter === 'ready' ? READY.has(view.state) : !view.enabled)));
 
-  const guides = mode === 'catalog' ? visibleCapabilityGuides(search, category, locale) : [];
-  const guide = capabilityGuides(locale).find(item => item.id === guideId) ?? null;
-  const openGuide = (item: CapabilityGuide) => {
-    setGuideId(item.id);
-    setExampleId(item.examples[0]?.id ?? null);
-    setGuideError('');
-  };
-  const tryGuide = async () => {
-    if (!guide) return;
-    const example = guide.examples.find(item => item.id === exampleId) ?? guide.examples[0];
-    if (!example) return;
-    if (!onTry) {
-      setGuideError(copy('试用还没接到当前对话。', 'Try it is not connected to the current conversation yet.'));
-      return;
-    }
-    setGuideError('');
-    setTrying(true);
-    try {
-      await onTry(example.prompt);
-      setGuideId(null);
-    } catch (e) {
-      setGuideError(errorMessage(e));
-    } finally {
-      setTrying(false);
-    }
-  };
-
-  return <Tabs value={mode} onValueChange={next => { if (next === 'catalog' || next === 'manage' || next === 'custom') { setMode(next); setSearch(''); } }}><section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} data-section={dialogOnly ? undefined : section} aria-label={copy('自定义', 'Customize')}>
-    {section === 'mcp' && error && mode !== 'custom' && <div role="alert"><p className="point-error">{error} {directory.length || connections.length ? copy('当前显示上次读取的结果。', 'Showing the last loaded results.') : ''}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
+  return <section className={dialogOnly ? 'point-connectors-dialog-only' : 'point-page point-connectors-page'} data-section={dialogOnly ? undefined : section} aria-label={copy('自定义', 'Customize')}>
+    {section === 'mcp' && error && <div role="alert"><p className="point-error">{error} {directory.length || connections.length ? copy('当前显示上次读取的结果。', 'Showing the last loaded results.') : ''}</p><Button onClick={() => void reload()} disabled={refreshing}>{copy('重新加载', 'Reload')}</Button></div>}
     {loading && dialogOnly && <p className="point-page-note" role="status">{copy('正在加载…', 'Loading…')}</p>}
     {!dialogOnly && <>
 
@@ -328,23 +278,14 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
     {section === 'skills' && <SkillsMarket embedded searchRef={searchField} />}
     {section === 'mcp' && <>
 
-    <AppBar className="point-connectors-toolbar" scope={<TabsList variant="navigation" aria-label={copy('视图', 'View')}>
-        <TabsTrigger value="catalog">{copy('服务目录', 'Service catalog')}</TabsTrigger>
-        <TabsTrigger value="manage">{copy('已安装连接', 'Installed connections')}{connections.length ? ` ${connections.length}` : ''}</TabsTrigger>
-        <TabsTrigger value="custom">{copy('自定义 MCPs', 'Custom MCPs')}</TabsTrigger>
-      </TabsList>}
-      utilities={<IconButton label={copy('刷新', 'Refresh')} disabled={mode === 'custom' ? !customBar || customBar.busy || customBar.loading : refreshing} onClick={() => { if (mode === 'custom') customBar?.refresh(); else void reload(); }}><Icon name="refresh" /></IconButton>}
-      commands={mode === 'custom' ? <Button variant="ghost" disabled={!customBar || customBar.locked} onClick={() => customBar?.importJson()}>{copy('导入 JSON', 'Import JSON')}</Button> : undefined}
-      primary={mode === 'custom'
-        ? <Button variant="primary" disabled={!customBar || customBar.locked} onClick={() => customBar?.add()}><Icon name="plus" />{copy('添加服务器', 'Add server')}</Button>
-        : <Button variant="primary" onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button>} />
+    <AppBar className="point-connectors-toolbar"
+      utilities={<IconButton label={copy('刷新', 'Refresh')} disabled={refreshing} onClick={() => void reload()}><Icon name="refresh" /></IconButton>}
+      primary={<Button variant="primary" onClick={openImport} disabled={!!error || loading}><Icon name="plus" />{copy('自定义 MCP', 'Custom MCP')}</Button>} />
 
-    {refreshing && !loading && mode !== 'custom' && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
-    {notice && mode !== 'custom' && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
+    {refreshing && !loading && <p className="point-page-note" role="status">{copy('正在刷新，保留上次连接状态…', 'Refreshing; previous connection states remain visible…')}</p>}
+    {notice && !detailOpen && !importOpen && <p className={noticeError ? 'point-error' : 'point-connectors-notice'} role={noticeError ? 'alert' : 'status'}>{notice}</p>}
 
-    {mode === 'catalog' && <TabsContent value="catalog" className="point-connectors-catalog"><ContentPane id="connectors-catalog" label={copy('服务目录', 'Service catalog')} as="div" surface="list" inset="compact" scroll="pane"
-      header={<LibraryHeader density="compact" title={copy('服务目录', 'Service catalog')} subtitle={directory.length || (!loading && !error)
-        ? copy(`${matchesCatalog.length} ${search || category !== 'all' ? '项匹配' : '个服务'}`, `${matchesCatalog.length} ${search || category !== 'all' ? 'matches' : 'services'}`) : undefined} />}
+    <div className="point-connectors-catalog"><ContentPane id="connectors-catalog" label={copy('服务目录', 'Service catalog')} as="div" surface="list" inset="compact" scroll="pane"
       toolbar={<div className="pero-catalog-tools">
         <SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
         <Select label={copy('服务分类', 'Service category')} value={category} onChange={setCategory} options={[
@@ -353,16 +294,6 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
         ]} />
         {(search || category !== 'all') && <Button variant="ghost" onClick={() => { setSearch(''); setCategory('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>}
       </div>}>
-      {guides.length > 0 && <ContentSection id="connectors-capabilities" title={copy('内置能力', 'Built-in capabilities')}>
-        <div className="point-connectors-guides">{guides.map(item => <Button key={item.id} variant="unstyled" className="point-connectors-guide" aria-label={item.title} aria-describedby={`capability-${item.id}`} onClick={() => openGuide(item)}>
-          {item.id === 'computer-use' ? <Icon family="shell" name="computer" size={20} /> : <Icon name="app" size={20} />}
-          <span className="point-connectors-guide-copy">
-            <span className="point-connectors-guide-title">{item.title}</span>
-            <span className="point-connectors-guide-summary" id={`capability-${item.id}`}>{item.summary}</span>
-          </span>
-          <Icon name="chevron-right" />
-        </Button>)}</div>
-      </ContentSection>}
       {loading && !directory.length && <LoadingSkeleton label={copy('正在加载服务目录…', 'Loading the service catalog…')}><SkeletonCards count={3} /></LoadingSkeleton>}
       {/* One section per tab, in tab order, so the catalog reads as sections instead of one long mixed grid. */}
       {catalogSections.map(section => {
@@ -380,7 +311,7 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
               icon={<ProviderIcon entry={entry} />} subtitle={meta} description={summary}
               detail={prerequisite && <InfoTip label={copy('使用要求', 'Requirements')} text={prerequisite} />}
               action={installed.length
-                  ? <Button onClick={() => { if (installed.length === 1) openDetail(installed[0].connectionId); else { setMode('manage'); setSearch(entry.displayName); } }}>{copy('管理', 'Manage')}</Button>
+                  ? <Button onClick={() => openDetail((installed.find(item => item.enabled) ?? installed[0]).connectionId)}>{copy('管理', 'Manage')}</Button>
                   : entry.listed ? <Button title={prerequisite} onClick={() => openDocs(entry.providerId)}>{copy('查看文档', 'View docs')}</Button>
                   : <Button disabled={!!entry.sealed} title={entry.sealed ? copy('内置服务由应用提供，不能新建实例', 'Built-in services are provided by the app') : copy('查看要求并配置连接', 'Review requirements and configure a connection')} onClick={() => openDetail(null, entry.providerId)}>{entry.sealed ? copy('内置', 'Built-in') : copy('添加连接', 'Add connection')}</Button>} />;
           })}
@@ -389,47 +320,12 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
           ? <ContentSection key={section.id} id={`connectors-shelf-${section.id}`} title={section.label} actions={<span className="point-connectors-section-count">{section.entries.length}</span>}>{shelf}</ContentSection>
           : <section key={section.id} className="point-connectors-section" aria-label={section.label}>{shelf}</section>;
       })}
-      {!matchesCatalog.length && (!guides.length || !catalogDirectory.length) && !loading && !error && (catalogDirectory.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
+      {!matchesCatalog.length && !loading && !error && (catalogDirectory.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
         heading={copy('没有匹配的服务', 'No matching services')} description={copy('换个关键词，或清除分类筛选。', 'Try another search or clear the category filter.')}
         actions={<Button variant="ghost" onClick={() => { setSearch(''); setCategory('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
         : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('服务目录暂无内容', 'No services available')}
           description={copy('重新加载目录，或添加自定义 MCP。', 'Reload the service catalog or add a custom MCP.')} />)}
-    </ContentPane></TabsContent>}
-
-    {mode === 'manage' && <TabsContent value="manage" className="point-connectors-manage"><ContentPane id="connectors-installed" label={copy('已安装连接', 'Installed connections')} as="div" surface="list" inset="compact" scroll="pane"
-      header={<LibraryHeader density="compact" title={copy('已安装连接', 'Installed connections')} subtitle={String(matchesManage.length)} />}
-      toolbar={<div className="point-connectors-search-tools">
-        <SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} />
-        <ToggleGroup className="point-page-filters point-connectors-categories" type="single" value={stateFilter} aria-label={copy('筛选', 'Filter')} onValueChange={next => { if (next === 'all' || next === 'attention' || next === 'ready' || next === 'paused') setStateFilter(next); }}>
-          {([['all', copy('全部', 'All')], ['attention', copy('需处理', 'Needs attention')], ['ready', copy('正常', 'Ready')], ['paused', copy('已停用', 'Paused')]] as const).map(([key, label]) =>
-            <ToggleGroupItem key={key} value={key}>{label} {key === 'all' ? connections.length : key === 'attention' ? connections.filter(c => ATTENTION.has(c.state)).length : key === 'ready' ? connections.filter(c => READY.has(c.state)).length : connections.filter(c => !c.enabled).length}</ToggleGroupItem>)}
-        </ToggleGroup></div>}>
-      {loading && !connections.length && <LoadingSkeleton label={copy('正在加载已安装连接…', 'Loading installed connections…')}><SkeletonText /></LoadingSkeleton>}
-      {matchesManage.length > 0 && <div className="point-page-list">
-        {matchesManage.map(view => <ListRow key={view.connectionId} className="point-connectors-row" icon={<StatusDot state={view.state} />} title={cardTitle(view)}
-          badge={<span className="point-connectors-pill" data-state={view.state}>{(locale === 'en' ? STATE_LABELS_EN : STATE_LABELS)[view.state] ?? view.state}</span>}
-          meta={<>{summaryLine(view)}{view.badges.filter(b => ['lease-held', 'probe-released', 'source-builtin'].includes(b)).map(b => <span key={b} className="point-connectors-badge">{(locale === 'en' ? BADGE_LABELS_EN : BADGE_LABELS)[b] ?? b}</span>)}</>}
-          onOpen={() => openDetail(view.connectionId)}
-          trailing={<div className="point-page-row-actions">
-            <Button disabled={!!busy} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS)[view.primary] ?? ''} onClick={() => perform(view.primary, view)}>{(locale === 'en' ? ACTION_LABELS_EN : ACTION_LABELS)[view.primary] ?? view.primary}</Button>
-            <Button aria-label={`${copy('详情', 'Details')} ${cardTitle(view)}`} onClick={() => openDetail(view.connectionId)}>{copy('详情', 'Details')}</Button>
-            {view.lifecycle.includes('remove') && <Button variant="danger" disabled={!!busy}
-              aria-label={`${copy('删除', 'Remove')} ${cardTitle(view)}`} title={(locale === 'en' ? LIFECYCLE_HINTS_EN : LIFECYCLE_HINTS).remove ?? ''} onClick={() => requestRemove(view)}>{copy('删除', 'Remove')}</Button>}
-          </div>} />)}
-      </div>}
-      {!matchesManage.length && !loading && !error && (connections.length ? <EmptyState icon={<EmptyIllustration kind="search" size="compact" />}
-        heading={copy('没有匹配的连接', 'No matching connections')} description={copy('换个关键词，或清除状态筛选。', 'Try another search or clear the state filter.')}
-        actions={<Button onClick={() => { setSearch(''); setStateFilter('all'); }}>{copy('清除筛选', 'Clear filters')}</Button>} />
-        : <EmptyState icon={<EmptyIllustration kind="connections" />} heading={copy('尚未添加连接', 'No connections yet')}
-          description={copy('从服务目录安装一个连接，或添加自定义 MCP。', 'Install a connection from the service catalog or add a custom MCP.')}
-          actions={<Button variant="ghost" onClick={() => { setMode('catalog'); setSearch(''); setCategory('all'); }}>{copy('查看服务目录', 'Browse service catalog')}</Button>} />)}
-    </ContentPane></TabsContent>}
-
-    {mode === 'custom' && <TabsContent value="custom" className="point-connectors-manage"><ContentPane id="connectors-custom" label={copy('自定义 MCPs', 'Custom MCPs')} as="div" surface="list" inset="compact" scroll="pane"
-      header={<LibraryHeader density="compact" title={copy('自定义 MCPs', 'Custom MCPs')} />}
-      toolbar={<div className="point-connectors-search-tools"><SearchField ref={searchField} placeholder={copy('搜索服务、连接…', 'Search services and connections')} value={search} onChange={e => setSearch(e.target.value)} aria-label={copy('搜索', 'Search')} /></div>}>
-      <CustomMcps locale={locale} query={search} onBar={onCustomBar} />
-    </ContentPane></TabsContent>}
+    </ContentPane></div>
     </>}
     </>}
 
@@ -462,33 +358,10 @@ export function ConnectorsPage({ onTry, onOpenUrl, openProvider, onClosed, openC
       actions={{ save, importPasted, saveSecret, deleteSecret, saveTools, perform,
         onDocs: openDocs }} />}
 
-    {guide && <Dialog className="point-connectors-guide-dialog" title={guide.title} size="md" closeLabel={copy('关闭', 'Close')} dismissOnBackdrop onClose={() => { if (!trying) setGuideId(null); }}
-      footerStart={<span className="point-connectors-hint">{copy('试用只把这句话放进输入框，不会直接发送。', 'Try it fills the composer without sending the message.')}</span>}
-      footer={<><Button disabled={trying} onClick={() => setGuideId(null)}>{copy('关闭', 'Close')}</Button>
-        <Button variant="primary" disabled={trying} onClick={() => void tryGuide()}>{trying ? copy('正在放入…', 'Adding…') : copy('试用', 'Try it')}</Button></>}>
-      <p>{guide.lead}</p>
-      <div>
-        <div className="point-connectors-guide-kicker">{copy('可以做', 'What it can do')}</div>
-        <ul className="point-connectors-guide-list">{guide.can.map(line => <li key={line}>{line}</li>)}</ul>
-      </div>
-      <div>
-        <div className="point-connectors-guide-kicker">{copy('边界', 'Boundaries')}</div>
-        <ul className="point-connectors-guide-list">{guide.bounds.map(line => <li key={line}>{line}</li>)}</ul>
-      </div>
-      <div className="point-connectors-guide-kicker">{copy('试一句', 'Try a prompt')}</div>
-      <RadioGroup className="point-connectors-examples" value={exampleId} onValueChange={setExampleId} aria-label={copy('试一句', 'Try a prompt')}>
-        {guide.examples.map(example => <label key={example.id} className="point-connectors-example">
-          <RadioGroupItem value={example.id} />
-          <span><strong>{example.label}</strong><span className="point-connectors-guide-prompt">{example.prompt}</span></span>
-        </label>)}
-      </RadioGroup>
-      {guideError && <p className="point-error" role="alert">{guideError}</p>}
-    </Dialog>}
-
     {removeTarget && <Dialog title={copy('删除连接器', 'Remove connector')} closeLabel={copy('关闭', 'Close')} dismissOnBackdrop size="sm" onClose={() => { if (!busy) setRemoveTarget(null); }}
       footer={<><Button disabled={!!busy} onClick={() => setRemoveTarget(null)}>{copy('取消', 'Cancel')}</Button>
         <Button variant="danger" disabled={!!busy} onClick={confirmRemove}>{busy === 'remove' ? copy('正在删除…', 'Removing…') : copy('确认删除', 'Confirm removal')}</Button></>}>
       <p>{copy('确定要删除', 'Remove')} <strong>{cardTitle(removeTarget)}</strong>{copy('吗？这将删除这个连接的配置与本机授权记录。', '? This removes its configuration and local consent records.')}</p>
     </Dialog>}
-  </section></Tabs>;
+  </section>;
 }
