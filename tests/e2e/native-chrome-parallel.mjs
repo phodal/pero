@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
@@ -11,10 +11,11 @@ import { parallelBrowserFixture } from '../fixtures/browser-parallel.mjs';
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
 const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
+const payload = installed && resolve(installed, 'Contents/Resources/app');
 const binary = installed ? resolve(installed, 'Contents/MacOS/pero-native')
   : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
 if (installed) execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--deep', installed]);
-const extension = resolve(root, 'target/chrome-extension');
+const extension = payload ? resolve(payload, 'packages/connectors/helpers/chrome-extension') : resolve(root, 'target/chrome-extension');
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-chrome-parallel-'));
 const profile = resolve(temp, 'profile'), agents = resolve(temp, 'agents.json');
 const report = resolve(temp, 'session.json'), pairing = resolve(temp, 'pairing.json');
@@ -32,6 +33,7 @@ await writeFile(agents, JSON.stringify([{ id: agent, name: 'Browser fixture', co
 const code = `
 import asyncio
 import json
+import sys
 tabs = (await cua.browser({"action":"tabs"}))["tabs"]
 slow_tab = next(tab["tabId"] for tab in tabs if tab["url"].endswith("/parallel-source"))
 fast_tab = next(tab["tabId"] for tab in tabs if tab["url"].endswith("/parallel-peer"))
@@ -58,7 +60,7 @@ async def fast_lane():
         "operation":{"action":"click"}})
     return applied
 navigation, applied = await asyncio.gather(slow_lane(), fast_lane())
-print(json.dumps({"navigation":navigation["outcome"], "applied":applied["outcome"]}))
+print(json.dumps({"navigation":navigation["outcome"], "applied":applied["outcome"], "python":sys.executable}))
 `;
 let app, chrome, exited, log = '', timer;
 try {
@@ -67,9 +69,13 @@ try {
     PERO_NATIVE_BROWSER_PROBE_WORKSPACE: temp, PERO_NATIVE_BROWSER_PROBE_URL: origin + '/parallel-source',
     PERO_NATIVE_REPL_PROBE_AGENT: agent, PERO_NATIVE_REPL_CHROME_PAIRING_PATH: pairing,
     PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code }]) };
-  if (installed) { delete env.PERO_NATIVE_HOST; delete env.PERO_ADAPTER_NODE; }
-  else env.PERO_ADAPTER_NODE = process.execPath;
-  app = spawn(binary, ['--verify-apps', report, 'browser'], { cwd: root, env, stdio: ['ignore', 'ignore', 'pipe'] });
+  if (installed) {
+    delete env.PERO_NATIVE_HOST;
+    delete env.PERO_ADAPTER_NODE;
+    env.PATH = '/usr/bin:/bin';
+    env.DEVELOPER_DIR = resolve(temp, 'no-developer-tools');
+  } else env.PERO_ADAPTER_NODE = process.execPath;
+  app = spawn(binary, ['--verify-apps', report, 'browser'], { cwd: installed ? temp : root, env, stdio: ['ignore', 'ignore', 'pipe'] });
   app.stderr.on('data', chunk => { log += chunk; });
   exited = once(app, 'exit');
   timer = setTimeout(() => app.kill('SIGTERM'), 60_000);
@@ -102,14 +108,16 @@ try {
   const [reply] = JSON.parse(result.reply.replace(/^BROWSER_RESULT:/, ''));
   assert.equal(result.error, null, JSON.stringify(result));
   assert.equal(reply.isError, false, reply.text);
-  assert.deepEqual(JSON.parse(reply.text), { navigation: 'dispatched', applied: 'dispatched' });
+  const { python, ...actions } = JSON.parse(reply.text);
+  assert.deepEqual(actions, { navigation: 'dispatched', applied: 'dispatched' });
+  if (payload) assert.equal(await realpath(python), await realpath(resolve(payload, 'runtime/python/bin/python3')));
   await expect(fast.locator('output')).toHaveText('Trusted independent click');
   await expect(slow.getByRole('heading')).toHaveText('Slow navigation completed');
   assert.deepEqual(fixture.events, ['slow-request', 'fast-click', 'release']);
   const output = resolve(root, 'test-results/native-chrome-parallel');
   await mkdir(output, { recursive: true });
   await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, installed: !!installed,
-    events: fixture.events, sameTabConflictRejected: true }, null, 2));
+    python, events: fixture.events, sameTabConflictRejected: true }, null, 2));
   console.log('Native Python REPL completed parallel operations through the real Chrome extension.');
 } finally {
   clearTimeout(timer);

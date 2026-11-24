@@ -161,6 +161,7 @@ async fn verify_repl_agent(
         .map(std::path::PathBuf::from);
     let site_tools = std::env::var_os("PERO_NATIVE_REPL_CHROME_SITE_TOOLS").is_some();
     let mut pair_requested = false;
+    let mut approval_window_requested = false;
     let started = Instant::now();
     let mut chat_created = false;
     let mut sent = false;
@@ -199,6 +200,14 @@ async fn verify_repl_agent(
                     return Ok(None);
                 }
                 if !pairing.with_extension("ready").is_file() {
+                    return Ok(None);
+                }
+                if site_tools && !window.is_window_active() {
+                    if !approval_window_requested {
+                        window.activate_window();
+                        cx.activate(true);
+                        approval_window_requested = true;
+                    }
                     return Ok(None);
                 }
             } else {

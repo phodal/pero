@@ -1,10 +1,10 @@
-// Opt-in macOS development acceptance. System Events needs Accessibility access.
+// Opt-in macOS acceptance. System Events needs Accessibility access.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
@@ -12,8 +12,15 @@ import { siteToolPage, partnerSiteToolPage } from '../fixtures/browser-site-tool
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const extension = resolve(root, 'target/chrome-extension');
-const binary = process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
+const payload = installed && resolve(installed, 'Contents/Resources/app');
+const extension = payload
+  ? resolve(payload, 'packages/connectors/helpers/chrome-extension')
+  : resolve(root, 'target/chrome-extension');
+const binary = installed
+  ? resolve(installed, 'Contents/MacOS/pero-native')
+  : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+if (installed) execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--deep', installed]);
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-chrome-site-tools-'));
 const profile = resolve(temp, 'profile'),
   agents = resolve(temp, 'agents.json');
@@ -48,6 +55,7 @@ await writeFile(
 );
 const code = `
 import json
+import sys
 tab = next(tab["tabId"] for tab in (await cua.browser({"action":"tabs"}))["tabs"] if tab["url"].endswith("/webmcp"))
 listed = await cua.browser({"action":"listSiteTools","tabId":tab})
 assert any(tool["name"] == "set_frame_heading" for tool in listed["tools"]), listed
@@ -62,7 +70,7 @@ else:
 result = await cua.browser(request)
 assert result["outcome"] == "dispatched", result
 assert result["result"]["displayed"] == "Native tool approved", result
-print(json.dumps({"receiptId":result["receiptId"], "denied":True, "tab":tab}))
+print(json.dumps({"receiptId":result["receiptId"], "denied":True, "tab":tab, "python":sys.executable}))
 `;
 let app,
   chrome,
@@ -71,12 +79,21 @@ let app,
   log = '';
 try {
   app = spawn(binary, ['--verify-apps', report, 'browser'], {
-    cwd: root,
+    cwd: installed ? temp : root,
     stdio: ['ignore', 'ignore', 'pipe'],
     env: {
       ...process.env,
-      PERO_ADAPTER_NODE: process.execPath,
-      PERO_NATIVE_HOST: process.env.PERO_NATIVE_HOST || resolve(root, 'target/debug/pero-host'),
+      ...(installed
+        ? {
+            PERO_ADAPTER_NODE: undefined,
+            PERO_NATIVE_HOST: undefined,
+            PATH: '/usr/bin:/bin',
+            DEVELOPER_DIR: resolve(temp, 'no-developer-tools'),
+          }
+        : {
+            PERO_ADAPTER_NODE: process.execPath,
+            PERO_NATIVE_HOST: process.env.PERO_NATIVE_HOST || resolve(root, 'target/debug/pero-host'),
+          }),
       PERO_NATIVE_EPHEMERAL_SECRETS: '1',
       PERO_NATIVE_DATA_DIR: profile,
       PERO_AGENTS_FILE: agents,
@@ -137,10 +154,10 @@ try {
       tell application "System Events"
         set p to first application process whose unix id is ${app.pid}
         tell window 1 of p
-          if not (exists sheet 1) then return "waiting"
+          if not (exists sheet 1) then return "waiting for approval sheet"
           tell sheet 1
             set labels to (value of every static text) as text
-            if labels does not contain "Run this website tool?" or labels does not contain "${marker}" then return "waiting"
+            if labels does not contain "Run this website tool?" or labels does not contain "${marker}" then return labels
             click button "${button}"
             return "responded"
           end tell
@@ -169,6 +186,11 @@ try {
   assert.equal(reply.isError, false, reply.text);
   await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
   const evidence = JSON.parse(reply.text);
+  if (payload)
+    assert.equal(
+      await realpath(evidence.python),
+      await realpath(resolve(payload, 'runtime/python/bin/python3')),
+    );
   const visit = resolve(
     profile,
     'browser-use-evidence',
@@ -181,7 +203,14 @@ try {
   await writeFile(
     resolve(output, 'result.json'),
     JSON.stringify(
-      { passed: true, installed: false, denied: evidence.denied, tab: evidence.tab, receipt },
+      {
+        passed: true,
+        installed: !!installed,
+        python: evidence.python,
+        denied: evidence.denied,
+        tab: evidence.tab,
+        receipt,
+      },
       null,
       2,
     ),
@@ -189,6 +218,9 @@ try {
   console.log(
     'Native Python REPL completed WebMCP discovery and approved tool call through the real Chrome extension.',
   );
+} catch (error) {
+  if (log.trim()) console.error(log);
+  throw error;
 } finally {
   clearTimeout(timer);
   if (app && app.exitCode === null && app.signalCode === null) {
