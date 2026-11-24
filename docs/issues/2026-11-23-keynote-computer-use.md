@@ -232,5 +232,12 @@ seconds, so this change retains the bounded OCR path.
 - A separate Native UI run used a local ACP fixture and controlled companion
   pixels. It rendered the full window inline, opened and returned the floating
   view, hid and restored the preview during the active turn, and cleared it on
-  Stop. A fully authorized installation with the real companion remains to be
-  checked as one end-to-end path.
+  Stop.
+- On 2026-11-24 the combined signed macOS candidate used the authorized
+  bundled companion to show a real AppKit window during an ACP fixture turn.
+  The Native UI opened and returned the floating view and hid and restored
+  the inline preview while the turn was running. A background `Increment`
+  using the original observation executed through the semantic press route.
+  The fixture recorded one increment and the displayed pixels changed from
+  `Count: 0` to `Count: 1`. Stop removed the preview immediately. The fixture
+  was then released and the composer exited its running state.

@@ -259,7 +259,10 @@ The parallel fixture holds one navigation response while another tab
 completes trusted input, both through browser MCP calls and through
 `javascript_repl`. Use `node tests/e2e/native-chrome-parallel.mjs` with a
 Native probe build and rebuilt connectors to run the same fixture through
-the Native Python REPL.
+the Native Python REPL. On 2026-11-24 the combined signed macOS candidate
+passed using its bundled Python, the rebuilt extension and headed Chrome.
+The peer tab completed trusted input and released the held navigation, and
+an overlapping observation on the navigating tab was rejected.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.
