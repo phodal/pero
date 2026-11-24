@@ -88,10 +88,12 @@ try {
   await panel.getByRole('button', { name: 'More' }).click();
   await panel.getByRole('menuitem', { name: 'Collector' }).click();
   await expect(panel.locator('#collector-capture')).toBeEnabled();
-  await panel.locator('#collector-capture-scope').selectOption('selection');
   await target.locator('main').evaluate(main => getSelection().selectAllChildren(main));
   await target.bringToFront();
-  await panel.locator('#collector-capture').evaluate(button => button.click());
+  const sourceTab = await worker.evaluate(async targetUrl => (await chrome.tabs.query({ url: targetUrl }))[0].id, url);
+  await panel.goto('about:blank');
+  await panel.goto(base + `collector.html#tab=${sourceTab}&scope=selection`);
+  await expect(panel.locator('#collector-capture-scope')).toHaveValue('selection');
   await expect(panel.locator('#collector-content')).toHaveValue('Amber observatory');
   await panel.getByLabel('Save to').selectOption('shared:lab');
   await panel.locator('#collector-title').fill('Field notes 摘录');

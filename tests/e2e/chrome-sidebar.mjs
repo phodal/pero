@@ -116,6 +116,7 @@ try {
   const pairing = await owner.relay.pairing('Browser acceptance');
   await review.goto(origin + '/relay.html#' + new URLSearchParams({ pair: pairing }));
   await expect(review.locator('#status')).toContainText('Connected');
+  const worker = chrome.serviceWorkers()[0] ?? await chrome.waitForEvent('serviceworker');
   await expect(panel.getByRole('textbox', { name: 'Message Pero' })).toHaveValue('Chrome sidebar message');
   await panel.getByLabel('Model', {exact:true}).selectOption('two');
   await expect.poll(() => composer.model).toBe('two');
@@ -143,11 +144,31 @@ try {
   assert.equal(saved.content, 'Amber observatory');
 
   await panel.locator('#collector-another').click();
-  await target.locator('main').evaluate(main => getSelection().selectAllChildren(main));
-  await panel.locator('#collector-capture-scope').selectOption('selection');
+  await target.evaluate(() => {
+    const aside = document.createElement('aside');
+    aside.textContent = 'Page-only note';
+    document.querySelector('main').append(aside);
+  });
+  const sourceTab = await worker.evaluate(async targetUrl => (await chrome.tabs.query({ url: targetUrl }))[0].id, url);
   await target.bringToFront();
-  await panel.locator('#collector-capture').evaluate(button => button.click());
+  await panel.goto('about:blank');
+  await panel.goto(origin + `/collector.html#tab=${sourceTab}&scope=page`);
+  await expect(panel.locator('#collector-capture-scope')).toHaveValue('page');
+  await expect(panel.locator('#collector-content')).toHaveValue(/Page-only note/);
+  await expect(panel.locator('#collector-capture')).toBeEnabled();
+  await target.locator('main').evaluate(main => {
+    const range = document.createRange();
+    range.selectNodeContents(main.firstChild);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  });
+  assert.equal((await target.evaluate(() => getSelection().toString())).trim(), 'Amber observatory');
+  await target.bringToFront();
+  await panel.goto('about:blank');
+  await panel.goto(origin + `/collector.html#tab=${sourceTab}&scope=selection`);
+  await expect(panel.locator('#collector-capture-scope')).toHaveValue('selection');
   await expect(panel.locator('#collector-editor')).toBeVisible();
+  await expect(panel.locator('#collector-content')).toHaveValue('Amber observatory');
   await panel.getByLabel('Save to').selectOption(project.id);
   await panel.locator('#collector-title').fill('Observatory 摘录');
   await panel.locator('#collector-content').fill('Amber observatory 🌱');
