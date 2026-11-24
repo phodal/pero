@@ -619,3 +619,12 @@ bytes and receipt after relaunch, then removes the two fixture credentials.
 This passed in an isolated copy of the Native bundle. Evidence is under
 `test-results/installed-shared-project-sources/`. The Cloud API was a loopback
 fixture. A hosted deployment still needs acceptance.
+# Signed Native Chrome REPL verification
+
+The signed Native candidate ran the real Codex agent over the bundled Python
+REPL and the actual unpacked extension in Chrome for Testing. One pairing
+exposed both ordinary fixture tabs in the isolated profile. The fixture origin
+had one saved site approval. The agent clicked the first tab, read its
+canvas-only code from a screenshot, then activated the second tab and located
+its control. The local server recorded exactly one trusted click. Host evidence
+recorded both tab IDs and matched the image delivered in the ACP transcript.
