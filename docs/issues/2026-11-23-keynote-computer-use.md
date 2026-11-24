@@ -165,3 +165,21 @@ seconds, so this change retains the bounded OCR path.
   handler. Pero advertises formatted paste with foreground delivery on
   macOS. The helper checks the observed window is still the focused
   foreground window immediately before sending Paste.
+
+## Native vision acceptance
+
+- The new AppKit fixture draws a randomly outlined tile and a confirmation
+  code that appears after the correct click. Neither code is exposed by AX or
+  supplied to the model as text. The installed Native REPL test disables OCR,
+  requires a screenshot-anchored background click, checks exactly one
+  selection in the fixture, and matches both native images to the Host journal.
+- The rebuilt helper with the authorized test runner returned both real
+  screenshots. The fixture independently recorded one background click on
+  the intended tile, and the second screenshot showed its confirmation code.
+- A signed staged Pero launched its bundled Python. Real Codex read the
+  WKWebView screenshot's random code after the page received a trusted click.
+  Native screenshot acquisition stopped before input when macOS returned
+  `kAXErrorAPIDisabled` for the staged companion. Both staged permission
+  preflights were undetected. The previously installed companion reported
+  both permissions, but uses a different ad hoc signing identity. The staged
+  model-guided native click remains unverified.
