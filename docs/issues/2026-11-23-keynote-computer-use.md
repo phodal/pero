@@ -206,8 +206,7 @@ seconds, so this change retains the bounded OCR path.
   both prevented capture. The foreground formatted-paste regression also passed.
 - The signed Native shell built and opened its disposable draft. Codex's
   app-targeted key delivery did not trigger the macOS global shortcut during
-  this check. A physical shortcut with an authorized installed helper remains
-  to be verified.
+  this check.
 - `tests/e2e/native-appshot.mjs` feeds an owned foreground window PID into the
   Native shortcut channel. A signed test package with a controlled companion
   response appended its JPEG and accessible text to the original draft.
@@ -221,6 +220,10 @@ seconds, so this change retains the bounded OCR path.
   then waits for a keypress with the test window in front. The original probe
   skipped registration, so a timeout there provided no evidence about the
   normal Workbench shortcut.
+- The physical shortcut passed on 2026-11-24 with the signed Native probe and
+  an authorized companion. A physical Control+Shift+Command+7 keypress on the
+  owned AppKit window attached its JPEG and AX text to the existing draft.
+  The ACP fixture observed zero prompt calls.
 
 ## Live preview with independent workers
 
