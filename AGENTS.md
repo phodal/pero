@@ -87,11 +87,6 @@ beyond loopback unless the test is an explicit opt-in, such as
   `server/go.mod` and ignores `harness/go`; from `harness/go`, run
   `bazel test //...`.
 
-## Browser and Computer Use REPL
-
-Use the [Pero REPL development skill](skills/pero-cua-repl/SKILL.md) for runtime
-selection, example cells and Electron or macOS Native acceptance.
-
 ## UI
 
 Read [DESIGN.md](DESIGN.md) for product principles and design sources, then use
