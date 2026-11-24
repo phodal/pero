@@ -135,6 +135,7 @@ internal static class ComputerFixture
                     session = process.SessionId,
                     count, guardCount, fieldFocused = field.Focused, text = field.Text,
                     foreground = foreground == target.Handle ? "target" : foreground == guard.Handle ? "guard" : "other",
+                    foregroundWindow = foreground.ToInt64().ToString("x"),
                     pointer = Position(Cursor.Position), frame = Geometry(target.Bounds),
                     visibleFrame = hasVisibleBounds ? Geometry(Rectangle.FromLTRB(visible.Left, visible.Top, visible.Right, visible.Bottom)) : null,
                     button = Geometry(button.RectangleToScreen(button.ClientRectangle)),

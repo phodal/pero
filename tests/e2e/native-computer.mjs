@@ -29,7 +29,7 @@ try {
   await Promise.all([mkdir(data), mkdir(workspace), mkdir(output, { recursive: true })]);
   const receipt = resolve(output, 'session.json');
   await rm(receipt, { force: true });
-  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'pero' }));
+  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'pero', computer_use: { allowed_applications: ['dev.pero.perocomputerfixture'] } }));
   fixture = await computerFixture(root, temp);
   const env = { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data,
     PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_COMPUTER_PROBE_WORKSPACE: workspace, PERO_LOCALE: 'en' };

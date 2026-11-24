@@ -105,14 +105,25 @@ pub fn save_locale(path: &Path, locale: &str) -> io::Result<()> {
     })
 }
 
-pub fn load_computer_enabled(path: &Path) -> bool {
-    std::fs::read(path).ok()
+pub fn load_computer(path: &Path) -> pero_contracts::computer_runtime::ComputerSettings {
+    std::fs::read(path)
+        .ok()
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .and_then(|settings| settings.get("computer_use")?.get("enabled")?.as_bool())
-        .unwrap_or(false)
+        .and_then(|settings| serde_json::from_value(settings["computer_use"].clone()).ok())
+        .unwrap_or_default()
 }
-pub fn save_computer_enabled(path: &Path, enabled: bool) -> io::Result<()> {
-    update(path, |settings| settings["computer_use"] = serde_json::json!({ "enabled": enabled }))
+
+pub fn update_computer(
+    path: &Path,
+    change: impl FnOnce(&mut pero_contracts::computer_runtime::ComputerSettings),
+) -> io::Result<pero_contracts::computer_runtime::ComputerSettings> {
+    let mut result = Default::default();
+    update(path, |settings| {
+        result = serde_json::from_value(settings["computer_use"].clone()).unwrap_or_default();
+        change(&mut result);
+        settings["computer_use"] = serde_json::json!(&result);
+    })?;
+    Ok(result)
 }
 
 pub fn load_chat_agent(path: &Path) -> Option<String> {

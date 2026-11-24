@@ -23,6 +23,10 @@ async function run(commands) {
   let observed, selectedFiles;
   const results = [];
   for (const { name, ...args } of commands) {
+    if (args.action === 'parallel') {
+      results.push(await Promise.all(args.lanes.map(run)));
+      continue;
+    }
     if (args.action === 'repl') {
       const { tool, ...parameters } = args;
       delete parameters.action;

@@ -98,7 +98,7 @@ impl DesktopDriver for OwnedDesktop {
             source: AppSnapshot(clicks),
             bounds: Some(self.0.borrow().bounds),
             elements,
-            image: None,
+            image: Err(ComputerCaptureStatus::Unavailable),
             truncated: false,
         })
     }
@@ -362,4 +362,80 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             }
         }
     }
+}
+
+#[test]
+fn application_authority_applies_to_existing_window_references() {
+    use crate::access::ApplicationAccess;
+    let app = Rc::new(RefCell::new(App {
+        bounds: WindowBounds {
+            x: 0.,
+            y: 0.,
+            w: 600.,
+            h: 400.,
+        },
+        clicks: 0,
+        fail_after_input: false,
+        refuse_before_input: false,
+    }));
+    let mut runtime = ComputerRuntime::new(OwnedDesktop(app.clone()), 99);
+    let thread: ComputerRef = "thread".to_owned().try_into().unwrap();
+    let owned: ComputerRef = "owned".to_owned().try_into().unwrap();
+    let granted = ApplicationAccess::Allowed(std::slice::from_ref(&owned));
+    let denied = ApplicationAccess::Allowed(&[]);
+    let ComputerResponse::Targets { targets, .. } = runtime
+        .call_with_access(thread.clone(), ComputerRequest::Targets {}, granted)
+        .unwrap()
+    else {
+        panic!()
+    };
+    let target = targets[0].reference.clone();
+    let observe = ComputerRequest::Observe {
+        target: target.clone(),
+        options: ComputerObserveOptions::default(),
+    };
+    let ComputerResponse::Observation { observation, .. } = runtime
+        .call_with_access(thread.clone(), observe.clone(), granted)
+        .unwrap()
+    else {
+        panic!()
+    };
+
+    for request in [
+        observe,
+        ComputerRequest::Screenshot {
+            target: target.clone(),
+            recognize_text: true,
+        },
+    ] {
+        assert_eq!(
+            runtime
+                .call_with_access(thread.clone(), request, denied)
+                .unwrap_err()
+                .code,
+            ComputerErrorCode::PermissionRequired,
+        );
+    }
+    let input = serde_json::from_value::<ComputerInput>(serde_json::json!({
+        "kind": "click", "anchor": { "kind": "element", "element_id": observation.elements[0].id },
+        "button": "left", "count": 1,
+    }))
+    .unwrap();
+    let action = ComputerAction {
+        request_id: "click".to_owned().try_into().unwrap(),
+        target,
+        observation_id: observation.id,
+        delivery: ComputerDelivery::Background,
+        input,
+    };
+    let ComputerResponse::Receipt { receipt, .. } = runtime
+        .call_with_access(thread, ComputerRequest::Act { action }, denied)
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(
+        matches!(receipt.outcome, ComputerActionOutcome::Rejected { error } if error.code == ComputerErrorCode::PermissionRequired)
+    );
+    assert_eq!(app.borrow().clicks, 0);
 }

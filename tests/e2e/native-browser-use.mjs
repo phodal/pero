@@ -1,6 +1,6 @@
 // Real macOS Native Workbench, stdio Host, ACP session, MCP, and WebKit.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -13,6 +13,10 @@ import { browserNavigationPage } from '../fixtures/browser-use-navigation.mjs';
 assert.equal(process.platform, 'darwin');
 const { PNG } = createRequire(import.meta.url)('playwright-core/lib/utilsBundle');
 const root = resolve(import.meta.dirname, '../..');
+const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
+const binary = installed ? resolve(installed, 'Contents/MacOS/pero-native')
+  : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+if (installed) execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--deep', installed]);
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-browser-'));
 const hits = new Map();
 const downloadText = 'browser,value\nwebkit,已验证\n';
@@ -188,15 +192,19 @@ print(json.dumps(results))`;
     ] },
     { permission: 'revoke', commands: [status] },
   ];
-  child = spawn(process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native'),
-    ['--verify-apps', receipt, 'browser'], {
-      cwd: root,
-      env: { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data,
-        PERO_AGENTS_FILE: agents, PERO_ADAPTER_NODE: process.execPath, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
-        PERO_NATIVE_BROWSER_PROBE_WORKSPACE: workspace, PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns),
-        PERO_NATIVE_BROWSER_PROBE_URL: origin + '/' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+  const env = { ...process.env, PERO_NATIVE_EPHEMERAL_SECRETS: '1', PERO_NATIVE_DATA_DIR: data,
+    PERO_AGENTS_FILE: agents, PERO_BUILTIN_APPS: '', PERO_REQUIRED_APPS: '', PERO_LOCALE: 'en',
+    PERO_NATIVE_BROWSER_PROBE_WORKSPACE: workspace, PERO_NATIVE_BROWSER_PROBE_TURNS: JSON.stringify(turns),
+    PERO_NATIVE_BROWSER_PROBE_URL: origin + '/' };
+  if (installed) {
+    delete env.PERO_NATIVE_HOST;
+    delete env.PERO_ADAPTER_NODE;
+    env.PATH = '/usr/bin:/bin';
+    env.DEVELOPER_DIR = resolve(temp, 'no-developer-tools');
+  } else env.PERO_ADAPTER_NODE = process.execPath;
+  child = spawn(binary, ['--verify-apps', receipt, 'browser'], {
+    cwd: installed ? temp : root, env, stdio: ['ignore', 'pipe', 'pipe'],
+  });
   let log = '';
   child.stderr.on('data', chunk => { log += chunk; });
   child.stdout.on('data', chunk => { log += chunk; });

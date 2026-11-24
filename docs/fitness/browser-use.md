@@ -141,7 +141,14 @@ Chrome pairing. A saved Block also prevents sharing the site with a Cloud run.
 `handoff` releases an individual tab and leaves it open for the user. For
 Chrome it detaches that tab's debugger and keeps other tabs in the pairing
 available. A new pairing can grant access to the tab again.
-Page operations require an active tab in its window and a current document.
+Page operations require a current document. Pass an explicit `chrome:`
+`tabId` with `background: true` to read or operate an inactive tab without
+selecting it. The default requires the tab to be active. JavaScript dialog
+handling and opening a tab through `open` use the active-tab path.
+Extension 0.3.9 can run requests to different Chrome tabs together. Use
+explicit tab IDs and await dependent operations in order on each tab. A
+conflicting operation on the same tab returns an error. Older extensions
+continue with a single Relay request at a time.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
 With extension 0.3.3, `click` with `expectPopup: true` reports the first
@@ -162,6 +169,200 @@ returns control on the dialog event so the next request can handle it, then
 settles the original input before the next page operation. Dialog action
 receipts record the decision and ID. The prompt answer stays out of the receipt.
 
+### Browser Developer Mode
+
+In Electron, enable **Workbench → Browser Developer Mode**. It works with an
+authorized embedded Chromium tab or paired Chrome 0.3.7 or newer. Native
+offers the toggle in its Chrome menu for paired Chrome tabs. Each capture
+asks for separate approval and remains bound to the current tab and document.
+The mode resets when the Workbench exits.
+
+`browser_use` action `diagnose` takes an optional `captureMs` of 100–4000,
+defaulting to 750. It returns console messages, runtime errors, network
+status and timing, and Chromium performance metrics. Network entries include
+only same-origin URLs, with query strings and fragments omitted. Use
+`style: { selector: "h1", properties: ["color"] }` to inspect computed CSS
+and `profile: true` to request a CPU sample. When the attached driver lacks
+the Profiler domain, the result includes `profileUnavailable: true` with the
+other observations. The Chrome and Electron fixtures independently assert
+that the expected console, network, runtime and CSS values reach ACP. The
+embedded Chromium fixture also checks a named function in its CPU sample.
+
+`cdpSend` runs a read-only command on the approved Chromium tab. Pass
+`command: { method: "Page.getLayoutMetrics" }`, `Performance.getMetrics`, or
+`DOM.getDocument`. The DOM command supports depth 0 or 1. Extension 0.3.12
+adds `Page.getFrameTree` and `Page.getResourceTree`. Both return the tree for
+the approved document and its same-origin HTTP(S) frames. The resource tree
+includes same-origin resource URLs and their Chromium metadata. Replies are
+limited to 32 KiB. Paired Chrome requires extension 0.3.11 or newer for the
+original three commands and event cursor.
+
+`cdpReadEvents` reads Chromium's recent console calls and uncaught exceptions
+from the top document. Pass `methods` to filter and the returned `cursor` as
+`after` to read the next events with the same filter. Use `hasMore` to page
+through results and `truncated` to detect when the buffer could not cover the
+requested range. The cursor expires when the page reloads or the debugger
+detaches. Each read requires approval. Ordinary JavaScript evaluation is
+outside these actions.
+
+`cdpListTargets` discovers directly related out-of-process iframe targets in
+Electron Chromium or paired Chrome with extension 0.3.14 or newer. It
+defaults to the approved origin. Add exact origins to `fromOrigins` to request
+separate approvals before seeing a cross-origin iframe. With `cdpSend`, pass
+the returned `id` and `origin` as `target` to use a supported Page, DOM or
+Performance command. Each call asks for approval for the target origin. The
+target identifier expires when the child reloads or navigates, when the top
+document changes, or when a new discovery replaces it. Same-process iframes
+remain available through `observe`, `query` and `act` with a frame selector.
+
+With extension 0.3.15 or Electron, pass `depth` from 2 to 4 to follow nested
+out-of-process frames. Discovery walks approved ancestors and returns
+`parentId` on descendants. With `cdpReadEvents`, pass the same `target` to
+read recent console calls and uncaught exceptions from the selected iframe.
+Its cursor is tied to the target's discovery and its ancestors' documents.
+
+With extension 0.3.16 or Electron, `Network.enable`, `Network.disable`,
+`Network.getResponseBody`, and `cdpReadEvents` with `timeoutMs` also accept an
+iframe `target`. Keep the target with its returned capture cursor and request
+IDs. One child capture and the top-document capture can run side by side.
+Starting another child capture replaces the previous child capture.
+Navigation or detachment of the child or an ancestor, a fresh target
+discovery, and turning off Developer Mode end the child capture.
+
+With extension 0.3.17 or Electron, after the debugger reports that an iframe
+target detached, `cdpReadEvents` can page its buffered events using the same
+approved target and cursor. Such replies include `detached: true`. Detachment
+ends collection and response-body access. The buffer expires at the original
+one-minute deadline. Disabling Network or Developer Mode, changing the top
+document or pairing, or starting a new discovery or child capture clears it.
+
+With extension 0.3.18 or Electron, use `cdpReadEvents` with
+`Target.attachedToTarget`, `Target.targetInfoChanged`, or
+`Target.detachedFromTarget` to watch direct out-of-process iframes. The first
+read starts a one-minute stream and returns a checkpoint. Pass the checkpoint
+as `after` on subsequent reads. Use `fromOrigins` to request approval for
+additional origins, and keep the approved origin set with the cursor. A frame
+whose origin was unknown at attachment appears once Chromium supplies an
+approved URL. The events share a stream-local `targetId`. Event URLs omit
+queries and fragments. A
+new watch, navigation of the top document, expiry, debugger release, or
+revocation discards the watch. Read Runtime and Network events separately.
+
+With extension 0.3.19 or Electron, take `targetId` and `origin` from an
+attach or update event and pass them as `target: { id: targetId, origin }`
+to `cdpSend` or `cdpReadEvents`. Pero binds the handle to the iframe document
+when returning the event. Reloading, detaching, or ending the watch expires
+the handle. After a change to the iframe URL, read its update for the new
+handle. `cdpListTargets` remains available to rediscover a reloaded iframe.
+
+With Chrome extension 0.3.13 or Electron, send `Network.enable` with
+`cdpSend` to start a live capture and get its initial cursor. Perform a
+page action and pass that cursor as `after` to `cdpReadEvents`. During a live
+capture, omitting `after` returns an empty page and a checkpoint at the
+current position. Use `timeoutMs` up to 4000 to wait for the first matching
+event. Events include top-document console and exceptions, same-origin
+request starts, responses, and loading completion or failure. Network
+events include request IDs and paths with queries and fragments removed.
+Use `Network.getResponseBody` with the request ID from a completed request
+to read a text or JSON body of up to 16 KiB. `Network.disable` stops the
+capture and discards the buffer. A capture also ends after one minute,
+when Developer Mode is turned off, on navigation or debugger release,
+or when a new capture or `diagnose` takes over the debugger domains.
+The Workbench asks for approval on each request. The method names and
+event lifecycle follow the [CDP Network domain](https://chromedevtools.github.io/devtools-protocol/tot/Network/).
+
+Codex exposes permitted CDP commands and event cursors on a tab in
+[Browser Developer mode](https://learn.chatgpt.com/docs/whats-new).
+On 2026-11-24, the connected Codex Chrome extension returned frame and
+resource trees on an owned loopback page. After `Network.enable` and a click,
+its numeric cursor paged `Network.requestWillBeSent`,
+`Network.responseReceived`, and `Network.loadingFinished`. The corresponding
+request ID returned the page's HTTP 202 JSON via `Network.getResponseBody`.
+`readEvents()` without a cursor returned an empty page and a checkpoint at
+the current position. Pero now uses the checkpoint behavior during live
+capture. Without a live capture, its original Runtime replay returns recent
+events when called without a cursor.
+
+That Codex fixture returned both iframe contents in the DOM snapshot.
+Raw `Page.getFrameTree` listed the same-origin child and
+`Target.attachedToTarget` reported an iframe session. Raw
+`Target.setAutoAttach` was refused and sending `Page.getFrameTree` to the
+reported child session returned an unattached-session error. The child
+selector exists in the documented tab capability, and this run verified the
+attachment event.
+
+A follow-up Codex Chrome fixture created an out-of-process iframe and a
+dedicated Worker after taking a cursor. Codex reported the iframe's attachment
+with an empty URL, then reported its committed URL through
+`Target.targetInfoChanged`. The iframe session query again returned an
+unattached-session error. This fixture returned no Worker attachment event.
+A separate Chrome for Testing probe using the native `chrome.debugger` API
+observed the same URL transition and successfully routed `Page.getFrameTree`
+through the iframe's flat session. The selector stopped working when auto
+attach was disabled. Origin admission therefore needs the committed child
+document rather than the initial attachment event.
+[Chrome debugger flat sessions](https://developer.chrome.com/docs/extensions/reference/api/debugger#attach-to-related-targets)
+
+In the Codex Chrome workload fixture,
+`Performance.getMetrics` returned 36 metrics after enabling the domain.
+`Profiler.enable` returned CDP error `-32601` with method unavailable,
+matching Pero's extension transport. Chrome's
+[extension debugger domain list](https://developer.chrome.com/docs/extensions/reference/api/debugger#restricted-domains)
+includes Performance. The embedded Chromium Profiler remains a separate
+capability. A page can also opt into the
+[JS Self-Profiling API](https://wicg.github.io/js-self-profiling/) with
+Document Policy. That requires cooperation from the site.
+
+### Browser Site Tools
+
+Enable **Browser Site Tools** in the Electron Workbench menu or the macOS
+Native Chrome menu. Electron supports an authorized embedded Web tab and
+both shells support an approved site in the paired Chrome profile. For Chrome,
+use extension 0.3.10 or later and pass the explicit `chrome:` tab ID. Chrome must
+make WebMCP available to the page. The loopback fixture enables the feature
+with a Chrome startup flag. Availability on regular sites follows the
+[Chrome WebMCP rollout](https://developer.chrome.com/docs/ai/webmcp).
+`listSiteTools` discovers WebMCP registrations in the
+approved document and its same-origin frames. It returns the browser's tool
+schema and a document-bound ID. Request partner-frame tools by listing the
+exact origins in `fromOrigins`. The user reviews those origins before
+discovery, and Chromium lists the tools each partner has exposed to the page.
+`callSiteTool` uses the returned ID and an `input`
+object. The Workbench shows the origin, frame when applicable, tool name and
+arguments before dispatch. Run discovery again after navigation or reload.
+Each dispatch returns a receipt. If the tool's outcome is unclear, inspect
+the page before calling it again.
+
+The Electron and Chrome Relay fixtures register real WebMCP tools in a page
+and in same-origin and cross-origin frames. Both check the returned schemas,
+private partner tools staying private, separate discovery and call consent,
+independent page effects, a saved receipt and a stale ID after reload.
+On macOS, `node tests/e2e/native-chrome-site-tools.mjs` uses the Native probe
+build, Chrome for Testing, and Python REPL. Set `PERO_NATIVE_REPL_INSTALLED_APP`
+to use the signed probe bundle and its packaged extension and Python. Set
+`PERO_NATIVE_SITE_TOOLS_MANUAL=1` to respond directly to the two approval
+sheets. The test checks that the approved action is the only page mutation
+and saves a receipt. The combined signed macOS candidate passed this check on
+2026-11-24. Evidence is written to `test-results/native-chrome-site-tools/result.json`.
+
+### Chromium accessibility snapshots
+
+`getAXState` reads Chromium's native accessibility tree in an authorized
+Electron Web tab or paired Chrome tab (extension 0.3.8 or later). It includes
+same-origin frames under their owner nodes. A full result contains
+`snapshotId`, `rootId` and `nodes`; each node's `children` lists its
+children in order. Pass the latest `snapshotId` as `since` to get only
+`upserted` nodes and `removed` IDs. If the document or baseline changed,
+the response is a fresh full tree with `baselineReset: true`.
+
+Use `observe` and `locate` for action refs. AX reads leave those refs
+available and omit form values. An observation is bounded by node count,
+depth and same-origin frame count, with `truncated` when the limit is reached.
+The same browser fixture checks real AX roles, table cells, frame ancestry,
+delta insertion and removal, a trusted DOM-ref click and reset after reload.
+
+### Chrome Relay acceptance
+
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
@@ -177,7 +378,17 @@ An ordinary click checks the timeout result. Dialog coverage verifies the
 page's confirmation result (including across two REPL cells), the Unicode
 prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
 that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
-inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
+inactive tab rejection on the default path, trusted input and reload on an
+explicitly addressed inactive tab, cross-origin guardrails, replay protection
+and debugger release on disconnect.
+The parallel fixture holds one navigation response while another tab
+completes trusted input, both through browser MCP calls and through
+`javascript_repl`. Use `node tests/e2e/native-chrome-parallel.mjs` with a
+Native probe build and rebuilt connectors to run the same fixture through
+the Native Python REPL. On 2026-11-24 the combined signed macOS candidate
+passed using its bundled Python, the rebuilt extension and headed Chrome.
+The peer tab completed trusted input and released the held navigation, and
+an overlapping observation on the navigating tab was rejected.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.
@@ -187,6 +398,28 @@ The large-page fixture checks that the tree stays inline beside the content
 reference. The suite also checks scoped actions after reload, read-only
 queries that leave refs usable, and handing off a tab while it remains open.
 Evidence is written to `test-results/chrome-relay/`.
+
+The Chrome Relay and Electron Browser Use suites exercise layout metrics,
+performance metrics, the shallow DOM reply, and origin-scoped frame and
+resource trees. They check that a Runtime
+cursor skips previously read events, excludes same-origin iframe console
+messages and expires after reload. The Chrome suite also checks that reads
+fail with Developer Mode off or when the user declines the capture.
+Both suites also click a loopback fixture, page mixed console and network
+events, read the completed HTTP 202 JSON response, reject body access after
+a cross-origin redirect, and verify capture expiry when Developer Mode is
+turned off or `Network.disable` runs.
+The out-of-process iframe fixture uses a separate loopback hostname. Both
+suites check that discovery is scoped by origin, an approved child returns
+its own DOM, and navigation invalidates the old child identifier. The Chrome
+suite also rejects discovery when the child-origin approval is declined.
+The nested case verifies that discovery skips a branch under an unapproved
+ancestor, only the target's own Runtime events are returned, and a cursor
+from a different iframe is rejected.
+Both suites capture the top document and a child together and check that their
+network events and response bodies stay separate. They also check a child
+read timeout, continued top-document access after stopping the child, and
+revocation of child access when Developer Mode is turned off.
 
 ### Chrome and embedded browser from an SSH Workbench
 
@@ -226,6 +459,72 @@ headed Chrome for Testing with a scripted ACP agent. Without any per-tab
 action in Chrome, the conversation listed both fixture windows and observed
 actual page text. Native exit disconnected the extension. Evidence is in
 `test-results/native-chrome-pairing/`.
+
+On 2026-11-24 the normal macOS arm64 release recipe built Pero 0.1.2 from
+`9a227bc65`. Both app signatures passed strict verification after mounting
+the ad-hoc-signed DMG. The ordinary release executable passed portable startup
+with an empty profile and bundled Node, Rust Host, Apps and CPython 3.12.16.
+
+A separately signed copy with the optimized `native-probe` executable ran
+the WKWebView Browser Use suite, the concurrent Chrome tab suite and the
+WebMCP approval suite with the extension loaded directly from the app
+payload. The Chrome suites verified that `sys.executable` resolved to the
+bundled Python. WebMCP was verified on Chrome for Testing with the feature
+enabled and the fixture's real macOS approval sheet. The ACP agent was the
+deterministic test fixture. Evidence is in `test-results/native-browser-release/`.
+
+The Native CDP check loads extension 0.3.11 from the signed app payload and
+uses the app's bundled Python. The fixture dismisses the first macOS
+approval sheet and accepts the following requests. It verifies all three
+commands, paged console and exception events, iframe exclusion, the cursor
+being rejected after reload, and the stored receipt for the click that
+generated a new event. The test uses the separately signed `native-probe`
+copy and a deterministic ACP Agent. Run it with
+`PERO_NATIVE_REPL_INSTALLED_APP=/path/to/Pero.app node tests/e2e/native-chrome-site-tools.mjs --cdp`.
+Evidence is in `test-results/native-chrome-cdp/result.json`.
+
+For extension 0.3.13, append `--cdp-live` to the same command. The signed
+probe copy uses its bundled Python and verifies that the Native approval sheet
+mentions same-origin response content. It declines the first start request,
+then checks scoped frame and resource trees, live network event pagination,
+the HTTP 202 JSON body, cross-origin redirect rejection, and that stopping the
+capture prevents further body access. Evidence is in
+`test-results/native-chrome-cdp-live/result.json`.
+
+For extension 0.3.14, use `--cdp-targets`. The signed probe separately
+reviews the loopback iframe's origin and checks that a declined review
+releases no child identifiers. It then reads the approved iframe's DOM and
+waits for a replacement child document before checking the old identifier.
+Evidence is in `test-results/native-chrome-cdp-targets/result.json`.
+
+For extension 0.3.15, use `--cdp-target-tree`. The signed Native probe finds
+the grandchild through its approved parent, queries its DOM, and verifies
+separate console and exception replay for the two child targets. A cursor
+from the direct child is rejected when used on the grandchild. Evidence is
+in `test-results/native-chrome-cdp-target-tree/result.json`.
+
+For extension 0.3.16, use `--cdp-target-network`. The signed Native probe
+verifies that declining the child origin prevents starting a capture, then
+approves the child, reads its HTTP 202 response, and verifies response access
+ends when the capture stops. Evidence is in
+`test-results/native-chrome-cdp-target-network/result.json`.
+
+For extension 0.3.17, use `--cdp-target-detach`. The signed Native probe
+removes the iframe through Browser Use, pages its buffered network events
+with the existing cursor, and verifies that a response body read is refused.
+Chrome independently confirms the fixture removed the iframe. Evidence is in
+`test-results/native-chrome-cdp-target-detach/result.json`.
+
+For extension 0.3.18, use `--cdp-target-lifecycle`. The signed Native probe
+takes a checkpoint, opens two new cross-origin frames, and reads the attach,
+update and detach events for the approved frame. Chrome independently checks
+that both fixture frames were removed. Evidence is in
+`test-results/native-chrome-cdp-target-lifecycle/result.json`.
+
+With extension 0.3.19, `--cdp-target-routing` also uses the event handle to
+read the iframe document and its Runtime console through Native Python REPL,
+then confirms that the handle is rejected after the iframe is removed.
+Evidence is in `test-results/native-chrome-cdp-target-routing/result.json`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
@@ -333,6 +632,11 @@ approved Chrome tab. All three PNG hashes matched the fixture provider, and
 sharing stopped in both shells. The test overlay only routed the fixture's
 requests through Nginx. The live vhost passed its syntax and HTTPS health checks
 after reload. The live server still has no isolated profile mounted.
+
+The 2026-11-24 read-only recheck returned 200 for health, client identity
+and operator task listing. With the operator credential, the Browser Use
+readiness path still returned a plain-text 404, as did a control path with
+an unknown endpoint. No hosted Run or vision call was started.
 
 ### Embedded browser
 
@@ -619,3 +923,12 @@ bytes and receipt after relaunch, then removes the two fixture credentials.
 This passed in an isolated copy of the Native bundle. Evidence is under
 `test-results/installed-shared-project-sources/`. The Cloud API was a loopback
 fixture. A hosted deployment still needs acceptance.
+# Signed Native Chrome REPL verification
+
+The signed Native candidate ran the real Codex agent over the bundled Python
+REPL and the actual unpacked extension in Chrome for Testing. One pairing
+exposed both ordinary fixture tabs in the isolated profile. The fixture origin
+had one saved site approval. The agent clicked the first tab, read its
+canvas-only code from a screenshot, then activated the second tab and located
+its control. The local server recorded exactly one trusted click. Host evidence
+recorded both tab IDs and matched the image delivered in the ACP transcript.

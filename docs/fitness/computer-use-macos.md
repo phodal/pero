@@ -77,3 +77,47 @@ Evidence is under `target/computer-verification/sublime/`. This used the
 development driver and scripted input. The separately installed macOS helper
 answered its transport handshake and status request, but its permission
 preflight reported Accessibility and Screen Recording as `not_detected`.
+
+## Live window preview in macOS Native
+
+2026-11-23, macOS 27.2.1 arm64, development Native build from
+`ae9048698` with the preview changes. The ordinary chat ran a local ACP fixture
+that observed a real AppKit window. The Native dark-theme screenshot showed the
+entire window fitted inside the inline preview. Accessibility inspection found
+the hide/show and float/return buttons, and verified that the running turn
+continued while the preview was hidden. The return control appeared on opening
+the floating window and disappeared after the task completed.
+
+The opt-in AppKit test also checked that preview pixels change after background
+input without a new Agent observation, that refreshing preserves the original
+input anchor, that another conversation cannot read the preview, and that a
+secure field withholds pixels until removed. The existing Computer Use
+transport and shared contract checks passed.
+
+```sh
+node scripts/build/computer.mjs --test
+node tests/contracts/computer-use.mjs
+node tests/e2e/computer-transport.mjs
+PERO_COMPUTER_NATIVE=1 node tests/e2e/computer-native.mjs
+```
+
+The isolated companion bundle used for the first UI run had no macOS
+Accessibility or Screen Recording grants. The interactive checks used the
+same source-built driver with the development process's existing grants.
+The packaged companion, light-theme rendering, and window ordering across
+applications and Spaces remain unverified.
+
+### Compact floating presentation
+
+The Native development build was rechecked with the same AppKit fixture. The
+original floating window measured 360 × 292 points with its system title bar.
+The updated window measured 288 × 202 points and showed one Pero header with
+Return to Chat and Hide controls. The captured application window kept its
+own content and aspect ratio.
+
+The accessibility tree exposed both Pero buttons and no system window buttons
+inside the floating preview. Dragging changed the window origin from
+(1376, 171) to (1271, 246). Returning it to Chat and opening it again restored
+the new origin. Hide left the Agent turn running and carried over to the next
+turn in the same chat. Showing it again restored the preview, and completing
+the turn removed the floating window from the native window list.

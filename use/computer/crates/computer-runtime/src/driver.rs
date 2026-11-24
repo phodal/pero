@@ -6,7 +6,7 @@ pub struct WindowObservation<S> {
     pub source: S,
     pub bounds: Option<WindowBounds>,
     pub elements: Vec<ComputerElement>,
-    pub image: Option<WindowImage>,
+    pub image: Result<WindowImage, ComputerCaptureStatus>,
     pub truncated: bool,
 }
 
@@ -18,6 +18,12 @@ pub trait DesktopDriver {
     fn actions(&self) -> Vec<ComputerActionSupport>;
     fn status(&self) -> ComputerDriverStatus;
     fn targets(&self) -> Result<Vec<Window>, ComputerError>;
+    fn focused_window(&self, _pid: i32) -> Result<Window, ComputerError> {
+        Err(crate::error(
+            ComputerErrorCode::Unsupported,
+            "Appshot requires macOS",
+        ))
+    }
     fn open(
         &self,
         application: &ComputerApplicationSelector,
@@ -29,7 +35,7 @@ pub trait DesktopDriver {
         options: &ComputerObserveOptions,
         basis: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
-    fn recognize_text(&self, _image: &WindowImage) -> Option<String> {
+    fn text_recognizer(&self) -> Option<crate::TextRecognizer> {
         None
     }
     /// Platform-specific refusals that are certain before any native input,

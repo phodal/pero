@@ -25,6 +25,66 @@ origin in the current Workbench profile. Open **Chrome site permissions** in
 the Workbench menu or Native Browser Use settings to see or clear saved
 decisions. To release one tab, use `handoff` with its `chrome:` ID.
 
+With extension 0.3.7 or newer, enable **Browser Developer Mode** in the
+Workbench or Native Chrome menu to use `diagnose` on the active paired tab.
+Approve each capture in Pero to share console output, runtime errors,
+network timing, computed styles and performance metrics with the conversation.
+Extension 0.3.8 also exposes `getAXState` under the usual tab and site
+permissions. Pass the previous `snapshotId` as `since` to receive AX changes.
+Pass `background: true` with an explicit `chrome:` tab ID to read or act on
+an inactive tab without selecting it.
+Extension 0.3.9 runs requests to different tabs concurrently. Await each
+operation before using the same tab again.
+
+With extension 0.3.10 or newer, **Browser Site Tools** in the Electron
+Workbench menu or Native Chrome menu enables `listSiteTools` and
+`callSiteTool` on an approved Chrome site.
+Use its explicit `chrome:` tab ID. Chrome must expose WebMCP on the page.
+Pero asks before discovering tools from partner origins and before each
+invocation. Reloading the page requires listing its tools again.
+
+Extension 0.3.11 adds `cdpSend` for layout, performance and shallow DOM
+queries, and `cdpReadEvents` for top-document console and runtime errors.
+Both require Browser Developer Mode and approval in Pero. Reuse the returned
+cursor to read newer events within the same document.
+
+Extension 0.3.12 adds `Page.getFrameTree` and `Page.getResourceTree` to
+`cdpSend`. Trees include the approved document's same-origin frames and
+resources.
+
+Extension 0.3.13 supports `Network.enable`, `Network.disable`, and
+`Network.getResponseBody`. Capture live console, exception and same-origin
+network events for up to one minute. Read events with `cdpReadEvents` and
+the capture cursor, then use the request ID to read a completed text or
+JSON response from the same document.
+
+Extension 0.3.14 adds `cdpListTargets` for direct out-of-process iframes.
+List exact cross-origin hosts in `fromOrigins` for user review. Pass the
+returned `id` and `origin` as `target` to a read-only `cdpSend` command.
+Discover the target again after the iframe navigates or reloads.
+
+Extension 0.3.15 adds nested iframe discovery with `depth` up to 4, and
+`cdpReadEvents` with a `target` for console and exception replay in that
+iframe. Keep its cursor with the same target.
+
+Extension 0.3.16 lets `Network.enable`, `Network.disable`,
+`Network.getResponseBody`, and live event reads take an iframe `target`.
+
+Extension 0.3.17 lets `cdpReadEvents` page a detached iframe's buffered events
+with its original target and cursor until the capture's original deadline.
+Replies include `detached: true`. Collection and response-body access end on
+detachment.
+
+Extension 0.3.18 supports `cdpReadEvents` with `Target.attachedToTarget`,
+`Target.targetInfoChanged` and `Target.detachedFromTarget`. Take a checkpoint
+without `after`, then pass the cursor and the same `fromOrigins` to page
+events from approved direct out-of-process iframes.
+
+Extension 0.3.19 lets `cdpSend` and `cdpReadEvents` use a live iframe's event
+`targetId` and `origin` as `target: { id: targetId, origin }`. The handle
+expires when the document changes, the iframe detaches, or the watch ends.
+Keep the capture cursor and request IDs with that target context.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

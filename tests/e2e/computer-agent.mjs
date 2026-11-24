@@ -11,7 +11,7 @@ if(native&&process.platform!=='darwin')throw new Error('Native provider acceptan
 const root=resolve(import.meta.dirname,'../..'),temp=await mkdtemp(resolve(tmpdir(),'pero-computer-agent-')),out=computerEvidenceDirectory(root);
 await mkdir(out,{recursive:true});
 const fixture=native?await computerFixture(root,temp):null;
-await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'codex',computer_use:{enabled:true}}));
+await writeFile(resolve(temp,'settings.json'),JSON.stringify({chat_agent:'codex',computer_use:{enabled:true,allowed_applications:['dev.pero.perocomputerfixture']}}));
 await writeFile(resolve(temp,'agents.json'),JSON.stringify([{id:'codex',name:'Codex',command:process.execPath,args:[resolve(root,'node_modules/@agentclientprotocol/codex-acp/dist/index.js')],env:{CODEX_PATH:process.env.CODEX_PATH||'codex'}}]));
 const app=await electron.launch({args:['--use-mock-keychain',resolve(root,'desktop')],cwd:root,env:{...process.env,PERO_DESKTOP_DATA_DIR:resolve(temp,'profile'),PERO_SETTINGS_PATH:resolve(temp,'settings.json'),PERO_HISTORY_PATH:resolve(temp,'history.jsonl'),PERO_AGENTS_FILE:resolve(temp,'agents.json'),PERO_LOCALE:'en'}});
 const errors=[];

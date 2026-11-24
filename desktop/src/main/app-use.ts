@@ -17,7 +17,7 @@ import {
 export type AppUseEvent = { kind: string; thread_id?: string; data?: unknown; text?: string };
 // Research Apps expose only their bounded domain tools, not general UI automation.
 const boundedResearchApp = (app: string | undefined) => app === 'control-lab' || app === 'lab';
-type SessionAccess = 'selected' | 'app-data' | 'saved-read';
+type SessionAccess = 'selected' | 'app-data' | 'saved-read' | 'background-computer';
 type AppUseCall = { controller: AbortController; scope?: AppScope; access: SessionAccess };
 type Session = {
   workspace?: string;
@@ -188,19 +188,20 @@ export class AppUse {
     }
     this.interruptCalls(thread);
   }
-  private interruptCalls(thread: string, preserveAppData = false) {
+  private interruptCalls(thread: string, selectionChanged = false) {
     for (const call of this.calls.get(thread) || [])
-      if (!preserveAppData || call.access !== 'app-data') call.controller.abort();
-    if (!preserveAppData) this.calls.delete(thread);
+      if (!selectionChanged || (call.access !== 'app-data' && call.access !== 'background-computer'))
+        call.controller.abort();
+    if (!selectionChanged) this.calls.delete(thread);
   }
   private end(task: AppUseTask) {
     task.ended = true;
     this.tasks.delete(task.id);
     for (const [id, image] of this.evidence) if (image.taskId === task.id) this.evidence.delete(id);
   }
-  private endTasks(thread: string, preserveAppData = false) {
+  private endTasks(thread: string, selectionChanged = false) {
     for (const task of this.tasks.values()) if (task.thread === thread) this.end(task);
-    this.interruptCalls(thread, preserveAppData);
+    this.interruptCalls(thread, selectionChanged);
     this.publish(thread);
   }
   revoke(thread: string, scope?: AppScope) {
@@ -297,8 +298,10 @@ export class AppUse {
   }
   private async session(thread: string, access: SessionAccess = 'selected') {
     const appData = access === 'app-data' && this.sessions.get(thread)?.appOwned;
-    const selected = appData ? undefined : await this.ports.selectedThread();
-    if (!appData) this.select(selected);
+    const backgroundComputer = access === 'background-computer' && this.isOrdinaryConversation(thread);
+    const requiresSelection = !appData && !backgroundComputer;
+    const selected = requiresSelection ? await this.ports.selectedThread() : undefined;
+    if (requiresSelection) this.select(selected);
     if (access === 'saved-read') {
       const session=this.sessions.get(thread);
       if(!session || session.closed || selected!==thread)
@@ -321,7 +324,7 @@ export class AppUse {
       if (!ready) fail('APP_TURN_UNAVAILABLE', 'The Host did not start the requested turn.');
     }
     const session = this.requireRunningSession(thread);
-    if (!appData && selected !== thread)
+    if (requiresSelection && selected !== thread)
       fail('APP_SESSION_INACTIVE', 'App Use belongs to the running conversation selected in Chat.');
     return session;
   }
@@ -376,7 +379,8 @@ export class AppUse {
     const call: AppUseCall = {
       controller,
       scope: scope || session.scope,
-      access: session.appOwned ? access : 'selected',
+      access: (access === 'app-data' && session.appOwned) ||
+        (access === 'background-computer' && !session.scope) ? access : 'selected',
     };
     const calls = this.calls.get(thread) || new Set<AppUseCall>();
     calls.add(call);
@@ -386,7 +390,7 @@ export class AppUse {
       return await abortable(operation(session, bounded, call), bounded);
     } finally {
       calls.delete(call);
-      if (!calls.size) this.calls.delete(thread);
+      if (!calls.size && this.calls.get(thread) === calls) this.calls.delete(thread);
     }
   }
   async access<T>(

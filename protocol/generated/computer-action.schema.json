@@ -211,6 +211,7 @@
         "target_unavailable",
         "stale_observation",
         "invalid_request",
+        "busy",
         "cancelled",
         "timeout",
         "failed"
@@ -367,6 +368,12 @@
           "$ref": "#/$defs/ComputerSetValue"
         },
         {
+          "$ref": "#/$defs/ComputerSelectText"
+        },
+        {
+          "$ref": "#/$defs/ComputerPaste"
+        },
+        {
           "$ref": "#/$defs/ComputerPerformAction"
         },
         {
@@ -416,6 +423,41 @@
       ],
       "additionalProperties": false,
       "description": "Foreground moves the real pointer; background posts a window-directed move."
+    },
+    "ComputerPaste": {
+      "title": "ComputerPaste",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "paste"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "format": {
+          "$ref": "#/$defs/ComputerPasteFormat"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPasteFormat": {
+      "title": "ComputerPasteFormat",
+      "type": "string",
+      "enum": [
+        "text",
+        "md",
+        "html"
+      ],
+      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
     },
     "ComputerPerformAction": {
       "title": "ComputerPerformAction",
@@ -508,8 +550,7 @@
         "anchor",
         "keys"
       ],
-      "additionalProperties": false,
-      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
+      "additionalProperties": false
     },
     "ComputerRef": {
       "title": "ComputerRef",
@@ -567,6 +608,37 @@
       ],
       "additionalProperties": false,
       "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
+    },
+    "ComputerSelectionType": {
+      "title": "ComputerSelectionType",
+      "type": "string",
+      "enum": [
+        "text",
+        "cursor_before",
+        "cursor_after"
+      ]
+    },
+    "ComputerSelectText": {
+      "title": "ComputerSelectText",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "select_text"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "selection": {
+          "$ref": "#/$defs/ComputerTextSelection"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "selection"
+      ],
+      "additionalProperties": false
     },
     "ComputerSemanticAction": {
       "title": "ComputerSemanticAction",
@@ -626,6 +698,42 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 10000
+    },
+    "ComputerTextSelection": {
+      "title": "ComputerTextSelection",
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_type": {
+          "$ref": "#/$defs/ComputerSelectionType"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
     },
     "ComputerTypeText": {
       "title": "ComputerTypeText",

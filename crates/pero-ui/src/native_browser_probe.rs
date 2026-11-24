@@ -79,7 +79,8 @@ pub(crate) async fn verify(
                 root.web_documents.iter().map(|page| (&page.id, &page.observation.load)).collect::<Vec<_>>());
             let Some(WorkspaceItem::Web(tab)) = root.navigation.current().cloned() else { return Ok(None) };
             let page = root.native_web_pages.get(&tab).map(|page| page.view.read(cx));
-            surface += &format!("; layout visible={}, raw view={:?}, modal={}",
+            surface += &format!("; presenting={}, layout visible={}, raw view={:?}, modal={}",
+                window.is_visible(),
                 root.layout.embedded_surface_visible,
                 page.map(|page| (page.visible(cx), page.browser_engine(cx).is_ok_and(|(engine, _)| crate::native_browser::window_visible(engine)))),
                 root.native_window_modal(cx).is_some());
@@ -158,7 +159,10 @@ async fn verify_repl_agent(
     let workspace = std::env::var("PERO_NATIVE_BROWSER_PROBE_WORKSPACE")?;
     let pairing_path = std::env::var_os("PERO_NATIVE_REPL_CHROME_PAIRING_PATH")
         .map(std::path::PathBuf::from);
+    let site_tools = std::env::var_os("PERO_NATIVE_REPL_CHROME_SITE_TOOLS").is_some();
+    let developer_mode = std::env::var_os("PERO_NATIVE_REPL_CHROME_DEVELOPER_MODE").is_some();
     let mut pair_requested = false;
+    let mut approval_window_requested = false;
     let started = Instant::now();
     let mut chat_created = false;
     let mut sent = false;
@@ -176,8 +180,16 @@ async fn verify_repl_agent(
             let Some(chat) = snapshot["activeChat"].as_u64().and_then(|index| snapshot["chats"].get(index as usize)) else {
                 return Ok(None);
             };
-            last = json!({"agent":chat["agent"], "state":chat["state"], "error":chat["error"],
+            let pairing_ready = pairing_path.as_ref().is_some_and(|path| path.with_extension("ready").is_file());
+            let window_active = window.is_window_active();
+            let current = json!({"agent":chat["agent"], "state":chat["state"], "error":chat["error"],
+                "pairRequested":pair_requested, "pairingReady":pairing_ready, "windowActive":window_active,
+                "activationRequested":approval_window_requested, "promptSubmitted":sent,
                 "tools":chat["tools"].as_array().into_iter().flatten().map(|tool| (&tool["title"], &tool["status"])).collect::<Vec<_>>()});
+            if last != current {
+                eprintln!("Native REPL probe: {current}");
+                last = current;
+            }
             anyhow::ensure!(chat["agent"] == agent, "Native REPL selected a different Agent: {last}");
             anyhow::ensure!(chat["state"] != "closed", "Native Chat closed: {last}");
             if chat["state"] != "idle" { return Ok(None); }
@@ -191,12 +203,20 @@ async fn verify_repl_agent(
                 }
                 return Ok(None);
             }
-            if let Some(pairing) = &pairing_path {
+            if pairing_path.is_some() {
                 if !pair_requested {
                     pair_thread = root.browser_thread(cx);
                     return Ok(None);
                 }
-                if !pairing.with_extension("ready").is_file() {
+                if !pairing_ready {
+                    return Ok(None);
+                }
+                if (site_tools || developer_mode) && !window_active {
+                    if !approval_window_requested {
+                        window.activate_window();
+                        cx.activate(true);
+                        approval_window_requested = true;
+                    }
                     return Ok(None);
                 }
             } else {
@@ -222,6 +242,14 @@ async fn verify_repl_agent(
                 .ok_or_else(|| anyhow::anyhow!("Native Chrome Relay is unavailable"))?;
             let path = path.clone();
             cx.background_executor().spawn(async move {
+                if developer_mode {
+                    let mode = owner.request(json!({"operation":"chrome-developer-mode", "enabled":true}))?;
+                    anyhow::ensure!(mode["enabled"] == true, "Could not enable Browser Developer Mode for the Native fixture");
+                }
+                if site_tools {
+                    let mode = owner.request(json!({"operation":"chrome-site-tools", "enabled":true}))?;
+                    anyhow::ensure!(mode["enabled"] == true, "Could not enable Browser Site Tools for the Native fixture");
+                }
                 let value = owner.request(json!({
                     "operation":"chrome-relay-pair", "thread":thread, "label":"Native Chrome acceptance"
                 }))?;

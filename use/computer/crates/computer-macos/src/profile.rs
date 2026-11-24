@@ -40,6 +40,11 @@ pub fn actions() -> Vec<ComputerActionSupport> {
             addressing: vec![Element],
         },
         ComputerActionSupport {
+            action: SelectText,
+            delivery: Background,
+            addressing: vec![Element],
+        },
+        ComputerActionSupport {
             action: PerformAction,
             delivery: Background,
             addressing: vec![Element],
@@ -72,6 +77,11 @@ pub fn actions() -> Vec<ComputerActionSupport> {
         ComputerActionSupport {
             action: TypeText,
             delivery: Background,
+            addressing: vec![Element, Pixel],
+        },
+        ComputerActionSupport {
+            action: Paste,
+            delivery: Foreground,
             addressing: vec![Element, Pixel],
         },
         ComputerActionSupport {

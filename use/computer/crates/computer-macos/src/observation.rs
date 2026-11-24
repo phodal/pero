@@ -2,7 +2,7 @@
 use crate::{bridge, capture};
 use computer_core::{ControlId, Window, WindowImage};
 use computer_runtime::{WindowObservation, error};
-use pero_contracts::computer_use::*;
+use pero_contracts::{computer_runtime::ComputerCaptureStatus, computer_use::*};
 use point_computer_core::types::Frame;
 use point_computer_macos::ffi::{self, CfRef};
 use std::{
@@ -70,8 +70,14 @@ impl AxScan {
         }
     }
 
-    fn allows_pixels(&self) -> bool {
-        !self.incomplete && !self.secure
+    fn capture_block(&self) -> Option<ComputerCaptureStatus> {
+        if self.secure {
+            Some(ComputerCaptureStatus::SecureContent)
+        } else if self.incomplete {
+            Some(ComputerCaptureStatus::IncompleteScan)
+        } else {
+            None
+        }
     }
 }
 
@@ -181,10 +187,20 @@ pub fn window_of(element: &CfRef) -> Option<CfRef> {
     if ffi::ax_str(element, "AXRole") == "AXWindow" {
         return Some(element.retain());
     }
-    ffi::ax_attr(element, "AXWindow")
-        .ok()
-        .flatten()
-        .filter(|window| unsafe { CFGetTypeID(window.as_ptr()) == ffi::type_ids().ax_element })
+    element_attribute(element, "AXWindow")
+}
+pub(crate) fn element_attribute(element: &CfRef, attribute: &str) -> Option<CfRef> {
+    read_element_attribute(element, attribute).ok().flatten()
+}
+pub(crate) fn read_element_attribute(element: &CfRef, attribute: &str) -> Result<Option<CfRef>, i32> {
+    Ok(ffi::ax_attr(element, attribute)?
+        .filter(|value| unsafe { CFGetTypeID(value.as_ptr()) == ffi::type_ids().ax_element }))
+}
+pub(crate) fn accessibility_required() -> ComputerError {
+    error(
+        ComputerErrorCode::PermissionRequired,
+        "macOS withheld accessible windows. Allow Pero Computer Use in System Settings → Privacy & Security → Accessibility, then reopen Pero.",
+    )
 }
 pub fn belongs(element: &CfRef, window: &Window) -> bool {
     ffi::ax_pid(element) == Some(window.pid)
@@ -213,11 +229,12 @@ pub fn observe(
     // Electron exposes its content tree only after this explicit AX opt-in.
     ffi::ax_set_true(&app, "AXManualAccessibility");
     let windows = ffi::ax_element_list(&app, "AXWindows", 128)
-        .map_err(|failure| {
-            error(
+        .map_err(|failure| match failure {
+            ffi::AxReadError::Native(ffi::AX_ERR_API_DISABLED) => accessibility_required(),
+            _ => error(
                 ComputerErrorCode::Failed,
                 format!("Unable to read macOS AX windows: {failure:?}"),
-            )
+            ),
         })?
         .map(|list| list.elements)
         .unwrap_or_default();
@@ -227,7 +244,7 @@ pub fn observe(
             .all(|w| ffi::ax_str(w, "AXRole") == "AXApplication");
     let native_window = windows.into_iter().find(|w| ffi::ax_window_id(w) == window.window_id)
         .ok_or_else(|| if withheld {
-            error(ComputerErrorCode::PermissionRequired, "macOS withheld accessible windows. Check Accessibility permission and reopen the application; preflight alone is advisory.")
+            accessibility_required()
         } else {
             error(ComputerErrorCode::Unsupported, "Cannot correlate the selected window with its native accessibility identity")
         })?;
@@ -317,11 +334,17 @@ pub fn observe(
             if !semantic_actions.is_empty() {
                 actions.push(ComputerActionKind::PerformAction);
             }
-            if (value_settable
-                || matches!(role.as_str(), "AXTextField" | "AXTextArea" | "AXComboBox"))
-                && ffi::ax_is_settable(&element, "AXFocused")
-            {
-                actions.extend([ComputerActionKind::TypeText, ComputerActionKind::PressKey]);
+            let text_control = value_settable
+                || matches!(role.as_str(), "AXTextField" | "AXTextArea" | "AXComboBox");
+            if text_control && ffi::ax_is_settable(&element, "AXSelectedTextRange") {
+                actions.push(ComputerActionKind::SelectText);
+            }
+            if text_control && ffi::ax_is_settable(&element, "AXFocused") {
+                actions.extend([
+                    ComputerActionKind::TypeText,
+                    ComputerActionKind::PressKey,
+                    ComputerActionKind::Paste,
+                ]);
             }
             if role.contains("Scroll") && frame.is_some() {
                 actions.push(ComputerActionKind::Scroll);
@@ -386,21 +409,25 @@ pub fn observe(
         }
     }
     // A subtree cannot establish that the rest of the window is free of secure fields.
-    let image = if options.want_image
-        && options.root.is_none()
-        && scan.allows_pixels()
-        && ffi::preflight_screen_capture()
-    {
-        capture::window(window.window_id).and_then(|image| {
-            Some(WindowImage {
-                width: NonZeroU32::new(image.width)?,
-                height: NonZeroU32::new(image.height)?,
-                bytes: image.jpeg,
-                media_type: ComputerImageType::Jpeg,
-            })
-        })
+    let image = if !options.want_image {
+        Err(ComputerCaptureStatus::NotRequested)
+    } else if options.root.is_some() {
+        Err(ComputerCaptureStatus::Subtree)
+    } else if let Some(reason) = scan.capture_block() {
+        Err(reason)
+    } else if !ffi::preflight_screen_capture() {
+        Err(ComputerCaptureStatus::ScreenRecordingRequired)
     } else {
-        None
+        capture::window(window.window_id)
+            .and_then(|image| {
+                Some(WindowImage {
+                    width: NonZeroU32::new(image.width)?,
+                    height: NonZeroU32::new(image.height)?,
+                    bytes: image.jpeg,
+                    media_type: ComputerImageType::Jpeg,
+                })
+            })
+            .ok_or(ComputerCaptureStatus::Unavailable)
     };
     let snapshot = Snapshot {
         window: native_window,
@@ -452,7 +479,10 @@ mod tests {
             let mut children = Vec::new();
             scan.add_children(read, &mut children);
             scan.add_children(Ok(None), &mut children);
-            assert_eq!(scan.allows_pixels(), allowed);
+            assert_eq!(
+                scan.capture_block(),
+                (!allowed).then_some(ComputerCaptureStatus::IncompleteScan)
+            );
         }
     }
 }

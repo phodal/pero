@@ -343,6 +343,8 @@ impl Workbench {
             WorkspaceRoute::Content(WorkspaceItem::Web(_)) => {
                 self.sync_web_address(true, window, cx);
                 self.workspace_focus.focus(window, cx);
+                #[cfg(target_os = "macos")]
+                crate::web_documents::layout_occluded_web_selection(window, cx);
             }
             WorkspaceRoute::Content(item @ WorkspaceItem::Document { .. }) => {
                 self.request_workspace_source(&item, cx);

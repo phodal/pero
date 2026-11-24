@@ -10,6 +10,8 @@ export type ComputerRequest =
   | ComputerTargetsRequest
   | ComputerOpenRequest
   | ComputerObserveRequest
+  | ComputerScreenshotRequest
+  | ComputerReadOcrRequest
   | ComputerActRequest
   | ComputerStopRequest
   | ComputerReceiptRequest;
@@ -31,6 +33,8 @@ export type ComputerInput =
   | ComputerScroll
   | ComputerDrag
   | ComputerSetValue
+  | ComputerSelectText
+  | ComputerPaste
   | ComputerPerformAction
   | ComputerMove
   | ComputerHover
@@ -45,6 +49,11 @@ export type ComputerKey = string;
  * Replacement permits an empty value to clear the field.
  */
 export type ComputerValue = string;
+export type ComputerSelectionType = "text" | "cursor_before" | "cursor_after";
+/**
+ * Logical key names/chords (for example ["Control", "a"]), mapped by the adapter.
+ */
+export type ComputerPasteFormat = "text" | "md" | "html";
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 /**
@@ -55,9 +64,14 @@ export type ComputerDwellMs = number;
  * Button press duration before release, in milliseconds.
  */
 export type ComputerHoldMs = number;
+export type ComputerWorkerOperation = ComputerRequest | ComputerAppshotRequest | ComputerPreviewRequest;
 export type ComputerControl =
-  ComputerGetControl | ComputerSetControl | ComputerPermissionsControl | ComputerStopControl;
-export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings;
+  | ComputerGetControl
+  | ComputerSetControl
+  | ComputerApplicationSetControl
+  | ComputerPermissionsControl
+  | ComputerStopControl;
+export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings | SetComputerApplicationSettings;
 
 export interface ComputerStatusRequest {
   operation: "status";
@@ -101,6 +115,15 @@ export interface ComputerSubtree {
   observation_id: ComputerRef;
   element_id: ComputerRef;
 }
+export interface ComputerScreenshotRequest {
+  operation: "screenshot";
+  target: ComputerTargetRef;
+  recognize_text?: boolean;
+}
+export interface ComputerReadOcrRequest {
+  operation: "read_ocr";
+  screenshot_id: ComputerRef;
+}
 export interface ComputerActRequest {
   operation: "act";
   action: ComputerAction;
@@ -139,9 +162,6 @@ export interface ComputerTypeText {
   anchor: ComputerAnchor;
   text: ComputerText;
 }
-/**
- * Logical key names/chords (for example ["Control", "a"]), mapped by the adapter.
- */
 export interface ComputerPressKey {
   kind: "press_key";
   anchor: ComputerAnchor;
@@ -178,6 +198,23 @@ export interface ComputerSetValue {
   kind: "set_value";
   element_id: ComputerRef;
   value: ComputerValue;
+}
+export interface ComputerSelectText {
+  kind: "select_text";
+  element_id: ComputerRef;
+  selection: ComputerTextSelection;
+}
+export interface ComputerTextSelection {
+  text: ComputerText;
+  prefix?: ComputerText | null;
+  suffix?: ComputerText | null;
+  selection_type?: ComputerSelectionType;
+}
+export interface ComputerPaste {
+  kind: "paste";
+  anchor: ComputerAnchor;
+  text: ComputerText;
+  format?: ComputerPasteFormat;
 }
 export interface ComputerPerformAction {
   kind: "perform_action";
@@ -227,7 +264,16 @@ export interface ComputerReceiptRequest {
 export interface ComputerWorkerRequest {
   id: ComputerRef;
   thread: ComputerRef;
-  request: ComputerRequest;
+  request: ComputerWorkerOperation;
+  allowed_applications?: ComputerRef[];
+}
+export interface ComputerAppshotRequest {
+  operation: "appshot";
+  foreground_pid: number;
+}
+export interface ComputerPreviewRequest {
+  operation: "preview_frame";
+  target: ComputerTargetRef;
 }
 export interface ComputerGetControl {
   action: "computer_get";
@@ -235,6 +281,11 @@ export interface ComputerGetControl {
 export interface ComputerSetControl {
   action: "computer_set";
   enabled: boolean;
+}
+export interface ComputerApplicationSetControl {
+  action: "computer_application_set";
+  application_id: ComputerRef;
+  allowed: boolean;
 }
 export interface ComputerPermissionsControl {
   action: "computer_permissions";
@@ -249,4 +300,10 @@ export interface SetComputerSettings {
   method: "settings.computer";
   id: ComputerRef;
   enabled: boolean;
+}
+export interface SetComputerApplicationSettings {
+  method: "settings.computer.application";
+  id: ComputerRef;
+  application_id: ComputerRef;
+  allowed: boolean;
 }

@@ -29,6 +29,7 @@ struct Message {
     #[serde(default)]
     value: Value,
     computer_state: Option<ComputerUseState>,
+    computer_preview: Option<Value>,
     composer_catalog: Option<HostEvent>,
     cloud_browser: Option<Value>,
 }
@@ -95,6 +96,12 @@ impl NativeConnectors {
                 if let Some(state) = message.computer_state {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
                         apps.publish_computer(state);
+                    }
+                } else if let Some(preview) = message.computer_preview {
+                    if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
+                        let mut event = HostEvent::new("native_computer_preview", None, String::new());
+                        event.data = preview;
+                        apps.publish(event);
                     }
                 } else if let Some(event) = message.composer_catalog {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() { apps.publish(event); }
@@ -169,13 +176,11 @@ impl NativeConnectors {
         };
         match message.effect.as_deref() {
             Some("computer.settings") => {
-                let enabled = message.value.as_bool().ok_or("COMPUTER_SETTINGS_INVALID")?;
                 let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
-                apps.save_computer(enabled).map_err(|error| {
+                apps.save_computer(message.value.clone()).map_err(|error| {
                     eprintln!("Computer Use settings: {error:#}");
                     "Could not save Computer Use settings"
-                })?;
-                Ok(Value::Null)
+                })
             }
             Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
                 .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),

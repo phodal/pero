@@ -13,6 +13,18 @@ use serde_json::json;
 gpui_kit::actions!(web_document, [OpenWeb]);
 pub(crate) const SURFACE_KEY_CONTEXT: &str = "WebSurface";
 
+#[cfg(target_os = "macos")]
+pub(crate) fn layout_occluded_web_selection(window: &Window, cx: &mut App) {
+    if !window.is_visible() {
+        // AppKit pauses display frames while the window is occluded. Lay out
+        // the selected native child after releasing the Workbench borrow.
+        window.defer(cx, |window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+    }
+}
+
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct WorkspaceNativeWeb {
     pub view: Entity<crate::native_web::NativeWebPage>,
@@ -263,6 +275,10 @@ impl Workbench {
             document
         };
         self.observe_web(document, select, window, cx);
+        #[cfg(target_os = "macos")]
+        if select {
+            layout_occluded_web_selection(window, cx);
+        }
     }
 
     pub(crate) fn sync_web_address(

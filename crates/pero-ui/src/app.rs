@@ -137,6 +137,8 @@ pub(crate) struct Workbench {
     pub error: Option<String>,
     pub events: Vec<HostEvent>,
     pub chat: Entity<ChatPanel>,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub(crate) computer_preview: Entity<crate::native_computer_preview::ComputerPreview>,
     pub session_search: Entity<InputState>,
     pub session_search_open: bool,
     pub session_menu_open: Option<String>,
@@ -190,6 +192,10 @@ impl Workbench {
             cx.notify();
         })];
         let chat = cx.new(|cx| {let mut panel=ChatPanel::new(locale.clone(),window,cx);panel.can_open_documents=true;panel});
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        let computer_preview = cx.new(|_| crate::native_computer_preview::ComputerPreview::new(locale.clone()));
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        chat.update(cx, |panel, _| panel.computer_preview = Some(computer_preview.clone().into()));
         let mut subscriptions = subscriptions;
         subscriptions.push(cx.observe_in(&chat, window, |this, _, window, cx| {
             this.reconcile_content(window, cx);
@@ -411,6 +417,8 @@ impl Workbench {
             error: None,
             events: Vec::new(),
             chat,
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            computer_preview,
             spotlight: None,
             spotlight_query: String::new(),
             workspace: String::new(),
@@ -472,6 +480,13 @@ impl Workbench {
             chat.show_return_to_review = show_return;
             if chat.compact != compact { chat.compact = compact; cx.notify(); }
         });
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        {
+            let thread = self.browser_thread(cx);
+            self.computer_preview.update(cx, |preview, cx| {
+                preview.select(thread, visible && !compact, &self.locale, cx);
+            });
+        }
     }
 
     pub(crate) fn navigate(&mut self, page: WorkbenchPage, cx: &mut Context<Self>) {

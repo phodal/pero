@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { WebContents } from 'electron';
 import { dialogRefusal, type BrowserDialog, type BrowserDialogAnswer } from './dialog.ts';
 import { sendBrowserInput, type BrowserInput } from './input.ts';
+import { captureBrowserDiagnostics, type BrowserDiagnosticOptions } from './diagnostics.ts';
+import { ChromiumAccessibility } from './accessibility.ts';
+import { ChromiumCdp } from './cdp.ts';
+import { ChromiumCdpTargets, type SessionCdpSubscribe } from './cdp-targets.ts';
+import type { CdpRequest, CdpTargetRequest } from './request.ts';
 
 /** The debugger attachment belongs to one embedded-tab grant. */
 export class EmbeddedDialogs {
@@ -10,6 +15,9 @@ export class EmbeddedDialogs {
   private dialogWaiters = new Set<() => void>();
   private pendingInput?: Promise<void>;
   private disposed = false;
+  private accessibility?: ChromiumAccessibility;
+  private cdpSession?: ChromiumCdp;
+  private cdpChildren?: ChromiumCdpTargets;
 
   constructor(private contents: WebContents, private changed: () => void) {}
 
@@ -32,7 +40,8 @@ export class EmbeddedDialogs {
     await this.enabled;
   }
 
-  private onMessage = (_event: Electron.Event, method: string, params: Record<string, unknown>) => {
+  private onMessage = (_event: Electron.Event, method: string, params: Record<string, unknown>, sessionId?: string) => {
+    if (sessionId) return;
     if (method === 'Page.javascriptDialogOpening') {
       const { type, url, message } = params;
       if (type !== 'alert' && type !== 'confirm' && type !== 'prompt' && type !== 'beforeunload') return;
@@ -48,6 +57,11 @@ export class EmbeddedDialogs {
 
   private onDetach = () => {
     this.enabled = undefined;
+    this.accessibility = undefined;
+    this.cdpSession?.invalidate();
+    this.cdpSession = undefined;
+    this.cdpChildren?.invalidate();
+    this.cdpChildren = undefined;
     this.dialog = undefined;
     this.contents.debugger.off('message', this.onMessage);
     this.changed();
@@ -101,10 +115,64 @@ export class EmbeddedDialogs {
     return !this.disposed && !!this.enabled && !this.contents.isDestroyed() && this.contents.debugger.isAttached();
   }
 
-  send = async (method: string, params?: object) => {
+  send = async (method: string, params?: object, sessionId?: string) => {
     if (!this.attached) throw new Error('The authorized debugger session ended.');
-    return this.contents.debugger.sendCommand(method, params);
+    return this.contents.debugger.sendCommand(method, params, sessionId);
   };
+
+  private subscribeSession: SessionCdpSubscribe = listener => {
+    const client = this.contents.debugger;
+    const receive = (_event: Electron.Event, method: string, params: Record<string, unknown>, sessionId?: string) =>
+      listener(method, params, sessionId || undefined);
+    client.on('message', receive);
+    return () => client.off('message', receive);
+  };
+
+  private subscribe = (listener: (method: string, params: Record<string, unknown>) => void) =>
+    this.subscribeSession((method, params, sessionId) => { if (!sessionId) listener(method, params); });
+
+  async diagnose(origin: string, options: BrowserDiagnosticOptions, check: () => void, signal: AbortSignal) {
+    await this.start();
+    await this.cdpSession?.stopCapture();
+    return captureBrowserDiagnostics(origin, options, this.send, this.subscribe, check, signal);
+  }
+
+  async cdp(request: CdpRequest, document: string, origin: string, check: () => void, signal: AbortSignal) {
+    await this.start();
+    const session = this.cdpSession ??= new ChromiumCdp();
+    const send = async (method: string, params?: Record<string, unknown>) => {
+      if (this.cdpSession !== session) throw new Error('The authorized debugger session ended.');
+      return this.send(method, params);
+    };
+    return session.call(request, document, origin, send, this.subscribe, () => {
+      if (this.cdpSession !== session) throw new Error('The authorized debugger session ended.');
+      check();
+    }, signal);
+  }
+
+  clearCdp() {
+    this.cdpSession?.invalidate();
+    this.cdpChildren?.invalidate();
+  }
+
+  async cdpTargets(request: CdpTargetRequest, document: string, origin: string, check: () => void, signal: AbortSignal) {
+    await this.start();
+    const targets = this.cdpChildren ??= new ChromiumCdpTargets();
+    const attachment = this.enabled;
+    return targets.call(request, document, origin, async (method, params, sessionId) => {
+      if (this.enabled !== attachment) throw new Error('The authorized debugger session ended.');
+      return this.send(method, params, sessionId);
+    }, this.subscribeSession, check, signal);
+  }
+
+  async observeAX(origin: string, document: string, since: string | undefined, check: () => void) {
+    await this.start();
+    const accessibility = this.accessibility ??= new ChromiumAccessibility();
+    return accessibility.observe(this.send, origin, document, since, () => {
+      if (this.accessibility !== accessibility) throw new Error('The authorized debugger session ended.');
+      check();
+    });
+  }
 
   async dispatch(input: BrowserInput) {
     await this.start();

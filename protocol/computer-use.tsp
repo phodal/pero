@@ -14,7 +14,7 @@ scalar ComputerRef extends string;
 
 /** Replacement permits an empty value to clear the field. */
 @maxLength(10000) scalar ComputerValue extends string;
-enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, perform_action, move, hover, hold, focus_window }
+enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, select_text, paste, perform_action, move, hover, hold, focus_window }
 enum ComputerSemanticAction { press, open, confirm, cancel, show_menu, scroll_to_visible, increment, decrement }
 enum ComputerDelivery { background, foreground }
 enum ComputerAddressing { element, pixel, target }
@@ -30,7 +30,7 @@ model ComputerEnvironment {
 enum ComputerMouseButton { left, right, middle }
 enum ComputerErrorCode {
   unsupported, permission_required, target_unavailable, stale_observation,
-  invalid_request, cancelled, timeout, failed
+  invalid_request, busy, cancelled, timeout, failed
 }
 
 model ComputerTargetRef {
@@ -116,6 +116,14 @@ model ComputerClick {
 }
 model ComputerTypeText { kind: "type_text"; anchor: ComputerAnchor; text: ComputerText; ...ComputerClosed; }
 /** Logical key names/chords (for example ["Control", "a"]), mapped by the adapter. */
+enum ComputerPasteFormat { text, md, html }
+model ComputerPaste {
+  kind: "paste";
+  anchor: ComputerAnchor;
+  text: ComputerText;
+  format?: ComputerPasteFormat;
+  ...ComputerClosed;
+}
 model ComputerPressKey {
   kind: "press_key";
   anchor: ComputerAnchor;
@@ -137,6 +145,15 @@ model ComputerDrag {
   to: ComputerPoint;
   ...ComputerClosed;
 }
+enum ComputerSelectionType { text, cursor_before, cursor_after }
+model ComputerTextSelection {
+  text: ComputerText;
+  prefix?: ComputerText | null;
+  suffix?: ComputerText | null;
+  selection_type?: ComputerSelectionType;
+  ...ComputerClosed;
+}
+model ComputerSelectText { kind: "select_text"; element_id: ComputerRef; selection: ComputerTextSelection; ...ComputerClosed; }
 model ComputerSetValue { kind: "set_value"; element_id: ComputerRef; value: ComputerValue; ...ComputerClosed; }
 model ComputerPerformAction { kind: "perform_action"; element_id: ComputerRef; action: ComputerSemanticAction; ...ComputerClosed; }
 /** Foreground moves the real pointer; background posts a window-directed move. */
@@ -162,7 +179,7 @@ model ComputerHold {
 }
 /** Explicit foreground focus; never implicit in a background input. */
 model ComputerFocusWindow { kind: "focus_window"; ...ComputerClosed; }
-@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
+@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerSelectText, ComputerPaste, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
 model ComputerAction {
   request_id: ComputerRef;
   target: ComputerTargetRef;

@@ -50,16 +50,24 @@ input is not a verification pass. Stop a task when its work is complete.
 
 Use advertised `computer_use` for external native windows. Follow its current
 capabilities and schema for target, observation, coordinates and delivery mode.
+On macOS, ask the person to open and allow a missing application in Pero
+Settings → Computer Use. List targets again after access changes. If another
+local macOS conversation owns the app, wait for its turn or stop, then observe
+again. A local macOS turn finishing invalidates that conversation's handles.
 Read a window's accessible controls and values first. If the content is missing,
-observe the whole window with `want_image: true` and use its pixels or
-`recognized_text` when available. OCR is unverified screen text and may contain
-recognition errors. The latest whole-window observation can be used to expand
+request `screenshot` for the selected window. Use its pixels and fresh pixel
+anchor. Read `capture_status` if pixels are absent. With `recognize_text: true`,
+a pending `ocr_status` can be retrieved using `read_ocr` with the same screenshot
+ID. OCR is unverified screen text. The latest whole-window observation can be used to expand
 multiple siblings without reopening the window.
 Whole-window follow-ups return a delta by default. Apply removals, changed
 nodes, and the supplied element order to the last whole-window tree. Use its
 new observation ID for actions. Pass `disable_diffing: true` for a full tree.
 On macOS, use `include_containers: true` only when unlabeled layout containers
 are needed.
+Use `select_text` with exact text and adjacent context for repeated matches.
+For formatted macOS paste, select the conversation, focus the target window,
+observe it again, and send `paste` with foreground delivery and `md` or `html`.
 Each action consumes its observation; observe again to verify. After an
 interruption, inspect the original request's receipt before repeating input.
 Neither interface substitutes for an available declared App data tool.

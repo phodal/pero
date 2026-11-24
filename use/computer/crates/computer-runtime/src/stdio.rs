@@ -4,25 +4,45 @@ use pero_contracts::computer_use::*;
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
-use crate::{ComputerRuntime, DesktopDriver};
+use crate::{ComputerRuntime, DesktopDriver, access::ApplicationAccess};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
     id: ComputerRef,
     thread: ComputerRef,
-    request: ComputerRequest,
+    request: Operation,
+    allowed_applications: Option<Vec<ComputerRef>>,
+}
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Operation {
+    Agent(ComputerRequest),
+    Shell(ShellOperation),
+}
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum ShellOperation {
+    Appshot { foreground_pid: i32 },
+    PreviewFrame { target: ComputerTargetRef },
 }
 #[derive(Serialize)]
 #[serde(untagged)]
-enum Response {
+enum Value {
+    Agent(ComputerResponse),
+    Appshot(ComputerAppshotResponse),
+    Preview(ComputerPreviewResponse),
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum Response<'a> {
     Success {
         id: ComputerRef,
-        value: ComputerResponse,
+        value: &'a Value,
     },
     Failure {
         id: ComputerRef,
-        error: ComputerError,
+        error: &'a ComputerError,
     },
 }
 
@@ -67,8 +87,22 @@ pub fn serve_stream<D: DesktopDriver>(
     });
     for request in receiver {
         let request = request?;
-        let result = driver.call(request.thread, request.request);
-        let response = match result {
+        let access = request
+            .allowed_applications
+            .as_deref()
+            .map_or(ApplicationAccess::Unrestricted, ApplicationAccess::Allowed);
+        let result = match request.request {
+            Operation::Agent(operation) => driver
+                .call_with_access(request.thread, operation, access)
+                .map(Value::Agent),
+            Operation::Shell(ShellOperation::Appshot { foreground_pid }) => {
+                driver.appshot(foreground_pid).map(Value::Appshot)
+            }
+            Operation::Shell(ShellOperation::PreviewFrame { target }) => {
+                driver.preview_frame(&target, access).map(Value::Preview)
+            }
+        };
+        let response = match &result {
             Ok(value) => Response::Success {
                 id: request.id,
                 value,

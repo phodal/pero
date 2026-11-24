@@ -298,6 +298,8 @@ async function runElectron() {
   await sibling.bringToFront();
   await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(false);
   assert.equal((await call({ action: 'observe' })).value.kind, 'error');
+  assert.equal((await call({ action: 'observe', background: true })).value.kind, 'error');
+  assert.equal((await call({ action: 'getAXState' })).value.kind, 'error');
   await target.bringToFront();
   await expect.poll(async () => (await call({ action: 'status' })).value.visible).toBe(true);
   const chromeClick = await clickFixture();
@@ -311,7 +313,8 @@ async function runElectron() {
   await expect(panel.locator('#status')).toContainText('Connected');
   await writeFile(resolve(output, 'result.json'), JSON.stringify({
     declined: true, granted: true, blockedOtherTabAndFiles: true, effects, click, chromeClick,
-    embeddedScreenshot, chromeScreenshot, inactiveChromeTabBlocked: true, revoked: true, chromePairRetained: true,
+    embeddedScreenshot, chromeScreenshot, inactiveChromeTabBlocked: true, workstationOnlyActionsBlocked: true,
+    revoked: true, chromePairRetained: true,
   }, null, 2));
   console.log('Electron and paired Chrome each completed one trusted click through the real Cloud Runtime Gateway.');
 }

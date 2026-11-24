@@ -100,7 +100,7 @@ impl NativeApps {
     pub fn accept(&self, event: &HostEvent) -> bool {
         if matches!(event.kind.as_str(), "computer_settings" | "computer_settings_error") {
             if let Some(sender) = self.pending.lock().unwrap().remove(event.request_id.as_deref().unwrap_or("")) {
-                let _ = sender.send(Reply { ok: event.kind == "computer_settings", value: None, error: None });
+                let _ = sender.send(Reply { ok: event.kind == "computer_settings", value: Some(event.data.clone()), error: None });
             }
             return true;
         }
@@ -165,12 +165,12 @@ impl NativeApps {
         }
         Ok(serde_json::from_value(reply.value.unwrap_or(Value::Null))?)
     }
-    pub(super) fn save_computer(&self, enabled: bool) -> anyhow::Result<()> {
+    pub(super) fn save_computer(&self, mut command: Value) -> anyhow::Result<Value> {
         let id = format!("native-computer-{}", self.next.fetch_add(1, Ordering::Relaxed));
-        let command = json!({"method":"settings.computer","id":id,"enabled":enabled});
+        command["id"] = json!(id);
         let result = self.host_reply(id, command, Duration::from_secs(5))?;
         anyhow::ensure!(result.ok, "Could not save Computer Use settings");
-        Ok(())
+        result.value.ok_or_else(|| anyhow::anyhow!("Computer Use settings were not returned"))
     }
     fn host_reply(&self, id: String, command: Value, timeout: Duration) -> anyhow::Result<Reply> {
         let transport = if command["method"] == "shared_project_sources" {

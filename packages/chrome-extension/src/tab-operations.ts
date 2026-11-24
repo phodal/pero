@@ -27,20 +27,22 @@ export async function screenshot(cdp: Cdp, { clip, fullPage }: Omit<Extract<Driv
 }
 
 export async function downloadLink(cdp: Cdp, world: string, origin: string, url: string) {
-  return evaluateDocument(cdp, world, origin, downloadLinkScript(origin, url), true);
+  return evaluateDocument(cdp, world, origin, downloadLinkScript(origin, url), 'download');
 }
 
-export async function evaluateDocument(cdp: Cdp, world: string, origin: string, expression: string, awaitPromise = false) {
+export async function evaluateDocument(cdp: Cdp, world: string, origin: string, expression: string,
+  mode: 'sync' | 'download' | 'siteTools' = 'sync') {
   const { frameTree } = await cdp('Page.getFrameTree');
   const frame = frameTree?.frame;
   if (!frame || webOrigin(frame.url) !== origin) throw new Error('The Chrome tab left its authorization.');
   const { executionContextId } = await cdp('Page.createIsolatedWorld', { frameId: frame.id, worldName: world });
   const result = await cdp('Runtime.evaluate', {
-    expression, contextId: executionContextId, returnByValue: true, silent: true, awaitPromise,
+    expression, contextId: executionContextId, returnByValue: true, silent: true, awaitPromise: mode !== 'sync',
   });
   if (result.exceptionDetails || !result.result || result.result.value === undefined)
-    throw new Error(awaitPromise ? 'Could not read the approved download link (redirects and oversized files are refused).' :
-      'The authorized Chrome document did not answer.');
+    throw new Error(mode === 'download' ? 'Could not read the approved download link (redirects and oversized files are refused).' :
+      mode === 'siteTools' ? 'The Chrome site tool request did not return a result. Inspect the tab before retrying.' :
+        'The authorized Chrome document did not answer.');
   return result.result.value;
 }
 

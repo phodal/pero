@@ -65,6 +65,23 @@ pub fn execute(
                 execution.route = ComputerExecutionRoute::Semantic;
                 return ax_result(ffi::ax_set_str(&control.handle, "AXValue", value.as_str()));
             }
+            ComputerInput::SelectText {
+                element_id,
+                selection,
+            } => {
+                let control = control(element_id)?;
+                let value = ffi::ax_str(&control.handle, "AXValue");
+                let range = selection.range_in(&value)?;
+                execution.route = ComputerExecutionRoute::Semantic;
+                return ax_result(ffi::ax_set_range(
+                    &control.handle,
+                    "AXSelectedTextRange",
+                    ffi::CFRange {
+                        location: range.start as isize,
+                        length: range.length as isize,
+                    },
+                ));
+            }
             ComputerInput::PerformAction { element_id, action } => {
                 let control = control(element_id)?;
                 let name = observation::semantic_name(*action);
@@ -118,6 +135,12 @@ pub fn execute(
                 }
             }
         };
+        let focus_input = |anchor: &ComputerAnchor| match anchor {
+            ComputerAnchor::Element { element_id } => {
+                ax_result(ffi::ax_set_true(&control(element_id)?.handle, "AXFocused"))
+            }
+            ComputerAnchor::Pixel { point: p, .. } => window.click(point(*p), MouseButton::Left, 1),
+        };
         match action.input {
             ComputerInput::Click {
                 anchor,
@@ -162,15 +185,17 @@ pub fn execute(
                 }
             }
             ComputerInput::TypeText { anchor, text } => {
-                match anchor {
-                    ComputerAnchor::Element { element_id } => {
-                        ax_result(ffi::ax_set_true(&control(&element_id)?.handle, "AXFocused"))?;
-                    }
-                    ComputerAnchor::Pixel { point: p, .. } => {
-                        window.click(point(p), MouseButton::Left, 1)?
-                    }
-                }
+                focus_input(&anchor)?;
                 window.text(text.as_str())
+            }
+            ComputerInput::Paste {
+                anchor,
+                text,
+                format,
+            } => {
+                window.require_foreground()?;
+                focus_input(&anchor)?;
+                crate::paste::paste(app, &window, text.as_str(), format, cancellation)
             }
             ComputerInput::PressKey { anchor, keys } => {
                 let key = keys
@@ -190,14 +215,7 @@ pub fn execute(
                     point_computer_core::keymap::parse_key(&key).map_err(|failure| {
                         error(ComputerErrorCode::Unsupported, failure.to_string())
                     })?;
-                match anchor {
-                    ComputerAnchor::Element { element_id } => {
-                        ax_result(ffi::ax_set_true(&control(&element_id)?.handle, "AXFocused"))?;
-                    }
-                    ComputerAnchor::Pixel { point: p, .. } => {
-                        window.click(point(p), MouseButton::Left, 1)?
-                    }
-                }
+                focus_input(&anchor)?;
                 window.key(code, flags)
             }
             ComputerInput::Scroll {
@@ -232,7 +250,9 @@ pub fn execute(
                 window.move_to(location(&anchor)?, action.delivery)?;
                 cancellation.wait(dwell_ms.duration())
             }
-            ComputerInput::SetValue { .. } | ComputerInput::PerformAction { .. } => {
+            ComputerInput::SetValue { .. }
+            | ComputerInput::SelectText { .. }
+            | ComputerInput::PerformAction { .. } => {
                 unreachable!("semantic inputs dispatched before geometry")
             }
         }
