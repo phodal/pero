@@ -1,5 +1,7 @@
 //! Project identity and task selection, independent of rendering and I/O.
-use pero_contracts::workbench::{ProjectBinding, RepositoryIdentity, WorkspaceRepository};
+use pero_contracts::workbench::{
+    ProjectBinding, RemovedProjectSource, RepositoryIdentity, WorkbenchPreferences, WorkspaceRepository,
+};
 use pero_contracts::workspace_path::WorkspacePath;
 use serde::Serialize;
 
@@ -94,7 +96,8 @@ impl Project {
         projects
     }
 
-    pub fn with_research(mut catalog: Vec<Self>, research: &[pero_contracts::research_project::ResearchProject]) -> Vec<Self> {
+    pub fn with_research(mut catalog: Vec<Self>, preferences: &WorkbenchPreferences) -> Vec<Self> {
+        let research = &preferences.research_projects;
         let mut projects = Vec::new();
         for saved in research {
             let directory = saved.workspace.as_ref().and_then(|path| catalog.iter().find(|p| p.contains_workspace(path)))
@@ -106,8 +109,22 @@ impl Project {
             });
         }
         catalog.retain(|project| !research.iter().any(|saved| saved.workspace.as_ref().is_some_and(|path| project.contains_workspace(path)) || saved.shared_id.is_some() && saved.shared_id == project.shared_id));
+        catalog.retain(|project| !preferences.removed_project_sources.iter().any(|source| match source {
+            RemovedProjectSource::Workspace(path) => project.contains_workspace(path),
+            RemovedProjectSource::Shared(id) => project.contains_task(id),
+        }));
         projects.extend(catalog);
         projects
+    }
+
+    pub fn remove_from(&self, preferences: &mut WorkbenchPreferences) {
+        if let Some(id) = self.research_id() {
+            preferences.research_projects.retain(|project| project.id != id);
+        }
+        preferences.removed_project_sources.extend(
+            self.workspaces.iter().chain(self.workspace.iter()).cloned().map(RemovedProjectSource::Workspace)
+                .chain(self.shared_id.iter().cloned().map(RemovedProjectSource::Shared)),
+        );
     }
 
     pub fn matches_key(&self, key: &str) -> bool {
@@ -236,7 +253,10 @@ mod tests {
             let saved = pero_contracts::research_project::ResearchProject::new(
                 "question".into(), "Research question".into(), String::new(), Some(current.into()),
             ).unwrap();
-            let research = Project::with_research(projects, &[saved]);
+            let research = Project::with_research(projects, &WorkbenchPreferences {
+                research_projects: vec![saved],
+                ..Default::default()
+            });
             assert_eq!(research.len(), 2);
             assert_eq!(research[0].key, "research:question");
             assert_eq!(research[0].shared_id.as_deref(), Some("team"));
@@ -329,7 +349,10 @@ mod tests {
             });
             let catalog = Project::catalog(&workspaces, &["team".into()], &bindings, &[], &[]);
             let saved = ResearchProject::new("stable-research".into(), title.into(), String::new(), workspace.map(str::to_string)).unwrap();
-            let projects = Project::with_research(catalog, &[saved]);
+            let projects = Project::with_research(catalog, &WorkbenchPreferences {
+                research_projects: vec![saved],
+                ..Default::default()
+            });
             assert_eq!(projects[0].key, "research:stable-research", "{title}");
             assert_eq!(projects[0].name, title);
             assert_eq!(projects[0].workspace.as_deref(), workspace);
@@ -344,6 +367,37 @@ mod tests {
                 assert!(projects[0].matches_key("workspace:/work/project-two"));
             }
         }
+    }
+
+    #[test]
+    fn removing_a_project_hides_its_inferred_sources_and_keeps_other_saved_projects() {
+        use pero_contracts::research_project::ResearchProject;
+        let first = "/work/one";
+        let second = "/work/two";
+        let workspaces = [first, second, "/work/unrelated"].map(str::to_owned);
+        let bindings = [first, second].map(|workspace| ProjectBinding {
+            workspace: workspace.into(),
+            project_id: "team".into(),
+        });
+        let shared = ["team".into()];
+        let catalog = || Project::catalog(&workspaces, &shared, &bindings, &[], &[]);
+        let mut preferences = WorkbenchPreferences {
+            research_projects: ["one", "two"].map(|id| {
+                ResearchProject::new(id.into(), id.into(), String::new(), Some(first.into())).unwrap()
+            }).to_vec(),
+            ..Default::default()
+        };
+        for (deleted, remaining) in [("research:one", vec!["research:two", "workspace:/work/unrelated"]),
+            ("research:two", vec!["workspace:/work/unrelated"])]
+        {
+            let projects = Project::with_research(catalog(), &preferences);
+            projects.iter().find(|project| project.key == deleted).unwrap().remove_from(&mut preferences);
+            let projects = Project::with_research(catalog(), &preferences);
+            assert_eq!(projects.iter().map(|project| project.key.as_str()).collect::<Vec<_>>(), remaining);
+        }
+        let without_checkouts = Project::catalog(&workspaces[2..], &shared, &[], &[], &[]);
+        let projects = Project::with_research(without_checkouts, &preferences);
+        assert_eq!(projects.iter().map(|project| project.key.as_str()).collect::<Vec<_>>(), ["workspace:/work/unrelated"]);
     }
 
     #[test]

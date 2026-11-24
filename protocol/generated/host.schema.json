@@ -16180,6 +16180,57 @@
       ],
       "additionalProperties": false
     },
+    "RemovedProjectSource": {
+      "title": "RemovedProjectSource",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RemovedWorkspaceProjectSource"
+        },
+        {
+          "$ref": "#/$defs/RemovedSharedProjectSource"
+        }
+      ]
+    },
+    "RemovedSharedProjectSource": {
+      "title": "RemovedSharedProjectSource",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "shared"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "RemovedWorkspaceProjectSource": {
+      "title": "RemovedWorkspaceProjectSource",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "workspace"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "RemoveIconTheme": {
       "title": "RemoveIconTheme",
       "type": "object",
@@ -20305,6 +20356,12 @@
             "$ref": "#/$defs/ResearchProject"
           },
           "maxItems": 128
+        },
+        "removed_project_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RemovedProjectSource"
+          }
         },
         "layout": {
           "$ref": "#/$defs/LayoutPreferences"

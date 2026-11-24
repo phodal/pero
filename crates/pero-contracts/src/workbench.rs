@@ -244,6 +244,14 @@ impl LayoutPreferences {
     }
 }
 
+/// An inferred catalog entry the user removed from this workbench.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RemovedProjectSource {
+    Workspace(String),
+    Shared(String),
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorkbenchPreferences {
@@ -257,6 +265,8 @@ pub struct WorkbenchPreferences {
     pub projects: Vec<ProjectBinding>,
     #[serde(default)]
     pub research_projects: Vec<crate::research_project::ResearchProject>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub removed_project_sources: std::collections::BTreeSet<RemovedProjectSource>,
     #[serde(default)]
     pub layout: LayoutPreferences,
     #[serde(default)]
@@ -266,6 +276,14 @@ pub struct WorkbenchPreferences {
 impl WorkbenchPreferences {
     pub fn valid(&self) -> bool {
         crate::research_project::ResearchProject::collection_valid(&self.research_projects)
+            && self.removed_project_sources.iter().all(|source| match source {
+                RemovedProjectSource::Workspace(path) => {
+                    !path.trim().is_empty() && path.len() <= 4096 && !path.contains('\0')
+                }
+                RemovedProjectSource::Shared(id) => {
+                    !id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)
+                }
+            })
             && self.projects.len() <= 128
             && self.projects.iter().enumerate().all(|(i, binding)| {
                 !binding.workspace.trim().is_empty()

@@ -240,7 +240,10 @@ model TypographyPreferences {
   ...Closed
 }
 model ResearchProject { @minLength(1) @maxLength(128) id: string; @minLength(1) @maxLength(200) title: string; @maxLength(4000) goal: string; workspace: string | null; @maxItems(256) resources: Pero.Apps.ProjectResourceRef[]; ...Closed }
-model WorkbenchPreferences { shortcuts?: Pero.Shortcuts.ShortcutOverrides; accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; layout?: LayoutPreferences; ...Closed }
+model RemovedWorkspaceProjectSource { kind: "workspace"; @minLength(1) @maxLength(4096) value: string; ...Closed }
+model RemovedSharedProjectSource { kind: "shared"; @minLength(1) @maxLength(128) value: string; ...Closed }
+union RemovedProjectSource { workspace: RemovedWorkspaceProjectSource, shared: RemovedSharedProjectSource }
+model WorkbenchPreferences { shortcuts?: Pero.Shortcuts.ShortcutOverrides; accent?: "teal" | "blue" | "neutral"; typography?: TypographyPreferences; appearance: "light" | "dark" | "system"; @maxItems(128) projects: ProjectBinding[]; @maxItems(128) research_projects?: ResearchProject[]; removed_project_sources?: RemovedProjectSource[]; layout?: LayoutPreferences; ...Closed }
 model GetWorkbenchSettingsRequest { method: "settings.workbench.get"; ...Closed }
 model SetWorkbenchSettingsRequest { method: "settings.workbench"; preferences: WorkbenchPreferences; ...Closed }
 

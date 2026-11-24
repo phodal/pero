@@ -111,6 +111,7 @@ export type ProjectResourceRef =
  */
 export type ProjectResourceId = string;
 export type ProjectObservedRevision = string;
+export type RemovedProjectSource = RemovedWorkspaceProjectSource | RemovedSharedProjectSource;
 export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
@@ -1338,6 +1339,7 @@ export interface WorkbenchPreferences {
    * @maxItems 128
    */
   research_projects?: ResearchProject[];
+  removed_project_sources?: RemovedProjectSource[];
   layout?: LayoutPreferences;
 }
 export interface ShortcutOverrides {
@@ -1757,6 +1759,14 @@ export interface DataDatasetProjectResourceRef {
   kind: "dataset";
   id: string;
   revision: string;
+}
+export interface RemovedWorkspaceProjectSource {
+  kind: "workspace";
+  value: string;
+}
+export interface RemovedSharedProjectSource {
+  kind: "shared";
+  value: string;
 }
 export interface LayoutPreferences {
   chat_width?: number;

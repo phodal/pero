@@ -77,7 +77,7 @@ impl Workbench {
             &self.preferences.projects,
             &self.workspace_repositories,
             &repositories,
-        ), &self.preferences.research_projects)
+        ), &self.preferences)
     }
 
     pub(crate) fn reconcile_project_selection(&mut self, cx: &App) {
