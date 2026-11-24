@@ -6,6 +6,8 @@ use pero_contracts::computer_use::*;
 use point_computer_core::types::Frame;
 use point_computer_macos::ffi::{self, CfRef};
 use std::{
+    collections::HashSet,
+    hash::{Hash, Hasher},
     num::NonZeroU32,
     time::{Duration, Instant},
 };
@@ -13,7 +15,72 @@ use std::{
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn CFEqual(a: *const std::ffi::c_void, b: *const std::ffi::c_void) -> bool;
+    fn CFHash(value: *const std::ffi::c_void) -> usize;
     fn CFGetTypeID(a: *const std::ffi::c_void) -> usize;
+}
+struct ElementIdentity(CfRef);
+impl PartialEq for ElementIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        unsafe { CFEqual(self.0.as_ptr(), other.0.as_ptr()) }
+    }
+}
+impl Eq for ElementIdentity {}
+impl Hash for ElementIdentity {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        unsafe { CFHash(self.0.as_ptr()) }.hash(state);
+    }
+}
+
+const NATIVE_MAX_NODES: usize = 4096;
+const NATIVE_MAX_DEPTH: u16 = 64;
+
+fn project_tree(
+    nodes: impl IntoIterator<Item = ComputerElement>,
+    options: &ComputerObserveOptions,
+) -> (Vec<ComputerElement>, bool) {
+    let mut projected = Vec::new();
+    let mut truncated = false;
+    let mut depths = [0; NATIVE_MAX_DEPTH as usize + 2];
+    for mut node in nodes {
+        let raw_depth = usize::from(node.depth);
+        let depth = depths[raw_depth];
+        let wrapper = !options.include_containers
+            && raw_depth != 0
+            && matches!(node.role.as_str(), "AXGroup" | "AXGenericElement")
+            && node.label.trim().is_empty()
+            && node
+                .value
+                .as_ref()
+                .is_none_or(|value| value.trim().is_empty())
+            && node.semantic_actions.iter().all(|action| {
+                matches!(
+                    action,
+                    ComputerSemanticAction::ShowMenu | ComputerSemanticAction::ScrollToVisible
+                )
+            })
+            && node.state.as_ref().is_none_or(|state| {
+                !state.focused
+                    && !state.secure
+                    && !state.value_settable
+                    && state.selected != Some(true)
+                    && state.expanded != Some(true)
+            });
+        depths[raw_depth + 1] = depth + u16::from(!wrapper);
+        if wrapper {
+            continue;
+        }
+        if depth > u16::from(options.max_depth) {
+            truncated = true;
+            continue;
+        }
+        if projected.len() == usize::from(u16::from(options.max_nodes)) {
+            truncated = true;
+            break;
+        }
+        node.depth = depth;
+        projected.push(node);
+    }
+    (projected, truncated)
 }
 
 pub struct Control {
@@ -141,22 +208,18 @@ pub fn observe(
         clipped
     };
     let mut stack = vec![(root, 0u16)];
+    let mut seen = HashSet::new();
     let mut controls: Vec<Control> = Vec::new();
-    let mut truncated = false;
+    let mut scan_incomplete = false;
     let mut has_secure = false;
     let start = Instant::now();
-    let max_nodes = usize::from(u16::from(options.max_nodes));
-    let max_depth = u16::from(options.max_depth);
     while let Some((element, depth)) = stack.pop() {
-        if controls.len() >= max_nodes || start.elapsed() > Duration::from_secs(10) {
-            truncated = true;
-            break;
-        }
-        if controls
-            .iter()
-            .any(|c| unsafe { CFEqual(c.handle.as_ptr(), element.as_ptr()) })
-        {
+        if !seen.insert(ElementIdentity(element.retain())) {
             continue;
+        }
+        if controls.len() >= NATIVE_MAX_NODES || start.elapsed() > Duration::from_secs(10) {
+            scan_incomplete = true;
+            break;
         }
         let role = ffi::ax_str(&element, "AXRole");
         let subrole = ffi::ax_str(&element, "AXSubrole");
@@ -233,19 +296,12 @@ pub fn observe(
         for attr in attrs {
             let found = ffi::ax_retained_elements(&element, attr, 512);
             if found.len() == 512 {
-                truncated = true;
+                scan_incomplete = true;
             }
-            for child in found {
-                if !children
-                    .iter()
-                    .any(|other| unsafe { CFEqual(child.as_ptr(), other.as_ptr()) })
-                {
-                    children.push(child);
-                }
-            }
+            children.extend(found);
         }
-        if depth >= max_depth && !children.is_empty() {
-            truncated = true;
+        if depth >= NATIVE_MAX_DEPTH && !children.is_empty() {
+            scan_incomplete = true;
         } else {
             stack.extend(children.into_iter().rev().map(|child| (child, depth + 1)));
         }
@@ -259,7 +315,7 @@ pub fn observe(
     let image = if options.want_image
         && options.root.is_none()
         && !has_secure
-        && !truncated
+        && !scan_incomplete
         && ffi::preflight_screen_capture()
     {
         capture::window(window.window_id).and_then(|image| {
@@ -280,11 +336,13 @@ pub fn observe(
         controls,
         bounds,
     };
+    let (elements, projection_truncated) =
+        project_tree(snapshot.controls.iter().map(|c| c.public.clone()), options);
     Ok(WindowObservation {
-        elements: snapshot.controls.iter().map(|c| c.public.clone()).collect(),
+        elements,
         bounds: bounds.map(bridge::bounds),
         image,
-        truncated,
+        truncated: scan_incomplete || projection_truncated,
         source: snapshot,
     })
 }

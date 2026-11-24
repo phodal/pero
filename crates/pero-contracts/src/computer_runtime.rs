@@ -56,6 +56,12 @@ pub struct ComputerImageContent {
     pub data: String,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComputerObservationDelta {
+    pub base_observation_id: ComputerRef,
+    pub removed_element_ids: Vec<ComputerRef>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerResponse {
     Status {
@@ -74,6 +80,8 @@ pub enum ComputerResponse {
         image: Option<ComputerImageContent>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         recognized_text: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        delta: Option<ComputerObservationDelta>,
     },
     Receipt {
         receipt: ComputerActionReceipt,

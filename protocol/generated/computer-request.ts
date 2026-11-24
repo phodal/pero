@@ -19,6 +19,10 @@ export type ComputerApplicationName = string;
  * Host-issued references, never OS handles, paths, credentials or caller identities.
  */
 export type ComputerRef = string;
+/**
+ * Host-issued references, never OS handles, paths, credentials or caller identities.
+ */
+export type ComputerRef1 = string;
 export type ComputerDelivery = "background" | "foreground";
 export type ComputerInput =
   | ComputerClick
@@ -83,6 +87,11 @@ export interface ComputerObserveOptions {
   max_nodes?: number;
   max_depth?: number;
   root?: ComputerSubtree | null;
+  /**
+   * On macOS retain unlabeled layout containers in the returned tree.
+   */
+  include_containers?: boolean;
+  since_observation_id?: ComputerRef1;
 }
 export interface ComputerSubtree {
   observation_id: ComputerRef;

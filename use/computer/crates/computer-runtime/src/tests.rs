@@ -65,22 +65,39 @@ impl DesktopDriver for OwnedDesktop {
         _: &ComputerObserveOptions,
         _: Option<&AppSnapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
-        Ok(WindowObservation {
-            source: AppSnapshot(self.0.borrow().clicks),
-            bounds: Some(self.0.borrow().bounds),
-            elements: vec![
+        let clicks = self.0.borrow().clicks;
+        let mut elements = vec![
+            ObservedControl {
+                index: ControlId(1),
+                role: "Button".into(),
+                label: "Increment".into(),
+                value: clicks.to_string(),
+                depth: 0,
+                enabled: true,
+                secure: false,
+                invocable: true,
+            }
+            .into_element(),
+        ];
+        if clicks == 0 {
+            elements.push(
                 ObservedControl {
-                    index: ControlId(1),
-                    role: "Button".into(),
-                    label: "Increment".into(),
+                    index: ControlId(2),
+                    role: "Text".into(),
+                    label: "Pending".into(),
                     value: String::new(),
-                    depth: 0,
+                    depth: 1,
                     enabled: true,
                     secure: false,
-                    invocable: true,
+                    invocable: false,
                 }
                 .into_element(),
-            ],
+            );
+        }
+        Ok(WindowObservation {
+            source: AppSnapshot(clicks),
+            bounds: Some(self.0.borrow().bounds),
+            elements,
             image: None,
             truncated: false,
         })
@@ -279,7 +296,12 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             ComputerErrorCode::StaleObservation
         );
         let ComputerResponse::Receipt { receipt } = runtime
-            .call(thread, ComputerRequest::Act { action })
+            .call(
+                thread.clone(),
+                ComputerRequest::Act {
+                    action: action.clone(),
+                },
+            )
             .unwrap()
         else {
             panic!()
@@ -301,5 +323,43 @@ fn session_consumes_platform_observations_and_preserves_effect_uncertainty() {
             clicks,
             "Consumed observations cannot repeat an effect"
         );
+        let ComputerResponse::Observation {
+            observation: current,
+            delta,
+            ..
+        } = runtime
+            .call(
+                thread,
+                ComputerRequest::Observe {
+                    target,
+                    options: ComputerObserveOptions {
+                        since_observation_id: Some(action.observation_id.clone()),
+                        ..ComputerObserveOptions::default()
+                    },
+                },
+            )
+            .unwrap()
+        else {
+            panic!()
+        };
+        if stopped {
+            assert!(delta.is_none(), "Stop also clears the read baseline");
+            assert_eq!(current.elements.len(), 2);
+        } else {
+            let delta = delta.expect("Latest complete window is a valid baseline after input");
+            assert_eq!(delta.base_observation_id, action.observation_id);
+            assert_ne!(current.id, delta.base_observation_id);
+            if clicks == 0 {
+                assert!(current.elements.is_empty());
+                assert!(delta.removed_element_ids.is_empty());
+            } else {
+                assert_eq!(current.elements.len(), 1);
+                assert_eq!(current.elements[0].value.as_deref(), Some("1"));
+                assert_eq!(
+                    delta.removed_element_ids,
+                    vec![observation.elements[1].id.clone()]
+                );
+            }
+        }
     }
 }

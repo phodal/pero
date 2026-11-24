@@ -129,6 +129,10 @@ pub struct ComputerObserveOptions {
     pub max_depth: ComputerDepthBudget,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root: Option<ComputerSubtree>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub include_containers: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub since_observation_id: Option<ComputerRef>,
 }
 fn want_image() -> bool {
     true
@@ -146,6 +150,8 @@ impl Default for ComputerObserveOptions {
             max_nodes: node_budget(),
             max_depth: depth_budget(),
             root: None,
+            include_containers: false,
+            since_observation_id: None,
         }
     }
 }

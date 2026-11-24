@@ -405,6 +405,14 @@
               "type": "null"
             }
           ]
+        },
+        "include_containers": {
+          "type": "boolean",
+          "description": "On macOS retain unlabeled layout containers in the returned tree."
+        },
+        "since_observation_id": {
+          "$ref": "#/$defs/ComputerRef",
+          "description": "Compare with the latest whole-window observation of this target."
         }
       },
       "additionalProperties": false

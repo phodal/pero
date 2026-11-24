@@ -117,6 +117,7 @@ export interface ComputerObservationResponse {
    * Unverified OCR of the same window image, when available.
    */
   recognized_text?: string;
+  delta?: ComputerObservationDelta;
 }
 export interface ComputerObservation {
   id: ComputerRef;
@@ -155,6 +156,13 @@ export interface ComputerScreenshot {
 export interface ComputerImageContent {
   media_type: "image/png" | "image/jpeg";
   data: string;
+}
+/**
+ * When present, observation.elements contains only added or changed nodes.
+ */
+export interface ComputerObservationDelta {
+  base_observation_id: ComputerRef;
+  removed_element_ids: ComputerRef[];
 }
 export interface ComputerReceiptResponse {
   kind: "receipt";

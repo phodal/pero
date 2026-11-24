@@ -17,6 +17,10 @@ model ComputerObserveOptions {
   @minValue(1) @maxValue(4096) max_nodes?: uint16;
   @minValue(1) @maxValue(64) max_depth?: uint16;
   root?: ComputerSubtree | null;
+  /** On macOS retain unlabeled layout containers in the returned tree. */
+  include_containers?: boolean;
+  /** Compare with the latest whole-window observation of this target. */
+  since_observation_id?: ComputerRef;
   ...ComputerClosed;
 }
 model ComputerObserveRequest { operation: "observe"; target: ComputerTargetRef; options?: ComputerObserveOptions; ...ComputerClosed; }
@@ -33,12 +37,19 @@ model ComputerImageContent { media_type: "image/png" | "image/jpeg"; data: strin
 model ComputerStatusResponse { kind: "status"; status: ComputerDriverStatus; ...ComputerClosed; }
 model ComputerTargetsResponse { kind: "targets"; capabilities: ComputerCapabilities; targets: ComputerTarget[]; ...ComputerClosed; }
 model ComputerOpenedResponse { kind: "opened"; target?: ComputerTarget | null; message: string; ...ComputerClosed; }
+model ComputerObservationDelta {
+  base_observation_id: ComputerRef;
+  removed_element_ids: ComputerRef[];
+  ...ComputerClosed;
+}
 model ComputerObservationResponse {
   kind: "observation";
   observation: ComputerObservation;
   image?: ComputerImageContent | null;
   /** Unverified OCR of the same window image, when available. */
   @maxLength(6000) recognized_text?: string;
+  /** When present, observation.elements contains only added or changed nodes. */
+  delta?: ComputerObservationDelta;
   ...ComputerClosed;
 }
 model ComputerReceiptResponse { kind: "receipt"; receipt: ComputerActionReceipt; ...ComputerClosed; }

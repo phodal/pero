@@ -491,6 +491,26 @@
       ],
       "additionalProperties": false
     },
+    "ComputerObservationDelta": {
+      "title": "ComputerObservationDelta",
+      "type": "object",
+      "properties": {
+        "base_observation_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "removed_element_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          }
+        }
+      },
+      "required": [
+        "base_observation_id",
+        "removed_element_ids"
+      ],
+      "additionalProperties": false
+    },
     "ComputerObservationKind": {
       "title": "ComputerObservationKind",
       "type": "string",
@@ -524,6 +544,10 @@
           "type": "string",
           "maxLength": 6000,
           "description": "Unverified OCR of the same window image, when available."
+        },
+        "delta": {
+          "$ref": "#/$defs/ComputerObservationDelta",
+          "description": "When present, observation.elements contains only added or changed nodes."
         }
       },
       "required": [

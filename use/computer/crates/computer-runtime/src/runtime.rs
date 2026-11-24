@@ -3,16 +3,61 @@ use crate::{DesktopDriver, WindowObservation, error};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use computer_core::{Window, WindowBounds};
 use pero_contracts::{computer_runtime::*, computer_use::*};
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 fn reference() -> ComputerRef {
     Uuid::new_v4().to_string().try_into().unwrap()
 }
 struct Observation<S> {
-    public: ComputerObservation,
+    public: Arc<ComputerObservation>,
     native: S,
     bounds: Option<WindowBounds>,
+}
+#[derive(PartialEq, Eq)]
+struct TreeProjection {
+    max_nodes: ComputerNodeBudget,
+    max_depth: ComputerDepthBudget,
+    include_containers: bool,
+}
+struct WholeWindowBaseline {
+    public: Arc<ComputerObservation>,
+    projection: TreeProjection,
+}
+impl WholeWindowBaseline {
+    fn delta(
+        &self,
+        base: &ComputerRef,
+        projection: &TreeProjection,
+        next: &mut ComputerObservation,
+    ) -> Option<ComputerObservationDelta> {
+        let old = &self.public;
+        if old.id != *base
+            || old.target != next.target
+            || &self.projection != projection
+            || old.truncated
+            || next.truncated
+        {
+            return None;
+        }
+        let current_ids: HashSet<_> = next.elements.iter().map(|node| &node.id).collect();
+        let removed_element_ids = old
+            .elements
+            .iter()
+            .filter(|node| !current_ids.contains(&node.id))
+            .map(|node| node.id.clone())
+            .collect();
+        let previous: HashMap<_, _> = old.elements.iter().map(|node| (&node.id, node)).collect();
+        next.elements
+            .retain(|node| previous.get(&node.id).is_none_or(|old| *old != node));
+        Some(ComputerObservationDelta {
+            base_observation_id: base.clone(),
+            removed_element_ids,
+        })
+    }
 }
 struct Observations<S> {
     window: Observation<S>,
@@ -40,6 +85,8 @@ pub struct ComputerRuntime<D: DesktopDriver> {
     capabilities: ComputerCapabilities,
     targets: HashMap<ComputerRef, Window>,
     observations: HashMap<ComputerRef, Observations<D::Snapshot>>,
+    // Public state remains available for a diff after input consumes native handles.
+    last_windows: HashMap<ComputerRef, WholeWindowBaseline>,
     host_pid: i32,
     pub(crate) cancellation: crate::Cancellation,
 }
@@ -59,6 +106,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             },
             targets: HashMap::new(),
             observations: HashMap::new(),
+            last_windows: HashMap::new(),
             host_pid,
             cancellation: crate::Cancellation::default(),
         }
@@ -98,6 +146,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             }),
             ComputerRequest::Stop {} => {
                 self.observations.remove(&thread);
+                self.last_windows.remove(&thread);
                 Ok(ComputerResponse::Stopped {})
             }
             ComputerRequest::Receipt { .. } => Err(error(
@@ -195,21 +244,35 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             media_type: image.media_type,
             data: STANDARD.encode(image.bytes),
         });
-        let observation = ComputerObservation {
+        let mut observation = ComputerObservation {
             id: reference(),
             target,
             elements,
             screenshot,
             truncated,
         };
+        let public = Arc::new(observation.clone());
         let snapshot = Observation {
-            public: observation.clone(),
+            public: public.clone(),
             native: source,
             bounds,
         };
-        if options.root.is_some() {
+        let delta = if options.root.is_some() {
             self.observations.get_mut(&thread).unwrap().subtree = Some(snapshot);
+            None
         } else {
+            let projection = TreeProjection {
+                max_nodes: options.max_nodes,
+                max_depth: options.max_depth,
+                include_containers: options.include_containers,
+            };
+            let delta = options.since_observation_id.as_ref().and_then(|base| {
+                self.last_windows
+                    .get(&thread)?
+                    .delta(base, &projection, &mut observation)
+            });
+            self.last_windows
+                .insert(thread.clone(), WholeWindowBaseline { public, projection });
             self.observations.insert(
                 thread,
                 Observations {
@@ -217,11 +280,13 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                     subtree: None,
                 },
             );
-        }
+            delta
+        };
         Ok(ComputerResponse::Observation {
             observation,
             image,
             recognized_text,
+            delta,
         })
     }
     fn act(&mut self, thread: &ComputerRef, action: ComputerAction) -> ComputerActionReceipt {
