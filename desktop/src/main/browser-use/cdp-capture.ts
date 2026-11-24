@@ -20,7 +20,7 @@ export class ChromiumCdpCapture {
 
   constructor(readonly id: string, private readonly origin: string, private readonly frameId: string,
     private readonly loaderId: string, private readonly send: CdpSend, subscribe: CdpSubscribe,
-    private readonly signal: AbortSignal, check: () => void) {
+    private readonly signal: AbortSignal, check: () => void, private readonly onEnd?: () => void) {
     this.buffer = new CdpEventBuffer(id);
     const runtime = topRuntimeEvents(frameId, origin, event => this.append(event));
     this.unsubscribe = subscribe((method, params) => {
@@ -53,6 +53,7 @@ export class ChromiumCdpCapture {
     this.buffer.clear();
     this.closing = this.ready.catch(() => {}).then(async () => {
       for (const domain of this.domains.reverse()) await this.send(domain + '.disable').catch(() => {});
+      this.onEnd?.();
     });
     this.notify?.();
     return this.closing;

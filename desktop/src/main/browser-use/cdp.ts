@@ -38,7 +38,7 @@ export class ChromiumCdp {
   }
 
   async call(request: CdpRequest, document: string, origin: string, send: CdpSend,
-    subscribe: CdpSubscribe, check: () => void, signal: AbortSignal, captureId?: string) {
+    subscribe: CdpSubscribe, check: () => void, signal: AbortSignal, captureId?: string, onCaptureEnd?: () => void) {
     if (this.document !== document) {
       await this.stopCapture();
       this.document = document;
@@ -59,7 +59,7 @@ export class ChromiumCdp {
         await this.stopCapture();
         const frame = await topFrame();
         const capture = this.capture = new ChromiumCdpCapture(captureId ?? crypto.randomUUID(), origin,
-          frame.id, frame.loaderId, send, subscribe, signal, check);
+          frame.id, frame.loaderId, send, subscribe, signal, check, onCaptureEnd);
         try {
           const cursor = await capture.start();
           check();

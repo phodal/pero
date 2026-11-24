@@ -56,7 +56,7 @@ export type DriverOperation =
   | { kind: 'getAXState'; since?: string }
   | ({ kind: 'diagnose' } & BrowserDiagnosticOptions)
   | { kind: 'cdp'; request: CdpRequest; captureId?: string }
-  | { kind: 'cdpTargets'; request: CdpTargetRequest }
+  | { kind: 'cdpTargets'; request: CdpTargetRequest; captureId?: string }
   | { kind: 'siteTools'; command: SiteToolCommand }
   | { kind: 'download'; url: string }
   | { kind: 'dispatch'; input: DriverInput; expectPopup?: true }
@@ -239,21 +239,17 @@ export class NativeBrowserUse implements BrowserUsePort {
         signal.throwIfAborted();
         return { ...snapshot, tabId, origin };
       }
-      if (cdpTargetRequest(request)) {
+      if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents' || request.action === 'cdpListTargets') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
-        for (const childOrigin of cdpTargetOrigins(request, origin)) {
-          if (childOrigin !== origin && await this.siteAdmission?.status(thread, { ...tab, origin: childOrigin }) === 'blocked')
-            throw new Error(`Chrome site access was blocked for ${childOrigin}.`);
+        const child = cdpTargetRequest(request);
+        if (child) {
+          for (const childOrigin of cdpTargetOrigins(request, origin)) {
+            if (childOrigin !== origin && await this.siteAdmission?.status(thread, { ...tab, origin: childOrigin }) === 'blocked')
+              throw new Error(`Chrome site access was blocked for ${childOrigin}.`);
+          }
         }
-        const active = await approveCdpTargets(request, origin, thread, signal, this.approveDiagnostics);
-        const result = await run<Awaited<ReturnType<ChromiumCdpTargets['call']>>>({ kind: 'cdpTargets', request });
-        await run({ kind: 'check' });
-        active.throwIfAborted();
-        return { tabId, origin, ...result };
-      }
-      if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents') {
-        if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
-        const approved = await this.approveDiagnostics(thread, origin, signal);
+        const approved = child ? await approveCdpTargets(request, origin, thread, signal, this.approveDiagnostics)
+          : await this.approveDiagnostics(thread, origin, signal);
         approved.throwIfAborted();
         if (request.action === 'diagnose') {
           const diagnostics = await run<Awaited<ReturnType<typeof captureBrowserDiagnostics>>>({
@@ -272,7 +268,9 @@ export class NativeBrowserUse implements BrowserUsePort {
           setTimeout(() => approved.removeEventListener('abort', stop), cdpCaptureMs + 16000).unref();
         }
         try {
-          const result = await run<Awaited<ReturnType<ChromiumCdp['call']>>>({ kind: 'cdp', request, captureId });
+          const result = child
+            ? await run<Awaited<ReturnType<ChromiumCdpTargets['call']>>>({ kind: 'cdpTargets', request, captureId })
+            : await run<Awaited<ReturnType<ChromiumCdp['call']>>>({ kind: 'cdp', request, captureId });
           await run({ kind: 'check' });
           approved.throwIfAborted();
           return { tabId, origin, ...result };

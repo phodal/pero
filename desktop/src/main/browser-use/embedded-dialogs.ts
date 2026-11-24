@@ -60,6 +60,7 @@ export class EmbeddedDialogs {
     this.accessibility = undefined;
     this.cdpSession?.invalidate();
     this.cdpSession = undefined;
+    this.cdpChildren?.invalidate();
     this.cdpChildren = undefined;
     this.dialog = undefined;
     this.contents.debugger.off('message', this.onMessage);
@@ -151,7 +152,7 @@ export class EmbeddedDialogs {
 
   clearCdp() {
     this.cdpSession?.invalidate();
-    this.cdpChildren = undefined;
+    this.cdpChildren?.invalidate();
   }
 
   async cdpTargets(request: CdpTargetRequest, document: string, origin: string, check: () => void, signal: AbortSignal) {

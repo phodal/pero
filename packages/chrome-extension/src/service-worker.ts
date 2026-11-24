@@ -28,6 +28,12 @@ type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; 
   capture?: { key: string; tabId: number; url: string; revision: number;
     scope: 'page' | 'selection'; truncated: boolean; capturedAt: number } };
 
+function invalidateCdp(handle?: TabHandle) {
+  handle?.cdpStart?.controller.abort();
+  handle?.cdp?.invalidate();
+  handle?.cdpChildren?.invalidate();
+}
+
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 let peer: Peer | undefined;
@@ -86,10 +92,7 @@ async function release(connection: Peer, reason?: string) {
   clearInterval(connection.timer);
   connection.socket.close();
   publish();
-  for (const handle of connection.tabs.values()) {
-    handle.cdpStart?.controller.abort();
-    handle.cdp?.invalidate();
-  }
+  for (const handle of connection.tabs.values()) invalidateCdp(handle);
   await Promise.allSettled([...connection.tabs.values()].flatMap(({ tabId, attachment }) =>
     attachment ? [attachment.then(() => chrome.debugger.detach({ tabId }))] : []));
 }
@@ -164,7 +167,8 @@ async function run(connection: Peer, command: Command) {
   }
   const handle = [...connection.tabs.values()].find(handle => handle.id === command.tab);
   if (!handle) throw new Error('The selected Chrome tab is unavailable. List tabs again.');
-  const captureId = command.kind === 'run' && command.operation.kind === 'cdp' ? command.operation.captureId : undefined;
+  const captureId = command.kind === 'run' && (command.operation.kind === 'cdp' || command.operation.kind === 'cdpTargets')
+    ? command.operation.captureId : undefined;
   const starting = captureId && { id: captureId, controller: new AbortController() };
   if (starting) handle.cdpStart = starting;
   if (command.kind === 'run' && handle.pendingInput && !handle.dialog)
@@ -181,8 +185,7 @@ async function run(connection: Peer, command: Command) {
       return { kind: 'tabClosed', tabId: 'chrome:' + handle.id };
     }
     if (command.action.kind === 'handoff') {
-      handle.cdpStart?.controller.abort();
-      handle.cdp?.invalidate();
+      invalidateCdp(handle);
       connection.handedOff.add(handle.tabId);
       connection.tabs.delete(handle.tabId);
       if (handle.attachment) {
@@ -295,7 +298,7 @@ async function run(connection: Peer, command: Command) {
     };
     if (operation.kind === 'cdpTargets') {
       const result = await (handle.cdpChildren ??= new ChromiumCdpTargets()).call(operation.request,
-        command.stamp, origin, cdp, subscribeSession, check, new AbortController().signal);
+        command.stamp, origin, cdp, subscribeSession, check, starting ? starting.controller.signal : new AbortController().signal, captureId);
       const after = await snapshot(connection, handle);
       check();
       checkDocument(after);
@@ -384,7 +387,8 @@ function connect(code: string) {
   publish();
   socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket,
     ...(pairing.parallel === true && { parallel: true }), ...(pairing.cdpNetwork === true && { cdpNetwork: true }),
-    ...(pairing.cdpTargets === true && { cdpTargets: true }), ...(pairing.cdpTargetTree === true && { cdpTargetTree: true }) });
+    ...(pairing.cdpTargets === true && { cdpTargets: true }), ...(pairing.cdpTargetTree === true && { cdpTargetTree: true }),
+    ...(pairing.cdpTargetNetwork === true && { cdpTargetNetwork: true }) });
   socket.onclose = event => void release(connection, event.reason || 'The Pero Relay disconnected.');
   socket.onerror = () => void release(connection, 'Could not connect to Pero. Check the pairing code.');
   connection.timer = setInterval(() => {
@@ -412,6 +416,7 @@ function connect(code: string) {
         const handle = [...connection.tabs.values()].find(tab => tab.id === message.tab);
         if (handle?.cdpStart?.id === captureId) handle.cdpStart.controller.abort();
         void handle?.cdp?.stopCapture(captureId);
+        void handle?.cdpChildren?.stopCapture(captureId);
         return;
       }
       if (message.type === 'paired' && connection.state === 'connecting') {
@@ -452,15 +457,11 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
   const handle = peer?.tabs.get(tabId);
   if (handle && (change.status === 'loading' || change.url)) {
     handle.revision++;
-    handle.cdpStart?.controller.abort();
-    handle.cdp?.invalidate();
-    handle.cdpChildren = undefined;
+    invalidateCdp(handle);
   }
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
-  const handle = peer?.tabs.get(tabId);
-  handle?.cdpStart?.controller.abort();
-  handle?.cdp?.invalidate();
+  invalidateCdp(peer?.tabs.get(tabId));
   peer?.tabs.delete(tabId);
   peer?.handedOff.delete(tabId);
 });
@@ -486,8 +487,7 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: str
   if (!connection || !handle?.attachment) return;
   handle.attachment = undefined;
   handle.accessibility = undefined;
-  handle.cdpStart?.controller.abort();
-  handle.cdp?.invalidate();
+  invalidateCdp(handle);
   handle.cdp = undefined;
   handle.cdpChildren = undefined;
   handle.dialog = undefined;
