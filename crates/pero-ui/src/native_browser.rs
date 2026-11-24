@@ -82,6 +82,7 @@ enum TabAction {
     Open { url: String },
     Activate,
     Close,
+    Handoff,
     GetJsDialog,
     HandleJsDialog { dialog_id: uuid::Uuid, decision: dialogs::Decision, prompt_text: Option<String> },
 }
@@ -381,6 +382,13 @@ impl Workbench {
                         TabAction::Close => {
                             self.close_web(&tab, window, cx);
                             Ok(Some(json!({"kind":"tabClosed","tabId":tab})))
+                        }
+                        TabAction::Handoff => {
+                            self.native_web_pages[&tab]
+                                .view
+                                .update(cx, |tab, _| tab.browser_grant = None);
+                            cx.notify();
+                            Ok(Some(json!({"kind":"tabHandedOff","tabId":tab})))
                         }
                         action @ (TabAction::GetJsDialog | TabAction::HandleJsDialog { .. }) => {
                             anyhow::ensure!(

@@ -11,13 +11,19 @@ for Relay protocol 3.
 2. In Electron, use **Workbench → Copy Chrome pairing code**. In the extension,
    expand **Enter a pairing code manually**, paste the code and select **Pair
    with Pero**. Each code expires after two minutes and can be used once.
-3. The paired conversation can use regular HTTP(S) tabs in this Chrome
-   profile. `browser_use` lists their `chrome:` IDs. Select or activate the
-   intended tab before reading or acting on the page. Chrome attaches its
-   debugger on the first page operation that needs it.
+3. The paired conversation can list regular HTTP(S) tabs in this Chrome
+   profile using `browser_use`. Select or activate a tab and approve the site
+   in Pero before the conversation reads or acts on its page. Chrome attaches
+   its debugger on the first approved page operation that needs it.
 4. Select **Stop and take over** in Chrome or **Disconnect Chrome** in Pero
    to end access to all tabs. Chrome's debugger Cancel control also ends
    the connection. Tabs stay open.
+
+The site prompt offers one-turn approval, persistent approval, decline for
+the current turn, and persistent block. Saved decisions apply to the exact
+origin in the current Workbench profile. Open **Chrome site permissions** in
+the Workbench menu or Native Browser Use settings to see or clear saved
+decisions. To release one tab, use `handoff` with its `chrome:` ID.
 
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate

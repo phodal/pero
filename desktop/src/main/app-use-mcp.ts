@@ -577,7 +577,15 @@ export class DesktopAppUse {
               ...(image ? [image] : []),
             ], isError };
           } else {
-            result = { content: [{ type: 'text', text: await this.results.select(thread, value) }, ...(image ? [image] : [])], isError };
+            const text = await this.results.select(thread, value);
+            const tree = capability === 'browser' && value && typeof value === 'object' &&
+              'kind' in value && value.kind === 'observation' && 'tree' in value && typeof value.tree === 'string' &&
+              JSON.parse(text).type === 'content_reference' ? value.tree : undefined;
+            result = { content: [
+              { type: 'text', text },
+              ...(tree ? [{ type: 'text', text: tree }] : []),
+              ...(image ? [image] : []),
+            ], isError };
           }
         } else if (message.method === 'tools/call' && message.params?.name === 'app_use' && this.uiAvailable) {
           const value = await this.authority.call(thread, message.params.arguments, controller.signal);

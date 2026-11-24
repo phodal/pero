@@ -129,14 +129,26 @@ both tabs open. The checks and receipt are in
 Electron Desktop and macOS Native use the same local Relay and ACP
 conversation tool. Relay protocol 3 pairs the selected ordinary conversation
 with a Chrome profile. `tabs` lists its regular HTTP(S) tabs across windows.
+The same result includes `chrome.state`. Read it independently of the tab count.
+Use `status` with `provider: "chrome"` or open **Chrome connection status**
+in the Workbench menu to check the selected conversation's connection.
+The pairing permits tab discovery. The first page operation for an origin
+prompts in the Workbench. A one-turn approval or decline ends with the
+agent's turn. Always allow and Block are stored in the Workbench profile,
+keyed by scheme, host and port. `tabs` and `status` report `siteAccess`.
+Chrome site permissions lists the saved rules. Clearing them ends the current
+Chrome pairing. A saved Block also prevents sharing the site with a Cloud run.
+`handoff` releases an individual tab and leaves it open for the user. For
+Chrome it detaches that tab's debugger and keeps other tabs in the pairing
+available. A new pairing can grant access to the tab again.
 Page operations require an active tab in its window and a current document.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
 With extension 0.3.3, `click` with `expectPopup: true` reports the first
 HTTP(S) navigation target Chrome attributes to the selected tab during input
 and the five-second observation window. The receipt includes its `chrome:`
-ID. The paired conversation can use that ID after the new tab loads, including
-when the page opens another site. If no event is observed, the click outcome
+ID. After the new tab loads, the paired conversation can use that ID and
+request site approval if needed. If no event is observed, the click outcome
 is recorded separately from `popup.kind: notObserved`.
 
 Extension 0.3.4 also supports JavaScript dialogs on the active tab in the
@@ -153,8 +165,9 @@ receipts record the decision and ID. The prompt answer stays out of the receipt.
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
-The suite checks listing and observing tabs on two origins in separate Chrome
-windows immediately after pairing, lazy debugger attachment, an
+The suite checks listing tabs on two origins in separate Chrome windows
+immediately after pairing, approval before observation, lazy debugger
+attachment, one-turn and persistent permissions, settings reset, an
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
@@ -168,6 +181,11 @@ inactive tab rejection, cross-origin guardrails, replay protection and debugger 
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.
+It distinguishes an unpaired session, a pending or expired pairing code,
+a protocol mismatch, a connected profile with zero web tabs, and a disconnect.
+The large-page fixture checks that the tree stays inline beside the content
+reference. The suite also checks scoped actions after reload, read-only
+queries that leave refs usable, and handing off a tab while it remains open.
 Evidence is written to `test-results/chrome-relay/`.
 
 ### Chrome and embedded browser from an SSH Workbench
@@ -245,6 +263,8 @@ token. Text recipes receive bounded text results. The process fixture
 with a loopback TLS control endpoint and scripted provider. It verified the
 tool result returned to the next provider request and the default lane has no
 Browser Use function.
+Cloud observations accept `includeTree` and keep the tree at the top-level
+document. An iframe appears as a boundary without its contents.
 
 A vision recipe can additionally opt in with `runtime.browser_screenshots`.
 The share confirmation discloses the screenshot transfer. `screenshot` returns
@@ -387,6 +407,9 @@ and debugger dialog lifecycle.
 - `locate` takes an exact role and optional accessible name, label, text, or
   test ID. It requires a unique visible match. An actionable result carries an
   opaque reference for the current observation.
+- `query` uses the same locator and scope for read-only access to matching
+  elements. It returns a count and bounded node details without action refs.
+  Set `limit: 0` for a count alone. A query leaves the current refs usable.
 - `observe` lists visible iframes with a title or test ID. Pass their selectors
   in the `frame` path on `observe`, `locate` or `wait` to read the same-origin
   document. Paths support up to four iframe levels. References bind the actual
@@ -397,6 +420,11 @@ and debugger dialog lifecycle.
   still returns its existing `nodes`, refs, and iframe selectors. To operate
   inside an iframe, observe or locate within its `frame` path. A tree that
   reaches its own output or traversal limit has `treeTruncated: true`.
+  The MCP reply includes the tree inline even when the complete observation
+  is stored behind a `content_reference`.
+- `act` resolves its locator and runs its `operation` using a fresh reference.
+  It accepts the same frame and container scope as `locate`. Set `timeoutMs`
+  to wait for the target to appear. Each call resolves the target again.
 - Form state exposes disabled status, checked or mixed state, safe text values,
   and bounded option metadata. `setChecked` updates native checkboxes and can
   select a radio. `selectOption` accepts a value or an array of up to 64 values

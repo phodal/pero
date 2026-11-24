@@ -26,6 +26,7 @@ type Session = {
   visited: Map<string, AppScope>;
   title: string;
   epoch: number;
+  browserTurn?: symbol;
   running: boolean;
   closed: boolean;
 };
@@ -153,7 +154,10 @@ export class AppUse {
       this.sessions.delete(thread);
     } else if (thread && event.kind === 'turn_started') {
       const session = this.sessions.get(thread);
-      if (session) session.running = true;
+      if (session) {
+        session.running = true;
+        session.browserTurn = Symbol();
+      }
       this.pendingTurns.delete(thread);
       for (const notify of this.turnWaiters.get(thread) || []) notify(true);
       this.turnWaiters.delete(thread);
@@ -178,7 +182,10 @@ export class AppUse {
     for (const notify of this.turnWaiters.get(thread) || []) notify(false);
     this.turnWaiters.delete(thread);
     const session = this.sessions.get(thread);
-    if (session) session.running = false;
+    if (session) {
+      session.running = false;
+      session.browserTurn = undefined;
+    }
     this.interruptCalls(thread);
   }
   private interruptCalls(thread: string, selectionChanged = false) {
@@ -263,6 +270,7 @@ export class AppUse {
   }
   canBeginGoal(thread: string) { const session = this.sessions.get(thread); return !!session && !session.running; }
   conversationWorkspace(thread: string) { return this.sessions.get(thread)?.workspace; }
+  browserTurn(thread: string) { return this.sessions.get(thread)?.browserTurn; }
   requireRunningSession(thread: string) {
     const session = this.sessions.get(thread);
     if (!session?.running) fail('APP_SESSION_INACTIVE', 'A running Host conversation is required.');

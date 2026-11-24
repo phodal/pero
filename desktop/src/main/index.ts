@@ -249,6 +249,32 @@ async function pairChrome() {
     });
   }
 }
+async function showChromeConnection() {
+  const thread = await appUse?.authority.selectedOrdinaryConversation();
+  if (!appUse?.browser || !thread) return;
+  const state = appUse.browser.relay.status(thread);
+  if (!window.isDestroyed()) await dialog.showMessageBox(window, {
+    type: 'info', message: t(`browser_use.chrome_status_${state.state}`),
+    detail: 'message' in state ? state.message : undefined,
+  });
+}
+async function manageChromeSites() {
+  const relay = appUse?.browser?.relay;
+  const access = relay?.siteAccess;
+  if (!relay || !access || window.isDestroyed()) return;
+  const rules = Object.entries(await access.rules()).sort(([left], [right]) => left.localeCompare(right));
+  const { response } = await dialog.showMessageBox(window, {
+    type: 'info', message: t('browser_use.site_settings'),
+    detail: rules.length ? rules.map(([origin, rule]) => `${origin} · ${t(`browser_use.site_rule_${rule}`)}`).join('\n')
+      : t('browser_use.site_empty'),
+    buttons: [t('remote.close_form'), ...(rules.length ? [t('browser_use.site_clear')] : [])],
+    defaultId: 0, cancelId: 0,
+  });
+  if (response === 1) {
+    relay.revoke();
+    await access.clear();
+  }
+}
 function updateMenus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Pero', submenu: [{ role: 'about', label: t('menu.about') }, { type: 'separator' }, { role: 'quit', label: t('menu.quit') }] },
@@ -267,6 +293,10 @@ function updateMenus() {
       { id: 'browser-use-allow', label: t('browser_use.menu_allow'), click: () => { void allowBrowserUse(); } },
       ...(appUse?.browser ? [
         { id: 'browser-use-pair-chrome', label: t('browser_use.chrome_pair'), click: () => { void pairChrome(); } },
+        { id: 'browser-use-chrome-status', label: t('browser_use.chrome_status'), click: () => { void showChromeConnection(); } },
+        { id: 'browser-use-chrome-sites', label: t('browser_use.site_settings'), click: () => {
+          void manageChromeSites().catch(error => dialog.showErrorBox(t('browser_use.unavailable'), String(error)));
+        } },
         { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.browser?.relay.revoke() },
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
@@ -364,7 +394,19 @@ app.whenReady().then(async () => {
     return tabId;
   }, options => net.request(options));
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
-    selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local'),
+    selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local', {
+      currentTurn: thread => appUse?.authority.browserTurn(thread),
+      prompt: async (thread, origin) => {
+        if (window.isDestroyed() || await selected() !== thread) return 'decline';
+        const { response } = await dialog.showMessageBox(window, {
+          type: 'question', message: t('browser_use.site_prompt'),
+          detail: [origin, t('browser_use.site_detail'), ...(sshProfile ? [sshProfile.host] : [])].join('\n'),
+          buttons: [t('browser_use.deny'), t('browser_use.site_once'), t('browser_use.site_allow'), t('browser_use.site_block')],
+          defaultId: 0, cancelId: 0, noLink: true,
+        });
+        return ['decline', 'once', 'allow', 'block'][response];
+      },
+    }),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};

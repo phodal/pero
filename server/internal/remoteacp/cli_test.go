@@ -92,8 +92,12 @@ func checkGoACPProcess(t *testing.T, agent, connector string, browser bool, scre
 			t.Error("scoped identity missing")
 		}
 		if r.URL.Path == "/api/runtime/v1/runs/run/browser/call" {
-			var request struct{ Action string }
-			if !browser || json.NewDecoder(r.Body).Decode(&request) != nil || request.Action != action {
+			var request struct {
+				Action      string
+				IncludeTree bool `json:"includeTree"`
+			}
+			if !browser || json.NewDecoder(r.Body).Decode(&request) != nil || request.Action != action ||
+				request.IncludeTree != (action == "observe") {
 				t.Error("unexpected browser operation", request.Action)
 				http.Error(w, "bad browser call", http.StatusBadRequest)
 				return
@@ -104,7 +108,7 @@ func checkGoACPProcess(t *testing.T, agent, connector string, browser bool, scre
 				fmt.Fprintf(w, `{"kind":"screenshot","receipt":{"sha256":%q,"bytes":%d,"width":%d,"height":%d},"png":%q}`,
 					sha, len(screenshot), dimensions.Width, dimensions.Height, base64.StdEncoding.EncodeToString(screenshot))
 			} else {
-				fmt.Fprint(w, `{"kind":"observation","title":"fixture-browser-marker"}`)
+				fmt.Fprint(w, `{"kind":"observation","title":"Cloud Browser fixture","tree":"- heading fixture-browser-marker"}`)
 			}
 			return
 		}
@@ -142,6 +146,9 @@ func checkGoACPProcess(t *testing.T, agent, connector string, browser bool, scre
 			}
 			if browser && attempt == 1 {
 				arguments := fmt.Sprintf(`{"action":%q}`, action)
+				if action == "observe" {
+					arguments = `{"action":"observe","includeTree":true}`
+				}
 				fmt.Fprintf(w, `data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"browser-1","type":"function","function":{"name":"browser_use","arguments":%q}}]},"finish_reason":"tool_calls"}]}`+"\n\ndata: [DONE]\n\n", arguments)
 				return
 			}
