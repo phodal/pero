@@ -15,7 +15,7 @@ import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrom
 
 import { readVisiblePage } from './collector-capture.js';
 
-type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
+type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; url?: string; pendingUrl?: string; title?: string };
 type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>; accessibility?: ChromiumAccessibility;
   cdp?: ChromiumCdp; cdpChildren?: ChromiumCdpTargets; cdpStart?: { id: string; controller: AbortController };
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
@@ -111,7 +111,7 @@ function tabHandle(connection: Peer, tabId: number) {
 
 function describeTab(tab: ChromeTab & { url: string }, handle: TabHandle, minimized: boolean) {
   return { id: handle.id, url: tab.url, title: (tab.title ?? '').slice(0, 160),
-    active: !!tab.active && !minimized, ready: tab.status === 'complete' && (!tab.pendingUrl || tab.pendingUrl === tab.url),
+    active: !!tab.active && !minimized, ready: !tab.pendingUrl || tab.pendingUrl === tab.url,
     revision: handle.revision };
 }
 
