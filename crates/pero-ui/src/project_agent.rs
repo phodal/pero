@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const PROJECT_CHAT_MIN_WIDTH: f32 = 360.;
 const PROJECT_INSPECTOR_MIN_WIDTH: f32 = 320.;
 const PROJECT_INSPECTOR_MAX_WIDTH: f32 = 640.;
+const PROJECT_INSPECTOR_GRIP_WIDTH: f32 = 8.;
 pub(crate) const PROJECT_SPLIT_MIN: f32 = PROJECT_CHAT_MIN_WIDTH + PROJECT_INSPECTOR_MIN_WIDTH;
 
 #[derive(Default)]
@@ -387,7 +388,7 @@ impl Workbench {
     pub(crate) fn inspector_splitter(&self, width: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let border = pero_theme::UiAppearance::global(cx).palette.action;
         let default = f32::from(pero_contracts::workbench::LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH);
-        div().id("project-inspector-splitter").absolute().left_0().top_0().bottom_0().w(px(6.))
+        div().id("project-inspector-splitter").absolute().left_0().top_0().bottom_0().w(px(PROJECT_INSPECTOR_GRIP_WIDTH))
             .focusable().tab_index(0).role(Role::Splitter).aria_label(self.t("project.resize_inspector"))
             .aria_numeric_value(width.into()).cursor(CursorStyle::ResizeLeftRight)
             .hover(move |el| el.border_l_1().border_color(border))

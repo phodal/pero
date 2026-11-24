@@ -126,6 +126,7 @@ impl Workbench {
     pub(crate) fn sidebar_resize(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = &pero_theme::UiAppearance::global(cx).palette.clone();
         let seam = Hsla { l: (p.border.l - 0.06).max(0.), ..p.border };
+        let edge = p.border;
         let below_band = pero_theme::Chrome::from_app(cx).control(pero_theme::WINDOW_TITLEBAR)
             + px(pero_theme::RADIUS_PANEL + 4.);
         div()
@@ -138,11 +139,12 @@ impl Workbench {
             .absolute()
             .top_0()
             .right_0()
-            .w(px(4.))
+            .w(px(10.))
             .h_full()
-            .child(div().absolute().right_0().top(below_band).bottom_0().w(px(1.))
+            .child(div().absolute().right_0().top(below_band).bottom_0().w(px(1.)).bg(edge)
                 .group_hover("sidebar-resize", |el| el.bg(seam))
-                .when(self.sidebar_resize_focus.is_focused(window), |el| el.bg(seam)))
+                .when(self.resizing_sidebar || self.sidebar_resize_focus.is_focused(window), |el| el.bg(seam)))
+            .child(self.view_bounds.sidebar.probe("resize".into()))
             .cursor(CursorStyle::ResizeLeftRight)
             .on_mouse_down(
                 MouseButton::Left,
