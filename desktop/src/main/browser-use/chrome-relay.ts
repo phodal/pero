@@ -276,7 +276,7 @@ class ChromeRelay {
   }
 
   private call(connection: Connection, command: { kind: 'inspect' | 'inspectCloud' } |
-    { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
+    { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
     { kind: 'manage'; tab: string; action: TabAction }) {
     if (connection.pending) throw new Error('A Chrome Browser Use operation is already in progress.');
     return new Promise<unknown>((resolve, reject) => {
@@ -314,7 +314,7 @@ class ChromeRelay {
           const origin = webOrigin(tab.url);
           if (!origin) return [];
           return [{ origin, tabId: 'chrome:' + tab.id, grantId: connection.id, url: tab.url, title: tab.title,
-            visible: tab.active, active: tab.active, stamp: tab.ready && tab.active ? tab.revision + ':' + tab.url : null, loadError: null }];
+            visible: tab.active, active: tab.active, stamp: tab.ready ? tab.revision + ':' + tab.url : null, loadError: null }];
         });
         return { ok: true, value };
       }
@@ -322,7 +322,7 @@ class ChromeRelay {
       if (!tab?.success || (request.op === 'manage' && request.grant !== connection.id))
         throw new Error('The selected Chrome tab is unavailable. List tabs again.');
       const value = await this.call(connection, request.op === 'run'
-        ? { kind: 'run', tab: tab.data, stamp: request.stamp, operation: request.operation }
+        ? { kind: 'run', tab: tab.data, stamp: request.stamp, background: request.background, operation: request.operation }
         : { kind: 'manage', tab: tab.data, action: request.command });
       if (await this.selected() !== request.thread || connection !== this.connection)
         throw new Error('The paired Chrome conversation changed.');
@@ -351,14 +351,14 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     this.embedded = embedded;
     this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort, approveDiagnostics);
     const tool = embedded.tool;
-    this.tool = { ...tool, inputSchema: approveDiagnostics && siteTools ? browserInputSchema : limitedBrowserSchema(false, !!approveDiagnostics, siteTools), description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
+    this.tool = { ...tool, inputSchema: approveDiagnostics && siteTools ? browserInputSchema : limitedBrowserSchema(false, !!approveDiagnostics, siteTools), description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Pass background: true with an explicit chrome: tabId to observe or act on an inactive tab without selecting it. Chrome supports ' +
       chromeActions.filter(action => action !== 'diagnose' || !!approveDiagnostics).join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' +
       (approveDiagnostics ? ' diagnose captures console messages, runtime errors, network timing, and Chromium performance metrics on the selected site. Set style to a selector and properties to read computed CSS. Set profile to true to sample CPU activity where supported. Browser Developer Mode and separate user approval are required.' : '') };
     if (this.workspace === 'ssh') {
       this.tool = {
         ...this.tool,
         inputSchema: limitedBrowserSchema(true),
-        description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status with provider "chrome". Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab. Activate it before use. Use act to locate and operate in one call, or locate a fresh ref before input. Observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
+        description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status with provider "chrome". Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab and background: true to use an inactive Chrome tab. Use act to locate and operate in one call, or locate a fresh ref before input. Observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
       };
     }
   }
@@ -366,6 +366,8 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
   async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const request = browserRequest.parse(input);
+    if ('background' in request && request.background && !request.tabId?.startsWith('chrome:'))
+      throw new Error('Background Browser Use requires an explicit Chrome tabId.');
     if (request.action === 'diagnose' && this.workspace === 'ssh')
       throw new Error('Browser Developer Mode requires a local Workbench conversation.');
     if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
@@ -387,8 +389,8 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
       return this.embedded.call(thread, request, signal, files, workspace, deliver);
     const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.paired(thread)) ? browser : this.embedded;
     if (request.action === 'act') {
-      const { tabId, locator, frame, within, timeoutMs, operation } = request;
-      const scope = { tabId, locator, frame, within };
+      const { tabId, background, locator, frame, within, timeoutMs, operation } = request;
+      const scope = { tabId, background, locator, frame, within };
       const observed = await target.call(thread, timeoutMs
         ? { ...scope, action: 'wait', condition: { kind: 'visible' }, timeoutMs }
         : { ...scope, action: 'locate' }, signal, files, workspace, deliver);
@@ -396,7 +398,7 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
       const node = (observed.nodes as BrowserNode[])[0];
       if (!node?.ref || !node.actions?.includes(operation.action))
         throw new Error('The located element does not support this operation.');
-      return target.call(thread, { ...operation, tabId, ref: node.ref }, signal, files, workspace, deliver);
+      return target.call(thread, { ...operation, tabId, background, ref: node.ref }, signal, files, workspace, deliver);
     }
     return target.call(thread, input, signal, files, workspace, deliver);
   }

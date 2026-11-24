@@ -12,6 +12,7 @@ import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
 import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -37,6 +38,7 @@ await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', wo
 let foreignHits = 0;
 let leaveRequests = 0;
 const otherOrigin = createServer((request, response) => {
+  if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
   if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === '/inventory-window' || request.url === '/popup-destination') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -53,6 +55,11 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (request.url === axPath || request.url === axFramePath) {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(request.url === axPath ? axPage(foreignUrl) : axFramePage);
+    return;
+  }
   if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
   if (request.url === '/diagnostics') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -99,6 +106,9 @@ const site = createServer((request, response) => {
 <script>document.querySelector('#apply').onclick = event => {
   document.querySelector('[data-testid="result"]').textContent =
     document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
+};
+document.querySelector('#message').onkeydown = event => {
+  document.querySelector('#message').dataset.key = event.key + ':' + event.isTrusted;
 };
 document.querySelector('#upload').onchange = async event => {
   const [file] = event.target.files;
@@ -285,7 +295,9 @@ try {
     const observeMain = { action: 'observe', tabId: discovered.tabId };
     const mainStatus = { action: 'status', tabId: discovered.tabId };
     await siteDecision(0);
-    const [firstDecline, secondDecline, declinedSite] = await prompt([observeMain, observeMain, mainStatus]);
+    const [firstDecline, secondDecline, declinedSite] = await prompt([
+      { ...observeMain, action: 'getAXState' }, observeMain, mainStatus,
+    ]);
     for (const result of [firstDecline, secondDecline]) assert.match(result.error, /site access was declined/);
     assert.equal(declinedSite.siteAccess, 'declined');
     assert.equal(await sitePrompts(), 1);
@@ -336,6 +348,14 @@ try {
     assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 2);
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
+
+    const accessibilityPage = await chrome.newPage();
+    const accessibilityUrl = new URL(axPath, siteUrl).href;
+    await accessibilityPage.goto(accessibilityUrl);
+    const [axTabs] = await prompt([{ action: 'tabs' }]);
+    const accessibility = await verifyAccessibility({ tabId: axTabs.tabs.find(tab => tab.url === accessibilityUrl).tabId,
+      prompt, readStatus: () => accessibilityPage.getByRole('status').textContent() });
+    await accessibilityPage.close();
 
     const snapshotPage = await chrome.newPage();
     const snapshotUrl = new URL('/snapshot', siteUrl).href;
@@ -527,6 +547,30 @@ try {
     assert.equal(switched[1].isError, true);
     assert.equal(switched[2].url, newUrl);
     assert.equal(switched[2].isError, false);
+    const inactive = { tabId, background: true };
+    const backgroundActions = await prompt([
+      { action: 'observe', background: true },
+      { action: 'observe', ...inactive },
+      { action: 'act', ...inactive, locator: { by: 'label', value: 'Relay message' },
+        operation: { action: 'fill', text: 'Background verified' } },
+      { action: 'act', ...inactive, locator: { by: 'label', value: 'Relay message' },
+        operation: { action: 'press', key: 'End' } },
+      { action: 'act', ...inactive, locator: { by: 'role', role: 'button', name: 'Apply from Chrome' },
+        operation: { action: 'click' } },
+      { action: 'getAXState', ...inactive },
+      { action: 'tabs' },
+    ]);
+    assert.match(backgroundActions[0].error, /explicit Chrome tabId/);
+    assert.equal(backgroundActions[1].url, siteUrl);
+    assert.deepEqual(backgroundActions.slice(2, 5).map(effect => effect.outcome), Array(3).fill('dispatched'),
+      JSON.stringify(backgroundActions.slice(2, 5)));
+    assert.equal(backgroundActions[5].kind, 'axState', JSON.stringify(backgroundActions[5]));
+    assert.deepEqual(backgroundActions[6].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, false], [opened.tabId, true]]);
+    await expect(target.getByTestId('result')).toHaveText('Background verified · trusted true');
+    await expect(target.getByLabel('Relay message')).toHaveAttribute('data-key', 'End:true');
+    const [backgroundReload, afterBackgroundReload] = await prompt([{ action: 'reload', ...inactive }, { action: 'tabs' }]);
+    assert.equal(backgroundReload.outcome, 'dispatched', JSON.stringify(backgroundReload));
+    assert.deepEqual(afterBackgroundReload.tabs.map(tab => [tab.tabId, tab.active]), [[tabId, false], [opened.tabId, true]]);
     const switchedBack = await prompt([
       { action: 'tabs' }, { action: 'activate', tabId }, { action: 'closeTab', tabId: opened.tabId },
       { action: 'tabs' },
@@ -733,6 +777,9 @@ nodeRepl.write(answer.outcome);` },
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       chromeConnectionStatesVerified: true,
+      chromeBackground: { explicitTarget: true, trustedClick: true, trustedKey: true, ax: true, reload: true,
+        foregroundUnchanged: true },
+      accessibility,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
         cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,

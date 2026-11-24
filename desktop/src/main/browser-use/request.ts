@@ -7,6 +7,7 @@ const fileRef = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const label = z.string().trim().min(1).max(256);
 const optionValue = z.string().max(512);
 const tab = { tabId: z.string().min(1).max(4096).optional() };
+const target = { ...tab, background: z.literal(true).optional() };
 const frameSelector = z.strictObject({ by: z.enum(['title', 'testId']), value: label });
 const frame = z.array(frameSelector).max(4).optional();
 const locator = z.discriminatedUnion('by', [
@@ -47,15 +48,16 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('getJsDialog') }),
   z.strictObject({ ...tab, action: z.literal('handleJsDialog'), dialogId: z.uuid(),
     decision: z.enum(['accept', 'dismiss']), promptText: z.string().max(4096).optional() }),
-  z.strictObject({ ...tab, action: z.literal('back') }),
-  z.strictObject({ ...tab, action: z.literal('forward') }),
-  z.strictObject({ ...tab, action: z.literal('reload') }),
+  z.strictObject({ ...target, action: z.literal('back') }),
+  z.strictObject({ ...target, action: z.literal('forward') }),
+  z.strictObject({ ...target, action: z.literal('reload') }),
   z.strictObject({ ...tab, action: z.literal('files') }),
-  z.strictObject({ ...tab, action: z.literal('upload'), ref, fileRef: fileRef.optional(), fileRefs: z.array(fileRef).min(1).max(8).optional() })
+  z.strictObject({ ...target, action: z.literal('upload'), ref, fileRef: fileRef.optional(), fileRefs: z.array(fileRef).min(1).max(8).optional() })
     .refine(value => !!value.fileRef !== !!value.fileRefs, 'Choose exactly one of fileRef and fileRefs.'),
-  z.strictObject({ ...tab, action: z.literal('download'), ref }),
+  z.strictObject({ ...target, action: z.literal('download'), ref }),
   z.strictObject({ ...tab, action: z.literal('status'), provider: z.enum(['chrome', 'embedded']).optional() }),
-  z.strictObject({ ...tab, action: z.literal('diagnose'),
+  z.strictObject({ ...target, action: z.literal('getAXState'), since: z.uuid().optional() }),
+  z.strictObject({ ...target, action: z.literal('diagnose'),
     captureMs: z.number().int().min(100).max(4000).optional(), profile: z.boolean().optional(),
     style: z.strictObject({ selector: label, properties: z.array(z.string().regex(/^[-a-zA-Z0-9]{1,64}$/)).min(1).max(16) }).optional() }),
   z.strictObject({ ...tab, action: z.literal('listSiteTools'),
@@ -63,25 +65,25 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...tab, action: z.literal('callSiteTool'), toolId: z.uuid(),
     input: z.record(z.string(), z.json()).refine(input => Buffer.byteLength(JSON.stringify(input)) <= 4096,
       'Site tool input must fit within 4 KiB.') }),
-  z.strictObject({ ...tab, action: z.literal('observe'), frame, includeTree: z.boolean().optional(),
+  z.strictObject({ ...target, action: z.literal('observe'), frame, includeTree: z.boolean().optional(),
     includeFrameContents: z.boolean().optional() }),
-  z.strictObject({ ...tab, action: z.literal('locate'), locator, frame, within: locator.optional() }),
-  z.strictObject({ ...tab, action: z.literal('query'), locator, frame, within: locator.optional(),
+  z.strictObject({ ...target, action: z.literal('locate'), locator, frame, within: locator.optional() }),
+  z.strictObject({ ...target, action: z.literal('query'), locator, frame, within: locator.optional(),
     limit: z.number().int().min(0).max(64).optional() }),
-  z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, within: locator.optional(), condition, timeoutMs }),
-  z.strictObject({ ...tab, action: z.literal('act'), locator, frame, within: locator.optional(), timeoutMs,
+  z.strictObject({ ...target, action: z.literal('wait'), locator, frame, within: locator.optional(), condition, timeoutMs }),
+  z.strictObject({ ...target, action: z.literal('act'), locator, frame, within: locator.optional(), timeoutMs,
     operation: z.discriminatedUnion('action', elementOperations) }),
-  ...elementOperations.map(operation => operation.extend({ ...tab, ref })),
+  ...elementOperations.map(operation => operation.extend({ ...target, ref })),
   z.strictObject({
-    ...tab, action: z.literal('scroll'), observationId: z.uuid(),
+    ...target, action: z.literal('scroll'), observationId: z.uuid(),
     deltaX: z.number().int().min(-2000).max(2000),
     deltaY: z.number().int().min(-2000).max(2000),
   }),
-  z.strictObject({ ...tab, action: z.literal('screenshot'), fullPage: z.boolean().optional(), clip: z.strictObject({
+  z.strictObject({ ...target, action: z.literal('screenshot'), fullPage: z.boolean().optional(), clip: z.strictObject({
     x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
     width: z.number().int().positive(), height: z.number().int().positive(),
   }).optional() }).refine(value => !value.fullPage || !value.clip, 'Choose either fullPage or a viewport clip.'),
-  z.strictObject({ ...tab, action: z.literal('navigate'), url: z.string().max(4096) }),
+  z.strictObject({ ...target, action: z.literal('navigate'), url: z.string().max(4096) }),
 ]);
 
 export const browserInputSchema = { type: 'object', ...z.toJSONSchema(browserRequest, { target: 'draft-7', unrepresentable: 'throw' }) };

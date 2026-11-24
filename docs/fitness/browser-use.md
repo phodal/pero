@@ -141,7 +141,10 @@ Chrome pairing. A saved Block also prevents sharing the site with a Cloud run.
 `handoff` releases an individual tab and leaves it open for the user. For
 Chrome it detaches that tab's debugger and keeps other tabs in the pairing
 available. A new pairing can grant access to the tab again.
-Page operations require an active tab in its window and a current document.
+Page operations require a current document. Pass an explicit `chrome:`
+`tabId` with `background: true` to read or operate an inactive tab without
+selecting it. The default requires the tab to be active. JavaScript dialog
+handling and opening a tab through `open` use the active-tab path.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
 With extension 0.3.3, `click` with `expectPopup: true` reports the first
@@ -200,6 +203,22 @@ and cross-origin frames. It checks the returned schemas, private partner tools
 staying private, separate discovery and call consent, independent page effects
 and a stale ID after reload.
 
+### Chromium accessibility snapshots
+
+`getAXState` reads Chromium's native accessibility tree in an authorized
+Electron Web tab or paired Chrome tab (extension 0.3.8 or later). It includes
+same-origin frames under their owner nodes. A full result contains
+`snapshotId`, `rootId` and `nodes`; each node's `children` lists its
+children in order. Pass the latest `snapshotId` as `since` to get only
+`upserted` nodes and `removed` IDs. If the document or baseline changed,
+the response is a fresh full tree with `baselineReset: true`.
+
+Use `observe` and `locate` for action refs. AX reads leave those refs
+available and omit form values. An observation is bounded by node count,
+depth and same-origin frame count, with `truncated` when the limit is reached.
+The same browser fixture checks real AX roles, table cells, frame ancestry,
+delta insertion and removal, a trusted DOM-ref click and reset after reload.
+
 ### Chrome Relay acceptance
 
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
@@ -217,7 +236,9 @@ An ordinary click checks the timeout result. Dialog coverage verifies the
 page's confirmation result (including across two REPL cells), the Unicode
 prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
 that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
-inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
+inactive tab rejection on the default path, trusted input and reload on an
+explicitly addressed inactive tab, cross-origin guardrails, replay protection
+and debugger release on disconnect.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.

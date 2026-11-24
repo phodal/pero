@@ -9,6 +9,7 @@ import type { BrowserPopupResult, BrowserUsePort } from './browser-use.ts';
 import type { BrowserDialog, BrowserDialogAnswer } from './dialog.ts';
 import { documentScript, type DocumentCommand, type DocumentResult } from './document.ts';
 import type { BrowserDiagnosticApproval, BrowserDiagnosticOptions, captureBrowserDiagnostics } from './diagnostics.ts';
+import type { ChromiumAccessibility } from './accessibility.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserRequest, type BrowserRequest, type FrameSelector } from './request.ts';
 import { freezeDownloadBytes } from './download.ts';
@@ -19,7 +20,7 @@ export const nativeActions = [
   'fill', 'press', 'typeSequentially', 'scrollIntoView', 'setChecked', 'selectOption', 'upload', 'download', 'navigate',
   'getJsDialog', 'handleJsDialog',
 ] as const;
-export const chromeActions = [...nativeActions, 'diagnose'] as const;
+export const chromeActions = [...nativeActions, 'getAXState', 'diagnose'] as const;
 type WorkbenchAction = typeof chromeActions[number];
 type WorkbenchRequest = Extract<BrowserRequest, { action: WorkbenchAction }>;
 
@@ -46,6 +47,7 @@ export type DriverOperation =
   | { kind: 'navigate'; url: string }
   | { kind: 'history'; action: HistoryAction }
   | { kind: 'screenshot'; clip?: ScreenshotClip; fullPage?: true }
+  | { kind: 'getAXState'; since?: string }
   | ({ kind: 'diagnose' } & BrowserDiagnosticOptions)
   | { kind: 'download'; url: string }
   | { kind: 'dispatch'; input: DriverInput; expectPopup?: true }
@@ -55,7 +57,7 @@ export type DriverRequest =
   | { op: 'tabs'; thread: string }
   | { op: 'revoke'; thread?: string }
   | { op: 'manage'; thread: string; tab: string; grant: string; command: TabAction }
-  | { op: 'run'; thread: string; tab: string; stamp: string; operation: DriverOperation };
+  | { op: 'run'; thread: string; tab: string; stamp: string; background?: true; operation: DriverOperation };
 
 export class NativeBrowserUse implements BrowserUsePort {
   readonly tool: BrowserUsePort['tool'];
@@ -124,6 +126,8 @@ export class NativeBrowserUse implements BrowserUsePort {
 
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const parsed = browserRequest.parse(input);
+    if (parsed.action === 'getAXState' && this.engine === 'native')
+      throw new Error('Native accessibility snapshots require an authorized Chromium tab or paired Chrome.');
     if (!this.actions.includes(parsed.action as WorkbenchAction))
       throw new Error(this.engine === 'chrome' ? 'This action is unavailable in the Pero Chrome extension.' : 'This action is unavailable in Pero.');
     const request = parsed as WorkbenchRequest;
@@ -154,6 +158,7 @@ export class NativeBrowserUse implements BrowserUsePort {
     if (!tab) throw new Error(this.engine === 'chrome' ? 'Pair Chrome with this conversation and choose an available web tab.' : 'Allow Browser Use in the Web tab toolbar for this conversation.');
     if (request.action === 'files') return { kind: 'files', files: files.catalog(thread) };
     const { stamp, url, tabId, origin, grantId } = tab;
+    const background = 'background' in request && request.background;
     if (this.executing) throw new Error('A Browser Use operation is already in progress.');
     this.executing = true;
     try {
@@ -189,10 +194,11 @@ export class NativeBrowserUse implements BrowserUsePort {
         return await answerBrowserDialog(receipt, request, () => this.rpc({ op: 'manage', thread, tab: tabId, grant: grantId,
           command: { kind: 'handleJsDialog', dialogId, decision, promptText } }), signal);
       }
-      if (!stamp) throw new Error('Activate the selected tab and wait for the page to finish loading.');
+      if (!stamp || this.engine === 'chrome' && !tab.active && !background)
+        throw new Error('Activate the selected tab and wait for the page to finish loading.');
       const run = async <T>(operation: DriverOperation) => {
         signal.throwIfAborted();
-        return this.rpc<T>({ op: 'run', thread, tab: tabId, stamp, operation });
+        return this.rpc<T>({ op: 'run', thread, tab: tabId, stamp, ...(background && { background }), operation });
       };
       const evaluate = (command: DocumentCommand) => run<DocumentResult>({
         kind: 'evaluate', script: documentScript(origin, command),
@@ -200,6 +206,13 @@ export class NativeBrowserUse implements BrowserUsePort {
       });
       const dispatch = (input: DriverInput) => run<void>({ kind: 'dispatch', input });
 
+      if (request.action === 'getAXState') {
+        const snapshot = await run<Awaited<ReturnType<ChromiumAccessibility['observe']>>>({
+          kind: 'getAXState', since: request.since,
+        });
+        signal.throwIfAborted();
+        return { ...snapshot, tabId, origin };
+      }
       if (request.action === 'diagnose') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
         const approved = await this.approveDiagnostics(thread, origin, signal);
@@ -282,13 +295,14 @@ export class NativeBrowserUse implements BrowserUsePort {
             for (;;) {
               pending.throwIfAborted();
               const current = (await this.rpc<DriverTab[]>({ op: 'tabs', thread })).find(item => item.tabId === tabId && item.grantId === grantId);
-              if (!current?.visible) throw new Error('The authorized Web tab is unavailable.');
+              if (!current || (!current.visible && !background)) throw new Error('The authorized Web tab is unavailable.');
               if (current.loadError) {
                 effect = { outcome: current.loadError.includes('outside the authorized site') ? 'rejected' : 'unknown', reason: current.loadError };
                 break;
               }
               if (current.stamp && current.stamp !== stamp) {
-                await this.rpc({ op: 'run', thread, tab: tabId, stamp: current.stamp, operation: { kind: 'check' } });
+                await this.rpc({ op: 'run', thread, tab: tabId, stamp: current.stamp, ...(background && { background }),
+                  operation: { kind: 'check' } });
                 effect = { outcome: 'dispatched', url: current.url };
                 break;
               }

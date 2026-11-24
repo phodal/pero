@@ -3,6 +3,7 @@ import type { WebContents } from 'electron';
 import { dialogRefusal, type BrowserDialog, type BrowserDialogAnswer } from './dialog.ts';
 import { sendBrowserInput, type BrowserInput } from './input.ts';
 import { captureBrowserDiagnostics, type BrowserDiagnosticOptions } from './diagnostics.ts';
+import { ChromiumAccessibility } from './accessibility.ts';
 
 /** The debugger attachment belongs to one embedded-tab grant. */
 export class EmbeddedDialogs {
@@ -11,6 +12,7 @@ export class EmbeddedDialogs {
   private dialogWaiters = new Set<() => void>();
   private pendingInput?: Promise<void>;
   private disposed = false;
+  private accessibility?: ChromiumAccessibility;
 
   constructor(private contents: WebContents, private changed: () => void) {}
 
@@ -49,6 +51,7 @@ export class EmbeddedDialogs {
 
   private onDetach = () => {
     this.enabled = undefined;
+    this.accessibility = undefined;
     this.dialog = undefined;
     this.contents.debugger.off('message', this.onMessage);
     this.changed();
@@ -115,6 +118,15 @@ export class EmbeddedDialogs {
       client.on('message', receive);
       return () => client.off('message', receive);
     }, check, signal);
+  }
+
+  async observeAX(origin: string, document: string, since: string | undefined, check: () => void) {
+    await this.start();
+    const accessibility = this.accessibility ??= new ChromiumAccessibility();
+    return accessibility.observe(this.send, origin, document, since, () => {
+      if (this.accessibility !== accessibility) throw new Error('The authorized debugger session ended.');
+      check();
+    });
   }
 
   async dispatch(input: BrowserInput) {

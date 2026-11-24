@@ -6,15 +6,16 @@ import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } fro
 import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
 import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
 import { captureBrowserDiagnostics } from '../../../desktop/src/main/browser-use/diagnostics.ts';
+import { ChromiumAccessibility } from '../../../desktop/src/main/browser-use/accessibility.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
 
 import { readVisiblePage } from './collector-capture.js';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
-type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>;
+type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>; accessibility?: ChromiumAccessibility;
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
-type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; operation: DriverOperation } |
+type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
   lastPong: number; lastId: number; busy: boolean; tabs: Map<number, TabHandle>;
@@ -217,16 +218,18 @@ async function run(connection: Peer, command: Command) {
     return { kind: 'tabOpened', tabId: 'chrome:' + openedTab.id, url: command.action.url, authorized: true };
   }
   if (command.kind !== 'run') throw new Error('Unknown Chrome Relay command.');
-  if (!tab.active || !tab.ready || command.stamp !== `${tab.revision}:${tab.url}`)
-    throw new Error('The selected Chrome tab or document changed.');
+  const checkDocument = (tab: ReturnType<typeof describeTab>) => {
+    if ((!tab.active && command.background !== true) || !tab.ready || command.stamp !== `${tab.revision}:${tab.url}`)
+      throw new Error('The selected Chrome tab or document changed.');
+  };
+  checkDocument(tab);
   const operation = command.operation;
   if (handle.dialog) throw new Error('A JavaScript dialog is open. Use getJsDialog or close it in Chrome.');
   if (operation.kind === 'check') return null;
   if (operation.kind === 'checkFrames') return checkFrames(handle.tabId, origin);
   const cdp = await debuggerFor(connection, handle);
   const current = await snapshot(connection, handle);
-  if (!current.active || !current.ready || command.stamp !== `${current.revision}:${current.url}`)
-    throw new Error('The selected Chrome tab or document changed.');
+  checkDocument(current);
   if (handle.dialog) throw new Error('A JavaScript dialog is open. Use getJsDialog or close it in Chrome.');
   const world = 'PeroBrowserUse-' + handle.id;
   if (operation.kind === 'evaluate') {
@@ -244,6 +247,18 @@ async function run(connection: Peer, command: Command) {
       throw new Error('The Chrome document changed during screenshot capture.');
     return image;
   }
+  if (operation.kind === 'getAXState') {
+    const accessibility = handle.accessibility ??= new ChromiumAccessibility();
+    const check = () => {
+      if (peer !== connection || handle.accessibility !== accessibility || handle.revision !== current.revision || handle.dialog)
+        throw new Error('The Chrome document changed during the accessibility observation.');
+    };
+    const result = await accessibility.observe(cdp, origin, command.stamp, operation.since, check);
+    const after = await snapshot(connection, handle);
+    check();
+    checkDocument(after);
+    return result;
+  }
   if (operation.kind === 'diagnose') {
     const check = () => {
       if (peer !== connection || handle.revision !== current.revision || handle.dialog)
@@ -258,8 +273,7 @@ async function run(connection: Peer, command: Command) {
     }, check);
     const after = await snapshot(connection, handle);
     check();
-    if (!after.active || !after.ready || after.url !== current.url)
-      throw new Error('The Chrome document changed during browser diagnostics.');
+    checkDocument(after);
     return result;
   }
   if (operation.kind === 'download') return downloadLink(cdp, world, origin, operation.url);
@@ -408,6 +422,7 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: str
   const handle = tabId === undefined ? undefined : connection?.tabs.get(tabId);
   if (!connection || !handle?.attachment) return;
   handle.attachment = undefined;
+  handle.accessibility = undefined;
   handle.dialog = undefined;
   if (reason === 'canceled_by_user') {
     void release(connection, 'Chrome stopped Browser Use.');
