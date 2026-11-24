@@ -80,6 +80,9 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
     return freezeDownloadBytes({ url: request.url, name: 'Collected page.md' }, '', Buffer.from(markdown),
       { thread, workspace }, (thread, artifact) => effect('artifact', { value: { ...artifact, thread_id: thread } }),
       check, AbortSignal.timeout(30000));
+  }, 'local', {
+    currentTurn: thread => appUse.authority.browserTurn(thread),
+    prompt: (thread, origin) => effect('surface', { value: { action: 'chrome-site-approval', thread, origin } }),
   },
 ) : undefined;
 const appUse = new DesktopAppUse({
@@ -188,6 +191,13 @@ input.on('line', line => {
       : relay && request?.operation === 'chrome-relay-pair'
         ? relay.pairing(request.label, request.thread).then(code => ({ ok: true, code, url: `chrome-extension://${EXTENSION_ID}/relay.html#${new URLSearchParams({ pair: code })}` }),
           error => ({ ok: false, message: error.message }))
+      : relay && request?.operation === 'chrome-relay-status'
+        ? appUse.authority.selectedOrdinaryConversation().then(thread => thread && thread === request.thread
+          ? { ok: true, ...relay.status(thread) } : { ok: false, message: 'Select an ordinary conversation in Pero.' })
+      : relay?.siteAccess && request?.operation === 'chrome-site-rules'
+        ? relay.siteAccess.rules().then(rules => ({ ok: true, rules }))
+      : relay?.siteAccess && request?.operation === 'chrome-site-clear'
+        ? Promise.resolve(relay.revoke()).then(() => relay.siteAccess.clear()).then(() => ({ ok: true }))
         : relay && request?.operation === 'chrome-relay-stop'
           ? Promise.resolve(relay.revoke()).then(() => ({ ok: true }))
           : owner.request(request);

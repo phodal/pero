@@ -1,20 +1,23 @@
 // Local transport for Point's staged Chrome Relay flow, owned by Pero App Use.
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { dirname, join } from 'node:path';
 import type { Server } from 'node:http';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { z } from 'zod';
-import { EXTENSION_ID, MAX_FRAME, PAIR_LIFETIME_MS, RELAY_PATH, RELAY_PROTOCOL, webOrigin, type Pairing } from '../../../../packages/chrome-extension/src/protocol.ts';
+import { EXTENSION_ID, MAX_FRAME, PAIR_LIFETIME_MS, RELAY_INCOMPATIBLE, RELAY_PATH, RELAY_PROTOCOL, webOrigin, type Pairing } from '../../../../packages/chrome-extension/src/protocol.ts';
 import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
+import type { BrowserNode } from './document.ts';
 import { cloudBrowserRequest } from './cloud-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
 
 import { sidebarRequest, type SidebarPort } from './chrome-sidebar.ts';
+import { ChromeSiteAccess, type ChromeSiteAccessPort } from './chrome-site-access.ts';
 
 const pair = z.strictObject({
-  type: z.literal('pair'), protocol: z.literal(RELAY_PROTOCOL), ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  type: z.literal('pair'), protocol: z.string().max(64), ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
 const tabIdentity = z.uuid();
 const snapshot = z.strictObject({
@@ -34,6 +37,13 @@ type Connection = {
   id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number; pending?: Pending;
   ended: AbortController;
 };
+type ChromeConnectionStatus =
+  | { state: 'notPaired' | 'pairing' | 'connected' }
+  | { state: 'expired' | 'disconnected' | 'incompatible'; message: string };
+type EndedPairing = { thread: string; status: Extract<ChromeConnectionStatus, { message: string }> };
+const pairingExpired = { state: 'expired', message: 'The pairing code expired. Pair Chrome again from the Workbench.' } as const;
+const connectionExpired = { state: 'expired', message: 'Chrome Relay expired. Pair Chrome again from the Workbench.' } as const;
+const incompatible = { state: 'incompatible', message: RELAY_INCOMPATIBLE } as const;
 
 class ChromeRelay {
   readonly browser: BrowserUsePort;
@@ -41,15 +51,27 @@ class ChromeRelay {
   private server?: Server;
   private ticket?: Ticket;
   private connection?: Connection;
+  private endedPairing?: EndedPairing;
 
   private readonly selected: () => Promise<string | undefined>;
 
   private readonly sidebar?: SidebarPort;
+  readonly siteAccess?: ChromeSiteAccess;
 
-  constructor(selected: () => Promise<string | undefined>, private readonly evidenceRoot: string, sidebar?: SidebarPort) {
+  constructor(selected: () => Promise<string | undefined>, private readonly evidenceRoot: string, sidebar?: SidebarPort,
+    sitePort?: ChromeSiteAccessPort) {
     this.sidebar = sidebar;
     this.selected = selected;
-    this.browser = new NativeBrowserUse(request => this.request(request), evidenceRoot, 'chrome');
+    const access = this.siteAccess = sitePort && new ChromeSiteAccess(join(dirname(evidenceRoot), 'chrome-site-access.json'), sitePort);
+    this.browser = new NativeBrowserUse(request => this.request(request), evidenceRoot, 'chrome', access && {
+      status: (thread, tab) => access.status(thread, tab.grantId, tab.origin),
+      require: (thread, tab, signal) => {
+        const connection = this.connection;
+        if (!connection || connection.id !== tab.grantId || connection.thread !== thread)
+          throw new Error('The paired Chrome profile changed.');
+        return access.require(thread, tab.grantId, tab.origin, AbortSignal.any([signal, connection.ended.signal]));
+      },
+    });
   }
 
   attach(server: Server) {
@@ -80,12 +102,20 @@ class ChromeRelay {
     return this.connection?.thread === thread;
   }
 
+  status(thread: string): ChromeConnectionStatus {
+    if (this.paired(thread)) return { state: 'connected' };
+    if (this.ticket?.thread === thread)
+      return this.ticket.expiresAt > Date.now() ? { state: 'pairing' } : pairingExpired;
+    return this.endedPairing?.thread === thread ? this.endedPairing.status : { state: 'notPaired' };
+  }
+
   async activeTabForCloud() {
     const connection = this.connection;
     if (!connection) return;
     const result = await this.request({ op: 'tabs', thread: connection.thread }, true);
     if (!result.ok || !Array.isArray(result.value) || this.connection !== connection) return;
-    return (result.value as DriverTab[]).find(tab => tab.active && tab.stamp);
+    const tab = (result.value as DriverTab[]).find(tab => tab.active && tab.stamp);
+    if (tab && (await this.siteAccess?.rules())?.[tab.origin] !== 'block') return tab;
   }
 
   async prepareCloudShare(target: Pick<DriverTab, 'tabId' | 'origin' | 'grantId'>,
@@ -112,6 +142,10 @@ class ChromeRelay {
         return { ok: false, error: 'The paired Chrome conversation changed.' };
       }
       if (request.op === 'tabs') {
+        if ((await this.siteAccess?.rules())?.[tab.origin] === 'block') {
+          grant.abort();
+          return { ok: false, error: 'Chrome site access was blocked for the shared tab.' };
+        }
         const result = await this.request({ ...request, thread: connection.thread }, true);
         if (!result.ok || !Array.isArray(result.value)) return result;
         const selected = (result.value as DriverTab[]).find(item => item.tabId === tab.tabId && item.origin === tab.origin);
@@ -129,7 +163,11 @@ class ChromeRelay {
   }
 
   revoke(thread?: string) {
-    if (!thread || this.ticket?.thread === thread) this.ticket = undefined;
+    this.siteAccess?.forget(thread);
+    if (this.ticket && (!thread || this.ticket.thread === thread)) {
+      this.endedPairing = { thread: this.ticket.thread, status: { state: 'disconnected', message: 'Chrome access revoked.' } };
+      this.ticket = undefined;
+    }
     const connection = this.connection;
     if (connection && (!thread || thread === connection.thread)) this.disconnect(connection, 'Chrome access revoked.');
   }
@@ -140,9 +178,12 @@ class ChromeRelay {
     this.sockets.close();
   }
 
-  private disconnect(connection: Connection, reason: string) {
+  private disconnect(connection: Connection, reason: string,
+    status: EndedPairing['status'] = { state: 'disconnected', message: reason }) {
     if (this.connection !== connection) return;
     this.connection = undefined;
+    this.siteAccess?.forget(connection.thread);
+    this.endedPairing = { thread: connection.thread, status };
     connection.ended.abort();
     clearInterval(connection.timer);
     connection.pending?.settle(new Error(reason));
@@ -179,11 +220,16 @@ class ChromeRelay {
           if (await this.selected() !== ticket.thread || this.ticket !== ticket || socket.readyState !== 1)
             throw new Error('The selected Pero conversation changed.');
           this.ticket = undefined;
+          if (message.protocol !== RELAY_PROTOCOL) {
+            this.endedPairing = { thread: ticket.thread, status: incompatible };
+            socket.close(1008, incompatible.message);
+            return;
+          }
           const pairedAt = Date.now();
           const timer = setInterval(() => {
             if (connection && (Date.now() - connection.lastSeen > 35000 ||
                 Date.now() - pairedAt > 30 * 60_000))
-              this.disconnect(connection, 'Chrome Relay expired.');
+              this.disconnect(connection, connectionExpired.message, connectionExpired);
           }, 5000);
           connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0, ended: new AbortController() };
           clearTimeout(deadline);
@@ -297,17 +343,18 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     evidenceRoot: string,
     sidebar?: SidebarPort,
     private readonly workspace: 'local' | 'ssh' = 'local',
+    sitePort?: ChromeSiteAccessPort,
   ) {
     this.embedded = embedded;
-    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar);
+    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort);
     const tool = embedded.tool;
-    this.tool = { ...tool, inputSchema: browserInputSchema, description: tool.description + ' Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs lists these with a chrome: tabId. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
+    this.tool = { ...tool, inputSchema: browserInputSchema, description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
       chromeActions.join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
     if (this.workspace === 'ssh') {
       this.tool = {
         ...this.tool,
         inputSchema: sshBrowserSchema,
-        description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status. Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab. Activate the tab before reading or acting on its page. Locate a fresh ref before input and observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
+        description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status with provider "chrome". Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab. Activate it before use. Use act to locate and operate in one call, or locate a fresh ref before input. Observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
       };
     }
   }
@@ -321,9 +368,25 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     if (request.action === 'tabs') {
       const local = await this.embedded.call(thread, input, signal, files, workspace, deliver);
       const chrome = await browser.call(thread, input, signal, files);
-      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome.tabs as unknown[]] };
+      return { kind: 'tabs', tabs: [...local.tabs as unknown[], ...chrome.tabs as unknown[]], chrome: this.relay.status(thread) };
     }
+    if (request.action === 'status' && request.provider === 'chrome')
+      return { ...await browser.call(thread, request, signal, files), chrome: this.relay.status(thread) };
+    if (request.action === 'status' && request.provider === 'embedded')
+      return this.embedded.call(thread, request, signal, files, workspace, deliver);
     const target = request.tabId?.startsWith('chrome:') || (!request.tabId && this.relay.paired(thread)) ? browser : this.embedded;
+    if (request.action === 'act') {
+      const { tabId, locator, frame, within, timeoutMs, operation } = request;
+      const scope = { tabId, locator, frame, within };
+      const observed = await target.call(thread, timeoutMs
+        ? { ...scope, action: 'wait', condition: { kind: 'visible' }, timeoutMs }
+        : { ...scope, action: 'locate' }, signal, files, workspace, deliver);
+      if (observed.kind !== 'observation') return observed;
+      const node = (observed.nodes as BrowserNode[])[0];
+      if (!node?.ref || !node.actions?.includes(operation.action))
+        throw new Error('The located element does not support this operation.');
+      return target.call(thread, { ...operation, tabId, ref: node.ref }, signal, files, workspace, deliver);
+    }
     return target.call(thread, input, signal, files, workspace, deliver);
   }
 }

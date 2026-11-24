@@ -17,6 +17,7 @@ type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string
   { kind: 'manage'; tab: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
   lastPong: number; lastId: number; busy: boolean; tabs: Map<number, TabHandle>;
+  handedOff: Set<number>;
   sidebar: Map<string, (reply: {value?: unknown; error?: string}) => void>;
   capture?: { key: string; tabId: number; url: string; revision: number;
     scope: 'page' | 'selection'; truncated: boolean; capturedAt: number } };
@@ -147,8 +148,9 @@ async function run(connection: Peer, command: Command) {
       command.kind === 'inspectCloud' ? chrome.windows.getLastFocused({ windowTypes: ['normal'] }) : undefined,
     ]);
     const minimized = new Set(windows.filter(window => window.state === 'minimized').map(window => window.id));
-    return tabs.filter(webTab).map(tab => describeTab(tab, tabHandle(connection, tab.id),
-      minimized.has(tab.windowId) || command.kind === 'inspectCloud' && tab.windowId !== focused?.id));
+    return tabs.filter(webTab).filter(tab => !connection.handedOff.has(tab.id))
+      .map(tab => describeTab(tab, tabHandle(connection, tab.id),
+        minimized.has(tab.windowId) || command.kind === 'inspectCloud' && tab.windowId !== focused?.id));
   }
   const handle = [...connection.tabs.values()].find(handle => handle.id === command.tab);
   if (!handle) throw new Error('The selected Chrome tab is unavailable. List tabs again.');
@@ -164,6 +166,15 @@ async function run(connection: Peer, command: Command) {
     if (command.action.kind === 'close') {
       await chrome.tabs.remove(handle.tabId);
       return { kind: 'tabClosed', tabId: 'chrome:' + handle.id };
+    }
+    if (command.action.kind === 'handoff') {
+      connection.handedOff.add(handle.tabId);
+      connection.tabs.delete(handle.tabId);
+      if (handle.attachment) {
+        await handle.attachment;
+        await chrome.debugger.detach({ tabId: handle.tabId });
+      }
+      return { kind: 'tabHandedOff', tabId: 'chrome:' + handle.id };
     }
     if (command.action.kind === 'getJsDialog' || command.action.kind === 'handleJsDialog') {
       if (!tab.active) throw new Error('Activate the Chrome tab before handling its JavaScript dialog.');
@@ -296,7 +307,8 @@ function connect(code: string) {
   if (peer) throw new Error('Disconnect the current Pero session first.');
   const pairing = parseRelayPairing(code.trim());
   const socket = new WebSocket(pairing.baseUrl.replace('http:', 'ws:') + RELAY_PATH);
-  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false, tabs: new Map(), sidebar: new Map() };
+  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false,
+    tabs: new Map(), handedOff: new Set(), sidebar: new Map() };
   peer = connection;
   failure = undefined;
   publish();
@@ -353,7 +365,10 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
   const handle = peer?.tabs.get(tabId);
   if (handle && (change.status === 'loading' || change.url)) handle.revision++;
 });
-chrome.tabs.onRemoved.addListener((tabId: number) => peer?.tabs.delete(tabId));
+chrome.tabs.onRemoved.addListener((tabId: number) => {
+  peer?.tabs.delete(tabId);
+  peer?.handedOff.delete(tabId);
+});
 chrome.debugger.onEvent.addListener(({ tabId }, method, params) => {
   const handle = tabId === undefined ? undefined : peer?.tabs.get(tabId);
   if (!handle?.attachment) return;

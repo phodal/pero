@@ -424,6 +424,11 @@ impl Workbench {
             self.native_browser_rpc(event, _window, cx);
             return;
         }
+        #[cfg(target_os="macos")]
+        if event.data["action"] == "chrome-site-approval" {
+            self.native_chrome_site_approval(event, _window, cx);
+            return;
+        }
         let id=event.request_id.unwrap_or_default();
         let input=event.data;
         let apps=crate::native::apps();

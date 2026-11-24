@@ -18,9 +18,9 @@ export const BROWSER_TOOL = {
   name: 'browser_use',
   description: [
     'Observe and operate user-authorized Pero Web tabs in the selected conversation. Start with status or tabs.',
-    'Use tabId to address an authorized instance, activate to select it, and closeTab to close it. open creates an independent same-origin tab that requires user approval. back, forward and reload act on that tab.',
+    'Use tabId to address an authorized instance, activate to select it, closeTab to close it, or handoff to release the tab for the user while leaving it open. open creates an independent same-origin tab that requires user approval. back, forward and reload act on that tab.',
     'files lists the conversation’s attachments. upload accepts a fileRef and a fresh file input ref. download uses a fresh same-origin link or a button that starts a browser download, including Blob downloads, and returns a Host Artifact receipt. The Workbench menu grants and revokes access.',
-    'observe lists page nodes and iframe selectors. Set includeTree to true for an indented semantic tree with same-origin iframe contents. locate matches one visible element by exact role/name, label, text, placeholder, or testId. Use within to scope locate and wait to one container. Pass frame as an array of same-origin iframe selectors from the top document, each {by: "title" or "testId", value}.',
+    'observe lists page nodes and iframe selectors. Set includeTree to true for an indented semantic tree with same-origin iframe contents. locate matches one visible element by exact role/name, label, text, placeholder, or testId. query reads multiple matching elements by the same locator without granting action refs. Set limit to 0 for a count. Use within to scope locate, query and wait to one container. Pass frame as an array of same-origin iframe selectors from the top document, each {by: "title" or "testId", value}.',
     'wait uses the same locator with a visible, hidden, enabled, checked, value, or text condition and a bounded timeout. Matched actionable elements carry fresh refs. Form state includes checked state, safe text values, and select options.',
     'click, dblclick, hover, press, fill, setChecked and selectOption use a fresh ref. Use click with expectPopup to wait for a page-opened tab. A same-origin popup is a new tab and requires separate user approval. fill accepts plain text, including on contenteditable hosts. selectOption takes a value or an array of values that replaces a multiple selection.',
     'scroll uses the latest observationId and wheel deltas. scrollIntoView uses an element ref; locate again after scrolling. press accepts modifiers. typeSequentially delivers individual alphanumeric keys and spaces. upload accepts fileRefs for a multiple file input. Every input consumes the observation. screenshot captures the viewport by default, accepts a clip {x,y,width,height} in viewport image pixels, or accepts fullPage: true for the entire document. All frames must have the approved origin.',
@@ -169,6 +169,7 @@ export class BrowserUse implements BrowserUsePort {
 
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const request = browserRequest.parse(input);
+    if (request.action === 'act') throw new Error('Locator actions require the Workbench browser router.');
     const owned = [...this.grants.values()].filter(grant => grant.thread === thread &&
       !grant.tab.contents.isDestroyed() && grant.approvedUrl(grant.tab.contents.getURL()));
     if (request.action === 'tabs') {
@@ -201,6 +202,10 @@ export class BrowserUse implements BrowserUsePort {
     if (request.action === 'closeTab') {
       await grant.tab.close();
       return { kind: 'tabClosed' as const, tabId: grant.tab.id };
+    }
+    if (request.action === 'handoff') {
+      this.revokeTab(grant.tab.id);
+      return { kind: 'tabHandedOff' as const, tabId: grant.tab.id };
     }
     this.executing = true;
     try {
@@ -249,8 +254,8 @@ export class BrowserUse implements BrowserUsePort {
         thread, grantId: grant.id, tabId: grant.tab.id, origin: grant.origin, url, action: request.action,
       });
       check();
-      if (request.action === 'observe' || request.action === 'locate' || request.action === 'wait') {
-        grant.observation = undefined;
+      if (request.action === 'observe' || request.action === 'locate' || request.action === 'query' || request.action === 'wait') {
+        if (request.action !== 'query') grant.observation = undefined;
         const waiting = request.action === 'wait';
         const timer = new AbortController();
         const timeoutMs = waiting ? request.timeoutMs ?? 5000 : undefined;
@@ -275,6 +280,11 @@ export class BrowserUse implements BrowserUsePort {
           timer.abort();
         }
         if (result?.kind === 'rejected') throw new Error(result.reason);
+        if (result?.kind === 'query' && result.url === url) {
+          await record('', { ...entry, request, outcome: result });
+          check();
+          return { ...result, receiptId: id };
+        }
         if (!result && waiting) {
           await record('', { ...entry, request, matched: false, timeoutMs });
           return { kind: 'waitTimeout' as const, matched: false, timeoutMs, receiptId: id };

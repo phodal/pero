@@ -177,6 +177,8 @@ print(json.dumps(results))`;
       draft, { action: 'fill', name: 'Tab draft', text: 'reload clears' },
       { action: 'reload' }, draft, { action: 'activate', tabId: '$first' },
     ] },
+    { commands: [{ action: 'handoff', tabId: '$first' }, status] },
+    { permission: 'allow', commands: [status] },
     { commands: [
       tabs, draft, { action: 'closeTab', tabId: '$duplicate' }, tabs,
       byRole('button', 'Attach foreign frame'), { action: 'scrollIntoView', name: 'Attach foreign frame' },
@@ -208,7 +210,8 @@ print(json.dumps(results))`;
   const session = JSON.parse(await readFile(receipt, 'utf8'));
   assert.equal(session.passed, true, session.error);
   assert(session.mcp.servers.some(server => server.server === 'pero-app-use'));
-  const [before, inputs, downloads, , [dialogs], popups, popupDenied, popupGranted, first, unauthorized, approved, history, final, after] = session.replies;
+  const [before, inputs, downloads, , [dialogs], popups, popupDenied, popupGranted, first, unauthorized, approved, history,
+    handoff, restored, final, after] = session.replies;
   assert.deepEqual(before, [{ authorized: false, isError: false }]);
   verifyBrowserInputs(inputs.slice(0, -1));
   const threadDigest = createHash('sha256').update(session.thread).digest('hex');
@@ -300,6 +303,9 @@ print(json.dumps(results))`;
   assert.equal(final[3].tabs.length, 1);
   assert.equal(final[8].matched, true, JSON.stringify(final[8]));
   assert.match(final[9].error, /frame outside the authorized site/i);
+  assert.deepEqual(handoff[0], { kind: 'tabHandedOff', tabId: activated.tabId, isError: false });
+  assert.deepEqual(handoff[1], before[0]);
+  assert.equal(restored[0].authorized, true);
   assert.deepEqual(after, before);
   assert.equal(hits.get('/jump'), 1);
   assert.equal(hits.get('foreign/frame'), 1);

@@ -52,6 +52,11 @@ async function run(commands) {
     const result = await rpc('tools/call', { name: 'browser_use', arguments: args });
     const text = result.content[0].text;
     const value = text.startsWith('{') ? await appUseContent(text, rpc) : { error: text };
+    const treeInlineWithReference = args.includeTree && !result.isError && JSON.parse(text).type === 'content_reference';
+    if (treeInlineWithReference) {
+      assert.equal(typeof value.tree, 'string');
+      assert.deepEqual(result.content[1], { type: 'text', text: value.tree });
+    }
     if (value.kind === 'files' && !result.isError) selectedFiles = value.files;
     if (value.kind === 'observation' && !result.isError) observed = value;
     const image = result.content.find(item => item.type === 'image');
@@ -63,7 +68,8 @@ async function run(commands) {
       pixels = { bytes: png.length, sha256: createHash('sha256').update(png).digest('hex'),
         width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
     }
-    results.push({ ...value, isError: result.isError, ...(pixels && { pixels }) });
+    results.push({ ...value, isError: result.isError, ...(pixels && { pixels }),
+      ...(treeInlineWithReference && { treeInlineWithReference: true }) });
   }
   return results;
 }

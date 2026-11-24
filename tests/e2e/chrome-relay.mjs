@@ -61,6 +61,12 @@ const site = createServer((request, response) => {
     response.end(request.url === '/snapshot' ? browserSnapshotPage : browserSnapshotFrame);
     return;
   }
+  if (request.url === '/snapshot-large') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end('<!doctype html><main><h1>Large snapshot</h1>' +
+      Array.from({ length: 80 }, (_, index) => `<label>Record ${index} <input value="Sample value"></label>`).join('') + '</main>');
+    return;
+  }
   if (request.url === '/report.csv') {
     if (request.headers.cookie !== 'relay=approved') { response.writeHead(403).end(); return; }
     response.writeHead(200, { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="relay.csv"' });
@@ -140,11 +146,24 @@ try {
   await app.evaluate(({ dialog, clipboard }) => {
     // Keep the actual menu/IPC/Host path and isolate its two presentation
     // effects so the test can run without touching the user’s clipboard.
-    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
+    dialog.showMessageBox = async (_window, options) => {
+      globalThis.relayFixtureMessage = options.message;
+      if (options.message === 'Allow Browser Use on this site?') {
+        globalThis.relaySitePrompts = (globalThis.relaySitePrompts ?? 0) + 1;
+        return { response: globalThis.relaySiteDecision ?? 2, checkboxChecked: false };
+      }
+      if (options.message === 'Chrome site permissions') {
+        globalThis.relaySiteRules = options.detail;
+        return { response: globalThis.relayClearSites ? 1 : 0, checkboxChecked: false };
+      }
+      return { response: 0, checkboxChecked: false };
+    };
     clipboard.writeText = value => { globalThis.relayFixtureClipboard = value; };
     clipboard.readText = () => globalThis.relayFixtureClipboard ?? '';
     clipboard.clear = () => { globalThis.relayFixtureClipboard = ''; };
   });
+  const siteDecision = response => app.evaluate((_electron, value) => { globalThis.relaySiteDecision = value; }, response);
+  const sitePrompts = () => app.evaluate(() => globalThis.relaySitePrompts ?? 0);
   await app.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
   }, workspace);
@@ -171,15 +190,15 @@ try {
   panel = await panelReady;
   await expect(panel.getByRole('heading', { name: 'Pero Browser Use' })).toBeVisible();
   const status = panel.locator('#status');
-  const extensionAttached = () => worker.evaluate(async url => {
+  const extensionAttached = (url = siteUrl) => worker.evaluate(async url => {
     const [tab] = await chrome.tabs.query({ url });
     if (!tab?.id) return false;
     // Playwright also attaches a debugger. Ask Chrome whether this extension's
     // own session can send a read-only command on the known fixture tab.
     try { await chrome.debugger.sendCommand({ tabId: tab.id }, 'Page.getFrameTree'); return true; }
     catch { return false; }
-  }, siteUrl);
-  const requestPair = async () => {
+  }, url);
+  const pairingCode = async () => {
     await app.evaluate(({ clipboard }) => clipboard.clear());
     await menu('browser-use-pair-chrome');
     let code;
@@ -187,6 +206,10 @@ try {
       code = await app.evaluate(({ clipboard }) => clipboard.readText());
       try { return JSON.parse(code).protocol; } catch { return null; }
     }).toBe(RELAY_PROTOCOL);
+    return code;
+  };
+  const requestPair = async () => {
+    const code = await pairingCode();
     // Exercise the Native deep link with a real one-time ticket from the Host.
     await panel.goto('about:blank');
     await panel.goto(extensionOrigin + '/relay.html#' + new URLSearchParams({ pair: code }));
@@ -194,22 +217,77 @@ try {
     return code;
   };
   try {
-    assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
+    const chromeStatus = { action: 'status', provider: 'chrome' };
+    const [unpaired, unpairedStatus] = await prompt([{ action: 'tabs' }, chromeStatus]);
+    assert.deepEqual(unpaired.tabs, []);
+    assert.equal(unpaired.chrome.state, 'notPaired');
+    assert.equal(unpairedStatus.chrome.state, 'notPaired');
+    await menu('browser-use-chrome-status');
+    await expect.poll(() => app.evaluate(() => globalThis.relayFixtureMessage))
+      .toBe('Chrome is not paired with this conversation');
+
+    const expiredCode = JSON.parse(await pairingCode());
+    assert.equal((await prompt([chromeStatus]))[0].chrome.state, 'pairing');
+    await app.evaluate(expiresAt => {
+      globalThis.relayFixtureClock = Date.now;
+      Date.now = () => expiresAt;
+    }, expiredCode.expiresAt);
+    try {
+      assert.equal((await prompt([chromeStatus]))[0].chrome.state, 'expired');
+    } finally {
+      await app.evaluate(() => {
+        Date.now = globalThis.relayFixtureClock;
+        delete globalThis.relayFixtureClock;
+      });
+    }
+    const incompatibleCode = JSON.parse(await pairingCode());
+    const rejection = await worker.evaluate(async ({ baseUrl, ticket }) => {
+      const socket = new WebSocket(baseUrl.replace('http:', 'ws:') + '/v1/browser-connector/connect');
+      socket.onopen = () => socket.send(JSON.stringify({ type: 'pair', protocol: 'pero-browser-connector/2', ticket }));
+      return new Promise(resolve => { socket.onclose = event => resolve(event.reason); });
+    }, incompatibleCode);
+    assert.match(rejection, /protocol mismatch/);
+    assert.equal((await prompt([chromeStatus]))[0].chrome.state, 'incompatible');
+
+    await target.goto('about:blank');
+    const oneTimeCode = await requestPair();
+    const [connectedWithoutTabs] = await prompt([{ action: 'tabs' }]);
+    assert.deepEqual(connectedWithoutTabs.tabs, []);
+    assert.equal(connectedWithoutTabs.chrome.state, 'connected');
+    await target.goto(siteUrl);
     const inventoryUrl = new URL('/inventory-window', foreignUrl).href;
     const inventoryReady = chrome.waitForEvent('page');
     await worker.evaluate(url => chrome.windows.create({ url, type: 'normal' }), inventoryUrl);
     const inventoryPage = await inventoryReady;
     await expect(inventoryPage.getByRole('heading', { name: 'Second origin' })).toBeVisible();
-    const oneTimeCode = await requestPair();
     const paired = await prompt([{ action: 'tabs' }, { action: 'status' }]);
     const discovered = paired[0].tabs.find(tab => tab.url === siteUrl);
-    assert.deepEqual(paired[0].tabs.map(tab => [tab.url, tab.title, tab.authorized]).sort(), [
-      [siteUrl, 'Chrome Relay fixture', true], [inventoryUrl, 'Another Chrome window', true],
+    assert.deepEqual(paired[0].tabs.map(tab => [tab.url, tab.title, tab.authorized, tab.siteAccess]).sort(), [
+      [siteUrl, 'Chrome Relay fixture', false, 'ask'], [inventoryUrl, 'Another Chrome window', false, 'ask'],
     ].sort());
     assert.match(discovered.tabId, /^chrome:/);
-    assert.equal(paired[1].authorized, true);
+    assert.equal(paired[0].chrome.state, 'connected');
+    assert.equal(paired[1].authorized, false);
     assert.equal(await extensionAttached(), false);
-    const observed = await prompt(paired[0].tabs.map(tab => ({ action: 'observe', tabId: tab.tabId })));
+    const observeMain = { action: 'observe', tabId: discovered.tabId };
+    const mainStatus = { action: 'status', tabId: discovered.tabId };
+    await siteDecision(0);
+    const [firstDecline, secondDecline, declinedSite] = await prompt([observeMain, observeMain, mainStatus]);
+    for (const result of [firstDecline, secondDecline]) assert.match(result.error, /site access was declined/);
+    assert.equal(declinedSite.siteAccess, 'declined');
+    assert.equal(await sitePrompts(), 1);
+    assert.equal(await extensionAttached(), false);
+    await siteDecision(1);
+    const [inventoryOnce, observeOnce, onceStatus] = await prompt([
+      { action: 'observe', tabId: paired[0].tabs.find(tab => tab.url === inventoryUrl).tabId }, observeMain, mainStatus,
+    ]);
+    assert.equal(inventoryOnce.url, inventoryUrl);
+    assert.equal(observeOnce.url, siteUrl);
+    assert.equal(onceStatus.siteAccess, 'allowed');
+    assert.equal((await prompt([mainStatus]))[0].siteAccess, 'ask');
+    assert.equal(await sitePrompts(), 3);
+    await siteDecision(2);
+    const observed = [inventoryOnce, ...(await prompt([observeMain]))];
     assert.deepEqual(observed.map(result => [result.kind, result.url, result.isError]).sort(), [
       ['observation', siteUrl, false], ['observation', inventoryUrl, false],
     ].sort());
@@ -249,12 +327,46 @@ try {
     assert.match(duplicate.error, /ambiguous/);
     assert.equal(scoped.nodes[0].state.disabled, false);
     assert.equal(frameTree.tree, '- main:\n  - heading "Run details" [level=2]\n  - button "Inspect"');
-    const [, clicked] = await prompt([
+    const [, matches, counted, clicked] = await prompt([
       { action: 'observe', tabId: snapshotTabId, includeTree: true },
+      { action: 'query', tabId: snapshotTabId, locator: button },
+      { action: 'query', tabId: snapshotTabId, locator: button, limit: 0,
+        within: { by: 'role', role: 'region', name: 'Draft' } },
       { action: 'click', tabId: snapshotTabId, name: 'Apply' },
     ]);
+    assert.deepEqual(matches.nodes, [
+      { role: 'button', name: 'Apply', state: { disabled: false } },
+      { role: 'button', name: 'Apply', state: { disabled: true } },
+    ]);
+    assert.equal(matches.count, 2);
+    assert.equal(matches.countExact, true);
+    assert.equal(counted.count, 1);
+    assert.deepEqual(counted.nodes, []);
     assert.equal(clicked.outcome, 'dispatched');
     await expect(snapshotPage.getByRole('status')).toHaveText('Applied; trusted = true');
+    await snapshotPage.reload();
+    const [ambiguousAct, scopedAct] = await prompt([
+      { action: 'act', tabId: snapshotTabId, locator: button, operation: { action: 'click' } },
+      { action: 'act', tabId: snapshotTabId, locator: button, within: { by: 'role', role: 'region', name: 'Draft' },
+        operation: { action: 'click' } },
+    ]);
+    assert.equal(ambiguousAct.isError, true);
+    assert.match(ambiguousAct.error, /ambiguous/);
+    assert.equal(scopedAct.outcome, 'dispatched');
+    await expect(snapshotPage.getByRole('status')).toHaveText('Applied; trusted = true');
+    await snapshotPage.goto(new URL('/snapshot-large', siteUrl).href);
+    const [largeTree] = await prompt([{ action: 'observe', tabId: snapshotTabId, includeTree: true }]);
+    assert.equal(largeTree.treeInlineWithReference, true);
+    assert.match(largeTree.tree, /heading "Large snapshot"/);
+    assert.equal(await extensionAttached(snapshotPage.url()), true);
+    const [handedOff, afterHandoff] = await prompt([
+      { action: 'handoff', tabId: snapshotTabId }, { action: 'tabs' },
+    ]);
+    assert.deepEqual(handedOff, { kind: 'tabHandedOff', tabId: snapshotTabId, isError: false });
+    assert.deepEqual(afterHandoff.tabs.map(tab => tab.tabId), [tabId]);
+    assert.equal(afterHandoff.chrome.state, 'connected');
+    assert.equal(await extensionAttached(snapshotPage.url()), false);
+    await expect(snapshotPage.getByRole('heading', { name: 'Large snapshot' })).toBeVisible();
     await snapshotPage.close();
 
     const operations = await prompt([
@@ -405,7 +517,7 @@ try {
       if (!expectedUrl) assert.equal(clicked.popup?.kind, 'notObserved', JSON.stringify(clicked));
       else {
         assert.equal(clicked.popup?.kind, 'tabOpened', JSON.stringify(clicked));
-        assert.equal(clicked.popup.authorized, true);
+        if (expectedUrl === popupUrl) assert.equal(clicked.popup.authorized, false);
         assert.notEqual(clicked.popup.tabId, tabId);
         await expect.poll(() => chrome.pages().find(candidate => candidate.url() === expectedUrl)?.url()).toBe(expectedUrl);
         const openedPage = chrome.pages().find(candidate => candidate.url() === expectedUrl);
@@ -539,20 +651,59 @@ nodeRepl.write(answer.outcome);` },
     await expect(status).toHaveText('Disconnected');
 
     await requestPair();
+    const beforeReconnectObserve = await sitePrompts();
     const [reconnected] = await prompt([{ action: 'observe' }]);
     assert.equal(reconnected.isError, false);
+    assert.equal(await sitePrompts(), beforeReconnectObserve);
     assert.equal(await extensionAttached(), true);
     await menu('browser-use-stop-chrome');
     await expect(status).toHaveText('Disconnected');
     await expect.poll(extensionAttached).toBe(false);
-    assert.deepEqual((await prompt([{ action: 'tabs' }]))[0].tabs, []);
+    const [disconnected] = await prompt([{ action: 'tabs' }]);
+    assert.deepEqual(disconnected.tabs, []);
+    assert.equal(disconnected.chrome.state, 'disconnected');
     await panel.screenshot({ path: resolve(output, 'revoked.png') });
+
+    await requestPair();
+    const blockedPage = await chrome.newPage();
+    const blockedUrl = new URL('/inventory-window', foreignUrl);
+    blockedUrl.hostname = 'localhost';
+    await blockedPage.goto(blockedUrl.href);
+    const [beforeBlock] = await prompt([{ action: 'tabs' }]);
+    const blockedTab = beforeBlock.tabs.find(tab => tab.url === blockedUrl.href).tabId;
+    const blockedObserve = { action: 'observe', tabId: blockedTab };
+    await siteDecision(3);
+    const beforeBlockPrompt = await sitePrompts();
+    const [block] = await prompt([blockedObserve]);
+    assert.match(block.error, /site access was blocked/);
+    const [refused, blockedState] = await prompt([blockedObserve, { action: 'status', tabId: blockedTab }]);
+    assert.match(refused.error, /site access was blocked/);
+    assert.equal(blockedState.siteAccess, 'blocked');
+    assert.equal(await sitePrompts(), beforeBlockPrompt + 1);
+    assert.equal(await extensionAttached(blockedUrl.href), false);
+    const rulesFile = resolve(temporary, 'desktop', 'chrome-site-access.json');
+    const readRules = async () => JSON.parse(await readFile(rulesFile, 'utf8'));
+    assert.deepEqual(await readRules(), {
+      [new URL(siteUrl).origin]: 'allow',
+      [new URL(popupUrl).origin]: 'allow',
+      [blockedUrl.origin]: 'block',
+    });
+    await app.evaluate(() => { globalThis.relayClearSites = true; });
+    await menu('browser-use-chrome-sites');
+    await expect.poll(readRules).toEqual({});
+    assert.match(await app.evaluate(() => globalThis.relaySiteRules), /localhost:.*Blocked/);
+    await expect(status).toHaveText('Disconnected');
     await writeFile(resolve(output, 'result.json'), JSON.stringify({
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
+      chromeConnectionStatesVerified: true,
+      chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
+        declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
+      chromeHandoffLeavesTabOpenAndReleasesDebugger: true,
       semanticTree: { snapshot: withTree.tree, codexFixtureMatched: true, preservesNodesAndRefs: true,
-        scopedDuplicateResolved: true, foreignFrameContentExcluded: true, trustedClick: true },
+        scopedDuplicateResolved: true, foreignFrameContentExcluded: true, trustedClick: true, inlineWithContentReference: true,
+        scopedLocatorActionAfterReload: true, readOnlyQueryPreservesRefs: true },
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
       historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts, dialogReceipts,
       beforeUnloadDismissed: true, dialogHandledThroughRepl: true,

@@ -21,7 +21,7 @@ export type BrowserNode = {
 };
 
 export type DocumentCommand =
-  | ({ observation: string; linksOnly?: true } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'wait' }>)
+  | ({ observation: string; linksOnly?: true } & Extract<BrowserRequest, { action: 'observe' | 'locate' | 'query' | 'wait' }>)
   | Extract<BrowserRequest, { action: Exclude<ElementAction, 'upload' | 'dblclick' | 'typeSequentially' | 'download'> | 'scroll' }>
   | (Extract<BrowserRequest, { action: 'download' }> & { linksOnly?: true })
   | (Extract<BrowserRequest, { action: 'dblclick' }> & { recheck?: true })
@@ -32,6 +32,8 @@ export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean;
     tree?: string; treeTruncated?: true;
     frame?: FrameSelector[]; frameUrl?: string; frames: { selector: FrameSelector; sameOrigin: boolean }[] }
+  | { kind: 'query'; url: string; count: number; countExact: boolean; truncated: boolean;
+    nodes: Omit<BrowserNode, 'ref' | 'actions'>[] }
   | { kind: 'dispatched' | 'focused' | 'pending' }
   | { kind: 'point'; point: ViewportPoint; downloadUrl?: string }
   | { kind: 'download'; url: string; name?: string }
@@ -134,8 +136,8 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return point;
   }
 
-  if (command.action === 'observe' || command.action === 'locate' || command.action === 'wait') {
-    delete world.peroBrowserObservation;
+  if (command.action === 'observe' || command.action === 'locate' || command.action === 'query' || command.action === 'wait') {
+    if (command.action !== 'query') delete world.peroBrowserObservation;
     let doc = document;
     const chain: Frame[] = [];
     for (const selector of command.frame || []) {
@@ -157,6 +159,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     const targets = new Map<string, Target>();
     const nodes: BrowserNode[] = [];
     const descriptions = command.action === 'observe' && command.includeTree ? new Map<Element, BrowserNode>() : undefined;
+    const expandFrames = command.action === 'observe' && command.includeFrameContents !== false;
     function describe(node: Element) {
       const nodeRole = role(node);
       const nodeName = name(node).slice(0, 160);
@@ -230,6 +233,15 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
       const candidates = search.nodes.filter(node => matchesLocator(node, command.locator));
       const waitingForHidden = command.action === 'wait' && command.condition.kind === 'hidden';
       const matches = waitingForHidden ? candidates : candidates.filter(isVisible);
+      if (command.action === 'query') {
+        const limit = command.limit ?? 32;
+        return { kind: 'query', url: location.href, count: matches.length, countExact: !search.truncated,
+          truncated: search.truncated || matches.length > limit,
+          nodes: matches.slice(0, limit).map(node => {
+            const { actions: _, ...entry } = describe(node);
+            return entry;
+          }) };
+      }
       if (matches.length > 1 || search.truncated) return reject('The locator is ambiguous. Use a more specific locator or frame.');
       const node = matches[0];
       const shown = !!node && (!waitingForHidden || isVisible(node));
@@ -258,7 +270,8 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     if (descriptions) {
       const observedDescriptions = descriptions;
       const lines: string[] = [];
-      let characters = 0;
+      const utf8 = new TextEncoder();
+      let bytes = 0;
       let remainingVisits = maxVisitedNodes;
       const scalar = (value: string) => /[\r\n\t]|^\s|\s$|:\s|^[-#[{"']/.test(value) ? JSON.stringify(value) : value;
       function appendTree(elements: ReturnType<typeof walk>, indent: number, frameDepth: number) {
@@ -291,15 +304,16 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
           else if (iframe || !['button', 'heading', 'link', 'textbox', 'searchbox', 'checkbox', 'radio', 'switch',
             'columnheader', 'rowheader', 'cell', 'option', 'img'].includes(treeRole || '')) body += ':';
           const line = '  '.repeat(depth) + '- ' + body;
-          if (characters + line.length + 1 > 12000) {
+          const lineBytes = utf8.encode(line).length + 1;
+          if (bytes + lineBytes > 12000) {
             snapshot.treeTruncated = true;
             remainingVisits = 0;
             break;
           }
-          characters += line.length + 1;
+          bytes += lineBytes;
           lines.push(line);
           if (treeRole) contentsDepth.set(element, depth + 1);
-          if (iframe && sameOrigin(element.contentDocument)) {
+          if (iframe && expandFrames && sameOrigin(element.contentDocument)) {
             if (frameDepth < 4 && remainingVisits > 0)
               appendTree(walk(element.contentDocument, undefined, remainingVisits), depth + 1, frameDepth + 1);
             else snapshot.treeTruncated = true;

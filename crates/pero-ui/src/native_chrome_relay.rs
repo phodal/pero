@@ -10,8 +10,11 @@ use serde_json::{Value, json};
 
 enum ChromeAction {
     Pair(String),
+    Status(String),
     Stop,
     PrepareFolder,
+    SiteRules,
+    ClearSiteRules,
 }
 
 #[derive(Default)]
@@ -23,6 +26,44 @@ pub(crate) struct CloudBrowserView {
 }
 
 impl Workbench {
+    pub(super) fn native_chrome_site_approval(
+        &mut self,
+        event: pero_contracts::HostEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = event.request_id else { return };
+        let apps = crate::native::apps();
+        let thread = event.data["thread"].as_str().unwrap_or_default();
+        let origin = event.data["origin"].as_str().unwrap_or_default();
+        if origin.is_empty() || self.browser_thread(cx).as_deref() != Some(thread) {
+            apps.shell_reply(&id, Ok(json!("decline")));
+            return;
+        }
+        let detail = format!("{origin}\n\n{}", self.t("browser_use.site_detail"));
+        let answer = window.prompt(
+            PromptLevel::Info,
+            self.t("browser_use.site_prompt"),
+            Some(&detail),
+            &[
+                self.t("browser_use.deny"),
+                self.t("browser_use.site_once"),
+                self.t("browser_use.site_allow"),
+                self.t("browser_use.site_block"),
+            ],
+            cx,
+        );
+        cx.spawn(async move |_, _| {
+            let decision = match answer.await {
+                Ok(1) => "once",
+                Ok(2) => "allow",
+                Ok(3) => "block",
+                _ => "decline",
+            };
+            apps.shell_reply(&id, Ok(json!(decision)));
+        }).detach();
+    }
+
     pub(crate) fn cloud_browser_button(
         &self,
         task_id: &str,
@@ -199,6 +240,17 @@ impl Workbench {
         .on_click(cx.listener(|this, _, window, cx| {
             this.native_chrome_relay(ChromeAction::Stop, window, cx)
         }));
+        let sites = pero_theme::action_button(
+            "settings-chrome-sites",
+            self.t("browser_use.site_settings"),
+            pero_theme::ActionKind::Ghost,
+            chrome,
+            cx,
+        )
+        .disabled(!available)
+        .on_click(cx.listener(|this, _, window, cx| {
+            this.native_chrome_relay(ChromeAction::SiteRules, window, cx)
+        }));
         div()
             .flex()
             .flex_col()
@@ -224,6 +276,7 @@ impl Workbench {
                     pair.into_any_element(),
                     folder.into_any_element(),
                     stop.into_any_element(),
+                    sites.into_any_element(),
                 ],
                 chrome,
             ))
@@ -234,6 +287,7 @@ impl Workbench {
         let thread = self.browser_thread(cx)?;
         let owner = cx.entity();
         let pair = self.t("browser_use.open_chrome").to_owned();
+        let status = self.t("browser_use.chrome_status").to_owned();
         let stop = self.t("browser_use.chrome_stop").to_owned();
         Some(
             Button::new("chrome-relay")
@@ -243,8 +297,10 @@ impl Workbench {
                 .accessibility_label(self.t("browser_use.chrome_menu"))
                 .dropdown_menu(move |menu, _, _| {
                     let start_owner = owner.clone();
+                    let status_owner = owner.clone();
                     let stop_owner = owner.clone();
                     let thread = thread.clone();
+                    let status_thread = thread.clone();
                     menu.item(
                         PopupMenuItem::new(pair.clone()).on_click(move |_, window, cx| {
                             start_owner.update(cx, |this, cx| {
@@ -256,6 +312,15 @@ impl Workbench {
                             });
                         }),
                     )
+                    .item(PopupMenuItem::new(status.clone()).on_click(move |_, window, cx| {
+                        status_owner.update(cx, |this, cx| {
+                            this.native_chrome_relay(
+                                ChromeAction::Status(status_thread.clone()),
+                                window,
+                                cx,
+                            );
+                        });
+                    }))
                     .item(
                         PopupMenuItem::new(stop.clone()).on_click(move |_, window, cx| {
                             stop_owner.update(cx, |this, cx| {
@@ -293,8 +358,11 @@ impl Workbench {
                     .unwrap_or(self.t("browser_use.chrome_selected_chat"));
                 json!({"operation": "chrome-relay-pair", "thread": thread, "label": label})
             }
+            ChromeAction::Status(thread) => json!({"operation":"chrome-relay-status", "thread":thread}),
             ChromeAction::Stop => json!({"operation":"chrome-relay-stop"}),
             ChromeAction::PrepareFolder => json!({"operation":"chrome-extension-folder"}),
+            ChromeAction::SiteRules => json!({"operation":"chrome-site-rules"}),
+            ChromeAction::ClearSiteRules => json!({"operation":"chrome-site-clear"}),
         };
         cx.spawn_in(window, async move |entity, cx| {
             let result = cx
@@ -306,7 +374,50 @@ impl Workbench {
                     Ok(value) if value["ok"] == true => {
                         let mut open = std::process::Command::new("/usr/bin/open");
                         match &action {
-                            ChromeAction::Stop => return,
+                            ChromeAction::Stop | ChromeAction::ClearSiteRules => return,
+                            ChromeAction::SiteRules => {
+                                let rules = value["rules"].as_object().into_iter().flatten()
+                                    .filter_map(|(origin, decision)| Some(format!(
+                                        "{origin} · {}",
+                                        this.t(&format!("browser_use.site_rule_{}", decision.as_str()?)),
+                                    )))
+                                    .collect::<Vec<_>>();
+                                let mut buttons = vec![this.t("remote.close_form")];
+                                if !rules.is_empty() {
+                                    buttons.push(this.t("browser_use.site_clear"));
+                                }
+                                let detail = if rules.is_empty() {
+                                    this.t("browser_use.site_empty").to_owned()
+                                } else {
+                                    rules.join("\n")
+                                };
+                                let answer = window.prompt(
+                                    PromptLevel::Info, this.t("browser_use.site_settings"),
+                                    Some(&detail), &buttons, cx,
+                                );
+                                cx.spawn_in(window, async move |view, cx| {
+                                    if answer.await == Ok(1) {
+                                        let _ = view.update_in(cx, |view, window, cx| {
+                                            view.native_chrome_relay(ChromeAction::ClearSiteRules, window, cx);
+                                        });
+                                    }
+                                }).detach();
+                                return;
+                            }
+                            ChromeAction::Status(thread) => {
+                                if this.browser_thread(cx).as_ref() == Some(thread)
+                                    && let Some(state) = value["state"].as_str()
+                                {
+                                    let _ = window.prompt(
+                                        PromptLevel::Info,
+                                        this.t(&format!("browser_use.chrome_status_{state}")),
+                                        value["message"].as_str(),
+                                        &[this.t("remote.close_form")],
+                                        cx,
+                                    );
+                                }
+                                return;
+                            }
                             ChromeAction::Pair(thread) => {
                                 if this.browser_thread(cx).as_ref() != Some(thread) {
                                     return;
