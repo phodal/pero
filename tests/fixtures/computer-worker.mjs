@@ -20,7 +20,15 @@ for await (const line of createInterface({input:process.stdin})) {
           ...fixture.observation.elements[0],
           id: `control-${index}`,
           label: index === 99 ? 'Fixture focused editor' : 'fixture line '.repeat(30),
-          ...(index === 99 ? { state: { enabled: true, secure: false, focused: true, value_settable: false } } : {}),
+          ...(index === 99 ? {
+            state: { enabled: true, secure: false, focused: true, value_settable: true, expanded: false },
+            actions: ['set_value', 'perform_action'],
+            semantic_actions: ['confirm'],
+          } : index === 0 ? {
+            label: 'Fixture disabled button',
+            state: { enabled: false, secure: false, focused: false, value_settable: false },
+            actions: [],
+          } : {}),
         })),
       };
       value.image = { media_type, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9xkAAAAASUVORK5CYII=' };

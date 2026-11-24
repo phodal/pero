@@ -72,6 +72,8 @@ try {
  assert.equal(JSON.parse(ocr.text).recognized_text,'车企实践 / Test Agent');
  assert.match(preview.text,/showing \d+ of 100 nodes/);
  assert.match(preview.text.split('\n')[1],/control-99 .*\[focused\].*Fixture focused editor/);
+ assert.match(preview.text.split('\n')[1],/\[settable\].*\[collapsed\].*actions=set_value,perform_action secondary=confirm/);
+ assert.match(preview.text,/control-0 .*\[disabled\] Fixture disabled button/);
  assert.ok(Buffer.byteLength(preview.text) < 8200);
  assert.equal(image.mimeType,'image/png');
  const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
