@@ -49,7 +49,10 @@ type fixture struct {
 
 func setup(t *testing.T, mode Mode, maxSteps int, responses ...harness.Completion) *fixture {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// The bounded long review schedules 130 tool rounds. Under the race detector
+	// that exceeds 10s on Windows and macOS runners; the review-count assertion
+	// is unchanged.
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	t.Cleanup(cancel)
 	adapter := &scriptedAdapter{responses: responses}
 	h, err := harness.Boot(ctx, harness.Options{Adapter: adapter})
