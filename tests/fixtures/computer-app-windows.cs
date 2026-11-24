@@ -21,15 +21,6 @@ internal static class ComputerFixture
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
-    private static extern IntPtr WindowFromPoint(Point position);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
-
-    [DllImport("user32.dll")]
     private static extern bool SetProcessDPIAware();
 
     [DllImport("user32.dll")]
@@ -67,29 +58,6 @@ internal static class ComputerFixture
     private static object Geometry(Rectangle rect)
     {
         return new { x = rect.X, y = rect.Y, width = rect.Width, height = rect.Height };
-    }
-
-    private static void ActivateGuard(Form guard)
-    {
-        guard.Activate();
-        if (GetForegroundWindow() == guard.Handle ||
-            Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return;
-
-        // Activate by the same title-bar input as a user on the disposable
-        // runner. Verify the point belongs to this window before sending input.
-        const uint nonClientHitTest = 0x84, leftDown = 0x0002, leftUp = 0x0004;
-        const int caption = 2;
-        var point = new Point(guard.Left + 42, guard.Top + 18);
-        var packed = new IntPtr((point.Y << 16) | (point.X & 0xffff));
-        if (WindowFromPoint(point) != guard.Handle ||
-            SendMessage(guard.Handle, nonClientHitTest, IntPtr.Zero, packed).ToInt64() != caption) return;
-        var previous = Cursor.Position;
-        try {
-            Cursor.Position = point;
-            if (Cursor.Position != point || WindowFromPoint(point) != guard.Handle) return;
-            mouse_event(leftDown, 0, 0, 0, UIntPtr.Zero);
-            mouse_event(leftUp, 0, 0, 0, UIntPtr.Zero);
-        } finally { Cursor.Position = previous; }
     }
 
     [STAThread]
@@ -167,6 +135,7 @@ internal static class ComputerFixture
                     session = process.SessionId,
                     count, guardCount, fieldFocused = field.Focused, text = field.Text,
                     foreground = foreground == target.Handle ? "target" : foreground == guard.Handle ? "guard" : "other",
+                    foregroundWindow = foreground.ToInt64().ToString("x"),
                     pointer = Position(Cursor.Position), frame = Geometry(target.Bounds),
                     visibleFrame = hasVisibleBounds ? Geometry(Rectangle.FromLTRB(visible.Left, visible.Top, visible.Right, visible.Bottom)) : null,
                     button = Geometry(button.RectangleToScreen(button.ClientRectangle)),
@@ -178,7 +147,7 @@ internal static class ComputerFixture
             };
             target.Shown += delegate {
                 guard.Show();
-                guard.BeginInvoke(new Action(() => ActivateGuard(guard)));
+                guard.Activate();
                 timer.Start();
             };
             Application.Run(target);

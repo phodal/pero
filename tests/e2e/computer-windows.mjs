@@ -85,7 +85,7 @@ try {
   execFileSync(compiler, ['/nologo', '/target:exe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
     '/r:System.Web.Extensions.dll', `/out:${fixturePath}`, resolve(root, 'tests/fixtures/computer-app-windows.cs')], { stdio: 'inherit' });
   worker(fixturePath, [title], 'ignore', value => { fixtureState = value; });
-  const initial = await state(value => value.foreground === 'guard', 'WinForms guard window to own the foreground');
+  const initial = await state(() => true, 'WinForms window state');
   native = worker(process.env.PERO_COMPUTER_BINARY || resolve(root, 'target/debug/pero-computer.exe'), [], 'pipe',
     reply => replies.set(reply.id, reply));
   const { status } = await call({ operation: 'status' });
@@ -104,7 +104,7 @@ try {
   await act(sample.observation, invoke, 'background');
   await act(sample.observation, invoke, 'background', 'stale_observation');
   const invokedState = await state(value => value.count === 1);
-  assert.equal(invokedState.foreground, 'guard');
+  assert.equal(invokedState.foregroundWindow, initial.foregroundWindow);
   assert.deepEqual(invokedState.pointer, initial.pointer);
   assert.equal(invokedState.guardCount, 0);
   results.cases.push('Background UIA invocation, exact effect, unchanged foreground and pointer, stale observation refusal');
@@ -122,15 +122,18 @@ try {
   assert.ok(capture, 'The screenshot geometry must match the visible or full WinForms frame');
   const buttonPixel = { kind: 'pixel', screenshot_id: image.id, point: point(image, capture, invokedState.button) };
   await act(sample.observation, click(buttonPixel), 'background', 'unsupported');
-  assert.equal((await state(value => value.foreground === 'guard')).count, 1);
+  const afterRefusal = await state(() => true);
+  assert.equal(afterRefusal.foregroundWindow, initial.foregroundWindow);
+  assert.equal(afterRefusal.count, 1);
   results.cases.push('JPEG tied to the owned window and background pixel refusal');
 
+  const guardInFront = await state(value => value.foreground === 'guard', 'WinForms guard window to own the foreground');
   sample = await observe(true);
   await act(sample.observation, { kind: 'move', anchor: {
     kind: 'pixel', screenshot_id: sample.observation.screenshot.id,
     point: { x: image.width - 20, y: 65 },
   } }, 'foreground', 'target_unavailable');
-  assert.deepEqual((await state(value => value.foreground === 'guard')).pointer, initial.pointer);
+  assert.deepEqual((await state(value => value.foreground === 'guard')).pointer, guardInFront.pointer);
   results.cases.push('Pointer move refused when an overlapping window in the same process owns the pixel');
 
   sample = await observe(true);
