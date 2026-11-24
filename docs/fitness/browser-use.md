@@ -321,6 +321,19 @@ action in Chrome, the conversation listed both fixture windows and observed
 actual page text. Native exit disconnected the extension. Evidence is in
 `test-results/native-chrome-pairing/`.
 
+On 2026-11-24 the normal macOS arm64 release recipe built Pero 0.1.2 from
+`9a227bc65`. Both app signatures passed strict verification after mounting
+the ad-hoc-signed DMG. The ordinary release executable passed portable startup
+with an empty profile and bundled Node, Rust Host, Apps and CPython 3.12.16.
+
+A separately signed copy with the optimized `native-probe` executable ran
+the WKWebView Browser Use suite, the concurrent Chrome tab suite and the
+WebMCP approval suite with the extension loaded directly from the app
+payload. The Chrome suites verified that `sys.executable` resolved to the
+bundled Python. WebMCP was verified on Chrome for Testing with the feature
+enabled and the fixture's real macOS approval sheet. The ACP agent was the
+deterministic test fixture. Evidence is in `test-results/native-browser-release/`.
+
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with
