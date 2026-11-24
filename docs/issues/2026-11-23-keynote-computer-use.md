@@ -186,6 +186,13 @@ seconds, so this change retains the bounded OCR path.
 - A repeat with the rebuilt companion and the same macOS denial verified that
   both AX observation and standalone screenshot now return
   `permission_required` with the Accessibility recovery path.
+- On 2026-11-24 the signed candidate helper received Accessibility and
+  Screen Recording under a separate test bundle identifier. The real Codex
+  run used bundled Python to read the outlined tile from the native screenshot,
+  choose a pixel coordinate, and read the confirmation code from a fresh
+  screenshot. The fixture recorded exactly one correct background selection.
+  The Host's executed receipt matched the first image's observation and
+  screenshot identifiers, and both stored image digests matched the ACP output.
 
 ## Appshot
 
@@ -205,6 +212,9 @@ seconds, so this change retains the bounded OCR path.
   Native shortcut channel. A signed test package with a controlled companion
   response appended its JPEG and accessible text to the original draft.
   The local ACP fixture recorded session creation and zero prompt calls.
+- The same test passed on 2026-11-24 with the authorized signed companion
+  capturing a real foreground AppKit window. The test injected the shortcut
+  event after dispatch and left the draft unsent.
 
 ## Live preview with independent workers
 
