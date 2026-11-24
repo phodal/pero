@@ -486,6 +486,12 @@ approves the child, reads its HTTP 202 response, and verifies response access
 ends when the capture stops. Evidence is in
 `test-results/native-chrome-cdp-target-network/result.json`.
 
+For extension 0.3.17, use `--cdp-target-detach`. The signed Native probe
+removes the iframe through Browser Use, pages its buffered network events
+with the existing cursor, and verifies that a response body read is refused.
+Chrome independently confirms the fixture removed the iframe. Evidence is in
+`test-results/native-chrome-cdp-target-detach/result.json`.
+
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with

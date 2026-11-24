@@ -13,13 +13,14 @@ import { scopedNetworkScript, serveDiagnosticAssets } from '../fixtures/browser-
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const targetNetwork = process.argv.includes('--cdp-target-network');
+const targetDetach = process.argv.includes('--cdp-target-detach');
+const targetNetwork = targetDetach || process.argv.includes('--cdp-target-network');
 const targetTree = targetNetwork || process.argv.includes('--cdp-target-tree');
 const targets = targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
-const output = resolve(root, targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
+const output = resolve(root, targetDetach ? 'test-results/native-chrome-cdp-target-detach' : targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
   : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
 await rm(resolve(output, 'result.json'), { force: true });
@@ -69,7 +70,9 @@ const site = createServer((req, res) => {
         }
       </script>` : ''}
       ${targetNetwork ? `<button onclick="runScopedNetwork()">Run scoped network fixture</button>
-      <p id="scoped-network-state">Waiting for scoped network</p><script>${scopedNetworkScript(childOrigin)}</script>` : ''}`);
+      <p id="scoped-network-state">Waiting for scoped network</p><script>${scopedNetworkScript(childOrigin)}</script>` : ''}
+      ${targetDetach ? `<button onclick="document.querySelector('#cdp-child').remove(); this.nextElementSibling.textContent = 'Native child removed'">Remove CDP child</button>
+      <output>Child present</output>` : ''}`);
     return;
   }
   res.end(siteToolPage(req.url === '/webmcp-frame', foreignOrigin));
@@ -281,23 +284,32 @@ clicked = await browser("act", locator={"by":"role","role":"button","name":"Run 
 assert clicked["outcome"] == "dispatched", clicked
 ready = await browser("wait", locator={"by":"text","value":"Scoped network complete"}, condition={"kind":"visible"}, timeoutMs=3000)
 assert ready["matched"], ready
+methods = ["Network.responseReceived", "Network.loadingFinished"]
 network = await browser("cdpReadEvents", target=target, after=captured["result"]["cursor"], timeoutMs=1500,
-    methods=["Network.responseReceived", "Network.loadingFinished"])
+    methods=methods${targetDetach ? ', limit=1' : ''})
 response = next(event["params"] for event in network["events"] if event["method"] == "Network.responseReceived"
     and event["params"]["url"].endswith("/cdp-child-response"))
 assert response["status"] == 202 and "cdp-parent-response" not in json.dumps(network), network
 body_query = {"requestId":response["requestId"]}
 resp = await child_command("Network.getResponseBody", body_query)
 assert resp["result"]["body"] == '{"fixture":"child"}', resp
-await child_command("Network.disable")
+${targetDetach ? `assert network["hasMore"], network
+removed = await browser("act", locator={"by":"role","role":"button","name":"Remove CDP child"}, operation={"action":"click"})
+assert removed["outcome"] == "dispatched", removed
+gone = await browser("wait", locator={"by":"text","value":"Native child removed"}, condition={"kind":"visible"}, timeoutMs=3000)
+assert gone["matched"], gone
+retained = await browser("cdpReadEvents", target=target, after=network["cursor"], timeoutMs=500, methods=methods)
+assert retained["detached"] and len(retained["events"]) == 1, retained
+event = retained["events"][0]
+assert event["method"] == "Network.loadingFinished" and event["params"]["requestId"] == response["requestId"], retained` : 'await child_command("Network.disable")'}
 try:
     await child_command("Network.getResponseBody", body_query)
 except Exception as error:
-    assert "Enable Network" in str(error), repr(error)
+    assert ${JSON.stringify(targetDetach ? 'target is detached' : 'Enable Network')} in str(error), repr(error)
 else:
     raise AssertionError("Native accepted child response access after stopping its capture")
 print(json.dumps({"receiptId":clicked["receiptId"],"denied":True,"tab":tab,"python":sys.executable,
-    "childNetwork":{"isolated":True,"body":True,"stopped":True}}))
+    "childNetwork":{"isolated":True,"body":True,"stopped":True${targetDetach ? ',"detachedCursor":True' : ''}}}))
 `;
 let app,
   chrome,
@@ -444,6 +456,10 @@ try {
   assert.equal(reply.isError, false, reply.text);
   if (targetNetwork) await expect(target.getByText('Scoped network complete')).toBeVisible();
   else if (live) await expect(target.getByText('Native network fixture complete')).toBeVisible();
+  if (targetDetach) {
+    await expect(target.getByText('Native child removed')).toBeVisible();
+    await expect(target.locator('#cdp-child')).toHaveCount(0);
+  }
   if (cdp && !targetNetwork) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
   if (!cdp) await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
   const evidence = JSON.parse(reply.text);
@@ -478,7 +494,7 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${targetNetwork ? 'scoped CDP iframe network capture' : targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+    `Native Python REPL verified ${targetDetach ? 'CDP iframe events after detachment' : targetNetwork ? 'scoped CDP iframe network capture' : targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
       : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
