@@ -1203,7 +1203,7 @@
   "research.web_sources": "Web sources",
   "research.web_sources_local": "Local Project",
   "research.web_sources_shared": "Shared Project",
-  "research.web_sources_empty": "Use Collector in paired Chrome to save a source to this project.",
+  "research.web_sources_empty": "Right-click a page in paired Chrome, choose 添加到 Pero, then select this project in Collector.",
   "research.web_sources_loading": "Loading web sources…",
   "research.web_sources_reason": "Why collect it?",
   "research.web_sources_question": "Research question",
