@@ -224,3 +224,75 @@ The existing Product port fake now includes NotebookInspector, with all 7
 original shutdown/dispatch assertions passing. No assertion or production
 permission was weakened. Updated remote checks must be evaluated on the new
 head rather than counting the previous failed run as passing.
+
+## Read-only history — 2026-11-24
+
+Base: master `0fc86a2b`. This pass restores a saved MCP App row after the chat
+is reopened or the process restarts. It does not call the initial tool, send a
+model request, or recreate a live binding. The notice is
+`mcp.history.readonly`: English “Historical result, not currently interactive”,
+Chinese “历史结果，当前不可交互”. It is not `mcp.runtime.closed` (“Closed” /
+“已关闭”).
+
+#234 loads an archived body only when that conversation is selected.
+`1268ff1b` omits tool images from the ACP projection when the host asks it to.
+The saved text, source location, and `pero.mcpApp` descriptor still come back
+from that on-demand body. A new process does not admit the old descriptor even
+when the server name and generation happen to match again.
+
+### Local commands
+
+| Command | Result |
+| --- | --- |
+| `PERO_GPUI_KIT_PATH=… node scripts/cargo.mjs test --locked -p pero-contracts --lib -- i18n session_history mcp_source` | 8 passed, 0 failed, 141 filtered out |
+| `go -C harness/go test -race -count=1 -timeout 180s -run 'TestSharedUIResourceStaysOnItsServer\|TestModelInputOmitsUIOnlyMeta\|TestMCPOriginalAppCall\|TestMCPSessionAccessUsesOwnedHTTPConnection' ./harness ./acp` | both packages `ok` |
+| `go -C harness/go test -count=1 -v -run` the same filter | `TestMCPOriginalAppCall` (including its four subtests), `TestSharedUIResourceStaysOnItsServer`, `TestModelInputOmitsUIOnlyMeta`, and `TestMCPSessionAccessUsesOwnedHTTPConnection` passed |
+| `node scripts/check/locales.mjs` | 1416 bilingual messages checked |
+| `xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 node scripts/test/mcp-official-conversation.mjs` | passed, about 42s, after Wasm, `npm run build --workspace @pero/web`, Desktop, Host, and Harness were built |
+
+### Official Electron chain
+
+Unchanged `@modelcontextprotocol/server-basic-vanillajs@2.0.4`, integrity
+`sha512-L+IOxLjfX9oAwvnzLAMGX1pwBsIsXUsc9mB5iOTFuQ7lIaejetsrfYngPKwf9ZPHk9iCNVbHHaI7sj5dqax55Q==`.
+Actual Electron Workbench → Rust Host → Go ACP, deterministic loopback model,
+not an external model. Receipt:
+`test-results/mcp-apps-conversation/result.json`.
+
+Before restart the audit has two `get-time` calls (the initial Agent call and
+one explicit UI click) and three fixture model requests. After process restart,
+reopening the archived chat, expanding it, and pressing Tab, those counts stay
+2 and 3. The restored row keeps the original timestamp text and shows
+`Official example · ui://get-time/mcp-app.html`. No interactive iframe is
+mounted. Screenshot `history-readonly-zh.png` (1100×1000, dark, zh-CN) shows
+“历史结果，当前不可交互” above that source and the saved time. The tool status
+on that row is “已完成”, which is the completed tool state, not the closed
+runtime string.
+
+Tab moved focus to the conversation canvas (`CANVAS`, role `textbox`, the
+composer). The historical notice itself was not a separately focused control.
+Expand and collapse used the painted tool disclosure.
+
+Live screenshots from the same run, before restart:
+`official-inline-light.png`, `official-inline-dark-narrow.png`,
+`official-conversation-followup.png`.
+
+### #218 A–D on this head
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| A. Typed result identity through Harness → ACP → tool row | Met | Existing capture plus `TestMCPSessionAccessUsesOwnedHTTPConnection`; the conversation row uses that descriptor |
+| A. UI-only `_meta` stays out of the model request | Met | `TestModelInputOmitsUIOnlyMeta` marshals both `GenerateRequest`s and rejects `UI_ONLY_META_9f3c`, `ui://fixture/private-view`, and `bindingToken` |
+| B. Mount the saved result in the tool row without `execute` | Met | Official conversation: mount, collapse, expand, close, and reopen keep the initial effect at one call until the explicit UI click |
+| C. Reopen or restart restores text, source, and descriptor with no tool or model call | Met | Contract archive test, image-omission projection inside the ACP session test, and the Electron restart above |
+| C. No current binding says “历史结果，当前不可交互” and does not restore live interaction | Met | zh-CN screenshot; `admits_live_binding(true, …)` is false even when generation matches |
+| C. Live follow-up calls still use the existing approval path | Met | Same run: two `ask` approvals before restart; restart adds none |
+| D. Unchanged official 2.0.4 on the full Electron chain | Met | Receipt above |
+| D. Notebook Inspector through the same Agent tool-result entry | Not met in this run | Not re-executed. The earlier panel/Electron resource notes in this file are not a Workbench tool-row run |
+| D. Native GPUI | Not run here | This environment did not launch the Native GPUI app |
+
+Two servers that declare `ui://shared/view` stay apart:
+`TestSharedUIResourceStaysOnItsServer` reads and adopts each server’s own HTML
+and result, rejects the crossed adopt, and leaves each effect count at 1.
+
+`ui/update-model-context`, Task/Run/Artifact binding, author tooling,
+panel/fullscreen, and marketplace distribution stay out of this pass.
