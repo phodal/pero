@@ -183,3 +183,6 @@ seconds, so this change retains the bounded OCR path.
   preflights were undetected. The previously installed companion reported
   both permissions, but uses a different ad hoc signing identity. The staged
   model-guided native click remains unverified.
+- A repeat with the rebuilt companion and the same macOS denial verified that
+  both AX observation and standalone screenshot now return
+  `permission_required` with the Accessibility recovery path.
