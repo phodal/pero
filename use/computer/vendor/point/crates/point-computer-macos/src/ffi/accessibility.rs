@@ -136,18 +136,54 @@ fn unbox_ax_value(elem: &CfRef, name: &str, want_type: c_int32_t, out: *mut c_vo
 /// 元素就必须 retain。每项还验为 AXUIElement:坏掉的应用可以答字符串数
 /// 组,对 CFString 指针执行动作是 segfault。
 pub fn ax_retained_elements(elem: &CfRef, name: &str, limit: usize) -> Vec<CfRef> {
-	let Ok(Some(array)) = ax_attr(elem, name) else {
-		return Vec::new();
-	};
-	cf_array_items(array.as_ptr(), limit)
-		.into_iter()
+	ax_element_list(elem, name, limit).ok().flatten().map_or_else(Vec::new, |list| list.elements)
+}
+
+pub struct AxElementList {
+	pub elements: Vec<CfRef>,
+	pub complete: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AxReadError {
+	Native(c_int32_t),
+	InvalidType,
+}
+
+fn optional_ax_attr(elem: &CfRef, name: &str) -> Result<Option<CfRef>, AxReadError> {
+	match ax_attr(elem, name) {
+		Ok(value) => Ok(value),
+		Err(AX_ERR_ATTRIBUTE_UNSUPPORTED | AX_ERR_NO_VALUE) => Ok(None),
+		Err(code) => Err(AxReadError::Native(code)),
+	}
+}
+
+pub fn ax_optional_string(elem: &CfRef, name: &str) -> Result<Option<String>, AxReadError> {
+	let Some(value) = optional_ax_attr(elem, name)? else { return Ok(None) };
+	if !cf_is(value.as_ptr(), type_ids().string) {
+		return Err(AxReadError::InvalidType);
+	}
+	Ok(Some(cf_string_value(value.as_ptr())))
+}
+
+/// An absent attribute and an empty list are valid AX replies. Native failures,
+/// a malformed list, and a list past the scan budget cannot prove completeness.
+pub fn ax_element_list(elem: &CfRef, name: &str, limit: usize) -> Result<Option<AxElementList>, AxReadError> {
+	let Some(array) = optional_ax_attr(elem, name)? else { return Ok(None) };
+	if !cf_is(array.as_ptr(), type_ids().array) {
+		return Err(AxReadError::InvalidType);
+	}
+	let count = unsafe { sys::CFArrayGetCount(array.as_ptr()) } as usize;
+	let items = cf_array_items(array.as_ptr(), limit);
+	let elements: Vec<_> = items.into_iter()
 		.filter(|item| cf_is(*item, type_ids().ax_element))
 		.map(|item| {
 			// SAFETY:item 已验为 AXUIElement;retain 后建 +1 所有权。
 			unsafe { CfRef::from_created(sys::CFRetain(item) as *mut c_void) }
 				.expect("CFRetain of valid element returned NULL")
 		})
-		.collect()
+		.collect();
+	Ok(Some(AxElementList { complete: elements.len() == count, elements }))
 }
 
 /// 元素宣告的动作名(**已清洗**;见 [`sanitize_action`])。仅作参考:宣

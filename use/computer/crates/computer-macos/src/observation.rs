@@ -1,4 +1,4 @@
-//! Observation-local native handles. Subtree walks produce a fresh identity space.
+//! Observation-local native handles.
 use crate::{bridge, capture};
 use computer_core::{ControlId, Window, WindowImage};
 use computer_runtime::{WindowObservation, error};
@@ -33,6 +33,32 @@ impl Hash for ElementIdentity {
 
 const NATIVE_MAX_NODES: usize = 4096;
 const NATIVE_MAX_DEPTH: u16 = 64;
+
+#[derive(Default)]
+struct AxScan {
+    incomplete: bool,
+    secure: bool,
+}
+impl AxScan {
+    fn add_children(
+        &mut self,
+        read: Result<Option<ffi::AxElementList>, ffi::AxReadError>,
+        children: &mut Vec<CfRef>,
+    ) {
+        match read {
+            Ok(Some(list)) => {
+                self.incomplete |= !list.complete;
+                children.extend(list.elements);
+            }
+            Ok(None) => {}
+            Err(_) => self.incomplete = true,
+        }
+    }
+
+    fn allows_pixels(&self) -> bool {
+        !self.incomplete && !self.secure
+    }
+}
 
 fn project_tree(
     nodes: impl IntoIterator<Item = ComputerElement>,
@@ -170,7 +196,15 @@ pub fn observe(
     })?;
     // Electron exposes its content tree only after this explicit AX opt-in.
     ffi::ax_set_true(&app, "AXManualAccessibility");
-    let windows = ffi::ax_retained_elements(&app, "AXWindows", 128);
+    let windows = ffi::ax_element_list(&app, "AXWindows", 128)
+        .map_err(|failure| {
+            error(
+                ComputerErrorCode::Failed,
+                format!("Unable to read macOS AX windows: {failure:?}"),
+            )
+        })?
+        .map(|list| list.elements)
+        .unwrap_or_default();
     let withheld = windows.is_empty()
         || windows
             .iter()
@@ -210,21 +244,29 @@ pub fn observe(
     let mut stack = vec![(root, 0u16)];
     let mut seen = HashSet::new();
     let mut controls: Vec<Control> = Vec::new();
-    let mut scan_incomplete = false;
-    let mut has_secure = false;
+    let mut scan = AxScan::default();
     let start = Instant::now();
     while let Some((element, depth)) = stack.pop() {
         if !seen.insert(ElementIdentity(element.retain())) {
             continue;
         }
         if controls.len() >= NATIVE_MAX_NODES || start.elapsed() > Duration::from_secs(10) {
-            scan_incomplete = true;
+            scan.incomplete = true;
             break;
         }
-        let role = ffi::ax_str(&element, "AXRole");
-        let subrole = ffi::ax_str(&element, "AXSubrole");
-        let secure = role.contains("Secure") || subrole == "AXSecureTextField";
-        has_secure |= secure;
+        ffi::ax_set_messaging_timeout(&element);
+        let role = ffi::ax_optional_string(&element, "AXRole");
+        let subrole = ffi::ax_optional_string(&element, "AXSubrole");
+        let (Ok(Some(role)), Ok(subrole)) = (role, subrole) else {
+            scan.incomplete = true;
+            continue;
+        };
+        if role.is_empty() {
+            scan.incomplete = true;
+            continue;
+        }
+        let secure = role.contains("Secure") || subrole.as_deref() == Some("AXSecureTextField");
+        scan.secure |= secure;
         let enabled = ffi::ax_bool(&element, "AXEnabled", true);
         let value_settable = !secure && enabled && ffi::ax_is_settable(&element, "AXValue");
         let native_actions = ffi::ax_actions(&element, 32);
@@ -294,14 +336,10 @@ pub fn observe(
             &["AXChildren", "AXVisibleChildren", "AXRows"]
         };
         for attr in attrs {
-            let found = ffi::ax_retained_elements(&element, attr, 512);
-            if found.len() == 512 {
-                scan_incomplete = true;
-            }
-            children.extend(found);
+            scan.add_children(ffi::ax_element_list(&element, attr, 512), &mut children);
         }
         if depth >= NATIVE_MAX_DEPTH && !children.is_empty() {
-            scan_incomplete = true;
+            scan.incomplete = true;
         } else {
             stack.extend(children.into_iter().rev().map(|child| (child, depth + 1)));
         }
@@ -314,8 +352,7 @@ pub fn observe(
     // A subtree cannot establish that the rest of the window is free of secure fields.
     let image = if options.want_image
         && options.root.is_none()
-        && !has_secure
-        && !scan_incomplete
+        && scan.allows_pixels()
         && ffi::preflight_screen_capture()
     {
         capture::window(window.window_id).and_then(|image| {
@@ -342,7 +379,44 @@ pub fn observe(
         elements,
         bounds: bounds.map(bridge::bounds),
         image,
-        truncated: scan_incomplete || projection_truncated,
+        truncated: scan.incomplete || projection_truncated,
         source: snapshot,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screenshot_admission_distinguishes_empty_children_from_incomplete_reads() {
+        for (read, allowed) in [
+            (Ok(None), true),
+            (
+                Ok(Some(ffi::AxElementList {
+                    elements: vec![],
+                    complete: true,
+                })),
+                true,
+            ),
+            (
+                Ok(Some(ffi::AxElementList {
+                    elements: vec![],
+                    complete: false,
+                })),
+                false,
+            ),
+            (
+                Err(ffi::AxReadError::Native(ffi::AX_ERR_CANNOT_COMPLETE)),
+                false,
+            ),
+            (Err(ffi::AxReadError::InvalidType), false),
+        ] {
+            let mut scan = AxScan::default();
+            let mut children = Vec::new();
+            scan.add_children(read, &mut children);
+            scan.add_children(Ok(None), &mut children);
+            assert_eq!(scan.allows_pixels(), allowed);
+        }
+    }
 }
