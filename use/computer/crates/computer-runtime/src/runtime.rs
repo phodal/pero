@@ -44,6 +44,12 @@ impl WholeWindowBaseline {
             return None;
         }
         let current_ids: HashSet<_> = next.elements.iter().map(|node| &node.id).collect();
+        let element_order = old
+            .elements
+            .iter()
+            .map(|node| &node.id)
+            .ne(next.elements.iter().map(|node| &node.id))
+            .then(|| next.elements.iter().map(|node| node.id.clone()).collect());
         let removed_element_ids = old
             .elements
             .iter()
@@ -56,6 +62,7 @@ impl WholeWindowBaseline {
         Some(ComputerObservationDelta {
             base_observation_id: base.clone(),
             removed_element_ids,
+            element_order,
         })
     }
 }
@@ -266,11 +273,17 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 max_depth: options.max_depth,
                 include_containers: options.include_containers,
             };
-            let delta = options.since_observation_id.as_ref().and_then(|base| {
-                self.last_windows
-                    .get(&thread)?
-                    .delta(base, &projection, &mut observation)
-            });
+            let delta = self
+                .last_windows
+                .get(&thread)
+                .filter(|_| !options.disable_diffing)
+                .and_then(|previous| {
+                    let base = options
+                        .since_observation_id
+                        .as_ref()
+                        .unwrap_or(&previous.public.id);
+                    previous.delta(base, &projection, &mut observation)
+                });
             self.last_windows
                 .insert(thread.clone(), WholeWindowBaseline { public, projection });
             self.observations.insert(

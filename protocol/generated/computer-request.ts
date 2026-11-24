@@ -92,6 +92,10 @@ export interface ComputerObserveOptions {
    */
   include_containers?: boolean;
   since_observation_id?: ComputerRef1;
+  /**
+   * Return a full tree even when there is a compatible previous observation.
+   */
+  disable_diffing?: boolean;
 }
 export interface ComputerSubtree {
   observation_id: ComputerRef;

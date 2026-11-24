@@ -133,6 +133,8 @@ pub struct ComputerObserveOptions {
     pub include_containers: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub since_observation_id: Option<ComputerRef>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub disable_diffing: bool,
 }
 fn want_image() -> bool {
     true
@@ -152,6 +154,7 @@ impl Default for ComputerObserveOptions {
             root: None,
             include_containers: false,
             since_observation_id: None,
+            disable_diffing: false,
         }
     }
 }

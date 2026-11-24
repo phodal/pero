@@ -21,6 +21,8 @@ model ComputerObserveOptions {
   include_containers?: boolean;
   /** Compare with the latest whole-window observation of this target. */
   since_observation_id?: ComputerRef;
+  /** Return a full tree even when there is a compatible previous observation. */
+  disable_diffing?: boolean;
   ...ComputerClosed;
 }
 model ComputerObserveRequest { operation: "observe"; target: ComputerTargetRef; options?: ComputerObserveOptions; ...ComputerClosed; }
@@ -40,6 +42,8 @@ model ComputerOpenedResponse { kind: "opened"; target?: ComputerTarget | null; m
 model ComputerObservationDelta {
   base_observation_id: ComputerRef;
   removed_element_ids: ComputerRef[];
+  /** Present when the incoming tree has a different element order or membership. */
+  element_order?: ComputerRef[];
   ...ComputerClosed;
 }
 model ComputerObservationResponse {

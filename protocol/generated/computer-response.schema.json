@@ -503,6 +503,13 @@
           "items": {
             "$ref": "#/$defs/ComputerRef"
           }
+        },
+        "element_order": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          },
+          "description": "Present when the incoming tree has a different element order or membership."
         }
       },
       "required": [

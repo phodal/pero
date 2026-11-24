@@ -60,6 +60,8 @@ pub struct ComputerImageContent {
 pub struct ComputerObservationDelta {
     pub base_observation_id: ComputerRef,
     pub removed_element_ids: Vec<ComputerRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub element_order: Option<Vec<ComputerRef>>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]

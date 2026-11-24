@@ -163,6 +163,10 @@ export interface ComputerImageContent {
 export interface ComputerObservationDelta {
   base_observation_id: ComputerRef;
   removed_element_ids: ComputerRef[];
+  /**
+   * Present when the incoming tree has a different element order or membership.
+   */
+  element_order?: ComputerRef[];
 }
 export interface ComputerReceiptResponse {
   kind: "receipt";

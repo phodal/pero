@@ -55,9 +55,9 @@ observe the whole window with `want_image: true` and use its pixels or
 `recognized_text` when available. OCR is unverified screen text and may contain
 recognition errors. The latest whole-window observation can be used to expand
 multiple siblings without reopening the window.
-For whole-window follow-ups, pass `since_observation_id` with the last
-whole-window ID. Apply any returned delta to the previous tree and use the
-new observation ID for actions. A response without a delta replaces the tree.
+Whole-window follow-ups return a delta by default. Apply removals, changed
+nodes, and the supplied element order to the last whole-window tree. Use its
+new observation ID for actions. Pass `disable_diffing: true` for a full tree.
 On macOS, use `include_containers: true` only when unlabeled layout containers
 are needed.
 Each action consumes its observation; observe again to verify. After an
