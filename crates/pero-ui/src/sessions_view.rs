@@ -133,6 +133,7 @@ impl Workbench {
                         this.select_primary_project_agent(key);
                         this.open_project(key.clone(), window, cx);
                     }
+                    SidebarAction::DeleteProject(key) => this.confirm_project_deletion(key, window, cx),
                     SidebarAction::OpenFolder => this.command(serde_json::json!({"action":"choose_workspace"}), cx),
                     SidebarAction::AllTasks => {
                         this.selected_project = None;
@@ -185,7 +186,9 @@ impl Workbench {
         chat: &pero_chat_ui::conversation::Conversation,
         active_chat: Option<usize>,
     ) -> sidebar::RecentRow {
-        let binding = chat.project_agent.as_ref();
+        let binding = chat.project_agent.as_ref().filter(|binding| {
+            self.preferences.research_projects.iter().any(|project| project.id == binding.project_id)
+        });
         let label = binding
             .map(|binding| {
                 if binding.parent_thread.is_none() {
@@ -356,8 +359,10 @@ impl Workbench {
             .enumerate()
             .rev()
             .filter(|(index, chat)| {
-                chat.project_agent.is_none()
-                    && workspace_projects[*index].is_none()
+                chat.project_agent.as_ref().map_or_else(
+                    || workspace_projects[*index].is_none(),
+                    |binding| !self.preferences.research_projects.iter().any(|project| project.id == binding.project_id),
+                )
                     && (query.is_empty() || chat.title.display().to_lowercase().contains(&query))
             })
             .map(|(index, chat)| session_row(index, chat))

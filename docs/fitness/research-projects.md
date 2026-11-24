@@ -630,3 +630,22 @@ existing splitter when the App is visible.
   The Electron captures are `beta-overview-empty.png` and
   `beta-overview-dark.png` in `test-results/project-insights/`. Generation used
   fixture data. The signed package and narrow Native layout were outside this run.
+
+## Project deletion and first composer — 2026-11-24
+
+Source: `190c7bdea` with the project deletion, sidebar divider and composer
+changes in the macOS ARM64 checkout. Deletion removes a local project record
+through Host workbench settings. The catalog remembers removed inferred sources.
+Original files and linked records stay with their owners. The Sessions view
+continues to open retained conversations.
+
+`node tests/e2e/local-project-start.mjs` exercised both menu entries, cancellation,
+deletion with available and unavailable directories, retained files and chat
+history, and persistence after restarting Electron. It checked the empty
+project composer against the conversation pane's bottom edge. The confirmation
+and composer screenshots are in `test-results/local-project-start/`.
+
+The development macOS Native app showed the empty composer at the bottom with
+the directory unavailable. The overview menu opened the deletion confirmation,
+and cancelling left the project visible. Electron performed the confirmed
+deletion against temporary profiles. No installed release was replaced.

@@ -7,6 +7,7 @@ use crate::{app::Workbench, projects::{Project, ProjectTab}, workspace::Workspac
 use gpui_kit::{
     component::{
         button::*,
+        dialog::DialogFooter,
         input::{Input, InputEvent, InputState, Editor, EditorState},
         *,
     },
@@ -47,6 +48,56 @@ pub(crate) struct ProjectEditor {
     _subscriptions: Vec<Subscription>,
 }
 impl Workbench {
+    pub(crate) fn confirm_project_deletion(
+        &mut self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if window.has_active_dialog(cx) {
+            return;
+        }
+        let Some(project) = self.project_catalog(cx).into_iter().find(|project| project.key == key) else {
+            return;
+        };
+        let title = self.t("research.delete").to_owned();
+        let message = self.t("research.delete_description").replace("{project}", &project.name);
+        let cancel = self.t("workspace.close_cancel");
+        let owner = cx.entity().downgrade();
+        window.open_dialog(cx, move |dialog, _, cx| {
+            let Some(workbench) = owner.upgrade() else { return dialog };
+            let bounds = &workbench.read(cx).view_bounds.projects;
+            let owner = owner.clone();
+            let key = project.key.clone();
+            dialog.title(title.clone())
+                .child(message.clone())
+                .overlay_closable(false)
+                .footer(DialogFooter::new()
+                    .child(Button::new("cancel-project-deletion").label(cancel)
+                        .relative().child(bounds.probe("delete-project:cancel".into()))
+                        .on_click(|_, window, cx| window.close_dialog(cx)))
+                    .child(Button::new("confirm-project-deletion").danger().label(title.clone())
+                        .relative().child(bounds.probe("delete-project:confirm".into()))
+                        .on_click(move |_, window, cx| {
+                            window.close_dialog(cx);
+                            let _ = owner.update(cx, |this, cx| {
+                                if let Some(project) = this.project_catalog(cx).into_iter()
+                                    .find(|project| project.matches_key(&key))
+                                {
+                                    let mut preferences = this.preferences.clone();
+                                    project.remove_from(&mut preferences);
+                                    if this.research.resolving_workspace.as_ref()
+                                        .is_some_and(|(_, source)| source.as_ref() == Some(&project.key))
+                                    {
+                                        this.research.resolving_workspace = None;
+                                    }
+                                    this.save_preferences(preferences, cx);
+                                }
+                            });
+                        })))
+        });
+    }
+
     #[cfg(target_family = "wasm")]
     pub(crate) fn research_projects_snapshot(&self, cx: &App) -> serde_json::Value {
         let research = &self.research;
@@ -262,6 +313,16 @@ impl Workbench {
     }
 
     pub(crate) fn research_saved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.research.saved_editors.retain(|key, _| {
+            key.strip_prefix("research:").is_some_and(|id| {
+                self.preferences.research_projects.iter().any(|project| project.id == id)
+            })
+        });
+        if self.selected_project.as_deref().is_some_and(|key| key.starts_with("research:"))
+            && self.saved_research_project().is_none()
+        {
+            self.selected_project = None;
+        }
         let Some((project, _, _)) = self.research.pending.as_ref() else {
             return;
         };

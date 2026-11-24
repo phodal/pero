@@ -2,7 +2,7 @@ use super::{ActionHandler, Ui, click};
 use crate::{projects::Project, workspace::WorkbenchPage};
 use gpui_kit::{
     component::{
-        menu::{DropdownMenu, PopupMenuItem},
+        menu::{ContextMenuExt, DropdownMenu, PopupMenuItem},
         *,
     },
     prelude::*,
@@ -76,6 +76,7 @@ pub(crate) enum SidebarAction {
     SessionMenu(Option<String>),
     Navigate(WorkbenchPage),
     OpenProject(String),
+    DeleteProject(String),
     AllTasks,
     OpenFolder,
     ToggleProjects,
@@ -415,6 +416,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             .text_color(pero_theme::project_accent(&project.key, chrome));
         let open = click(&on_action, SidebarAction::OpenProject(project.key.clone()));
         let probe = props.project_bounds.probe(format!("sidebar:open:{}", project.key));
+        let menu_id = format!("{id}:menu");
         let row = if collapsed {
             pero_theme::ghost_icon_button(id, chrome, cx)
                 .icon(icon)
@@ -438,7 +440,20 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             )
             .tooltip(project.name)
         };
-        div().relative().w_full().flex().justify_center().child(row).child(probe)
+        let delete_label = ui.t("research.delete_action");
+        let delete = SidebarAction::DeleteProject(project.key);
+        let handler = on_action.clone();
+        div().id(menu_id).relative().w_full().flex().justify_center()
+            .child(row).child(probe)
+            .context_menu(move |menu, _, _| {
+                let delete = delete.clone();
+                let handler = handler.clone();
+                menu.item(PopupMenuItem::new(delete_label).on_click(move |_, window, cx| {
+                    let handler = handler.clone();
+                    let delete = delete.clone();
+                    window.defer(cx, move |window, cx| handler(&delete, window, cx));
+                }))
+            })
     }).collect::<Vec<_>>();
     pero_theme::sidebar_surface("sidebar", width, chrome)
         .text_size(chrome.text(pero_theme::TYPE_BODY))

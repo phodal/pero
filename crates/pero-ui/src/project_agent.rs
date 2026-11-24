@@ -314,6 +314,10 @@ impl Workbench {
             return;
         };
         if let Some(index) = index {
+            if !self.preferences.research_projects.iter().any(|saved| saved.id == project) {
+                self.focus_chat(Some(index), crate::workspace::ConversationTab::Chat, cx);
+                return;
+            }
             let key = format!("research:{project}");
             if !self.project_agent_active() || self.selected_project.as_deref() != Some(key.as_str()) {
                 self.project_tab = self.project_agents.right_tab(&project);
@@ -603,6 +607,8 @@ impl Workbench {
         let views = ProjectTab::ALL.map(|view| (view, self.t(view.label_key())));
         let current = self.project_tab;
         let workbench = cx.entity().downgrade();
+        let project_key = self.selected_project.clone();
+        let delete_label = self.t("research.delete_action");
         let menu = pero_theme::ghost_icon_button("project-inspector-views", chrome, cx)
             .icon(Icon::default().path("icons/dots.svg"))
             .accessibility_label(self.t("project.actions"))
@@ -618,6 +624,18 @@ impl Workbench {
                         let _ = activate.update(cx, |this, cx| this.select_project_view(view, cx));
                     });
                     menu = menu.item(item);
+                }
+                if let Some(key) = project_key.clone() {
+                    let owner = workbench.clone();
+                    menu = menu.separator().item(PopupMenuItem::new(delete_label)
+                        .on_click(move |_, window, cx| {
+                            let (owner, key) = (owner.clone(), key.clone());
+                            window.defer(cx, move |window, cx| {
+                                let _ = owner.update(cx, |this, cx| {
+                                    this.confirm_project_deletion(&key, window, cx);
+                                });
+                            });
+                        }));
                 }
                 menu
             });
