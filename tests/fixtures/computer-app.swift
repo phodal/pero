@@ -130,6 +130,14 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
                 secureField = NSSecureTextField(frame: NSRect(x: 170, y: 330, width: 300, height: 32))
                 secureField!.setAccessibilityLabel("Fixture password"); secureField!.stringValue = "fixture-secret"; window.contentView!.addSubview(secureField!)
             case "remove_secure": secureField?.removeFromSuperview(); secureField = nil
+            case "insert_before":
+                let inserted = NSButton(title: "Inserted control", target: nil, action: nil)
+                inserted.frame = NSRect(x: 16, y: 390, width: 140, height: 28)
+                window.contentView!.addSubview(inserted, positioned: .below, relativeTo: nil)
+                var ordered = window.contentView!.accessibilityChildren() ?? []
+                ordered.removeAll { ($0 as AnyObject) === inserted }
+                ordered.insert(inserted, at: 0)
+                window.contentView!.setAccessibilityChildren(ordered)
             case "move": window.setFrameOrigin(NSPoint(x: window.frame.minX + 15, y: window.frame.minY))
             default: break
             }

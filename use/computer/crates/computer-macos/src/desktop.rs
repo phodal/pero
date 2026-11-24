@@ -6,14 +6,17 @@ use computer_runtime::{DesktopDriver, WindowObservation, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use point_computer_backend::backend::{ComputerUseBackend, LaunchPermit};
 use point_computer_macos::driver::MacOsBackend;
+use std::cell::RefCell;
 
 pub struct Desktop {
     driver: MacOsBackend,
+    ids: RefCell<crate::observation::ElementIds>,
 }
 impl Desktop {
     pub fn connect() -> Self {
         Self {
             driver: MacOsBackend::new(),
+            ids: RefCell::default(),
         }
     }
 }
@@ -49,7 +52,7 @@ impl DesktopDriver for Desktop {
         }
     }
     fn targets(&self) -> Result<Vec<Window>, ComputerError> {
-        Ok(point_computer_macos::ffi::window_list()
+        let windows: Vec<_> = point_computer_macos::ffi::window_list()
             .into_iter()
             .filter(|info| {
                 info.layer == 0
@@ -64,7 +67,9 @@ impl DesktopDriver for Desktop {
                 name: info.owner_name,
                 title: info.title,
             })
-            .collect())
+            .collect();
+        self.ids.borrow_mut().retain_windows(&windows);
+        Ok(windows)
     }
     fn open(
         &self,
@@ -93,7 +98,7 @@ impl DesktopDriver for Desktop {
         options: &ComputerObserveOptions,
         basis: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError> {
-        crate::observation::observe(app, options, basis)
+        crate::observation::observe(app, options, basis, &mut self.ids.borrow_mut())
     }
     fn recognize_text(&self, image: &WindowImage) -> Option<String> {
         crate::capture::recognize_text(&image.bytes)

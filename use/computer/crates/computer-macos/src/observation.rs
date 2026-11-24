@@ -1,4 +1,4 @@
-//! Observation-local native handles.
+//! Window-scoped AX identities with observation-local input admission.
 use crate::{bridge, capture};
 use computer_core::{ControlId, Window, WindowImage};
 use computer_runtime::{WindowObservation, error};
@@ -6,7 +6,7 @@ use pero_contracts::computer_use::*;
 use point_computer_core::types::Frame;
 use point_computer_macos::ffi::{self, CfRef};
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     hash::{Hash, Hasher},
     num::NonZeroU32,
     time::{Duration, Instant},
@@ -28,6 +28,21 @@ impl Eq for ElementIdentity {}
 impl Hash for ElementIdentity {
     fn hash<H: Hasher>(&self, state: &mut H) {
         unsafe { CFHash(self.0.as_ptr()) }.hash(state);
+    }
+}
+
+#[derive(Default)]
+pub struct ElementIds {
+    next: u32,
+    windows: HashMap<(i32, u32), HashMap<ElementIdentity, ControlId>>,
+}
+impl ElementIds {
+    pub fn retain_windows(&mut self, windows: &[Window]) {
+        self.windows.retain(|&(pid, id), _| {
+            windows
+                .iter()
+                .any(|window| window.pid == pid && window.window_id == id)
+        });
     }
 }
 
@@ -187,6 +202,7 @@ pub fn observe(
     window: &Window,
     options: &ComputerObserveOptions,
     basis: Option<&Snapshot>,
+    ids: &mut ElementIds,
 ) -> Result<WindowObservation<Snapshot>, ComputerError> {
     let app = ffi::ax_app_element(window.pid).ok_or_else(|| {
         error(
@@ -242,12 +258,17 @@ pub fn observe(
         clipped
     };
     let mut stack = vec![(root, 0u16)];
-    let mut seen = HashSet::new();
+    let previous = ids
+        .windows
+        .entry((window.pid, window.window_id))
+        .or_default();
+    let mut seen = HashMap::new();
     let mut controls: Vec<Control> = Vec::new();
     let mut scan = AxScan::default();
     let start = Instant::now();
     while let Some((element, depth)) = stack.pop() {
-        if !seen.insert(ElementIdentity(element.retain())) {
+        let identity = ElementIdentity(element.retain());
+        if seen.contains_key(&identity) {
             continue;
         }
         if controls.len() >= NATIVE_MAX_NODES || start.elapsed() > Duration::from_secs(10) {
@@ -267,6 +288,11 @@ pub fn observe(
         }
         let secure = role.contains("Secure") || subrole.as_deref() == Some("AXSecureTextField");
         scan.secure |= secure;
+        let control_id = previous.get(&identity).copied().unwrap_or_else(|| {
+            ids.next += 1;
+            ControlId(ids.next)
+        });
+        seen.insert(identity, control_id);
         let enabled = ffi::ax_bool(&element, "AXEnabled", true);
         let value_settable = !secure && enabled && ffi::ax_is_settable(&element, "AXValue");
         let native_actions = ffi::ax_actions(&element, 32);
@@ -307,7 +333,7 @@ pub fn observe(
             .find(|s| !s.is_empty())
             .unwrap_or_default();
         let public = ComputerElement {
-            id: ControlId(controls.len() as u32 + 1).reference(),
+            id: control_id.reference(),
             role: role.clone(),
             label: text(label),
             value: (!secure).then(|| text(ffi::ax_str(&element, "AXValue"))),
@@ -348,6 +374,16 @@ pub fn observe(
             public,
             frame,
         });
+    }
+    if options.root.is_none() && !scan.incomplete {
+        *previous = seen;
+    } else {
+        for (identity, id) in seen {
+            if previous.len() >= NATIVE_MAX_NODES {
+                break;
+            }
+            previous.entry(identity).or_insert(id);
+        }
     }
     // A subtree cannot establish that the rest of the window is free of secure fields.
     let image = if options.want_image
