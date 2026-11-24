@@ -212,11 +212,15 @@ impl Manager {
         self.history.lock().unwrap().events().to_vec()
     }
     pub fn insights_value(&self, thread_id: &str) -> Result<serde_json::Value, String> {
+        self.insights_from(&self.visible_history(), thread_id)
+    }
+
+    fn insights_from(&self, events: &[HostEvent], thread_id: &str) -> Result<serde_json::Value, String> {
         if !super::insights::session_id_ok(thread_id) {
             return Err("Invalid session request".into());
         }
         let report = super::insights::analyze_history(
-            &self.visible_history(),
+            events,
             thread_id,
             &self.history_path,
             super::insights::now_ms(),
@@ -229,12 +233,49 @@ impl Manager {
     }
 
     pub fn insights_catalog(&self) -> Vec<serde_json::Value> {
+        self.insights_catalog_from(&self.visible_history())
+    }
+
+    pub fn project_insights(&self, id: &str) -> Result<serde_json::Value, String> {
+        let project = self.saved_project(id)?;
+        let preferences = self.settings_path.as_deref().map(pero_runtime::settings::load_workbench).unwrap_or_default();
+        let workspace = project.workspace.as_deref().filter(|path| {
+            !preferences.research_projects.iter().any(|other| other.id != id && other.workspace.as_deref()
+                .is_some_and(|other_path| pero_contracts::workspace_path::WorkspacePath(other_path).matches(path)))
+        });
+        let scope = super::insights::ProjectScope { id, workspace };
+        let mut events = self.visible_history();
+        let threads = events.iter().filter(|event| event.kind == "session_created").filter_map(|event| {
+            let thread = event.thread_id.as_deref()?;
+            let binding = self.app_bindings.get(thread);
+            let app = binding.map(|binding| binding.app.as_str()).or_else(|| event.data["scope"]["app"].as_str());
+            scope.includes(event.data["projectAgent"]["project_id"].as_str(), app,
+                binding.and_then(|binding| binding.insights_project_id.as_deref()), event.data["workspace"].as_str())
+                .then(|| thread.to_owned())
+        }).collect::<std::collections::HashSet<_>>();
+        events.retain(|event| event.thread_id.as_ref().is_some_and(|thread| threads.contains(thread)));
+        let agent_id = events.iter().rev().find_map(|event| {
+            let binding = event.data.get("projectAgent")?;
+            (event.kind == "session_created" && binding["parent_thread"].is_null())
+                .then(|| event.data["agent"].as_str()).flatten()
+        });
+        let repositories = super::local_repo::read_directories(&workspace.map(PathBuf::from).into_iter().collect::<Vec<_>>());
+        let conflicts = super::local_repo::conflicts(&repositories, &events);
+        Ok(serde_json::json!({
+            "sessions":self.insights_catalog_from(&events),
+            "agentId":agent_id,
+            "repositories":repositories,
+            "conflicts":conflicts,
+        }))
+    }
+
+    fn insights_catalog_from(&self, events: &[HostEvent]) -> Vec<serde_json::Value> {
         let mut ids = Vec::new();
         let mut activity = HashMap::new();
-        for (index, event) in self.visible_history().into_iter().enumerate() {
-            let Some(id) = event.thread_id else { continue };
-            if super::insights::session_id_ok(&id) && !ids.contains(&id) {
-                ids.push(id.clone());
+        for (index, event) in events.iter().enumerate() {
+            let Some(id) = event.thread_id.as_deref() else { continue };
+            if super::insights::session_id_ok(id) && !ids.contains(&id) {
+                ids.push(id);
             }
             if matches!(event.kind.as_str(), "user_message" | "turn_finished" | "session_error")
                 || (event.kind == "session_update" && matches!(event.data["sessionUpdate"].as_str(),
@@ -246,8 +287,8 @@ impl Manager {
         ids.sort_by_key(|id| activity.get(id).copied());
         ids.into_iter()
             .filter_map(|id| {
-                let mut value = self.insights_value(&id).ok()?;
-                if let Some(binding) = self.app_bindings.get(&id).filter(|binding| binding.run.is_none()) {
+                let mut value = self.insights_from(events, id).ok()?;
+                if let Some(binding) = self.app_bindings.get(id).filter(|binding| binding.run.is_none()) {
                     value["app"] = serde_json::json!(binding.app.as_str());
                 }
                 Some(value)

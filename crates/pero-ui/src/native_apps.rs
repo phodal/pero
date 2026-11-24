@@ -519,6 +519,9 @@ impl NativeApps {
                 if let Some(thread) = operation.get("threadId") {
                     fields["threadId"] = thread.clone();
                 }
+                if let Some(project) = operation.get("projectId") {
+                    fields["projectId"] = project.clone();
+                }
                 ("insights", fields)
             };
             let mut value: Value = self.request(action, fields)?;

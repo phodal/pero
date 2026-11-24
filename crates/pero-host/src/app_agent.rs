@@ -44,7 +44,17 @@ impl Manager {
     pub(super) fn create_session_with_origin(
         &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,project:Option<super::project_agent::Launch>,
     )->Result<(),String> {
-        let workspace = project.as_ref().map(|project| project.workspace.clone()).unwrap_or_else(|| self.workspace.clone());
+        let workspace = if let Some(id) = binding.and_then(|binding| binding.insights_project_id.as_deref()) {
+            if let Some(path) = self.saved_project(id)?.workspace {
+                dunce::canonicalize(path).map_err(|error| format!("Project workspace unavailable: {error}"))?
+            } else {
+                let path = self.project_home(id)?.join("insights");
+                std::fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+                path
+            }
+        } else {
+            project.as_ref().map(|project| project.workspace.clone()).unwrap_or_else(|| self.workspace.clone())
+        };
         if scope.as_ref().is_some_and(|scope| !scope.valid()) {
             return Err("Invalid App conversation scope".into());
         }
@@ -200,14 +210,23 @@ impl Manager {
             AgentRequest::Science { .. } => Err("Science requests require asynchronous Host dispatch".into()),
             AgentRequest::Info => Ok(
                 serde_json::json!({"available":true,"workspace":self.workspace,
-                "agents":self.agents.iter().map(|agent| serde_json::json!({"id":agent.id,"name":agent.name,"available":agent.available()})).collect::<Vec<_>>() }),
+                "agents":self.agents.iter().map(|agent| serde_json::json!({
+                    "id":agent.id,"name":agent.name,
+                    "available":agent.available() && (app.as_str() != "insights"
+                        || !agent.provider_credential_missing(|key| std::env::var(key).unwrap_or_default()))
+                })).collect::<Vec<_>>() }),
             ),
             AgentRequest::Start {
                 request_id,
                 prompt,
                 agent_id,
+                insights_project_id,
             } => {
-                let binding = AppSessionBinding::new(app, request_id, agent_id, prompt)?;
+                if insights_project_id.is_some() && app.as_str() != "insights" {
+                    return Err("Only Insights can start a project brief".into());
+                }
+                let mut binding = AppSessionBinding::new(app, request_id, agent_id, prompt)?;
+                binding.insights_project_id = insights_project_id;
                 let id = binding.session_id();
                 if let Some(existing) = self.app_bindings.get(&id) {
                     if existing != &binding {

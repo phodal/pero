@@ -12,7 +12,7 @@ async function request<T>(body: object): Promise<T> {
 }
 
 /** App documents receive only their own Host session projection, never credentials. */
-type LegacyStart = { requestId: string; prompt: string; agentId: string };
+type LegacyStart = { requestId: string; prompt: string; agentId: string; insightsProjectId?: string };
 type LegacyRef = { sessionId: string };
 type LegacyAgent = Info & {
   infoLoading: boolean;

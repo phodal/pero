@@ -168,7 +168,7 @@ impl Manager {
             .ok_or("Project conversation is unavailable".into())
     }
 
-    fn project_home(&self, project: &str) -> Result<PathBuf, String> {
+    pub(super) fn project_home(&self, project: &str) -> Result<PathBuf, String> {
         Ok(self.settings_path.as_deref().and_then(Path::parent)
             .ok_or("Project Agent needs a persistent Host profile")?.join("project-agents").join(digest(project)))
     }

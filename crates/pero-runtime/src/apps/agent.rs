@@ -23,6 +23,8 @@ pub enum AgentRequest {
         request_id: String,
         prompt: String,
         agent_id: String,
+        #[serde(default)]
+        insights_project_id: Option<String>,
     },
     Events {
         session_id: String,
@@ -41,6 +43,8 @@ pub struct AppSessionBinding {
     pub request_id: String,
     pub agent_id: String,
     pub prompt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub insights_project_id: Option<String>,
     #[serde(default, alias = "point", skip_serializing_if = "Option::is_none")]
     pub run: Option<super::agent_run::Binding>,
 }
@@ -76,6 +80,7 @@ impl AppSessionBinding {
             request_id,
             agent_id,
             prompt,
+            insights_project_id: None,
             run: None,
         })
     }

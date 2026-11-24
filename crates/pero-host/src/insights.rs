@@ -42,6 +42,26 @@ pub struct Report {
     pub resumed: bool,
 }
 
+/// Work recorded against a saved Project, plus ordinary sessions whose
+/// checkout has an unambiguous Project owner.
+pub struct ProjectScope<'a> {
+    pub id: &'a str,
+    pub workspace: Option<&'a str>,
+}
+
+impl ProjectScope<'_> {
+    pub fn includes(&self, project_agent: Option<&str>, app: Option<&str>, brief_project: Option<&str>, workspace: Option<&str>) -> bool {
+        if let Some(project) = project_agent {
+            return project == self.id;
+        }
+        if let Some(app) = app {
+            return app == "insights" && brief_project == Some(self.id);
+        }
+        self.workspace.zip(workspace)
+            .is_some_and(|(owned, observed)| pero_contracts::workspace_path::WorkspacePath(owned).matches(observed))
+    }
+}
+
 impl Report {
     pub fn to_json(&self) -> Value {
         let metrics = &self.analysis.metrics;

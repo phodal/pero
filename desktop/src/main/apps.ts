@@ -381,9 +381,10 @@ export class DesktopApps {
         if (request.method !== 'POST') return new Response('Method refused', { status: 405 });
         const body = await request.text();
         if (Buffer.byteLength(body) > 4096) return new Response('Request too large', { status: 413 });
-        const operation = body ? JSON.parse(body) as { threadId?: string } : {};
+        const operation = body ? JSON.parse(body) as { threadId?: string; projectId?: string } : {};
         const fields: Record<string, unknown> = { name: url.hostname };
         if (operation.threadId) fields.threadId = operation.threadId;
+        if (operation.projectId !== undefined) fields.projectId = operation.projectId;
         return Response.json(await this.request('insights', fields), { headers: { 'Cache-Control': 'no-store' } });
       }
       if (url.pathname === '/host/app-agent') {

@@ -105,6 +105,8 @@ enum Request {
         name: AppName,
         #[serde(default, rename = "threadId")]
         thread_id: Option<String>,
+        #[serde(default, rename = "projectId")]
+        project_id: Option<String>,
     },
     Connectors {
         method: Method,
@@ -404,14 +406,18 @@ impl Apps {
                     agents.as_deref_mut().expect("Host manager").stop_app_sessions(&name);
                     serde_json::to_value(catalog)
                 }
-                Request::Insights { method, id, name, thread_id } => {
+                Request::Insights { method, id, name, thread_id, project_id } => {
                     let _ = (method, id);
                     store.require_grant(&name, "insights")?;
+                    let agents = agents.as_deref().expect("Host manager");
+                    if let Some(project_id) = project_id {
+                        return agents.project_insights(&project_id);
+                    }
                     let sessions = match thread_id {
-                        Some(thread) => vec![agents.as_deref_mut().expect("Host manager").insights_value(&thread)?],
-                        None => agents.as_deref_mut().expect("Host manager").insights_catalog(),
+                        Some(thread) => vec![agents.insights_value(&thread)?],
+                        None => agents.insights_catalog(),
                     };
-                    let (repositories, conflicts) = agents.as_deref_mut().expect("Host manager").repository_snapshot();
+                    let (repositories, conflicts) = agents.repository_snapshot();
                     serde_json::to_value(serde_json::json!({
                         "sessions": sessions,
                         "repositories": repositories,
