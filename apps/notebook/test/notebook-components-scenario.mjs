@@ -248,7 +248,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   dialog = page.getByRole('dialog');
   await dialog.getByLabel('Comment', { exact: true }).fill('Check sample provenance');
   await button('Save record', dialog).click();
-  await expect(page.getByText('Check sample provenance', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'Comments' }).getByText('Check sample provenance', { exact: true })).toBeVisible();
   await button('Resolve thread').click();
   await expect(button('Reopen thread')).toBeVisible();
   await tab('Local tasks');
@@ -256,7 +256,7 @@ export async function verifyNotebookComponents(page, origin, output) {
   dialog = page.getByRole('dialog');
   await dialog.getByLabel('Task title', { exact: true }).fill('Verify local measurements');
   await button('Save record', dialog).click();
-  await expect(page.getByText('Verify local measurements', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'Local tasks' }).getByText('Verify local measurements', { exact: true })).toBeVisible();
   await tab('Human review');
   await page.getByRole('button', { name: 'Request local self-review · r4', exact: true }).click();
   dialog = page.getByRole('dialog');
@@ -267,14 +267,14 @@ export async function verifyNotebookComponents(page, origin, output) {
   await expect(button('Confirm local action', dialog)).toBeDisabled();
   await dialog.getByRole('checkbox').check();
   await button('Confirm local action', dialog).click();
-  await expect(page.getByText('Approved locally', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'Human review' }).getByText('Approved locally', { exact: true })).toBeVisible();
   await shot('review-local-approval');
   await tab('Metadata');
   await page.getByLabel('Project label', { exact: true }).fill('Revised after local review');
   await save(5);
   await tab('Review and activity');
   await tab('Human review');
-  await expect(page.getByText('Older revision; does not review the latest content', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'Human review' }).getByText('Older revision; does not review the latest content', { exact: true })).toBeVisible();
   const records = await json(`/api/entries/${id}/review-workspace`);
   assert.equal(records.threads.length, 1);
   assert.equal(records.tasks.length, 1);
