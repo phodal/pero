@@ -392,6 +392,7 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         }
     }
     research.sort_by_key(|(_, app)| app.name != "paper-agent");
+    let has_research = !research.is_empty();
     let app_rows = |apps: Vec<(usize, AppShortcut)>| apps.into_iter().map(|(index, app)| {
                 let action = SidebarAction::OpenApp { name: app.name.clone(), panel: app.panel };
                 let element = if collapsed {
@@ -462,8 +463,8 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
                 })))
         .child(div().id("sidebar-app-scroll").flex_1().min_h_0().overflow_y_scroll()
             .when(!props.projects_collapsed, |el| el.children(projects))
-            .when(!research.is_empty(), |el| el.child(pero_theme::sidebar_group(None, false, chrome).children(app_rows(research))))
-            .child(pero_theme::sidebar_group(None, false, chrome)
+            .when(has_research, |el| el.child(pero_theme::sidebar_group(None, false, chrome).children(app_rows(research))))
+            .child(pero_theme::sidebar_group(None, has_research, chrome)
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
             .children(app_rows(skills))))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))
