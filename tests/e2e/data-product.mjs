@@ -99,7 +99,7 @@ try {
   expect(saved.assets[0].sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
   expect(relative(profile, saved.assets[0].location)).not.toMatch(/^\.\./);
   expect(await readFile(saved.assets[0].location)).toEqual(bytes);
-  const preview = frame.getByRole('complementary', { name: 'Preview' });
+  const preview = frame.getByRole('region', { name: 'Preview' });
   await expect(preview.locator('.data-rows tbody tr')).toHaveCount(3);
   expect((await state()).download).toBeNull();
   await app.evaluate(({ nativeTheme }) => { nativeTheme.themeSource = 'light'; });
@@ -123,7 +123,7 @@ try {
   expect(reopened.download).toBeNull();
   await expect(frame.getByRole('button', { name: 'servo-response.csv', exact: true })).toHaveCount(0);
   await expect(frame.locator('.data-catalog .pero-list-open').filter({ has: frame.getByText('standalone.csv', { exact: true }) })).toBeVisible();
-  await expect(frame.getByRole('complementary', { name: 'Preview' }).locator('.data-rows tbody tr')).toHaveCount(3);
+  await expect(frame.getByRole('region', { name: 'Preview' }).locator('.data-rows tbody tr')).toHaveCount(3);
   expect(requests.filter(request => request.method === 'POST' && request.path === '/api/import')).toHaveLength(1);
   expect(requests.filter(request => request.method === 'POST' && request.path.includes('download'))).toEqual([]);
   expect(errors).toEqual([]);

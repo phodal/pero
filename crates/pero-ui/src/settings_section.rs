@@ -32,6 +32,7 @@ impl SettingsSection {
         Self::Harness,
         Self::Workers,
         Self::Connections,
+        Self::Mcp,
         Self::Memory,
         #[cfg(all(feature = "native", target_os = "macos"))]
         Self::Browser,

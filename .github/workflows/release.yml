@@ -222,10 +222,7 @@ jobs:
         run: |
           kit="$RUNNER_TEMP/gpui-kit"
           echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
-          git init --quiet "$kit"
-          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
-          git -C "$kit" checkout --detach FETCH_HEAD
+          bash scripts/ci/checkout-public-pin.sh "$kit" https://github.com/longbridge/gpui-kit.git 7591a35eced761e3613c01e71ff04c10129dae1a
 
       - name: Install package dependencies
         run: |
@@ -353,10 +350,7 @@ jobs:
         run: |
           kit="$RUNNER_TEMP/gpui-kit"
           echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
-          git init --quiet "$kit"
-          git -C "$kit" remote add origin https://github.com/longbridge/gpui-kit.git
-          git -C "$kit" fetch --depth 1 origin 7591a35eced761e3613c01e71ff04c10129dae1a
-          git -C "$kit" checkout --detach FETCH_HEAD
+          bash scripts/ci/checkout-public-pin.sh "$kit" https://github.com/longbridge/gpui-kit.git 7591a35eced761e3613c01e71ff04c10129dae1a
       - name: Build, verify, and stage the standalone Worker
         run: |
           node scripts/cargo.mjs build --locked --release -p pero-worker

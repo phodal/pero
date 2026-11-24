@@ -108,7 +108,7 @@ try {
   await chooseSelect(frame, 'Template', 'robust-pid');
   await frame.getByLabel('Observation window', { exact: true }).fill('6');
   await frame.getByLabel('Samples', { exact: true }).fill('601');
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('3');
+  await frame.getByLabel('Candidate budget', { exact: true }).fill('3');
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
   const response = await created; expect(response.status()).toBe(201); frozen = await response.json();
