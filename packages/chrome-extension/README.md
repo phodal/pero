@@ -119,8 +119,12 @@ The message history, attachments, stop action and approvals use the paired
 Native chat. Open **More → Open in Pero** to review an Agent approval. History
 and New chat select a Native conversation in the current workspace.
 
-Use **More → Collector** on an active Chrome web page. Choose page text or
-selected text, read and edit the preview, and optionally add a reason and a
+Right-click an HTTP(S) page or text selection and choose **添加到 Pero** to open
+Collector with that page or selection ready for review. Choose the local or
+shared Project under **Save to**, then save the reviewed source. The action
+opens a separate Collector window and does not save before confirmation.
+You can also use **More → Collector** on an active Chrome web page. Choose page
+text or selected text, read and edit the preview, and optionally add a reason and a
 question. Choose the conversation to save the reviewed Markdown to Artifacts,
 or choose a local or shared Project to make it available in Materials.
 If a Project save loses its confirmation, reopen Collector and pair the

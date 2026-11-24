@@ -1203,7 +1203,7 @@
   "research.web_sources": "网页资料",
   "research.web_sources_local": "本地项目",
   "research.web_sources_shared": "共享项目",
-  "research.web_sources_empty": "在已配对的 Chrome 中使用 Collector，把网页资料保存到此项目。",
+  "research.web_sources_empty": "在已配对的 Chrome 网页上右键选择「添加到 Pero」，再到 Collector 中选择此项目并保存。",
   "research.web_sources_loading": "正在加载网页资料…",
   "research.web_sources_reason": "收藏原因",
   "research.web_sources_question": "研究问题",
