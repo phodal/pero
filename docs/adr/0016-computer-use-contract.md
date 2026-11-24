@@ -148,8 +148,8 @@ flowchart LR
   Host --> Desktop
 ```
 
-The model sees `computer_use` with status, targets, open, observe, act, receipt
-and stop. It cannot provide a caller identity, OS handle, permission grant,
+The model sees `computer_use` with status, targets, open, observe, screenshot,
+read_ocr, act, receipt and stop. It cannot provide a caller identity, OS handle, permission grant,
 executable path, transport URL or settings mutation. Host attaches the MCP
 credentials and conversation header during ACP session creation. Desktop
 admits calls only for the selected running conversation using the existing
@@ -166,9 +166,12 @@ observed point in the target application before posting input there.
 The helper captures eligible window pixels in memory. macOS 14+ uses an
 in-process ScreenCaptureKit bridge because the legacy CoreGraphics window
 capture API is obsolete in newer SDKs; older systems use the Point capture
-function. Secure or incomplete AX
-trees suppress capture. Desktop stores image bytes and SHA-256 metadata under
-its own profile. It stores per-conversation action intents/receipts privately;
+function. Secure or incomplete AX trees suppress capture. A screenshot-only
+request creates a fresh pixel anchor and leaves the whole-window AX delta
+baseline in place. Capture status reports why pixels are absent. Optional
+macOS Vision OCR can finish after the initial response and is readable with
+the screenshot ID in the same conversation. Desktop stores image bytes and
+SHA-256 metadata under its own profile. It stores per-conversation action intents/receipts privately;
 reusing an ID returns its receipt, and conflicting input with the same ID is
 rejected. Duplicate pending calls share one result. No automatic retry exists.
 

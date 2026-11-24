@@ -67,7 +67,7 @@ not run a hosted model or change data in Feishu.
   available through its conversation artifact.
 
 The comparable behavior is compact accessibility output and option-driven
-incremental reads. The original PowerPoint cold OCR limit still applies. A
+incremental reads. At that stage, the PowerPoint cold OCR limit still applied. A
 standalone CPU-only Vision probe read the image marker but took about 47
 seconds, so this change retains the bounded OCR path.
 
@@ -93,3 +93,27 @@ seconds, so this change retains the bounded OCR path.
 - Feishu returned an unchanged observation in Codex and zero changed nodes
   in Pero. Pero retained all 531 element IDs over the two observations. This
   read-only comparison did not store or publish Feishu's content.
+
+## Standalone screenshots and deferred OCR
+
+- The macOS AppKit fixture accepted input against a screenshot-only pixel
+  anchor, independently confirmed the click, and returned a durable receipt.
+  The next AX read kept the previous whole-window delta baseline. A secure
+  field outside the returned tree blocked both combined and standalone
+  capture.
+- PowerPoint returned a 1600 × 900 fixture screenshot with OCR pending.
+  Reading the same screenshot ID later found the image-only marker and slide
+  title. A different conversation could not retrieve that result.
+- Feishu returned 356 projected nodes, a separate 1311 × 1010 screenshot,
+  and zero changes from the pre-screenshot AX baseline in this run. Codex
+  returned 213 numbered nodes and a separate screenshot. Its tree includes
+  app-level menu nodes, so counts describe these returned projections.
+- The loopback MCP check delivered real AppKit JPEG bytes, re-observed two
+  changed nodes after one screenshot-anchored background click, and replayed
+  its durable receipt. A transport fixture separately covered pending OCR and
+  text delivery for that same screenshot ID. The staged
+  signed Pero app passed the local Native ACP/MCP REPL fixture. Its helper
+  had no detected macOS grants through Launch Services, so this did not
+  establish updated-package desktop image input to a hosted model. The helper
+  already in `/Applications` had both grants and observed the AppKit fixture
+  with AX and pixels using its existing combined operation.
