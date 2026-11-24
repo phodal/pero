@@ -273,11 +273,14 @@ impl ChatPanel {
             self.new_draft(cx);
         }
         if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
-            self.pending_prompts.push(ComposerInsertion {
-                thread_id: chat.id.clone(),
-                text,contexts,replace:false,surface_request:None,
-            });
+            self.compose_in_thread(chat.id.clone(), text, contexts, cx);
         }
+    }
+
+    pub fn compose_in_thread(&mut self, thread_id: String, text: String, contexts: Vec<ContextReference>, cx: &mut Context<Self>) {
+        self.pending_prompts.push(ComposerInsertion {
+            thread_id, text, contexts, replace: false, surface_request: None,
+        });
         cx.notify();
     }
 

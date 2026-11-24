@@ -274,6 +274,10 @@ export class DesktopComputer {
     this.pending.set(key, { action, promise: result });
     try { return await result; } finally { this.pending.delete(key); }
   }
+  appshot(foregroundPid: number) {
+    return this.client.appshot(foregroundPid, AbortSignal.timeout(15_000));
+  }
+
   async call(thread: string, raw: unknown, signal: AbortSignal): Promise<ComputerResponse> {
     if (!validRequest(raw)) throw new ComputerFailure({ code: 'invalid_request', message: ajv.errorsText(validRequest.errors) });
     const value = raw as ComputerRequest;

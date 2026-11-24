@@ -262,6 +262,14 @@ impl SettingsPanel {
                 pero_theme::Chrome::from_app(cx),
             ));
         }
+        #[cfg(target_os = "macos")]
+        {
+            body = body.child(pero_theme::settings_message(
+                self.t("computer.appshot_hint"),
+                SettingMessage::Help,
+                pero_theme::Chrome::from_app(cx),
+            ));
+        }
         if let Some(applications) = state.and_then(|state| state.applications.as_ref()) {
             let mut rows = vec![
                 pero_theme::settings_message(

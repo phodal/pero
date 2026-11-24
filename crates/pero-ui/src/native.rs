@@ -506,8 +506,12 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
     #[cfg(target_os = "macos")]
-    let _computer_stop = connector_owner.as_ref().filter(|_| !app_probe && !verifying_installation)
-        .and_then(|_| match crate::native_computer_hotkey::ComputerStopHotKey::register() {
+    let (appshot_tx, appshot_rx) = async_channel::bounded(1);
+    #[cfg(target_os = "macos")]
+    let appshot_owner = connector_owner.clone();
+    #[cfg(target_os = "macos")]
+    let _computer_hotkeys = connector_owner.as_ref().filter(|_| !app_probe && !verifying_installation)
+        .and_then(|_| match crate::native_computer_hotkey::ComputerHotKeys::register(appshot_tx) {
             Ok(hotkey) => Some(hotkey),
             Err(error) => { eprintln!("Computer Use: {error:#}"); None }
         });
@@ -562,6 +566,10 @@ pub fn run() -> anyhow::Result<()> {
             })
         })
         .expect("native workbench window");
+        #[cfg(target_os = "macos")]
+        if let Some(owner) = appshot_owner {
+            crate::native_computer_hotkey::attach(view.clone(), window, owner, appshot_rx, cx);
+        }
         #[cfg(feature="native-probe")]
         if app_probe {
             let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));

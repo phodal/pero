@@ -186,3 +186,18 @@ seconds, so this change retains the bounded OCR path.
 - A repeat with the rebuilt companion and the same macOS denial verified that
   both AX observation and standalone screenshot now return
   `permission_required` with the Accessibility recovery path.
+
+## Appshot
+
+- In Native, Control+Shift+Command+7 captures the current external window for
+  the local conversation draft. The composer appends the screenshot and
+  available AX text without submitting. A text-only conversation receives
+  available AX text and a notice about model image support. This gesture is
+  private to the shell and does not create a Computer Use grant.
+- The rebuilt helper captured a real JPEG and AX text from the focused owned
+  AppKit window. Moving focus to another owned app and adding a secure field
+  both prevented capture. The foreground formatted-paste regression also passed.
+- The signed Native shell built and opened its disposable draft. Codex's
+  app-targeted key delivery did not trigger the macOS global shortcut during
+  this check. A physical shortcut with an authorized installed helper remains
+  to be verified.

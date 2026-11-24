@@ -179,7 +179,9 @@ input.on('line', line => {
   } else if (message.id) {
     const request = message.request;
     const relay = appUse.browser?.relay;
-    const result = request?.operation === 'app-context'
+    const result = request?.operation === 'appshot'
+      ? computer.appshot(request.foreground_pid)
+      : request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
       : ['cloud-browser-target', 'cloud-browser-start'].includes(request?.operation)
         ? handleCloudBrowser(request, relay)
@@ -195,7 +197,7 @@ input.on('line', line => {
           : owner.request(request);
     void result.then(
       value => send({ id: message.id, value }),
-      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(message.request?.operation === 'app-context' ? { message: String(error.message) } : {}) } }),
+      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(['app-context', 'appshot'].includes(request?.operation) ? { message: String(error.message) } : {}) } }),
     );
   }
 });
