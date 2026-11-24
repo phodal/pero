@@ -79,7 +79,8 @@ pub(crate) async fn verify(
                 root.web_documents.iter().map(|page| (&page.id, &page.observation.load)).collect::<Vec<_>>());
             let Some(WorkspaceItem::Web(tab)) = root.navigation.current().cloned() else { return Ok(None) };
             let page = root.native_web_pages.get(&tab).map(|page| page.view.read(cx));
-            surface += &format!("; layout visible={}, raw view={:?}, modal={}",
+            surface += &format!("; presenting={}, layout visible={}, raw view={:?}, modal={}",
+                window.is_visible(),
                 root.layout.embedded_surface_visible,
                 page.map(|page| (page.visible(cx), page.browser_engine(cx).is_ok_and(|(engine, _)| crate::native_browser::window_visible(engine)))),
                 root.native_window_modal(cx).is_some());

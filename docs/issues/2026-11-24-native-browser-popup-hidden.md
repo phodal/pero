@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: resolved
 date: 2026-11-24
 updated: 2026-11-24
 ---
@@ -16,3 +16,12 @@ Reproduced in a clean worktree at `15b49f64f` with the development Native
 build and the loopback `tests/e2e/native-browser-use.mjs` fixture. The
 Workbench reported its embedded surface visible and no modal open. The
 active page reported its view hidden and its containing native window visible.
+
+AppKit suspends display frames when the window is fully occluded. A pending
+redraw could leave the selected WebKit child unlaid out. Native now runs one
+deferred layout after opening or activating a selected Web tab in that state.
+
+The real macOS Native Browser Use suite passed three consecutive runs with the
+fix. It verified popup selection, separate authorization, observation and closing
+the popup, and switching back to an existing authorized tab. The separate
+Native Wry lifecycle suite passed with a hidden Workbench window.
