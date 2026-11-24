@@ -9,6 +9,7 @@ const optionValue = z.string().max(512);
 const tab = { tabId: z.string().min(1).max(4096).optional() };
 const target = { ...tab, background: z.literal(true).optional() };
 const origin = z.string().max(512).refine(value => webOrigin(value) === value);
+const cdpTarget = z.strictObject({ id: z.uuid(), origin });
 const frameSelector = z.strictObject({ by: z.enum(['title', 'testId']), value: label });
 const frame = z.array(frameSelector).max(4).optional();
 const locator = z.discriminatedUnion('by', [
@@ -61,9 +62,10 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...target, action: z.literal('diagnose'),
     captureMs: z.number().int().min(100).max(4000).optional(), profile: z.boolean().optional(),
     style: z.strictObject({ selector: label, properties: z.array(z.string().regex(/^[-a-zA-Z0-9]{1,64}$/)).min(1).max(16) }).optional() }),
-  z.strictObject({ ...target, action: z.literal('cdpListTargets'), fromOrigins: z.array(origin).max(4).optional() }),
+  z.strictObject({ ...target, action: z.literal('cdpListTargets'), fromOrigins: z.array(origin).max(4).optional(),
+    depth: z.number().int().min(1).max(4).optional() }),
   z.strictObject({ ...target, action: z.literal('cdpSend'),
-    target: z.strictObject({ id: z.uuid(), origin }).optional(), command: z.discriminatedUnion('method', [
+    target: cdpTarget.optional(), command: z.discriminatedUnion('method', [
     z.strictObject({ method: z.literal('Page.getLayoutMetrics') }),
     z.strictObject({ method: z.literal('Page.getFrameTree') }),
     z.strictObject({ method: z.literal('Page.getResourceTree') }),
@@ -75,12 +77,14 @@ export const browserRequest = z.discriminatedUnion('action', [
       params: z.strictObject({ requestId: z.string().min(1).max(128) }) }),
   ]) }).refine(value => !value.target || !value.command.method.startsWith('Network.'),
     'Child targets support read-only Page, DOM and Performance commands.'),
-  z.strictObject({ ...target, action: z.literal('cdpReadEvents'),
+  z.strictObject({ ...target, action: z.literal('cdpReadEvents'), target: cdpTarget.optional(),
     after: z.strictObject({ stream: z.uuid(), sequence: z.number().int().nonnegative().safe() }).optional(),
     timeoutMs: z.number().int().min(1).max(4000).optional(),
     limit: z.number().int().min(1).max(50).optional(),
     methods: z.array(z.enum(['Runtime.consoleAPICalled', 'Runtime.exceptionThrown', 'Network.requestWillBeSent',
-      'Network.responseReceived', 'Network.loadingFinished', 'Network.loadingFailed'])).min(1).max(6).optional() }),
+      'Network.responseReceived', 'Network.loadingFinished', 'Network.loadingFailed'])).min(1).max(6).optional() })
+    .refine(value => !value.target || (!value.timeoutMs && !value.methods?.some(method => method.startsWith('Network.'))),
+      'Child targets support Runtime event replay.'),
   z.strictObject({ ...tab, action: z.literal('listSiteTools'),
     fromOrigins: z.array(origin).max(4).optional() }),
   z.strictObject({ ...tab, action: z.literal('callSiteTool'), toolId: z.uuid(),
@@ -111,9 +115,9 @@ export const browserInputSchema = { type: 'object', ...z.toJSONSchema(browserReq
 export type BrowserRequest = z.infer<typeof browserRequest>;
 export type CdpRequest = Extract<BrowserRequest, { action: 'cdpSend' | 'cdpReadEvents' }>;
 export type CdpTargetRequest = Extract<BrowserRequest, { action: 'cdpListTargets' }> |
-  (Extract<BrowserRequest, { action: 'cdpSend' }> & { target: NonNullable<Extract<BrowserRequest, { action: 'cdpSend' }>['target']> });
+  (CdpRequest & { target: z.infer<typeof cdpTarget> });
 export function cdpTargetRequest(request: BrowserRequest): request is CdpTargetRequest {
-  return request.action === 'cdpListTargets' || request.action === 'cdpSend' && !!request.target;
+  return request.action === 'cdpListTargets' || (request.action === 'cdpSend' || request.action === 'cdpReadEvents') && !!request.target;
 }
 export function browserDeveloperAction(action: BrowserRequest['action']) {
   return action === 'diagnose' || action === 'cdpSend' || action === 'cdpReadEvents' || action === 'cdpListTargets';

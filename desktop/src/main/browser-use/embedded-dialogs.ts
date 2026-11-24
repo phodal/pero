@@ -121,7 +121,8 @@ export class EmbeddedDialogs {
 
   private subscribeSession: SessionCdpSubscribe = listener => {
     const client = this.contents.debugger;
-    const receive = (_event: Electron.Event, method: string, params: Record<string, unknown>, sessionId?: string) => listener(method, params, sessionId);
+    const receive = (_event: Electron.Event, method: string, params: Record<string, unknown>, sessionId?: string) =>
+      listener(method, params, sessionId || undefined);
     client.on('message', receive);
     return () => client.off('message', receive);
   };
