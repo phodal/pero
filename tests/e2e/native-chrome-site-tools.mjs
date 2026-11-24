@@ -9,10 +9,12 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { siteToolPage, partnerSiteToolPage } from '../fixtures/browser-site-tools.mjs';
+import { serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const cdp = process.argv.includes('--cdp');
+const live = process.argv.includes('--cdp-live');
+const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
 const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
 const payload = installed && resolve(installed, 'Contents/Resources/app');
@@ -30,17 +32,33 @@ const profile = resolve(temp, 'profile'),
 const report = resolve(temp, 'session.json'),
   pairing = resolve(temp, 'pairing.json');
 const site = createServer((req, res) => {
+  if (live && serveDiagnosticAssets(req, res, foreignOrigin)) return;
   res.setHeader('Content-Type', 'text/html');
   if (cdp) {
     res.end(`<!doctype html><title>Native CDP fixture</title>
       <button onclick="console.info('native CDP clicked')">Log CDP event</button>
       <script>console.info('native CDP loaded'); throw new Error('native CDP exception');</script>
-      <iframe title="CDP child fixture" srcdoc="<script>console.warn('native CDP child')</script>"></iframe>`);
+      <iframe title="CDP child fixture" srcdoc="<script>console.warn('native CDP child')</script>"></iframe>
+      ${live ? `<link rel="stylesheet" href="/diagnostic.css">
+      <iframe title="Local CDP frame" src="/diagnostic-frame"></iframe>
+      <iframe title="Foreign CDP frame" src="${foreignOrigin}/diagnostic-frame?native-foreign-frame"></iframe>
+      <button onclick="requestFixture()">Run network fixture</button><output>Waiting for network fixture</output>
+      <script>
+        async function requestFixture() {
+          const [response] = await Promise.all([
+            fetch('/cdp-response?native-private-query'),
+            fetch('/cdp-redirect', {mode: 'no-cors'}),
+          ]);
+          await response.json();
+          document.querySelector('output').textContent = 'Native network fixture complete';
+        }
+      </script>` : ''}`);
     return;
   }
   res.end(siteToolPage(req.url === '/webmcp-frame', foreignOrigin));
 });
 const partner = createServer((req, res) => {
+  if (live && serveDiagnosticAssets(req, res)) return;
   res.setHeader('Content-Type', 'text/html');
   res.end(partnerSiteToolPage(origin));
 });
@@ -73,7 +91,7 @@ async def browser(action, **params):
     return await cua.browser({"action":action,"tabId":tab,**params})
 layout = {"method":"Page.getLayoutMetrics"}
 try:
-    await browser("cdpSend", command=layout)
+    await browser("cdpSend", command=${live ? '{"method":"Network.enable"}' : 'layout'})
 except Exception as error:
     assert "diagnostics were declined" in str(error), repr(error)
 else:
@@ -101,8 +119,51 @@ except Exception as error:
     assert "cursor is stale" in str(error), repr(error)
 else:
     raise AssertionError("Native CDP cursor survived a reload")
-print(json.dumps({"receiptId":clicked["receiptId"], "denied":True, "tab":tab, "python":sys.executable,
-    "commands":3, "pagedEvents":True, "childFrameExcluded":True, "cursorExpiresOnReload":True}))
+proof = {"receiptId":clicked["receiptId"], "denied":True, "tab":tab, "python":sys.executable,
+    "commands":3, "pagedEvents":True, "childFrameExcluded":True, "cursorExpiresOnReload":True}
+${live ? `async def send(method, params=None):
+    command = {"method":method, **({"params":params} if params else {})}
+    return (await browser("cdpSend", command=command))["result"]
+frames = (await send("Page.getFrameTree"))["frameTree"]
+assert [child["frame"]["url"].rsplit("/", 1)[-1] for child in frames["childFrames"]] == ["diagnostic-frame"], frames
+resources = (await send("Page.getResourceTree"))["frameTree"]
+assert any(res["url"].endswith("/diagnostic.css") for res in resources["resources"]), resources
+assert "native-foreign-frame" not in json.dumps(resources), resources
+capture = await send("Network.enable")
+action = await browser("act", locator={"by":"role","role":"button","name":"Run network fixture"}, operation={"action":"click"})
+assert action["outcome"] == "dispatched", action
+ready = await browser("wait", locator={"by":"text","value":"Native network fixture complete"}, condition={"kind":"visible"}, timeoutMs=3000)
+assert ready["matched"], ready
+methods = ["Network.requestWillBeSent", "Network.responseReceived", "Network.loadingFinished"]
+page = await browser("cdpReadEvents", after=capture["cursor"], methods=methods, limit=1)
+assert page["hasMore"], page
+tail = await browser("cdpReadEvents", after=page["cursor"], methods=methods)
+assert not tail["hasMore"], tail
+events = page["events"] + tail["events"]
+response = next(event["params"] for event in events if event["method"] == "Network.responseReceived"
+    and event["params"]["url"].endswith("/cdp-response"))
+assert response["status"] == 202 and "native-private-query" not in json.dumps(events), events
+read_body = {"requestId":response["requestId"]}
+body = await send("Network.getResponseBody", read_body)
+assert body == {"body": '{"fixture":"network-response"}', "base64Encoded":False}, body
+redirect = next(event["params"]["requestId"] for event in events if event["method"] == "Network.requestWillBeSent"
+    and event["params"]["url"].endswith("/cdp-redirect"))
+try:
+    await send("Network.getResponseBody", {"requestId":redirect})
+except Exception as error:
+    assert "same-origin" in str(error), repr(error)
+else:
+    raise AssertionError("Native CDP read a cross-origin redirect response")
+await send("Network.disable")
+try:
+    await send("Network.getResponseBody", read_body)
+except Exception as error:
+    assert "Enable Network" in str(error), repr(error)
+else:
+    raise AssertionError("Native CDP read a response after capture ended")
+proof.update({"commands":8, "scopedTrees":True, "network":{"status":response["status"], "paged":True,
+    "responseBody":True, "crossOriginRejected":True, "stopped":True}})` : ''}
+print(json.dumps(proof))
 ` : `
 import json
 import sys
@@ -212,6 +273,7 @@ try {
           tell sheet 1
             set labels to (value of every static text) as text
             if labels does not contain "${approvalTitle}" or labels does not contain "${marker}" then return labels
+            ${live ? 'if labels does not contain "same-origin response content" then return labels' : ''}
             click button "${button}"
             return "responded"
           end tell
@@ -232,7 +294,7 @@ try {
   };
   if (cdp) {
     await respond(origin, 'Cancel');
-    for (let i = 0; i < 7; i++) await respond(origin, 'Allow');
+    for (let i = 0; i < (live ? 16 : 7); i++) await respond(origin, 'Allow');
   } else {
     await respond('Native tool declined', 'Cancel');
     await expect(target.getByRole('heading', { name: 'Waiting for a site tool' })).toBeVisible();
@@ -243,6 +305,7 @@ try {
   const [reply] = JSON.parse(result.reply.replace(/^BROWSER_RESULT:/, ''));
   assert.equal(result.error, null, JSON.stringify(result));
   assert.equal(reply.isError, false, reply.text);
+  if (live) await expect(target.getByText('Native network fixture complete')).toBeVisible();
   if (cdp) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
   else await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
   const evidence = JSON.parse(reply.text);
@@ -258,7 +321,8 @@ try {
   );
   const receipt = JSON.parse(await readFile(resolve(visit, evidence.receiptId + '.result.json'), 'utf8'));
   assert.equal(receipt.outcome, 'dispatched');
-  const output = resolve(root, cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
+  const output = resolve(root, live ? 'test-results/native-chrome-cdp-live'
+    : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
   await mkdir(output, { recursive: true });
   await writeFile(
     resolve(output, 'result.json'),
@@ -275,7 +339,8 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${cdp ? 'CDP commands and event cursors' : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
+    `Native Python REPL verified ${live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+      : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
   if (log.trim()) console.error(log);

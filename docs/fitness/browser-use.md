@@ -239,8 +239,19 @@ Raw `Page.getFrameTree` listed the same-origin child and
 `Target.setAutoAttach` was refused and sending `Page.getFrameTree` to the
 reported child session returned an unattached-session error. The child
 selector exists in the documented tab capability, and this run verified the
-attachment event. A working child-session query still needs an independent
-check.
+attachment event.
+
+A follow-up Codex Chrome fixture created an out-of-process iframe and a
+dedicated Worker after taking a cursor. Codex reported the iframe's attachment
+with an empty URL, then reported its committed URL through
+`Target.targetInfoChanged`. The iframe session query again returned an
+unattached-session error. This fixture returned no Worker attachment event.
+A separate Chrome for Testing probe using the native `chrome.debugger` API
+observed the same URL transition and successfully routed `Page.getFrameTree`
+through the iframe's flat session. The selector stopped working when auto
+attach was disabled. Origin admission therefore needs the committed child
+document rather than the initial attachment event.
+[Chrome debugger flat sessions](https://developer.chrome.com/docs/extensions/reference/api/debugger#attach-to-related-targets)
 
 In the Codex Chrome workload fixture,
 `Performance.getMetrics` returned 36 metrics after enabling the domain.
@@ -406,6 +417,14 @@ generated a new event. The test uses the separately signed `native-probe`
 copy and a deterministic ACP Agent. Run it with
 `PERO_NATIVE_REPL_INSTALLED_APP=/path/to/Pero.app node tests/e2e/native-chrome-site-tools.mjs --cdp`.
 Evidence is in `test-results/native-chrome-cdp/result.json`.
+
+For extension 0.3.13, append `--cdp-live` to the same command. The signed
+probe copy uses its bundled Python and verifies that the Native approval sheet
+mentions same-origin response content. It declines the first start request,
+then checks scoped frame and resource trees, live network event pagination,
+the HTTP 202 JSON body, cross-origin redirect rejection, and that stopping the
+capture prevents further body access. Evidence is in
+`test-results/native-chrome-cdp-live/result.json`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
