@@ -514,6 +514,18 @@ impl ChatPanel {
                     chat.flush(cx);
                 }
             }
+            let archived: Vec<usize> = self
+                .chats
+                .iter()
+                .enumerate()
+                .filter_map(|(index, chat)| {
+                    (chat.state == SessionState::Closed && !active.contains(chat.id.as_str()))
+                        .then_some(index)
+                })
+                .collect();
+            for index in archived {
+                self.seal_archived_mcp_views(index);
+            }
             let interrupted = self
                 .chats
                 .iter()

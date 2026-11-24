@@ -74,7 +74,7 @@ impl ChatPanel {
         cx.notify();
     }
 
-    fn seal_archived_mcp_views(&mut self, index: usize) {
+    pub(crate) fn seal_archived_mcp_views(&mut self, index: usize) {
         let thread = self.chats[index].id.clone();
         let mut calls = Vec::new();
         for tool in &mut self.chats[index].tools {

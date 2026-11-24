@@ -237,7 +237,11 @@ row is no longer interactive, so the iframe is removed and the tool row shows
 `mcp.history.readonly`. That flag is not the archived-reload flag: `historical`
 stays false until the body is loaded from saved history. An archived row sets
 `historical`, and `admits_live_binding(true, …)` refuses a live binding even
-when a new process reuses the server name and generation.
+when a new process reuses the server name and generation. A full replay
+(`history` omitted) includes those tool events immediately; every closed
+thread in that replay is sealed the same way, so it cannot adopt a live view.
+The product startup sends `history: "catalog"`, which defers the tool body
+until the conversation is selected.
 
 The Electron test reads `mcpHistory[].notice` and `mcpHistory[].interactive`
 from the Workbench diagnostic snapshot. `notice` is `history_notice()`, the
