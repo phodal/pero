@@ -35,6 +35,16 @@ function invalidateCdp(handle?: TabHandle) {
 }
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({ id: 'add-to-pero', title: '添加到 Pero', contexts: ['page', 'selection'],
+    documentUrlPatterns: ['http://*/*', 'https://*/*'] });
+});
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== 'add-to-pero' || !tab?.id || !webTab(tab)) return;
+  const scope = info.selectionText ? 'selection' : 'page';
+  const path = `collector.html#tab=${tab.id}&scope=${scope}`;
+  void chrome.windows.create({ url: chrome.runtime.getURL(path), type: 'popup', width: 540, height: 780 });
+});
 
 let peer: Peer | undefined;
 let failure: string | undefined;

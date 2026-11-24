@@ -108,27 +108,23 @@ async function confirmSave(saved, projectId, key, destination) {
     pending = undefined;
   }
 }
-node('capture').onclick = () =>
-  act(async () => {
-    await load();
-    const next = await request({
-      type: 'capture',
-      scope: node('capture-scope').value,
-      tabId: await currentTab(),
-    });
-    capture = next;
-    for (const [key, value] of Object.entries({
-      'source-url': next.url,
-      title: next.title,
-      content: next.content,
-      reason: '',
-      question: '',
-    }))
-      node(key).value = value;
-    node('truncated').hidden = !next.truncated;
-    node('editor').hidden = false;
-    node('success').hidden = true;
-  });
+async function capturePage(tabId) {
+  await load();
+  const next = await request({ type: 'capture', scope: node('capture-scope').value, tabId });
+  capture = next;
+  for (const [key, value] of Object.entries({
+    'source-url': next.url,
+    title: next.title,
+    content: next.content,
+    reason: '',
+    question: '',
+  }))
+    node(key).value = value;
+  node('truncated').hidden = !next.truncated;
+  node('editor').hidden = false;
+  node('success').hidden = true;
+}
+node('capture').onclick = () => act(async () => capturePage(contextTab || await currentTab()));
 node('editor').oninput = render;
 node('save').onclick = () =>
   act(async () => {
@@ -165,4 +161,9 @@ chrome.runtime.onMessage.addListener(message => {
   document.getElementById('destination').textContent = 'Disconnected from Pero';
   render();
 });
-void act(load);
+const context = new URLSearchParams(location.hash.slice(1));
+const contextTab = Number(context.get('tab'));
+if (Number.isInteger(contextTab) && contextTab > 0 && ['page', 'selection'].includes(context.get('scope'))) {
+  node('capture-scope').value = context.get('scope');
+  void act(() => capturePage(contextTab));
+} else void act(load);
