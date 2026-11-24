@@ -160,6 +160,7 @@ async fn verify_repl_agent(
     let pairing_path = std::env::var_os("PERO_NATIVE_REPL_CHROME_PAIRING_PATH")
         .map(std::path::PathBuf::from);
     let site_tools = std::env::var_os("PERO_NATIVE_REPL_CHROME_SITE_TOOLS").is_some();
+    let developer_mode = std::env::var_os("PERO_NATIVE_REPL_CHROME_DEVELOPER_MODE").is_some();
     let mut pair_requested = false;
     let mut approval_window_requested = false;
     let started = Instant::now();
@@ -202,7 +203,7 @@ async fn verify_repl_agent(
                 if !pairing.with_extension("ready").is_file() {
                     return Ok(None);
                 }
-                if site_tools && !window.is_window_active() {
+                if (site_tools || developer_mode) && !window.is_window_active() {
                     if !approval_window_requested {
                         window.activate_window();
                         cx.activate(true);
@@ -233,6 +234,10 @@ async fn verify_repl_agent(
                 .ok_or_else(|| anyhow::anyhow!("Native Chrome Relay is unavailable"))?;
             let path = path.clone();
             cx.background_executor().spawn(async move {
+                if developer_mode {
+                    let mode = owner.request(json!({"operation":"chrome-developer-mode", "enabled":true}))?;
+                    anyhow::ensure!(mode["enabled"] == true, "Could not enable Browser Developer Mode for the Native fixture");
+                }
                 if site_tools {
                     let mode = owner.request(json!({"operation":"chrome-site-tools", "enabled":true}))?;
                     anyhow::ensure!(mode["enabled"] == true, "Could not enable Browser Site Tools for the Native fixture");

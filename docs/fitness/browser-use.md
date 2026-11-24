@@ -353,6 +353,16 @@ bundled Python. WebMCP was verified on Chrome for Testing with the feature
 enabled and the fixture's real macOS approval sheet. The ACP agent was the
 deterministic test fixture. Evidence is in `test-results/native-browser-release/`.
 
+The Native CDP check loads extension 0.3.11 from the signed app payload and
+uses the app's bundled Python. The fixture dismisses the first macOS
+approval sheet and accepts the following requests. It verifies all three
+commands, paged console and exception events, iframe exclusion, the cursor
+being rejected after reload, and the stored receipt for the click that
+generated a new event. The test uses the separately signed `native-probe`
+copy and a deterministic ACP Agent. Run it with
+`PERO_NATIVE_REPL_INSTALLED_APP=/path/to/Pero.app node tests/e2e/native-chrome-site-tools.mjs --cdp`.
+Evidence is in `test-results/native-chrome-cdp/result.json`.
+
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with
