@@ -420,6 +420,11 @@ sharing stopped in both shells. The test overlay only routed the fixture's
 requests through Nginx. The live vhost passed its syntax and HTTPS health checks
 after reload. The live server still has no isolated profile mounted.
 
+The 2026-11-24 read-only recheck returned 200 for health, client identity
+and operator task listing. With the operator credential, the Browser Use
+readiness path still returned a plain-text 404, as did a control path with
+an unknown endpoint. No hosted Run or vision call was started.
+
 ### Embedded browser
 
 Point revision `2449d4b98b38a8839ce741fd1039af201e63d6a7` supplied

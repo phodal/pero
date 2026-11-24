@@ -241,6 +241,13 @@ extended WinForms fixture against .NET Framework 4 reference assemblies passed.
 The new WinForms scenarios for overlap, pointer placement, button events and
 mid-hold cancellation still require an unlocked Windows desktop run.
 
+On 2026-11-24 the [hosted Windows 11 ARM64 run](https://github.com/phodal/pero/actions/runs/45320600769/job/138197927552)
+verified one background UIA click with the foreground window and pointer
+unchanged, stale-observation rejection, and a 402 × 332 JPEG matching the
+owned window. It also rejected a background pixel click. The run stopped at
+the foreground precondition because the guard window never took focus.
+The Windows, macOS and Linux build and Clippy jobs in the same run passed.
+
 The unsigned Windows ARM64 portable build of Pero 0.1.1 uses source
 `5e3da1141a16d8ad5d4ba49c871b55d20da7b697`. The platform-neutral Wasm and
 Electron bundles were built on macOS from that checkout. The native binaries,
