@@ -603,3 +603,30 @@ Inspected Electron captures are in `test-results/project-agent/`, including
 `test-results/project-agent-native-titlebar/`, including `01-project-titlebar.jpg`,
 `04-tab-reopened.jpg`, `06-goal-edit-restored.jpg`, `08-labeled-overflow.jpg` and
 `09-keyboard-selected-settings.jpg`.
+
+## Project Insights and pane resizing — 2026-11-24
+
+Source `4c97026a7` with the Project Insights changes. Overview embeds the same
+React/TypeScript App in both Workbench shells. The left navigation divider has
+a wider drag target, and the project inspector reserves its left edge for the
+existing splitter when the App is visible.
+
+- Electron with the actual Rust Host and a scripted ACP Agent passed
+  `node tests/e2e/project-insights.mjs`. Two Projects shared one checkout.
+  The Beta request contained Beta's bound work only. Each Overview restored
+  its own brief after switching and restarting. Discuss this brief prepared
+  a draft with the original brief reference. Both splitters moved with
+  pointer drags, and the left width was saved to Host preferences.
+- In the macOS Native development window, two saved briefs loaded from one
+  isolated journal. Switching Projects replaced the brief in the same
+  WKWebView. Dragging the left navigation and project inspector splitters
+  changed their reported widths from 260 to 330 and from 320 to 416 logical
+  pixels. Both widths survived restart. The discussion action restored the
+  Beta brief reference in a new draft without sending it.
+- Inspected the empty light-theme Electron overview, the populated dark-theme
+  Electron overview, and the Native overview with saved findings. The brief
+  and goal shared the same surface and horizontal inset. The embedded brief
+  placed actions on the heading row and removed the standalone pane split.
+  The Electron captures are `beta-overview-empty.png` and
+  `beta-overview-dark.png` in `test-results/project-insights/`. Generation used
+  fixture data. The signed package and narrow Native layout were outside this run.

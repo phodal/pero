@@ -124,3 +124,18 @@ new session. Interrupted execution is not automatically retried.
 Implementation scope and limitations are tracked in
 [the Project Agent task record](../exec-plans/2026-11-14-project-agent.md), with
 observed verification in the existing research-project record.
+
+## Project work briefs
+
+Overview embeds the existing React Insights App below the research goal.
+Electron and Native supply the active saved Project ID through App context.
+The two sections use the same surface and content inset. The embedded brief
+puts its actions beside its heading and lays out the results in one column.
+The Host selects the Project's Agent conversations and ordinary conversations
+whose workspace belongs to a single Project. A checkout shared by multiple
+Projects cannot by itself assign a conversation to one of them.
+
+Generate brief starts an App session on explicit request and freezes that
+Project ID in the existing App session binding. The same binding selects the
+latest readable brief after reopening or restarting. Existing brief links
+still open their original publication from the session journal.

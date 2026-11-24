@@ -381,15 +381,14 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
         div().w_full().flex().justify_center().child(element)
     };
     use crate::apps::AppPlacement;
-    let mut automation = Vec::new(); let mut primary = Vec::new(); let mut research = Vec::new(); let mut customize = Vec::new(); let mut skills = Vec::new();
+    let mut automation = Vec::new(); let mut research = Vec::new(); let mut customize = Vec::new(); let mut skills = Vec::new();
     for (index, app) in props.apps.into_iter().enumerate() {
         match app.placement {
             AppPlacement::Automation => automation.push((index, app)),
             AppPlacement::Research => research.push((index, app)),
             AppPlacement::Customize => customize.push((index, app)),
             AppPlacement::Skills => skills.push((index, app)),
-            AppPlacement::Primary => primary.push((index, app)),
-            AppPlacement::Catalog => {},
+            AppPlacement::Catalog | AppPlacement::ProjectOverview => {},
         }
     }
     research.sort_by_key(|(_, app)| app.name != "paper-agent");
@@ -465,7 +464,6 @@ pub(crate) fn sidebar(ui: Ui<'_>, width: f32, props: SidebarProps<'_>, settings:
             .when(!props.projects_collapsed, |el| el.children(projects))
             .when(!research.is_empty(), |el| el.child(pero_theme::sidebar_group(None, false, chrome).children(app_rows(research))))
             .child(pero_theme::sidebar_group(None, false, chrome)
-            .children(app_rows(primary))
             .child(nav("sidebar-apps", ui.t("apps.manage"), "icons/layout-grid.svg", props.navigation == WorkbenchPage::Apps && props.catalog_open, SidebarAction::Navigate(WorkbenchPage::Apps)).relative().child(props.shortcut_bounds.probe("apps".into())))
             .children(app_rows(skills))))
         .child(nav("sidebar-terminal", ui.t("terminal.title"), "icons/terminal.svg", props.terminal_open, SidebarAction::Terminal).relative().child(props.shortcut_bounds.probe("terminal".into())))

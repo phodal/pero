@@ -13,6 +13,7 @@ const mcpPolicyFixture = process.argv.includes('--mcp-tool-policy');
 const capturePath = process.argv.find(arg => arg.startsWith('--capture='))?.slice('--capture='.length);
 // Opt-in capture proves the real Host → ACP boundary without a second MCP client.
 const sessionCapture = process.argv.find(arg => arg.startsWith('--session-capture='))?.slice('--session-capture='.length);
+const replyFile = process.argv.find(arg => arg.startsWith('--reply-file='))?.slice('--reply-file='.length);
 const settings = { mode: 'write', effort: 'medium', approval: 'ask' };
 const configs = () => [
  {id:'model',name:'Model',category:'model',type:'select',currentValue:'fixture',options:[{value:'fixture',name:'Fixture'}]},
@@ -48,6 +49,10 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
   if(composerFixture && capturePath)appendFileSync(capturePath,JSON.stringify(params.prompt)+'\n');
   const text=params.prompt[0].text;
   const notify=update=>send({method:'session/update',params:{sessionId:'fixture-session',update}});
+  if (replyFile) {
+   notify({sessionUpdate:'agent_message_chunk',content:{type:'text',text:readFileSync(replyFile,'utf8')}});
+   finish('end_turn');return;
+  }
   // Explicit contribution acceptance uses real file/Git effects in a disposable
   // checkout. Ordinary presentation fixtures below still perform no I/O.
   if(text.includes('contribution-fixture')){

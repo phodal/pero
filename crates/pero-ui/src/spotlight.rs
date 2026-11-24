@@ -83,14 +83,6 @@ impl Spotlight {
                 Target::NewChat,
             ),
             (
-                workbench.t("nav.insights"),
-                "layout-list",
-                Target::OpenApp {
-                    name: "insights",
-                    panel: "main",
-                },
-            ),
-            (
                 workbench.t("nav.data"),
                 "database",
                 Target::OpenApp {

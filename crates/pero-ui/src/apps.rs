@@ -51,7 +51,7 @@ pub(crate) struct InstalledApp {
 
 /// Where the Workbench lets users open an installed App.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AppPlacement { Primary, Research, Customize, Automation, Skills, Catalog }
+pub(crate) enum AppPlacement { ProjectOverview, Research, Customize, Automation, Skills, Catalog }
 
 impl AppPlacement {
     pub fn in_catalog(self) -> bool {
@@ -70,7 +70,7 @@ impl AppCategory {
 impl InstalledApp {
     pub fn placement(&self) -> AppPlacement {
         match self.name.as_str() {
-            "insights" => AppPlacement::Primary,
+            "insights" => AppPlacement::ProjectOverview,
             "paper-agent" | "notebook" => AppPlacement::Research,
             "connectors" => AppPlacement::Customize,
             "automations" => AppPlacement::Automation,
@@ -82,7 +82,7 @@ impl InstalledApp {
     /// own shortcut only when that host is not enabled.
     pub fn listed_in_sidebar(&self, connectors_enabled: bool) -> bool {
         match self.placement() {
-            AppPlacement::Catalog => false,
+            AppPlacement::Catalog | AppPlacement::ProjectOverview => false,
             AppPlacement::Skills => self.enabled && !connectors_enabled,
             _ => true,
         }
@@ -684,6 +684,7 @@ mod tests {
             ("environments", true, false, true),
             ("paper-agent", false, true, false),
             ("notebook", true, true, false),
+            ("insights", true, false, false),
             ("virtual-cell", false, false, true),
             ("virtual-cell", true, false, true),
         ] {
