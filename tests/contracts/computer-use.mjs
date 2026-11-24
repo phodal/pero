@@ -50,6 +50,10 @@ assert.ok(validate('ComputerWorkerRequest', {
   id: 'internal', thread: 'session', request: { operation: 'targets' },
   allowed_applications: ['dev.pero.fixture'],
 }).valid);
-const appshot = { operation: 'appshot', foreground_pid: 42 };
-assert.equal(validate('ComputerRequest', appshot).valid, false);
-assert.ok(validate('ComputerWorkerRequest', { id: 'internal', thread: 'local', request: appshot }).valid);
+for (const request of [
+  { operation: 'appshot', foreground_pid: 42 },
+  { operation: 'preview_frame', target: fixture.target.reference },
+]) {
+  assert.equal(validate('ComputerRequest', request).valid, false);
+  assert.ok(validate('ComputerWorkerRequest', { id: 'internal', thread: 'local', request }).valid);
+}

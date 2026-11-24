@@ -135,6 +135,12 @@ impl ComputerAppshotResponse {
         contexts
     }
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ComputerPreviewResponse {
+    PreviewFrame { image: Option<ComputerImageContent> },
+}
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ComputerCaptureStatus {

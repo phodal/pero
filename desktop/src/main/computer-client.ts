@@ -2,8 +2,8 @@ import { startComputerProcess, type ComputerProcess } from './computer-process.t
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
-import type { ComputerRequest, ComputerWorkerOperation, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
-import type { ComputerAppshotResponse, ComputerResponse, ComputerWorkerResponse, ComputerWorkerValue, ComputerError } from '../../../protocol/generated/computer-response';
+import type { ComputerPreviewRequest, ComputerRequest, ComputerWorkerOperation, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
+import type { ComputerAppshotResponse, ComputerPreviewResponse, ComputerResponse, ComputerWorkerResponse, ComputerWorkerValue, ComputerError } from '../../../protocol/generated/computer-response';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(schema);
@@ -23,12 +23,13 @@ export class ComputerClient {
   private closing?: Promise<void>;
   private exiting?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
+  private queued = 0;
   private pending?: { id: string; dispatched: boolean; resolve(value: ComputerWorkerValue): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
   async request(thread: string, request: ComputerRequest, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerResponse> {
     const value = await this.send(thread, request, signal, allowedApplications);
-    if (value.kind === 'appshot') throw new Error('Unexpected Appshot reply');
+    if (value.kind === 'appshot' || value.kind === 'preview_frame') throw new Error('Unexpected Computer Use reply');
     return value;
   }
 
@@ -38,11 +39,22 @@ export class ComputerClient {
     return value;
   }
 
+  async preview(thread: string, target: ComputerPreviewRequest['target'], signal: AbortSignal, allowedApplications: string[]): Promise<ComputerPreviewResponse | undefined> {
+    if (!this.connection) throw new ComputerFailure({ code: 'target_unavailable', message: 'The preview worker has closed.' });
+    if (this.queued) return undefined;
+    const value = await this.send(thread, { operation: 'preview_frame', target }, signal, allowedApplications);
+    if (value.kind !== 'preview_frame') throw new Error('Invalid Computer Use preview reply');
+    return value;
+  }
+
   private send(thread: string, request: ComputerWorkerOperation, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerWorkerValue> {
+    this.queued++;
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
       if (!this.connection) {
+        if (request.operation === 'preview_frame')
+          throw new ComputerFailure({ code: 'target_unavailable', message: 'The preview worker has closed.' });
         const controller = new AbortController();
         const startup = AbortSignal.any([controller.signal, signal]);
         const ready = this.start(startup);
@@ -68,7 +80,7 @@ export class ComputerClient {
           if (error) void this.stop('failed').catch(() => {});
         });
       });
-    });
+    }).finally(() => { this.queued--; });
     this.queue = result.catch(() => {});
     return result;
   }

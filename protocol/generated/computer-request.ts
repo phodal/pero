@@ -64,7 +64,7 @@ export type ComputerDwellMs = number;
  * Button press duration before release, in milliseconds.
  */
 export type ComputerHoldMs = number;
-export type ComputerWorkerOperation = ComputerRequest | ComputerAppshotRequest;
+export type ComputerWorkerOperation = ComputerRequest | ComputerAppshotRequest | ComputerPreviewRequest;
 export type ComputerControl =
   | ComputerGetControl
   | ComputerSetControl
@@ -270,6 +270,10 @@ export interface ComputerWorkerRequest {
 export interface ComputerAppshotRequest {
   operation: "appshot";
   foreground_pid: number;
+}
+export interface ComputerPreviewRequest {
+  operation: "preview_frame";
+  target: ComputerTargetRef;
 }
 export interface ComputerGetControl {
   action: "computer_get";

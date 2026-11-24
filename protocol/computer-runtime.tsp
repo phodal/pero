@@ -33,7 +33,8 @@ model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }
 @oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerScreenshotRequest, ComputerReadOcrRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
 model ComputerAppshotRequest { operation: "appshot"; @minValue(1) foreground_pid: int32; ...ComputerClosed; }
-@oneOf union ComputerWorkerOperation { ComputerRequest, ComputerAppshotRequest }
+model ComputerPreviewRequest { operation: "preview_frame"; target: ComputerTargetRef; ...ComputerClosed; }
+@oneOf union ComputerWorkerOperation { ComputerRequest, ComputerAppshotRequest, ComputerPreviewRequest }
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
 model ComputerWorkerRequest {
   id: ComputerRef;
@@ -89,7 +90,8 @@ model ComputerAppshotResponse {
   @maxLength(6000) text: string;
   ...ComputerClosed;
 }
-@oneOf union ComputerWorkerValue { ComputerResponse, ComputerAppshotResponse }
+model ComputerPreviewResponse { kind: "preview_frame"; image: ComputerImageContent | null; ...ComputerClosed; }
+@oneOf union ComputerWorkerValue { ComputerResponse, ComputerAppshotResponse, ComputerPreviewResponse }
 model ComputerWorkerSuccess { id: ComputerRef; value: ComputerWorkerValue; ...ComputerClosed; }
 model ComputerWorkerFailure { id: ComputerRef; error: ComputerError; ...ComputerClosed; }
 @oneOf union ComputerWorkerResponse { ComputerWorkerSuccess, ComputerWorkerFailure }

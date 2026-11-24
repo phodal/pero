@@ -103,6 +103,22 @@ pub struct ComputerRuntime<D: DesktopDriver> {
     pub(crate) cancellation: crate::Cancellation,
 }
 impl<D: DesktopDriver> ComputerRuntime<D> {
+    pub(crate) fn preview_frame(
+        &self,
+        target: &ComputerTargetRef,
+        access: ApplicationAccess<'_>,
+    ) -> Result<ComputerPreviewResponse, ComputerError> {
+        let window = self.target(target, access)?;
+        // A presentation frame uses the full-window capture policy and carries no input anchor.
+        let frame = self.driver.observe(&window, &ComputerObserveOptions::default(), None)?;
+        Ok(ComputerPreviewResponse::PreviewFrame {
+            image: frame.image.ok().map(|image| ComputerImageContent {
+                media_type: image.media_type,
+                data: STANDARD.encode(image.bytes),
+            }),
+        })
+    }
+
     /// Capture the window of a local user gesture without creating an agent target or anchor.
     pub(crate) fn appshot(&self, pid: i32) -> Result<ComputerAppshotResponse, ComputerError> {
         let window = self.driver.focused_window(pid)?;

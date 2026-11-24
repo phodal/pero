@@ -18,18 +18,20 @@ struct Request {
 #[serde(untagged)]
 enum Operation {
     Agent(ComputerRequest),
-    Appshot(AppshotRequest),
+    Shell(ShellOperation),
 }
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
-enum AppshotRequest {
+enum ShellOperation {
     Appshot { foreground_pid: i32 },
+    PreviewFrame { target: ComputerTargetRef },
 }
 #[derive(Serialize)]
 #[serde(untagged)]
 enum Value {
     Agent(ComputerResponse),
     Appshot(ComputerAppshotResponse),
+    Preview(ComputerPreviewResponse),
 }
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -93,8 +95,11 @@ pub fn serve_stream<D: DesktopDriver>(
             Operation::Agent(operation) => driver
                 .call_with_access(request.thread, operation, access)
                 .map(Value::Agent),
-            Operation::Appshot(AppshotRequest::Appshot { foreground_pid }) => {
+            Operation::Shell(ShellOperation::Appshot { foreground_pid }) => {
                 driver.appshot(foreground_pid).map(Value::Appshot)
+            }
+            Operation::Shell(ShellOperation::PreviewFrame { target }) => {
+                driver.preview_frame(&target, access).map(Value::Preview)
             }
         };
         let response = match result {

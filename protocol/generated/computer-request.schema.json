@@ -653,6 +653,24 @@
       ],
       "additionalProperties": false
     },
+    "ComputerPreviewRequest": {
+      "title": "ComputerPreviewRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "preview_frame"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        }
+      },
+      "required": [
+        "operation",
+        "target"
+      ],
+      "additionalProperties": false
+    },
     "ComputerReadOcrRequest": {
       "title": "ComputerReadOcrRequest",
       "type": "object",
@@ -1048,6 +1066,9 @@
         },
         {
           "$ref": "#/$defs/ComputerAppshotRequest"
+        },
+        {
+          "$ref": "#/$defs/ComputerPreviewRequest"
         }
       ]
     },
