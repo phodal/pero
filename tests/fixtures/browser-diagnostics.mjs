@@ -8,6 +8,7 @@ export function browserDiagnosticPage(foreignOrigin) {
   return `<!doctype html><title>Browser diagnostics fixture</title><h1 style="color:rgb(24, 70, 120)">Browser diagnostics fixture</h1>
 <link rel="stylesheet" href="/diagnostic.css"><link rel="stylesheet" href="${foreignStyle}">
 <button onclick="console.info('cdp action marker')">Log CDP event</button>
+<button onclick="runLiveFixture()">Run live capture fixture</button><output>Waiting for network fixture</output>
 <iframe title="CDP child fixture" srcdoc="<script>console.warn('cdp child marker')</script>"></iframe>
 <iframe title="Same origin CDP frame" src="/diagnostic-frame"></iframe>
 <iframe title="Foreign CDP frame" src="${foreignFrame}"></iframe>
@@ -19,17 +20,28 @@ function runDiagnosticWorkload() {
   while (performance.now() < deadline) total += Math.random();
   window.diagnosticTotal = total;
 }
-setInterval(() => {
+const diagnosticTimer = setInterval(() => {
   runDiagnosticWorkload();
   console.warn('diagnostic console marker');
   fetch('/diagnostic-request?private-query-marker').catch(() => {});
   fetch(${JSON.stringify(foreign)}, { mode: 'no-cors' }).catch(() => {});
   throw new Error('diagnostic runtime marker');
 }, 125);
+async function runLiveFixture() {
+  clearInterval(diagnosticTimer);
+  console.info('live network action');
+  const [response] = await Promise.all([
+    fetch('/cdp-response?cdp-private-query'),
+    fetch('/cdp-redirect', { mode: 'no-cors' }),
+    fetch(${JSON.stringify(foreign)}, { mode: 'no-cors' }),
+  ]);
+  await response.json();
+  document.querySelector('output').textContent = 'Live fixture complete';
+}
 </script>`;
 }
 
-export function serveDiagnosticAssets(request, response) {
+export function serveDiagnosticAssets(request, response, foreignOrigin) {
   if (request.url.split('?', 1)[0] === '/diagnostic.css') {
     response.writeHead(200, { 'Content-Type': 'text/css' }).end('body { margin: 10px; }');
     return true;
@@ -38,7 +50,63 @@ export function serveDiagnosticAssets(request, response) {
     response.writeHead(200, { 'Content-Type': 'text/html' }).end('<p>Browser diagnostics frame</p>');
     return true;
   }
+  if (request.url.startsWith('/cdp-response?')) {
+    response.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ fixture: 'network-response' }));
+    return true;
+  }
+  if (request.url === '/cdp-redirect' && foreignOrigin) {
+    response.writeHead(302, { Location: new URL('/cdp-response?cdp-foreign-query', foreignOrigin).href }).end();
+    return true;
+  }
   return false;
+}
+
+export async function checkCdpNetwork({ prompt, tabId, menu }) {
+  const command = (method, params) => ({ action: 'cdpSend', tabId, command: { method, ...(params && { params }) } });
+  const [started, checkpoint, clicked, ready] = await prompt([
+    command('Network.enable'), { action: 'cdpReadEvents', tabId },
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Run live capture fixture' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Live fixture complete' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert.equal(started.kind, 'cdpResult', JSON.stringify(started));
+  assert(started.result.captureMs > 0);
+  assert.deepEqual(checkpoint.events, []);
+  assert.equal(checkpoint.cursor.stream, started.result.cursor.stream);
+  assert.equal(clicked.outcome, 'dispatched');
+  assert.equal(ready.matched, true);
+  const read = { action: 'cdpReadEvents', tabId, methods: ['Network.requestWillBeSent', 'Network.responseReceived',
+    'Network.loadingFinished', 'Network.loadingFailed', 'Runtime.consoleAPICalled'] };
+  const [first] = await prompt([{ ...read, after: checkpoint.cursor, limit: 1 }]);
+  assert.equal(first.hasMore, true);
+  const [next] = await prompt([{ ...read, after: first.cursor, limit: 50 }]);
+  assert.equal(next.hasMore, false);
+  const events = [...first.events, ...next.events];
+  const response = events.find(event => event.method === 'Network.responseReceived' && event.params.url.endsWith('/cdp-response'));
+  assert.equal(response?.params.status, 202, JSON.stringify(events));
+  assert(events.some(event => event.method === 'Runtime.consoleAPICalled' && event.text === 'live network action'));
+  assert(events.some(event => event.method === 'Network.loadingFinished' && event.params.requestId === response.params.requestId));
+  assert.doesNotMatch(JSON.stringify(events), /cdp-private-query|cdp-foreign-query|diagnostic-cross-origin/);
+  const redirect = events.find(event => event.method === 'Network.requestWillBeSent' && event.params.url.endsWith('/cdp-redirect'));
+  assert(redirect, JSON.stringify(events));
+  const bodyRequest = command('Network.getResponseBody', { requestId: response.params.requestId });
+  const [body, blocked, noNewEvents] = await prompt([
+    bodyRequest, command('Network.getResponseBody', { requestId: redirect.params.requestId }),
+    { ...read, after: next.cursor, timeoutMs: 250, methods: ['Network.responseReceived'] },
+  ]);
+  assert.deepEqual(body.result, { body: '{"fixture":"network-response"}', base64Encoded: false });
+  assert.match(blocked.error, /same-origin/);
+  assert.deepEqual(noNewEvents.events, []);
+  await menu('browser-use-developer-mode', false);
+  await menu('browser-use-developer-mode', true);
+  const [revoked, expired, restarted, stopped, stoppedRead] = await prompt([
+    bodyRequest, { ...read, after: checkpoint.cursor }, command('Network.enable'), command('Network.disable'), bodyRequest,
+  ]);
+  assert.match(revoked.error, /Enable Network/);
+  assert.match(expired.error, /capture ended|cursor is stale/);
+  assert.notEqual(restarted.result.cursor.stream, checkpoint.cursor.stream);
+  assert.equal(stopped.kind, 'cdpResult');
+  assert.match(stoppedRead.error, /Enable Network/);
+  return { body: true, paged: true, timeout: true, redirectedBodyRejected: true, modeRevocation: true, explicitStop: true };
 }
 
 export async function checkCdp({ prompt, tabId }) {
@@ -112,9 +180,10 @@ export async function checkEmbeddedDiagnostics({ app, origin, menu, prompt, open
   verifyBrowserDiagnostics(diagnostics, origin);
   expect(await app.evaluate(() => globalThis.browserUsePrompt?.message)).toBe('Allow browser diagnostics on this site?');
   const cdp = await checkCdp({ prompt, tabId });
+  const network = await checkCdpNetwork({ prompt, tabId, menu });
   await menu('browser-use-developer-mode', false);
   const original = origin + '/';
   const [, activated] = await prompt([{ action: 'closeTab', tabId }, { action: 'activate', tabId: original }]);
   expect(activated).toMatchObject({ kind: 'tabActivated', tabId: original });
-  return { ...diagnostics, cdp };
+  return { ...diagnostics, cdp: { ...cdp, network } };
 }

@@ -203,7 +203,23 @@ from the top document. Pass `methods` to filter and the returned `cursor` as
 through results and `truncated` to detect when the buffer could not cover the
 requested range. The cursor expires when the page reloads or the debugger
 detaches. Each read requires approval. Ordinary JavaScript evaluation, child
-target sessions, and other CDP event domains are outside these actions.
+target sessions, and unlisted CDP event domains are outside these actions.
+
+With Chrome extension 0.3.13 or Electron, send `Network.enable` with
+`cdpSend` to start a live capture and get its initial cursor. Perform a
+page action and pass that cursor as `after` to `cdpReadEvents`. During a live
+capture, omitting `after` returns an empty page and a checkpoint at the
+current position. Use `timeoutMs` up to 4000 to wait for the first matching
+event. Events include top-document console and exceptions, same-origin
+request starts, responses, and loading completion or failure. Network
+events include request IDs and paths with queries and fragments removed.
+Use `Network.getResponseBody` with the request ID from a completed request
+to read a text or JSON body of up to 16 KiB. `Network.disable` stops the
+capture and discards the buffer. A capture also ends after one minute,
+when Developer Mode is turned off, on navigation or debugger release,
+or when a new capture or `diagnose` takes over the debugger domains.
+The Workbench asks for approval on each request. The method names and
+event lifecycle follow the [CDP Network domain](https://chromedevtools.github.io/devtools-protocol/tot/Network/).
 
 Codex exposes permitted CDP commands and event cursors on a tab in
 [Browser Developer mode](https://learn.chatgpt.com/docs/whats-new).
@@ -213,9 +229,9 @@ its numeric cursor paged `Network.requestWillBeSent`,
 `Network.responseReceived`, and `Network.loadingFinished`. The corresponding
 request ID returned the page's HTTP 202 JSON via `Network.getResponseBody`.
 `readEvents()` without a cursor returned an empty page and a checkpoint at
-the current position. Pero's Runtime replay returns recent events when
-called without a cursor. Live network event buffering and response body
-reads remain separate gaps.
+the current position. Pero now uses the checkpoint behavior during live
+capture. Without a live capture, its original Runtime replay returns recent
+events when called without a cursor.
 
 That Codex fixture returned both iframe contents in the DOM snapshot.
 Raw `Page.getFrameTree` listed the same-origin child and
@@ -324,6 +340,10 @@ resource trees. They check that a Runtime
 cursor skips previously read events, excludes same-origin iframe console
 messages and expires after reload. The Chrome suite also checks that reads
 fail with Developer Mode off or when the user declines the capture.
+Both suites also click a loopback fixture, page mixed console and network
+events, read the completed HTTP 202 JSON response, reject body access after
+a cross-origin redirect, and verify capture expiry when Developer Mode is
+turned off or `Network.disable` runs.
 
 ### Chrome and embedded browser from an SSH Workbench
 

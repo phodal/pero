@@ -11,7 +11,7 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
-import { browserDiagnosticPage, checkCdp, serveDiagnosticAssets, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, checkCdp, checkCdpNetwork, serveDiagnosticAssets, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
 import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
@@ -64,7 +64,7 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
-  if (serveDiagnosticAssets(request, response)) return;
+  if (serveDiagnosticAssets(request, response, foreignUrl)) return;
   if (parallelFixture.handle(request, response)) return;
   if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
     response.setHeader('Content-Type', 'text/html');
@@ -366,6 +366,7 @@ try {
     verifyBrowserDiagnostics(diagnostics, new URL(siteUrl).origin, { profileRequired: false });
     assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 3);
     const cdp = await checkCdp({ prompt, tabId: diagnosticId });
+    const network = await checkCdpNetwork({ prompt, tabId: diagnosticId, menu });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
 
@@ -822,7 +823,7 @@ nodeRepl.write(answer.outcome);` },
       parallel,
       parallelRepl,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
-        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp },
+        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp: { ...cdp, network } },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,

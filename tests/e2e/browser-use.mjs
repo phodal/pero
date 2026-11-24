@@ -50,7 +50,7 @@ const foreign = await serve((request, response) => {
   response.end('Foreign tab');
 });
 const site = await serve(async (request, response) => {
-  if (serveDiagnosticAssets(request, response)) return;
+  if (serveDiagnosticAssets(request, response, foreign.origin)) return;
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
   if (request.url === '/diagnostics') { response.end(browserDiagnosticPage(foreign.origin)); return; }

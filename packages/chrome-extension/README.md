@@ -52,6 +52,12 @@ Extension 0.3.12 adds `Page.getFrameTree` and `Page.getResourceTree` to
 `cdpSend`. Trees include the approved document's same-origin frames and
 resources.
 
+Extension 0.3.13 supports `Network.enable`, `Network.disable`, and
+`Network.getResponseBody`. Capture live console, exception and same-origin
+network events for up to one minute. Read events with `cdpReadEvents` and
+the capture cursor, then use the request ID to read a completed text or
+JSON response from the same document.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the
