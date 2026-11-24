@@ -10,6 +10,7 @@ export type ComputerWorkerResponse = ComputerWorkerSuccess | ComputerWorkerFailu
  * Host-issued references, never OS handles, paths, credentials or caller identities.
  */
 export type ComputerRef = string;
+export type ComputerWorkerResult = ComputerResponse | ComputerPreviewResponse;
 export type ComputerResponse =
   | ComputerStatusResponse
   | ComputerTargetsResponse
@@ -55,7 +56,7 @@ export type ComputerErrorCode =
 
 export interface ComputerWorkerSuccess {
   id: ComputerRef;
-  value: ComputerResponse;
+  value: ComputerWorkerResult;
 }
 export interface ComputerStatusResponse {
   kind: "status";
@@ -203,6 +204,10 @@ export interface ComputerUnknown {
 }
 export interface ComputerStoppedResponse {
   kind: "stopped";
+}
+export interface ComputerPreviewResponse {
+  kind: "preview_frame";
+  image: ComputerImageContent | null;
 }
 export interface ComputerWorkerFailure {
   id: ComputerRef;

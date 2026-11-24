@@ -31,7 +31,9 @@ model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }
 @oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
-model ComputerWorkerRequest { id: ComputerRef; thread: ComputerRef; request: ComputerRequest; ...ComputerClosed; }
+model ComputerPreviewRequest { operation: "preview_frame"; target: ComputerTargetRef; ...ComputerClosed; }
+@oneOf union ComputerWorkerOperation { ComputerRequest, ComputerPreviewRequest }
+model ComputerWorkerRequest { id: ComputerRef; thread: ComputerRef; request: ComputerWorkerOperation; ...ComputerClosed; }
 enum ComputerPermissionState { granted, not_detected, unsupported }
 model ComputerDriverStatus { available: boolean; accessibility: ComputerPermissionState; screen_recording: ComputerPermissionState; message: string; environment?: ComputerEnvironment | null; ...ComputerClosed; }
 model ComputerUseState { enabled: boolean; running: boolean; status: ComputerDriverStatus; error?: string | null; ...ComputerClosed; }
@@ -59,7 +61,9 @@ model ComputerObservationResponse {
 model ComputerReceiptResponse { kind: "receipt"; receipt: ComputerActionReceipt; ...ComputerClosed; }
 model ComputerStoppedResponse { kind: "stopped"; ...ComputerClosed; }
 @oneOf union ComputerResponse { ComputerStatusResponse, ComputerTargetsResponse, ComputerOpenedResponse, ComputerObservationResponse, ComputerReceiptResponse, ComputerStoppedResponse }
-model ComputerWorkerSuccess { id: ComputerRef; value: ComputerResponse; ...ComputerClosed; }
+model ComputerPreviewResponse { kind: "preview_frame"; image: ComputerImageContent | null; ...ComputerClosed; }
+@oneOf union ComputerWorkerResult { ComputerResponse, ComputerPreviewResponse }
+model ComputerWorkerSuccess { id: ComputerRef; value: ComputerWorkerResult; ...ComputerClosed; }
 model ComputerWorkerFailure { id: ComputerRef; error: ComputerError; ...ComputerClosed; }
 @oneOf union ComputerWorkerResponse { ComputerWorkerSuccess, ComputerWorkerFailure }
 model ComputerGetControl { action: "computer_get"; ...ComputerClosed; }

@@ -162,6 +162,22 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             )),
         }
     }
+    pub(crate) fn preview_frame(
+        &self,
+        target: ComputerTargetRef,
+    ) -> Result<Option<ComputerImageContent>, ComputerError> {
+        let window = self.target(&target)?;
+        // Reuse the full-window image policy, including secure fields and incomplete AX trees.
+        // Preview frames never replace the agent's current observation or create an input anchor.
+        let frame = self
+            .driver
+            .observe(&window, &ComputerObserveOptions::default(), None)?;
+        Ok(frame.image.map(|image| ComputerImageContent {
+            media_type: image.media_type,
+            data: STANDARD.encode(image.bytes),
+        }))
+    }
+
     fn remember(&mut self, app: Window) -> ComputerTarget {
         let id = self
             .targets

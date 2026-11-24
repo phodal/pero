@@ -55,6 +55,7 @@ export type ComputerDwellMs = number;
  * Button press duration before release, in milliseconds.
  */
 export type ComputerHoldMs = number;
+export type ComputerWorkerOperation = ComputerRequest | ComputerPreviewRequest;
 export type ComputerControl =
   ComputerGetControl | ComputerSetControl | ComputerPermissionsControl | ComputerStopControl;
 export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings;
@@ -221,13 +222,17 @@ export interface ComputerReceiptRequest {
   operation: "receipt";
   request_id: ComputerRef;
 }
-/**
- * Private Desktop-to-worker envelope. The model only sees ComputerRequest.
- */
 export interface ComputerWorkerRequest {
   id: ComputerRef;
   thread: ComputerRef;
-  request: ComputerRequest;
+  request: ComputerWorkerOperation;
+}
+/**
+ * Private Desktop-to-worker envelope. The model only sees ComputerRequest.
+ */
+export interface ComputerPreviewRequest {
+  operation: "preview_frame";
+  target: ComputerTargetRef;
 }
 export interface ComputerGetControl {
   action: "computer_get";

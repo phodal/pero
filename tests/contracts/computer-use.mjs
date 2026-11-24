@@ -41,3 +41,7 @@ for (const request of [
 for (const options of [{ max_nodes: 0 }, { max_nodes: 4097 }, { max_depth: 65 }, { want_image: 'false' }, { root: { element_id: 'editor' } }]) {
   assert.equal(validate('ComputerRequest', { operation: 'observe', target: fixture.target.reference, options }).valid, false);
 }
+
+const previewFrame = { operation: 'preview_frame', target: fixture.target.reference };
+assert.equal(validate('ComputerRequest', previewFrame).valid, false, 'Preview frames stay out of the agent API');
+assert.ok(validate('ComputerWorkerRequest', { id: 'preview', thread: 'conversation', request: previewFrame }).valid);

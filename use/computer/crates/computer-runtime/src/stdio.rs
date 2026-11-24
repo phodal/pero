@@ -11,14 +11,35 @@ use crate::{ComputerRuntime, DesktopDriver};
 struct Request {
     id: ComputerRef,
     thread: ComputerRef,
-    request: ComputerRequest,
+    request: Operation,
+}
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Operation {
+    Agent(ComputerRequest),
+    Preview(PreviewRequest),
+}
+#[derive(Deserialize)]
+#[serde(tag = "operation", deny_unknown_fields)]
+enum PreviewRequest {
+    #[serde(rename = "preview_frame")]
+    Frame { target: ComputerTargetRef },
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ResultValue {
+    Agent(ComputerResponse),
+    Preview {
+        kind: &'static str,
+        image: Option<ComputerImageContent>,
+    },
 }
 #[derive(Serialize)]
 #[serde(untagged)]
 enum Response {
     Success {
         id: ComputerRef,
-        value: ComputerResponse,
+        value: ResultValue,
     },
     Failure {
         id: ComputerRef,
@@ -67,7 +88,15 @@ pub fn serve_stream<D: DesktopDriver>(
     });
     for request in receiver {
         let request = request?;
-        let result = driver.call(request.thread, request.request);
+        let result = match request.request {
+            Operation::Agent(call) => driver.call(request.thread, call).map(ResultValue::Agent),
+            Operation::Preview(PreviewRequest::Frame { target }) => driver
+                .preview_frame(target)
+                .map(|image| ResultValue::Preview {
+                    kind: "preview_frame",
+                    image,
+                }),
+        };
         let response = match result {
             Ok(value) => Response::Success {
                 id: request.id,

@@ -568,6 +568,25 @@
       "additionalProperties": false,
       "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
     },
+    "ComputerPreviewRequest": {
+      "title": "ComputerPreviewRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "preview_frame"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        }
+      },
+      "required": [
+        "operation",
+        "target"
+      ],
+      "additionalProperties": false,
+      "description": "Private Desktop-to-worker envelope. The model only sees ComputerRequest."
+    },
     "ComputerReceiptRequest": {
       "title": "ComputerReceiptRequest",
       "type": "object",
@@ -840,6 +859,17 @@
       "maxLength": 10000,
       "description": "Replacement permits an empty value to clear the field."
     },
+    "ComputerWorkerOperation": {
+      "title": "ComputerWorkerOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerRequest"
+        },
+        {
+          "$ref": "#/$defs/ComputerPreviewRequest"
+        }
+      ]
+    },
     "ComputerWorkerRequest": {
       "title": "ComputerWorkerRequest",
       "type": "object",
@@ -851,7 +881,7 @@
           "$ref": "#/$defs/ComputerRef"
         },
         "request": {
-          "$ref": "#/$defs/ComputerRequest"
+          "$ref": "#/$defs/ComputerWorkerOperation"
         }
       },
       "required": [
@@ -859,8 +889,7 @@
         "thread",
         "request"
       ],
-      "additionalProperties": false,
-      "description": "Private Desktop-to-worker envelope. The model only sees ComputerRequest."
+      "additionalProperties": false
     },
     "GetComputerSettings": {
       "title": "GetComputerSettings",

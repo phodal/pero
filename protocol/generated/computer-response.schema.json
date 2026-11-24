@@ -610,6 +610,31 @@
         "other"
       ]
     },
+    "ComputerPreviewResponse": {
+      "title": "ComputerPreviewResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "preview_frame"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerImageContent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "image"
+      ],
+      "additionalProperties": false
+    },
     "ComputerReceiptResponse": {
       "title": "ComputerReceiptResponse",
       "type": "object",
@@ -1047,6 +1072,17 @@
         }
       ]
     },
+    "ComputerWorkerResult": {
+      "title": "ComputerWorkerResult",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerPreviewResponse"
+        }
+      ]
+    },
     "ComputerWorkerSuccess": {
       "title": "ComputerWorkerSuccess",
       "type": "object",
@@ -1055,7 +1091,7 @@
           "$ref": "#/$defs/ComputerRef"
         },
         "value": {
-          "$ref": "#/$defs/ComputerResponse"
+          "$ref": "#/$defs/ComputerWorkerResult"
         }
       },
       "required": [
