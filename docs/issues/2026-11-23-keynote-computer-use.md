@@ -215,6 +215,10 @@ seconds, so this change retains the bounded OCR path.
 - The same test passed on 2026-11-24 with the authorized signed companion
   capturing a real foreground AppKit window. The test injected the shortcut
   event after dispatch and left the draft unsent.
+- Set `PERO_NATIVE_APPSHOT_PHYSICAL=1` when running `tests/e2e/native-appshot.mjs`
+  with a signed probe build to exercise the macOS global shortcut. The probe
+  keeps its image-capable draft ready while the test window is in front and
+  waits for the real keypress before checking the image, AX text, and draft.
 
 ## Live preview with independent workers
 

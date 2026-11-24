@@ -286,7 +286,8 @@ pub(super) fn probe(
             use std::time::{Duration, Instant};
             const DRAFT: &str = "Original Appshot draft";
             let workspace = std::env::var("PERO_NATIVE_APPSHOT_WORKSPACE")?;
-            let deadline = Instant::now() + Duration::from_secs(30);
+            let physical = std::env::var("PERO_NATIVE_APPSHOT_PHYSICAL").as_deref() == Ok("1");
+            let deadline = Instant::now() + Duration::from_secs(if physical { 300 } else { 30 });
             let mut thread = None;
             let mut ready = false;
             let mut captured = false;
@@ -333,7 +334,7 @@ pub(super) fn probe(
                     Ok::<_, anyhow::Error>(None)
                 }))??;
                 if let Some(state) = state { return Ok(state); }
-                if ready && !captured && let Ok(pid) = std::fs::read_to_string(receipt.with_extension("capture")) {
+                if ready && !physical && !captured && let Ok(pid) = std::fs::read_to_string(receipt.with_extension("capture")) {
                     sender.try_send(pid.trim().parse()?)?;
                     captured = true;
                 }

@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path';
 import { computerFixture, waitFor } from '../fixtures/computer-app.mjs';
 
 const app = process.env.PERO_NATIVE_APPSHOT_APP;
+const physical = process.env.PERO_NATIVE_APPSHOT_PHYSICAL === '1';
 assert(process.platform === 'darwin' && app, 'Set PERO_NATIVE_APPSHOT_APP to a signed Native probe app.');
 const installed = await realpath(app);
 for (const bundle of [installed, resolve(dirname(installed), 'Pero Computer Use.app')]) {
@@ -37,12 +38,16 @@ try {
     },
   });
   const exited = once(child, 'exit');
-  const deadline = setTimeout(() => child.kill('SIGTERM'), 40_000);
+  const deadline = setTimeout(() => child.kill('SIGTERM'), physical ? 310_000 : 40_000);
   try {
     await waitFor(() => existsSync(resolve(run, 'appshot.ready')) || existsSync(receipt), 'Native image-capable draft', 36_000);
     if (!existsSync(receipt)) {
       await fixture.activate();
-      await writeFile(resolve(run, 'appshot.capture'), String(fixture.pid));
+      if (physical) {
+        console.log('With “Pero Computer Fixture” in front, press Control+Shift+Command+7 once.');
+      } else {
+        await writeFile(resolve(run, 'appshot.capture'), String(fixture.pid));
+      }
     }
     assert.deepEqual(await exited, [0, null]);
   } finally { clearTimeout(deadline); }
@@ -56,7 +61,7 @@ try {
   const calls = (await readFile(acpLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
   assert(calls.some(call => call.method === 'session/new'));
   assert(!calls.some(call => call.method === 'session/prompt'));
-  console.log('Native Appshot attached window pixels and AX text to the original draft without sending it.');
+  console.log(`${physical ? 'Physical shortcut: ' : ''}Native Appshot attached window pixels and AX text to the original draft without sending it.`);
 } finally {
   child?.kill();
   await fixture?.close();
