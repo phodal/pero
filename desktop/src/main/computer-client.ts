@@ -2,8 +2,8 @@ import { startComputerProcess, type ComputerProcess } from './computer-process.t
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
-import type { ComputerRequest, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
-import type { ComputerResponse, ComputerWorkerResponse, ComputerError } from '../../../protocol/generated/computer-response';
+import type { ComputerRequest, ComputerWorkerOperation, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
+import type { ComputerAppshotResponse, ComputerResponse, ComputerWorkerResponse, ComputerWorkerValue, ComputerError } from '../../../protocol/generated/computer-response';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(schema);
@@ -23,10 +23,22 @@ export class ComputerClient {
   private closing?: Promise<void>;
   private exiting?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
-  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
+  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerWorkerValue): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
-  request(thread: string, request: ComputerRequest, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerResponse> {
+  async request(thread: string, request: ComputerRequest, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerResponse> {
+    const value = await this.send(thread, request, signal, allowedApplications);
+    if (value.kind === 'appshot') throw new Error('Unexpected Appshot reply');
+    return value;
+  }
+
+  async appshot(foreground_pid: number, signal: AbortSignal): Promise<ComputerAppshotResponse> {
+    const value = await this.send('user-appshot', { operation: 'appshot', foreground_pid }, signal);
+    if (value.kind !== 'appshot') throw new Error('Invalid Appshot reply');
+    return value;
+  }
+
+  private send(thread: string, request: ComputerWorkerOperation, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerWorkerValue> {
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
@@ -45,7 +57,7 @@ export class ComputerClient {
       signal.throwIfAborted();
       const connection = this.connection;
       if (!connection) throw new ComputerFailure({ code: 'cancelled', message: 'Computer Use was interrupted before dispatch.' });
-      return new Promise<ComputerResponse>((resolve, reject) => {
+      return new Promise<ComputerWorkerValue>((resolve, reject) => {
         const abort = () => { void this.stop('cancelled').catch(() => {}); };
         const timer = setTimeout(() => { void this.stop('timeout').catch(() => {}); }, 30_000);
         const id = randomUUID();

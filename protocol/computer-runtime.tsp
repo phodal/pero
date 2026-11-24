@@ -32,11 +32,13 @@ model ComputerActRequest { operation: "act"; action: ComputerAction; ...Computer
 model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }
 @oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerScreenshotRequest, ComputerReadOcrRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
+model ComputerAppshotRequest { operation: "appshot"; @minValue(1) foreground_pid: int32; ...ComputerClosed; }
+@oneOf union ComputerWorkerOperation { ComputerRequest, ComputerAppshotRequest }
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
 model ComputerWorkerRequest {
   id: ComputerRef;
   thread: ComputerRef;
-  request: ComputerRequest;
+  request: ComputerWorkerOperation;
   allowed_applications?: ComputerRef[];
   ...ComputerClosed;
 }
@@ -79,7 +81,16 @@ model ComputerOcrResponse {
 model ComputerReceiptResponse { kind: "receipt"; receipt: ComputerActionReceipt; ...ComputerClosed; }
 model ComputerStoppedResponse { kind: "stopped"; ...ComputerClosed; }
 @oneOf union ComputerResponse { ComputerStatusResponse, ComputerTargetsResponse, ComputerOpenedResponse, ComputerObservationResponse, ComputerOcrResponse, ComputerReceiptResponse, ComputerStoppedResponse }
-model ComputerWorkerSuccess { id: ComputerRef; value: ComputerResponse; ...ComputerClosed; }
+model ComputerAppshotResponse {
+  kind: "appshot";
+  id: ComputerRef;
+  title: string;
+  image: ComputerImageContent;
+  @maxLength(6000) text: string;
+  ...ComputerClosed;
+}
+@oneOf union ComputerWorkerValue { ComputerResponse, ComputerAppshotResponse }
+model ComputerWorkerSuccess { id: ComputerRef; value: ComputerWorkerValue; ...ComputerClosed; }
 model ComputerWorkerFailure { id: ComputerRef; error: ComputerError; ...ComputerClosed; }
 @oneOf union ComputerWorkerResponse { ComputerWorkerSuccess, ComputerWorkerFailure }
 model ComputerGetControl { action: "computer_get"; ...ComputerClosed; }

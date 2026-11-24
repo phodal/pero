@@ -1,5 +1,6 @@
 //! Computer Use transport values; the caller identity stays outside model arguments.
 use crate::computer_use::*;
+use crate::context::{ContextContent, ContextKind, ContextReference};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -92,6 +93,47 @@ impl ComputerSettings {
 pub struct ComputerImageContent {
     pub media_type: ComputerImageType,
     pub data: String,
+}
+/// User-triggered context. This is not an agent ComputerResponse or an input anchor.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ComputerAppshotResponse {
+    Appshot {
+        id: ComputerRef,
+        title: String,
+        image: ComputerImageContent,
+        text: String,
+    },
+}
+impl ComputerAppshotResponse {
+    pub fn into_contexts(self, images: bool, text_label: &str) -> Vec<ContextReference> {
+        let Self::Appshot { id, title, image, text } = self;
+        let source = format!("appshot:{}", id.as_str());
+        let mut contexts = Vec::new();
+        if images {
+            let mime_type = match image.media_type {
+                ComputerImageType::Png => "image/png",
+                ComputerImageType::Jpeg => "image/jpeg",
+            };
+            contexts.push(ContextReference {
+                id: format!("{source}:image"),
+                label: title.clone(),
+                source: source.clone(),
+                kind: ContextKind::Image,
+                content: ContextContent::Image { data: image.data, mime_type: mime_type.into() },
+            });
+        }
+        if !text.is_empty() {
+            contexts.push(ContextReference {
+                id: format!("{source}:text"),
+                label: format!("{title} · {text_label}"),
+                source,
+                kind: ContextKind::Selection,
+                content: ContextContent::Text { text },
+            });
+        }
+        contexts
+    }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

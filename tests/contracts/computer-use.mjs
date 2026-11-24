@@ -50,3 +50,6 @@ assert.ok(validate('ComputerWorkerRequest', {
   id: 'internal', thread: 'session', request: { operation: 'targets' },
   allowed_applications: ['dev.pero.fixture'],
 }).valid);
+const appshot = { operation: 'appshot', foreground_pid: 42 };
+assert.equal(validate('ComputerRequest', appshot).valid, false);
+assert.ok(validate('ComputerWorkerRequest', { id: 'internal', thread: 'local', request: appshot }).valid);

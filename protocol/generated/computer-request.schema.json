@@ -115,6 +115,26 @@
       ],
       "additionalProperties": false
     },
+    "ComputerAppshotRequest": {
+      "title": "ComputerAppshotRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "appshot"
+        },
+        "foreground_pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "operation",
+        "foreground_pid"
+      ],
+      "additionalProperties": false
+    },
     "ComputerBundleSelector": {
       "title": "ComputerBundleSelector",
       "type": "object",
@@ -1020,6 +1040,17 @@
       "maxLength": 10000,
       "description": "Replacement permits an empty value to clear the field."
     },
+    "ComputerWorkerOperation": {
+      "title": "ComputerWorkerOperation",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerRequest"
+        },
+        {
+          "$ref": "#/$defs/ComputerAppshotRequest"
+        }
+      ]
+    },
     "ComputerWorkerRequest": {
       "title": "ComputerWorkerRequest",
       "type": "object",
@@ -1031,7 +1062,7 @@
           "$ref": "#/$defs/ComputerRef"
         },
         "request": {
-          "$ref": "#/$defs/ComputerRequest"
+          "$ref": "#/$defs/ComputerWorkerOperation"
         },
         "allowed_applications": {
           "type": "array",

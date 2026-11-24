@@ -134,6 +134,37 @@
       ],
       "additionalProperties": false
     },
+    "ComputerAppshotResponse": {
+      "title": "ComputerAppshotResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "appshot"
+        },
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "title": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/$defs/ComputerImageContent"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "image",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "ComputerCapabilities": {
       "title": "ComputerCapabilities",
       "type": "object",
@@ -1153,7 +1184,7 @@
           "$ref": "#/$defs/ComputerRef"
         },
         "value": {
-          "$ref": "#/$defs/ComputerResponse"
+          "$ref": "#/$defs/ComputerWorkerValue"
         }
       },
       "required": [
@@ -1161,6 +1192,17 @@
         "value"
       ],
       "additionalProperties": false
+    },
+    "ComputerWorkerValue": {
+      "title": "ComputerWorkerValue",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerAppshotResponse"
+        }
+      ]
     }
   }
 }
