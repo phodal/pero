@@ -1,5 +1,21 @@
 # Notebook verification
 
+## Writing typography (2026-11-24)
+
+With source `5a7037e7d` plus this style change, the Notes view uses
+the shared 24px title and 14px body tokens directly instead of enlarging them
+by 1.34 and 1.15. Prose h1/h2/h3 now render at 1.5/1.3/1.15 times the body
+size; the body line height is 1.7. The document title, heading semantics,
+editing, font scaling and other App controls retain their existing owners.
+
+Notebook build and typecheck passed. A Chromium fixture opened the built App
+with a temporary Notebook backend at 1440 × 900 in Chinese/light mode. A
+temporary heading sample inserted into the editor DOM for visual inspection
+rendered title/h1/h2/h3/body at 24/21/18.2/16.1/14px; the inspected image is
+`test-results/notebook/typography-light.png` (local, ignored). This confirms
+the CSS hierarchy in the browser, not saved heading behavior or Native/Desktop
+rendering.
+
 ## Notebook design alignment (2026-11-11)
 
 Product source `0bcdd805` and `91d4be4d` replaces gray toolbar chips with
