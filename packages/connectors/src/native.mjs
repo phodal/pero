@@ -11,6 +11,8 @@ import { cp } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { BrowserDeveloperMode } from '../../../desktop/src/main/browser-use/diagnostics.ts';
+import { BrowserSiteToolsMode } from '../../../desktop/src/main/browser-use/site-tool-session.ts';
 import { freezeDownloadBytes } from '../../../desktop/src/main/browser-use/download.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
 import { projectSourceCommand } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
@@ -44,14 +46,23 @@ const owner = new HostConnectors({ root, executable, helpers, nodeExecutable: pr
 const mcp = new ConnectorMcp(owner);
 const routes = new AppWriteRoutes((action, fields = {}) => effect('apps', { value: { action, ...fields } }),
   event => effect('surface', { value: { action: 'written', event } }), fetch);
+const saveComputer = async change => {
+  const next = await effect('computer.settings', { value: change });
+  await computer.restore(next.enabled, next.allowed_applications);
+};
 const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'computer-use'),
   event => send({ id: 0, computer_state: event.data }), {
-    save: async enabled => {
-      await effect('computer.settings', { value: enabled });
-      await computer.restore(enabled);
-    },
+    ...(process.platform === 'darwin' && {
+      preview: (thread, target) => send({ id: 0, computer_preview: { thread, target } }),
+    }),
+    save: enabled => saveComputer({ method: 'settings.computer', enabled }),
+    saveApplication: (application_id, allowed) => saveComputer({ method: 'settings.computer.application', application_id, allowed }),
   });
 const browserEvidence = join(dirname(root), 'browser-use-evidence');
+const browserDeveloperMode = new BrowserDeveloperMode(async (thread, origin) =>
+  await effect('surface', { value: { action: 'chrome-diagnostic-approval', thread, origin } }) === 'allow');
+const browserSiteTools = new BrowserSiteToolsMode(async (thread, origin, review) =>
+  await effect('surface', { value: { action: 'chrome-site-tool-approval', thread, origin, review } }) === 'allow');
 const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchBrowserUse(
   new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
   selected, browserEvidence, async (thread, request, check) => {
@@ -83,7 +94,7 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
   }, 'local', {
     currentTurn: thread => appUse.authority.browserTurn(thread),
     prompt: (thread, origin) => effect('surface', { value: { action: 'chrome-site-approval', thread, origin } }),
-  },
+  }, browserDeveloperMode.approve, browserSiteTools,
 ) : undefined;
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),
@@ -162,7 +173,7 @@ input.on('line', line => {
     else promise?.reject(Object.assign(new Error(message.code), { code: message.code }));
   } else if (message.event) {
     if (message.event.kind === 'computer_settings') {
-      void computer.restore(message.event.data.enabled).then(() => computer.status()).catch(console.error);
+      void computer.restore(message.event.data.enabled, message.event.data.allowed_applications).then(() => computer.status()).catch(console.error);
     } else {
       mcp.accept(message.event);
       appUse.accept(message.event);
@@ -180,7 +191,11 @@ input.on('line', line => {
   } else if (message.id) {
     const request = message.request;
     const relay = appUse.browser?.relay;
-    const result = request?.operation === 'app-context'
+    const result = request?.operation === 'computer-preview'
+      ? appUse.computerPreview(request.thread, request.preview_id)
+      : request?.operation === 'appshot'
+        ? computer.appshot(request.foreground_pid)
+      : request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
       : ['cloud-browser-target', 'cloud-browser-start'].includes(request?.operation)
         ? handleCloudBrowser(request, relay)
@@ -198,12 +213,18 @@ input.on('line', line => {
         ? relay.siteAccess.rules().then(rules => ({ ok: true, rules }))
       : relay?.siteAccess && request?.operation === 'chrome-site-clear'
         ? Promise.resolve(relay.revoke()).then(() => relay.siteAccess.clear()).then(() => ({ ok: true }))
+      : relay && ['chrome-developer-mode', 'chrome-site-tools'].includes(request?.operation)
+        ? Promise.resolve().then(() => {
+          const mode = request.operation === 'chrome-site-tools' ? browserSiteTools : browserDeveloperMode;
+          if (typeof request.enabled === 'boolean') mode.set(request.enabled);
+          return { ok: true, enabled: mode.enabled };
+        })
         : relay && request?.operation === 'chrome-relay-stop'
           ? Promise.resolve(relay.revoke()).then(() => ({ ok: true }))
           : owner.request(request);
     void result.then(
       value => send({ id: message.id, value }),
-      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(message.request?.operation === 'app-context' ? { message: String(error.message) } : {}) } }),
+      error => send({ id: message.id, value: { ok: false, code: 'MCP_OPERATION_FAILED', ...(['app-context', 'appshot'].includes(request?.operation) ? { message: String(error.message) } : {}) } }),
     );
   }
 });

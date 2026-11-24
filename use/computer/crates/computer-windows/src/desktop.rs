@@ -122,7 +122,7 @@ impl DesktopDriver for Desktop {
         result
             .snapshot
             .filter(|_| result.ok)
-            .map(bridge::observation)
+            .map(|snapshot| bridge::observation(snapshot, options.want_image))
             .ok_or_else(|| error(ComputerErrorCode::PermissionRequired, result.text))
     }
     fn admit(&self, snap: &native::Snapshot, action: &ComputerAction) -> Result<(), ComputerError> {
@@ -246,6 +246,8 @@ impl DesktopDriver for Desktop {
             }
             ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
+            | ComputerInput::SelectText { .. }
+            | ComputerInput::Paste { .. }
             | ComputerInput::PerformAction { .. } => {
                 return Err(error(
                     ComputerErrorCode::Unsupported,

@@ -130,6 +130,24 @@ try {
   host.send({method:'settings.computer.get'});
   if (!(await host.next('computer_settings')).data.enabled) failures.push('Invalid Computer Use settings replaced the saved value');
 
+  const changeAppAccess = async (id, application_id, allowed) => {
+    host.send({method:'settings.computer.application', id, application_id, allowed});
+    return (await host.next('computer_settings',event=>event.request_id===id)).data;
+  };
+  await changeAppAccess('computer-first-app', 'dev.pero.fixture', true);
+  const profile = await changeAppAccess('computer-second-app', 'dev.pero.other', true);
+  if (!profile.enabled || profile.allowed_applications.join(',') !== 'dev.pero.fixture,dev.pero.other')
+    failures.push('Granting a Computer Use app lost existing settings');
+  host.send({method:'settings.computer',id:'computer-disable',enabled:false});
+  const disabled = (await host.next('computer_settings',event=>event.request_id==='computer-disable')).data;
+  if (disabled.enabled || disabled.allowed_applications.length !== 2) failures.push('Disabling Computer Use deleted its application grants');
+  const revoked = await changeAppAccess('computer-revoke-app', 'dev.pero.fixture', false);
+  if (revoked.enabled || revoked.allowed_applications.join(',') !== 'dev.pero.other')
+    failures.push('Revoking an application changed unrelated Computer Use settings');
+  host.send({method:'settings.computer',id:'computer-enable-again',enabled:true});
+  await host.next('computer_settings',event=>event.request_id==='computer-enable-again');
+
+
   const guide=resolve(temp,'guide.md');
   writeFileSync(guide,'# File document\n');
   writeFileSync(resolve(temp,'data set.json'),'[{"n":9007199254740993}]');
@@ -378,6 +396,9 @@ try {
   const connectorUrl = 'http://127.0.0.1:1/mcp', connectorSecret = 'ab'.repeat(32);
   host = startHost({PERO_CONNECTORS_URL:connectorUrl, PERO_CONNECTORS_TOKEN:connectorSecret});
   await host.next('ready');
+  const restoredComputer = (await host.next('computer_settings')).data;
+  if (!restoredComputer.enabled || restoredComputer.allowed_applications.join(',') !== 'dev.pero.other')
+    failures.push('Computer Use application grants were lost after Host restart');
   host.send({method:'settings.workbench.get'});
   if (!isDeepStrictEqual((await host.next('workbench_settings')).data,workbench)) failures.push('Workbench preferences were lost after Host restart');
   if (!isDeepStrictEqual(preferences().remote_connection, storedConnection)) failures.push('Remote preference was lost after Host restart');

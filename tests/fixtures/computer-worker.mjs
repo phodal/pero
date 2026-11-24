@@ -9,9 +9,22 @@ for await (const line of createInterface({input:process.stdin})) {
   let value;
   if(request.operation==='status') value={kind:'status',status};
   else if(request.operation==='targets') value={kind:'targets',capabilities:fixture.capabilities,targets:[fixture.target]};
+  else if(request.operation==='screenshot') {
+    const media_type = 'image/png';
+    value = {
+      kind: 'observation',
+      observation: { ...fixture.observation, elements: [], screenshot: { id: 'fixture-image', media_type, width: 1, height: 1 } },
+      capture_status: 'captured',
+      ocr_status: request.recognize_text ? 'pending' : 'not_requested',
+      image: { media_type, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9xkAAAAASUVORK5CYII=' },
+    };
+  }
+  else if(request.operation==='read_ocr') value={kind:'ocr',screenshot_id:request.screenshot_id,ocr_status:'ready',recognized_text:'车企实践 / Test Agent'};
   else if(request.operation==='observe') {
     value={kind:'observation',observation:fixture.observation,image:null};
     if (request.options?.want_image) {
+      value.capture_status = 'captured';
+      value.ocr_status = 'ready';
       const media_type = 'image/png';
       value.observation = {
         ...fixture.observation,

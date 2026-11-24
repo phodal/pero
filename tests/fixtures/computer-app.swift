@@ -113,7 +113,9 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
            let id = command["id"], id != lastCommand {
             lastCommand = id
             switch command["action"] {
-            case "raise": window.makeKeyAndOrderFront(nil)
+            case "raise":
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
             case "overlay":
                 let cover = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
                 cover.title = "Pero Same Process Overlay"

@@ -10,11 +10,13 @@ export type ComputerWorkerResponse = ComputerWorkerSuccess | ComputerWorkerFailu
  * Host-issued references, never OS handles, paths, credentials or caller identities.
  */
 export type ComputerRef = string;
+export type ComputerWorkerValue = ComputerResponse | ComputerAppshotResponse | ComputerPreviewResponse;
 export type ComputerResponse =
   | ComputerStatusResponse
   | ComputerTargetsResponse
   | ComputerOpenedResponse
   | ComputerObservationResponse
+  | ComputerOcrResponse
   | ComputerReceiptResponse
   | ComputerStoppedResponse;
 export type ComputerPermissionState = "granted" | "not_detected" | "unsupported";
@@ -28,6 +30,8 @@ export type ComputerActionKind =
   | "scroll"
   | "drag"
   | "set_value"
+  | "select_text"
+  | "paste"
   | "perform_action"
   | "move"
   | "hover"
@@ -38,6 +42,16 @@ export type ComputerAddressing = "element" | "pixel" | "target";
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 export type ComputerDimension = number;
+export type ComputerCaptureStatus =
+  | "captured"
+  | "not_requested"
+  | "subtree"
+  | "screen_recording_required"
+  | "incomplete_scan"
+  | "secure_content"
+  | "unavailable";
+export type ComputerOcrStatus =
+  "not_requested" | "no_image" | "unsupported" | "busy" | "pending" | "ready" | "no_text" | "failed";
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
 /**
  * Execution acknowledgement only; it does not assert a verified task outcome.
@@ -49,13 +63,14 @@ export type ComputerErrorCode =
   | "target_unavailable"
   | "stale_observation"
   | "invalid_request"
+  | "busy"
   | "cancelled"
   | "timeout"
   | "failed";
 
 export interface ComputerWorkerSuccess {
   id: ComputerRef;
-  value: ComputerResponse;
+  value: ComputerWorkerValue;
 }
 export interface ComputerStatusResponse {
   kind: "status";
@@ -113,6 +128,8 @@ export interface ComputerObservationResponse {
   kind: "observation";
   observation: ComputerObservation;
   image?: ComputerImageContent | null;
+  capture_status?: ComputerCaptureStatus;
+  ocr_status?: ComputerOcrStatus;
   /**
    * Unverified OCR of the same window image, when available.
    */
@@ -168,6 +185,12 @@ export interface ComputerObservationDelta {
    */
   element_order?: ComputerRef[];
 }
+export interface ComputerOcrResponse {
+  kind: "ocr";
+  screenshot_id: ComputerRef;
+  ocr_status: ComputerOcrStatus;
+  recognized_text?: string;
+}
 export interface ComputerReceiptResponse {
   kind: "receipt";
   receipt: ComputerActionReceipt;
@@ -204,6 +227,17 @@ export interface ComputerUnknown {
 export interface ComputerStoppedResponse {
   kind: "stopped";
 }
+export interface ComputerAppshotResponse {
+  kind: "appshot";
+  id: ComputerRef;
+  title: string;
+  image: ComputerImageContent;
+  text: string;
+}
+export interface ComputerPreviewResponse {
+  kind: "preview_frame";
+  image: ComputerImageContent | null;
+}
 export interface ComputerWorkerFailure {
   id: ComputerRef;
   error: ComputerError;
@@ -212,7 +246,13 @@ export interface ComputerUseState {
   enabled: boolean;
   running: boolean;
   status: ComputerDriverStatus;
+  applications?: ComputerApplicationAccess[];
   error?: string | null;
+}
+export interface ComputerApplicationAccess {
+  application_id: ComputerRef;
+  name: string;
+  allowed: boolean;
 }
 export interface ComputerSettingsEvent {
   version: 1;
@@ -223,6 +263,7 @@ export interface ComputerSettingsEvent {
 }
 export interface ComputerSettingsData {
   enabled: boolean;
+  allowed_applications?: ComputerRef[];
 }
 export interface ComputerSettingsErrorEvent {
   version: 1;

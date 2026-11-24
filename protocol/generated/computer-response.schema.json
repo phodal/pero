@@ -31,6 +31,8 @@
         "scroll",
         "drag",
         "set_value",
+        "select_text",
+        "paste",
         "perform_action",
         "move",
         "hover",
@@ -111,6 +113,58 @@
         "target"
       ]
     },
+    "ComputerApplicationAccess": {
+      "title": "ComputerApplicationAccess",
+      "type": "object",
+      "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "name": {
+          "type": "string"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "application_id",
+        "name",
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerAppshotResponse": {
+      "title": "ComputerAppshotResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "appshot"
+        },
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "title": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/$defs/ComputerImageContent"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "image",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "ComputerCapabilities": {
       "title": "ComputerCapabilities",
       "type": "object",
@@ -146,6 +200,19 @@
         "actions"
       ],
       "additionalProperties": false
+    },
+    "ComputerCaptureStatus": {
+      "title": "ComputerCaptureStatus",
+      "type": "string",
+      "enum": [
+        "captured",
+        "not_requested",
+        "subtree",
+        "screen_recording_required",
+        "incomplete_scan",
+        "secure_content",
+        "unavailable"
+      ]
     },
     "ComputerDelivery": {
       "title": "ComputerDelivery",
@@ -365,6 +432,7 @@
         "target_unavailable",
         "stale_observation",
         "invalid_request",
+        "busy",
         "cancelled",
         "timeout",
         "failed"
@@ -547,6 +615,12 @@
             }
           ]
         },
+        "capture_status": {
+          "$ref": "#/$defs/ComputerCaptureStatus"
+        },
+        "ocr_status": {
+          "$ref": "#/$defs/ComputerOcrStatus"
+        },
         "recognized_text": {
           "type": "string",
           "maxLength": 6000,
@@ -562,6 +636,46 @@
         "observation"
       ],
       "additionalProperties": false
+    },
+    "ComputerOcrResponse": {
+      "title": "ComputerOcrResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ocr"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "ocr_status": {
+          "$ref": "#/$defs/ComputerOcrStatus"
+        },
+        "recognized_text": {
+          "type": "string",
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "kind",
+        "screenshot_id",
+        "ocr_status"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerOcrStatus": {
+      "title": "ComputerOcrStatus",
+      "type": "string",
+      "enum": [
+        "not_requested",
+        "no_image",
+        "unsupported",
+        "busy",
+        "pending",
+        "ready",
+        "no_text",
+        "failed"
+      ]
     },
     "ComputerOpenedResponse": {
       "title": "ComputerOpenedResponse",
@@ -609,6 +723,31 @@
         "linux",
         "other"
       ]
+    },
+    "ComputerPreviewResponse": {
+      "title": "ComputerPreviewResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "preview_frame"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerImageContent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "image"
+      ],
+      "additionalProperties": false
     },
     "ComputerReceiptResponse": {
       "title": "ComputerReceiptResponse",
@@ -668,6 +807,9 @@
         },
         {
           "$ref": "#/$defs/ComputerObservationResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerOcrResponse"
         },
         {
           "$ref": "#/$defs/ComputerReceiptResponse"
@@ -732,6 +874,12 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "allowed_applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          }
         }
       },
       "required": [
@@ -1001,6 +1149,12 @@
         "status": {
           "$ref": "#/$defs/ComputerDriverStatus"
         },
+        "applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerApplicationAccess"
+          }
+        },
         "error": {
           "anyOf": [
             {
@@ -1055,7 +1209,7 @@
           "$ref": "#/$defs/ComputerRef"
         },
         "value": {
-          "$ref": "#/$defs/ComputerResponse"
+          "$ref": "#/$defs/ComputerWorkerValue"
         }
       },
       "required": [
@@ -1063,6 +1217,20 @@
         "value"
       ],
       "additionalProperties": false
+    },
+    "ComputerWorkerValue": {
+      "title": "ComputerWorkerValue",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ComputerResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerAppshotResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerPreviewResponse"
+        }
+      ]
     }
   }
 }

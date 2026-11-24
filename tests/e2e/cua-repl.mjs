@@ -26,7 +26,7 @@ const agent = 'browser-use-fixture';
 await mkdir(profile);
 await writeFile(agents, JSON.stringify([{ id: agent, name: 'REPL fixture', command: process.execPath,
   args: [resolve(root, 'tests/fixtures/browser-use-agent.mjs')] }]));
-await writeFile(settings, JSON.stringify({ chat_agent: agent, computer_use: { enabled: desktopInput }, workbench: { layout: { chat_open: true } } }));
+await writeFile(settings, JSON.stringify({ chat_agent: agent, computer_use: { enabled: desktopInput, allowed_applications: [JSON.parse(fixtureBundle)] }, workbench: { layout: { chat_open: true } } }));
 let networkHits = 0;
 const server = createServer((request, response) => {
   if (request.url === '/probe') networkHits++;

@@ -76,7 +76,8 @@ fn main() -> io::Result<()> {
     emit(HostEvent::new("settings", None, locale.clone()))?;
     emit(HostEvent::message("ready", None, "status.host_ready"))?;
     let mut computer = HostEvent::new("computer_settings", None, String::new());
-    computer.data = serde_json::json!({"enabled":settings_path.as_deref().is_some_and(pero_runtime::settings::load_computer_enabled)});
+    computer.data = serde_json::json!(settings_path.as_deref()
+        .map(pero_runtime::settings::load_computer).unwrap_or_default());
     emit(computer)?;
     emit(icons.snapshot(None))?;
     let mut automation = automation::Automation::open(settings_path.as_deref(), &mut agents);
@@ -191,22 +192,20 @@ fn main() -> io::Result<()> {
                 String::new(),
             );
             if let Ok(request) = serde_json::from_value::<ComputerSettingsRequest>(value) {
-                let enabled = match request {
-                    ComputerSettingsRequest::Get {} => Some(
-                        settings_path
-                            .as_deref()
-                            .is_some_and(pero_runtime::settings::load_computer_enabled),
-                    ),
-                    ComputerSettingsRequest::Set { enabled, .. } => settings_path
-                        .as_deref()
-                        .filter(|path| {
-                            pero_runtime::settings::save_computer_enabled(path, enabled).is_ok()
-                        })
-                        .map(|_| enabled),
+                use pero_runtime::settings::{load_computer, update_computer};
+                let path = settings_path.as_deref();
+                let settings = match request {
+                    ComputerSettingsRequest::Get {} => Some(path.map(load_computer).unwrap_or_default()),
+                    ComputerSettingsRequest::Set { enabled, .. } => path
+                        .and_then(|path| update_computer(path, |settings| settings.enabled = enabled).ok()),
+                    ComputerSettingsRequest::SetApplication { application_id, allowed, .. } =>
+                        path.and_then(|path| update_computer(path, |settings| {
+                            settings.set_application_allowed(application_id, allowed);
+                        }).ok()),
                 };
-                if let Some(enabled) = enabled {
+                if let Some(settings) = settings {
                     event.kind = "computer_settings".into();
-                    event.data = serde_json::json!({"enabled":enabled});
+                    event.data = serde_json::json!(settings);
                 }
             }
             emit(event)?;

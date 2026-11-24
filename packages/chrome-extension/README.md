@@ -25,6 +25,24 @@ origin in the current Workbench profile. Open **Chrome site permissions** in
 the Workbench menu or Native Browser Use settings to see or clear saved
 decisions. To release one tab, use `handoff` with its `chrome:` ID.
 
+With extension 0.3.7 or newer, enable **Browser Developer Mode** in the
+Workbench or Native Chrome menu to use `diagnose` on the active paired tab.
+Approve each capture in Pero to share console output, runtime errors,
+network timing, computed styles and performance metrics with the conversation.
+Extension 0.3.8 also exposes `getAXState` under the usual tab and site
+permissions. Pass the previous `snapshotId` as `since` to receive AX changes.
+Pass `background: true` with an explicit `chrome:` tab ID to read or act on
+an inactive tab without selecting it.
+Extension 0.3.9 runs requests to different tabs concurrently. Await each
+operation before using the same tab again.
+
+With extension 0.3.10 or newer, **Browser Site Tools** in the Electron
+Workbench menu or Native Chrome menu enables `listSiteTools` and
+`callSiteTool` on an approved Chrome site.
+Use its explicit `chrome:` tab ID. Chrome must expose WebMCP on the page.
+Pero asks before discovering tools from partner origins and before each
+invocation. Reloading the page requires listing its tools again.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

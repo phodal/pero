@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { MAX_PARALLEL_REQUESTS } from '../../../../packages/chrome-extension/src/protocol.ts';
 import { AppUseError } from '../app-use-task.ts';
 
 export type ReplCapability = 'browser' | 'computer';
@@ -47,8 +48,8 @@ export class ConversationRepl {
     this.tool = {
       name: javascript ? 'javascript_repl' : 'python_repl',
       description: javascript
-        ? 'Run JavaScript in the current Electron conversation. Top-level bindings and await are supported. Call await cua.browser(request) or await cua.computer(request) with the browser_use or computer_use input schema. Use nodeRepl.write(value) for output and nodeRepl.emitImage(result) for an image from this cell. There are no Node imports. Await each action and reobserve after input. Authorization and receipts belong to the existing tools.'
-        : 'Run Python in the current Native conversation. Names and top-level await are supported. Call await cua.browser(request) or await cua.computer(request) with the browser_use or computer_use input schema. Use print(value) for output and cua.emit_image(result) for an image from this cell. Await each action and reobserve after input. Authorization and receipts belong to the existing tools.',
+        ? 'Run JavaScript in the current Electron conversation. Top-level bindings and await are supported. Call await cua.browser(request) or await cua.computer(request) with the browser_use or computer_use input schema. Use nodeRepl.write(value) for output and nodeRepl.emitImage(result) for an image from this cell. There are no Node imports. Await actions in order on each tab and reobserve after input. Separate calls with explicit Chrome tab IDs can run together. Authorization and receipts belong to the existing tools.'
+        : 'Run Python in the current Native conversation. Names and top-level await are supported. Call await cua.browser(request) or await cua.computer(request) with the browser_use or computer_use input schema. Use print(value) for output and cua.emit_image(result) for an image from this cell. Await actions in order on each tab and reobserve after input. Separate calls with explicit Chrome tab IDs can run together. Authorization and receipts belong to the existing tools.',
       inputSchema: z.toJSONSchema(execute, { target: 'draft-7' }),
     };
     this.resetTool = {
@@ -87,7 +88,7 @@ export class ConversationRepl {
     let textBytes = 0;
     let imageBytes = 0;
     let truncated = false;
-    let pending = false;
+    const pending = new Set<string>();
     let finished = false;
     const write = (text: string) => {
       const remaining = MAX_TEXT - textBytes;
@@ -117,7 +118,7 @@ export class ConversationRepl {
             }
           }
           if (event.type === 'done') {
-            if (pending) {
+            if (pending.size) {
               controller.abort(new Error('REPL ended with an unawaited action. Bindings cleared. Observe the target before retrying.'));
               return;
             }
@@ -129,11 +130,17 @@ export class ConversationRepl {
           if (bounded.aborted || finished) return;
           const send = (result: Extract<ReplCommand, {type:'reply'}>['result']) =>
             process.send({ type: 'reply', id: event.id, result });
-          if (pending) {
-            send({ error: 'Await each browser or computer call before starting the next one.' });
+          const input = event.input;
+          const target = event.capability === 'browser' && input && typeof input === 'object' &&
+            'tabId' in input && typeof input.tabId === 'string' && input.tabId.startsWith('chrome:') ? input.tabId : '';
+          if (pending.has(target) || pending.has('') || (!target && pending.size) || pending.size >= MAX_PARALLEL_REQUESTS) {
+            const error = target && pending.has(target)
+              ? 'A Browser Use operation is already in progress for this target.'
+              : 'Await each browser or computer call before starting the next one.';
+            send({ error });
             return;
           }
-          pending = true;
+          pending.add(target);
           let reply;
           try {
             const result = await invoke(event.capability, event.input, bounded);
@@ -149,7 +156,7 @@ export class ConversationRepl {
           } catch (failure) {
             reply = { error: failure instanceof Error ? failure.message : String(failure) };
           } finally {
-            pending = false;
+            pending.delete(target);
           }
           if (!bounded.aborted && !finished) send(reply);
         };

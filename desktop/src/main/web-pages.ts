@@ -67,7 +67,8 @@ export class WebPages {
   private async open(document:WebDocument,restored=false,initialOrigin?:string) {
     const previous=this.pages.get(document.id);
     if(previous){this.emit(restored?'web_state':'web_opened',previous);return;}
-    const view=new WebContentsView({webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,session:this.partition}});
+    const view=new WebContentsView({webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,
+      session:this.partition,enableBlinkFeatures:'WebMCP'}});
     view.setVisible(false);this.window.contentView.addChildView(view);
     const page:Page={view,document};this.pages.set(document.id,page);
     if(document.html){

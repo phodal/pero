@@ -59,6 +59,7 @@ pub fn open(
 
 unsafe extern "C" {
     fn pero_activate_application(pid: i32) -> bool;
+    fn pero_frontmost_application_pid() -> i32;
 }
 pub fn activate(pid: i32) -> Result<(), ComputerError> {
     if unsafe { pero_activate_application(pid) } {
@@ -69,4 +70,8 @@ pub fn activate(pid: i32) -> Result<(), ComputerError> {
             "Cannot activate the selected application",
         ))
     }
+}
+
+pub fn frontmost_pid() -> i32 {
+    unsafe { pero_frontmost_application_pid() }
 }

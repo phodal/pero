@@ -130,6 +130,8 @@ mod native_secrets;
 mod native_connectors;
 #[cfg(all(feature = "native", target_os = "macos"))]
 mod native_computer_hotkey;
+#[cfg(all(feature = "native", target_os = "macos"))]
+mod native_computer_preview;
 
 #[cfg_attr(not(any(target_family = "wasm", feature = "native")), allow(dead_code))]
 mod workspace;

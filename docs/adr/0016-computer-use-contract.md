@@ -139,7 +139,7 @@ port; see [integration assessment](../design-docs/computer-use-cua-adapter.md).
 ```mermaid
 flowchart LR
   Agent[ACP Agent] -->|Host-injected conversation identity| MCP[Existing Desktop MCP]
-  MCP --> Authority[Selected running conversation]
+  MCP --> Authority[Running conversation and delivery scope]
   Authority --> Desktop[DesktopComputer: receipts and evidence]
   Desktop -->|Private NDJSON| Native[Native helper: runtime and platform libraries]
   Native --> Core[Pure action admission]
@@ -148,15 +148,22 @@ flowchart LR
   Host --> Desktop
 ```
 
-The model sees `computer_use` with status, targets, open, observe, act, receipt
-and stop. It cannot provide a caller identity, OS handle, permission grant,
+The model sees `computer_use` with status, targets, open, observe, screenshot,
+read_ocr, act, receipt and stop. It cannot provide a caller identity, OS handle, permission grant,
 executable path, transport URL or settings mutation. Host attaches the MCP
-credentials and conversation header during ACP session creation. Desktop
-admits calls only for the selected running conversation using the existing
-App Use authority; Agent tool approval remains the approval owner.
+credentials and conversation header during ACP session creation. Ordinary
+local macOS conversations can run background Computer Use while another
+conversation is selected. Opening an app, foreground input, and the other
+Computer Use routes still require the selected running conversation. Agent
+tool approval remains the approval owner.
 
-`DesktopComputer` owns one serialized helper connection. The native process
-owns opaque runtime/target handles and one current observation per conversation.
+`DesktopComputer` gives each running local macOS conversation its own serial
+helper connection. An app claim starts at the first observation, screenshot
+or open request and lasts until the worker has stopped. Another conversation
+receives `busy` when it tries to claim that app. Different apps can run
+background input concurrently; foreground input requires exclusive input.
+Other platform routes continue to use their existing connection.
+The native process owns opaque runtime/target handles and one current observation per conversation.
 A new observation replaces the old one; every attempted action consumes it.
 Window liveness, identity and geometry are rechecked before native dispatch.
 Background input never silently escalates to global input. Foreground click and
@@ -166,22 +173,35 @@ observed point in the target application before posting input there.
 The helper captures eligible window pixels in memory. macOS 14+ uses an
 in-process ScreenCaptureKit bridge because the legacy CoreGraphics window
 capture API is obsolete in newer SDKs; older systems use the Point capture
-function. Secure or incomplete AX
-trees suppress capture. Desktop stores image bytes and SHA-256 metadata under
-its own profile. It stores per-conversation action intents/receipts privately;
+function. Secure or incomplete AX trees suppress capture. A screenshot-only
+request creates a fresh pixel anchor and leaves the whole-window AX delta
+baseline in place. Capture status reports why pixels are absent. Optional
+macOS Vision OCR can finish after the initial response and is readable with
+the screenshot ID in the same conversation. Desktop stores image bytes and
+SHA-256 metadata under its own profile. It stores per-conversation action intents/receipts privately;
 reusing an ID returns its receipt, and conflicting input with the same ID is
 rejected. Duplicate pending calls share one result. No automatic retry exists.
 
-Turning the switch off, cancelling, changing conversation, stopping, navigation,
-or shutdown interrupts active input. Stop waits for confirmed process exit;
-Desktop persists uncertain results before acknowledging shutdown. The emergency
-shortcut is Command/Ctrl+Shift+Escape. A person's Stop also disables new
-Computer Use input until re-enabled; the model's separate stop request only
-resets the native connection. Process restart invalidates handles;
-receipts remain queryable from the Desktop journal.
+A turn finishing, a cancellation or a model stop closes that conversation's
+local macOS helper. A selection change leaves other background Computer Use
+calls active. Stop waits for confirmed process exit before releasing app and
+input ownership. Desktop persists uncertain results before acknowledging
+shutdown. Turning the switch off, the emergency shortcut
+Command/Ctrl+Shift+Escape, or shutting down stops all workers. A person's Stop
+also disables new Computer Use input until re-enabled. Process restart
+invalidates handles; receipts remain queryable from the Desktop journal.
 
 Settings are disabled by default and persisted by Host without replacing other
-preferences. Only a trusted Settings/menu gesture can request OS permissions.
+preferences. Local macOS profiles also store allowed bundle IDs. The global
+switch alone grants no applications. Settings can list running app names and
+bundle IDs for the user. The Desktop sends the grants outside the model's
+request. The native helper checks them before returning targets, launching,
+resolving a window for observation or input, or returning OCR. Revoking a grant
+interrupts only the affected conversations and invalidates their previous
+window references.
+Existing execution receipts remain readable. The local macOS list does not
+grant access to attached remote desktops. Only a trusted Settings/menu gesture
+can request OS permissions.
 Preflight is advisory: recent macOS can report grants while returning the app
 itself as every AX window. The adapter reports `permission_required` immediately
 for that shape, rather than walking a cycle or claiming a valid observation.
@@ -242,6 +262,15 @@ both element advertisements and runtime action/delivery/addressing support.
 macOS receipts report semantic, window-event or foreground-event execution and,
 when applicable, the actual semantic action. Other drivers may omit execution
 details and continue to refuse unimplemented inputs.
+
+macOS `select_text` resolves exact text and optional adjacent context to a
+UTF-16 selection or caret. The editor must advertise a writable selection.
+`paste` accepts `text`, `md`, or `html` in a focused foreground window. The
+Desktop reserves exclusive input while the helper writes a temporary
+pasteboard item and delivers Paste. Markdown is rendered as HTML. The helper
+restores the previous clipboard representations if the clipboard is still
+owned by the operation. It leaves a newer clipboard item in place and reports
+uncertain delivery when it does not observe an editor change.
 
 An `open` application accepts the existing name string or a typed bundle-ID
 selector. macOS discovers all layer-zero windows, including several from the same

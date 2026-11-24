@@ -1,4 +1,5 @@
 //! Modern macOS window capture; all image bytes remain in this process.
+use computer_runtime::WindowText;
 use std::ffi::c_void;
 
 unsafe extern "C" {
@@ -9,7 +10,11 @@ unsafe extern "C" {
         width: *mut u32,
         height: *mut u32,
     ) -> *mut c_void;
-    fn pero_recognize_window_text(bytes: *const u8, length: usize) -> *mut c_void;
+    fn pero_recognize_window_text(
+        bytes: *const u8,
+        length: usize,
+        succeeded: *mut bool,
+    ) -> *mut c_void;
 }
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
@@ -42,10 +47,16 @@ pub fn window(window: u32) -> Option<WindowImage> {
     })
 }
 
-pub fn recognize_text(jpeg: &[u8]) -> Option<String> {
-    let bytes = take_data(unsafe { pero_recognize_window_text(jpeg.as_ptr(), jpeg.len()) })?;
-    let text = String::from_utf8(bytes).ok()?;
-    Some(text.chars().take(6000).collect())
+pub fn recognize_text(jpeg: &[u8]) -> WindowText {
+    let mut succeeded = false;
+    let data = unsafe { pero_recognize_window_text(jpeg.as_ptr(), jpeg.len(), &mut succeeded) };
+    match take_data(data) {
+        Some(bytes) => String::from_utf8(bytes).map_or(WindowText::Failed, |text| {
+            WindowText::Recognized(text.chars().take(6000).collect())
+        }),
+        None if succeeded => WindowText::NoText,
+        None => WindowText::Failed,
+    }
 }
 
 fn take_data(data: *mut c_void) -> Option<Vec<u8>> {

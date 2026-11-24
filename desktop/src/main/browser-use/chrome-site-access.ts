@@ -18,6 +18,7 @@ export type ChromeSiteAccessPort = {
 /** Site consent is independent of whether the profile is paired. */
 export class ChromeSiteAccess {
   private saved?: Promise<Record<string, z.infer<typeof savedDecision>>>;
+  private reviews = Promise.resolve();
   private readonly oneTurn = new Map<string, { turn: symbol; pairing: string; decisions: Map<string, 'once' | 'decline'> }>();
 
   constructor(private readonly path: string, private readonly port: ChromeSiteAccessPort) {}
@@ -42,38 +43,55 @@ export class ChromeSiteAccess {
   }
 
   async clear() {
-    await this.save({});
-    this.oneTurn.clear();
+    await this.review(async () => {
+      await this.save({});
+      this.oneTurn.clear();
+    });
   }
 
   async require(thread: string, pairing: string, origin: string, signal: AbortSignal) {
     const turn = this.port.currentTurn(thread);
     if (turn === undefined) throw new Error('Chrome site access requires a running conversation.');
-    const state = await this.status(thread, pairing, origin);
-    signal.throwIfAborted();
-    if (state === 'allowed') return false;
-    if (state === 'blocked' || state === 'declined') throw new Error(`Chrome site access was ${state} for ${origin}.`);
-    const decision = consent.parse(await this.port.prompt(thread, origin));
-    signal.throwIfAborted();
-    if (this.port.currentTurn(thread) !== turn) throw new Error('The conversation turn changed during Chrome site approval.');
-    if (decision === 'allow' || decision === 'block')
-      await this.save({ ...await this.rules(), [origin]: decision });
-    else {
-      let active = this.oneTurn.get(thread);
-      if (active?.turn !== turn || active.pairing !== pairing) {
-        active = { turn, pairing, decisions: new Map() };
-        this.oneTurn.set(thread, active);
+    const checkTurn = () => {
+      signal.throwIfAborted();
+      if (this.port.currentTurn(thread) !== turn) throw new Error('The conversation turn changed during Chrome site approval.');
+    };
+    const allowed = async () => {
+      const state = await this.status(thread, pairing, origin);
+      checkTurn();
+      if (state === 'blocked' || state === 'declined') throw new Error(`Chrome site access was ${state} for ${origin}.`);
+      return state === 'allowed';
+    };
+    if (await allowed()) return false;
+    return this.review(async () => {
+      if (await allowed()) return true;
+      const decision = consent.parse(await this.port.prompt(thread, origin));
+      checkTurn();
+      if (decision === 'allow' || decision === 'block')
+        await this.save({ ...await this.rules(), [origin]: decision });
+      else {
+        let active = this.oneTurn.get(thread);
+        if (active?.turn !== turn || active.pairing !== pairing) {
+          active = { turn, pairing, decisions: new Map() };
+          this.oneTurn.set(thread, active);
+        }
+        active.decisions.set(origin, decision);
       }
-      active.decisions.set(origin, decision);
-    }
-    if (decision === 'block' || decision === 'decline')
-      throw new Error(`Chrome site access was ${decision === 'block' ? 'blocked' : 'declined'} for ${origin}.`);
-    return true;
+      if (decision === 'block' || decision === 'decline')
+        throw new Error(`Chrome site access was ${decision === 'block' ? 'blocked' : 'declined'} for ${origin}.`);
+      return true;
+    });
   }
 
   forget(thread?: string) {
     if (thread) this.oneTurn.delete(thread);
     else this.oneTurn.clear();
+  }
+
+  private review<T>(operation: () => Promise<T>) {
+    const result = this.reviews.then(operation);
+    this.reviews = result.then(() => {}, () => {});
+    return result;
   }
 
   private async save(rules: Record<string, z.infer<typeof savedDecision>>) {
