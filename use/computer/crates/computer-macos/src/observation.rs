@@ -323,10 +323,12 @@ pub fn observe(
             if !semantic_actions.is_empty() {
                 actions.push(ComputerActionKind::PerformAction);
             }
-            if (value_settable
-                || matches!(role.as_str(), "AXTextField" | "AXTextArea" | "AXComboBox"))
-                && ffi::ax_is_settable(&element, "AXFocused")
-            {
+            let text_control = value_settable
+                || matches!(role.as_str(), "AXTextField" | "AXTextArea" | "AXComboBox");
+            if text_control && ffi::ax_is_settable(&element, "AXSelectedTextRange") {
+                actions.push(ComputerActionKind::SelectText);
+            }
+            if text_control && ffi::ax_is_settable(&element, "AXFocused") {
                 actions.extend([ComputerActionKind::TypeText, ComputerActionKind::PressKey]);
             }
             if role.contains("Scroll") && frame.is_some() {

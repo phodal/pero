@@ -18,6 +18,7 @@ export type ComputerActionKind =
   | "scroll"
   | "drag"
   | "set_value"
+  | "select_text"
   | "perform_action"
   | "move"
   | "hover"

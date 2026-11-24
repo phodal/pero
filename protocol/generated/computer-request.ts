@@ -33,6 +33,7 @@ export type ComputerInput =
   | ComputerScroll
   | ComputerDrag
   | ComputerSetValue
+  | ComputerSelectText
   | ComputerPerformAction
   | ComputerMove
   | ComputerHover
@@ -47,6 +48,7 @@ export type ComputerKey = string;
  * Replacement permits an empty value to clear the field.
  */
 export type ComputerValue = string;
+export type ComputerSelectionType = "text" | "cursor_before" | "cursor_after";
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 /**
@@ -193,6 +195,17 @@ export interface ComputerSetValue {
   kind: "set_value";
   element_id: ComputerRef;
   value: ComputerValue;
+}
+export interface ComputerSelectText {
+  kind: "select_text";
+  element_id: ComputerRef;
+  selection: ComputerTextSelection;
+}
+export interface ComputerTextSelection {
+  text: ComputerText;
+  prefix?: ComputerText | null;
+  suffix?: ComputerText | null;
+  selection_type?: ComputerSelectionType;
 }
 export interface ComputerPerformAction {
   kind: "perform_action";

@@ -3,6 +3,9 @@
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 
+mod text_selection;
+pub use text_selection::{ComputerSelectionType, ComputerTextRange, ComputerTextSelection};
+
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ComputerRef(String);
@@ -119,6 +122,7 @@ pub enum ComputerActionKind {
     Scroll,
     Drag,
     SetValue,
+    SelectText,
     PerformAction,
     Move,
     Hover,
@@ -290,6 +294,10 @@ pub enum ComputerInput {
         element_id: ComputerRef,
         value: ComputerValue,
     },
+    SelectText {
+        element_id: ComputerRef,
+        selection: ComputerTextSelection,
+    },
     PerformAction {
         element_id: ComputerRef,
         action: ComputerSemanticAction,
@@ -330,6 +338,7 @@ impl ComputerInput {
             Self::Scroll { .. } => ComputerActionKind::Scroll,
             Self::Drag { .. } => ComputerActionKind::Drag,
             Self::SetValue { .. } => ComputerActionKind::SetValue,
+            Self::SelectText { .. } => ComputerActionKind::SelectText,
             Self::PerformAction { .. } => ComputerActionKind::PerformAction,
             Self::Move { .. } => ComputerActionKind::Move,
             Self::Hover { .. } => ComputerActionKind::Hover,

@@ -51,6 +51,7 @@ impl ComputerAction {
                 observation.check_anchor(anchor, kind, capabilities)?
             }
             ComputerInput::SetValue { element_id, .. }
+            | ComputerInput::SelectText { element_id, .. }
             | ComputerInput::PerformAction { element_id, .. } => {
                 observation.check_anchor(
                     &ComputerAnchor::Element {
@@ -112,7 +113,9 @@ impl ComputerInput {
                 ComputerAnchor::Element { .. } => ComputerAddressing::Element,
                 ComputerAnchor::Pixel { .. } => ComputerAddressing::Pixel,
             },
-            Self::SetValue { .. } | Self::PerformAction { .. } => ComputerAddressing::Element,
+            Self::SetValue { .. } | Self::SelectText { .. } | Self::PerformAction { .. } => {
+                ComputerAddressing::Element
+            }
             Self::FocusWindow {} => ComputerAddressing::Target,
             Self::Drag { .. } => ComputerAddressing::Pixel,
         }

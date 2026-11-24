@@ -354,6 +354,9 @@
           "$ref": "#/$defs/ComputerSetValue"
         },
         {
+          "$ref": "#/$defs/ComputerSelectText"
+        },
+        {
           "$ref": "#/$defs/ComputerPerformAction"
         },
         {
@@ -721,6 +724,37 @@
       "additionalProperties": false,
       "description": "Logical content pixels: positive right/down. An adapter must refuse unsupported units."
     },
+    "ComputerSelectionType": {
+      "title": "ComputerSelectionType",
+      "type": "string",
+      "enum": [
+        "text",
+        "cursor_before",
+        "cursor_after"
+      ]
+    },
+    "ComputerSelectText": {
+      "title": "ComputerSelectText",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "select_text"
+        },
+        "element_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "selection": {
+          "$ref": "#/$defs/ComputerTextSelection"
+        }
+      },
+      "required": [
+        "kind",
+        "element_id",
+        "selection"
+      ],
+      "additionalProperties": false
+    },
     "ComputerSemanticAction": {
       "title": "ComputerSemanticAction",
       "type": "string",
@@ -884,6 +918,42 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 10000
+    },
+    "ComputerTextSelection": {
+      "title": "ComputerTextSelection",
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suffix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection_type": {
+          "$ref": "#/$defs/ComputerSelectionType"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
     },
     "ComputerTypeText": {
       "title": "ComputerTypeText",

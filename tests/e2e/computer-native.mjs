@@ -76,6 +76,13 @@ try {
  await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'你好 Pero 🌱'});
  await poll(async()=>(await state()).text==='你好 Pero 🌱');
  observation=await observe();assert.ok(observation.elements.some(e=>e.value==='你好 Pero 🌱'));
+ const selection=await act(observation,{kind:'select_text',element_id:field.id,selection:{text:'Pero 🌱',prefix:'你好 '}});
+ await poll(async()=>{const {selection:range}=await state();return range?.location===3&&range.length===7;},'native Unicode selection');
+ assert.equal((await call({operation:'receipt',request_id:selection.request_id})).receipt.outcome.execution.route,'semantic');
+ observation=await observe();
+ await act(observation,{kind:'select_text',element_id:field.id,selection:{text:'Pero 🌱',selection_type:'cursor_after'}});
+ await poll(async()=>{const {selection:range}=await state();return range?.location===10&&range.length===0;},'native caret after matching text');
+ observation=await observe();
  await act(observation,{kind:'press_key',anchor:{kind:'element',element_id:field.id},keys:['Meta','Shift','ArrowLeft']});
  await poll(async()=>(await state()).selection?.length==='你好 Pero 🌱'.length,'background text selection key chord');
  observation=await observe();await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'Verified'});await poll(async()=>(await state()).text==='Verified');

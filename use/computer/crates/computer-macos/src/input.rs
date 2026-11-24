@@ -65,6 +65,23 @@ pub fn execute(
                 execution.route = ComputerExecutionRoute::Semantic;
                 return ax_result(ffi::ax_set_str(&control.handle, "AXValue", value.as_str()));
             }
+            ComputerInput::SelectText {
+                element_id,
+                selection,
+            } => {
+                let control = control(element_id)?;
+                let value = ffi::ax_str(&control.handle, "AXValue");
+                let range = selection.range_in(&value)?;
+                execution.route = ComputerExecutionRoute::Semantic;
+                return ax_result(ffi::ax_set_range(
+                    &control.handle,
+                    "AXSelectedTextRange",
+                    ffi::CFRange {
+                        location: range.start as isize,
+                        length: range.length as isize,
+                    },
+                ));
+            }
             ComputerInput::PerformAction { element_id, action } => {
                 let control = control(element_id)?;
                 let name = observation::semantic_name(*action);
@@ -232,7 +249,9 @@ pub fn execute(
                 window.move_to(location(&anchor)?, action.delivery)?;
                 cancellation.wait(dwell_ms.duration())
             }
-            ComputerInput::SetValue { .. } | ComputerInput::PerformAction { .. } => {
+            ComputerInput::SetValue { .. }
+            | ComputerInput::SelectText { .. }
+            | ComputerInput::PerformAction { .. } => {
                 unreachable!("semantic inputs dispatched before geometry")
             }
         }
