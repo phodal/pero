@@ -33,8 +33,9 @@ await Promise.all([
 ]);
 const { DesktopComputer, DesktopAppUse, ConversationRepl, startJavaScriptRepl } =
   await import(resolve(temp, 'host.cjs'));
+const previews = new Map();
 const desktop = new DesktopComputer(process.env.PERO_COMPUTER_BINARY || resolve(root, 'target/debug/pero-computer'),
-  resolve(temp, 'journal'), () => {});
+  resolve(temp, 'journal'), () => {}, { preview: (thread, target) => previews.set(thread, target) });
 let selected = 'left';
 const bridge = new DesktopAppUse(() => ({ webContents: {
   mainFrame: { frames: [] }, executeJavaScript: async () => selected,
@@ -102,8 +103,14 @@ try {
 
   const leftInput = tool('left', hold(first, 'hold-left', 10000));
   await waitFor(async () => (await left.state()).mouseEvents.middleDown === 1, 'left button-down');
+  const leftPreview = previews.get('left').id;
+  const rightPreview = previews.get('right').id;
+  assert.equal((await bridge.computerPreview('left', leftPreview)).kind, 'waiting');
+  assert.equal((await bridge.computerPreview('right', rightPreview)).kind, 'ended');
   selected = 'right';
   bridge.authority.select(selected);
+  assert.ok((await bridge.computerPreview('right', rightPreview)).image, 'The selected preview uses the independent worker');
+  assert.equal((await bridge.computerPreview('left', leftPreview)).kind, 'ended');
   await rejected('right', focus, 'busy');
 
   selected = 'left';

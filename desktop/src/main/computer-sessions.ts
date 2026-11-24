@@ -11,18 +11,22 @@ export class ComputerSession {
   readonly controller = new AbortController();
   readonly applications = new Set<string>();
   closing?: Promise<void>;
-  private readonly targets = new Map<string, string>();
+  private readonly targets = new Map<string, { application: string; title: string }>();
   private runtime?: string;
 
   readonly client: ComputerClient;
   constructor(client: ComputerClient) { this.client = client; }
 
   application(target: ComputerTargetRef): string {
-    const application = this.targets.get(targetKey(target));
-    if (!application) throw new ComputerFailure({
+    return this.window(target).application;
+  }
+
+  window(target: ComputerTargetRef) {
+    const window = this.targets.get(targetKey(target));
+    if (!window) throw new ComputerFailure({
       code: 'target_unavailable', message: 'List targets again in this conversation.',
     });
-    return application;
+    return window;
   }
 
   remember(result: ComputerResponse) {
@@ -32,7 +36,7 @@ export class ComputerSession {
         this.runtime = target.reference.runtime_id;
       }
       if (target.application_id)
-        this.targets.set(targetKey(target.reference), target.application_id);
+        this.targets.set(targetKey(target.reference), { application: target.application_id, title: target.title });
     };
     if (result.kind === 'targets') {
       if (result.capabilities.runtime_id !== this.runtime) this.targets.clear();

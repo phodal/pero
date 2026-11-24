@@ -50,6 +50,9 @@ const saveComputer = async change => {
 };
 const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'computer-use'),
   event => send({ id: 0, computer_state: event.data }), {
+    ...(process.platform === 'darwin' && {
+      preview: (thread, target) => send({ id: 0, computer_preview: { thread, target } }),
+    }),
     save: enabled => saveComputer({ method: 'settings.computer', enabled }),
     saveApplication: (application_id, allowed) => saveComputer({ method: 'settings.computer.application', application_id, allowed }),
   });
@@ -179,8 +182,10 @@ input.on('line', line => {
   } else if (message.id) {
     const request = message.request;
     const relay = appUse.browser?.relay;
-    const result = request?.operation === 'appshot'
-      ? computer.appshot(request.foreground_pid)
+    const result = request?.operation === 'computer-preview'
+      ? appUse.computerPreview(request.thread, request.preview_id)
+      : request?.operation === 'appshot'
+        ? computer.appshot(request.foreground_pid)
       : request?.operation === 'app-context'
       ? appUse.draftContext.freeze(request.scope, request.thread, request.options)
       : ['cloud-browser-target', 'cloud-browser-start'].includes(request?.operation)

@@ -89,8 +89,11 @@ export const COMPUTER_TOOL = {
 };
 
 type Journal = { action: ComputerAction; receipt?: ComputerActionReceipt };
+type PreviewWindow = { id: string; title: string };
+type PreviewTarget = PreviewWindow & { target: ComputerAction['target']; application: string; session: ComputerSession };
 type ComputerControls = {
   args?: string[];
+  preview?(thread: string, window: PreviewWindow | null): void;
   save?(enabled: boolean): Promise<void>;
   saveApplication?(application: string, allowed: boolean): Promise<void>;
   applicationGrants?: boolean;
@@ -106,6 +109,7 @@ export class DesktopComputer {
   private emit: (event: object) => void;
   private controls: ComputerControls;
   private controller = new AbortController();
+  private previews = new Map<string, PreviewTarget>();
   private readonly applicationGrants: boolean;
   private allowedApplications: string[] = [];
   private runningApplications = new Map<string, string>();
@@ -128,6 +132,7 @@ export class DesktopComputer {
       !(request?.operation === 'act' && request.action?.delivery === 'foreground');
   }
   async endThread(thread: string) {
+    this.endPreview(thread);
     await this.sessions.stop(thread);
     await Promise.allSettled([...this.pending].filter(([key]) => key.startsWith(thread + '\0')).map(([, value]) => value.promise));
   }
@@ -148,7 +153,11 @@ export class DesktopComputer {
     this.allowedApplications = allowedApplications;
     this.state.enabled = enabled;
     if (!enabled) await this.stop();
-    else if (this.applicationGrants && revoked.length) await this.sessions.stopSessions(revoked);
+    else if (this.applicationGrants && revoked.length) {
+      for (const [thread, preview] of this.previews)
+        if (revoked.includes(preview.application)) this.endPreview(thread);
+      await this.sessions.stopSessions(revoked);
+    }
     this.publish();
   }
   async status(refreshApplications = false): Promise<ComputerUseState> {
@@ -176,6 +185,7 @@ export class DesktopComputer {
     return this.state;
   }
   async stop() {
+    for (const thread of this.previews.keys()) this.endPreview(thread);
     this.controller.abort(); this.controller = new AbortController();
     try {
       const result = await Promise.allSettled([this.client.stop(), this.sessions.stopSessions()]);
@@ -215,6 +225,28 @@ export class DesktopComputer {
       throw error;
     }
   }
+  private endPreview(thread: string) {
+    if (this.previews.delete(thread)) this.controls.preview?.(thread, null);
+  }
+
+  async previewFrame(thread: string, id: string) {
+    const active = this.previews.get(thread);
+    if (active?.id !== id) return { kind: 'ended' as const };
+    try {
+      const frame = await active.session.client.preview(thread, active.target,
+        active.session.controller.signal, this.allowedApplications);
+      if (this.previews.get(thread) !== active) return { kind: 'ended' as const };
+      return frame ?? { kind: 'waiting' as const };
+    } catch (error) {
+      if (this.previews.get(thread) === active) {
+        if (error instanceof ComputerFailure && error.detail.code === 'permission_required')
+          return { kind: 'preview_frame' as const, image: null };
+        this.endPreview(thread);
+      }
+      return { kind: 'ended' as const };
+    }
+  }
+
   private directory(thread: string) { return join(this.root, createHash('sha256').update(thread).digest('hex')); }
   private path(thread: string, id: string) {
     return join(this.directory(thread), createHash('sha256').update(id).digest('hex') + '.json');
@@ -330,6 +362,18 @@ export class DesktopComputer {
         const bytes = Buffer.from(result.image.data, 'base64');
         await writeFile(join(directory, `${image.id}.${image.media_type === 'image/png' ? 'png' : 'jpg'}`), bytes, { mode: 0o600 });
         await writeFile(join(directory, `${image.id}.json`), JSON.stringify({ ...image, target: result.observation.target, observation_id: result.observation.id, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }), { mode: 0o600 });
+      }
+      if (session && this.controls.preview && result.kind === 'observation' && !bounded.aborted) {
+        const { target } = result.observation;
+        const window = session.window(target);
+        const previous = this.previews.get(thread);
+        if (this.allowedApplications.includes(window.application) &&
+          (previous?.session !== session || !isDeepStrictEqual(previous.target, target))) {
+          const id = randomUUID();
+          const title = window.title || result.observation.elements.find(element => element.depth === 0)?.label || '';
+          this.previews.set(thread, { id, title, target, application: window.application, session });
+          this.controls.preview(thread, { id, title });
+        }
       }
       return result;
     } catch (error) {

@@ -326,6 +326,20 @@ export class DesktopAppUse {
     const plugin = this.plugins.get(thread);
     return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
   }
+
+  async computerPreview(thread: string, id: string) {
+    const computer = this.computer;
+    if (!computer || !this.authority.isOrdinaryConversation(thread)) return { kind: 'ended' };
+    try {
+      // Selection and the running turn gate presentation. Switching chats must
+      // cancel the reply without stopping the background Computer Use worker.
+      return await this.authority.access(thread, undefined, () => computer.previewFrame(thread, id),
+        new AbortController().signal);
+    } catch {
+      return { kind: 'ended' };
+    }
+  }
+
   private async callCua(thread: string, capability: ReplCapability, input: unknown, signal: AbortSignal): Promise<CuaResult> {
     const background = capability === 'computer' && this.computer?.canRunInBackground(thread, input);
     return this.authority.access(thread, undefined, async (_scope, bounded) => {
