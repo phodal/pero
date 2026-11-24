@@ -196,17 +196,7 @@ export class DesktopApps {
         const record = catalog.find(app => app.name === command.name);
         const panel = record?.panels.find(panel => panel.id === (command.panel || record.panels[0]?.id));
         if (!record?.enabled || !panel) throw new Error('Enable the App before opening it');
-        // resolve stays read-only. A missing local environment is the shell's
-        // cue to prepare once, then open; Refresh alone repeats the same refusal.
-        const resolveApp = () => this.request<AppAccess>('resolve', { name: record.name });
-        try {
-          await resolveApp();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : '';
-          if (!message.startsWith('Prepare the App environment before opening it.')) throw error;
-          await this.request('prepare', { name: record.name });
-          await resolveApp();
-        }
+        const access = await this.request<AppAccess>('resolve', { name: record.name });
         this.send({ version: 1, kind: 'apps_opened', request_id: command.request_id ?? null, text: '', data: {
           name: record.name, panel: panel.id, url: `pero-app://${record.name}/${panel.entry}`,
         } });
