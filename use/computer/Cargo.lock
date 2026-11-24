@@ -231,6 +231,7 @@ dependencies = [
  "computer-core",
  "computer-runtime",
  "computer-testkit",
+ "markdown",
  "pero-contracts",
  "point-computer-backend",
  "point-computer-core",

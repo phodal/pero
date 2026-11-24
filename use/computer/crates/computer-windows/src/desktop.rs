@@ -247,6 +247,7 @@ impl DesktopDriver for Desktop {
             ComputerInput::FocusWindow {}
             | ComputerInput::SetValue { .. }
             | ComputerInput::SelectText { .. }
+            | ComputerInput::Paste { .. }
             | ComputerInput::PerformAction { .. } => {
                 return Err(error(
                     ComputerErrorCode::Unsupported,

@@ -43,6 +43,7 @@ impl ComputerAction {
         match &self.input {
             ComputerInput::Click { anchor, .. }
             | ComputerInput::TypeText { anchor, .. }
+            | ComputerInput::Paste { anchor, .. }
             | ComputerInput::PressKey { anchor, .. }
             | ComputerInput::Scroll { anchor, .. }
             | ComputerInput::Move { anchor, .. }
@@ -105,6 +106,7 @@ impl ComputerInput {
         match self {
             Self::Click { anchor, .. }
             | Self::TypeText { anchor, .. }
+            | Self::Paste { anchor, .. }
             | Self::PressKey { anchor, .. }
             | Self::Scroll { anchor, .. }
             | Self::Move { anchor, .. }

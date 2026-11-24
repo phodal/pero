@@ -149,3 +149,19 @@ seconds, so this change retains the bounded OCR path.
   Native Python REPL also passed its Chat, Host and ACP/MCP fixture.
   The staged helper reported no OS grants, so GUI input in this comparison
   used the rebuilt helper with the already authorized test runner.
+
+## Text selection and formatted paste
+
+- A real AppKit editor independently reported the UTF-16 range after exact
+  selection and the zero-length caret after cursor placement. The tests
+  cover duplicate and overlapping matches, adjacent context, and Unicode.
+- Codex pasted an HTML fragment into the same rich editor fixture and exposed
+  the bold span in its AX observation. The rebuilt Pero helper pasted Unicode
+  text and both HTML and Markdown; the fixture independently inspected its
+  attributed text and confirmed both bold spans. Clipboard fingerprints of
+  every available representation matched the initial clipboard after each
+  action and after cancellation of a paste the editor ignored.
+- Background key delivery reached the fixture but failed to invoke its Paste
+  handler. Pero advertises formatted paste with foreground delivery on
+  macOS. The helper checks the observed window is still the focused
+  foreground window immediately before sending Paste.

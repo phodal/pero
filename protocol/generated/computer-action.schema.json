@@ -371,6 +371,9 @@
           "$ref": "#/$defs/ComputerSelectText"
         },
         {
+          "$ref": "#/$defs/ComputerPaste"
+        },
+        {
           "$ref": "#/$defs/ComputerPerformAction"
         },
         {
@@ -420,6 +423,41 @@
       ],
       "additionalProperties": false,
       "description": "Foreground moves the real pointer; background posts a window-directed move."
+    },
+    "ComputerPaste": {
+      "title": "ComputerPaste",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "paste"
+        },
+        "anchor": {
+          "$ref": "#/$defs/ComputerAnchor"
+        },
+        "text": {
+          "$ref": "#/$defs/ComputerText"
+        },
+        "format": {
+          "$ref": "#/$defs/ComputerPasteFormat"
+        }
+      },
+      "required": [
+        "kind",
+        "anchor",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerPasteFormat": {
+      "title": "ComputerPasteFormat",
+      "type": "string",
+      "enum": [
+        "text",
+        "md",
+        "html"
+      ],
+      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
     },
     "ComputerPerformAction": {
       "title": "ComputerPerformAction",
@@ -512,8 +550,7 @@
         "anchor",
         "keys"
       ],
-      "additionalProperties": false,
-      "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
+      "additionalProperties": false
     },
     "ComputerRef": {
       "title": "ComputerRef",

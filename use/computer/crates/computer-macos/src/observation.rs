@@ -187,10 +187,13 @@ pub fn window_of(element: &CfRef) -> Option<CfRef> {
     if ffi::ax_str(element, "AXRole") == "AXWindow" {
         return Some(element.retain());
     }
-    ffi::ax_attr(element, "AXWindow")
+    element_attribute(element, "AXWindow")
+}
+pub(crate) fn element_attribute(element: &CfRef, attribute: &str) -> Option<CfRef> {
+    ffi::ax_attr(element, attribute)
         .ok()
         .flatten()
-        .filter(|window| unsafe { CFGetTypeID(window.as_ptr()) == ffi::type_ids().ax_element })
+        .filter(|value| unsafe { CFGetTypeID(value.as_ptr()) == ffi::type_ids().ax_element })
 }
 pub fn belongs(element: &CfRef, window: &Window) -> bool {
     ffi::ax_pid(element) == Some(window.pid)
@@ -329,7 +332,11 @@ pub fn observe(
                 actions.push(ComputerActionKind::SelectText);
             }
             if text_control && ffi::ax_is_settable(&element, "AXFocused") {
-                actions.extend([ComputerActionKind::TypeText, ComputerActionKind::PressKey]);
+                actions.extend([
+                    ComputerActionKind::TypeText,
+                    ComputerActionKind::PressKey,
+                    ComputerActionKind::Paste,
+                ]);
             }
             if role.contains("Scroll") && frame.is_some() {
                 actions.push(ComputerActionKind::Scroll);

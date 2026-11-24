@@ -263,6 +263,15 @@ macOS receipts report semantic, window-event or foreground-event execution and,
 when applicable, the actual semantic action. Other drivers may omit execution
 details and continue to refuse unimplemented inputs.
 
+macOS `select_text` resolves exact text and optional adjacent context to a
+UTF-16 selection or caret. The editor must advertise a writable selection.
+`paste` accepts `text`, `md`, or `html` in a focused foreground window. The
+Desktop reserves exclusive input while the helper writes a temporary
+pasteboard item and delivers Paste. Markdown is rendered as HTML. The helper
+restores the previous clipboard representations if the clipboard is still
+owned by the operation. It leaves a newer clipboard item in place and reports
+uncertain delivery when it does not observe an editor change.
+
 An `open` application accepts the existing name string or a typed bundle-ID
 selector. macOS discovers all layer-zero windows, including several from the same
 process, and resolves running bundle IDs through NSRunningApplication. New app

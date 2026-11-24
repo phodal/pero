@@ -14,7 +14,7 @@ scalar ComputerRef extends string;
 
 /** Replacement permits an empty value to clear the field. */
 @maxLength(10000) scalar ComputerValue extends string;
-enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, select_text, perform_action, move, hover, hold, focus_window }
+enum ComputerActionKind { click, type_text, press_key, scroll, drag, set_value, select_text, paste, perform_action, move, hover, hold, focus_window }
 enum ComputerSemanticAction { press, open, confirm, cancel, show_menu, scroll_to_visible, increment, decrement }
 enum ComputerDelivery { background, foreground }
 enum ComputerAddressing { element, pixel, target }
@@ -116,6 +116,14 @@ model ComputerClick {
 }
 model ComputerTypeText { kind: "type_text"; anchor: ComputerAnchor; text: ComputerText; ...ComputerClosed; }
 /** Logical key names/chords (for example ["Control", "a"]), mapped by the adapter. */
+enum ComputerPasteFormat { text, md, html }
+model ComputerPaste {
+  kind: "paste";
+  anchor: ComputerAnchor;
+  text: ComputerText;
+  format?: ComputerPasteFormat;
+  ...ComputerClosed;
+}
 model ComputerPressKey {
   kind: "press_key";
   anchor: ComputerAnchor;
@@ -171,7 +179,7 @@ model ComputerHold {
 }
 /** Explicit foreground focus; never implicit in a background input. */
 model ComputerFocusWindow { kind: "focus_window"; ...ComputerClosed; }
-@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerSelectText, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
+@oneOf union ComputerInput { ComputerClick, ComputerTypeText, ComputerPressKey, ComputerScroll, ComputerDrag, ComputerSetValue, ComputerSelectText, ComputerPaste, ComputerPerformAction, ComputerMove, ComputerHover, ComputerHold, ComputerFocusWindow }
 model ComputerAction {
   request_id: ComputerRef;
   target: ComputerTargetRef;

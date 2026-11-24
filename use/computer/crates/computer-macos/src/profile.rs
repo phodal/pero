@@ -80,6 +80,11 @@ pub fn actions() -> Vec<ComputerActionSupport> {
             addressing: vec![Element, Pixel],
         },
         ComputerActionSupport {
+            action: Paste,
+            delivery: Foreground,
+            addressing: vec![Element, Pixel],
+        },
+        ComputerActionSupport {
             action: PressKey,
             delivery: Background,
             addressing: vec![Element, Pixel],

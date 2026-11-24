@@ -30,6 +30,7 @@ export type ComputerActionKind =
   | "drag"
   | "set_value"
   | "select_text"
+  | "paste"
   | "perform_action"
   | "move"
   | "hover"

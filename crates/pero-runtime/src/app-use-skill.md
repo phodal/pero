@@ -65,6 +65,9 @@ nodes, and the supplied element order to the last whole-window tree. Use its
 new observation ID for actions. Pass `disable_diffing: true` for a full tree.
 On macOS, use `include_containers: true` only when unlabeled layout containers
 are needed.
+Use `select_text` with exact text and adjacent context for repeated matches.
+For formatted macOS paste, select the conversation, focus the target window,
+observe it again, and send `paste` with foreground delivery and `md` or `html`.
 Each action consumes its observation; observe again to verify. After an
 interruption, inspect the original request's receipt before repeating input.
 Neither interface substitutes for an available declared App data tool.

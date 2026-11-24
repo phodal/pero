@@ -263,6 +263,26 @@ impl<'a> WindowInput<'a> {
     }
     pub fn key(&self, code: u8, flags: u64) -> Result<(), ComputerError> {
         let _focus = self.focus()?;
+        self.post_key(code, flags, false)
+    }
+    pub fn require_foreground(&self) -> Result<(), ComputerError> {
+        let focused = ffi::ax_app_element(self.pid)
+            .and_then(|app| crate::observation::element_attribute(&app, "AXFocusedWindow"));
+        if crate::applications::frontmost_pid() != self.pid
+            || !focused.is_some_and(|window| ffi::ax_window_id(&window) == self.id)
+        {
+            return Err(ComputerError {
+                code: ComputerErrorCode::StaleObservation,
+                message: "Focus the observed window before foreground paste.".into(),
+            });
+        }
+        Ok(())
+    }
+    pub fn foreground_key(&self, code: u8, flags: u64) -> Result<(), ComputerError> {
+        self.require_foreground()?;
+        self.post_key(code, flags, true)
+    }
+    fn post_key(&self, code: u8, flags: u64, foreground: bool) -> Result<(), ComputerError> {
         let source = unsafe { CfRef::from_created(CGEventSourceCreate(-1)) }.ok_or_else(failed)?;
         for down in [true, false] {
             let event = unsafe {
@@ -274,9 +294,15 @@ impl<'a> WindowInput<'a> {
             }
             .ok_or_else(failed)?;
             unsafe {
-                CGEventSetIntegerValueField(event.as_ptr(), 51, i64::from(self.id));
+                if !foreground {
+                    CGEventSetIntegerValueField(event.as_ptr(), 51, i64::from(self.id));
+                }
                 CGEventSetFlags(event.as_ptr(), flags);
-                CGEventPostToPid(self.pid, event.as_ptr());
+                if foreground {
+                    CGEventPost(0, event.as_ptr());
+                } else {
+                    CGEventPostToPid(self.pid, event.as_ptr());
+                }
             }
         }
         Ok(())

@@ -123,6 +123,7 @@ pub enum ComputerActionKind {
     Drag,
     SetValue,
     SelectText,
+    Paste,
     PerformAction,
     Move,
     Hover,
@@ -277,6 +278,15 @@ pub enum ComputerAnchor {
         point: ComputerPoint,
     },
 }
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComputerPasteFormat {
+    #[default]
+    Text,
+    Md,
+    Html,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ComputerInput {
@@ -314,6 +324,12 @@ pub enum ComputerInput {
         anchor: ComputerAnchor,
         text: ComputerText,
     },
+    Paste {
+        anchor: ComputerAnchor,
+        text: ComputerText,
+        #[serde(default)]
+        format: ComputerPasteFormat,
+    },
     PressKey {
         anchor: ComputerAnchor,
         keys: ComputerKeyChord,
@@ -339,6 +355,7 @@ impl ComputerInput {
             Self::Drag { .. } => ComputerActionKind::Drag,
             Self::SetValue { .. } => ComputerActionKind::SetValue,
             Self::SelectText { .. } => ComputerActionKind::SelectText,
+            Self::Paste { .. } => ComputerActionKind::Paste,
             Self::PerformAction { .. } => ComputerActionKind::PerformAction,
             Self::Move { .. } => ComputerActionKind::Move,
             Self::Hover { .. } => ComputerActionKind::Hover,
