@@ -5,6 +5,11 @@ import { join, resolve, sep } from 'node:path';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const APP_ENTRIES = ['app.json', 'dist', 'backend', 'examples', 'evidence', 'THIRD_PARTY_NOTICES.md', 'README.md', 'licenses'];
+const GENERATED_BACKEND_FILES = {
+  data: ['backend/_core/dataset.py', 'backend/_core/view.py', 'backend/_core/chart_document.py'],
+  notebook: ['backend/pero_source_tools.py'],
+  'paper-agent': ['backend/pero_source_tools.py'],
+};
 const PAPER_ENTRIES = [
   'tools/research.py', 'tools/locate-source.py', 'skills/research-resource-import/SKILL.md',
   'skills/research-resource-import/references/tex-source-locations.md',
@@ -81,6 +86,12 @@ export function verifyBuiltinAppDependencies(directory, name) {
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
 export function stageBuiltinApp(source, name, destination) {
   const root = realpathSync(source);
+  for (const entry of GENERATED_BACKEND_FILES[name] ?? []) {
+    const path = resolve(root, entry);
+    if (!lstatSync(path, { throwIfNoEntry: false })?.isFile() || realpathSync(path) !== path) {
+      throw new Error(`${name} payload requires generated backend file ${entry}; build the App before packaging`);
+    }
+  }
   const extra = name === 'paper-agent' ? PAPER_ENTRIES
     : name === 'scientific-viewer' ? ['skills/molecular-report/SKILL.md'] : [];
   // Each App's advertised installed CLI/skill must ship together. Do not include an

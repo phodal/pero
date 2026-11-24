@@ -69,7 +69,7 @@ test('Builtin staging ships only each App’s declared CLI and skill additions',
   const directory = mkdtempSync(join(tmpdir(), 'pero-builtin-payload-'));
   try {
     const source = join(directory, 'source');
-    const files = ['app.json', 'backend/server.py', 'backend/__pycache__/server.pyc', 'dist/index.html',
+    const files = ['app.json', 'backend/server.py', 'backend/pero_source_tools.py', 'backend/__pycache__/server.pyc', 'dist/index.html',
       ...paperEntries, 'skills/molecular-report/SKILL.md', 'tools/unrelated.py', 'skills/paper-code-audit/references/private.md',
       'skills/other/SKILL.md', 'node_modules/private.js'];
     for (const path of files) {
@@ -78,7 +78,7 @@ test('Builtin staging ships only each App’s declared CLI and skill additions',
     for (const app of ['paper-agent', 'scientific-viewer', 'other-app']) {
       const output = join(directory, app); stageBuiltinApp(source, app, output);
       for (const path of files) {
-        const included = ['app.json', 'backend/server.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path) || app === 'scientific-viewer' && path === 'skills/molecular-report/SKILL.md';
+        const included = ['app.json', 'backend/server.py', 'backend/pero_source_tools.py', 'dist/index.html'].includes(path) || app === 'paper-agent' && paperEntries.includes(path) || app === 'scientific-viewer' && path === 'skills/molecular-report/SKILL.md';
         assert.equal(existsSync(join(output, path)), included, `${app}: ${path}`);
         if (included) assert.equal(readFileSync(join(output, path), 'utf8'), path === 'app.json' ? '{}' : path);
       }
@@ -93,6 +93,34 @@ test('Builtin staging ships only each App’s declared CLI and skill additions',
     if (process.platform !== 'win32') {
       writeFileSync(join(directory, 'outside.py'), 'not a packaged CLI'); symlinkSync(join(directory, 'outside.py'), join(source, 'tools/research.py'));
       assert.throws(() => stageBuiltinApp(source, 'paper-agent', join(directory, 'escaping')), /requires a regular file/);
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Builtin staging rejects missing generated backend inputs', async () => {
+  const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
+  const directory = mkdtempSync(join(tmpdir(), 'pero-generated-backend-'));
+  const cases = [
+    ['paper-agent', ['backend/pero_source_tools.py']],
+    ['notebook', ['backend/pero_source_tools.py']],
+    ['data', ['backend/_core/dataset.py', 'backend/_core/view.py', 'backend/_core/chart_document.py']],
+  ];
+  try {
+    for (const [name, generated] of cases) {
+      const source = join(directory, name);
+      for (const file of ['app.json', 'backend/server.py', 'dist/index.html', ...generated]) {
+        mkdirSync(join(source, file, '..'), { recursive: true });
+        writeFileSync(join(source, file), file === 'app.json' ? '{}' : file);
+      }
+      for (const missing of generated) {
+        rmSync(join(source, missing));
+        assert.throws(() => stageBuiltinApp(source, name, join(directory, `${name}-missing`)), /requires generated backend file/);
+        writeFileSync(join(source, missing), missing);
+      }
+      if (name !== 'paper-agent') {
+        stageBuiltinApp(source, name, join(directory, `${name}-complete`));
+        for (const file of generated) assert.equal(readFileSync(join(directory, `${name}-complete`, file), 'utf8'), file);
+      }
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
