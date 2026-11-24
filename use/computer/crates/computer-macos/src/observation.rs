@@ -190,10 +190,17 @@ pub fn window_of(element: &CfRef) -> Option<CfRef> {
     element_attribute(element, "AXWindow")
 }
 pub(crate) fn element_attribute(element: &CfRef, attribute: &str) -> Option<CfRef> {
-    ffi::ax_attr(element, attribute)
-        .ok()
-        .flatten()
-        .filter(|value| unsafe { CFGetTypeID(value.as_ptr()) == ffi::type_ids().ax_element })
+    read_element_attribute(element, attribute).ok().flatten()
+}
+pub(crate) fn read_element_attribute(element: &CfRef, attribute: &str) -> Result<Option<CfRef>, i32> {
+    Ok(ffi::ax_attr(element, attribute)?
+        .filter(|value| unsafe { CFGetTypeID(value.as_ptr()) == ffi::type_ids().ax_element }))
+}
+pub(crate) fn accessibility_required() -> ComputerError {
+    error(
+        ComputerErrorCode::PermissionRequired,
+        "macOS withheld accessible windows. Allow Pero Computer Use in System Settings → Privacy & Security → Accessibility, then reopen Pero.",
+    )
 }
 pub fn belongs(element: &CfRef, window: &Window) -> bool {
     ffi::ax_pid(element) == Some(window.pid)
@@ -221,15 +228,9 @@ pub fn observe(
     })?;
     // Electron exposes its content tree only after this explicit AX opt-in.
     ffi::ax_set_true(&app, "AXManualAccessibility");
-    let permission_required = || {
-        error(
-            ComputerErrorCode::PermissionRequired,
-            "macOS withheld accessible windows. Allow Pero Computer Use in System Settings → Privacy & Security → Accessibility, then reopen Pero.",
-        )
-    };
     let windows = ffi::ax_element_list(&app, "AXWindows", 128)
         .map_err(|failure| match failure {
-            ffi::AxReadError::Native(ffi::AX_ERR_API_DISABLED) => permission_required(),
+            ffi::AxReadError::Native(ffi::AX_ERR_API_DISABLED) => accessibility_required(),
             _ => error(
                 ComputerErrorCode::Failed,
                 format!("Unable to read macOS AX windows: {failure:?}"),
@@ -243,7 +244,7 @@ pub fn observe(
             .all(|w| ffi::ax_str(w, "AXRole") == "AXApplication");
     let native_window = windows.into_iter().find(|w| ffi::ax_window_id(w) == window.window_id)
         .ok_or_else(|| if withheld {
-            permission_required()
+            accessibility_required()
         } else {
             error(ComputerErrorCode::Unsupported, "Cannot correlate the selected window with its native accessibility identity")
         })?;

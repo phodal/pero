@@ -18,6 +18,12 @@ pub trait DesktopDriver {
     fn actions(&self) -> Vec<ComputerActionSupport>;
     fn status(&self) -> ComputerDriverStatus;
     fn targets(&self) -> Result<Vec<Window>, ComputerError>;
+    fn focused_window(&self, _pid: i32) -> Result<Window, ComputerError> {
+        Err(crate::error(
+            ComputerErrorCode::Unsupported,
+            "Appshot requires macOS",
+        ))
+    }
     fn open(
         &self,
         application: &ComputerApplicationSelector,

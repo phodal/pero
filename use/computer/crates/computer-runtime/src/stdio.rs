@@ -11,15 +11,32 @@ use crate::{ComputerRuntime, DesktopDriver, access::ApplicationAccess};
 struct Request {
     id: ComputerRef,
     thread: ComputerRef,
-    request: ComputerRequest,
+    request: Operation,
     allowed_applications: Option<Vec<ComputerRef>>,
+}
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Operation {
+    Agent(ComputerRequest),
+    Appshot(AppshotRequest),
+}
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum AppshotRequest {
+    Appshot { foreground_pid: i32 },
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum Value {
+    Agent(ComputerResponse),
+    Appshot(ComputerAppshotResponse),
 }
 #[derive(Serialize)]
 #[serde(untagged)]
 enum Response {
     Success {
         id: ComputerRef,
-        value: ComputerResponse,
+        value: Value,
     },
     Failure {
         id: ComputerRef,
@@ -72,7 +89,14 @@ pub fn serve_stream<D: DesktopDriver>(
             .allowed_applications
             .as_deref()
             .map_or(ApplicationAccess::Unrestricted, ApplicationAccess::Allowed);
-        let result = driver.call_with_access(request.thread, request.request, access);
+        let result = match request.request {
+            Operation::Agent(operation) => driver
+                .call_with_access(request.thread, operation, access)
+                .map(Value::Agent),
+            Operation::Appshot(AppshotRequest::Appshot { foreground_pid }) => {
+                driver.appshot(foreground_pid).map(Value::Appshot)
+            }
+        };
         let response = match result {
             Ok(value) => Response::Success {
                 id: request.id,

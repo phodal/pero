@@ -103,6 +103,64 @@ pub struct ComputerRuntime<D: DesktopDriver> {
     pub(crate) cancellation: crate::Cancellation,
 }
 impl<D: DesktopDriver> ComputerRuntime<D> {
+    /// Capture the window of a local user gesture without creating an agent target or anchor.
+    pub(crate) fn appshot(&self, pid: i32) -> Result<ComputerAppshotResponse, ComputerError> {
+        let window = self.driver.focused_window(pid)?;
+        let observation = self
+            .driver
+            .observe(&window, &ComputerObserveOptions::default(), None)?;
+        let image = observation.image.map_err(|status| {
+            let (code, message) = match status {
+                ComputerCaptureStatus::ScreenRecordingRequired => (
+                    ComputerErrorCode::PermissionRequired,
+                    "Allow Pero Computer Use in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen Pero.",
+                ),
+                ComputerCaptureStatus::IncompleteScan => (
+                    ComputerErrorCode::Failed,
+                    "Appshot could not finish reading the window. Try again when the window is responsive.",
+                ),
+                ComputerCaptureStatus::SecureContent => (
+                    ComputerErrorCode::PermissionRequired,
+                    "Appshot could not capture a window containing secure input.",
+                ),
+                _ => (ComputerErrorCode::TargetUnavailable, "Appshot could not capture this window."),
+            };
+            error(code, message)
+        })?;
+        if self.driver.focused_window(pid)?.identity() != window.identity() {
+            return Err(error(
+                ComputerErrorCode::TargetUnavailable,
+                "The focused window changed during Appshot. Try again.",
+            ));
+        }
+        let mut seen = HashSet::new();
+        let text: String = observation
+            .elements
+            .into_iter()
+            .flat_map(|element| [Some(element.label), element.value].into_iter().flatten())
+            .filter_map(|line| {
+                let line = line.replace('\0', "");
+                (!line.trim().is_empty() && seen.insert(line.clone())).then_some(line)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .chars()
+            .take(6000)
+            .collect();
+        Ok(ComputerAppshotResponse::Appshot {
+            id: reference(),
+            title: if window.title.is_empty() {
+                window.name
+            } else {
+                window.title
+            },
+            image: ComputerImageContent {
+                media_type: image.media_type,
+                data: STANDARD.encode(image.bytes),
+            },
+            text,
+        })
+    }
     pub fn new(driver: D, host_pid: i32) -> Self {
         let actions = driver.actions();
         let observations = driver.observations();

@@ -15,7 +15,11 @@ bool pero_activate_application(int32_t pid) {
 
 int32_t pero_frontmost_application_pid(void) {
     @autoreleasepool {
-        NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+        NSWorkspace *workspace = NSWorkspace.sharedWorkspace;
+        // The stdio worker does not run an AppKit event loop. Deliver pending
+        // workspace activation notifications before reading its cached state.
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, false);
+        NSRunningApplication *application = workspace.frontmostApplication;
         return application ? application.processIdentifier : 0;
     }
 }
