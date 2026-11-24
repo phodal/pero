@@ -14,7 +14,8 @@ import { HistoryRejection, traverseHistory } from './navigation.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserInputSchema, browserRequest, type FrameSelector } from './request.ts';
 import { captureChromiumDocument, rasterScreenshot } from './screenshot.ts';
-import { siteToolsScript, type SiteTool, type SiteToolAccess, type SiteToolCommand, type SiteToolsReply } from './site-tools.ts';
+import { SiteToolSession } from './site-tool-session.ts';
+import { siteToolsScript, type SiteToolAccess, type SiteToolsReply } from './site-tools.ts';
 
 export const BROWSER_TOOL = {
   name: 'browser_use',
@@ -75,7 +76,7 @@ class BrowserGrant {
   readonly origin: string;
   readonly cancelled = new AbortController();
   readonly dialogs: EmbeddedDialogs;
-  readonly siteTools = new Map<string, SiteTool>();
+  readonly siteTools = new SiteToolSession();
   revision = 0;
   release?: () => void;
   observation?: { id: string; url: string; frame?: FrameSelector[]; frameUrl?: string };
@@ -258,48 +259,15 @@ export class BrowserUse implements BrowserUsePort {
       }
       if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
         if (!this.siteToolAccess) throw new Error('Browser Site Tools are unavailable.');
-        const enabled = this.siteToolAccess.signal();
-        const checkSite = () => { enabled.throwIfAborted(); check(); };
-        const runSite = async (command: SiteToolCommand) => {
-          checkSite();
+        return grant.siteTools.call(request, { thread, origin: grant.origin, tabId: grant.tab.id, grantId: grant.id, url },
+          this.siteToolAccess, this.evidenceRoot, signal, async command => {
+          check();
           const reply = await grant.dialogs.untilDialog(() =>
             contents.executeJavaScriptInIsolatedWorld(1004, [{ code: siteToolsScript(grant.origin, command) }]));
-          checkSite();
+          check();
           if ('dialogOpened' in reply) throw new Error('The site tool opened a dialog. Inspect the tab before retrying.');
-          const result = reply.value as SiteToolsReply;
-          if (result.kind === 'stale') throw new Error('The site tool registration changed. List the page tools again.');
-          if (result.kind === 'unavailable') throw new Error('WebMCP is unavailable in this page.');
-          return result;
-        };
-        if (request.action === 'listSiteTools') {
-          const fromOrigins = [...new Set(request.fromOrigins ?? [])].filter(origin => origin !== grant.origin);
-          if (fromOrigins.length && !await this.siteToolAccess.approve(thread, grant.origin, { kind: 'discover', fromOrigins }))
-            throw new Error('Discovery of cross-origin site tools was declined.');
-          grant.siteTools.clear();
-          const listed = await runSite({ kind: 'list', fromOrigins });
-          if (listed.kind !== 'siteTools') throw new Error('Could not list the page tools.');
-          for (const tool of listed.tools) grant.siteTools.set(tool.id, tool);
-          return { ...listed, tabId: grant.tab.id, origin: grant.origin };
-        }
-        const tool = grant.siteTools.get(request.toolId);
-        if (!tool) throw new Error('The site tool registration changed. List the page tools again.');
-        if (!await this.siteToolAccess.approve(thread, grant.origin, { kind: 'invoke', tool, input: request.input }))
-          throw new Error('The site tool call was declined.');
-        checkSite();
-        const { id, entry, record } = await startBrowserReceipt(this.evidenceRoot, {
-          thread, grantId: grant.id, tabId: grant.tab.id, origin: grant.origin, url, action: request.action,
+          return reply.value as SiteToolsReply;
         });
-        await record('.intent', { ...entry, tool: tool.name, toolOrigin: tool.origin });
-        let reply;
-        try {
-          reply = await runSite({ kind: 'call', id: tool.id, input: request.input });
-        } catch (error) {
-          const reason = (error instanceof Error ? error.message : String(error)).slice(0, 600);
-          await record('.result', { id, outcome: 'unknown', reason });
-          return { receiptId: id, outcome: 'unknown', reason };
-        }
-        await record('.result', { id, outcome: 'dispatched' });
-        return { ...reply, receiptId: id, outcome: 'dispatched' };
       }
       if (request.action === 'diagnose') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');

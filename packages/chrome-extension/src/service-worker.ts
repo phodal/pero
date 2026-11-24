@@ -7,6 +7,7 @@ import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/b
 import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
 import { captureBrowserDiagnostics } from '../../../desktop/src/main/browser-use/diagnostics.ts';
 import { ChromiumAccessibility } from '../../../desktop/src/main/browser-use/accessibility.ts';
+import { siteToolsScript } from '../../../desktop/src/main/browser-use/site-tools.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
 
@@ -238,6 +239,14 @@ async function run(connection: Peer, command: Command) {
       throw new Error('Invalid Chrome Browser Use document operation.');
     const result = await untilDialog(handle, () => evaluateDocument(cdp, world, origin, operation.script));
     if ('dialogOpened' in result) throw new Error('Chrome opened a JavaScript dialog. Read it with getJsDialog.');
+    return result.value;
+  }
+  if (operation.kind === 'siteTools') {
+    const result = await untilDialog(handle, () =>
+      evaluateDocument(cdp, world, origin, siteToolsScript(origin, operation.command), 'siteTools'));
+    if ('dialogOpened' in result) throw new Error('The site tool opened a dialog. Inspect the tab before retrying.');
+    if (peer !== connection) throw new Error('The Pero Relay disconnected.');
+    checkDocument(await snapshot(connection, handle));
     return result.value;
   }
   if (operation.kind === 'screenshot') {

@@ -10,6 +10,7 @@ import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
 import type { BrowserNode } from './document.ts';
 import type { BrowserDiagnosticApproval } from './diagnostics.ts';
+import type { SiteToolAccess } from './site-tools.ts';
 import { cloudBrowserRequest } from './cloud-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
@@ -62,7 +63,7 @@ class ChromeRelay {
   readonly siteAccess?: ChromeSiteAccess;
 
   constructor(selected: () => Promise<string | undefined>, private readonly evidenceRoot: string, sidebar?: SidebarPort,
-    sitePort?: ChromeSiteAccessPort, approveDiagnostics?: BrowserDiagnosticApproval) {
+    sitePort?: ChromeSiteAccessPort, approveDiagnostics?: BrowserDiagnosticApproval, siteTools?: SiteToolAccess) {
     this.sidebar = sidebar;
     this.selected = selected;
     const access = this.siteAccess = sitePort && new ChromeSiteAccess(join(dirname(evidenceRoot), 'chrome-site-access.json'), sitePort);
@@ -74,7 +75,7 @@ class ChromeRelay {
           throw new Error('The paired Chrome profile changed.');
         return access.require(thread, tab.grantId, tab.origin, AbortSignal.any([signal, connection.ended.signal]));
       },
-    }, approveDiagnostics);
+    }, approveDiagnostics, siteTools);
   }
 
   attach(server: Server) {
@@ -349,13 +350,14 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     private readonly workspace: 'local' | 'ssh' = 'local',
     sitePort?: ChromeSiteAccessPort,
     approveDiagnostics?: BrowserDiagnosticApproval,
-    private readonly siteTools = false,
+    private readonly siteTools?: SiteToolAccess,
   ) {
     this.embedded = embedded;
-    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort, approveDiagnostics);
+    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort, approveDiagnostics, siteTools);
     const tool = embedded.tool;
-    this.tool = { ...tool, inputSchema: approveDiagnostics && siteTools ? browserInputSchema : limitedBrowserSchema(false, !!approveDiagnostics, siteTools), description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Pass background: true with an explicit chrome: tabId to observe or act on an inactive tab without selecting it. Chrome supports ' +
-      chromeActions.filter(action => action !== 'diagnose' || !!approveDiagnostics).join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' +
+    this.tool = { ...tool, inputSchema: approveDiagnostics && siteTools ? browserInputSchema : limitedBrowserSchema(false, !!approveDiagnostics, !!siteTools), description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Pass background: true with an explicit chrome: tabId to observe or act on an inactive tab without selecting it. Chrome supports ' +
+      chromeActions.filter(action => (action !== 'diagnose' || !!approveDiagnostics) &&
+        (!browserSiteToolAction(action) || !!siteTools)).join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' +
       (approveDiagnostics ? ' diagnose captures console messages, runtime errors, network timing, and Chromium performance metrics on the selected site. Set style to a selector and properties to read computed CSS. Set profile to true to sample CPU activity where supported. Browser Developer Mode and separate user approval are required.' : '') };
     if (this.workspace === 'ssh') {
       this.tool = {
@@ -374,9 +376,10 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     if (request.action === 'diagnose' && this.workspace === 'ssh')
       throw new Error('Browser Developer Mode requires a local Workbench conversation.');
     if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
-      if (!this.siteTools || request.tabId?.startsWith('chrome:'))
-        throw new Error('Browser Site Tools require an embedded tab in the local Electron Workbench.');
-      return this.embedded.call(thread, request, signal, files, workspace, deliver);
+      if (!this.siteTools || this.workspace === 'ssh')
+        throw new Error('Browser Site Tools require a local Workbench conversation.');
+      const target = request.tabId?.startsWith('chrome:') ? this.relay.browser : this.embedded;
+      return target.call(thread, request, signal, files, workspace, deliver);
     }
     if (this.workspace === 'ssh' && browserFileAction(request.action))
       throw new Error('Browser file operations require a local Workbench conversation.');

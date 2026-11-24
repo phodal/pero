@@ -20,6 +20,7 @@ import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
 import { cloudBrowserRequest } from './browser-use/cloud-use.ts';
 import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
+import type { SiteToolAccess } from './browser-use/site-tools.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
 import {McpSessionPanels} from './mcp-session-panels.ts';
@@ -407,12 +408,7 @@ app.whenReady().then(async () => {
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
   const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
-  const embedded = browserUse = new BrowserUse(browserEvidence, async url => {
-    if (!webPages) throw new Error('Web views are unavailable.');
-    const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
-    await ready;
-    return tabId;
-  }, options => net.request(options), sshProfile ? undefined : browserDeveloperMode.approve, sshProfile ? undefined : {
+  const siteTools: SiteToolAccess | undefined = sshProfile ? undefined : {
     signal: () => {
       if (!siteToolSession) throw new Error('Enable Browser Site Tools from the Workbench menu first.');
       return siteToolSession.signal;
@@ -431,7 +427,13 @@ app.whenReady().then(async () => {
       });
       return response === 1;
     },
-  });
+  };
+  const embedded = browserUse = new BrowserUse(browserEvidence, async url => {
+    if (!webPages) throw new Error('Web views are unavailable.');
+    const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
+    await ready;
+    return tabId;
+  }, options => net.request(options), sshProfile ? undefined : browserDeveloperMode.approve, siteTools);
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
     selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local', {
       currentTurn: thread => appUse?.authority.browserTurn(thread),
@@ -445,7 +447,7 @@ app.whenReady().then(async () => {
         });
         return ['decline', 'once', 'allow', 'block'][response];
       },
-    }, sshProfile ? undefined : browserDeveloperMode.approve, !sshProfile),
+    }, sshProfile ? undefined : browserDeveloperMode.approve, siteTools),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};

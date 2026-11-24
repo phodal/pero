@@ -14,6 +14,7 @@ import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '
 import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
+import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -40,6 +41,11 @@ let foreignHits = 0;
 let leaveRequests = 0;
 const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
+  if (request.url === partnerSiteToolPath) {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(partnerSiteToolPage(new URL(siteUrl).origin));
+    return;
+  }
   if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
   if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === '/inventory-window' || request.url === '/popup-destination') {
@@ -58,6 +64,11 @@ const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
   if (parallelFixture.handle(request, response)) return;
+  if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(siteToolPage(request.url === '/webmcp-frame', new URL(foreignUrl).origin));
+    return;
+  }
   if (request.url === axPath || request.url === axFramePath) {
     response.setHeader('Content-Type', 'text/html');
     response.end(request.url === axPath ? axPage(foreignUrl) : axFramePage);
@@ -201,7 +212,7 @@ try {
 
   chrome = await chromium.launchPersistentContext(resolve(temporary, 'chrome'), {
     executablePath: chromeBinary, headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-blink-features=WebMCP'],
   });
   let worker = chrome.serviceWorkers().find(candidate => candidate.url().startsWith('chrome-extension://'));
   worker ??= await chrome.waitForEvent('serviceworker', { predicate: candidate => candidate.url().startsWith('chrome-extension://') });
@@ -351,6 +362,20 @@ try {
     assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 2);
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
+
+    const toolPage = await chrome.newPage();
+    const toolUrl = new URL('/webmcp', siteUrl).href;
+    await toolPage.goto(toolUrl);
+    const readSiteToolPage = expression => toolPage.evaluate(expression);
+    await expect.poll(() => readSiteToolPage(`document.body.dataset.ready + ':' +
+      document.querySelector('iframe').contentDocument?.body?.dataset?.ready`)).toBe('yes:yes');
+    const [toolTabs] = await prompt([{ action: 'tabs' }]);
+    const siteTools = await verifySiteTools({
+      app, origin: new URL(siteUrl).origin, foreignOrigin: new URL(foreignUrl).origin, menu, prompt,
+      tabId: toolTabs.tabs.find(tab => tab.url === toolUrl).tabId, readSiteToolPage,
+      receiptDir: resolve(temporary, 'desktop', 'browser-use-evidence', createHash('sha256').update(original).digest('hex')),
+    });
+    await toolPage.close();
 
     const accessibilityPage = await chrome.newPage();
     const accessibilityUrl = new URL(axPath, siteUrl).href;
@@ -787,6 +812,7 @@ nodeRepl.write(answer.outcome);` },
       chromeBackground: { explicitTarget: true, trustedClick: true, trustedKey: true, ax: true, reload: true,
         foregroundUnchanged: true },
       accessibility,
+      siteTools,
       parallel,
       parallelRepl,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,

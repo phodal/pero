@@ -61,7 +61,13 @@ export async function checkSiteTools({ app, origin, foreignOrigin, menu, prompt,
     document.querySelector('iframe').contentDocument?.body?.dataset?.ready`)).toBe('yes:yes');
   await confirm(1);
   await expect.poll(async () => (await document(siteToolTab))?.observation.notice).toBe('Browser Use allowed');
-  const listTools = { action: 'listSiteTools', tabId: siteToolTab };
+  const results = await verifySiteTools({ app, origin, foreignOrigin, menu, prompt, tabId: siteToolTab, readSiteToolPage, receiptDir });
+  await prompt([{ action: 'closeTab', tabId: siteToolTab }, { action: 'activate', tabId: origin + '/' }]);
+  return results;
+}
+
+export async function verifySiteTools({ app, origin, foreignOrigin, menu, prompt, tabId, readSiteToolPage, receiptDir }) {
+  const listTools = { action: 'listSiteTools', tabId };
   const [siteToolsOff] = await prompt([listTools]);
   expect(siteToolsOff).toMatchObject({ isError: true, error: expect.stringContaining('Enable Browser Site Tools') });
   await menu('browser-use-site-tools', true);
@@ -72,10 +78,13 @@ export async function checkSiteTools({ app, origin, foreignOrigin, menu, prompt,
     expect.objectContaining({ name: 'set_frame_heading', frameUrl: origin + '/webmcp-frame' }),
   ]) });
   expect(listed.tools.map(tool => tool.origin)).toEqual([origin, origin]);
-  const operateSiteTool = { action: 'callSiteTool', tabId: siteToolTab, toolId: listed.tools.find(tool => tool.name === 'set_fixture_heading').id,
+  const operateSiteTool = { action: 'callSiteTool', tabId, toolId: listed.tools.find(tool => tool.name === 'set_fixture_heading').id,
     input: { text: 'Changed by actual WebMCP' } };
   await app.evaluate(({ dialog }) => {
-    dialog.showMessageBox = async (_window, options) => {
+    const original = dialog.showMessageBox;
+    dialog.showMessageBox = async (window, options) => {
+      if (!['Run this website tool?', 'Allow discovery of partner site tools?'].includes(options.message))
+        return original.call(dialog, window, options);
       globalThis.siteToolPrompt = options;
       return { response: globalThis.siteToolApproved ? 1 : 0, checkboxChecked: false };
     };
@@ -101,7 +110,7 @@ export async function checkSiteTools({ app, origin, foreignOrigin, menu, prompt,
   const receipt = JSON.parse(await readFile(resolve(receiptDir, siteToolRun.receiptId + '.result.json'), 'utf8'));
   expect(receipt).toEqual({ id: siteToolRun.receiptId, outcome: 'dispatched' });
   const [toolReload, oldTool, newTools] = await prompt([
-    { action: 'reload', tabId: siteToolTab }, operateSiteTool, listTools,
+    { action: 'reload', tabId }, operateSiteTool, listTools,
   ]);
   expect(toolReload.outcome).toBe('dispatched');
   expect(oldTool).toMatchObject({ isError: true, error: expect.stringContaining('List the page tools again') });
@@ -124,7 +133,6 @@ export async function checkSiteTools({ app, origin, foreignOrigin, menu, prompt,
   await expect.poll(() => readSiteToolPage('document.body.dataset.partnerEffect')).toBe('Trusted partner effect');
   expect((await app.evaluate(() => globalThis.siteToolPrompt)).detail).toContain(foreignOrigin + '\n\nset_partner_marker');
   await menu('browser-use-site-tools', false);
-  await prompt([{ action: 'closeTab', tabId: siteToolTab }, { action: 'activate', tabId: origin + '/' }]);
   return { defaultOff: true, separateConsent: true, sameOriginFrame: true, invalidatedAfterReload: true,
     crossOriginDiscoveryConsent: true, privatePartnerToolExcluded: true, crossOriginEffect: true, receipt };
 }

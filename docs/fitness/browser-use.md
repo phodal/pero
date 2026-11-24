@@ -191,7 +191,12 @@ embedded Chromium fixture also checks a named function in its CPU sample.
 ### Browser Site Tools
 
 In Electron, enable **Workbench → Browser Site Tools** and authorize an
-embedded Web tab. `listSiteTools` discovers WebMCP registrations in the
+embedded Web tab or a site in the paired Chrome profile. For Chrome, use
+extension 0.3.10 or later and pass the explicit `chrome:` tab ID. Chrome must
+make WebMCP available to the page. The loopback fixture enables the feature
+with a Chrome startup flag. Availability on regular sites follows the
+[Chrome WebMCP rollout](https://developer.chrome.com/docs/ai/webmcp).
+`listSiteTools` discovers WebMCP registrations in the
 approved document and its same-origin frames. It returns the browser's tool
 schema and a document-bound ID. Request partner-frame tools by listing the
 exact origins in `fromOrigins`. The user reviews those origins before
@@ -202,10 +207,10 @@ arguments before dispatch. Run discovery again after navigation or reload.
 Each dispatch returns a receipt. If the tool's outcome is unclear, inspect
 the page before calling it again.
 
-The Electron fixture registers real WebMCP tools in a page and in same-origin
-and cross-origin frames. It checks the returned schemas, private partner tools
-staying private, separate discovery and call consent, independent page effects
-and a stale ID after reload.
+The Electron and Chrome Relay fixtures register real WebMCP tools in a page
+and in same-origin and cross-origin frames. Both check the returned schemas,
+private partner tools staying private, separate discovery and call consent,
+independent page effects, a saved receipt and a stale ID after reload.
 
 ### Chromium accessibility snapshots
 
