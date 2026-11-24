@@ -85,29 +85,29 @@ UI-only `_meta` 不进入模型上下文。结果保存沿用既有会话的数�
 
 ### A. 在真实执行边界保留结果身份
 
-- [ ] 从真实 MCP 执行路径生成类型化结果回执，保留 Tool 定义 UI 声明、原始输入和 View 所需结果。
-- [ ] 沿现有 Harness → ACP → Rust Host → 会话工具行传递、关联原始 tool-call ID；与普通结果投影分离。
-- [ ] 在既有会话历史中保存可展示快照；UI-only 数据不能流入模型请求或普通日志。
+- [x] 从真实 MCP 执行路径生成类型化结果回执，保留 Tool 定义 UI 声明、原始输入和 View 所需结果。2026-11-24 复核：会话接入测试仍通过。
+- [x] 沿现有 Harness → ACP → Rust Host → 会话工具行传递、关联原始 tool-call ID；与普通结果投影分离。Electron 工具行使用该描述符。
+- [x] 在既有会话历史中保存可展示快照；UI-only 数据不能流入模型请求或普通日志。`TestModelInputOmitsUIOnlyMeta` 直接断言模型输入。
 
 ### B. 在原工具行挂载已有 Runtime
 
-- [ ] 复用会话工具行及受管 Web slot，以原始输入/结果调用 `mountMcpApp`；不调用手动面板的 `execute`。
-- [ ] 默认在会话结果位置直接提供可用视图；来源/诊断按需展开。长内容使用容器内滚动与实际尺寸通知，不增加固定整页高度或第二层应用壳。
-- [ ] 展开、关闭、切换、再次展开保持同一结果身份。关闭/隐藏时按现有生命周期撤销视图 binding；这不取消后台业务任务，也不删除结果。
-- [ ] 局部初始化/资源失败保留普通结果和恢复动作；重试只重取资源/重挂载视图，不重放初始工具。
+- [x] 复用会话工具行及受管 Web slot，以原始输入/结果调用 `mountMcpApp`；不调用手动面板的 `execute`。官方会话链在重启前通过。
+- [x] 默认在会话结果位置直接提供可用视图；来源/诊断按需展开。长内容使用容器内滚动与实际尺寸通知，不增加固定整页高度或第二层应用壳。
+- [x] 展开、关闭、切换、再次展开保持同一结果身份。关闭/隐藏时按现有生命周期撤销视图 binding；这不取消后台业务任务，也不删除结果。
+- [x] 局部初始化/资源失败保留普通结果和恢复动作；重试只重取资源/重挂载视图，不重放初始工具。沿用已有失败重试；本次未新造一条失败路径。
 
 ### C. 恢复历史并维持授权边界
 
-- [ ] 重开聊天或重启后，先恢复已保存的结果和来源；不调用工具、不发模型请求。恢复历史只读快照不必执行资源 HTML；执行 HTML 本身不构成权限恢复。
-- [ ] 缺少当前有效绑定时，历史仍可读，并明确“历史结果，当前不可交互”。首版允许这种回退，不承诺跨进程自动恢复实时交互。
-- [ ] 有效会话内的后续 UI 工具调用继续走既有 policy/approval；Server 代次变化、会话关闭或权限撤销后旧绑定立即不可用。
-- [ ] 仅声明实际支持的 Host capability。当前以 inline 为基线；未接通的消息提交、模型上下文更新、panel/fullscreen 等不得假报支持。
+- [x] 重开聊天或重启后，先恢复已保存的结果和来源；不调用工具、不发模型请求。恢复历史只读快照不必执行资源 HTML；执行 HTML 本身不构成权限恢复。Electron 重启后工具调用仍为 2、模型请求仍为 3，且没有 iframe。
+- [x] 缺少当前有效绑定时，历史仍可读，并明确“历史结果，当前不可交互”。首版允许这种回退，不承诺跨进程自动恢复实时交互。截图 `history-readonly-zh.png`。
+- [x] 有效会话内的后续 UI 工具调用继续走既有 policy/approval；Server 代次变化、会话关闭或权限撤销后旧绑定立即不可用。重启前两次 ask；归档描述符不再准入。
+- [x] 仅声明实际支持的 Host capability。当前以 inline 为基线；未接通的消息提交、模型上下文更新、panel/fullscreen 等不得假报支持。本次没有新增 capability。
 
 ### D. 真实产品验收
 
-- [ ] 冻结并运行未经改写的官方 Vanilla JS demo（当前实施任务使用 `@modelcontextprotocol/server-basic-vanillajs@2.0.4`），记录版本与完整链路证据。
-- [ ] Notebook 固定修订 Inspector 通过同一个会话结果入口；领域修订、内容与科学状态继续由 Notebook 拥有。
-- [ ] 在完整 Electron Workbench 中从真实工具结果打开、交互、关闭和重开；另记录实际 Native GPUI 运行面的结果。独立 iframe、浏览器和 Native 结论分别报告。
+- [x] 冻结并运行未经改写的官方 Vanilla JS demo（当前实施任务使用 `@modelcontextprotocol/server-basic-vanillajs@2.0.4`），记录版本与完整链路证据。2026-11-24 回执见 fitness 文档。
+- [ ] Notebook 固定修订 Inspector 通过同一个会话结果入口；领域修订、内容与科学状态继续由 Notebook 拥有。本次没有在 Workbench 里用 Agent 工具结果打开 Inspector。
+- [ ] 在完整 Electron Workbench 中从真实工具结果打开、交互、关闭和重开；另记录实际 Native GPUI 运行面的结果。独立 iframe、浏览器和 Native 结论分别报告。Electron 会话链已重跑。Native GPUI 本次未运行。独立 iframe/浏览器面板没有在这次重新打开。
 
 以上按 concern 拆成小提交/PR，不以一次大规模全层重写交付。
 
@@ -149,6 +149,48 @@ UI-only `_meta` 不进入模型上下文。结果保存沿用既有会话的数�
 
 本次交付是分析与后续 issue，未执行新的 Runtime/产品验收；当前 Runtime 的已有本地验证与本 issue 的待执行验收分别记录。
 
+
+## 2026-11-24 read-only history
+
+Base `0fc86a2b`. Reopening an archived chat, or restarting the process, restores
+the saved tool text, source, and `pero.mcpApp` descriptor. It does not call the
+initial tool, send a model request, execute the resource HTML, or admit a new
+live binding. Closing the session in the current process uses the same
+sentence: the iframe goes away and the row is no longer interactive.
+`historical` stays false until saved history is loaded. The sentence is
+“历史结果，当前不可交互” (`mcp.history.readonly`), not “已关闭”
+(`mcp.runtime.closed`). The Electron receipt reads that sentence and
+`interactive` from `mcpHistory` in the Workbench snapshot. Keyboard focus of
+the notice was not verified.
+
+#234 still returns that snapshot from on-demand thread history. `1268ff1b`
+can omit tool images from the ACP projection without dropping the text or
+descriptor. Two servers that publish the same `ui://` stay on their own server.
+UI-only `_meta` is absent from the marshaled model `GenerateRequest`.
+
+Electron evidence, 2026-11-24, unchanged
+`@modelcontextprotocol/server-basic-vanillajs@2.0.4`:
+`test-results/mcp-apps-conversation/result.json`,
+`history-closed-same-process-zh.png`, and `history-readonly-zh.png`. After
+close and after restart the audit stays at two `get-time` calls and three
+loopback model requests.
+
+### A–D against this head
+
+| Item | Status |
+| --- | --- |
+| A. Result identity on the real execution path and the tool row | Met. Capture and ACP projection already on master; rechecked by the session-access test and the Electron tool row |
+| A. UI-only `_meta` out of the model request | Met. `TestModelInputOmitsUIOnlyMeta` |
+| B. Mount, collapse, close, reopen without repeating the initial tool | Met on the live Electron chain before restart |
+| C. History restore without a tool or model call, with the explicit non-interactive sentence | Met. Contract tests plus the zh-CN Electron restart |
+| C. Live approval path and no cross-process live recovery | Met. Two asks before restart, none after; archived descriptors are not admitted |
+| D. Official 2.0.4 full Electron chain | Met for this run. Receipt above |
+| D. Notebook Inspector as the Agent conversation tool-result entry | 未验证. This run did not start a Workbench agent turn that calls `app__notebook__read-entry`, so the Inspector was not observed in the tool row |
+| D. Native GPUI | 未验证. This Linux environment did not launch the Native GPUI shell, so there is no observed native window or interaction |
+
+The follow-ups below the original issue (model-context updates, Task/Run/Artifact,
+author tools, panel/fullscreen, distribution) are still not closing conditions.
+This record stays open with GitHub #218.
 
 ## 2026-11-13 implementation and CI receipt follow-up
 
