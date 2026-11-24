@@ -66,7 +66,7 @@ async function launch() {
   // startup gate first; keep the subsequent visibility and sandbox checks intact.
   await expect(frame.getByRole('button', { name: 'Freeze experiment', exact: true })).toBeEnabled({ timeout: 120000 });
   await expect(page.locator('iframe[title="lab"]')).toBeVisible();
-  await expect(frame.getByRole('heading', { name: 'Lab', exact: true })).toBeVisible();
+  await expect(frame.getByRole('heading', { name: 'Experiment goal', exact: true })).toBeVisible();
   await expect(page.locator('iframe[title="lab"]')).toHaveAttribute('sandbox', /allow-scripts/);
   expect(await page.locator('iframe[title="lab"]').getAttribute('sandbox')).not.toContain('allow-forms');
 }

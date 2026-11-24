@@ -58,7 +58,7 @@ try{
    await frame.getByRole('tab',{name:'Table',exact:true}).click();await expect(frame.getByRole('table')).toBeVisible();if(example.name!=='quoted-table.csv'){await frame.getByRole('tab',{name:'Chart',exact:true}).click();await expect(frame.getByRole('img',{name:/^Chart of /})).toBeVisible();}
    if(example.name==='invalid-spectrum.csv')await expect(frame.getByRole('alert')).toContainText('2 missing or nonnumeric pairs');
   }
-  if(example.name.endsWith('.pdb')){await expect(frame.getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
+  if(example.name.endsWith('.pdb')){await expect(frame.getByRole('region',{name:'Structure',exact:true}).getByRole('status')).toContainText('Structure ready',{timeout:45000});await expect(frame.locator('.molecule-view canvas').first()).toBeVisible();}
   if(example.name.endsWith('.smi')){await expect(frame.getByRole('img',{name:'Molecule 1',exact:true})).toBeVisible({timeout:45000});if(example.name.startsWith('invalid'))await expect(frame.getByRole('alert')).toContainText('Invalid molecule');}
   if(example.name.endsWith('.pdf')){
    const preview=frame.getByRole('region',{name:example.name,exact:true});

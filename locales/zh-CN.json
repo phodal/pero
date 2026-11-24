@@ -679,7 +679,7 @@
   "apps.install": "从文件夹安装",
   "apps.loading": "正在加载应用…",
   "apps.open_failed": "应用无法打开",
-  "apps.open_failed_hint": "请重试。若仍然失败，请更新应用与运行时后重新启动 Pero。",
+  "apps.open_failed_hint": "查看详情了解失败原因，修复后重试。",
   "apps.retry_open": "重试",
   "apps.show_diagnostics": "查看详情",
   "apps.hide_diagnostics": "收起详情",

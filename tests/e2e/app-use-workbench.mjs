@@ -28,6 +28,8 @@ try{
  await clickAppShortcut(page, 'apps');
  await expect.poll(async()=>(await state()).navigation).toBe(7);
  await expect.poll(async()=>(await state()).appsLoading).toBe(false);
+ // Opening stays read-only. Prepare this App, then open it.
+ await page.evaluate(() => window.pero.appsCommand({ action: 'apps_prepare', name: 'virtual-cell' }));
  await clickAppOpen(page, 'virtual-cell');
  await expect.poll(async()=>(await state()).activeContent).toEqual({kind:'app',value:{name:'virtual-cell',panel:'main'}});
  const frame=page.frameLocator('iframe[title="virtual-cell"]');

@@ -6,6 +6,8 @@ import { productShellStyle } from '../../scripts/build/shell-style.mjs';
 import { requestAppChat } from '../fixtures/app-chat-launch.mjs';
 import { waitForFullAppUse } from '../fixtures/app-use-progress.mjs';
 import { build } from 'esbuild';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { cp, mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -41,8 +43,12 @@ await cp(resolve(root, 'apps/virtual-cell'), join(distribution, 'apps/virtual-ce
 const agents = join(temp, 'agents.json');
 await writeFile(agents, JSON.stringify(['codex', 'claude', 'copilot', 'grok'].map(id => ({ id, name: `App Use fixture (${id})`, command: process.execPath, args: [resolve(root, 'tests/fixtures/app-use-agent.mjs')], env: { PERO_APP_USE_FIXTURE_OUTPUT: output,PERO_APP_USE_FIXTURE_INPUT:join(temp,'inputs.json') } }))));
 // Product owns this settings path; select the overridden local ACP fixture explicitly.
+// The product shell opens the entry App without installing Python. Prepare the
+// Virtual Cell environment here, then let that unchanged open use it.
 await mkdir(join(temp,'profile'), {recursive:true});
-await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex'}));
+const virtualCellPython = join(temp, 'virtual-cell-python');
+await promisify(execFile)(process.env.PERO_APP_PYTHON || 'python3.12', ['-m', 'venv', '--without-pip', virtualCellPython]);
+await writeFile(join(temp,'profile/runtime-settings.json'),JSON.stringify({chat_agent:'codex',app_python:{apps:{'virtual-cell':virtualCellPython}}}));
 const env = { ...process.env, PERO_DESKTOP_DATA_DIR: join(temp, 'profile'), PERO_AGENTS_FILE: agents, PERO_LOCALE: 'en' };
 delete env.ELECTRON_RUN_AS_NODE;
 let app, electronProcess, testFailure;

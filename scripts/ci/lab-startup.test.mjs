@@ -37,5 +37,5 @@ for (const fails of [false, true]) test(`Lab startup uses its existing readiness
   });
   const result = runInNewContext(`(async () => { let frame; ${block}\n})()`, { page, expect });
   if (fails) { await assert.rejects(result, /fixture startup failed/); assert.deepEqual(calls, ['startup ready']); }
-  else { await result; assert.deepEqual(calls, ['startup ready', 'iframe visible', 'Lab visible', 'sandbox scripts', 'sandbox value', 'sandbox forms excluded']); }
+  else { await result; assert.deepEqual(calls, ['startup ready', 'iframe visible', 'Experiment goal visible', 'sandbox scripts', 'sandbox value', 'sandbox forms excluded']); }
 });

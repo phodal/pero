@@ -1,7 +1,7 @@
 //! Replies from the existing ACP session. No separate MCP client is created here.
 use pero_contracts::{
     HostEvent,
-    mcp_session::{McpSessionError, McpSessionRequest},
+    mcp_session::{McpSessionAction, McpSessionError, McpSessionRequest},
 };
 use serde_json::{Value, json};
 use std::sync::mpsc::Sender;
@@ -13,8 +13,13 @@ pub fn reply(
     request: &McpSessionRequest,
     result: Result<Value, McpSessionError>,
 ) {
+    let limit = match request.action {
+        // The inspector HTML is fetched by resource URI, not inside the tool result.
+        McpSessionAction::Read | McpSessionAction::Resource => 2_097_152,
+        _ => 1_048_576,
+    };
     let result = result.and_then(|value| {
-        if serde_json::to_vec(&value).map_or(true, |v| v.len() > 1_048_576) {
+        if serde_json::to_vec(&value).map_or(true, |v| v.len() > limit) {
             Err(McpSessionError::Invalid)
         } else {
             Ok(value)
@@ -97,6 +102,10 @@ mod tests {
     fn replies_are_correlated_and_bounded() {
         let request: McpSessionRequest = serde_json::from_value(json!({"method":"mcp.session","request_id":"r","thread_id":"t","incarnation":1,"revision":2,"action":"list"})).unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
+        reply(&tx, &request, Ok(json!({"payload":"ok"})));
+        let admitted = rx.recv().unwrap();
+        assert_eq!(admitted.kind, "mcp_session");
+        assert_eq!(admitted.data["result"]["payload"], "ok");
         reply(&tx, &request, Ok(json!({"payload":"x".repeat(1_048_577)})));
         let event = rx.recv().unwrap();
         assert_eq!(event.kind, "mcp_session_error");
@@ -106,6 +115,15 @@ mod tests {
             event.data,
             json!({"incarnation":1,"revision":2,"reason":"invalid"})
         );
+        let read: McpSessionRequest = serde_json::from_value(json!({"method":"mcp.session","request_id":"resource","thread_id":"t","incarnation":1,"revision":2,"action":"read","server":"Notebook","generation":1,"uri":"ui://pero/notebook/inspector-v1"})).unwrap();
+        reply(&tx, &read, Ok(json!({"payload":"y".repeat(1_200_000)})));
+        let document = rx.recv().unwrap();
+        assert_eq!(document.kind, "mcp_session");
+        assert!(document.data["result"]["payload"].as_str().unwrap().len() > 1_048_576);
+        reply(&tx, &read, Ok(json!({"payload":"z".repeat(2_097_153)})));
+        let over = rx.recv().unwrap();
+        assert_eq!(over.kind, "mcp_session_error");
+        assert_eq!(over.data["reason"], "invalid");
     }
 }
 

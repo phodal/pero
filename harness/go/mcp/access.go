@@ -167,17 +167,34 @@ func (a *SessionAccess) Request(ctx context.Context, server string, generation u
 	if err = a.Check(server, generation); err != nil {
 		return nil, err
 	}
+	if action == "read" || action == "resource" {
+		return BoundedResourceResult(result)
+	}
 	return BoundedAccessResult(result)
 }
-func BoundedAccessResult(value any) (json.RawMessage, error) {
+const maxMCPResponseBytes = 1 << 20
+
+// An MCP App HTML document is read by its resource URI. It is not part of the
+// tool result, which stays within maxMCPResponseBytes.
+const maxMCPResourceBytes = 2 << 20
+
+func boundedResult(value any, limit int, label string) (json.RawMessage, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > 1<<20 {
-		return nil, errors.New("MCP response exceeds 1 MiB")
+	if len(raw) > limit {
+		return nil, errors.New(label)
 	}
 	return raw, nil
+}
+
+func BoundedAccessResult(value any) (json.RawMessage, error) {
+	return boundedResult(value, maxMCPResponseBytes, "MCP response exceeds 1 MiB")
+}
+
+func BoundedResourceResult(value any) (json.RawMessage, error) {
+	return boundedResult(value, maxMCPResourceBytes, "MCP resource exceeds 2 MiB")
 }
 func appResource(meta sdk.Meta) string {
 	ui, _ := meta["ui"].(map[string]any)

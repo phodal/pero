@@ -191,7 +191,7 @@ try {
   for (const template of catalog.templates) {
     if (finished.length) await frame.getByRole('button', { name: 'New experiment', exact: true }).click();
     await chooseSelect(frame, 'Template', template.id);
-    const budget = frame.getByLabel('Total candidate budget', { exact: true });
+    const budget = frame.getByLabel('Candidate budget', { exact: true });
     await budget.fill('31');
     expect(await budget.evaluate(input => input.validity.valid)).toBe(false);
     const beforeInvalid = requests.filter(item => item.method === 'POST').length;
@@ -212,7 +212,7 @@ try {
     expect(frozen.scenarios.filter(item => item.role === 'verification').length).toBeGreaterThan(0);
     await expect(frame.getByLabel('Template', { exact: true })).toHaveCount(0);
     expect(frozen.candidateBudget).toBe(candidateCount);
-    await expect(frame.getByLabel('Total candidate budget', { exact: true })).toHaveCount(0);
+    await expect(frame.getByLabel('Candidate budget', { exact: true })).toHaveCount(0);
     await action('Run bounded search', `${experimentPath(frozen.id)}/search`);
     const searched = await settled(frozen.id);
     expect(searched.status).toBe('completed');
@@ -331,7 +331,7 @@ try {
   // within the real 40,000-point frozen plan limit at 0.01 s resolution.
   await frame.getByLabel('Observation window', { exact: true }).fill('5');
   await frame.getByLabel('Samples', { exact: true }).fill('501');
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('15');
+  await frame.getByLabel('Candidate budget', { exact: true }).fill('15');
   const cancelTarget = await action('Freeze specification', '/api/experiments');
   const running = await action('Run bounded search', `${experimentPath(cancelTarget.id)}/search`);
   expect(running.status).toBe('running');
@@ -364,7 +364,7 @@ try {
   const filter = unavailable.templates.find(item => item.engine === 'ngspice');
   await chooseSelect(frame, 'Template', filter.id);
   await expect(frame.getByText(/ngspice is unavailable/)).toBeVisible();
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('1');
+  await frame.getByLabel('Candidate budget', { exact: true }).fill('1');
   const missing = await action('Freeze specification', '/api/experiments');
   await action('Run bounded search', `${experimentPath(missing.id)}/search`);
   const failedSearch = await settled(missing.id);

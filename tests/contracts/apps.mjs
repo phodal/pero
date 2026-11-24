@@ -295,6 +295,39 @@ try {
   await assert.rejects(realpath(resolve(temp, 'app-data/lab')), { code: 'ENOENT' });
   assert.equal(await readFile(resolve(temp, 'settings.json'), 'utf8'), '{}');
 
+  // A packaged Python App missing a sibling module must explain the cause
+  // without exposing unrelated backend stderr in the result or journal.
+  await host.close();
+  const moduleEnvironment = await preparePythonApp('module-environment', 'unused');
+  await writeFile(resolve(temp, 'settings.json'), JSON.stringify({ app_python: { default: moduleEnvironment.environment } }));
+  host = await launch();
+  const missingPython = resolve(temp, 'missing-python-module');
+  await mkdir(resolve(missingPython, 'dist'), { recursive: true });
+  await mkdir(resolve(missingPython, 'backend'));
+  await writeFile(resolve(missingPython, 'dist/index.html'), '<h1>Missing module fixture</h1>');
+  await writeFile(resolve(missingPython, 'backend/server.py'),
+    'import sys\nprint("private python stderr", file=sys.stderr)\nimport pero_source_tools\n');
+  await writeFile(resolve(missingPython, 'app.json'), JSON.stringify({
+    schemaVersion: 1, name: 'missing-python-module', version: '0.1.0', displayName: 'Missing module',
+    contributes: { panels: [{ id: 'main', title: 'Missing module', entry: 'dist/index.html' }] },
+    backend: { type: 'python', entry: 'backend/server.py' },
+  }));
+  assert.equal((await host.request('install', { path: missingPython })).ok, true);
+  assert.equal((await host.request('enable', { name: 'missing-python-module' })).ok, true);
+  const missingId = crypto.randomUUID();
+  const missingResult = await host.request('resolve', { id: missingId, name: 'missing-python-module' });
+  assert.equal(missingResult.ok, false);
+  assert.match(missingResult.error, /Python module 'pero_source_tools' is missing/);
+  assert.match(missingResult.error, /Repair this App package or its Python environment/);
+  assert(!missingResult.error.includes('private python stderr'));
+  const missingLog = await readFile(resolve(temp, 'app-startup.jsonl'), 'utf8');
+  const missingReceipt = missingLog.trim().split('\n').map(line => JSON.parse(line))
+    .find(entry => entry.request_id === missingId);
+  assert.deepEqual(missingReceipt.failure,
+    { stage: 'ready', code: 'backend_exited', exit_code: 1, signal: null });
+  assert(!missingLog.includes('private python stderr'));
+  assert(!missingLog.includes('pero_source_tools'));
+
   for (const [name, script, code, exitCode] of [
     ['backend-exit', 'console.error("private fixture stderr"); process.exit(73);', 'backend_exited', 73],
     ['backend-timeout', 'setInterval(() => {}, 60000);', 'readiness_timeout', null],

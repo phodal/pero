@@ -225,7 +225,8 @@ try {
   await page.screenshot({ path: resolve(out, 'structured-dark-narrow.png') });
   await backToLibrary(frame);
   await app.close(); app = await launch(); await ready(); await openPaper();
-  await frame.getByRole('navigation', { name: 'Papers', exact: true }).getByRole('button', { name: bundle.title, exact: true }).click();
+  await frame.getByRole('button', { name: 'Collections', exact: true }).click();
+  await frame.getByRole('option', { name: bundle.title, exact: true }).click();
   await frame.locator('.pa-research-bundle .pa-bundle-evidence > summary').filter({ hasText: /^Reading evidence and reports$/ }).click();
   const bundleReports = frame.locator('.pa-research-bundle').getByRole('region', { name: 'Recorded evidence', exact: true });
   await bundleReports.getByRole('button', { name: 'Structured scopes', exact: true }).click();
