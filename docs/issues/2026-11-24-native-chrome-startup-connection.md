@@ -34,7 +34,9 @@ titlebar had no Chrome action. **断开 Chrome** changed the status to
 automatically restored **Chrome 已连接到当前会话**. The existing tab and site
 approval implementation was not changed; this run did not repeat a real tab
 action or inspect the extension's internal page.
-Selecting another ordinary conversation performs a fresh connection check;
-the same conversation can be checked again after switching back. A deliberate
-Disconnect suppresses automatic reconnection until a manual Reconnect or the
-next Native launch.
+The automatic connection opened a Chrome window during launch and could leave
+it showing an unavailable pairing ticket. Native now reads the selected
+conversation’s connection status during startup and after selection changes.
+Pairing begins with an explicit action, such as **Pair in Chrome** in Settings.
+The extension handles the ticket in the opened Chrome tab. See the updated
+[Native startup verification](../fitness/browser-use.md#native-startup-and-explicit-pairing).

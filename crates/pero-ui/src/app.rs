@@ -270,8 +270,8 @@ impl Workbench {
                 ChatAction::OpenContext { reference } => this.open_context_reference(&reference, window, cx),
                 ChatAction::Selected { thread_id } => {
                     this.command(json!({"action":"app_use_selection","thread_id":thread_id}),cx);
-                    #[cfg(all(feature = "native", target_os = "macos", not(feature = "native-probe")))]
-                    this.auto_check_chrome(window, cx);
+                    #[cfg(all(feature = "native", target_os = "macos"))]
+                    this.watch_chrome_connection(window, cx);
                 }
                 ChatAction::Activated => {
                     if !this.chat_dock_visible() && !this.project_agent_active() {

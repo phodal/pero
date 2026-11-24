@@ -116,6 +116,10 @@ try {
   const pairing = await owner.relay.pairing('Browser acceptance');
   await review.goto(origin + '/relay.html#' + new URLSearchParams({ pair: pairing }));
   await expect(review.locator('#status')).toContainText('Connected');
+  assert.equal(await review.evaluate(async () => {
+    const tab = await chrome.tabs.getCurrent();
+    return (await chrome.windows.get(tab.windowId)).type;
+  }), 'normal', 'Pairing should stay in the existing Chrome window.');
   const worker = chrome.serviceWorkers()[0] ?? await chrome.waitForEvent('serviceworker');
   await expect(panel.getByRole('textbox', { name: 'Message Pero' })).toHaveValue('Chrome sidebar message');
   await panel.getByLabel('Model', {exact:true}).selectOption('two');

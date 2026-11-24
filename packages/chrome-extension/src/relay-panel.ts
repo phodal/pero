@@ -49,11 +49,7 @@ chrome.runtime.onMessage.addListener(message => {
 const handoff = new URLSearchParams(location.hash.slice(1)).get('pair');
 if (handoff) {
   history.replaceState(null, '', location.pathname);
-  void action(async () => {
-    const current = await chrome.tabs.getCurrent();
-    if (current?.id) await chrome.windows.create({ tabId: current.id, type: 'popup', width: 460, height: 300 });
-    return request({ type: 'pair', code: handoff });
-  });
+  void action(() => request({ type: 'pair', code: handoff }));
 } else {
   void action(() => request({ type: 'status' }));
 }

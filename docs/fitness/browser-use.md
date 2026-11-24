@@ -98,6 +98,18 @@ suite used the built unpacked extension and a scripted ACP agent. Evidence is
 in `test-results/browser-use/browser-full-page.png` and
 `test-results/chrome-relay/full-page.png`.
 
+## Native startup and explicit pairing
+
+On 2026-11-24, the debug Native Workbench built from `3e40a59f8` with the
+startup fix restored an ordinary fixture conversation after restarting an
+isolated profile. Browser Settings showed **Chrome 尚未配对到当前会话** and
+offered **在 Chrome 中配对**. The IDs of the existing Chrome pairing windows
+were identical before launch and after the Settings check. The headed
+`tests/e2e/chrome-sidebar.mjs` suite confirmed that an explicit pairing ticket
+connects in a normal Chrome window, then exercised the existing sidebar and
+Collector paths. The Native Settings review used the dark theme at default
+size. The installed app and extension were outside this verification.
+
 ## Native Workbench and external Chrome, historical protocol 2
 
 ### Native startup connection and settings — 2026-11-24
