@@ -454,12 +454,19 @@ function connect(code: string) {
   };
 }
 
-chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url?: string }) => {
+function invalidateDocument(tabId: number) {
   const handle = peer?.tabs.get(tabId);
-  if (handle && (change.status === 'loading' || change.url)) {
+  if (handle) {
     handle.revision++;
     invalidateCdp(handle);
   }
+}
+
+chrome.webNavigation.onBeforeNavigate.addListener(({ tabId, frameId }: { tabId: number; frameId: number }) => {
+  if (frameId === 0) invalidateDocument(tabId);
+});
+chrome.tabs.onUpdated.addListener((tabId: number, change: { url?: string }) => {
+  if (change.url) invalidateDocument(tabId);
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
   invalidateCdp(peer?.tabs.get(tabId));

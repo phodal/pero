@@ -2,11 +2,15 @@ import { webOrigin } from '../../../../packages/chrome-extension/src/protocol.ts
 import { cdpCaptureMs } from './cdp-capture.ts';
 import { CdpEventBuffer, type TargetEvent } from './cdp-events.ts';
 import type { CdpReadTargetEvents, CdpTargetEventMethod } from './request.ts';
+import type { Attachment, Discovered } from './cdp-targets.ts';
+
+type ObservedTarget = { params: TargetEvent['params']; targetId: string; attachment: Attachment;
+  address: string; discovered?: Discovered };
 
 /** The bounded event stream for a tab's approved direct child targets. */
 export class CdpTargetEvents {
-  private readonly buffer: CdpEventBuffer;
-  private readonly admitted = new Map<string, TargetEvent['params']>();
+  private readonly buffer: CdpEventBuffer<TargetEvent>;
+  private readonly admitted = new Map<string, ObservedTarget>();
   private readonly timer: ReturnType<typeof setTimeout>;
   private notify?: () => void;
   private active = true;
@@ -29,14 +33,20 @@ export class CdpTargetEvents {
     this.onEnd();
   };
 
-  observe(method: CdpTargetEventMethod, attachment: { sessionId: string; url: string; parent?: string }) {
+  target(id: string, origin: string) {
+    for (const observed of this.admitted.values()) {
+      if (observed.params.targetId === id && observed.params.origin === origin) return observed;
+    }
+  }
+
+  observe(method: CdpTargetEventMethod, targetId: string, attachment: Attachment) {
     if (!this.active || attachment.parent) return;
     const { sessionId, url } = attachment;
     const previous = this.admitted.get(sessionId);
     if (method === 'Target.detachedFromTarget') {
       if (!previous) return;
       this.admitted.delete(sessionId);
-      this.buffer.append({ method, params: previous });
+      this.buffer.append({ method, params: previous.params });
     } else {
       const origin = webOrigin(url);
       if (!origin || !this.origins.includes(origin)) {
@@ -45,13 +55,16 @@ export class CdpTargetEvents {
       }
       // Chromium often announces the attachment before its URL is known.
       // Admit its identity and public URL together once the origin is known.
-      const sameOrigin = previous?.origin === origin;
-      const params = { targetId: sameOrigin ? previous.targetId : crypto.randomUUID(), type: 'iframe' as const,
-        origin, url: (origin + new URL(url).pathname).slice(0, 1024) };
+      const observed = previous?.address === url && previous.attachment === attachment ? previous : {
+        params: { targetId: crypto.randomUUID(), type: 'iframe' as const,
+          origin, url: (origin + new URL(url).pathname).slice(0, 1024) },
+        targetId, attachment, address: url,
+      };
       if (!previous && this.admitted.size === 128) this.admitted.delete(this.admitted.keys().next().value!);
-      this.admitted.set(sessionId, params);
-      if (!sameOrigin && method === 'Target.targetInfoChanged') this.buffer.append({ method: 'Target.attachedToTarget', params });
-      this.buffer.append({ method, params });
+      this.admitted.set(sessionId, observed);
+      if (previous?.params.origin !== origin && method === 'Target.targetInfoChanged')
+        this.buffer.append({ method: 'Target.attachedToTarget', params: observed.params });
+      this.buffer.append({ method, params: observed.params });
     }
     this.notify?.();
   }

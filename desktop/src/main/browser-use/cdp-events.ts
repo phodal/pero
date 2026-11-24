@@ -13,15 +13,13 @@ export type NetworkEvent = { method: 'Network.requestWillBeSent' | 'Network.resp
 export type TargetEvent = { method: CdpTargetEventMethod;
   params: { targetId: string; type: 'iframe'; origin: string; url: string } };
 type CdpEvent = RuntimeEvent | NetworkEvent | TargetEvent;
-type Entry = CdpEvent & { sequence: number };
-
-export class CdpEventBuffer {
+export class CdpEventBuffer<Event extends CdpEvent = CdpEvent> {
   private sequence = 0;
-  private entries: Entry[] = [];
+  private entries: (Event & { sequence: number })[] = [];
 
   constructor(private readonly stream: string = crypto.randomUUID()) {}
 
-  append(event: CdpEvent) {
+  append(event: Event) {
     if (this.entries.length === 128) this.entries.shift();
     this.entries.push({ ...event, sequence: ++this.sequence });
   }

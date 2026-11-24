@@ -243,10 +243,17 @@ read starts a one-minute stream and returns a checkpoint. Pass the checkpoint
 as `after` on subsequent reads. Use `fromOrigins` to request approval for
 additional origins, and keep the approved origin set with the cursor. A frame
 whose origin was unknown at attachment appears once Chromium supplies an
-approved URL. The events share a stream-local `targetId`; use `cdpListTargets`
-to obtain a handle for a command. Event URLs omit queries and fragments. A
+approved URL. The events share a stream-local `targetId`. Event URLs omit
+queries and fragments. A
 new watch, navigation of the top document, expiry, debugger release, or
 revocation discards the watch. Read Runtime and Network events separately.
+
+With extension 0.3.19 or Electron, take `targetId` and `origin` from an
+attach or update event and pass them as `target: { id: targetId, origin }`
+to `cdpSend` or `cdpReadEvents`. Pero binds the handle to the iframe document
+when returning the event. Reloading, detaching, or ending the watch expires
+the handle. After a change to the iframe URL, read its update for the new
+handle. `cdpListTargets` remains available to rediscover a reloaded iframe.
 
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a

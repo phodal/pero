@@ -79,6 +79,10 @@ Extension 0.3.18 supports `cdpReadEvents` with `Target.attachedToTarget`,
 `Target.targetInfoChanged` and `Target.detachedFromTarget`. Take a checkpoint
 without `after`, then pass the cursor and the same `fromOrigins` to page
 events from approved direct out-of-process iframes.
+
+Extension 0.3.19 lets `cdpSend` and `cdpReadEvents` use a live iframe's event
+`targetId` and `origin` as `target: { id: targetId, origin }`. The handle
+expires when the document changes, the iframe detaches, or the watch ends.
 Keep the capture cursor and request IDs with that target context.
 
 The side panel shares its paired Native conversation’s draft, model selection,

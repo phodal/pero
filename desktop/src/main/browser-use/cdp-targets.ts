@@ -3,14 +3,15 @@ import { ChromiumCdp } from './cdp.ts';
 import { CdpTargetEvents } from './cdp-target-events.ts';
 import type { BrowserDiagnosticApproval } from './diagnostics.ts';
 import { cdpTargetEventRequest } from './cdp-events.ts';
-import type { CdpTargetEventMethod, CdpTargetRequest } from './request.ts';
+import type { CdpReadTargetEvents, CdpRequest, CdpTargetEventMethod, CdpTargetRequest } from './request.ts';
 
 type ChildInfo = { targetId: string; type: string; url: string };
-type Attachment = { sessionId: string; url: string; parent?: string };
-type ChildDocument = { id: string; loaderId: string; url: string };
+export type Attachment = { sessionId: string; url: string; parent?: string };
+type ChildDocument = { id: string; loaderId: string; url: string; urlFragment?: string };
 type Child = { targetId: string; document: ChildDocument; origin: string };
-type Discovered = { path: readonly Child[]; cdp?: ChromiumCdp };
+export type Discovered = { path: readonly Child[]; cdp?: ChromiumCdp };
 type RouteStep = { child: Child; attachment: Attachment; attachedUrl: string };
+type ChildCapture = { id: string; target: NonNullable<CdpRequest['target']>; cdp: ChromiumCdp; watch?: CdpTargetEvents };
 export type SessionCdpSend = (method: string, params?: Record<string, unknown>, sessionId?: string) => Promise<unknown>;
 export type SessionCdpSubscribe = (receive: (method: string, params: Record<string, unknown>, parent?: string) => void) => () => void;
 
@@ -35,27 +36,27 @@ class ChildSessions {
   private readonly unsubscribe: () => void;
 
   constructor(readonly send: SessionCdpSend, readonly subscribe: SessionCdpSubscribe,
-    onChange: Parameters<SessionCdpSubscribe>[0], onTarget: (method: CdpTargetEventMethod, attachment: Attachment) => void) {
+    onChange: Parameters<SessionCdpSubscribe>[0], onTarget: (method: CdpTargetEventMethod, targetId: string, attachment: Attachment) => void) {
     this.unsubscribe = subscribe((method, params, parent) => {
       if (method === 'Target.attachedToTarget') {
         const { targetInfo, sessionId } = params as { targetInfo: ChildInfo; sessionId: string };
         if (targetInfo.type === 'iframe') {
           const child = { sessionId, url: targetInfo.url, parent };
           this.children.set(targetInfo.targetId, child);
-          onTarget(method, child);
+          onTarget(method, targetInfo.targetId, child);
         }
       } else if (method === 'Target.targetInfoChanged') {
         const { targetInfo } = params as { targetInfo: ChildInfo };
         const child = this.children.get(targetInfo.targetId);
         if (child) {
           child.url = targetInfo.url;
-          onTarget(method, child);
+          onTarget(method, targetInfo.targetId, child);
         }
       } else if (method === 'Target.detachedFromTarget') {
         for (const [id, child] of this.children) if (child.sessionId === params.sessionId) {
           this.children.delete(id);
           this.enabled.delete(child.sessionId);
-          onTarget(method, child);
+          onTarget(method, id, child);
         }
       } else if (method !== 'Page.frameNavigated' && method !== 'Page.navigatedWithinDocument') return;
       this.changed?.();
@@ -112,8 +113,8 @@ export class ChromiumCdpTargets {
   private sessions?: ChildSessions;
   private closing?: Promise<void>;
   private busy = false;
-  private live?: { id: string; target: string; cdp: ChromiumCdp; route: readonly RouteStep[] };
-  private detached?: { id: string; target: string; cdp: ChromiumCdp };
+  private live?: ChildCapture & { route: readonly RouteStep[] };
+  private detached?: ChildCapture;
   private events?: CdpTargetEvents;
 
   stopCapture(id?: string) {
@@ -153,10 +154,11 @@ export class ChromiumCdpTargets {
       check();
       const events = cdpTargetEventRequest(request) ? request : undefined;
       const target = request.action === 'cdpListTargets' ? undefined : request.target;
-      const discovered = target && this.targets.get(target.id);
-      if (target && discovered?.path.at(-1)?.origin !== target.origin)
-        throw new Error('The CDP child target is stale. List targets again.');
-      if (target && request.action !== 'cdpListTargets' && this.detached?.target === target.id) {
+      const watch = target && !this.targets.has(target.id) ? this.events : undefined;
+      const watched = watch && target ? watch.target(target.id, target.origin) : undefined;
+      const discovered = target && (this.targets.get(target.id) ?? watched?.discovered);
+      if (target && request.action !== 'cdpListTargets' && this.detached?.target.id === target.id &&
+          this.detached.target.origin === target.origin && (!this.detached.watch || this.detached.watch === this.events)) {
         if (request.action === 'cdpReadEvents') {
           const result = this.detached.cdp.readDetachedEvents(request);
           if (result) return { ...result, target };
@@ -166,12 +168,20 @@ export class ChromiumCdpTargets {
         }
         throw new Error('The CDP child target is detached. List targets again.');
       }
+      if (target && discovered?.path.at(-1)?.origin !== target.origin)
+        throw new Error('The CDP child target is stale. List targets again.');
+      const checkTarget = () => {
+        check();
+        if (watch && target && (this.events !== watch || watch.target(target.id, target.origin) !== watched))
+          throw new Error('The CDP child target is stale. List targets again.');
+      };
       const sessions = this.sessions ??= new ChildSessions(send, subscribe, (method, params, session) => {
         const active = this.live;
         if (!active || this.detached?.id === active.id) return;
         if (method === 'Target.detachedFromTarget' && active.route.some(step => step.attachment.sessionId === params.sessionId)
             && active.cdp.detachCapture()) {
-          this.detached = { id: active.id, target: active.target, cdp: active.cdp };
+          const { id, target, watch, cdp } = active;
+          this.detached = { id, target, watch, cdp };
           return;
         }
         if (active.route.some(({ child, attachment, attachedUrl }) => {
@@ -183,22 +193,24 @@ export class ChromiumCdpTargets {
           }
           return method === 'Page.navigatedWithinDocument' && params.frameId === child.document.id;
         })) void this.stopCapture();
-      }, (method, attachment) => this.events?.observe(method, attachment));
+      }, (method, targetId, attachment) => this.events?.observe(method, targetId, attachment));
       if (events) {
         const origins = cdpTargetOrigins(events, origin);
         if (events.after) {
           if (!this.events) throw new Error('The CDP target event stream ended. Read events again without a cursor.');
-          return await this.events.read(events, origins);
+          return await this.readTargetEvents(this.events, sessions, events, origins, check);
         }
         this.events?.stop();
-        const stream = this.events = new CdpTargetEvents(captureId ?? crypto.randomUUID(), origins, signal, () => {
+        const stream: CdpTargetEvents = this.events = new CdpTargetEvents(captureId ?? crypto.randomUUID(), origins, signal, () => {
+          const capture = this.live ?? this.detached;
+          if (capture?.watch === stream) void this.stopCapture(capture.id);
           this.events = undefined;
           void this.release();
         });
-        for (const attachment of sessions.children.values()) stream.observe('Target.attachedToTarget', attachment);
+        for (const [targetId, attachment] of sessions.children) stream.observe('Target.attachedToTarget', targetId, attachment);
         try {
           await sessions.attach(undefined, check, signal);
-          return await stream.read(events, origins);
+          return await this.readTargetEvents(stream, sessions, events, origins, check);
         } catch (error) {
           stream.stop();
           throw error;
@@ -235,8 +247,8 @@ export class ChromiumCdpTargets {
       }
       if (!target || !discovered) throw new Error('The CDP child target is unavailable.');
       const verify = async ({ targetId, origin: source, document: before }: Child, attachment: Attachment) => {
-        const frame = await sessions.document(targetId, attachment, source, check);
-        if (frame.id !== before.id || frame.loaderId !== before.loaderId || frame.url !== before.url)
+        const frame = await sessions.document(targetId, attachment, source, checkTarget);
+        if (frame.id !== before.id || frame.loaderId !== before.loaderId || frame.url !== before.url || frame.urlFragment !== before.urlFragment)
           throw new Error('The CDP child document changed. List targets again.');
       };
       const route: RouteStep[] = [];
@@ -257,13 +269,13 @@ export class ChromiumCdpTargets {
         await this.stopCapture();
         for (const step of route) await sessions.send('Page.enable', undefined, step.attachment.sessionId);
         for (const step of route) await verify(step.child, step.attachment);
-        this.live = { id, target: target.id, cdp, route };
+        this.live = { id, target, watch, cdp, route };
       }
       try {
         const result = await cdp.call(request, child.document.loaderId, child.origin,
           (method, params) => sessions.send(method, params, attachment.sessionId), listener => sessions.subscribe((method, params, session) => {
             if (session === attachment.sessionId) listener(method, params);
-          }), check, signal, id, () => this.captureEnded(id));
+          }), checkTarget, signal, id, () => this.captureEnded(id));
         for (const step of route) await verify(step.child, step.attachment);
         return { ...result, target };
       } catch (error) {
@@ -274,6 +286,22 @@ export class ChromiumCdpTargets {
       this.busy = false;
       await this.release();
     }
+  }
+
+  private async readTargetEvents(stream: CdpTargetEvents, sessions: ChildSessions, request: CdpReadTargetEvents,
+    origins: readonly string[], check: () => void) {
+    const result = await stream.read(request, origins);
+    for (const event of result.events) {
+      const { targetId: id, origin } = event.params;
+      const observed = stream.target(id, origin);
+      if (!observed || observed.discovered) continue;
+      const { targetId, attachment, address } = observed;
+      const document = await sessions.document(targetId, attachment, origin, check).catch(() => undefined);
+      check();
+      if (document && document.url + (document.urlFragment ?? '') === address && stream.target(id, origin) === observed)
+        observed.discovered = { path: [{ targetId, origin, document }] };
+    }
+    return result;
   }
 
   private captureEnded(id?: string) {
