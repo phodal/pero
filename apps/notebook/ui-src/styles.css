@@ -164,9 +164,9 @@ html, body, #app { height: 100%; }
 .notebook-prose p { margin: .45em 0; }
 .notebook-prose > p:first-child:not(:only-child):has(> br:only-child) { margin: 0; font-size: 0; line-height: 0; }
 .notebook-prose h1, .notebook-prose h2, .notebook-prose h3, .notebook-prose h4, .notebook-prose h5, .notebook-prose h6 { margin: 1.1em 0 .4em; line-height: 1.25; }
-.notebook-prose h1 { font-size: 1.8em; }
-.notebook-prose h2 { font-size: 1.45em; }
-.notebook-prose h3 { font-size: 1.2em; }
+.notebook-prose h1 { font-size: 1.5em; }
+.notebook-prose h2 { font-size: 1.3em; }
+.notebook-prose h3 { font-size: 1.15em; }
 .notebook-prose ul, .notebook-prose ol { margin: .4em 0 .75em; padding-inline-start: 1.75em; }
 .notebook-prose li p { margin: .1em 0; }
 .notebook-prose ul[data-type="taskList"] { list-style: none; padding-inline-start: .2em; }
