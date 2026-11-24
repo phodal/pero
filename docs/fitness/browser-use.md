@@ -922,6 +922,20 @@ second profile's Materials view. The companion API test verifies that another
 Project cannot read the capture and that an edited retry is rejected. The test
 uses a loopback source page and a development build.
 
+On 2026-11-24, extension 0.3.20 added **添加到 Pero** to the HTTP(S) page and
+selection context menu. A real Chrome right-click opened Collector in its own
+window with the clicked selection scope; the disconnected state displayed the
+pairing error without a save. The Chrome + Host Collector test passed
+context-route capture, local Project receipt and recovery. With an isolated
+PostgreSQL test database, `TestSharedWebSourcesNativeChromeToMaterials` passed
+the context-route selection save and an independent Native Materials read.
+`test-results/native-shared-project-sources/collector.png` shows the saved
+shared Project receipt. The actual context-menu click and shared Project save
+were verified in separate isolated runs; the installed extension and the
+user's Project were not modified. Later Native repeat runs timed out before
+the pairing file was created and did not reach capture; the latest Native
+repeat is not green.
+
 Build Native with `--features native-probe`, the connector helpers and the
 Chrome extension, then run the tests from the repo root with
 `PERO_TEST_DATABASE_URL` set to a test database.
