@@ -271,10 +271,18 @@ impl Workbench {
         let session_row = |i: usize, chat: &pero_chat_ui::conversation::Conversation| {
             self.session_navigation_row(i, chat, panel.active_chat)
         };
-        let groups: Vec<sidebar::ProjectGroup> = self
-            .project_catalog(cx)
+        let projects = self.project_catalog(cx);
+        // A shared checkout cannot assign an unbound conversation to a Project.
+        let workspace_projects = panel.chats.iter().map(|chat| {
+            let mut owners = projects.iter().enumerate()
+                .filter(|(_, project)| project.contains_workspace(&chat.workspace));
+            let (index, _) = owners.next()?;
+            owners.next().is_none().then_some(index)
+        }).collect::<Vec<_>>();
+        let groups: Vec<sidebar::ProjectGroup> = projects
             .into_iter()
-            .filter_map(|project| {
+            .enumerate()
+            .filter_map(|(project_index, project)| {
                 let mut project_sessions = panel
                     .chats
                     .iter()
@@ -306,9 +314,9 @@ impl Workbench {
                         .iter()
                         .enumerate()
                         .rev()
-                        .filter(|(_, chat)| {
+                        .filter(|(index, chat)| {
                             chat.project_agent.is_none()
-                                && project.contains_workspace(&chat.workspace)
+                                && workspace_projects[*index] == Some(project_index)
                                 && (query.is_empty()
                                     || chat.title.display().to_lowercase().contains(&query))
                         })
@@ -347,9 +355,9 @@ impl Workbench {
             .iter()
             .enumerate()
             .rev()
-            .filter(|(_, chat)| {
+            .filter(|(index, chat)| {
                 chat.project_agent.is_none()
-                    && chat.workspace.is_empty()
+                    && workspace_projects[*index].is_none()
                     && (query.is_empty() || chat.title.display().to_lowercase().contains(&query))
             })
             .map(|(index, chat)| session_row(index, chat))
