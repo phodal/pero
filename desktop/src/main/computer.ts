@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import requestSchema from '../../../protocol/generated/computer-request.schema.json' with { type: 'json' };
 import type { ComputerRequest, ComputerControl } from '../../../protocol/generated/computer-request';
-import type { ComputerAction, ComputerActionReceipt } from '../../../protocol/generated/computer-action';
+import type { ComputerAction, ComputerActionReceipt, ComputerTargetRef } from '../../../protocol/generated/computer-action';
 import type { ComputerResponse, ComputerUseState } from '../../../protocol/generated/computer-response';
 import { ComputerClient, ComputerFailure } from './computer-client.ts';
 import type { LinuxComputerRoute } from './linux-desktop.ts';
@@ -83,8 +83,10 @@ export const COMPUTER_TOOL = {
 };
 
 type Journal = { action: ComputerAction; receipt?: ComputerActionReceipt };
+type PreviewTarget = { id: string; target: ComputerTargetRef; title: string };
 type ComputerControls = {
   args?: string[];
+  preview?(thread: string, target: { id: string; title: string } | null): void;
   save?(enabled: boolean): Promise<void>;
   permissions?(): Promise<void>;
   status?(): ComputerUseState['status'];
@@ -96,6 +98,7 @@ export class DesktopComputer {
   private emit: (event: object) => void;
   private controls: ComputerControls;
   private controller = new AbortController();
+  private previews = new Map<string, PreviewTarget>();
   private pending = new Map<string, { action: ComputerAction; promise: Promise<ComputerActionReceipt> }>();
   linuxRoute?: (thread: string) => LinuxComputerRoute | undefined;
   get enabled() { return this.state.enabled; }
@@ -124,6 +127,7 @@ export class DesktopComputer {
     return this.state;
   }
   async stop() {
+    this.endPreview();
     this.controller.abort(); this.controller = new AbortController();
     try {
       await this.client.stop();
@@ -157,6 +161,25 @@ export class DesktopComputer {
       this.state.error = error instanceof Error ? error.message : String(error);
       this.publish();
       throw error;
+    }
+  }
+  endPreview(thread?: string) {
+    for (const id of thread === undefined ? this.previews.keys() : [thread]) {
+      if (this.previews.delete(id)) this.controls.preview?.(id, null);
+    }
+  }
+  async previewFrame(thread: string, id: string) {
+    const active = this.previews.get(thread);
+    if (active?.id !== id) return { kind: 'ended' };
+    try {
+      const result = await this.client.preview(thread, { operation: 'preview_frame', target: active.target });
+      if (this.previews.get(thread) !== active) return { kind: 'ended' };
+      return result ?? { kind: 'waiting' };
+    } catch (error) {
+      if (error instanceof ComputerFailure && error.detail.code === 'permission_required')
+        return { kind: 'preview_frame', image: null };
+      if (this.previews.get(thread) === active) this.endPreview(thread);
+      return { kind: 'ended' };
     }
   }
   private directory(thread: string) { return join(this.root, createHash('sha256').update(thread).digest('hex')); }
@@ -242,6 +265,16 @@ export class DesktopComputer {
         const bytes = Buffer.from(result.image.data, 'base64');
         await writeFile(join(directory, `${image.id}.${image.media_type === 'image/png' ? 'png' : 'jpg'}`), bytes, { mode: 0o600 });
         await writeFile(join(directory, `${image.id}.json`), JSON.stringify({ ...image, target: result.observation.target, observation_id: result.observation.id, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }), { mode: 0o600 });
+      }
+      if (!route && !bounded.aborted && this.controls.preview && result.kind === 'observation') {
+        const { observation } = result;
+        const previous = this.previews.get(thread);
+        if (!previous || !isDeepStrictEqual(previous.target, observation.target)) {
+          const title = observation.elements.find(element => element.depth === 0)?.label || '';
+          const active = { id: randomUUID(), target: observation.target, title };
+          this.previews.set(thread, active);
+          this.controls.preview(thread, { id: active.id, title });
+        }
       }
       return result;
     } catch (error) {

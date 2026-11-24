@@ -233,12 +233,16 @@ export class DesktopAppUse {
       this.repl?.forget(event.thread_id);
     if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind))) this.submitted.delete(event.thread_id);
     this.authority.accept(event);
+    if (event.kind === 'disconnected') this.computer?.endPreview();
+    if (event.thread_id && (rejected || ['turn_started', 'turn_finished', 'session_closed', 'session_deleted'].includes(event.kind)))
+      this.computer?.endPreview(event.thread_id);
   }
   command(value: { action?: string; thread_id?: string }) {
     if (value.thread_id && ['close', 'delete'].includes(value.action || '')
       && this.plugins.has(value.thread_id)) this.plugins.set(value.thread_id, null);
     if (value.thread_id && ['cancel', 'close', 'delete'].includes(value.action || '')) {
       this.goals.revoke(value.thread_id);
+      this.computer?.endPreview(value.thread_id);
       this.browser?.revoke(value.thread_id);
       this.repl?.forget(value.thread_id);
     }
@@ -257,6 +261,7 @@ export class DesktopAppUse {
     this.browser?.revoke();
     this.repl?.forget();
     this.authority.reset(true);
+    this.computer?.endPreview();
   }
   async close() {
     this.reset();
@@ -321,6 +326,17 @@ export class DesktopAppUse {
     const plugin = this.plugins.get(thread);
     return plugin === undefined ? definitions : plugin?.definitions(definitions) || [];
   }
+  async computerPreview(thread: string, id: string) {
+    const computer = this.computer;
+    if (!computer || !this.authority.isOrdinaryConversation(thread)) return { kind: 'ended' };
+    try {
+      return await this.authority.access(thread, undefined, () => computer.previewFrame(thread, id),
+        new AbortController().signal);
+    } catch {
+      return { kind: 'ended' };
+    }
+  }
+
   private async callCua(thread: string, capability: ReplCapability, input: unknown, signal: AbortSignal): Promise<CuaResult> {
     return this.authority.access(thread, undefined, async (_scope, bounded) => {
       if (capability === 'browser' && this.browser) {

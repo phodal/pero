@@ -2,8 +2,8 @@ import { startComputerProcess, type ComputerProcess } from './computer-process.t
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
-import type { ComputerRequest } from '../../../protocol/generated/computer-request';
-import type { ComputerResponse, ComputerWorkerResponse, ComputerError } from '../../../protocol/generated/computer-response';
+import type { ComputerRequest, ComputerPreviewRequest, ComputerWorkerOperation } from '../../../protocol/generated/computer-request';
+import type { ComputerResponse, ComputerWorkerResponse, ComputerWorkerResult, ComputerPreviewResponse, ComputerError } from '../../../protocol/generated/computer-response';
 
 const ajv = new Ajv2020({ strict: true });
 ajv.addSchema(schema);
@@ -22,10 +22,23 @@ export class ComputerClient {
   private starting?: { controller: AbortController; ready: Promise<void> };
   private closing?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
-  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
+  private queued = 0;
+  private pending?: { id: string; dispatched: boolean; resolve(value: ComputerWorkerResult): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
-  request(thread: string, request: ComputerRequest, signal: AbortSignal): Promise<ComputerResponse> {
+  async request(thread: string, request: ComputerRequest, signal: AbortSignal): Promise<ComputerResponse> {
+    const value = await this.exchange(thread, request, signal);
+    if (value.kind === 'preview_frame') throw new Error('Unexpected Computer Use preview frame');
+    return value;
+  }
+  async preview(thread: string, request: ComputerPreviewRequest): Promise<ComputerPreviewResponse | undefined> {
+    if (this.queued || !this.connection) return undefined;
+    const value = await this.exchange(thread, request, new AbortController().signal);
+    if (value.kind !== 'preview_frame') throw new Error('Computer Use preview frame was not returned');
+    return value;
+  }
+  private exchange(thread: string, request: ComputerWorkerOperation, signal: AbortSignal): Promise<ComputerWorkerResult> {
+    this.queued++;
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
@@ -44,7 +57,7 @@ export class ComputerClient {
       signal.throwIfAborted();
       const connection = this.connection;
       if (!connection) throw new ComputerFailure({ code: 'cancelled', message: 'Computer Use was interrupted before dispatch.' });
-      return new Promise<ComputerResponse>((resolve, reject) => {
+      return new Promise<ComputerWorkerResult>((resolve, reject) => {
         const abort = () => { void this.stop('cancelled').catch(() => {}); };
         const timer = setTimeout(() => { void this.stop('timeout').catch(() => {}); }, 30_000);
         const id = randomUUID();
@@ -54,7 +67,7 @@ export class ComputerClient {
           if (error) void this.stop('failed').catch(() => {});
         });
       });
-    });
+    }).finally(() => { this.queued--; });
     this.queue = result.catch(() => {});
     return result;
   }
