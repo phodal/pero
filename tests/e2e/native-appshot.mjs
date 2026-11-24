@@ -40,7 +40,12 @@ try {
   const exited = once(child, 'exit');
   const deadline = setTimeout(() => child.kill('SIGTERM'), physical ? 310_000 : 40_000);
   try {
-    await waitFor(() => existsSync(resolve(run, 'appshot.ready')) || existsSync(receipt), 'Native image-capable draft', 36_000);
+    await waitFor(() => {
+      if (existsSync(receipt)) return true;
+      assert(child.exitCode === null && child.signalCode === null,
+        `Native Appshot exited before its draft was ready (${child.exitCode ?? child.signalCode})`);
+      return existsSync(resolve(run, 'appshot.ready'));
+    }, 'Native image-capable draft', 36_000);
     if (!existsSync(receipt)) {
       await fixture.activate();
       if (physical) {

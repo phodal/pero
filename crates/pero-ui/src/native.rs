@@ -160,6 +160,11 @@ pub fn run() -> anyhow::Result<()> {
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
     let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser" | "cloud-browser" | "appshot"));
+    #[cfg(all(target_os = "macos", feature = "native-probe"))]
+    let physical_appshot_probe = app_probe && std::env::args().nth(3).as_deref() == Some("appshot")
+        && std::env::var("PERO_NATIVE_APPSHOT_PHYSICAL").as_deref() == Ok("1");
+    #[cfg(all(target_os = "macos", not(feature = "native-probe")))]
+    let physical_appshot_probe = false;
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -512,11 +517,15 @@ pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     let computer_view_owner = connector_owner.clone();
     #[cfg(target_os = "macos")]
-    let _computer_hotkeys = connector_owner.as_ref().filter(|_| !app_probe && !verifying_installation)
+    let _computer_hotkeys = connector_owner.as_ref().filter(|_| physical_appshot_probe || (!app_probe && !verifying_installation))
         .and_then(|_| match crate::native_computer_hotkey::ComputerHotKeys::register(appshot_tx) {
             Ok(hotkey) => Some(hotkey),
             Err(error) => { eprintln!("Computer Use: {error:#}"); None }
         });
+    #[cfg(all(target_os = "macos", feature = "native-probe"))]
+    if physical_appshot_probe && !_computer_hotkeys.as_ref().is_some_and(|keys| keys.appshot_registered()) {
+        anyhow::bail!("The Appshot probe could not register Control+Shift+Command+7");
+    }
     app.run(move |cx| {
         let registration = if app_probe || verifying_installation { None } else { Some(cx.register_url_scheme("pero")) };
         cx.spawn(async move |_cx| {
@@ -578,7 +587,7 @@ pub fn run() -> anyhow::Result<()> {
             let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
             #[cfg(target_os = "macos")]
             let handled = if std::env::args().nth(3).as_deref() == Some("appshot") {
-                crate::native_computer_hotkey::probe(view.clone(), window, appshot_probe_sender, receipt.clone(), cx);
+                crate::native_computer_hotkey::probe(view.clone(), window, appshot_probe_sender, receipt.clone(), physical_appshot_probe, cx);
                 true
             } else { false };
             #[cfg(not(target_os = "macos"))]

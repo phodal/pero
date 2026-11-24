@@ -217,8 +217,10 @@ seconds, so this change retains the bounded OCR path.
   event after dispatch and left the draft unsent.
 - Set `PERO_NATIVE_APPSHOT_PHYSICAL=1` when running `tests/e2e/native-appshot.mjs`
   with a signed probe build to exercise the macOS global shortcut. The probe
-  keeps its image-capable draft ready while the test window is in front and
-  waits for the real keypress before checking the image, AX text, and draft.
+  registers the global shortcut before marking its image-capable draft ready,
+  then waits for a keypress with the test window in front. The original probe
+  skipped registration, so a timeout there provided no evidence about the
+  normal Workbench shortcut.
 
 ## Live preview with independent workers
 

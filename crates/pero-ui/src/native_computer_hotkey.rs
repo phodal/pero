@@ -111,6 +111,11 @@ pub(super) struct ComputerHotKeys {
 }
 
 impl ComputerHotKeys {
+    #[cfg(feature = "native-probe")]
+    pub(super) fn appshot_registered(&self) -> bool {
+        !self.appshot.is_null()
+    }
+
     pub(super) fn register(sender: Sender<i32>) -> anyhow::Result<Self> {
         let mut registration = Self {
             handler: ptr::null_mut(),
@@ -278,6 +283,7 @@ pub(super) fn probe(
     window: AnyWindowHandle,
     sender: Sender<i32>,
     receipt: std::path::PathBuf,
+    physical: bool,
     cx: &mut App,
 ) {
     cx.spawn(async move |cx| {
@@ -286,7 +292,6 @@ pub(super) fn probe(
             use std::time::{Duration, Instant};
             const DRAFT: &str = "Original Appshot draft";
             let workspace = std::env::var("PERO_NATIVE_APPSHOT_WORKSPACE")?;
-            let physical = std::env::var("PERO_NATIVE_APPSHOT_PHYSICAL").as_deref() == Ok("1");
             let deadline = Instant::now() + Duration::from_secs(if physical { 300 } else { 30 });
             let mut thread = None;
             let mut ready = false;
