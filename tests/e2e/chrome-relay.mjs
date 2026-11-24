@@ -26,6 +26,7 @@ const temporary = await mkdtemp(resolve(tmpdir(), 'pero-chrome-relay-'));
 const output = resolve(source, 'test-results/chrome-relay');
 await mkdir(output, { recursive: true });
 await rm(resolve(output, 'result.json'), { force: true });
+await rm(resolve(output, 'diagnostics.json'), { force: true });
 const agents = resolve(temporary, 'agents.json');
 const settings = resolve(temporary, 'settings.json');
 const workspace = resolve(temporary, 'workspace');
@@ -382,6 +383,9 @@ try {
     const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl, topOrigin: new URL(siteUrl).origin, menu });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
+    const browserDiagnostics = { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
+      cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp: { ...cdp, network, targets: { ...targets, declined: true } } };
+    await writeFile(resolve(output, 'diagnostics.json'), JSON.stringify({ passed: true, extensionVersion: portManifest.version, browserDiagnostics }, null, 2));
 
     const toolPage = await chrome.newPage();
     const toolUrl = new URL('/webmcp', siteUrl).href;
@@ -835,8 +839,7 @@ nodeRepl.write(answer.outcome);` },
       siteTools,
       parallel,
       parallelRepl,
-      browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
-        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp: { ...cdp, network, targets: { ...targets, declined: true } } },
+      browserDiagnostics,
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,
