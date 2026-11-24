@@ -9,11 +9,12 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { siteToolPage, partnerSiteToolPage } from '../fixtures/browser-site-tools.mjs';
-import { serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
+import { scopedNetworkScript, serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const targetTree = process.argv.includes('--cdp-target-tree');
+const targetNetwork = process.argv.includes('--cdp-target-network');
+const targetTree = targetNetwork || process.argv.includes('--cdp-target-tree');
 const targets = targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
@@ -62,7 +63,9 @@ const site = createServer((req, res) => {
           frame.addEventListener('load', () => document.querySelector('#child-state').textContent = 'Native child replaced', { once: true });
           frame.src = ${JSON.stringify(childOrigin + '/diagnostic-frame?replacement')};
         }
-      </script>` : ''}`);
+      </script>` : ''}
+      ${targetNetwork ? `<button onclick="runScopedNetwork()">Run scoped network fixture</button>
+      <p id="scoped-network-state">Waiting for scoped network</p><script>${scopedNetworkScript(childOrigin)}</script>` : ''}`);
     return;
   }
   res.end(siteToolPage(req.url === '/webmcp-frame', foreignOrigin));
@@ -249,6 +252,49 @@ assert result["outcome"] == "dispatched", result
 assert result["result"]["displayed"] == "Native tool approved", result
 print(json.dumps({"receiptId":result["receiptId"], "denied":True, "tab":tab, "python":sys.executable}))
 `;
+const iframeNetworkCode = `
+import json
+import sys
+child_origin = ${JSON.stringify(childOrigin)}
+status = await cua.browser({"action":"status","provider":"chrome"})
+assert status["chrome"]["state"] == "connected", status
+tab = next(tab["tabId"] for tab in (await cua.browser({"action":"tabs"}))["tabs"] if tab["url"].endswith("/cdp"))
+async def browser(action, **params):
+    return await cua.browser({"action":action,"tabId":tab,**params})
+listed = await browser("cdpListTargets", fromOrigins=[child_origin])
+assert len(listed["targets"]) == 1, listed
+target = {"id":listed["targets"][0]["id"],"origin":child_origin}
+def child_command(method, params=None):
+    return browser("cdpSend", target=target, command={"method":method, **({"params":params} if params else {})})
+try:
+    await child_command("Network.enable")
+except Exception as error:
+    assert "diagnostics were declined" in str(error), repr(error)
+else:
+    raise AssertionError("Native started a capture without child-origin approval")
+captured = await child_command("Network.enable")
+clicked = await browser("act", locator={"by":"role","role":"button","name":"Run scoped network fixture"}, operation={"action":"click"})
+assert clicked["outcome"] == "dispatched", clicked
+ready = await browser("wait", locator={"by":"text","value":"Scoped network complete"}, condition={"kind":"visible"}, timeoutMs=3000)
+assert ready["matched"], ready
+network = await browser("cdpReadEvents", target=target, after=captured["result"]["cursor"], timeoutMs=1500,
+    methods=["Network.responseReceived", "Network.loadingFinished"])
+response = next(event["params"] for event in network["events"] if event["method"] == "Network.responseReceived"
+    and event["params"]["url"].endswith("/cdp-child-response"))
+assert response["status"] == 202 and "cdp-parent-response" not in json.dumps(network), network
+body_query = {"requestId":response["requestId"]}
+resp = await child_command("Network.getResponseBody", body_query)
+assert resp["result"]["body"] == '{"fixture":"child"}', resp
+await child_command("Network.disable")
+try:
+    await child_command("Network.getResponseBody", body_query)
+except Exception as error:
+    assert "Enable Network" in str(error), repr(error)
+else:
+    raise AssertionError("Native accepted child response access after stopping its capture")
+print(json.dumps({"receiptId":clicked["receiptId"],"denied":True,"tab":tab,"python":sys.executable,
+    "childNetwork":{"isolated":True,"body":True,"stopped":True}}))
+`;
 let app,
   chrome,
   exit,
@@ -283,7 +329,7 @@ try {
       PERO_NATIVE_REPL_CHROME_PAIRING_PATH: pairing,
       PERO_NATIVE_REPL_CHROME_SITE_TOOLS: cdp ? undefined : '1',
       PERO_NATIVE_REPL_CHROME_DEVELOPER_MODE: cdp ? '1' : undefined,
-      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code,
+      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code: targetNetwork ? iframeNetworkCode : code,
         ...(targets && { timeout_ms: 60_000 }) }]),
     },
   });
@@ -359,7 +405,12 @@ try {
       )
       .toBe('responded');
   };
-  if (cdp) {
+  if (targetNetwork) {
+    await respond(origin, 'Allow');
+    await respond(childOrigin, 'Allow');
+    await respond(childOrigin, 'Cancel');
+    for (let i = 0; i < 5; i++) await respond(childOrigin, 'Allow');
+  } else if (cdp) {
     await respond(origin, 'Cancel');
     for (let i = 0; i < (live ? 16 : 7); i++) await respond(origin, 'Allow');
     if (targets) {
@@ -387,9 +438,10 @@ try {
   const [reply] = JSON.parse(result.reply.replace(/^BROWSER_RESULT:/, ''));
   assert.equal(result.error, null, JSON.stringify(result));
   assert.equal(reply.isError, false, reply.text);
-  if (live) await expect(target.getByText('Native network fixture complete')).toBeVisible();
-  if (cdp) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
-  else await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
+  if (targetNetwork) await expect(target.getByText('Scoped network complete')).toBeVisible();
+  else if (live) await expect(target.getByText('Native network fixture complete')).toBeVisible();
+  if (cdp && !targetNetwork) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
+  if (!cdp) await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
   const evidence = JSON.parse(reply.text);
   if (payload)
     assert.equal(
@@ -403,7 +455,7 @@ try {
   );
   const receipt = JSON.parse(await readFile(resolve(visit, evidence.receiptId + '.result.json'), 'utf8'));
   assert.equal(receipt.outcome, 'dispatched');
-  const output = resolve(root, targetTree ? 'test-results/native-chrome-cdp-target-tree'
+  const output = resolve(root, targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
     : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
   await mkdir(output, { recursive: true });
@@ -422,7 +474,7 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+    `Native Python REPL verified ${targetNetwork ? 'scoped CDP iframe network capture' : targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
       : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
