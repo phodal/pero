@@ -425,7 +425,7 @@ test('Insights distinguishes no available Agent from a successfully generated em
   await expect(page.locator('.point-insights-empty-result .pero-ui-empty-illustration')).toHaveAttribute('aria-hidden','true');
 });
 
-test('Connectors has explicit views, visible prerequisites, and preserves the catalog during a single refresh',async t=>{
+test('Connectors shows the catalog directly, keeps prerequisites visible, and preserves it during a single refresh',async t=>{
   let snapshots=0,release;
   const directory=[{providerId:'fixture-provider',displayName:'Fixture service',category:'research',transport:'http',auth:{mode:'none'},requires:[],summary:'An isolated catalog fixture',listed:true,prerequisiteCopy:'Requires organization access',prerequisiteEn:'Requires organization access'}];
   const page=await pageFor(t,'connectors',async({body})=>{
@@ -436,14 +436,14 @@ test('Connectors has explicit views, visible prerequisites, and preserves the ca
     return json({ok:true,result:[]});
   },{size:24});
   await page.goto(origin+'/connectors/index.html');
+  const catalogTab=page.getByRole('tab',{name:'MCPs',exact:true});
+  if(await catalogTab.getAttribute('aria-selected')!=='true')await catalogTab.click();
   await expect(page.getByRole('heading',{name:'Fixture service',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Requirements',exact:true}).click();
   await expect(page.getByRole('tooltip')).toContainText('Requires organization access');
   await page.keyboard.press('Escape');
-  await page.getByRole('tab',{name:'Installed connections',exact:true}).click();
-  await expect(page.getByRole('tab',{name:'Installed connections',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(page.getByRole('tab',{name:'Service catalog',exact:true})).toBeVisible();
-  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Installed connections',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Service catalog',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Refresh',exact:true}).click();
   await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeDisabled();
   await expect(page.getByRole('status')).toContainText('Refreshing');
@@ -656,38 +656,22 @@ test('Insights initial read failure offers one recovery path and secondary diagn
 });
 
 
-for (const appearance of [{ size:14, dark:false, width:1200 }, { size:24, dark:true, width:440 }]) test(`Connectors catalog stays readable and builtin actions only compose drafts (${appearance.size})`, async t=>{
+for (const appearance of [{ size:14, dark:false, width:1200 }, { size:24, dark:true, width:440 }]) test(`Connectors catalog stays readable without a second navigation (${appearance.size})`, async t=>{
   const title='Ansys Electronics Desktop engineering service';
   const page=await pageFor(t,'connectors',async({body})=>json(body.operation==='snapshot' ? {ok:true,directory:[{providerId:'fixture-engineering',displayName:title,category:'research',transport:'stdio',auth:{mode:'none'},requires:[],summary:'Inspect simulation projects and prepare engineering work.',listed:true,prerequisiteEn:'Requires local software and a valid license.'}],connections:[]} : {ok:true,result:[],records:[],running:[]}),appearance);
   await page.goto(origin+'/connectors/index.html');
+  const catalogTab=page.getByRole('tab',{name:'MCPs',exact:true});
+  if(await catalogTab.getAttribute('aria-selected')!=='true')await catalogTab.click();
   const heading=page.getByRole('heading',{name:title,exact:true});
   await expect(heading).toBeVisible();
   const metrics=await heading.evaluate(node=>({font:parseFloat(getComputedStyle(node).fontSize),wrapped:node.clientHeight>parseFloat(getComputedStyle(node).lineHeight),overflow:document.documentElement.scrollWidth>innerWidth}));
   assert.equal(metrics.font,appearance.size);assert.equal(metrics.overflow,false);
   if(appearance.size===24)assert.ok(metrics.wrapped);
-  const navigation=page.getByRole('tablist',{name:'View',exact:true});
-  const tabGeometry=await navigation.evaluate(node=>({border:getComputedStyle(node).borderBottomWidth,gap:parseFloat(getComputedStyle(node).columnGap),buttons:[...node.querySelectorAll('[role=tab]')].map(tab=>({top:getComputedStyle(tab).borderTopWidth,left:getComputedStyle(tab).borderLeftWidth,right:getComputedStyle(tab).borderRightWidth,bottom:getComputedStyle(tab).borderBottomWidth,color:getComputedStyle(tab).borderBottomColor,selected:tab.getAttribute('aria-selected'),radius:getComputedStyle(tab).borderRadius}))}));
-  assert.equal(tabGeometry.border,'0px');assert.ok(tabGeometry.gap>=16);
-  for(const tab of tabGeometry.buttons){assert.equal(tab.top,'0px');assert.equal(tab.left,'0px');assert.equal(tab.right,'0px');assert.equal(tab.bottom,'2px');assert.equal(tab.radius,'0px');assert.equal(tab.color==='rgba(0, 0, 0, 0)',tab.selected!=='true');}
-  await page.getByRole('tab',{name:'Installed connections',exact:true}).click();
-  assert.equal(await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>getComputedStyle(node).outlineStyle),'none', await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>node.outerHTML));
-  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
-  await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab',{name:'Installed connections',exact:true})).toHaveAttribute('aria-selected','true');
-  assert.equal(await page.getByRole('tab',{name:'Installed connections',exact:true}).evaluate(node=>getComputedStyle(node).outlineStyle),'solid');
-  await shot(page,`customize-selected-${appearance.dark?'dark':'light'}${appearance.size}`);
-  await page.keyboard.press('ArrowLeft');
-  await expect(page.getByRole('tab',{name:'Service catalog',exact:true})).toHaveAttribute('aria-selected','true');
-  await page.getByRole('tab',{name:'Service catalog',exact:true}).click();
+  await expect(page.getByRole('tablist',{name:'View',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Service catalog',exact:true})).toHaveCount(0);
+  await expect(page.getByText('Built-in capabilities',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Computer Use',exact:true})).toHaveCount(0);
   await shot(page,`customize-${appearance.dark?'dark':'light'}${appearance.size}`);
-  await page.getByRole('button',{name:'Computer Use',exact:true}).click();
-  await expect(page.getByRole('dialog')).toContainText('Try it fills the composer without sending the message.');
-  await page.getByRole('button',{name:'Try it',exact:true}).click();
-  await expect(page.getByRole('dialog')).not.toBeVisible();
-  const messages=await page.evaluate(()=>window.fixtureMessages);
-  assert.equal(messages.filter(m=>m.type==='pero:app:chat').length,1);
-  assert.match(messages.find(m=>m.type==='pero:app:chat').options.message,/Only inspect; do not click/);
 });
 
 for (const variant of [{size:14,width:1200},{size:24,width:600,dark:true}]) test(`Paper shared search focus and exclusive reader modes (${variant.size})`,async t=>{

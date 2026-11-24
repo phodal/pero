@@ -101,15 +101,20 @@ test('changing locale replaces pending snapshot and list lifetimes without accep
 test('ordinary polling keeps the actual open configuration input and unsaved draft through success and failure', async t => {
   const f = await fixture(t, true);
   let pendingSnapshot = null, generation = 0;
+  const shelved = name => {
+    const body = snapshot(name);
+    body.directory[0] = { ...body.directory[0], category: 'research' };
+    return body;
+  };
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const { operation } = JSON.parse(init.body);
-    if (operation === 'snapshot') return pendingSnapshot?.promise ?? response(snapshot('initial'));
+    if (operation === 'snapshot') return pendingSnapshot?.promise ?? response(shelved('initial'));
     if (operation === 'list') return response(entries(`saved-${generation}`));
     return response({ ok: true, records: [], running: [] });
   });
-  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
-  const detail = [...document.querySelectorAll('button')].find(node => node.textContent === 'Details');
-  assert.ok(detail); await f.click(detail);
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en' }));
+  const manage = [...document.querySelectorAll('button')].find(node => node.textContent === 'Manage');
+  assert.ok(manage); await f.click(manage);
   const input = document.querySelector('input#endpoint');
   assert.ok(input);
   await f.React.act(async () => {
@@ -127,10 +132,10 @@ test('ordinary polling keeps the actual open configuration input and unsaved dra
     assert.equal(input.value, 'https://unsaved.example.test/mcp');
   }
   assert.match(document.body.textContent, /Connection management is unavailable/);
-  assert.ok(document.querySelector('[data-state="connected"]'));
+  assert.match(document.body.textContent, /Running/);
 });
 
-test('initial connection loading and failure stay distinct from first-use actions', async t => {
+test('initial catalog loading and failure stay distinct from first-use actions', async t => {
   const f = await fixture(t, true), pending = deferred();
   let currentSnapshot = pending.promise;
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
@@ -139,8 +144,8 @@ test('initial connection loading and failure stay distinct from first-use action
     if (operation === 'list') return response({ ok: true, result: [] });
     return response({ ok: true, records: [], running: [] });
   });
-  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
-  assert.match(document.querySelector('[role=status]').textContent, /Loading installed connections/);
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en' }));
+  assert.match(document.querySelector('[role=status]').textContent, /Loading the service catalog/);
   assert.equal(document.querySelector('.pero-ui-empty-state'), null);
   await f.React.act(async () => pending.resolve(response({ ok: false, code: 'MCP_HOST_UNAVAILABLE' })));
   assert.match(document.querySelector('[role=alert]').textContent, /Connection management is unavailable/);
@@ -148,11 +153,8 @@ test('initial connection loading and failure stay distinct from first-use action
 
   currentSnapshot = response({ ok: true, directory: [provider, catalogProvider], connections: [] });
   await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Reload'));
-  const firstUse = document.querySelector('.point-connectors-manage .pero-ui-empty-state');
-  assert.match(firstUse.textContent, /No connections yet/);
-  await f.click([...firstUse.querySelectorAll('button')].find(node => node.textContent === 'Browse service catalog'));
   assert.match(document.querySelector('.point-connectors-catalog').textContent, /Test service/);
-  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Installed connections'));
+  assert.equal(document.querySelector('.pero-ui-empty-state'), null);
   const addCustom = document.querySelector('[data-slot=primary] button');
   assert.equal(addCustom?.textContent, 'Custom MCP');
   await f.click(addCustom);
@@ -160,7 +162,7 @@ test('initial connection loading and failure stay distinct from first-use action
   assert.equal(document.querySelector('dialog').open, true);
 });
 
-test('catalog and connection no-match recovery clears filters and restores retained entries', async t => {
+test('catalog no-match recovery clears filters and restores retained entries', async t => {
   const f = await fixture(t, true);
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const { operation } = JSON.parse(init.body);
@@ -168,22 +170,18 @@ test('catalog and connection no-match recovery clears filters and restores retai
     if (operation === 'list') return response(entries('initial'));
     return response({ ok: true, records: [], running: [] });
   });
-  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
-  await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Paused 0'));
-  for (const mode of ['manage', 'catalog']) {
-    if (mode === 'catalog') await f.click([...document.querySelectorAll('button')].find(node => node.textContent === 'Service catalog'));
-    const search = document.querySelector('input[type=search]');
-    await f.React.act(async () => {
-      Object.getOwnPropertyDescriptor(f.dom.window.HTMLInputElement.prototype, 'value').set.call(search, 'no-such-service');
-      search.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
-    });
-    const empty = document.querySelector('.pero-ui-empty-state');
-    assert.match(empty.textContent, mode === 'manage' ? /No matching connections/ : /No matching services/);
-    await f.click([...empty.querySelectorAll('button')].find(node => node.textContent === 'Clear filters'));
-    assert.equal(search.value, '');
-    assert.equal(document.querySelector('.pero-ui-empty-state'), null);
-    assert.match(document.querySelector(mode === 'manage' ? '.point-page-list' : '.point-connectors-grid').textContent, /Test service/);
-  }
+  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en' }));
+  const search = document.querySelector('input[type=search]');
+  await f.React.act(async () => {
+    Object.getOwnPropertyDescriptor(f.dom.window.HTMLInputElement.prototype, 'value').set.call(search, 'no-such-service');
+    search.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
+  });
+  const empty = document.querySelector('.pero-ui-empty-state');
+  assert.match(empty.textContent, /No matching services/);
+  await f.click([...empty.querySelectorAll('button')].find(node => node.textContent === 'Clear filters'));
+  assert.equal(search.value, '');
+  assert.equal(document.querySelector('.pero-ui-empty-state'), null);
+  assert.match(document.querySelector('.point-connectors-grid').textContent, /Test service/);
 });
 
 test('transport templates alone do not masquerade as catalog services', async t => {
@@ -251,38 +249,23 @@ test('installation discloses the actual draft tools and their effects before com
   assert.equal(scope.querySelectorAll('code').length, 2);
 });
 
-test('custom MCPs is a view beside the service catalog', async t => {
+test('the MCP section is the service catalog', async t => {
   const f = await fixture(t, true);
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const { operation } = JSON.parse(init.body);
     return response(operation === 'snapshot' ? snapshot('catalog') : entries('catalog'));
   });
   await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'zh' }));
-  const tab = [...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '自定义 MCPs');
-  assert.ok(tab);
-  assert.equal([...document.querySelectorAll('[role=tab]')].find(node => node.textContent === '技能')?.getAttribute('aria-selected'), 'false');
-  assert.equal([...document.querySelectorAll('[role=tab]')].find(node => node.textContent === 'MCP')?.getAttribute('aria-selected'), 'true');
+  assert.deepEqual([...document.querySelectorAll('[role=tab]')].map(node => node.textContent), ['技能', 'MCP']);
+  assert.equal(document.querySelector('[role=tab][aria-selected=true]')?.textContent, 'MCP');
+  assert.equal(document.querySelector('.pero-library-header'), null);
+  assert.equal(document.querySelector('#connectors-capabilities'), null);
+  assert.equal(document.body.textContent.includes('内置能力'), false);
+  assert.equal(document.body.textContent.includes('已安装连接'), false);
   assert.ok(document.querySelector('input[type=search]'));
-  assert.equal([...document.querySelectorAll('button')].some(node => node.textContent.includes('自定义 MCP') && !node.textContent.includes('MCPs')), true);
+  const add = [...document.querySelectorAll('button')].find(node => node.textContent.includes('自定义 MCP'));
+  assert.ok(add);
   t.mock.method(globalThis, 'setTimeout', () => 0);
-  await f.click(tab);
-  assert.equal(document.querySelector('[data-slot=primary] button')?.textContent, '添加服务器');
-  assert.equal([...document.querySelectorAll('.point-custom-mcps button')].some(node => node.textContent === '添加服务器'), false);
-  assert.equal(document.querySelector('[data-slot=commands] button')?.textContent, '导入 JSON');
-});
-
-test('state filter counts match results and unverified connections never appear ready', async t => {
-  const f = await fixture(t, true);
-  const connections = [['ready', 'verified', true], ['draft', 'needs-configuration', true], ['unchecked', 'not-verified', true], ['paused', 'needs-configuration', false]]
-    .map(([id, state, enabled]) => ({ ...connection, connectionId: id, displayName: id, state, enabled }));
-  t.mock.method(globalThis, 'fetch', async (_url, init) => {
-    const { operation } = JSON.parse(init.body);
-    if (operation === 'snapshot') return response({ ok: true, directory: [provider], connections });
-    return response({ ok: true, result: [], records: [], running: [] });
-  });
-  await f.render(f.React.createElement(f.ui.ConnectorsPage, { locale: 'en', initialMode: 'manage' }));
-  for (const [filter, ids] of [['Paused 1', ['paused']], ['Ready 1', ['ready']], ['Needs attention 3', ['draft', 'unchecked', 'paused']]]) {
-    await f.click([...document.querySelectorAll('button')].find(node => node.textContent === filter));
-    assert.deepEqual([...document.querySelectorAll('.point-connectors-row .pero-list-title')].map(node => node.textContent), ids);
-  }
+  await f.click(add);
+  assert.ok(document.querySelector('#connector-import-json'));
 });
