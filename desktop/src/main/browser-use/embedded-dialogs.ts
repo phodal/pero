@@ -55,6 +55,7 @@ export class EmbeddedDialogs {
   private onDetach = () => {
     this.enabled = undefined;
     this.accessibility = undefined;
+    this.cdpSession?.invalidate();
     this.cdpSession = undefined;
     this.dialog = undefined;
     this.contents.debugger.off('message', this.onMessage);
@@ -123,20 +124,25 @@ export class EmbeddedDialogs {
 
   async diagnose(origin: string, options: BrowserDiagnosticOptions, check: () => void, signal: AbortSignal) {
     await this.start();
+    await this.cdpSession?.stopCapture();
     return captureBrowserDiagnostics(origin, options, this.send, this.subscribe, check, signal);
   }
 
-  async cdp(request: CdpRequest, document: string, origin: string, check: () => void) {
+  async cdp(request: CdpRequest, document: string, origin: string, check: () => void, signal: AbortSignal) {
     await this.start();
     const session = this.cdpSession ??= new ChromiumCdp();
-    return session.call(request, document, origin, this.send, this.subscribe, () => {
+    const send = async (method: string, params?: Record<string, unknown>) => {
+      if (this.cdpSession !== session) throw new Error('The authorized debugger session ended.');
+      return this.send(method, params);
+    };
+    return session.call(request, document, origin, send, this.subscribe, () => {
       if (this.cdpSession !== session) throw new Error('The authorized debugger session ended.');
       check();
-    });
+    }, signal);
   }
 
   clearCdp() {
-    this.cdpSession = undefined;
+    this.cdpSession?.invalidate();
   }
 
   async observeAX(origin: string, document: string, since: string | undefined, check: () => void) {

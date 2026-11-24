@@ -16,7 +16,7 @@ import { readVisiblePage } from './collector-capture.js';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>; accessibility?: ChromiumAccessibility;
-  cdp?: ChromiumCdp;
+  cdp?: ChromiumCdp; cdpStart?: { id: string; controller: AbortController };
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
 type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
@@ -85,6 +85,10 @@ async function release(connection: Peer, reason?: string) {
   clearInterval(connection.timer);
   connection.socket.close();
   publish();
+  for (const handle of connection.tabs.values()) {
+    handle.cdpStart?.controller.abort();
+    handle.cdp?.invalidate();
+  }
   await Promise.allSettled([...connection.tabs.values()].flatMap(({ tabId, attachment }) =>
     attachment ? [attachment.then(() => chrome.debugger.detach({ tabId }))] : []));
 }
@@ -159,6 +163,9 @@ async function run(connection: Peer, command: Command) {
   }
   const handle = [...connection.tabs.values()].find(handle => handle.id === command.tab);
   if (!handle) throw new Error('The selected Chrome tab is unavailable. List tabs again.');
+  const captureId = command.kind === 'run' && command.operation.kind === 'cdp' ? command.operation.captureId : undefined;
+  const starting = captureId && { id: captureId, controller: new AbortController() };
+  if (starting) handle.cdpStart = starting;
   if (command.kind === 'run' && handle.pendingInput && !handle.dialog)
     await untilDialog(handle, () => handle.pendingInput!);
   const tab = await snapshot(connection, handle);
@@ -173,6 +180,8 @@ async function run(connection: Peer, command: Command) {
       return { kind: 'tabClosed', tabId: 'chrome:' + handle.id };
     }
     if (command.action.kind === 'handoff') {
+      handle.cdpStart?.controller.abort();
+      handle.cdp?.invalidate();
       connection.handedOff.add(handle.tabId);
       connection.tabs.delete(handle.tabId);
       if (handle.attachment) {
@@ -272,6 +281,7 @@ async function run(connection: Peer, command: Command) {
   }
   if (operation.kind === 'diagnose' || operation.kind === 'cdp') {
     const check = () => {
+      if (starting) starting.controller.signal.throwIfAborted();
       if (peer !== connection || handle.revision !== current.revision || handle.dialog)
         throw new Error('The Chrome document changed during browser diagnostics.');
     };
@@ -282,9 +292,11 @@ async function run(connection: Peer, command: Command) {
       chrome.debugger.onEvent.addListener(receive);
       return () => chrome.debugger.onEvent.removeListener(receive);
     };
+    if (operation.kind === 'diagnose') await handle.cdp?.stopCapture();
     const result = operation.kind === 'diagnose'
       ? await captureBrowserDiagnostics(origin, operation, cdp, subscribe, check)
-      : await (handle.cdp ??= new ChromiumCdp()).call(operation.request, command.stamp, origin, cdp, subscribe, check);
+      : await (handle.cdp ??= new ChromiumCdp()).call(operation.request, command.stamp, origin, cdp, subscribe, check,
+        starting ? starting.controller.signal : new AbortController().signal, captureId);
     const after = await snapshot(connection, handle);
     check();
     checkDocument(after);
@@ -360,7 +372,7 @@ function connect(code: string) {
   failure = undefined;
   publish();
   socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket,
-    ...(pairing.parallel === true && { parallel: true }) });
+    ...(pairing.parallel === true && { parallel: true }), ...(pairing.cdpNetwork === true && { cdpNetwork: true }) });
   socket.onclose = event => void release(connection, event.reason || 'The Pero Relay disconnected.');
   socket.onerror = () => void release(connection, 'Could not connect to Pero. Check the pairing code.');
   connection.timer = setInterval(() => {
@@ -382,6 +394,14 @@ function connect(code: string) {
         return;
       }
       if (message.type === 'pong') { connection.lastPong = Date.now(); return; }
+      if (message.type === 'stopCdpCapture' && connection.state === 'paired' && pairing.cdpNetwork === true) {
+        const captureId = message.captureId;
+        if (typeof captureId !== 'string') return;
+        const handle = [...connection.tabs.values()].find(tab => tab.id === message.tab);
+        if (handle?.cdpStart?.id === captureId) handle.cdpStart.controller.abort();
+        void handle?.cdp?.stopCapture(captureId);
+        return;
+      }
       if (message.type === 'paired' && connection.state === 'connecting') {
         connection.state = 'paired';
         connection.label = message.label;
@@ -420,10 +440,14 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
   const handle = peer?.tabs.get(tabId);
   if (handle && (change.status === 'loading' || change.url)) {
     handle.revision++;
-    handle.cdp = undefined;
+    handle.cdpStart?.controller.abort();
+    handle.cdp?.invalidate();
   }
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
+  const handle = peer?.tabs.get(tabId);
+  handle?.cdpStart?.controller.abort();
+  handle?.cdp?.invalidate();
   peer?.tabs.delete(tabId);
   peer?.handedOff.delete(tabId);
 });
@@ -448,6 +472,8 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: str
   if (!connection || !handle?.attachment) return;
   handle.attachment = undefined;
   handle.accessibility = undefined;
+  handle.cdpStart?.controller.abort();
+  handle.cdp?.invalidate();
   handle.cdp = undefined;
   handle.dialog = undefined;
   if (reason === 'canceled_by_user') {

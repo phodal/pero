@@ -73,7 +73,7 @@
   "browser_use.site_rule_block": "Blocked",
   "browser_use.developer_mode": "Browser Developer Mode",
   "browser_use.diagnostic_prompt": "Allow browser diagnostics on this site?",
-  "browser_use.diagnostic_detail": "This capture gives the current conversation access to console messages, runtime errors, network timing, computed styles and performance data from this tab.",
+  "browser_use.diagnostic_detail": "This request lets the current conversation inspect diagnostics from this tab, which can include console messages, runtime errors, network timing, same-origin response content, computed styles and performance data. Live captures end after one minute.",
   "browser_use.developer_on": "Chrome diagnostics are enabled. Each capture still requires your approval.",
   "browser_use.developer_off": "Enable Chrome diagnostics for this Workbench session. You can review each capture request before it runs.",
   "browser_use.site_tools": "Browser Site Tools",

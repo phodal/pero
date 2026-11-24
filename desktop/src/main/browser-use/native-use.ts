@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -13,6 +13,7 @@ import type { ChromiumAccessibility } from './accessibility.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
 import { browserDeveloperAction, browserRequest, type BrowserRequest, type CdpRequest, type FrameSelector } from './request.ts';
 import type { ChromiumCdp } from './cdp.ts';
+import { cdpCaptureMs } from './cdp-capture.ts';
 import { freezeDownloadBytes } from './download.ts';
 import { downloadLinkScript } from './download-link.ts';
 import { SiteToolSession } from './site-tool-session.ts';
@@ -52,7 +53,7 @@ export type DriverOperation =
   | { kind: 'screenshot'; clip?: ScreenshotClip; fullPage?: true }
   | { kind: 'getAXState'; since?: string }
   | ({ kind: 'diagnose' } & BrowserDiagnosticOptions)
-  | { kind: 'cdp'; request: CdpRequest }
+  | { kind: 'cdp'; request: CdpRequest; captureId?: string }
   | { kind: 'siteTools'; command: SiteToolCommand }
   | { kind: 'download'; url: string }
   | { kind: 'dispatch'; input: DriverInput; expectPopup?: true }
@@ -61,6 +62,7 @@ export type DriverOperation =
 export type DriverRequest =
   | { op: 'tabs'; thread: string }
   | { op: 'revoke'; thread?: string }
+  | { op: 'stopCdpCapture'; thread: string; tab: string; grant: string; captureId: string }
   | { op: 'manage'; thread: string; tab: string; grant: string; command: TabAction }
   | { op: 'run'; thread: string; tab: string; stamp: string; background?: true; operation: DriverOperation };
 
@@ -238,14 +240,31 @@ export class NativeBrowserUse implements BrowserUsePort {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
         const approved = await this.approveDiagnostics(thread, origin, signal);
         approved.throwIfAborted();
-        const diagnostics = request.action === 'diagnose'
-          ? { kind: 'diagnostics', ...await run<Awaited<ReturnType<typeof captureBrowserDiagnostics>>>({
+        if (request.action === 'diagnose') {
+          const diagnostics = await run<Awaited<ReturnType<typeof captureBrowserDiagnostics>>>({
             kind: 'diagnose', captureMs: request.captureMs, profile: request.profile, style: request.style,
-          }) }
-          : await run<Awaited<ReturnType<ChromiumCdp['call']>>>({ kind: 'cdp', request });
-        await run({ kind: 'check' });
-        approved.throwIfAborted();
-        return { tabId, origin, ...diagnostics };
+          });
+          await run({ kind: 'check' });
+          approved.throwIfAborted();
+          return { kind: 'diagnostics', tabId, origin, ...diagnostics };
+        }
+        const captureId = request.action === 'cdpSend' && request.command.method === 'Network.enable' ? randomUUID() : undefined;
+        const stop = captureId && (() => {
+          void this.rpc({ op: 'stopCdpCapture', thread, tab: tabId, grant: grantId, captureId }).catch(() => {});
+        });
+        if (stop) {
+          approved.addEventListener('abort', stop, { once: true });
+          setTimeout(() => approved.removeEventListener('abort', stop), cdpCaptureMs + 16000).unref();
+        }
+        try {
+          const result = await run<Awaited<ReturnType<ChromiumCdp['call']>>>({ kind: 'cdp', request, captureId });
+          await run({ kind: 'check' });
+          approved.throwIfAborted();
+          return { tabId, origin, ...result };
+        } catch (error) {
+          if (stop) { approved.removeEventListener('abort', stop); stop(); }
+          throw error;
+        }
       }
       if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
         if (!this.siteToolAccess) throw new Error('Browser Site Tools are unavailable.');

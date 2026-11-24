@@ -10,7 +10,8 @@ export const MAX_PARALLEL_REQUESTS = 8;
 export const PAIR_LIFETIME_MS = 120000;
 const credential = /^[A-Za-z0-9_-]{43}$/;
 
-export type Pairing = { protocol: typeof RELAY_PROTOCOL; baseUrl: string; ticket: string; expiresAt: number; label: string; parallel?: true };
+export type Pairing = { protocol: typeof RELAY_PROTOCOL; baseUrl: string; ticket: string; expiresAt: number; label: string;
+  parallel?: true; cdpNetwork?: true };
 
 export function parseRelayPairing(value: string, now = Date.now()): Pairing {
   const pairing = JSON.parse(value) as Pairing;

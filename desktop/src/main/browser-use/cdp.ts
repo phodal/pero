@@ -1,16 +1,13 @@
 import { webOrigin } from '../../../../packages/chrome-extension/src/protocol.ts';
 import type { CdpRequest } from './request.ts';
+import { ChromiumCdpCapture, cdpCaptureMs } from './cdp-capture.ts';
+import { CdpEventBuffer, topRuntimeEvents, type CdpSend, type CdpSubscribe, type RuntimeEvent } from './cdp-events.ts';
 
-type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
-type Receive = (method: string, params: Record<string, unknown>) => void;
-type Event = { method: 'Runtime.consoleAPICalled' | 'Runtime.exceptionThrown'; timestamp: number; text: string; level?: string };
-type Entry = Event & { sequence: number };
 type FrameTree = {
   frame: { id: string; loaderId: string; parentId?: string; url: string; mimeType: string; securityOrigin?: string };
   childFrames?: FrameTree[];
   resources?: { url: string }[];
 };
-const eventCapacity = 128;
 const replayCapacity = 256;
 
 function scopedFrameTree(tree: FrameTree, origin: string): FrameTree | undefined {
@@ -24,19 +21,65 @@ function scopedFrameTree(tree: FrameTree, origin: string): FrameTree | undefined
   };
 }
 
-/** Reads Chromium's document-local replay under an approved, short-lived CDP attachment operation. */
+/** Owns approved CDP reads and captures for one Chromium debugger attachment. */
 export class ChromiumCdp {
-  private stream = crypto.randomUUID();
   private document?: string;
-  private sequence = 0;
-  private events: Entry[] = [];
+  private buffer = new CdpEventBuffer();
   private previousReplay = new Map<string, number>();
+  private capture?: ChromiumCdpCapture;
 
-  async call(request: CdpRequest, document: string, origin: string, send: Send,
-    subscribe: (receive: Receive) => () => void, check: () => void) {
+  stopCapture(id?: string) {
+    if (!id || this.capture?.id === id) return this.capture?.stop();
+  }
+
+  invalidate() {
+    this.document = undefined;
+    void this.stopCapture();
+  }
+
+  async call(request: CdpRequest, document: string, origin: string, send: CdpSend,
+    subscribe: CdpSubscribe, check: () => void, signal: AbortSignal, captureId?: string) {
+    if (this.document !== document) {
+      await this.stopCapture();
+      this.document = document;
+      this.buffer = new CdpEventBuffer();
+      this.previousReplay.clear();
+    } else if (this.capture && !this.capture.active) await this.capture.stop();
     check();
+    const topFrame = async () => {
+      const { frameTree } = await send('Page.getFrameTree') as { frameTree: FrameTree };
+      check();
+      if (webOrigin(frameTree.frame.url) !== origin) throw new Error('The authorized document changed.');
+      return frameTree.frame;
+    };
+
     if (request.action === 'cdpSend') {
       const { command } = request;
+      if (command.method === 'Network.enable') {
+        await this.stopCapture();
+        const frame = await topFrame();
+        const capture = this.capture = new ChromiumCdpCapture(captureId ?? crypto.randomUUID(), origin,
+          frame.id, frame.loaderId, send, subscribe, signal, check);
+        try {
+          const cursor = await capture.start();
+          check();
+          return { kind: 'cdpResult', method: command.method, result: { cursor, captureMs: cdpCaptureMs } };
+        } catch (error) {
+          await capture.stop();
+          throw error;
+        }
+      }
+      if (command.method === 'Network.disable') {
+        await this.stopCapture();
+        check();
+        return { kind: 'cdpResult', method: command.method, result: {} };
+      }
+      if (command.method === 'Network.getResponseBody') {
+        if (!this.capture?.active) throw new Error('Enable Network before reading a response body.');
+        const result = await this.capture.responseBody(command.params.requestId);
+        check();
+        return { kind: 'cdpResult', method: command.method, result };
+      }
       const frameTree = command.method === 'Page.getFrameTree' || command.method === 'Page.getResourceTree';
       if (command.method !== 'Performance.getMetrics' && command.method !== 'Page.getLayoutMetrics' &&
           command.method !== 'DOM.getDocument' && !frameTree) throw new Error('This CDP command is unavailable.');
@@ -60,48 +103,21 @@ export class ChromiumCdp {
       }
     }
 
-    if (this.document !== document) {
-      this.document = document;
-      this.stream = crypto.randomUUID();
-      this.sequence = 0;
-      this.events = [];
-      this.previousReplay.clear();
+    if (this.capture?.active || this.capture?.matches(request.after)) {
+      const result = await this.capture.read(request);
+      check();
+      return result;
     }
-    const after = request.after;
-    if (after && (after.stream !== this.stream || after.sequence > this.sequence))
-      throw new Error('The CDP cursor is stale. Read events again without a cursor.');
-    const { frameTree } = await send('Page.getFrameTree') as { frameTree: { frame: { id: string; url: string } } };
-    const frame = frameTree.frame;
-    if (webOrigin(frame.url) !== origin) throw new Error('The authorized document changed.');
-    const contexts = new Set<number>();
-    const replay: Event[] = [];
+    this.buffer.read(request); // Reject a stale cursor before reading the browser.
+    if (request.timeoutMs || request.methods?.some(method => method.startsWith('Network.')))
+      throw new Error('Enable Network before using live CDP event reads.');
+    const frame = await topFrame();
+    const replay: RuntimeEvent[] = [];
     let replayTruncated = false;
-    const stop = subscribe((method, data) => {
-      if (method === 'Runtime.executionContextCreated') {
-        const context = data.context as { id: number; origin: string; auxData?: { isDefault?: boolean; frameId?: string } };
-        if (context.origin === origin && context.auxData?.isDefault && context.auxData.frameId === frame.id)
-          contexts.add(context.id);
-        return;
-      }
-      if (method === 'Runtime.executionContextDestroyed') { contexts.delete(data.executionContextId as number); return; }
-      if (method === 'Runtime.executionContextsCleared') { contexts.clear(); return; }
-      let event: Event;
-      if (method === 'Runtime.consoleAPICalled' && contexts.has(data.executionContextId as number)) {
-        const args = data.args as Array<{ value?: unknown; type: string }>;
-        const text = args.slice(0, 8).map(arg =>
-          arg.value === null || ['string', 'number', 'boolean'].includes(typeof arg.value)
-            ? String(arg.value).slice(0, 160) : `[${arg.type}]`).join(' ').slice(0, 480);
-        event = { method, timestamp: data.timestamp as number, text, level: String(data.type).slice(0, 24) };
-      } else if (method === 'Runtime.exceptionThrown') {
-        const details = data.exceptionDetails as { executionContextId?: number; text: string; exception?: { description?: string } };
-        if (!contexts.has(details.executionContextId ?? -1)) return;
-        event = { method, timestamp: data.timestamp as number,
-          text: (details.exception?.description?.split('\n', 1)[0] ?? details.text).slice(0, 480) };
-      } else return;
-      if (!Number.isFinite(event.timestamp)) return;
+    const stop = subscribe(topRuntimeEvents(frame.id, origin, event => {
       if (replay.length === replayCapacity) { replay.shift(); replayTruncated = true; }
       replay.push(event);
-    });
+    }));
     try {
       check();
       await send('Runtime.enable');
@@ -116,15 +132,9 @@ export class ChromiumCdp {
       const count = (replayCounts.get(key) ?? 0) + 1;
       replayCounts.set(key, count);
       if (count <= (this.previousReplay.get(key) ?? 0)) continue;
-      this.events.push({ ...event, sequence: ++this.sequence });
+      this.buffer.append(event);
     }
     this.previousReplay = replayCounts;
-    this.events = this.events.slice(-eventCapacity);
-    const start = after?.sequence ?? 0;
-    const matches = this.events.filter(event => event.sequence > start && (!request.methods || request.methods.includes(event.method)));
-    const events = matches.slice(0, request.limit ?? 25);
-    const hasMore = matches.length > events.length;
-    return { kind: 'cdpEvents', events, hasMore, truncated: replayTruncated || start < this.sequence - this.events.length,
-      cursor: { stream: this.stream, sequence: hasMore ? events.at(-1)!.sequence : this.sequence } };
+    return this.buffer.read(request, false, replayTruncated);
   }
 }

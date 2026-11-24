@@ -278,7 +278,7 @@ export class BrowserUse implements BrowserUsePort {
         canDiagnose();
         const diagnostics = request.action === 'diagnose'
           ? { kind: 'diagnostics', ...await grant.dialogs.diagnose(grant.origin, request, canDiagnose, active) }
-          : await grant.dialogs.cdp(request, String(revision), grant.origin, canDiagnose);
+          : await grant.dialogs.cdp(request, String(revision), grant.origin, canDiagnose, active);
         canDiagnose();
         return { tabId: grant.tab.id, origin: grant.origin, ...diagnostics };
       }

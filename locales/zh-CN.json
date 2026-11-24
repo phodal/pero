@@ -73,7 +73,7 @@
   "browser_use.site_rule_block": "阻止",
   "browser_use.developer_mode": "浏览器开发者模式",
   "browser_use.diagnostic_prompt": "允许诊断这个站点？",
-  "browser_use.diagnostic_detail": "此次采集会向当前会话提供此标签的控制台消息、运行错误、网络耗时、计算样式和性能数据。",
+  "browser_use.diagnostic_detail": "此次请求允许当前会话读取此标签的诊断数据，包括控制台消息、运行错误、网络耗时、同源响应内容、计算样式和性能数据。实时采集会在一分钟后结束。",
   "browser_use.developer_on": "Chrome 诊断已启用。每次采集仍需你的批准。",
   "browser_use.developer_off": "为本次工作台会话启用 Chrome 诊断。每次采集前都可以审查请求。",
   "browser_use.site_tools": "浏览器站点工具",
