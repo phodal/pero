@@ -155,3 +155,27 @@ titlebar above explicitly light Settings content. The MCP editor is removed
 from Settings navigation/search; existing programmatic MCP entry remains.
 Per the user's instruction, these changes were committed without build, tests
 or runtime verification.
+
+## Native App heading scale — 2026-11-24
+
+The shared title and heading roles now keep their default 10px and 4px gaps
+above body text as the interface size grows. The TypeSpec design values feed
+generated Web tokens; the Rust TextRole owns the corresponding Native sizes.
+Notebook prose headings use these tokens and fixed offsets.
+
+At interface size 14, a built Notebook browser preview measured
+title/h1/h2/h3/body at 24/21/18/16/14px. At size 24 it measured
+34/31/28/26/24px. The inspected browser capture is
+`test-results/appearance/notebook-heading-24.png` (local, ignored). The
+heading sample was inserted into the live editor DOM, not saved as a revision.
+
+`npm run gen:design`, `npm run check`, Notebook build and typecheck, the
+contracts appearance test, and Native probe build passed. The real macOS
+Native App probe (`node tests/e2e/native-apps.mjs`) passed against a WKWebView:
+its measured body/heading/title sizes were 14/18/24px at the default and
+24/28/34px after changing the Native interface size to 24. Its receipt is
+`test-results/native-apps/result.json`. An isolated visible Native Notebook
+window was inspected at the default size. The settings controls in that
+window were not reliably available to the UI automation, so the size-24
+Native visual layout remains unverified; the probe confirms computed WebView
+sizes, not that visual judgment.

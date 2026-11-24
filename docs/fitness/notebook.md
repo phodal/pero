@@ -1,5 +1,18 @@
 # Notebook verification
 
+## Large interface text (2026-11-24)
+
+Notebook prose headings now increase by the same 10px as body text when the
+Native interface setting moves from 14 to 24. A built browser preview measured
+title/h1/h2/h3/body at 24/21/18/16/14px by default and
+34/31/28/26/24px at 24. The inspected size-24 capture is
+`test-results/appearance/notebook-heading-24.png` (local, ignored).
+The real macOS Native App probe measured shared body/heading/title tokens at
+14/18/24px and 24/28/34px in WKWebView; see
+`test-results/native-apps/result.json`. Notebook build/typecheck and the
+probe passed. The temporary browser headings were not saved, and visual
+inspection of the Native window at size 24 was not completed.
+
 ## Writing typography (2026-11-24)
 
 With source `5a7037e7d` plus this style change, the Notes view uses
