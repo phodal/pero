@@ -15,6 +15,7 @@ enum ChromeAction {
     PrepareFolder,
     SiteRules,
     ClearSiteRules,
+    DeveloperMode(Option<bool>),
 }
 
 #[derive(Default)]
@@ -26,7 +27,7 @@ pub(crate) struct CloudBrowserView {
 }
 
 impl Workbench {
-    pub(super) fn native_chrome_site_approval(
+    pub(super) fn native_chrome_approval(
         &mut self,
         event: pero_contracts::HostEvent,
         window: &mut Window,
@@ -40,24 +41,39 @@ impl Workbench {
             apps.shell_reply(&id, Ok(json!("decline")));
             return;
         }
-        let detail = format!("{origin}\n\n{}", self.t("browser_use.site_detail"));
-        let answer = window.prompt(
-            PromptLevel::Info,
-            self.t("browser_use.site_prompt"),
-            Some(&detail),
-            &[
-                self.t("browser_use.deny"),
+        let diagnostics = event.data["action"] == "chrome-diagnostic-approval";
+        let mut buttons = vec![self.t("browser_use.deny")];
+        if diagnostics {
+            buttons.push(self.t("browser_use.allow"));
+        } else {
+            buttons.extend([
                 self.t("browser_use.site_once"),
                 self.t("browser_use.site_allow"),
                 self.t("browser_use.site_block"),
-            ],
+            ]);
+        }
+        let detail = format!("{origin}\n\n{}", self.t(if diagnostics {
+            "browser_use.diagnostic_detail"
+        } else {
+            "browser_use.site_detail"
+        }));
+        let answer = window.prompt(
+            if diagnostics { PromptLevel::Warning } else { PromptLevel::Info },
+            self.t(if diagnostics {
+                "browser_use.diagnostic_prompt"
+            } else {
+                "browser_use.site_prompt"
+            }),
+            Some(&detail),
+            &buttons,
             cx,
         );
         cx.spawn(async move |_, _| {
-            let decision = match answer.await {
-                Ok(1) => "once",
-                Ok(2) => "allow",
-                Ok(3) => "block",
+            let decision = match (diagnostics, answer.await) {
+                (true, Ok(1)) => "allow",
+                (false, Ok(1)) => "once",
+                (false, Ok(2)) => "allow",
+                (false, Ok(3)) => "block",
                 _ => "decline",
             };
             apps.shell_reply(&id, Ok(json!(decision)));
@@ -289,6 +305,7 @@ impl Workbench {
         let pair = self.t("browser_use.open_chrome").to_owned();
         let status = self.t("browser_use.chrome_status").to_owned();
         let stop = self.t("browser_use.chrome_stop").to_owned();
+        let developer = self.t("browser_use.developer_mode").to_owned();
         Some(
             Button::new("chrome-relay")
                 .ghost()
@@ -299,6 +316,7 @@ impl Workbench {
                     let start_owner = owner.clone();
                     let status_owner = owner.clone();
                     let stop_owner = owner.clone();
+                    let developer_owner = owner.clone();
                     let thread = thread.clone();
                     let status_thread = thread.clone();
                     menu.item(
@@ -321,6 +339,13 @@ impl Workbench {
                             );
                         });
                     }))
+                    .item(
+                        PopupMenuItem::new(developer.clone()).on_click(move |_, window, cx| {
+                            developer_owner.update(cx, |this, cx| {
+                                this.native_chrome_relay(ChromeAction::DeveloperMode(None), window, cx)
+                            });
+                        }),
+                    )
                     .item(
                         PopupMenuItem::new(stop.clone()).on_click(move |_, window, cx| {
                             stop_owner.update(cx, |this, cx| {
@@ -363,6 +388,7 @@ impl Workbench {
             ChromeAction::PrepareFolder => json!({"operation":"chrome-extension-folder"}),
             ChromeAction::SiteRules => json!({"operation":"chrome-site-rules"}),
             ChromeAction::ClearSiteRules => json!({"operation":"chrome-site-clear"}),
+            ChromeAction::DeveloperMode(enabled) => json!({"operation":"chrome-developer-mode", "enabled":enabled}),
         };
         cx.spawn_in(window, async move |entity, cx| {
             let result = cx
@@ -375,6 +401,25 @@ impl Workbench {
                         let mut open = std::process::Command::new("/usr/bin/open");
                         match &action {
                             ChromeAction::Stop | ChromeAction::ClearSiteRules => return,
+                            ChromeAction::DeveloperMode(update) => {
+                                if update.is_some() { return; }
+                                let enabled = value["enabled"] == true;
+                                let answer = window.prompt(
+                                    PromptLevel::Info,
+                                    this.t("browser_use.developer_mode"),
+                                    Some(this.t(if enabled { "browser_use.developer_on" } else { "browser_use.developer_off" })),
+                                    &[this.t("remote.close_form"), this.t(if enabled { "apps.disable" } else { "apps.enable" })],
+                                    cx,
+                                );
+                                cx.spawn_in(window, async move |view, cx| {
+                                    if answer.await == Ok(1) {
+                                        let _ = view.update_in(cx, |view, window, cx| {
+                                            view.native_chrome_relay(ChromeAction::DeveloperMode(Some(!enabled)), window, cx);
+                                        });
+                                    }
+                                }).detach();
+                                return;
+                            }
                             ChromeAction::SiteRules => {
                                 let rules = value["rules"].as_object().into_iter().flatten()
                                     .filter_map(|(origin, decision)| Some(format!(

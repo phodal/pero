@@ -162,6 +162,46 @@ returns control on the dialog event so the next request can handle it, then
 settles the original input before the next page operation. Dialog action
 receipts record the decision and ID. The prompt answer stays out of the receipt.
 
+### Browser Developer Mode
+
+In Electron, enable **Workbench → Browser Developer Mode**. It works with an
+authorized embedded Chromium tab or paired Chrome 0.3.7 or newer. Native
+offers the toggle in its Chrome menu for paired Chrome tabs. Each capture
+asks for separate approval and remains bound to the current tab and document.
+The mode resets when the Workbench exits.
+
+`browser_use` action `diagnose` takes an optional `captureMs` of 100–4000,
+defaulting to 750. It returns console messages, runtime errors, network
+status and timing, and Chromium performance metrics. Network entries include
+only same-origin URLs, with query strings and fragments omitted. Use
+`style: { selector: "h1", properties: ["color"] }` to inspect computed CSS
+and `profile: true` to request a CPU sample. When the attached driver lacks
+the Profiler domain, the result includes `profileUnavailable: true` with the
+other observations. The Chrome and Electron fixtures independently assert
+that the expected console, network, runtime and CSS values reach ACP. The
+embedded Chromium fixture also checks a named function in its CPU sample.
+
+### Browser Site Tools
+
+In Electron, enable **Workbench → Browser Site Tools** and authorize an
+embedded Web tab. `listSiteTools` discovers WebMCP registrations in the
+approved document and its same-origin frames. It returns the browser's tool
+schema and a document-bound ID. Request partner-frame tools by listing the
+exact origins in `fromOrigins`. The user reviews those origins before
+discovery, and Chromium lists the tools each partner has exposed to the page.
+`callSiteTool` uses the returned ID and an `input`
+object. The Workbench shows the origin, frame when applicable, tool name and
+arguments before dispatch. Run discovery again after navigation or reload.
+Each dispatch returns a receipt. If the tool's outcome is unclear, inspect
+the page before calling it again.
+
+The Electron fixture registers real WebMCP tools in a page and in same-origin
+and cross-origin frames. It checks the returned schemas, private partner tools
+staying private, separate discovery and call consent, independent page effects
+and a stale ID after reload.
+
+### Chrome Relay acceptance
+
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.

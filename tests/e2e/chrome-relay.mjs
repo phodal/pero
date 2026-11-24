@@ -11,6 +11,7 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
+import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -36,6 +37,7 @@ await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', wo
 let foreignHits = 0;
 let leaveRequests = 0;
 const otherOrigin = createServer((request, response) => {
+  if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === '/inventory-window' || request.url === '/popup-destination') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.end(request.url === '/popup-destination'
@@ -51,6 +53,12 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
+  if (request.url === '/diagnostics') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(browserDiagnosticPage(foreignUrl));
+    return;
+  }
   if (request.url === '/leave-fixture') leaveRequests++;
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
@@ -119,11 +127,12 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
-  const menu = id => app.evaluate(({ Menu, BrowserWindow }, key) => {
-    const item = Menu.getApplicationMenu().getMenuItemById(key);
-    if (!item) throw new Error(`Missing Pero menu action ${key}`);
-    item.click(undefined, BrowserWindow.getAllWindows()[0]);
-  }, id);
+  const menu = (id, checked) => app.evaluate(({ Menu, BrowserWindow }, { id, checked }) => {
+    const item = Menu.getApplicationMenu().getMenuItemById(id);
+    if (!item) throw new Error(`Missing Pero menu action ${id}`);
+    if (checked === undefined || item.checked !== checked) item.click(undefined, BrowserWindow.getAllWindows()[0]);
+    if (checked !== undefined && item.checked !== checked) throw new Error(`Menu action ${id} did not toggle.`);
+  }, { id, checked });
   const prompt = async commands => {
     await expect.poll(async () => (await active())?.state, { timeout: 10000 }).toBe('idle');
     const previous = (await active()).messages.length;
@@ -155,6 +164,10 @@ try {
       if (options.message === 'Chrome site permissions') {
         globalThis.relaySiteRules = options.detail;
         return { response: globalThis.relayClearSites ? 1 : 0, checkboxChecked: false };
+      }
+      if (options.message === 'Allow browser diagnostics on this site?') {
+        globalThis.relayDiagnosticPrompts = (globalThis.relayDiagnosticPrompts ?? 0) + 1;
+        return { response: globalThis.relayDiagnosticDecision ?? 0, checkboxChecked: false };
       }
       return { response: 0, checkboxChecked: false };
     };
@@ -301,6 +314,28 @@ try {
     assert.equal(tabId, discovered.tabId);
     assert.equal(available.tabs[0].url, siteUrl);
     assert.equal(available.tabs[0].authorized, true);
+
+    const diagnosticPage = await chrome.newPage();
+    const diagnosticUrl = new URL('/diagnostics', siteUrl).href;
+    await diagnosticPage.goto(diagnosticUrl);
+    const [diagnosticTabs] = await prompt([{ action: 'tabs' }]);
+    const diagnosticId = diagnosticTabs.tabs.find(tab => tab.url === diagnosticUrl).tabId;
+    const diagnose = { action: 'diagnose', tabId: diagnosticId, captureMs: 1500, profile: true,
+      style: { selector: 'h1', properties: ['color'] } };
+    const [developerOff] = await prompt([diagnose]);
+    assert.match(developerOff.error, /Enable Browser Developer Mode/);
+    assert.equal(await extensionAttached(diagnosticUrl), false);
+    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), undefined);
+    await menu('browser-use-developer-mode', true);
+    const [developerDeclined] = await prompt([diagnose]);
+    assert.match(developerDeclined.error, /diagnostics were declined/);
+    assert.equal(await extensionAttached(diagnosticUrl), false);
+    await app.evaluate(() => { globalThis.relayDiagnosticDecision = 1; });
+    const [diagnostics] = await prompt([diagnose]);
+    verifyBrowserDiagnostics(diagnostics, new URL(siteUrl).origin, { profileRequired: false });
+    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 2);
+    await menu('browser-use-developer-mode', false);
+    await diagnosticPage.close();
 
     const snapshotPage = await chrome.newPage();
     const snapshotUrl = new URL('/snapshot', siteUrl).href;
@@ -698,6 +733,8 @@ nodeRepl.write(answer.outcome);` },
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       chromeConnectionStatesVerified: true,
+      browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
+        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,

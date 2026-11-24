@@ -151,9 +151,12 @@ Workbench 持有 WKWebView、标签授权和可见性，连接器复用页面语
 历史遍历、滚轮、视口截图、同源链接下载，以及 `click` 后网页触发的新标签回执。
 Electron 也支持下载按钮触发的原生下载事件。
 外部 Chrome 通过 Pero MV3 扩展和 Workbench 的回环 Relay 接入同一个 `browser_use`。
-Workbench 下发一次性配对码，绑定当前选中会话与 Chrome 配置。配对后可使用该配置的普通网页标签，
-调试器在首次页面操作时挂载。页面操作绑定活动标签和当前文档；现有 Agent 回合准入和回执继续生效。
+Workbench 下发一次性配对码，绑定当前选中会话与 Chrome 配置。配对后可列出普通网页标签，
+站点获准后才可读取和操作页面，调试器在首次获准的页面操作时挂载。页面操作绑定活动标签和当前文档，
+沿用 Agent 回合准入和回执。
 Chrome 与 Workbench 都可断开连接并释放调试器。
+开发者诊断通过同一标签授权链路，另需开启工作台模式并批准当次采集。Electron 内置 Chromium
+的站点工具通过隔离世界调用浏览器 WebMCP API，每次调用需审批，工具 ID 绑定发现时的文档和注册。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 
 普通 Workbench 会话还可以用 REPL 编排这些工具。Electron Main 装配

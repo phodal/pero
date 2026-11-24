@@ -5,6 +5,7 @@ import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../..
 import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
 import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
 import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
+import { captureBrowserDiagnostics } from '../../../desktop/src/main/browser-use/diagnostics.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
 
@@ -242,6 +243,24 @@ async function run(connection: Peer, command: Command) {
     if (frames !== await checkFrames(handle.tabId, origin))
       throw new Error('The Chrome document changed during screenshot capture.');
     return image;
+  }
+  if (operation.kind === 'diagnose') {
+    const check = () => {
+      if (peer !== connection || handle.revision !== current.revision || handle.dialog)
+        throw new Error('The Chrome document changed during browser diagnostics.');
+    };
+    const result = await captureBrowserDiagnostics(origin, operation, cdp, listener => {
+      const receive = ({ tabId }: { tabId?: number }, method: string, params?: Record<string, unknown>) => {
+        if (tabId === handle.tabId && params && handle.revision === current.revision) listener(method, params);
+      };
+      chrome.debugger.onEvent.addListener(receive);
+      return () => chrome.debugger.onEvent.removeListener(receive);
+    }, check);
+    const after = await snapshot(connection, handle);
+    check();
+    if (!after.active || !after.ready || after.url !== current.url)
+      throw new Error('The Chrome document changed during browser diagnostics.');
+    return result;
   }
   if (operation.kind === 'download') return downloadLink(cdp, world, origin, operation.url);
   if (operation.kind === 'navigate' || operation.kind === 'history') {

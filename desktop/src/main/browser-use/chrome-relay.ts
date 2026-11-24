@@ -9,6 +9,7 @@ import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
 import type { BrowserNode } from './document.ts';
+import type { BrowserDiagnosticApproval } from './diagnostics.ts';
 import { cloudBrowserRequest } from './cloud-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
@@ -59,7 +60,7 @@ class ChromeRelay {
   readonly siteAccess?: ChromeSiteAccess;
 
   constructor(selected: () => Promise<string | undefined>, private readonly evidenceRoot: string, sidebar?: SidebarPort,
-    sitePort?: ChromeSiteAccessPort) {
+    sitePort?: ChromeSiteAccessPort, approveDiagnostics?: BrowserDiagnosticApproval) {
     this.sidebar = sidebar;
     this.selected = selected;
     const access = this.siteAccess = sitePort && new ChromeSiteAccess(join(dirname(evidenceRoot), 'chrome-site-access.json'), sitePort);
@@ -71,7 +72,7 @@ class ChromeRelay {
           throw new Error('The paired Chrome profile changed.');
         return access.require(thread, tab.grantId, tab.origin, AbortSignal.any([signal, connection.ended.signal]));
       },
-    });
+    }, approveDiagnostics);
   }
 
   attach(server: Server) {
@@ -344,16 +345,19 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
     sidebar?: SidebarPort,
     private readonly workspace: 'local' | 'ssh' = 'local',
     sitePort?: ChromeSiteAccessPort,
+    approveDiagnostics?: BrowserDiagnosticApproval,
+    private readonly siteTools = false,
   ) {
     this.embedded = embedded;
-    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort);
+    this.relay = new ChromeRelay(selected, evidenceRoot, sidebar, sitePort, approveDiagnostics);
     const tool = embedded.tool;
-    this.tool = { ...tool, inputSchema: browserInputSchema, description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
-      chromeActions.join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' };
+    this.tool = { ...tool, inputSchema: approveDiagnostics && siteTools ? browserInputSchema : limitedBrowserSchema(false, !!approveDiagnostics, siteTools), description: tool.description + ' Use act to locate a unique element and apply operation in one call, optionally waiting up to timeoutMs for it to appear. Pair Chrome from the Workbench to use regular Chrome web tabs in this conversation. tabs includes Chrome connection state and chrome: tab IDs. Use status with provider "chrome" to check Chrome explicitly. Activate an inactive tab before reading or acting on its page. Chrome supports ' +
+      chromeActions.filter(action => action !== 'diagnose' || !!approveDiagnostics).join(', ') + '. In Chrome, click with expectPopup returns a new web tab ID in the paired profile. Read a JavaScript dialog with getJsDialog and use handleJsDialog with its dialogId and decision. Chrome download requires an observed same-origin link. Pass its tabId to distinguish it from an embedded tab.' +
+      (approveDiagnostics ? ' diagnose captures console messages, runtime errors, network timing, and Chromium performance metrics on the selected site. Set style to a selector and properties to read computed CSS. Set profile to true to sample CPU activity where supported. Browser Developer Mode and separate user approval are required.' : '') };
     if (this.workspace === 'ssh') {
       this.tool = {
         ...this.tool,
-        inputSchema: sshBrowserSchema,
+        inputSchema: limitedBrowserSchema(true),
         description: 'Observe and operate local web tabs explicitly shared with this SSH Workbench conversation. Start with tabs or status with provider "chrome". Workbench authorizes embedded web tabs and pairs Chrome. Pass the chrome: tabId for a Chrome tab. Activate it before use. Use act to locate and operate in one call, or locate a fresh ref before input. Observe again to verify effects. Use getJsDialog and handleJsDialog for JavaScript dialogs.',
       };
     }
@@ -362,6 +366,13 @@ export class WorkbenchBrowserUse implements BrowserUsePort {
   async forget(thread: string) { await this.embedded.forget(thread); await this.relay.browser.forget(thread); }
   async call(thread: string, input: unknown, signal: AbortSignal, files: AppInputs, workspace?: string, deliver?: ArtifactDeliveryPort) {
     const request = browserRequest.parse(input);
+    if (request.action === 'diagnose' && this.workspace === 'ssh')
+      throw new Error('Browser Developer Mode requires a local Workbench conversation.');
+    if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
+      if (!this.siteTools || request.tabId?.startsWith('chrome:'))
+        throw new Error('Browser Site Tools require an embedded tab in the local Electron Workbench.');
+      return this.embedded.call(thread, request, signal, files, workspace, deliver);
+    }
     if (this.workspace === 'ssh' && browserFileAction(request.action))
       throw new Error('Browser file operations require a local Workbench conversation.');
     const { browser } = this.relay;
@@ -395,10 +406,18 @@ function browserFileAction(action: BrowserRequest['action']) {
   return action === 'files' || action === 'upload' || action === 'download';
 }
 
-const sshBrowserSchema = {
-  type: 'object',
-  anyOf: browserRequest.options.filter(schema => !browserFileAction(schema.shape.action.value)).map(schema => {
-    const { $schema: _, ...action } = z.toJSONSchema(schema, { target: 'draft-7', unrepresentable: 'throw' });
-    return action;
-  }),
-};
+function browserSiteToolAction(action: BrowserRequest['action']) {
+  return action === 'listSiteTools' || action === 'callSiteTool';
+}
+
+function limitedBrowserSchema(ssh: boolean, diagnostics = false, siteTools = false) {
+  return {
+    type: 'object',
+    anyOf: browserRequest.options.filter(({ shape }) => (diagnostics || shape.action.value !== 'diagnose') &&
+      (siteTools || !browserSiteToolAction(shape.action.value)) &&
+      !(ssh && browserFileAction(shape.action.value))).map(schema => {
+      const { $schema: _, ...action } = z.toJSONSchema(schema, { target: 'draft-7', unrepresentable: 'throw' });
+      return action;
+    }),
+  };
+}

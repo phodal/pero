@@ -25,6 +25,11 @@ origin in the current Workbench profile. Open **Chrome site permissions** in
 the Workbench menu or Native Browser Use settings to see or clear saved
 decisions. To release one tab, use `handoff` with its `chrome:` ID.
 
+With extension 0.3.7 or newer, enable **Browser Developer Mode** in the
+Workbench or Native Chrome menu to use `diagnose` on the active paired tab.
+Approve each capture in Pero to share console output, runtime errors,
+network timing, computed styles and performance metrics with the conversation.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

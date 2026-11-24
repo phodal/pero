@@ -425,8 +425,8 @@ impl Workbench {
             return;
         }
         #[cfg(target_os="macos")]
-        if event.data["action"] == "chrome-site-approval" {
-            self.native_chrome_site_approval(event, _window, cx);
+        if matches!(event.data["action"].as_str(), Some("chrome-site-approval" | "chrome-diagnostic-approval")) {
+            self.native_chrome_approval(event, _window, cx);
             return;
         }
         let id=event.request_id.unwrap_or_default();
