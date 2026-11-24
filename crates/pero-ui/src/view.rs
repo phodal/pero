@@ -426,6 +426,14 @@ impl Render for Workbench {
         }
         let project_chat_was_hidden = self.project_context_in_place(cx);
         self.layout = layout;
+        let project_insights_visible = self.project_insights_id().is_some()
+            && self.apps.project_insights_requested
+            && self.project_inspector_visible(cx)
+            && !covered;
+        if project_insights_visible {
+            layout.embedded_surface_visible = true;
+            self.layout = layout;
+        }
         if project_chat_was_hidden != self.project_context_in_place(cx) {
             let workbench = cx.entity().downgrade();
             cx.defer(move |cx| {
@@ -462,8 +470,10 @@ impl Render for Workbench {
         } else {
             chat_width
         };
-        if !layout.embedded_surface_visible
-            || !matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }))
+        let insights_app_selected = matches!(self.navigation.current(), Some(WorkspaceItem::App { name, .. }) if name == "insights");
+        if (cfg!(not(target_family = "wasm")) && (project_insights_visible || insights_app_selected))
+            || !layout.embedded_surface_visible
+            || (!project_insights_visible && !matches!(self.navigation.current(), Some(WorkspaceItem::App { .. })))
         {
             self.sync_app_surface(None, cx);
         }

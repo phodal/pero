@@ -22,7 +22,10 @@ impl Workbench {
         } else { self.navigation.current() == Some(item) }
     }
     fn native_app_available(&self, item: &WorkspaceItem) -> bool {
-        self.app_item_visible(item) || self.native_panel_slots.values().any(|slot| {
+        self.app_item_visible(item)
+            || matches!(item, WorkspaceItem::App { name, panel } if name == "insights" && panel == "main"
+                && self.layout.embedded_surface_visible && self.project_insights_id().is_some())
+            || self.native_panel_slots.values().any(|slot| {
             item == &WorkspaceItem::App { name: slot.app.clone(), panel: slot.panel.clone() } && slot.rect.is_some() &&
                 self.app_item_visible(&WorkspaceItem::App { name: slot.owner.app.clone(), panel: slot.owner.panel.clone() })
         })

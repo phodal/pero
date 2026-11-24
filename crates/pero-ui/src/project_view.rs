@@ -22,7 +22,9 @@ impl Workbench {
             .map(|chat| chat.workspace.as_str()).collect::<Vec<_>>();
         // Child worktrees are execution locations under their saved Project,
         // not implicit projects. Explicit persisted project bindings remain below.
-        let mut workspaces = std::iter::once(self.workspace.as_str()).chain(chats.iter().map(|chat| chat.workspace.as_str()))
+        let mut workspaces = std::iter::once(self.workspace.as_str()).chain(chats.iter()
+            .filter(|chat| !chat.scope.as_ref().is_some_and(|scope| scope.app == "insights"))
+            .map(|chat| chat.workspace.as_str()))
             .filter(|path| !delegated.iter().any(|child| pero_contracts::workspace_path::WorkspacePath(child).matches(path)))
             .map(str::to_owned).collect::<Vec<_>>();
         workspaces.extend(
@@ -123,6 +125,7 @@ impl Workbench {
         }
         self.project_tab = project.research_id().map(|id| self.project_agents.right_tab(id)).unwrap_or_default();
         self.clear_transient_research_editor();
+        self.ensure_project_insights(cx);
         self.research.choosing = false;
         self.refresh_project_resources(cx);
         self.refresh_project_agents(cx);
@@ -200,6 +203,7 @@ impl Workbench {
             }
         }
         self.project_tab = tab;
+        self.ensure_project_insights(cx);
         if tab == ProjectTab::ResearchResources {
             self.refresh_project_web_sources(cx);
         }

@@ -347,7 +347,7 @@ impl Workbench {
         }
     }
 
-    fn project_inspector_visible(&self, cx: &App) -> bool {
+    pub(crate) fn project_inspector_visible(&self, cx: &App) -> bool {
         self.project_agent_active()
             && !self.chat.read(cx).resource_pane_open()
             && if self.layout.narrow {

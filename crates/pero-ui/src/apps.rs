@@ -179,6 +179,7 @@ pub(crate) struct AppCatalog {
     pub error_details_open: bool,
     pub removing: Option<String>,
     pub preparation: Option<AppPreparationView>,
+    pub project_insights_requested: bool,
 }
 
 impl AppCatalog {
@@ -371,6 +372,10 @@ mod surface {
                         serde_json::from_value::<pero_contracts::AppChatScope>(event.data.clone())
                     {
                         if self.apps.contains_panel(&scope.app, &scope.panel) {
+                            if scope.app == "insights" && self.project_insights_id().is_some() {
+                                self.open_project_insights_discussion(scope, cx);
+                                return true;
+                            }
                             self.navigation.open(WorkspaceItem::App {
                                 name: scope.app.clone(),
                                 panel: scope.panel.clone(),
@@ -387,6 +392,10 @@ mod surface {
                 "apps_catalog" => match serde_json::from_value(event.data.clone()) {
                     Ok(catalog) => {
                         self.apps.replace_catalog(catalog);
+                        if !self.apps.contains_panel("insights", "main") {
+                            self.apps.project_insights_requested = false;
+                        }
+                        self.ensure_project_insights(cx);
                         if let Some((name, panel)) = self.pending_app.clone() {
                             self.pending_app = None;
                             self.open_app(name, panel, cx);
@@ -425,6 +434,10 @@ mod surface {
                         self.apps.open_errors.remove(&(selection.name, selection.panel));
                     }
                 }
+                "disconnected" => {
+                    self.apps.project_insights_requested = false;
+                    return false;
+                }
                 _ => return false,
             }
             cx.notify();
@@ -434,7 +447,11 @@ mod surface {
         /// The Web surface uses the content slot's actual GPUI layout bounds.
         #[cfg(target_family = "wasm")]
         pub(crate) fn publish_app_surfaces(&mut self, mut payload: serde_json::Value) {
-            payload["open"] = json!(self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::App{name,panel}=>Some(json!({"name":name,"panel":panel})),_=>None}).collect::<Vec<_>>());
+            let mut open = self.navigation.items().iter().filter_map(|item|match item {WorkspaceItem::App{name,panel}=>Some(json!({"name":name,"panel":panel})),_=>None}).collect::<Vec<_>>();
+            if self.apps.project_insights_requested {
+                open.push(json!({"name":"insights","panel":"main"}));
+            }
+            payload["open"] = json!(open);
             let payload = payload.to_string();
             if self.app_surface != payload {
                 self.app_surface = payload;
@@ -454,6 +471,12 @@ mod surface {
                         "left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),
                         "width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),
                         "roundTopLeft":crate::view::at_content_corner(bounds.origin),
+                        "dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale})
+                    }
+                    (Some(WorkspaceItem::Project(_)), Some(bounds)) if self.project_insights_id().is_some() => {
+                        json!({"visible":true,"name":"insights","panel":"main","projectId":self.project_insights_id(),
+                        "left":f32::from(bounds.origin.x),"top":f32::from(bounds.origin.y),
+                        "width":f32::from(bounds.size.width),"height":f32::from(bounds.size.height),
                         "dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale})
                     }
                     _ => json!({"visible":false,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),

@@ -491,7 +491,8 @@ impl Workbench {
             name: open.name.clone(),
             panel: open.panel.clone(),
         };
-        if (!self.navigation.items().contains(&item) && !self.native_panel_retained(&open.name, &open.panel))
+        let project_insights = open.name == "insights" && open.panel == "main" && self.apps.project_insights_requested;
+        if (!project_insights && !self.navigation.items().contains(&item) && !self.native_panel_retained(&open.name, &open.panel))
             || !self.apps.contains_panel(&open.name, &open.panel)
         {
             return;
@@ -621,12 +622,16 @@ impl Workbench {
                 if let Some(id)=message["sessionId"].as_str() {this.open_automation_session(id,cx);}
             }
             if message["type"] == "pero:app:chat" {
+                let project_insights = scope.app == "insights" && this.project_insights_id().is_some();
                 let result = (|| -> anyhow::Result<String> {
                     anyhow::ensure!(this.native_app_presented(&item, cx), "Show the App before opening its conversation");
-                    this.chat.update(cx, |chat,cx| {
-                        chat.open_app_draft(scope.clone(),cx);
-                        Ok(chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone())
-                    })
+                    if project_insights {
+                        this.open_project_insights_discussion(scope.clone(), cx);
+                    } else {
+                        this.chat.update(cx, |chat, cx| chat.open_app_draft(scope.clone(), cx));
+                    }
+                    let chat = this.chat.read(cx);
+                    Ok(chat.active_chat.and_then(|index|chat.chats.get(index)).ok_or_else(||anyhow::anyhow!("Open Chat and retry"))?.id.clone())
                 })();
                 let id = message["id"].clone();
                 let options = message["options"].clone();
@@ -640,7 +645,7 @@ impl Workbench {
                             let _=this.update_in(cx,|this,_,cx| {
                                 let reply=match result {
                                     Ok(contexts)=>{
-                                        this.set_chat_dock(true,cx);
+                                        if !project_insights { this.set_chat_dock(true,cx); }
                                         let mut insertion=HostEvent::new("compose_context",None,options["message"].as_str().unwrap_or_default().to_owned());
                                         insertion.data=json!({"thread_id":thread,"contexts":contexts,"replace":options["mode"]=="replace"});
                                         this.chat.update(cx,|chat,cx|chat.receive(&insertion,cx));
@@ -671,7 +676,8 @@ impl Workbench {
         let paper_pages = self.native_app_pages.keys().filter(|(name, _)| name == "paper-agent").count();
         let embedded = self.native_app_pages.keys().filter(|(name,panel)| self.native_panel_retained(name,panel)).cloned().collect::<std::collections::BTreeSet<_>>();
         self.native_app_pages.retain(|(name, panel), page| {
-            let keep = (self.navigation.items().contains(&WorkspaceItem::App {
+            let project_insights = name == "insights" && panel == "main" && self.apps.project_insights_requested;
+            let keep = (project_insights || self.navigation.items().contains(&WorkspaceItem::App {
                 name: name.clone(),
                 panel: panel.clone(),
             }) || embedded.contains(&(name.clone(),panel.clone()))) && self.apps.retains_panel(name, panel);
@@ -690,7 +696,13 @@ impl Workbench {
                 panel: panel.clone(),
             };
             let active = self.native_app_presented(&item, cx);
-            page.view.update(cx, |view,cx| view.sync(json!({"active":active,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale}),cx));
+            page.view.update(cx, |view,cx| {
+                let mut context = json!({"active":active,"dark":pero_theme::UiAppearance::global(cx).dark,"appearance":pero_theme::UiAppearance::global(cx),"locale":self.locale});
+                if name == "insights" {
+                    context["projectId"] = if active { json!(self.project_insights_id()) } else { view.context["projectId"].clone() };
+                }
+                view.sync(context,cx);
+            });
         }
     }
     pub(crate) fn native_app_content(
@@ -733,7 +745,11 @@ impl Workbench {
                                 pero_theme::ActionKind::Primary, chrome, cx)
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.native_app_pages.remove(&(name.clone(), panel.clone()));
-                                    this.pending_app=Some((name.clone(),panel.clone()));
+                                    if name == "insights" && this.project_insights_id().is_some() {
+                                        this.apps.project_insights_requested = false;
+                                    } else {
+                                        this.pending_app=Some((name.clone(),panel.clone()));
+                                    }
                                     this.refresh_apps(cx);
                                 })).into_any_element()),
                             Some(pero_theme::action_button("native-app-error-details", self.t(if self.apps.error_details_open {

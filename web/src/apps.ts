@@ -14,7 +14,7 @@ import type { DocumentHeader } from '../../protocol/generated/host';
 
 declare global { interface Window { peroColumnHeader?(json: string): void } }
 
-export type AppSurface = { visible: boolean; name?: string; panel?: string; left?: number; top?: number; width?: number; height?: number; roundTopLeft?: boolean; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
+export type AppSurface = { visible: boolean; name?: string; panel?: string; projectId?: string; left?: number; top?: number; width?: number; height?: number; roundTopLeft?: boolean; dark: boolean; locale: string; appearance?: AppearanceSnapshot; pane?:number; focused?:boolean; open?:{name:string;panel:string}[] };
 export type AppSurfaceSlot=Omit<AppSurface,'dark'|'locale'|'appearance'|'open'>;
 export type AppSurfaceBatch = {surfaces:AppSurfaceSlot[];dark:boolean;locale:string;appearance?:AppearanceSnapshot;open?:{name:string;panel:string}[]};
 type Mount = {region:HTMLElement;status:HTMLDivElement;useStatus:HTMLDivElement;surface:AppSurface;error:string;statusKey?:string;embedded?:boolean;presenceExpiry?:ReturnType<typeof setTimeout>};
@@ -106,7 +106,8 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     // Cache only deliveries made after the App has installed its listener.
     if (!frame.ready) return;
     const value=mounts.get(key(frame.name,frame.panel))?.surface||surface;
-    const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true,hostColumnHeader:true};
+    const next={appearance:value.appearance,dark:value.dark,locale:normalizeLocale(value.locale),active:value.visible,titlebar:true,hostColumnHeader:true,
+      ...(frame.name === 'insights' ? { projectId: value.projectId ?? null } : {})};
     const serialized=JSON.stringify(next);
     if(frame.contextKey===serialized)return;
     frame.contextKey=serialized;
@@ -120,7 +121,7 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
     const chinese = normalizeLocale(surface.locale) === 'zh-CN';
     const reading = new Set(['observe', 'capture', 'verify', 'geometry', 'annotation', 'semantic']);
     useStatus.replaceChildren();
-    if(onChat && active(slot)?.ready && !slot.embedded){
+    if(onChat && active(slot)?.ready && !slot.embedded && !surface.projectId){
       const capture=document.createElement('button');capture.type='button';capture.textContent=chinese?'截图到对话':'Capture to chat';
       capture.style.cssText='font:inherit;border:1px solid var(--pero-border);border-radius:3px;padding:2px 7px;color:var(--pero-text);background:var(--pero-surface);cursor:pointer';
       capture.onclick=()=>{capture.disabled=true;const frame=active(slot);if(!frame)return;void Promise.resolve(onChat({name:frame.name,panel:frame.panel,options:{capture:true}})).then(()=>{capture.disabled=false;},error=>{capture.disabled=false;const message=document.createElement('span');message.setAttribute('role','alert');message.textContent=error instanceof Error?error.message:String(error);useStatus.append(message);});};

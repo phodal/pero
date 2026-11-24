@@ -299,6 +299,7 @@ impl Workbench {
         if close_editor && new_project {
             self.research.transient_editor = None;
         }
+        self.ensure_project_insights(cx);
         self.research.error = None;
         if let Some(path) = project.workspace {
             if path != self.workspace {
@@ -402,8 +403,8 @@ impl Workbench {
                 .disabled(saving)
                 .relative().child(self.view_bounds.projects.probe("edit".into()))
                 .on_click(cx.listener(|this, _, window, cx| this.edit_research_project(ProjectEdit::Goal, window, cx)));
-            return overview.child(
-                div().flex_shrink_0().p(chrome.geo(pero_theme::SPACE_16))
+            return overview.px(chrome.geo(pero_theme::SPACE_16)).child(
+                div().flex_shrink_0().py(chrome.geo(pero_theme::SPACE_16))
                     .flex().flex_col().gap(chrome.geo(pero_theme::SPACE_8))
                     .child(div().flex().items_center().gap(chrome.geo(pero_theme::SPACE_8))
                         .child(self.icon("target").text_color(p.text_muted))
@@ -413,8 +414,10 @@ impl Workbench {
                     .child(div().whitespace_normal()
                         .text_size(chrome.text(if has_goal { pero_theme::TYPE_BODY } else { pero_theme::TYPE_CAPTION }))
                         .text_color(if has_goal { p.text } else { p.text_muted })
-                        .child(if has_goal { gpui_kit::component::text::TextView::markdown("project-goal", saved.goal.clone()).selectable(true).into_any_element() } else { div().child(self.t("research.goal_empty")).into_any_element() })),
-            ).into_any_element();
+                        .child(if has_goal { div().id("project-goal-body").max_h(px(120.)).overflow_y_scroll()
+                            .child(gpui_kit::component::text::TextView::markdown("project-goal", saved.goal.clone()).selectable(true)).into_any_element()
+                        } else { div().child(self.t("research.goal_empty")).into_any_element() })),
+            ).child(self.project_insights_panel(cx)).into_any_element();
         }
         overview.p(px(pero_theme::WorkbenchStyle::PAGE)).child(
             div().flex().flex_col().gap(px(12.))
