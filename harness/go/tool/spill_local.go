@@ -140,10 +140,12 @@ func (s *LocalSpillStore) SaveText(ctx context.Context, input SaveTextSpill) (Sp
 	if writeErr == nil && written != len(data) {
 		writeErr = io.ErrShortWrite
 	}
-	closeErr := file.Close()
-	if writeErr != nil || closeErr != nil {
+	if writeErr != nil {
+		return SpillRef{}, errors.Join(writeErr, s.releaseSpill(path, file, true))
+	}
+	if err := s.releaseSpill(path, file, false); err != nil {
 		_ = os.Remove(path)
-		return SpillRef{}, errors.Join(writeErr, closeErr)
+		return SpillRef{}, err
 	}
 	hint := s.options.RetrievalHint
 	if hint == "" {
@@ -275,7 +277,7 @@ func (s *localProcessSpill) Write(data []byte) (int, error) {
 }
 func (s *localProcessSpill) Locator() string { return s.path }
 func (s *localProcessSpill) Close() error {
-	s.once.Do(func() { s.err = s.file.Close() })
+	s.once.Do(func() { s.err = s.store.releaseSpill(s.path, s.file, false) })
 	return s.err
 }
 func (s *localProcessSpill) Abort() error {
