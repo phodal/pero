@@ -3,13 +3,13 @@ use crate::{conversation::Tool, panel::ChatPanel};
 #[cfg(target_family = "wasm")]
 use gpui_kit::base::ElementExt;
 use gpui_kit::{
-    component::{Sizable, button::*},
+    component::{button::*, Sizable},
     prelude::*,
     *,
 };
 use pero_contracts::{
-    HostEvent, mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget,
-    mcp_source::McpAppDescriptor,
+    mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget, mcp_source::McpAppDescriptor,
+    HostEvent,
 };
 use serde::Serialize;
 
@@ -20,6 +20,9 @@ pub struct McpInlineView {
     pub scope: Option<(u64, u64)>,
     pub request_id: Option<String>,
     pub error: Option<String>,
+    /// Set when this row was restored from saved history. It never adopts a binding.
+    #[serde(default)]
+    pub historical: bool,
     #[serde(skip)]
     pub native_view: Option<AnyView>,
 }
@@ -45,6 +48,7 @@ impl McpInlineView {
             scope: None,
             request_id: None,
             error: None,
+            historical: false,
             native_view: None,
         }
     }
@@ -141,7 +145,10 @@ impl ChatPanel {
             else {
                 continue;
             };
-            if view.scope.is_some() {
+            if view.historical || view.scope.is_some() {
+                continue;
+            }
+            if !view.descriptor.admits_live_binding(false, snapshot) {
                 continue;
             }
             view.scope = Some((snapshot.incarnation, snapshot.revision));
@@ -220,6 +227,22 @@ impl ChatPanel {
             cx.notify();
         }
     }
+    fn read_only_history(&self, view: &McpInlineView, cx: &mut Context<Self>) -> AnyElement {
+        let notice = self.t("mcp.history.readonly");
+        let source = format!(
+            "{} · {}",
+            view.descriptor.server, view.descriptor.resource_uri
+        );
+        let muted = pero_theme::UiAppearance::global(cx).palette.text_muted;
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .py(px(4.))
+            .child(div().text_size(px(12.)).child(notice))
+            .child(div().text_size(px(12.)).text_color(muted).child(source))
+            .into_any_element()
+    }
     pub(crate) fn mcp_app_surface(
         &self,
         thread: &str,
@@ -233,10 +256,7 @@ impl ChatPanel {
             return div().into_any_element();
         }
         if !self.mcp_inline_active(thread, &tool.id) {
-            return div()
-                .text_size(px(12.))
-                .child(self.t("mcp.runtime.closed"))
-                .into_any_element();
+            return self.read_only_history(view, cx);
         }
         #[cfg(not(target_family = "wasm"))]
         if let Some(native) = &view.native_view {

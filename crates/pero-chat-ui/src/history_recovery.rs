@@ -1,7 +1,7 @@
 //! Conversation recovery with a catalog and Host-ordered body responses.
 use crate::{panel::ChatPanel, session_state::SessionState};
 use gpui_kit::*;
-use pero_contracts::{HostCommand, HostEvent, session_history::ThreadHistory};
+use pero_contracts::{session_history::ThreadHistory, HostCommand, HostEvent};
 
 #[derive(Clone, Default)]
 pub(crate) enum HistoryLoad {
@@ -27,7 +27,10 @@ impl ChatPanel {
         let request_id = format!("thread-history-{}", self.next_request);
         let thread_id = self.chats[index].id.clone();
         self.chats[index].history = HistoryLoad::Pending(request_id.clone());
-        cx.emit(crate::ChatAction::Command(HostCommand::LoadThreadHistory { thread_id, request_id }));
+        cx.emit(crate::ChatAction::Command(HostCommand::LoadThreadHistory {
+            thread_id,
+            request_id,
+        }));
     }
 
     pub(crate) fn retry_thread_history(&mut self, cx: &mut Context<Self>) {
@@ -56,9 +59,10 @@ impl ChatPanel {
         for replayed in body.events {
             self.receive_chat(&replayed, cx);
         }
-        let chat = &mut self.chats[index];
-        chat.notice = previous_notice;
+        self.chats[index].notice = previous_notice;
         if !body.active {
+            self.seal_archived_mcp_views(index);
+            let chat = &mut self.chats[index];
             chat.state = SessionState::Closed;
             chat.permission = None;
             chat.user_questions.clear();
@@ -68,5 +72,25 @@ impl ChatPanel {
         }
         self.sync_follow(cx);
         cx.notify();
+    }
+
+    fn seal_archived_mcp_views(&mut self, index: usize) {
+        let thread = self.chats[index].id.clone();
+        let mut calls = Vec::new();
+        for tool in &mut self.chats[index].tools {
+            let Some(view) = &mut tool.mcp_app else {
+                continue;
+            };
+            view.historical = true;
+            view.url = None;
+            view.scope = None;
+            view.request_id = None;
+            view.error = None;
+            view.native_view = None;
+            calls.push(tool.id.clone());
+        }
+        for call in calls {
+            self.expanded_tools.insert(format!("{thread}/{call}"));
+        }
     }
 }

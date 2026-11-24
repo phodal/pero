@@ -185,6 +185,7 @@
   "mcp.runtime.disconnected": "Disconnected; awaiting Agent recovery",
   "mcp.runtime.error": "Connection failed; start a new session to retry",
   "mcp.runtime.closed": "Closed",
+  "mcp.history.readonly": "Historical result, not currently interactive",
   "mcp.runtime.no_servers": "No enabled managed connectors in this session.",
   "mcp.runtime.tools": "Tools",
   "mcp.runtime.no_tools": "No tools reported.",

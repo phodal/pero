@@ -28,11 +28,11 @@ pub struct McpSourceRequest {
     pub request_id: String,
     #[serde(default)]
     pub thread_id: Option<String>,
-    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<String>,
-    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation: Option<u64>,
-    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -55,6 +55,26 @@ pub struct McpAppDescriptor {
     pub tool_call: String,
 }
 impl McpAppDescriptor {
+    /// Archive reload never becomes a live binding, even when a new process
+    /// happens to reuse the same server name and generation.
+    pub fn admits_live_binding(
+        &self,
+        archived: bool,
+        snapshot: &crate::mcp_runtime::McpRuntimeSession,
+    ) -> bool {
+        if archived {
+            return false;
+        }
+        crate::mcp_session::McpSessionTarget {
+            thread_id: snapshot.thread_id.clone(),
+            incarnation: snapshot.incarnation,
+            revision: snapshot.revision,
+            server: Some(self.server.clone()),
+            generation: Some(self.generation),
+        }
+        .admit(snapshot, true)
+        .is_ok()
+    }
     pub fn from_update(update: &serde_json::Value) -> Option<Self> {
         let value: Self = serde_json::from_value(update["_meta"]["pero.mcpApp"].clone()).ok()?;
         if value.tool_call != update["toolCallId"].as_str()?
@@ -69,14 +89,25 @@ impl McpAppDescriptor {
 }
 
 impl McpSourceRequest {
-    pub fn validate(&self)->Result<(), &'static str> {
-        let bounded=|value:&str,max|!value.is_empty()&&value.len()<=max&&!value.chars().any(char::is_control);
-        let adopt=matches!(self.action,McpAction::Adopt);
-        if !bounded(&self.request_id,128) || self.thread_id.as_ref().is_some_and(|v|!bounded(v,128))
-            || adopt!=self.server.is_some() || adopt!=self.generation.is_some() || adopt!=self.tool_call.is_some()
-            || self.server.as_ref().is_some_and(|v|!bounded(v,128)) || self.tool_call.as_ref().is_some_and(|v|!bounded(v,256))
-            || self.generation.is_some_and(|v|v==0||v>9_007_199_254_740_991)
-            || adopt&&(!matches!(self.mode,McpSourceMode::Session)||self.thread_id.is_none()) {return Err("Invalid MCP source request");}
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let bounded = |value: &str, max| {
+            !value.is_empty() && value.len() <= max && !value.chars().any(char::is_control)
+        };
+        let adopt = matches!(self.action, McpAction::Adopt);
+        if !bounded(&self.request_id, 128)
+            || self.thread_id.as_ref().is_some_and(|v| !bounded(v, 128))
+            || adopt != self.server.is_some()
+            || adopt != self.generation.is_some()
+            || adopt != self.tool_call.is_some()
+            || self.server.as_ref().is_some_and(|v| !bounded(v, 128))
+            || self.tool_call.as_ref().is_some_and(|v| !bounded(v, 256))
+            || self
+                .generation
+                .is_some_and(|v| v == 0 || v > 9_007_199_254_740_991)
+            || adopt && (!matches!(self.mode, McpSourceMode::Session) || self.thread_id.is_none())
+        {
+            return Err("Invalid MCP source request");
+        }
         Ok(())
     }
 }
@@ -85,19 +116,78 @@ mod tests {
     use super::*;
     use serde_json::json;
     #[test]
-    fn source_intents_distinguish_manual_open_from_original_result_adoption(){
-        for (value,valid) in [
-            (json!({"method":"mcp","action":"open","request_id":"manual"}),true),
-            (json!({"method":"mcp","action":"adopt","mode":"session","thread_id":"thread","request_id":"inline","server":"docs","generation":1,"tool_call":"call"}),true),
-            (json!({"method":"mcp","action":"adopt","request_id":"inline"}),false),
-            (json!({"method":"mcp","action":"open","request_id":"manual","tool_call":"call"}),false),
-            (json!({"method":"mcp","action":"adopt","mode":"standalone","thread_id":"thread","request_id":"inline","server":"docs","generation":1,"tool_call":"call"}),false),
-        ] {let request:McpSourceRequest=serde_json::from_value(value).unwrap();assert_eq!(request.validate().is_ok(),valid);}
+    fn source_intents_distinguish_manual_open_from_original_result_adoption() {
+        for (value, valid) in [
+            (
+                json!({"method":"mcp","action":"open","request_id":"manual"}),
+                true,
+            ),
+            (
+                json!({"method":"mcp","action":"adopt","mode":"session","thread_id":"thread","request_id":"inline","server":"docs","generation":1,"tool_call":"call"}),
+                true,
+            ),
+            (
+                json!({"method":"mcp","action":"adopt","request_id":"inline"}),
+                false,
+            ),
+            (
+                json!({"method":"mcp","action":"open","request_id":"manual","tool_call":"call"}),
+                false,
+            ),
+            (
+                json!({"method":"mcp","action":"adopt","mode":"standalone","thread_id":"thread","request_id":"inline","server":"docs","generation":1,"tool_call":"call"}),
+                false,
+            ),
+        ] {
+            let request: McpSourceRequest = serde_json::from_value(value).unwrap();
+            assert_eq!(request.validate().is_ok(), valid);
+        }
     }
     #[test]
-    fn view_descriptor_belongs_to_its_actual_tool_call(){
-        let mut update=json!({"toolCallId":"call","_meta":{"pero.mcpApp":{"server":"docs","generation":1,"resource_uri":"ui://docs/view","tool_call":"call"}}});
+    fn view_descriptor_belongs_to_its_actual_tool_call() {
+        let mut update = json!({"toolCallId":"call","_meta":{"pero.mcpApp":{"server":"docs","generation":1,"resource_uri":"ui://docs/view","tool_call":"call"}}});
         assert!(McpAppDescriptor::from_update(&update).is_some());
-        update["toolCallId"]=json!("other");assert!(McpAppDescriptor::from_update(&update).is_none());
+        update["toolCallId"] = json!("other");
+        assert!(McpAppDescriptor::from_update(&update).is_none());
+    }
+    #[test]
+    fn archived_descriptor_stays_read_only_even_when_a_new_generation_matches() {
+        use crate::mcp_runtime::{McpRuntimeSession, McpRuntimeStatus};
+        let mut snapshot = McpRuntimeSession::new(
+            "agent".into(),
+            "thread".into(),
+            4,
+            9,
+            vec!["alpha".into(), "beta".into()],
+        );
+        snapshot.observable = true;
+        snapshot.session_id = Some("live".into());
+        for server in &mut snapshot.servers {
+            server.generation = 1;
+            server.status = McpRuntimeStatus::Connected;
+        }
+        let shared = "ui://shared/view";
+        let alpha = McpAppDescriptor {
+            server: "alpha".into(),
+            generation: 1,
+            resource_uri: shared.into(),
+            tool_call: "call-a".into(),
+        };
+        let beta = McpAppDescriptor {
+            server: "beta".into(),
+            generation: 1,
+            resource_uri: shared.into(),
+            tool_call: "call-b".into(),
+        };
+        assert_eq!(alpha.resource_uri, beta.resource_uri);
+        assert_ne!(alpha, beta);
+        assert!(alpha.admits_live_binding(false, &snapshot));
+        assert!(beta.admits_live_binding(false, &snapshot));
+        assert!(!alpha.admits_live_binding(true, &snapshot));
+        assert!(!beta.admits_live_binding(true, &snapshot));
+        snapshot.servers[0].generation = 2;
+        assert!(!alpha.admits_live_binding(false, &snapshot));
+        snapshot.closed = true;
+        assert!(!beta.admits_live_binding(false, &snapshot));
     }
 }
