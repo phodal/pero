@@ -21,7 +21,7 @@ export async function notebookConversationProvider(entryId) {
       if (calls.length === 1) {
         assert(prompt.includes(notebookConversationPrompt));
         const tool = body.tools.find(item => item.function?.name?.includes('read-entry')
-          || item.function?.description?.includes('saved Notebook revision'));
+          || item.function?.description?.includes('saved Notebook entry'));
         assert(tool, `Missing Notebook read tool: ${body.tools.map(item => item.function?.name).join(', ')}`);
         delta = {tool_calls: [{index: 0, id: 'notebook-read-call', type: 'function', function: {
           name: tool.function.name,
@@ -31,7 +31,7 @@ export async function notebookConversationProvider(entryId) {
       } else {
         assert.equal(calls.length, 2, 'The pinned read must reach exactly one following model request');
         const result = JSON.stringify(body.messages.filter(message => message.role === 'tool'));
-        assert(result.includes('12.5'), 'The model did not receive the pinned Notebook text');
+        assert(result.includes('12.5'), `The model did not receive the pinned Notebook text: ${result.slice(0, 1200)}`);
         assert(!result.includes('13.0'), 'The model received a later Notebook revision');
         delta = {content: notebookInitialAnswer};
         finish = 'stop';

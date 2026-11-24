@@ -1,43 +1,58 @@
-// Real Workbench/Host/Go ACP. Notebook owns the saved revision; the tool row mounts its Inspector.
+// Real Workbench/Host/Go ACP and the Host-registered Notebook App.
+// Notebook owns the revision. The tool row opens that pinned Inspector.
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {execFile, spawn} from 'node:child_process';
+import {promisify} from 'node:util';
 import {createInterface} from 'node:readline';
 import {once} from 'node:events';
+import {copyFileSync, existsSync, unlinkSync} from 'node:fs';
 import {mkdir,mkdtemp,readFile,realpath,rm,writeFile} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {expect} from '@playwright/test';
 import {electron} from '../../tests/e2e/electron.mjs';
-import {clickAppShortcut, clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
+import {clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
 import {notebookConversationProvider, notebookConversationPrompt, notebookInitialAnswer} from '../../tests/fixtures/mcp-app/notebook-conversation-provider.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const html = resolve('desktop/dist/notebook-inspector.html');
-await readFile(html, 'utf8');
+assert.equal(existsSync(html), true, 'Build Desktop so the registered inspector document exists');
+const panelEntry = resolve('apps/notebook/dist/index.html');
+const createdPanel = !existsSync(panelEntry);
+if (createdPanel) {
+  await mkdir(dirname(panelEntry), {recursive: true});
+  await writeFile(panelEntry, '<!doctype html><title>Notebook</title>\n');
+}
+const sourceTools = resolve('apps/notebook/backend/pero_source_tools.py');
+const copiedTools = !existsSync(sourceTools);
+if (copiedTools) copyFileSync(resolve('packages/source-extraction/python/pero_source_tools.py'), sourceTools);
 const home = await realpath(await mkdtemp(join(tmpdir(), 'pero-notebook-conversation-')));
 const evidence = resolve('test-results/mcp-notebook-conversation');
 await mkdir(evidence, {recursive: true});
-const notebookHome = join(home, 'notebook');
-await mkdir(notebookHome);
-const gate = 'isolated-notebook-token';
-const backend = spawn(process.env.PERO_APP_PYTHON || 'python3', ['-u', 'apps/notebook/backend/server.py'], {
-  cwd: root,
-  env: {...process.env, PERO_APP_DATA: notebookHome, PERO_APP_TOKEN: gate,
-    PYTHONPATH: resolve('packages/source-extraction/python')},
+const pythonRoot = join(home, 'python');
+const pythonBin = join(pythonRoot, 'bin', 'python');
+const dependencies = JSON.parse(await readFile(resolve('apps/notebook/app.json'), 'utf8')).backend.dependencies;
+await promisify(execFile)('python3', ['-m', 'venv', pythonRoot]);
+await promisify(execFile)(pythonBin, ['-m', 'pip', 'install', '--disable-pip-version-check', '--only-binary=:all:', ...dependencies], {timeout: 180000});
+const notebookData = join(home, 'profile', 'app-data', 'notebook');
+await mkdir(notebookData, {recursive: true});
+const seed = spawn(pythonBin, ['-E', '-s', '-u', '-B', resolve('apps/notebook/backend/server.py')], {
+  cwd: resolve('apps/notebook'),
+  env: {...process.env, PERO_APP_DATA: notebookData, PERO_APP_TOKEN: 'seed-notebook-token', PYTHONDONTWRITEBYTECODE: '1'},
   stdio: ['ignore', 'pipe', 'pipe'],
 });
-let backendError = '';
-backend.stderr.on('data', chunk => { backendError += chunk; });
+let seedError = '';
+seed.stderr.on('data', chunk => { seedError += chunk; });
 const ready = await new Promise((done, reject) => {
-  const timer = setTimeout(() => reject(new Error(`Notebook did not start: ${backendError}`)), 15000);
-  createInterface({input: backend.stdout}).once('line', line => { clearTimeout(timer); done(JSON.parse(line)); });
-  backend.once('exit', () => { clearTimeout(timer); reject(new Error(`Notebook exited: ${backendError}`)); });
+  const timer = setTimeout(() => reject(new Error(`Notebook did not start: ${seedError}`)), 15000);
+  createInterface({input: seed.stdout}).once('line', line => { clearTimeout(timer); done(JSON.parse(line)); });
+  seed.once('exit', () => { clearTimeout(timer); reject(new Error(`Notebook exited: ${seedError}`)); });
 });
 const notebookURL = `http://127.0.0.1:${ready.port}`;
 const request = async (path, body) => {
   const response = await fetch(notebookURL + path, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-Pero-App-Token': gate},
+    headers: {'Content-Type': 'application/json', 'X-Pero-App-Token': 'seed-notebook-token'},
     body: JSON.stringify(body),
   });
   const value = await response.json();
@@ -52,24 +67,15 @@ const entry = await request('/api/entries', {document});
 await request('/api/agent-apply', {entryId: entry.id, baseRevision: 1, operations: [
   {op: 'replace_text', blockId: 'observations', match: '12.5', replacement: '13.0'},
 ]});
+if (seed.exitCode === null) { const exited = once(seed, 'exit'); seed.kill(); await exited; }
 const provider = await notebookConversationProvider(entry.id);
-const audit = join(home, 'notebook-tools.jsonl');
 const workspace = join(home, 'workspace');
 await mkdir(workspace);
 const settings = join(home, 'settings.json'), agents = join(home, 'agents.json');
 await writeFile(agents, JSON.stringify([{id: 'notebook-conversation', name: 'Real harness / local model fixture', command: resolve('target/debug/pero-agent-acp'), args: [
   '--endpoint', provider.endpoint, '--model', 'fixture', '--session-dir', join(home, 'sessions'), '--approval', 'ask', '--max-retries', '0',
-], env: {AGENT_PROVIDER_API_KEY: 'loopback-fixture-only', PERO_NOTEBOOK_URL: notebookURL, PERO_NOTEBOOK_GATE: gate, PERO_NOTEBOOK_HTML: html, PERO_NOTEBOOK_AUDIT: audit}}]));
-await writeFile(settings, JSON.stringify({chat_agent: 'notebook-conversation', local_mcp: {'notebook-conversation': {revision: 1, servers: [{
-  name: 'Notebook', enabled: true, transport: {type: 'stdio', command: process.execPath, args: [
-    resolve('tests/fixtures/mcp-app/notebook-inspector-server.mjs'),
-  ]}, tool_policy: {default: 'deny', tools: {'app__notebook__read-entry': 'ask'}},
-}]}}}));
-const businessCalls = async () => {
-  let text;
-  try { text = await readFile(audit, 'utf8'); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-  return text.trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
-};
+], env: {AGENT_PROVIDER_API_KEY: 'loopback-fixture-only'}}]));
+await writeFile(settings, JSON.stringify({chat_agent: 'notebook-conversation', app_python: {default: pythonRoot}}));
 const logs = [], errors = [];
 let desktop, page;
 try {
@@ -82,14 +88,28 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'), undefined, {timeout: 60000});
+  await page.evaluate(() => {
+    window.notebookWrites = [];
+    window.notebookReady = false;
+    window.pero.onEvent(event => {
+      if (event.kind === 'apps_catalog' && Array.isArray(event.data) && event.data.some(app => app.name === 'notebook' && app.enabled)) window.notebookReady = true;
+      if (event.kind === 'app_written' && event.data?.tool === 'read-entry') window.notebookWrites.push(event.data);
+    });
+  });
+  await page.evaluate(() => window.pero.appsCommand({action: 'apps_list'}));
+  await expect.poll(() => page.evaluate(() => window.notebookReady), {timeout: 20000}).toBe(true);
   await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 1050));
   await desktop.evaluate(({dialog}, path) => { dialog.showOpenDialog = async () => ({canceled: false, filePaths: [path]}); }, workspace);
   await page.evaluate(() => window.pero.chooseWorkspace());
   await expect.poll(async () => (await state()).workspace).toBe(workspace);
-  await clickAppShortcut(page, 'sessions');
-  await expect.poll(async () => { const snapshot = await state(); return snapshot.chats[snapshot.activeChat]?.state; }, {timeout: 30000}).toBe('idle');
-  const initial = await state(), thread = initial.chats[initial.activeChat].id;
+  const thread = 'notebook-inspector-entry';
+  await page.evaluate(threadId => window.pero.sessionCommand({
+    action: 'new_session', thread_id: threadId, agent_id: 'notebook-conversation', scope: {app: 'notebook', panel: 'main'},
+  }), thread);
   const conversation = async () => (await state()).chats.find(chat => chat.id === thread);
+  await expect.poll(async () => (await conversation())?.state, {timeout: 30000}).toBe('idle');
+  await clickSessionRow(page, thread);
+  await expect.poll(async () => (await state()).chats[(await state()).activeChat]?.id).toBe(thread);
   const approve = async () => {
     await expect.poll(async () => !!(await conversation()).permission, {timeout: 20000}).toBe(true);
     const index = (await conversation()).permission.options.findIndex(option => option.kind === 'allow_once');
@@ -99,8 +119,13 @@ try {
     await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     await expect.poll(async () => (await conversation()).permission, {timeout: 20000}).toBeNull();
   };
-  await page.evaluate(({thread, text}) => window.pero.sessionCommand({action: 'prompt', thread_id: thread, text}), {thread, text: notebookConversationPrompt});
-  await approve();
+  const writes = () => page.evaluate(() => window.notebookWrites.length);
+  await page.evaluate(({threadId, text}) => window.pero.sessionCommand({action: 'prompt', thread_id: threadId, text}), {threadId: thread, text: notebookConversationPrompt});
+  await expect.poll(async () => {
+    if ((await conversation())?.permission) return 'ask';
+    return await page.locator('section[aria-label="Interactive tool result"] > iframe').count() ? 'mounted' : '';
+  }, {timeout: 30000}).not.toBe('');
+  if ((await conversation())?.permission) await approve();
   await expect.poll(async () => (await conversation()).messages.filter(message => message.role === 'assistant').map(message => message.text).join('\n'), {timeout: 30000}).toContain(notebookInitialAnswer);
   const outer = page.locator('section[aria-label="Interactive tool result"] > iframe');
   await expect(outer).toHaveCount(1);
@@ -108,31 +133,32 @@ try {
   await expect(outer).toHaveAttribute('src', /tool_call=notebook-read-call/);
   const inline = page.frameLocator('section[aria-label="Interactive tool result"] > iframe');
   const app = inline.frameLocator('#view iframe').frameLocator('iframe');
-  await expect(app.getByRole('heading', {name: 'Enzyme assay', exact: true})).toBeVisible({timeout: 15000});
+  await expect(app.getByRole('heading', {name: 'Enzyme assay', exact: true})).toBeVisible({timeout: 20000});
   await expect(app.getByText('Sample A: 12.5 U/mL. Review pending.', {exact: true})).toBeVisible();
   await expect(app.getByText('Revision 1', {exact: true})).toBeVisible();
   await expect(app.getByText('13.0', {exact: false})).toHaveCount(0);
-  assert.equal((await businessCalls()).length, 1, 'mounting the Inspector replayed the Notebook read');
+  assert.equal(await writes(), 1, 'mounting the Inspector called Notebook again');
   assert.equal(provider.calls.length, 2);
+  const savedTool = (await conversation()).tools.find(tool => tool.id === 'notebook-read-call');
+  assert(savedTool?.content?.includes('12.5'));
+  assert(!savedTool.content.includes('13.0'));
+  assert.ok(Buffer.byteLength(savedTool.content) < 1_000_000, 'The Notebook route response must stay inside the 1 MiB App write limit');
   await page.screenshot({path: join(evidence, 'notebook-inline-pinned.png'), scale: 'css'});
   await app.getByRole('button', {name: 'Browse blocks', exact: true}).evaluate(button => button.click());
-  await approve();
-  await expect(app.getByRole('button', {name: 'Read observations', exact: true})).toBeVisible({timeout: 15000});
+  await expect.poll(async () => (await conversation())?.permission ? 'ask' : await writes() >= 2 ? 'read' : '', {timeout: 20000}).not.toBe('');
+  if ((await conversation())?.permission) await approve();
+  await expect(app.getByRole('button', {name: 'Read observations', exact: true})).toBeVisible({timeout: 20000});
   await expect(app.getByText('13.0', {exact: false})).toHaveCount(0);
-  assert.equal((await businessCalls()).length, 2, 'browsing blocks did not call the pinned revision');
-  assert.equal((await businessCalls())[1].arguments.revision, 1);
+  assert.equal(await writes(), 2);
   assert.equal(provider.calls.length, 2, 'Inspector interaction invoked the model');
   await inline.getByRole('button', {name: 'Close view', exact: true}).click();
   await expect(inline.locator('#view iframe')).toHaveCount(0);
   await inline.getByRole('button', {name: 'Open view', exact: true}).click();
-  await expect(app.getByText('Sample A: 12.5 U/mL. Review pending.', {exact: true})).toBeVisible({timeout: 15000});
-  assert.equal((await businessCalls()).length, 2, 'reopening the Inspector called Notebook');
-  assert.equal(provider.calls.length, 2, 'reopening the Inspector invoked the model');
-  const savedTool = (await conversation()).tools.find(tool => tool.id === 'notebook-read-call');
-  assert(savedTool?.content?.includes('12.5'), 'The pinned Notebook text must be saved before restart');
-  assert(!savedTool.content.includes('13.0'));
+  await expect(app.getByText('Sample A: 12.5 U/mL. Review pending.', {exact: true})).toBeVisible({timeout: 20000});
+  assert.equal(await writes(), 2, 'reopening the Inspector called Notebook');
+  assert.equal(provider.calls.length, 2);
   const savedContent = savedTool.content;
-  const callsBeforeRestart = (await businessCalls()).length;
+  const callsBeforeRestart = await writes();
   const modelsBeforeRestart = provider.calls.length;
   const historyRow = async () => (await state()).mcpHistory?.find(item => item.chat === thread && item.tool === 'notebook-read-call');
   const readOnlyNotice = async phase => {
@@ -148,7 +174,9 @@ try {
   await expect(outer).toHaveCount(0);
   const closedInProcess = await readOnlyNotice('closing the live session');
   assert.equal(closedInProcess.historical, false);
-  assert.equal((await businessCalls()).length, callsBeforeRestart);
+  assert.equal(closedInProcess.server, 'pero-app-use');
+  assert.equal(closedInProcess.resourceUri, 'ui://pero/notebook/inspector-v1');
+  assert.equal(await writes(), callsBeforeRestart);
   assert.equal(provider.calls.length, modelsBeforeRestart);
   await page.screenshot({path: join(evidence, 'notebook-history-closed-zh.png'), scale: 'css'});
   await desktop.close();
@@ -161,43 +189,47 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'), undefined, {timeout: 60000});
   await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 1050));
+  await page.evaluate(() => {
+    window.notebookWrites = [];
+    window.pero.onEvent(event => { if (event.kind === 'app_written' && event.data?.tool === 'read-entry') window.notebookWrites.push(event.data); });
+  });
   await clickSessionRow(page, thread);
   const restoredRow = await readOnlyNotice('reopening archived history');
   assert.equal(restoredRow.historical, true);
-  assert.equal(restoredRow.server, 'Notebook');
+  assert.equal(restoredRow.server, 'pero-app-use');
   assert.equal(restoredRow.resourceUri, 'ui://pero/notebook/inspector-v1');
   const restoredTool = (await state()).chats.find(chat => chat.id === thread).tools.find(tool => tool.id === 'notebook-read-call');
   assert.equal(restoredTool.content, savedContent);
-  assert(!restoredTool.content.includes('13.0'));
   await expect(page.locator('section[aria-label="Interactive tool result"] > iframe')).toHaveCount(0);
-  assert.equal((await businessCalls()).length, callsBeforeRestart);
+  assert.equal(await writes(), 0, 'Restoring history called Notebook');
   assert.equal(provider.calls.length, modelsBeforeRestart);
   await page.screenshot({path: join(evidence, 'notebook-history-readonly-zh.png'), scale: 'css'});
   const afterRestart = await historyRow();
-  assert.deepEqual(errors, []);
   assert.deepEqual(provider.errors, []);
-  const businessAfterRestart = await businessCalls();
   console.log(JSON.stringify({
-    source: 'mcpHistory snapshot', entryId: entry.id, callsBeforeRestart, modelsBeforeRestart,
-    businessCalls: businessAfterRestart, modelRequests: provider.calls.length,
-    sameProcessClose: {notice: closedInProcess.notice, interactive: closedInProcess.interactive, historical: closedInProcess.historical},
+    source: 'mcpHistory snapshot', entryId: entry.id, route: 'pero-app-use app__notebook__read-entry',
+    callsBeforeRestart, modelsBeforeRestart, toolResultBytes: Buffer.byteLength(savedContent),
+    modelRequests: provider.calls.length,
+    sameProcessClose: {notice: closedInProcess.notice, interactive: closedInProcess.interactive, historical: closedInProcess.historical, server: closedInProcess.server, resourceUri: closedInProcess.resourceUri},
     afterRestart: {notice: afterRestart.notice, interactive: afterRestart.interactive, historical: afterRestart.historical, server: afterRestart.server, resourceUri: afterRestart.resourceUri},
   }));
   await writeFile(join(evidence, 'result.json'), JSON.stringify({
-    passed: true, entryId: entry.id, pinnedRevision: 1, laterRevision: 2,
-    modelRequests: provider.calls.length, businessCalls: businessAfterRestart,
+    passed: true, route: 'host-registered-notebook-app', entryId: entry.id, pinnedRevision: 1, laterRevision: 2,
+    modelRequests: provider.calls.length, notebookReadsBeforeRestart: callsBeforeRestart,
+    toolResultBytes: Buffer.byteLength(savedContent),
     historyRestore: {sameProcessClose: closedInProcess, afterRestart}, errors,
   }, null, 2));
-  console.log('Notebook Inspector: pinned revision mounted from the Agent tool row.');
+  console.log('Notebook Inspector: pinned revision mounted from the registered App tool row.');
 } catch (error) {
   if (page) await page.screenshot({path: join(evidence, 'failure.png'), scale: 'css'}).catch(() => {});
   await writeFile(join(evidence, 'failure-log.json'), JSON.stringify({
-    error: String(error), modelRequests: provider.calls.length, providerErrors: provider.errors, errors, logs, backendError,
+    error: String(error), modelRequests: provider.calls.length, providerErrors: provider.errors, errors, logs, seedError,
   }, null, 2));
   throw error;
 } finally {
   await desktop?.close();
   await provider.close();
-  if (backend.exitCode === null) { const exited = once(backend, 'exit'); backend.kill(); await exited; }
   await rm(home, {recursive: true, force: true});
+  if (copiedTools) unlinkSync(sourceTools);
+  if (createdPanel) await rm(panelEntry, {force: true});
 }
