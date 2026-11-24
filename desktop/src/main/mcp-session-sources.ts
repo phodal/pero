@@ -29,14 +29,15 @@ export class McpSessionSources {
   view(id:string){const entry=this.bindings.get(id);if(!this.alive||!entry)throw new Error('This MCP source is closed');return entry.view;}
   private async call(call:McpSessionCall){this.admitThread(this.scope.thread_id);const result=await this.rpc(this.scope,call);this.admitThread(this.scope.thread_id);return result;}
   private server(name:string,generation:number|undefined){const server=this.catalog.get(name);if(!server)throw new Error(`This MCP server is not in the session catalog: ${name}`);if(!server.connected||generation!==server.generation)throw new Error(`This MCP server catalog is stale; refresh it (${server.generation} vs ${generation})`);return server;}
+  private internal(server:string){return server==='pero-app-use'&&!this.catalog.has(server);}
   observeServers(servers:{server:string;generation:number;status:string}[]){
     for(const [name,catalog] of this.catalog){const observed=servers.find(server=>server.server===name);if(!observed||observed.status!=='connected'||observed.generation!==catalog.generation)this.catalog.delete(name);}
-    for(const [id,entry] of this.bindings)if(!this.catalog.has(entry.view.binding.server))this.bindings.delete(id);
+    for(const [id,entry] of this.bindings)if(!this.internal(entry.view.binding.server)&&!this.catalog.has(entry.view.binding.server))this.bindings.delete(id);
   }
   async list(){
     const {servers}=Catalog.parse(await this.call({action:'list'}));
     this.catalog=new Map(servers.map(server=>[server.name,server]));
-    for(const [id,entry] of this.bindings){const server=this.catalog.get(entry.view.binding.server);if(!server?.connected||server.generation!==entry.generation)this.bindings.delete(id);}
+    for(const [id,entry] of this.bindings){if(this.internal(entry.view.binding.server))continue;const server=this.catalog.get(entry.view.binding.server);if(!server?.connected||server.generation!==entry.generation)this.bindings.delete(id);}
     return servers.map(server=>({id:server.name,title:server.name,transport:'session',managed:true,generation:server.generation,connected:server.connected,
       tools:server.tools.filter(tool=>{const meta=McpUiToolMetaSchema.safeParse(tool._meta?.ui??{});return getToolUiResourceUri(tool)&&meta.success&&(!meta.data.visibility||meta.data.visibility.includes('app'));}).map(tool=>({name:tool.name,title:tool.title||tool.name,description:tool.description,inputSchema:tool.inputSchema}))}));
   }
@@ -70,18 +71,24 @@ export class McpSessionSources {
       }
       case 'execute':case 'adopt':{
         if(command.action==='execute'&&command.thread_id!==this.scope.thread_id)throw new Error('This conversation is outside the MCP panel binding');
-        if(this.catalog.get(command.server)?.generation!==command.generation)await this.list();
-        // pero-app-use is an internal session connection, not a user-managed directory entry.
-        const current=()=>{
-          const listed=this.catalog.get(command.server);
-          if(!listed)return {generation:command.generation,connected:true,tools:[] as Tool[]};
-          if(!listed.connected||listed.generation!==command.generation)throw new Error(`This MCP server catalog is stale; refresh it (${listed.generation} vs ${command.generation}, connected ${listed.connected})`);
-          return listed;
-        };
-        const server=current();
+        if(typeof command.generation!=='number')throw new Error('This MCP server catalog is stale; refresh it');
+        const generation=command.generation;
         if(!command.operation||this.opening.has(command.operation))throw new Error('An MCP App operation identity is required');
         const operation:{cancelled:boolean;remote?:string}={cancelled:false};this.opening.set(command.operation,operation);
         try{
+          if(this.catalog.get(command.server)?.generation!==generation)await this.list();
+          if(operation.cancelled)throw new Error('MCP App opening cancelled');
+          // pero-app-use is an internal session connection, not a user-managed directory entry.
+          const current=()=>{
+            const listed=this.catalog.get(command.server);
+            if(!listed){
+              if(command.server==='pero-app-use')return {generation,connected:true,tools:[] as Tool[]};
+              throw new Error(`This MCP server catalog is stale; refresh it (absent vs ${generation})`);
+            }
+            if(!listed.connected||listed.generation!==generation)throw new Error(`This MCP server catalog is stale; refresh it (${listed.generation} vs ${generation}, connected ${listed.connected})`);
+            return listed;
+          };
+          const server=current();
           const receipt=command.action==='adopt'?await this.call({action:'adopt',server:command.server,generation:command.generation,tool_call:command.tool_call}):undefined;
           const original=receipt===undefined?undefined:PreparedBinding.parse(receipt);
           operation.remote=original?.binding;
