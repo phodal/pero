@@ -8,8 +8,8 @@
   --pero-spacing-5: 20px;
   --pero-spacing-6: 24px;
   --pero-icon-gap: 6px;
-  --pero-font-title: calc(24px * var(--pero-font-scale, 1));
-  --pero-font-heading: calc(18px * var(--pero-font-scale, 1));
+  --pero-font-title: calc(var(--pero-font-body) + 10px);
+  --pero-font-heading: calc(var(--pero-font-body) + 4px);
   --pero-font-body: calc(14px * var(--pero-font-scale, 1));
   --pero-font-tab: max(12px, calc(13px * var(--pero-font-scale, 1)));
   --pero-font-caption: max(12px, calc(12px * var(--pero-font-scale, 1)));

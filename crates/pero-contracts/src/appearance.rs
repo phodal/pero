@@ -166,8 +166,8 @@ impl TextRole {
         match self {
             Self::Caption => (base * 12. / 14.).max(12.),
             Self::Body => base,
-            Self::Heading => base * 18. / 14.,
-            Self::Title => base * 24. / 14.,
+            Self::Heading => base + 4.,
+            Self::Title => base + 10.,
         }
     }
 }
@@ -246,6 +246,8 @@ mod tests {
         );
         for base in [12., 14., 18., 24.] {
             assert!(TextRole::Caption.pixels(base) >= 12.);
+            assert_eq!(TextRole::Heading.pixels(base) - TextRole::Body.pixels(base), 4.);
+            assert_eq!(TextRole::Title.pixels(base) - TextRole::Body.pixels(base), 10.);
             let typography = TypographyPreferences {
                 ui_size: FontSize::try_from(base as u8).unwrap(),
                 ..Default::default()
