@@ -30,6 +30,7 @@ export type DocumentCommand =
 
 export type DocumentResult =
   | { kind: 'observation'; url: string; title: string; nodes: BrowserNode[]; truncated: boolean;
+    tree?: string; treeTruncated?: true;
     frame?: FrameSelector[]; frameUrl?: string; frames: { selector: FrameSelector; sameOrigin: boolean }[] }
   | { kind: 'dispatched' | 'focused' | 'pending' }
   | { kind: 'point'; point: ViewportPoint; downloadUrl?: string }
@@ -48,6 +49,9 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
 
   const { tag, html, hidden, visible, role, name, normalize, editingHost } = semantics;
   const frameTags = ['IFRAME', 'FRAME', 'OBJECT', 'EMBED'];
+  const omittedTags = [...frameTags, 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'];
+  const maxVisitedNodes = 3000;
+  const maxObservedNodes = 160;
   const sensitive = (node: Element) => tag(node, 'input') &&
     (['password', 'hidden'].includes(node.type) ||
       node.autocomplete.toLowerCase().split(/\s+/).some(token => ['current-password', 'new-password', 'one-time-code'].includes(token)));
@@ -87,16 +91,16 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     return fields;
   };
 
-  function walk(doc: Document, scope?: Element) {
+  function walk(doc: Document, scope?: Element, limit = maxVisitedNodes) {
     const nodes: Element[] = [];
     const pending: Element[] = scope ? [scope] : doc.body ? [doc.body] : [];
-    while (pending.length && nodes.length < 3000) {
+    while (pending.length && nodes.length < limit) {
       const node = pending.pop()!;
       nodes.push(node);
-      if ([...frameTags, 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'].includes(node.tagName)) continue;
+      if (omittedTags.includes(node.tagName)) continue;
       const assigned = tag(node, 'slot') ? node.assignedElements({ flatten: true }) : [];
       const children = assigned.length ? assigned : (node.shadowRoot || node).children;
-      for (let i = Math.min(children.length, 3001 - pending.length - nodes.length) - 1; i >= 0; i--) pending.push(children[i]);
+      for (let i = Math.min(children.length, limit + 1 - pending.length - nodes.length) - 1; i >= 0; i--) pending.push(children[i]);
     }
     return { nodes, truncated: pending.length > 0 };
   }
@@ -152,6 +156,7 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     const observationId = command.observation;
     const targets = new Map<string, Target>();
     const nodes: BrowserNode[] = [];
+    const descriptions = command.action === 'observe' && command.includeTree ? new Map<Element, BrowserNode>() : undefined;
     function describe(node: Element) {
       const nodeRole = role(node);
       const nodeName = name(node).slice(0, 160);
@@ -175,25 +180,38 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
         ...(text && text !== nodeName && { text }), ...(isControl && { state: state(node) }) };
       if (actions.length && html(node)) {
         actions.push('scrollIntoView');
-        entry.ref = `${observationId}:${nodes.length + 1}`;
         entry.actions = actions;
-        targets.set(entry.ref, { node, role: nodeRole, name: nodeName });
+      }
+      return entry;
+    }
+    function collect(node: Element) {
+      const entry = describe(node);
+      descriptions?.set(node, entry);
+      if (entry.actions && html(node)) {
+        entry.ref = `${observationId}:${nodes.length + 1}`;
+        targets.set(entry.ref, { node, role: entry.role ?? '', name: entry.name ?? '' });
       }
       if (Object.keys(entry).length) nodes.push(entry);
     }
 
-    const publicNode = (node: Element) => !sensitive(node) &&
-      ![...frameTags, 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT'].includes(node.tagName);
+    const publicNode = (node: Element) => !sensitive(node) && !omittedTags.includes(node.tagName);
+    const semanticRole = (node: Element, nodeRole: string | undefined, nodeName: string | undefined) =>
+      nodeRole || (tag(node, 'section') && nodeName ? 'region' : undefined) ||
+      ({ CAPTION: 'caption', P: 'paragraph' } as Record<string, string>)[node.tagName];
     if (command.action === 'observe') {
       for (const node of visited.nodes) {
-        if (nodes.length >= 160) break;
-        if (publicNode(node) && isVisible(node)) describe(node);
+        if (nodes.length >= maxObservedNodes) break;
+        if (publicNode(node) && isVisible(node)) collect(node);
       }
     } else {
       const matchesLocator = (node: Element, locator: Locator) => {
         if (!publicNode(node)) return false;
-        if (locator.by === 'role') return role(node) === locator.role &&
-          (locator.name === undefined || name(node, true) === normalize(locator.name));
+        if (locator.by === 'role') {
+          const nodeRole = role(node);
+          const nodeName = locator.name !== undefined || (!nodeRole && tag(node, 'section')) ? name(node, true) : undefined;
+          return semanticRole(node, nodeRole, nodeName) === locator.role &&
+            (locator.name === undefined || nodeName === normalize(locator.name));
+        }
         if (locator.by === 'label') return semantics.label(node) === normalize(locator.value);
         if (locator.by === 'testId') return node.getAttribute('data-testid') === locator.value;
         if (locator.by === 'placeholder') return normalize(node.getAttribute('placeholder')) === normalize(locator.value);
@@ -231,7 +249,65 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
         }
         if (!matched) return { kind: 'pending' };
       }
-      if (shown) describe(node);
+      if (shown) collect(node);
+    }
+
+    // Project the same permitted DOM into a compact semantic snapshot. Frame
+    // descendants are descriptive here; their refs still require frame scope.
+    const snapshot: { tree?: string; treeTruncated?: true } = {};
+    if (descriptions) {
+      const observedDescriptions = descriptions;
+      const lines: string[] = [];
+      let characters = 0;
+      let remainingVisits = maxVisitedNodes;
+      const scalar = (value: string) => /[\r\n\t]|^\s|\s$|:\s|^[-#[{"']/.test(value) ? JSON.stringify(value) : value;
+      function appendTree(elements: ReturnType<typeof walk>, indent: number, frameDepth: number) {
+        const contentsDepth = new Map<Element, number>();
+        if (elements.truncated) snapshot.treeTruncated = true;
+        for (const element of elements.nodes) {
+          if (remainingVisits-- <= 0 || lines.length === maxObservedNodes) {
+            snapshot.treeTruncated = true;
+            break;
+          }
+          const parent = semantics.parent(element);
+          const depth = (parent && contentsDepth.get(parent)) ?? indent;
+          contentsDepth.set(element, depth);
+          if (!isVisible(element)) continue;
+          const iframe = tag(element, 'iframe');
+          if (!iframe && !publicNode(element)) continue;
+          const entry = iframe ? undefined : observedDescriptions.get(element) ?? describe(element);
+          const treeRole = iframe ? 'iframe' : semanticRole(element, entry?.role, entry?.name);
+          if (!treeRole && !entry?.text && !entry?.name) continue;
+          const headingLevel = treeRole === 'heading'
+            ? element.getAttribute('aria-level') || (/^H[1-6]$/.test(element.tagName) ? element.tagName[1] : '2')
+            : '';
+          const label = treeRole && entry?.name ? ' ' + JSON.stringify(entry.name) : '';
+          const markers = (headingLevel && /^\d+$/.test(headingLevel) ? ` [level=${headingLevel}]` : '') +
+            (entry?.state?.disabled ? ' [disabled]' : '') +
+            (entry?.state?.checked === true ? ' [checked]' : entry?.state?.checked === 'mixed' ? ' [checked=mixed]' : '');
+          const value = entry?.state?.value || entry?.text || (!treeRole ? entry?.name : undefined);
+          let body = (treeRole || 'text') + label + markers;
+          if (value) body += ': ' + scalar(value);
+          else if (iframe || !['button', 'heading', 'link', 'textbox', 'searchbox', 'checkbox', 'radio', 'switch',
+            'columnheader', 'rowheader', 'cell', 'option', 'img'].includes(treeRole || '')) body += ':';
+          const line = '  '.repeat(depth) + '- ' + body;
+          if (characters + line.length + 1 > 12000) {
+            snapshot.treeTruncated = true;
+            remainingVisits = 0;
+            break;
+          }
+          characters += line.length + 1;
+          lines.push(line);
+          if (treeRole) contentsDepth.set(element, depth + 1);
+          if (iframe && sameOrigin(element.contentDocument)) {
+            if (frameDepth < 4 && remainingVisits > 0)
+              appendTree(walk(element.contentDocument, undefined, remainingVisits), depth + 1, frameDepth + 1);
+            else snapshot.treeTruncated = true;
+          }
+        }
+      }
+      appendTree(visited, 0, chain.length);
+      snapshot.tree = lines.join('\n');
     }
 
     const frames: { selector: FrameSelector; sameOrigin: boolean }[] = [];
@@ -245,7 +321,8 @@ function useDocument(origin: string, command: DocumentCommand, semantics: Return
     }
     world.peroBrowserObservation = { id: command.observation, url: doc.URL, targets, chain };
     return { kind: 'observation', url: location.href, title: doc.title.slice(0, 200), nodes,
-      truncated: visited.truncated || nodes.length === 160, frames,
+      truncated: visited.truncated || nodes.length === maxObservedNodes, frames,
+      ...snapshot,
       ...(chain.length && { frame: command.frame, frameUrl: doc.URL }) };
   }
 

@@ -40,7 +40,7 @@ export const browserRequest = z.discriminatedUnion('action', [
     .refine(value => !!value.fileRef !== !!value.fileRefs, 'Choose exactly one of fileRef and fileRefs.'),
   z.strictObject({ ...tab, action: z.literal('download'), ref }),
   z.strictObject({ ...tab, action: z.literal('status') }),
-  z.strictObject({ ...tab, action: z.literal('observe'), frame }),
+  z.strictObject({ ...tab, action: z.literal('observe'), frame, includeTree: z.boolean().optional() }),
   z.strictObject({ ...tab, action: z.literal('locate'), locator, frame, within: locator.optional() }),
   z.strictObject({ ...tab, action: z.literal('wait'), locator, frame, within: locator.optional(), condition,
     timeoutMs: z.number().int().min(1).max(10000).optional() }),

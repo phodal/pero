@@ -10,6 +10,7 @@ import { chromium, expect } from '@playwright/test';
 import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
+import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -53,6 +54,11 @@ const site = createServer((request, response) => {
   if (request.url === '/leave-fixture') leaveRequests++;
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
+    return;
+  }
+  if (request.url === '/snapshot' || request.url === '/details') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(request.url === '/snapshot' ? browserSnapshotPage : browserSnapshotFrame);
     return;
   }
   if (request.url === '/report.csv') {
@@ -217,6 +223,40 @@ try {
     assert.equal(tabId, discovered.tabId);
     assert.equal(available.tabs[0].url, siteUrl);
     assert.equal(available.tabs[0].authorized, true);
+
+    const snapshotPage = await chrome.newPage();
+    const snapshotUrl = new URL('/snapshot', siteUrl).href;
+    await snapshotPage.goto(snapshotUrl);
+    await expect(snapshotPage.frameLocator('iframe').getByRole('button', { name: 'Inspect' })).toBeVisible();
+    const [snapshotTabs] = await prompt([{ action: 'tabs' }]);
+    const snapshotTabId = snapshotTabs.tabs.find(tab => tab.url === snapshotUrl).tabId;
+    const button = { by: 'role', role: 'button', name: 'Apply' };
+    const [plain, withTree, duplicate, scoped, frameTree] = await prompt([
+      { action: 'observe', tabId: snapshotTabId },
+      { action: 'observe', tabId: snapshotTabId, includeTree: true },
+      { action: 'locate', tabId: snapshotTabId, locator: button },
+      { action: 'locate', tabId: snapshotTabId, locator: button, within: { by: 'role', role: 'region', name: 'Draft' } },
+      { action: 'observe', tabId: snapshotTabId, includeTree: true, frame: [{ by: 'title', value: 'Details' }] },
+    ]);
+    assert.equal(plain.tree, undefined);
+    assert.equal(withTree.tree, browserSnapshotTree);
+    assert.equal(withTree.treeTruncated, undefined);
+    assert.deepEqual(withTree.frames, plain.frames);
+    assert.deepEqual(withTree.nodes, plain.nodes.map(node => node.ref
+      ? { ...node, ref: node.ref.replace(plain.observationId, withTree.observationId) }
+      : node));
+    assert.equal(duplicate.isError, true);
+    assert.match(duplicate.error, /ambiguous/);
+    assert.equal(scoped.nodes[0].state.disabled, false);
+    assert.equal(frameTree.tree, '- main:\n  - heading "Run details" [level=2]\n  - button "Inspect"');
+    const [, clicked] = await prompt([
+      { action: 'observe', tabId: snapshotTabId, includeTree: true },
+      { action: 'click', tabId: snapshotTabId, name: 'Apply' },
+    ]);
+    assert.equal(clicked.outcome, 'dispatched');
+    await expect(snapshotPage.getByRole('status')).toHaveText('Applied; trusted = true');
+    await snapshotPage.close();
+
     const operations = await prompt([
       { action: 'observe', tabId },
       { action: 'locate', tabId, locator: { by: 'label', value: 'Relay message' } },
@@ -312,11 +352,18 @@ try {
     assert.equal(foreignHits, 0, 'The redirect is refused before the foreign server receives a request.');
     await target.evaluate(url => {
       const iframe = document.createElement('iframe');
+      iframe.title = 'Outside';
       iframe.src = url;
       document.body.append(iframe);
     }, foreignUrl);
-    await expect.poll(() => foreignHits).toBeGreaterThan(0);
-    const [excluded] = await prompt([{ action: 'screenshot', tabId, fullPage: true }]);
+    await expect(target.frameLocator('iframe').getByText('Outside the current origin')).toBeVisible();
+    const [outsideTree, excluded] = await prompt([
+      { action: 'observe', tabId, includeTree: true },
+      { action: 'screenshot', tabId, fullPage: true },
+    ]);
+    assert.deepEqual(outsideTree.frames, [{ selector: { by: 'title', value: 'Outside' }, sameOrigin: false }]);
+    assert.match(outsideTree.tree, /- iframe:/);
+    assert.doesNotMatch(outsideTree.tree, /Outside the current origin/);
     assert.equal(excluded.isError, true, JSON.stringify(excluded));
     await target.locator('iframe').evaluate(frame => frame.remove());
 
@@ -504,6 +551,8 @@ nodeRepl.write(answer.outcome);` },
       passed: true, chrome: await worker.evaluate(() => navigator.userAgent), extension: portManifest.name,
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
+      semanticTree: { snapshot: withTree.tree, codexFixtureMatched: true, preservesNodesAndRefs: true,
+        scopedDuplicateResolved: true, foreignFrameContentExcluded: true, trustedClick: true },
       screenshots: captures.map(capture => capture.pixels), uploadVerified: true, downloadsVerified: true,
       historyVerified: true, openedTabImmediatelyAvailable: true, tabSwitchAndCloseVerified: true, popupReceipts, dialogReceipts,
       beforeUnloadDismissed: true, dialogHandledThroughRepl: true,

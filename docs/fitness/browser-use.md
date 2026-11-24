@@ -165,6 +165,9 @@ page's confirmation result (including across two REPL cells), the Unicode
 prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
 that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
 inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
+The same suite compares the optional observation tree against the Codex
+in-app browser snapshot on one shared fixture, checks the flat nodes and
+references, and verifies that only same-origin iframe contents appear.
 Evidence is written to `test-results/chrome-relay/`.
 
 ### Chrome and embedded browser from an SSH Workbench
@@ -389,6 +392,11 @@ and debugger dialog lifecycle.
   document. Paths support up to four iframe levels. References bind the actual
   nested document. A frame reload invalidates them even at the same URL.
   Trusted pointer input translates through the visible frame bounds.
+- Set `includeTree: true` on `observe` to add a compact indented `tree` with
+  semantic nesting, including same-origin iframe contents. The observation
+  still returns its existing `nodes`, refs, and iframe selectors. To operate
+  inside an iframe, observe or locate within its `frame` path. A tree that
+  reaches its own output or traversal limit has `treeTruncated: true`.
 - Form state exposes disabled status, checked or mixed state, safe text values,
   and bounded option metadata. `setChecked` updates native checkboxes and can
   select a radio. `selectOption` accepts a value or an array of up to 64 values
