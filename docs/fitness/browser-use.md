@@ -521,6 +521,11 @@ update and detach events for the approved frame. Chrome independently checks
 that both fixture frames were removed. Evidence is in
 `test-results/native-chrome-cdp-target-lifecycle/result.json`.
 
+With extension 0.3.19, `--cdp-target-routing` also uses the event handle to
+read the iframe document and its Runtime console through Native Python REPL,
+then confirms that the handle is rejected after the iframe is removed.
+Evidence is in `test-results/native-chrome-cdp-target-routing/result.json`.
+
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with
