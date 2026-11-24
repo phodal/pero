@@ -159,7 +159,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let connector_probe = std::env::args().nth(1).as_deref() == Some("--verify-connectors");
     let app_probe = connector_probe || std::env::args().nth(1).as_deref() == Some("--verify-apps");
-    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser" | "cloud-browser"));
+    let visible_app_probe = app_probe && matches!(std::env::args().nth(3).as_deref(), Some("paper-chat" | "computer" | "browser" | "cloud-browser" | "appshot"));
     #[cfg(not(feature = "native-probe"))]
     if app_probe {
         anyhow::bail!("Build with native-probe to run App acceptance");
@@ -507,6 +507,8 @@ pub fn run() -> anyhow::Result<()> {
     });
     #[cfg(target_os = "macos")]
     let (appshot_tx, appshot_rx) = async_channel::bounded(1);
+    #[cfg(all(target_os = "macos", feature = "native-probe"))]
+    let appshot_probe_sender = appshot_tx.clone();
     #[cfg(target_os = "macos")]
     let computer_view_owner = connector_owner.clone();
     #[cfg(target_os = "macos")]
@@ -574,8 +576,17 @@ pub fn run() -> anyhow::Result<()> {
         #[cfg(feature="native-probe")]
         if app_probe {
             let receipt = PathBuf::from(std::env::args().nth(2).expect("App acceptance receipt path"));
-            if connector_probe { crate::native_connector_probe::attach(view.clone(),window,receipt,cx); }
-            else { crate::native_app_probe::attach(view.clone(),window,receipt,cx); }
+            #[cfg(target_os = "macos")]
+            let handled = if std::env::args().nth(3).as_deref() == Some("appshot") {
+                crate::native_computer_hotkey::probe(view.clone(), window, appshot_probe_sender, receipt.clone(), cx);
+                true
+            } else { false };
+            #[cfg(not(target_os = "macos"))]
+            let handled = false;
+            if !handled {
+                if connector_probe { crate::native_connector_probe::attach(view.clone(),window,receipt,cx); }
+                else { crate::native_app_probe::attach(view.clone(),window,receipt,cx); }
+            }
         }
         let close_view=view.downgrade();
         let _=window.update(cx,|_,window,cx| {

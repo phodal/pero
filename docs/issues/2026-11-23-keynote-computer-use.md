@@ -201,6 +201,10 @@ seconds, so this change retains the bounded OCR path.
   app-targeted key delivery did not trigger the macOS global shortcut during
   this check. A physical shortcut with an authorized installed helper remains
   to be verified.
+- `tests/e2e/native-appshot.mjs` feeds an owned foreground window PID into the
+  Native shortcut channel. A signed test package with a controlled companion
+  response appended its JPEG and accessible text to the original draft.
+  The local ACP fixture recorded session creation and zero prompt calls.
 
 ## Live preview with independent workers
 

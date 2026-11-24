@@ -272,6 +272,81 @@ pub(super) fn attach(
     .detach();
 }
 
+#[cfg(feature = "native-probe")]
+pub(super) fn probe(
+    view: Entity<Workbench>,
+    window: AnyWindowHandle,
+    sender: Sender<i32>,
+    receipt: std::path::PathBuf,
+    cx: &mut App,
+) {
+    cx.spawn(async move |cx| {
+        let result = async {
+            use pero_contracts::context::ContextContent;
+            use std::time::{Duration, Instant};
+            const DRAFT: &str = "Original Appshot draft";
+            let workspace = std::env::var("PERO_NATIVE_APPSHOT_WORKSPACE")?;
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let mut thread = None;
+            let mut ready = false;
+            let mut captured = false;
+            let mut last = String::new();
+            while Instant::now() < deadline {
+                let state = window.update(cx, |_, window, cx| view.update(cx, |root, cx| {
+                    if thread.is_none() && root.chat.read(cx).connected
+                        && root.chat.read(cx).agents.iter().any(|agent| agent.id == "appshot-fixture" && agent.available)
+                    {
+                        root.chat.update(cx, |chat, _| chat.workspace = workspace.clone());
+                        root.new_chat(cx);
+                        thread = active_chat(root.chat.read(cx)).map(|chat| chat.id.clone());
+                    }
+                    let draft = active_chat(root.chat.read(cx))
+                        .is_some_and(|chat| chat.capabilities.images && Some(&chat.id) == thread.as_ref());
+                    if draft && !ready {
+                        root.chat.update(cx, |panel, cx| {
+                            panel.composer.update(cx, |input, cx| input.set_value(DRAFT, window, cx));
+                        });
+                        std::fs::write(receipt.with_extension("ready"), "")?;
+                        ready = true;
+                    }
+                    let panel = root.chat.read(cx);
+                    let Some(chat) = active_chat(panel) else { return Ok(None) };
+                    anyhow::ensure!(chat.messages.is_empty(), "Appshot submitted its draft");
+                    last = format!("images: {}, attachments: {}, original draft: {}",
+                        chat.capabilities.images, panel.attachments.len(), panel.composer.read(cx).value().contains(DRAFT));
+                    if chat.capabilities.images && panel.composer.read(cx).value().contains(DRAFT) {
+                        if panel.attachments.len() >= 2 {
+                            anyhow::ensure!(Some(&chat.id) == thread.as_ref(), "Appshot changed the draft conversation");
+                            let image = panel.attachments.iter().find_map(|reference| match &reference.content {
+                                ContextContent::Image { data, mime_type } => Some(serde_json::json!({
+                                    "label": reference.label, "mimeType":mime_type, "data":data,
+                                })),
+                                _ => None,
+                            });
+                            let text = panel.attachments.iter().find_map(|reference| match &reference.content {
+                                ContextContent::Text {text} => Some(text),
+                                _ => None,
+                            });
+                            return Ok(Some(serde_json::json!({"passed": true, "draft": DRAFT, "image": image, "text": text})));
+                        }
+                    }
+                    Ok::<_, anyhow::Error>(None)
+                }))??;
+                if let Some(state) = state { return Ok(state); }
+                if ready && !captured && let Ok(pid) = std::fs::read_to_string(receipt.with_extension("capture")) {
+                    sender.try_send(pid.trim().parse()?)?;
+                    captured = true;
+                }
+                cx.background_executor().timer(Duration::from_millis(50)).await;
+            }
+            anyhow::bail!("Native Appshot timed out (draft ready: {ready}, capture requested: {captured}): {last}")
+        }.await;
+        let result = result.unwrap_or_else(|error| serde_json::json!({"passed":false,"error":error.to_string()}));
+        let _ = std::fs::write(receipt, serde_json::to_vec(&result).unwrap());
+        cx.update(|cx| cx.quit());
+    }).detach();
+}
+
 impl Drop for ComputerHotKeys {
     fn drop(&mut self) {
         unsafe {
