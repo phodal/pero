@@ -49,7 +49,7 @@ func TestSessionAccessGenerationAndBounds(t *testing.T) {
 	if err := access.Check("docs", 1); err == nil {
 		t.Fatal("replaced generation accepted")
 	}
-	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("x", 1<<20) + `"`)); err == nil {
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("x", maxMCPResponseBytes) + `"`)); err == nil {
 		t.Fatal("oversize result accepted")
 	}
 }

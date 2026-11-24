@@ -169,13 +169,17 @@ func (a *SessionAccess) Request(ctx context.Context, server string, generation u
 	}
 	return BoundedAccessResult(result)
 }
+// The saved Notebook inspector document is larger than 1 MiB. Conversation
+// adoption returns that document with the original tool result.
+const maxMCPResponseBytes = 2 << 20
+
 func BoundedAccessResult(value any) (json.RawMessage, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > 1<<20 {
-		return nil, errors.New("MCP response exceeds 1 MiB")
+	if len(raw) > maxMCPResponseBytes {
+		return nil, errors.New("MCP response exceeds 2 MiB")
 	}
 	return raw, nil
 }

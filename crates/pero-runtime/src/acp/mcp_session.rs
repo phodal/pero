@@ -14,7 +14,8 @@ pub fn reply(
     result: Result<Value, McpSessionError>,
 ) {
     let result = result.and_then(|value| {
-        if serde_json::to_vec(&value).map_or(true, |v| v.len() > 1_048_576) {
+        // The saved Notebook inspector exceeds 1 MiB with its original result.
+        if serde_json::to_vec(&value).map_or(true, |v| v.len() > 2_097_152) {
             Err(McpSessionError::Invalid)
         } else {
             Ok(value)
@@ -97,7 +98,7 @@ mod tests {
     fn replies_are_correlated_and_bounded() {
         let request: McpSessionRequest = serde_json::from_value(json!({"method":"mcp.session","request_id":"r","thread_id":"t","incarnation":1,"revision":2,"action":"list"})).unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
-        reply(&tx, &request, Ok(json!({"payload":"x".repeat(1_048_577)})));
+        reply(&tx, &request, Ok(json!({"payload":"x".repeat(2_097_153)})));
         let event = rx.recv().unwrap();
         assert_eq!(event.kind, "mcp_session_error");
         assert_eq!(event.request_id.as_deref(), Some("r"));
