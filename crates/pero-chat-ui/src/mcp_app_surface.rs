@@ -3,13 +3,13 @@ use crate::{conversation::Tool, panel::ChatPanel};
 #[cfg(target_family = "wasm")]
 use gpui_kit::base::ElementExt;
 use gpui_kit::{
-    component::{button::*, Sizable},
+    component::{Sizable, button::*},
     prelude::*,
     *,
 };
 use pero_contracts::{
-    mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget, mcp_source::McpAppDescriptor,
-    HostEvent,
+    HostEvent, mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget,
+    mcp_source::McpAppDescriptor,
 };
 use serde::Serialize;
 
