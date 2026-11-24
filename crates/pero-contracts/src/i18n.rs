@@ -41,22 +41,10 @@ mod tests {
         assert_eq!(normalize("en-US"), "en");
         assert_eq!(normalize("fr"), "en");
         assert_eq!(text("fr", "nav.tasks"), "Tasks");
-        assert_eq!(
-            text("zh-CN", "mcp.history.readonly"),
-            "历史结果，当前不可交互"
-        );
-        assert_eq!(
-            text("en", "mcp.history.readonly"),
-            "Historical result, not currently interactive"
-        );
-        assert_ne!(
-            text("zh-CN", "mcp.history.readonly"),
-            text("zh-CN", "mcp.runtime.closed")
-        );
-        assert_ne!(
-            text("en", "mcp.history.readonly"),
-            text("en", "mcp.runtime.closed")
-        );
+        assert_eq!(text("zh-CN", "mcp.history.readonly"), "历史结果，当前不可交互");
+        assert_eq!(text("en", "mcp.history.readonly"), "Historical result, not currently interactive");
+        assert_ne!(text("zh-CN", "mcp.history.readonly"), text("zh-CN", "mcp.runtime.closed"));
+        assert_ne!(text("en", "mcp.history.readonly"), text("en", "mcp.runtime.closed"));
         assert_eq!(
             catalog("en").keys().collect::<Vec<_>>(),
             catalog("zh-CN").keys().collect::<Vec<_>>()

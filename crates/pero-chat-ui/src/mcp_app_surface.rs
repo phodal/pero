@@ -27,7 +27,7 @@ pub struct McpInlineView {
     pub native_view: Option<AnyView>,
 }
 impl McpInlineView {
-    fn available(&self, snapshot: &McpRuntimeSession) -> bool {
+    pub(crate) fn available(&self, snapshot: &McpRuntimeSession) -> bool {
         let Some((incarnation, revision)) = self.scope else {
             return false;
         };
@@ -145,10 +145,7 @@ impl ChatPanel {
             else {
                 continue;
             };
-            if view.historical || view.scope.is_some() {
-                continue;
-            }
-            if !view.descriptor.admits_live_binding(false, snapshot) {
+            if view.scope.is_some() || !view.descriptor.admits_live_binding(view.historical, snapshot) {
                 continue;
             }
             view.scope = Some((snapshot.incarnation, snapshot.revision));
@@ -227,8 +224,11 @@ impl ChatPanel {
             cx.notify();
         }
     }
+    pub(crate) fn history_notice(&self) -> &'static str {
+        self.t("mcp.history.readonly")
+    }
     fn read_only_history(&self, view: &McpInlineView, cx: &mut Context<Self>) -> AnyElement {
-        let notice = self.t("mcp.history.readonly");
+        let notice = self.history_notice();
         let source = format!(
             "{} · {}",
             view.descriptor.server, view.descriptor.resource_uri

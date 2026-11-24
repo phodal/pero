@@ -63,29 +63,12 @@ pub struct ThreadHistory {
 pub fn recorded_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "app_agent_attempt"
-            | "app_agent_cancel"
-            | "session_created"
-            | "user_message"
-            | "acp_prompt_receipt"
-            | "session_update"
-            | "session_usage"
-            | "session_ready"
-            | "model_changed"
-            | "configuration_changed"
-            | "turn_started"
-            | "turn_finished"
-            | "workspace_changes"
-            | "session_error"
-            | "session_closed"
-            | "session_deleted"
-            | "permission"
-            | "permission_resolved"
-            | "user_questions"
-            | "user_questions_resolved"
-            | "user_questions_error"
-            | "session_auth_required"
-            | "session_auth_error"
+        "app_agent_attempt" | "app_agent_cancel" | "session_created" | "user_message" | "acp_prompt_receipt"
+            | "session_update" | "session_usage" | "session_ready" | "model_changed"
+            | "configuration_changed" | "turn_started" | "turn_finished" | "workspace_changes"
+            | "session_error" | "session_closed" | "session_deleted" | "permission"
+            | "permission_resolved" | "user_questions" | "user_questions_resolved"
+            | "user_questions_error" | "session_auth_required" | "session_auth_error"
             | "session_authenticated"
     )
 }
@@ -117,10 +100,7 @@ enum TextLane {
     Thought,
 }
 #[derive(Deserialize)]
-enum TextKind {
-    #[serde(rename = "text")]
-    Text,
-}
+enum TextKind { #[serde(rename = "text")] Text }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TextContent {
@@ -140,37 +120,22 @@ impl SessionHistory {
     pub fn record(&mut self, event: HostEvent) {
         if event.kind == "session_deleted" {
             if let Some(id) = event.thread_id {
-                self.events
-                    .retain(|event| event.thread_id.as_ref() != Some(&id));
+                self.events.retain(|event| event.thread_id.as_ref() != Some(&id));
                 self.deleted.insert(id);
             }
             self.last_lane = None;
             return;
         }
-        if event
-            .thread_id
-            .as_ref()
-            .is_some_and(|id| self.deleted.contains(id))
-        {
-            return;
-        }
+        if event.thread_id.as_ref().is_some_and(|id| self.deleted.contains(id)) { return; }
         let chunk = if event.kind == "session_update" {
             serde_json::from_value::<TextChunk>(event.data.clone()).ok()
-        } else {
-            None
-        };
+        } else { None };
         if let (Some(chunk), Some(previous)) = (&chunk, self.events.last_mut()) {
-            if self.last_lane == Some(chunk.lane)
-                && event.thread_id.is_some()
-                && previous.thread_id == event.thread_id
-                && previous.version == event.version
-                && previous.request_id == event.request_id
-                && previous.text == event.text
-                && previous.message_key == event.message_key
-            {
-                let serde_json::Value::String(text) = &mut previous.data["content"]["text"] else {
-                    unreachable!("validated replay text")
-                };
+            if self.last_lane == Some(chunk.lane) && event.thread_id.is_some()
+                && previous.thread_id == event.thread_id && previous.version == event.version
+                && previous.request_id == event.request_id && previous.text == event.text
+                && previous.message_key == event.message_key {
+                let serde_json::Value::String(text) = &mut previous.data["content"]["text"] else { unreachable!("validated replay text") };
                 text.push_str(&chunk.content.text);
                 return;
             }
@@ -179,17 +144,11 @@ impl SessionHistory {
         self.events.push(event);
     }
 
-    pub fn events(&self) -> &[HostEvent] {
-        &self.events
-    }
+    pub fn events(&self) -> &[HostEvent] { &self.events }
 
     pub fn replay(&self, active: Vec<String>, mode: Option<SessionReplayMode>) -> SessionReplay {
         if mode.is_none() {
-            return SessionReplay {
-                events: self.events.clone(),
-                active,
-                catalog: None,
-            };
+            return SessionReplay { events: self.events.clone(), active, catalog: None };
         }
         let live: HashSet<_> = active.iter().map(String::as_str).collect();
         let mut events = Vec::new();
@@ -197,9 +156,7 @@ impl SessionHistory {
         let mut deferred = HashMap::new();
         let mut errors = HashMap::new();
         for event in &self.events {
-            let Some(thread) = event.thread_id.as_deref() else {
-                continue;
-            };
+            let Some(thread) = event.thread_id.as_deref() else { continue; };
             if live.contains(thread) {
                 events.push(event.clone());
                 continue;
@@ -217,9 +174,7 @@ impl SessionHistory {
                 });
                 events.push(event.clone());
             }
-            let Some(summary) = deferred.get(thread).map(|index| &mut catalog[*index]) else {
-                continue;
-            };
+            let Some(summary) = deferred.get(thread).map(|index| &mut catalog[*index]) else { continue; };
             match (event.kind.as_str(), event.data["sessionUpdate"].as_str()) {
                 ("user_message", _) => {
                     if !summary.has_messages {
@@ -228,15 +183,11 @@ impl SessionHistory {
                     summary.has_messages = true;
                 }
                 ("session_update", Some("agent_message_chunk" | "agent_thought_chunk"))
-                    if event.data["content"]["text"]
-                        .as_str()
-                        .is_some_and(|text| !text.is_empty()) =>
+                    if event.data["content"]["text"].as_str().is_some_and(|text| !text.is_empty()) =>
                 {
                     summary.has_messages = true;
                 }
-                ("session_update", Some("session_info_update"))
-                    if event.data.get("title").is_some() =>
-                {
+                ("session_update", Some("session_info_update")) if event.data.get("title").is_some() => {
                     summary.reported_title = event.data["title"].as_str().map(str::to_owned);
                 }
                 ("session_error" | "session_auth_required" | "session_auth_error", _) => {
@@ -248,22 +199,12 @@ impl SessionHistory {
                 _ => {}
             }
         }
-        events.extend(
-            catalog
-                .iter()
-                .filter_map(|entry| errors.get(entry.thread_id.as_str()).copied().cloned()),
-        );
-        SessionReplay {
-            events,
-            active,
-            catalog: Some(catalog),
-        }
+        events.extend(catalog.iter().filter_map(|entry| errors.get(entry.thread_id.as_str()).copied().cloned()));
+        SessionReplay { events, active, catalog: Some(catalog) }
     }
 
     pub fn thread(&self, thread: &str, active: bool) -> ThreadHistory {
-        let events = self
-            .events
-            .iter()
+        let events = self.events.iter()
             .filter(|event| event.thread_id.as_deref() == Some(thread))
             .cloned()
             .collect();
@@ -283,11 +224,7 @@ mod tests {
         event
     }
     fn chunk(thread: &str, lane: &str, text: &str) -> HostEvent {
-        event(
-            "session_update",
-            thread,
-            json!({"sessionUpdate":lane,"content":{"type":"text","text":text}}),
-        )
+        event("session_update", thread, json!({"sessionUpdate":lane,"content":{"type":"text","text":text}}))
     }
 
     #[test]
@@ -298,64 +235,28 @@ mod tests {
             (chunk("a", "agent_thought_chunk", "reason"), false),
             (chunk("b", "agent_message_chunk", "other"), false),
             (event("turn_finished", "a", json!({})), false),
-            (
-                event(
-                    "session_update",
-                    "a",
-                    json!({"sessionUpdate":"tool_call","toolCallId":"read","status":"completed"}),
-                ),
-                false,
-            ),
-            (
-                event(
-                    "session_update",
-                    "a",
-                    json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"annotated","_meta":{"source":"evidence"}}}),
-                ),
-                false,
-            ),
+            (event("session_update", "a", json!({"sessionUpdate":"tool_call","toolCallId":"read","status":"completed"})), false),
+            (event("session_update", "a", json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"annotated","_meta":{"source":"evidence"}}})), false),
         ] {
             let mut history = SessionHistory::default();
-            history.record(event(
-                "session_created",
-                "a",
-                json!({"agent":"pero","scope":{"app":"paper-agent","panel":"main"}}),
-            ));
-            history.record(event(
-                "user_message",
-                "a",
-                json!({"contexts":[{"id":"frozen-reference"}]}),
-            ));
-            for _ in 0..6000 {
-                history.record(text());
-            }
+            history.record(event("session_created", "a", json!({"agent":"pero","scope":{"app":"paper-agent","panel":"main"}})));
+            history.record(event("user_message", "a", json!({"contexts":[{"id":"frozen-reference"}]})));
+            for _ in 0..6000 { history.record(text()); }
             history.record(boundary);
             history.record(text());
             assert_eq!(history.events.len(), if merge { 3 } else { 5 });
             assert_eq!(history.events[0].data["scope"]["app"], "paper-agent");
-            assert_eq!(
-                history.events[1].data["contexts"][0]["id"],
-                "frozen-reference"
-            );
-            assert_eq!(
-                history.events[2].data["content"]["text"].as_str().unwrap(),
-                "中文🙂".repeat(if merge { 6002 } else { 6000 })
-            );
+            assert_eq!(history.events[1].data["contexts"][0]["id"], "frozen-reference");
+            assert_eq!(history.events[2].data["content"]["text"].as_str().unwrap(), "中文🙂".repeat(if merge { 6002 } else { 6000 }));
         }
     }
 
     #[test]
     fn deletion_excludes_prior_and_late_events_without_removing_other_threads() {
         let mut history = SessionHistory::default();
-        for e in [
-            event("session_created", "keep", json!({})),
-            event("user_message", "gone", json!({})),
-            event("session_deleted", "gone", json!({})),
-            event("session_closed", "gone", json!({})),
-            HostEvent::new("workspace", None, "/tmp".into()),
-        ] {
-            history.record(e);
-        }
+        for e in [event("session_created", "keep", json!({})), event("user_message", "gone", json!({})),
+            event("session_deleted", "gone", json!({})), event("session_closed", "gone", json!({})),
+            HostEvent::new("workspace", None, "/tmp".into())] { history.record(e); }
         assert_eq!(history.events.len(), 2);
         assert_eq!(history.events[0].thread_id.as_deref(), Some("keep"));
         assert_eq!(history.events[1].kind, "workspace");
@@ -366,27 +267,15 @@ mod tests {
         let mut history = SessionHistory::default();
         let archived = "已完成的对话";
         let scope = json!({"app":"paper-agent","panel":"main"});
-        history.record(event(
-            "session_created",
-            archived,
-            json!({"agent":"pero","scope":scope}),
-        ));
+        history.record(event("session_created", archived, json!({"agent":"pero","scope":scope})));
         history.record(event("session_created", "active", json!({"agent":"pero"})));
-        let mut user = event(
-            "user_message",
-            archived,
-            json!({"contexts":[{"id":"original-reference"}]}),
-        );
+        let mut user = event("user_message", archived, json!({"contexts":[{"id":"original-reference"}]}));
         user.text = "\n  a    preview of the original user request\nnot a title".into();
         history.record(user);
         history.record(chunk("active", "agent_message_chunk", "live"));
         history.record(chunk(archived, "agent_message_chunk", "original "));
         history.record(chunk(archived, "agent_message_chunk", "result"));
-        history.record(event(
-            "session_update",
-            archived,
-            json!({"sessionUpdate":"session_info_update","title":"Agent title"}),
-        ));
+        history.record(event("session_update", archived, json!({"sessionUpdate":"session_info_update","title":"Agent title"})));
         history.record(event("session_error", archived, json!({})));
         history.record(event("session_closed", archived, json!({})));
         let active = vec!["active".into()];
@@ -396,10 +285,7 @@ mod tests {
         assert_eq!(deferred.len(), 1);
         assert_eq!(deferred[0].thread_id, archived);
         assert!(deferred[0].has_messages);
-        assert_eq!(
-            deferred[0].prompt_title.as_deref(),
-            Some("a preview of the origina")
-        );
+        assert_eq!(deferred[0].prompt_title.as_deref(), Some("a preview of the origina"));
         assert_eq!(deferred[0].reported_title.as_deref(), Some("Agent title"));
         assert_eq!(catalog.events[0].data["scope"], scope);
         assert_eq!(catalog.events[2].data["content"]["text"], "live");
@@ -407,21 +293,11 @@ mod tests {
         assert_eq!(catalog.events.len(), 4);
         let body = history.thread(archived, false);
         assert!(!body.active);
-        assert_eq!(
-            body.events[1].data["contexts"][0]["id"],
-            "original-reference"
-        );
+        assert_eq!(body.events[1].data["contexts"][0]["id"], "original-reference");
         assert_eq!(body.events[2].data["content"]["text"], "original result");
-        let eager_body = eager
-            .events
-            .iter()
-            .filter(|entry| entry.thread_id.as_deref() == Some(archived))
-            .map(|entry| serde_json::to_value(entry).unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            serde_json::to_value(body.events).unwrap(),
-            json!(eager_body)
-        );
+        let eager_body = eager.events.iter().filter(|entry| entry.thread_id.as_deref() == Some(archived))
+            .map(|entry| serde_json::to_value(entry).unwrap()).collect::<Vec<_>>();
+        assert_eq!(serde_json::to_value(body.events).unwrap(), json!(eager_body));
     }
 
     #[test]
@@ -430,55 +306,19 @@ mod tests {
         let thread = "archived-mcp";
         history.record(event("session_created", thread, json!({"agent":"pero"})));
         history.record(event("user_message", thread, json!({})));
-        history.record(event(
-            "session_update",
-            thread,
-            json!({
-                "sessionUpdate": "tool_call",
-                "toolCallId": "call-1",
-                "title": "inspect",
-                "status": "in_progress",
-                "rawInput": {"label": "original"}
-            }),
-        ));
-        history.record(event("session_update", thread, json!({
-            "sessionUpdate": "tool_call_update",
-            "toolCallId": "call-1",
-            "status": "completed",
-            "locations": [{"path": "notes/source.md", "line": 4}],
-            "content": [{"type": "content", "content": {"type": "text", "text": "ordinary saved result"}}],
-            "_meta": {"pero.mcpApp": {
-                "server": "Docs",
-                "generation": 1,
-                "resource_uri": "ui://docs/view",
-                "tool_call": "call-1"
-            }}
-        })));
+        history.record(event("session_update", thread, json!({"sessionUpdate":"tool_call","toolCallId":"call-1","title":"inspect","status":"in_progress","rawInput":{"label":"original"}})));
+        history.record(event("session_update", thread, json!({"sessionUpdate":"tool_call_update","toolCallId":"call-1","status":"completed","locations":[{"path":"notes/source.md","line":4}],"content":[{"type":"content","content":{"type":"text","text":"ordinary saved result"}}],"_meta":{"pero.mcpApp":{"server":"Docs","generation":1,"resource_uri":"ui://docs/view","tool_call":"call-1"}}})));
         history.record(chunk(thread, "agent_message_chunk", "after"));
         history.record(event("session_closed", thread, json!({})));
         let catalog = history.replay(vec![], Some(SessionReplayMode::Catalog));
-        assert!(catalog
-            .events
-            .iter()
-            .all(|entry| entry.data["sessionUpdate"] != "tool_call_update"));
+        assert!(catalog.events.iter().all(|entry| entry.data["sessionUpdate"] != "tool_call_update"));
         let body = history.thread(thread, false);
         assert!(!body.active);
-        let snapshot = body
-            .events
-            .iter()
-            .find(|entry| entry.data["sessionUpdate"] == "tool_call_update")
-            .unwrap();
-        assert_eq!(
-            snapshot.data["content"][0]["content"]["text"],
-            "ordinary saved result"
-        );
+        let snapshot = body.events.iter().find(|entry| entry.data["sessionUpdate"] == "tool_call_update").unwrap();
+        assert_eq!(snapshot.data["content"][0]["content"]["text"], "ordinary saved result");
         assert_eq!(snapshot.data["locations"][0]["path"], "notes/source.md");
         assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["server"], "Docs");
-        assert_eq!(
-            snapshot.data["_meta"]["pero.mcpApp"]["resource_uri"],
-            "ui://docs/view"
-        );
+        assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["resource_uri"], "ui://docs/view");
         assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["tool_call"], "call-1");
-        assert!(snapshot.data.to_string().contains("ui://docs/view"));
     }
 }
