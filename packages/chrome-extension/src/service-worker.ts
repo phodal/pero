@@ -388,7 +388,8 @@ function connect(code: string) {
   socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket,
     ...(pairing.parallel === true && { parallel: true }), ...(pairing.cdpNetwork === true && { cdpNetwork: true }),
     ...(pairing.cdpTargets === true && { cdpTargets: true }), ...(pairing.cdpTargetTree === true && { cdpTargetTree: true }),
-    ...(pairing.cdpTargetNetwork === true && { cdpTargetNetwork: true }) });
+    ...(pairing.cdpTargetNetwork === true && { cdpTargetNetwork: true }),
+    ...(pairing.cdpTargetEvents === true && { cdpTargetEvents: true }) });
   socket.onclose = event => void release(connection, event.reason || 'The Pero Relay disconnected.');
   socket.onerror = () => void release(connection, 'Could not connect to Pero. Check the pairing code.');
   connection.timer = setInterval(() => {

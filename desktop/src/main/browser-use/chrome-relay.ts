@@ -14,6 +14,7 @@ import type { SiteToolAccess } from './site-tools.ts';
 import { cloudBrowserRequest } from './cloud-use.ts';
 import { chromeActions, NativeBrowserUse, type DriverOperation, type DriverRequest, type DriverTab, type TabAction } from './native-use.ts';
 import { browserDeveloperAction, browserInputSchema, browserRequest, type BrowserRequest } from './request.ts';
+import { cdpTargetEventRequest } from './cdp-events.ts';
 
 import { sidebarRequest, type SidebarPort } from './chrome-sidebar.ts';
 import { ChromeSiteAccess, type ChromeSiteAccessPort } from './chrome-site-access.ts';
@@ -25,6 +26,7 @@ const pair = z.strictObject({
   cdpTargets: z.literal(true).optional(),
   cdpTargetTree: z.literal(true).optional(),
   cdpTargetNetwork: z.literal(true).optional(),
+  cdpTargetEvents: z.literal(true).optional(),
 });
 const tabIdentity = z.uuid();
 const snapshot = z.strictObject({
@@ -43,6 +45,7 @@ type Pending = { settle(error?: Error, value?: unknown): void };
 type Connection = {
   id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number;
   parallel: boolean; cdpNetwork: boolean; cdpTargets: boolean; cdpTargetTree: boolean; cdpTargetNetwork: boolean;
+  cdpTargetEvents: boolean;
   pending: Map<number, Pending>;
   ended: AbortController;
 };
@@ -102,6 +105,7 @@ class ChromeRelay {
     this.revoke();
     const pairing: Pairing = { protocol: RELAY_PROTOCOL, baseUrl: `http://127.0.0.1:${address.port}`, parallel: true,
       cdpNetwork: true, cdpTargets: true, cdpTargetTree: true, cdpTargetNetwork: true,
+      cdpTargetEvents: true,
       ticket: randomBytes(32).toString('base64url'), expiresAt: Date.now() + PAIR_LIFETIME_MS,
       label: label.slice(0, 160) || 'Selected Pero conversation' };
     this.ticket = { ...pairing, thread };
@@ -244,6 +248,7 @@ class ChromeRelay {
           connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0,
             parallel: message.parallel === true, cdpNetwork: message.cdpNetwork === true, cdpTargets: message.cdpTargets === true,
             cdpTargetTree: message.cdpTargetTree === true, cdpTargetNetwork: message.cdpTargetNetwork === true,
+            cdpTargetEvents: message.cdpTargetEvents === true,
             pending: new Map(), ended: new AbortController() };
           clearTimeout(deadline);
           this.send(socket, { type: 'paired', label: ticket.label });
@@ -346,11 +351,16 @@ class ChromeRelay {
       }
       if (request.op === 'run' && request.operation.kind === 'cdpTargets') {
         const child = request.operation.request;
-        const tree = child.action === 'cdpReadEvents' || child.action === 'cdpListTargets' && (child.depth ?? 1) > 1;
-        const network = child.action === 'cdpSend' ? child.command.method.startsWith('Network.')
-          : child.action === 'cdpReadEvents' && (child.timeoutMs || child.methods?.some(method => method.startsWith('Network.')));
-        if (!connection.cdpTargets || tree && !connection.cdpTargetTree || network && !connection.cdpTargetNetwork)
-          throw new Error('Update and reload Pero Browser Use in Chrome for this CDP child target operation.');
+        if (cdpTargetEventRequest(child)) {
+          if (!connection.cdpTargetEvents)
+            throw new Error('Update and reload Pero Browser Use in Chrome to read CDP target events.');
+        } else {
+          const tree = child.action === 'cdpReadEvents' || child.action === 'cdpListTargets' && (child.depth ?? 1) > 1;
+          const network = child.action === 'cdpSend' ? child.command.method.startsWith('Network.')
+            : child.action === 'cdpReadEvents' && (child.timeoutMs || child.methods?.some(method => method.startsWith('Network.')));
+          if (!connection.cdpTargets || tree && !connection.cdpTargetTree || network && !connection.cdpTargetNetwork)
+            throw new Error('Update and reload Pero Browser Use in Chrome for this CDP child target operation.');
+        }
       }
       const value = await this.call(connection, request.op === 'run'
         ? { kind: 'run', tab: tab.data, stamp: request.stamp, background: request.background, operation: request.operation }

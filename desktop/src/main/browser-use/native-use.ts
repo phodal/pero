@@ -16,6 +16,7 @@ import { browserDeveloperAction, browserRequest, cdpTargetRequest,
 import type { ChromiumCdp } from './cdp.ts';
 import { approveCdpTargets, cdpTargetOrigins, type ChromiumCdpTargets } from './cdp-targets.ts';
 import { cdpCaptureMs } from './cdp-capture.ts';
+import { cdpTargetEventRequest } from './cdp-events.ts';
 import { freezeDownloadBytes } from './download.ts';
 import { downloadLinkScript } from './download-link.ts';
 import { SiteToolSession } from './site-tool-session.ts';
@@ -259,7 +260,9 @@ export class NativeBrowserUse implements BrowserUsePort {
           approved.throwIfAborted();
           return { kind: 'diagnostics', tabId, origin, ...diagnostics };
         }
-        const captureId = request.action === 'cdpSend' && request.command.method === 'Network.enable' ? randomUUID() : undefined;
+        const startsCapture = request.action === 'cdpSend' && request.command.method === 'Network.enable' ||
+          cdpTargetEventRequest(request) && !request.after;
+        const captureId = startsCapture ? randomUUID() : undefined;
         const stop = captureId && (() => {
           void this.rpc({ op: 'stopCdpCapture', thread, tab: tabId, grant: grantId, captureId }).catch(() => {});
         });

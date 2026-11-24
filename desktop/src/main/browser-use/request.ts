@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BROWSER_KEYS, BROWSER_MODIFIERS } from './input.ts';
 import { webOrigin } from '../../../../packages/chrome-extension/src/protocol.ts';
+import { cdpTargetEventRequest } from './cdp-events.ts';
 
 const ref = z.string().regex(/^[a-f0-9-]{36}:\d{1,3}$/);
 const fileRef = z.string().regex(/^sha256:[a-f0-9]{64}$/);
@@ -10,6 +11,8 @@ const tab = { tabId: z.string().min(1).max(4096).optional() };
 const target = { ...tab, background: z.literal(true).optional() };
 const origin = z.string().max(512).refine(value => webOrigin(value) === value);
 const cdpTarget = z.strictObject({ id: z.uuid(), origin });
+const cdpTargetEventMethods = ['Target.attachedToTarget', 'Target.targetInfoChanged', 'Target.detachedFromTarget'] as const;
+export type CdpTargetEventMethod = typeof cdpTargetEventMethods[number];
 const frameSelector = z.strictObject({ by: z.enum(['title', 'testId']), value: label });
 const frame = z.array(frameSelector).max(4).optional();
 const locator = z.discriminatedUnion('by', [
@@ -77,11 +80,15 @@ export const browserRequest = z.discriminatedUnion('action', [
       params: z.strictObject({ requestId: z.string().min(1).max(128) }) }),
   ]) }),
   z.strictObject({ ...target, action: z.literal('cdpReadEvents'), target: cdpTarget.optional(),
+    fromOrigins: z.array(origin).max(4).optional(),
     after: z.strictObject({ stream: z.uuid(), sequence: z.number().int().nonnegative().safe() }).optional(),
     timeoutMs: z.number().int().min(1).max(4000).optional(),
     limit: z.number().int().min(1).max(50).optional(),
     methods: z.array(z.enum(['Runtime.consoleAPICalled', 'Runtime.exceptionThrown', 'Network.requestWillBeSent',
-      'Network.responseReceived', 'Network.loadingFinished', 'Network.loadingFailed'])).min(1).max(6).optional() }),
+      'Network.responseReceived', 'Network.loadingFinished', 'Network.loadingFailed', ...cdpTargetEventMethods])).min(1).max(6).optional() })
+    .refine(request => request.methods?.some(method => method.startsWith('Target.'))
+      ? !request.target && request.methods.every(method => method.startsWith('Target.'))
+      : request.fromOrigins === undefined, 'Read Target events separately on the tab. Use fromOrigins only with Target events.'),
   z.strictObject({ ...tab, action: z.literal('listSiteTools'),
     fromOrigins: z.array(origin).max(4).optional() }),
   z.strictObject({ ...tab, action: z.literal('callSiteTool'), toolId: z.uuid(),
@@ -111,10 +118,14 @@ export const browserRequest = z.discriminatedUnion('action', [
 export const browserInputSchema = { type: 'object', ...z.toJSONSchema(browserRequest, { target: 'draft-7', unrepresentable: 'throw' }) };
 export type BrowserRequest = z.infer<typeof browserRequest>;
 export type CdpRequest = Extract<BrowserRequest, { action: 'cdpSend' | 'cdpReadEvents' }>;
-export type CdpTargetRequest = Extract<BrowserRequest, { action: 'cdpListTargets' }> |
+export type CdpReadTargetEvents = Extract<CdpRequest, { action: 'cdpReadEvents' }> & {
+  methods: CdpTargetEventMethod[]; target?: undefined;
+};
+export type CdpTargetRequest = Extract<BrowserRequest, { action: 'cdpListTargets' }> | CdpReadTargetEvents |
   (CdpRequest & { target: z.infer<typeof cdpTarget> });
 export function cdpTargetRequest(request: BrowserRequest): request is CdpTargetRequest {
-  return request.action === 'cdpListTargets' || (request.action === 'cdpSend' || request.action === 'cdpReadEvents') && !!request.target;
+  return request.action === 'cdpListTargets' || cdpTargetEventRequest(request) ||
+    (request.action === 'cdpSend' || request.action === 'cdpReadEvents') && !!request.target;
 }
 export function browserDeveloperAction(action: BrowserRequest['action']) {
   return action === 'diagnose' || action === 'cdpSend' || action === 'cdpReadEvents' || action === 'cdpListTargets';

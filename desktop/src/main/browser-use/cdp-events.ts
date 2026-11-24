@@ -1,13 +1,19 @@
-import type { CdpRequest } from './request.ts';
+import type { BrowserRequest, CdpReadTargetEvents, CdpRequest, CdpTargetEventMethod } from './request.ts';
 
 export type CdpSend = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 export type CdpReceive = (method: string, params: Record<string, unknown>) => void;
 export type CdpSubscribe = (receive: CdpReceive) => () => void;
 export type CdpRead = Extract<CdpRequest, { action: 'cdpReadEvents' }>;
+export function cdpTargetEventRequest(request: BrowserRequest): request is CdpReadTargetEvents {
+  return request.action === 'cdpReadEvents' && !request.target && !!request.methods?.some(method => method.startsWith('Target.'));
+}
 export type RuntimeEvent = { method: 'Runtime.consoleAPICalled' | 'Runtime.exceptionThrown'; timestamp: number; text: string; level?: string };
 export type NetworkEvent = { method: 'Network.requestWillBeSent' | 'Network.responseReceived' | 'Network.loadingFinished' | 'Network.loadingFailed';
   params: { requestId: string; timestamp: number; url: string; verb?: string; status?: number; mimeType?: string; encodedDataLength?: number; errorText?: string } };
-type Entry = (RuntimeEvent | NetworkEvent) & { sequence: number };
+export type TargetEvent = { method: CdpTargetEventMethod;
+  params: { targetId: string; type: 'iframe'; origin: string; url: string } };
+type CdpEvent = RuntimeEvent | NetworkEvent | TargetEvent;
+type Entry = CdpEvent & { sequence: number };
 
 export class CdpEventBuffer {
   private sequence = 0;
@@ -15,7 +21,7 @@ export class CdpEventBuffer {
 
   constructor(private readonly stream: string = crypto.randomUUID()) {}
 
-  append(event: RuntimeEvent | NetworkEvent) {
+  append(event: CdpEvent) {
     if (this.entries.length === 128) this.entries.shift();
     this.entries.push({ ...event, sequence: ++this.sequence });
   }
