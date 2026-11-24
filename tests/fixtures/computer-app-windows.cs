@@ -21,10 +21,13 @@ internal static class ComputerFixture
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr processId);
+    private static extern IntPtr WindowFromPoint(Point position);
 
     [DllImport("user32.dll")]
-    private static extern bool AttachThreadInput(uint thread, uint other, bool attach);
+    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 
     [DllImport("user32.dll")]
     private static extern bool SetProcessDPIAware();
@@ -69,18 +72,24 @@ internal static class ComputerFixture
     private static void ActivateGuard(Form guard)
     {
         guard.Activate();
-        IntPtr foreground = GetForegroundWindow();
-        if (foreground == guard.Handle || foreground == IntPtr.Zero ||
+        if (GetForegroundWindow() == guard.Handle ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return;
 
-        // The hosted runner can launch from a background shell. Borrow its
-        // desktop's foreground input queue just for this fixture activation.
-        uint guardThread = GetWindowThreadProcessId(guard.Handle, IntPtr.Zero);
-        uint foregroundThread = GetWindowThreadProcessId(foreground, IntPtr.Zero);
-        if (guardThread == foregroundThread || foregroundThread == 0 ||
-            !AttachThreadInput(guardThread, foregroundThread, true)) return;
-        try { guard.Activate(); }
-        finally { AttachThreadInput(guardThread, foregroundThread, false); }
+        // Activate by the same title-bar input as a user on the disposable
+        // runner. Verify the point belongs to this window before sending input.
+        const uint nonClientHitTest = 0x84, leftDown = 0x0002, leftUp = 0x0004;
+        const int caption = 2;
+        var point = new Point(guard.Left + 42, guard.Top + 18);
+        var packed = new IntPtr((point.Y << 16) | (point.X & 0xffff));
+        if (WindowFromPoint(point) != guard.Handle ||
+            SendMessage(guard.Handle, nonClientHitTest, IntPtr.Zero, packed).ToInt64() != caption) return;
+        var previous = Cursor.Position;
+        try {
+            Cursor.Position = point;
+            if (Cursor.Position != point || WindowFromPoint(point) != guard.Handle) return;
+            mouse_event(leftDown, 0, 0, 0, UIntPtr.Zero);
+            mouse_event(leftUp, 0, 0, 0, UIntPtr.Zero);
+        } finally { Cursor.Position = previous; }
     }
 
     [STAThread]
