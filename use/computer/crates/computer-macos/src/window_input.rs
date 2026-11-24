@@ -269,7 +269,7 @@ impl<'a> WindowInput<'a> {
         let focused = ffi::ax_app_element(self.pid)
             .and_then(|app| crate::observation::element_attribute(&app, "AXFocusedWindow"));
         if crate::applications::frontmost_pid() != self.pid
-            || !focused.is_some_and(|window| ffi::ax_window_id(&window) == self.id)
+            || focused.is_none_or(|window| ffi::ax_window_id(&window) != self.id)
         {
             return Err(ComputerError {
                 code: ComputerErrorCode::StaleObservation,

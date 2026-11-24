@@ -35,14 +35,14 @@ enum Value {
 }
 #[derive(Serialize)]
 #[serde(untagged)]
-enum Response {
+enum Response<'a> {
     Success {
         id: ComputerRef,
-        value: Value,
+        value: &'a Value,
     },
     Failure {
         id: ComputerRef,
-        error: ComputerError,
+        error: &'a ComputerError,
     },
 }
 
@@ -102,7 +102,7 @@ pub fn serve_stream<D: DesktopDriver>(
                 driver.preview_frame(&target, access).map(Value::Preview)
             }
         };
-        let response = match result {
+        let response = match &result {
             Ok(value) => Response::Success {
                 id: request.id,
                 value,
