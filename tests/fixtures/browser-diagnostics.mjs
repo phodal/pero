@@ -276,13 +276,13 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin,
   assert.equal(rerun.outcome, 'dispatched');
   assert.equal(completed.matched, true, JSON.stringify(completed));
   const readChild = { ...networkRead, target: newTarget };
-  const [first, removed, gone] = await prompt([
-    { ...readChild, after: capture.result.cursor, limit: 1 },
+  const [first] = await prompt([{ ...readChild, after: capture.result.cursor, limit: 1 }]);
+  assert.equal(first.events[0].method, 'Network.responseReceived', JSON.stringify(first));
+  assert.equal(first.hasMore, true);
+  const [removed, gone] = await prompt([
     { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Remove CDP child' }, operation: { action: 'click' } },
     { action: 'wait', tabId, locator: { by: 'text', value: 'Child removed' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
   ]);
-  assert.equal(first.events[0].method, 'Network.responseReceived', JSON.stringify(first));
-  assert.equal(first.hasMore, true);
   assert.equal(removed.outcome, 'dispatched');
   assert.equal(gone.matched, true, JSON.stringify(gone));
   const [retained, inaccessible, detachedWrongOrigin] = await prompt([

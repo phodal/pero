@@ -57,7 +57,7 @@ export class ChromiumCdpCapture {
   detach() {
     if (!this.active || this.signal.aborted || performance.now() >= this.deadline) return false;
     this.detached = true;
-    void this.disconnect();
+    void this.disconnect(false);
     return true;
   }
 
@@ -67,12 +67,17 @@ export class ChromiumCdpCapture {
     return { ...this.buffer.read(request, true), detached: true };
   }
 
-  private disconnect() {
+  private disconnect(disableDomains = true) {
     if (this.closing) return this.closing;
     this.unsubscribe();
     this.requests.clear();
     this.closing = this.ready.catch(() => {}).then(async () => {
-      for (const domain of this.domains.reverse()) await this.send(domain + '.disable').catch(() => {});
+      if (disableDomains) {
+        for (const domain of this.domains.reverse()) await this.send(domain + '.disable').catch(() => {});
+      } else {
+        // Release auto-attach after the native detach notification returns.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
       this.onEnd?.();
     });
     this.notify?.();
