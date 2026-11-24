@@ -201,3 +201,22 @@ seconds, so this change retains the bounded OCR path.
   app-targeted key delivery did not trigger the macOS global shortcut during
   this check. A physical shortcut with an authorized installed helper remains
   to be verified.
+
+## Live preview with independent workers
+
+- A running ordinary conversation can show the currently observed window
+  inside its chat or in a floating window. Hide and Show change presentation.
+  Switching conversations, ending the turn or revoking the app grant removes
+  access to the prior preview.
+- The real AppKit check returned preview pixels from the owning worker and
+  confirmed that both its existing element and pixel anchors still executed.
+  Preview pixels changed after a background click without another agent
+  observation. Secure input suppressed the frame, and revocation cleared it.
+- In the two-conversation MCP test, a preview skipped the busy worker while
+  the selected second conversation still received its frame. The inactive
+  conversation's preview could not be read.
+- A separate Native UI run used a local ACP fixture and controlled companion
+  pixels. It rendered the full window inline, opened and returned the floating
+  view, hid and restored the preview during the active turn, and cleared it on
+  Stop. A fully authorized installation with the real companion remains to be
+  checked as one end-to-end path.

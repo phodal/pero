@@ -418,8 +418,10 @@ impl ChatPanel {
                 })
                 .into_any_element()
         });
-        let chat = div()
-            .flex()
+        let chat = div();
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        let chat = chat.children(self.computer_preview.clone());
+        let chat = chat.flex()
             .flex_col()
             .w_full()
             .h_full()

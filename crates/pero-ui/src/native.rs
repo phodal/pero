@@ -508,7 +508,7 @@ pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     let (appshot_tx, appshot_rx) = async_channel::bounded(1);
     #[cfg(target_os = "macos")]
-    let appshot_owner = connector_owner.clone();
+    let computer_view_owner = connector_owner.clone();
     #[cfg(target_os = "macos")]
     let _computer_hotkeys = connector_owner.as_ref().filter(|_| !app_probe && !verifying_installation)
         .and_then(|_| match crate::native_computer_hotkey::ComputerHotKeys::register(appshot_tx) {
@@ -567,7 +567,8 @@ pub fn run() -> anyhow::Result<()> {
         })
         .expect("native workbench window");
         #[cfg(target_os = "macos")]
-        if let Some(owner) = appshot_owner {
+        if let Some(owner) = computer_view_owner {
+            view.read(cx).computer_preview.clone().update(cx, |preview, _| preview.connect(&owner));
             crate::native_computer_hotkey::attach(view.clone(), window, owner, appshot_rx, cx);
         }
         #[cfg(feature="native-probe")]
@@ -609,7 +610,20 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     continue;
                 }
-                if event.kind == "disconnected" { apps().disconnect(); }
+                #[cfg(target_os = "macos")]
+                if event.kind == "native_computer_preview" {
+                    let _ = view.update(cx, |workbench, cx| {
+                        workbench.computer_preview.update(cx, |preview, cx| preview.accept(event.data, cx));
+                    });
+                    continue;
+                }
+                if event.kind == "disconnected" {
+                    apps().disconnect();
+                    #[cfg(target_os = "macos")]
+                    let _ = view.update(cx, |workbench, cx| {
+                        workbench.computer_preview.update(cx, |preview, cx| preview.disconnect(cx));
+                    });
+                }
                 if verifying_installation {
                     match event.kind.as_str() {
                         "ready" => host_ready = true,

@@ -29,6 +29,7 @@ struct Message {
     #[serde(default)]
     value: Value,
     computer_state: Option<ComputerUseState>,
+    computer_preview: Option<Value>,
     composer_catalog: Option<HostEvent>,
     cloud_browser: Option<Value>,
 }
@@ -95,6 +96,12 @@ impl NativeConnectors {
                 if let Some(state) = message.computer_state {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
                         apps.publish_computer(state);
+                    }
+                } else if let Some(preview) = message.computer_preview {
+                    if let Some(apps) = reader.apps.lock().unwrap().as_ref() {
+                        let mut event = HostEvent::new("native_computer_preview", None, String::new());
+                        event.data = preview;
+                        apps.publish(event);
                     }
                 } else if let Some(event) = message.composer_catalog {
                     if let Some(apps) = reader.apps.lock().unwrap().as_ref() { apps.publish(event); }
