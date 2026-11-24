@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { documentScript, type DocumentCommand, type DocumentResult } from './document.ts';
 import type { BrowserDiagnosticApproval } from './diagnostics.ts';
+import { approveCdpTargets } from './cdp-targets.ts';
 import type { BrowserInput } from './input.ts';
 import { EmbeddedDialogs } from './embedded-dialogs.ts';
 import type { AppInputs } from '../app-inputs.ts';
@@ -12,7 +13,7 @@ import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import { downloadArtifact, downloadPageArtifact, type DownloadListener, type DownloadRequest } from './download.ts';
 import { HistoryRejection, traverseHistory } from './navigation.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
-import { browserInputSchema, browserRequest, type FrameSelector } from './request.ts';
+import { browserInputSchema, browserRequest, cdpTargetRequest, type FrameSelector } from './request.ts';
 import { captureChromiumDocument, rasterScreenshot } from './screenshot.ts';
 import { SiteToolSession } from './site-tool-session.ts';
 import { siteToolsScript, type SiteToolAccess, type SiteToolsReply } from './site-tools.ts';
@@ -269,6 +270,17 @@ export class BrowserUse implements BrowserUsePort {
           if ('dialogOpened' in reply) throw new Error('The site tool opened a dialog. Inspect the tab before retrying.');
           return reply.value as SiteToolsReply;
         });
+      }
+      if (cdpTargetRequest(request)) {
+        if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
+        const active = await approveCdpTargets(request, grant.origin, thread, signal, this.approveDiagnostics);
+        const result = await grant.dialogs.cdpTargets(request, String(revision), grant.origin, () => {
+          active.throwIfAborted();
+          check();
+        }, active);
+        active.throwIfAborted();
+        check();
+        return { tabId: grant.tab.id, origin: grant.origin, ...result };
       }
       if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');

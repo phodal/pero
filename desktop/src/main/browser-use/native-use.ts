@@ -11,8 +11,10 @@ import { documentScript, type DocumentCommand, type DocumentResult } from './doc
 import type { BrowserDiagnosticApproval, BrowserDiagnosticOptions, captureBrowserDiagnostics } from './diagnostics.ts';
 import type { ChromiumAccessibility } from './accessibility.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
-import { browserDeveloperAction, browserRequest, type BrowserRequest, type CdpRequest, type FrameSelector } from './request.ts';
+import { browserDeveloperAction, browserRequest, cdpTargetRequest,
+  type BrowserRequest, type CdpRequest, type CdpTargetRequest, type FrameSelector } from './request.ts';
 import type { ChromiumCdp } from './cdp.ts';
+import { approveCdpTargets, cdpTargetOrigins, type ChromiumCdpTargets } from './cdp-targets.ts';
 import { cdpCaptureMs } from './cdp-capture.ts';
 import { freezeDownloadBytes } from './download.ts';
 import { downloadLinkScript } from './download-link.ts';
@@ -24,7 +26,7 @@ export const nativeActions = [
   'fill', 'press', 'typeSequentially', 'scrollIntoView', 'setChecked', 'selectOption', 'upload', 'download', 'navigate',
   'getJsDialog', 'handleJsDialog',
 ] as const;
-export const chromeActions = [...nativeActions, 'getAXState', 'diagnose', 'cdpSend', 'cdpReadEvents', 'listSiteTools', 'callSiteTool'] as const;
+export const chromeActions = [...nativeActions, 'getAXState', 'diagnose', 'cdpSend', 'cdpReadEvents', 'cdpListTargets', 'listSiteTools', 'callSiteTool'] as const;
 type WorkbenchAction = typeof chromeActions[number];
 type WorkbenchRequest = Extract<BrowserRequest, { action: WorkbenchAction }>;
 
@@ -54,6 +56,7 @@ export type DriverOperation =
   | { kind: 'getAXState'; since?: string }
   | ({ kind: 'diagnose' } & BrowserDiagnosticOptions)
   | { kind: 'cdp'; request: CdpRequest; captureId?: string }
+  | { kind: 'cdpTargets'; request: CdpTargetRequest }
   | { kind: 'siteTools'; command: SiteToolCommand }
   | { kind: 'download'; url: string }
   | { kind: 'dispatch'; input: DriverInput; expectPopup?: true }
@@ -235,6 +238,18 @@ export class NativeBrowserUse implements BrowserUsePort {
         });
         signal.throwIfAborted();
         return { ...snapshot, tabId, origin };
+      }
+      if (cdpTargetRequest(request)) {
+        if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
+        for (const childOrigin of cdpTargetOrigins(request, origin)) {
+          if (childOrigin !== origin && await this.siteAdmission?.status(thread, { ...tab, origin: childOrigin }) === 'blocked')
+            throw new Error(`Chrome site access was blocked for ${childOrigin}.`);
+        }
+        const active = await approveCdpTargets(request, origin, thread, signal, this.approveDiagnostics);
+        const result = await run<Awaited<ReturnType<ChromiumCdpTargets['call']>>>({ kind: 'cdpTargets', request });
+        await run({ kind: 'check' });
+        active.throwIfAborted();
+        return { tabId, origin, ...result };
       }
       if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');

@@ -8,6 +8,7 @@ import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/bro
 import { captureBrowserDiagnostics } from '../../../desktop/src/main/browser-use/diagnostics.ts';
 import { ChromiumAccessibility } from '../../../desktop/src/main/browser-use/accessibility.ts';
 import { ChromiumCdp } from '../../../desktop/src/main/browser-use/cdp.ts';
+import { ChromiumCdpTargets, type SessionCdpSubscribe } from '../../../desktop/src/main/browser-use/cdp-targets.ts';
 import { siteToolsScript } from '../../../desktop/src/main/browser-use/site-tools.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
@@ -16,7 +17,7 @@ import { readVisiblePage } from './collector-capture.js';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>; accessibility?: ChromiumAccessibility;
-  cdp?: ChromiumCdp; cdpStart?: { id: string; controller: AbortController };
+  cdp?: ChromiumCdp; cdpChildren?: ChromiumCdpTargets; cdpStart?: { id: string; controller: AbortController };
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
 type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
@@ -133,10 +134,10 @@ async function debuggerFor(connection: Peer, handle: TabHandle) {
     if (handle.attachment === attachment) handle.attachment = undefined;
     throw error;
   }
-  return async (method: string, params?: Record<string, unknown>) => {
+  return async (method: string, params?: Record<string, unknown>, sessionId?: string) => {
     if (peer !== connection || handle.attachment !== attachment || connection.tabs.get(handle.tabId) !== handle)
       throw new Error('The Chrome debugging session ended.');
-    return chrome.debugger.sendCommand(target, method, params);
+    return chrome.debugger.sendCommand(sessionId ? { ...target, sessionId } : target, method, params);
   };
 }
 
@@ -279,19 +280,29 @@ async function run(connection: Peer, command: Command) {
     checkDocument(after);
     return result;
   }
-  if (operation.kind === 'diagnose' || operation.kind === 'cdp') {
+  if (operation.kind === 'diagnose' || operation.kind === 'cdp' || operation.kind === 'cdpTargets') {
     const check = () => {
       if (starting) starting.controller.signal.throwIfAborted();
       if (peer !== connection || handle.revision !== current.revision || handle.dialog)
         throw new Error('The Chrome document changed during browser diagnostics.');
     };
-    const subscribe = (listener: (method: string, params: Record<string, unknown>) => void) => {
-      const receive = ({ tabId }: { tabId?: number }, method: string, params?: Record<string, unknown>) => {
-        if (tabId === handle.tabId && params && handle.revision === current.revision) listener(method, params);
+    const subscribeSession: SessionCdpSubscribe = listener => {
+      const receive = ({ tabId, sessionId }: { tabId?: number; sessionId?: string }, method: string, params?: Record<string, unknown>) => {
+        if (tabId === handle.tabId && params && handle.revision === current.revision) listener(method, params, sessionId);
       };
       chrome.debugger.onEvent.addListener(receive);
       return () => chrome.debugger.onEvent.removeListener(receive);
     };
+    if (operation.kind === 'cdpTargets') {
+      const result = await (handle.cdpChildren ??= new ChromiumCdpTargets()).call(operation.request,
+        command.stamp, origin, cdp, subscribeSession, check, new AbortController().signal);
+      const after = await snapshot(connection, handle);
+      check();
+      checkDocument(after);
+      return result;
+    }
+    const subscribe = (listener: (method: string, params: Record<string, unknown>) => void) =>
+      subscribeSession((method, params, sessionId) => { if (!sessionId) listener(method, params); });
     if (operation.kind === 'diagnose') await handle.cdp?.stopCapture();
     const result = operation.kind === 'diagnose'
       ? await captureBrowserDiagnostics(origin, operation, cdp, subscribe, check)
@@ -372,7 +383,8 @@ function connect(code: string) {
   failure = undefined;
   publish();
   socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket,
-    ...(pairing.parallel === true && { parallel: true }), ...(pairing.cdpNetwork === true && { cdpNetwork: true }) });
+    ...(pairing.parallel === true && { parallel: true }), ...(pairing.cdpNetwork === true && { cdpNetwork: true }),
+    ...(pairing.cdpTargets === true && { cdpTargets: true }) });
   socket.onclose = event => void release(connection, event.reason || 'The Pero Relay disconnected.');
   socket.onerror = () => void release(connection, 'Could not connect to Pero. Check the pairing code.');
   connection.timer = setInterval(() => {
@@ -442,6 +454,7 @@ chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url
     handle.revision++;
     handle.cdpStart?.controller.abort();
     handle.cdp?.invalidate();
+    handle.cdpChildren = undefined;
   }
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
@@ -451,7 +464,8 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
   peer?.tabs.delete(tabId);
   peer?.handedOff.delete(tabId);
 });
-chrome.debugger.onEvent.addListener(({ tabId }, method, params) => {
+chrome.debugger.onEvent.addListener(({ tabId, sessionId }, method, params) => {
+  if (sessionId) return;
   const handle = tabId === undefined ? undefined : peer?.tabs.get(tabId);
   if (!handle?.attachment) return;
   if (method === 'Page.javascriptDialogOpening') {
@@ -475,6 +489,7 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: str
   handle.cdpStart?.controller.abort();
   handle.cdp?.invalidate();
   handle.cdp = undefined;
+  handle.cdpChildren = undefined;
   handle.dialog = undefined;
   if (reason === 'canceled_by_user') {
     void release(connection, 'Chrome stopped Browser Use.');
