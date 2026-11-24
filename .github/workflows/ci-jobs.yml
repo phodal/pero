@@ -138,13 +138,19 @@ jobs:
       # CI-only workaround. crates/pero-runtime still resolves the python3.12
       # command, which setup-python does not publish on Windows. Copying the
       # interpreter here does not fix a real Windows install; that runtime
-      # lookup still needs its own change.
+      # lookup still needs its own change. The copy next to python.exe is not
+      # enough for the later cargo process, so the same exe is also placed on
+      # GITHUB_PATH.
       - name: Publish the python3.12 command the App runtime resolves
         if: runner.os == 'Windows'
         run: |
-          python_home="$(python -c 'import os, sys; print(os.path.dirname(sys.executable))')"
-          cp "$python_home/python.exe" "$python_home/python3.12.exe"
-          python3.12 -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
+          src="$(python -c 'import pathlib, sys; print(pathlib.Path(sys.executable).as_posix())')"
+          cp "$src" "$(dirname "$src")/python3.12.exe"
+          dest="$RUNNER_TEMP/python312-cmd"
+          mkdir -p "$dest"
+          cp "$src" "$dest/python3.12.exe"
+          cygpath -w "$dest" >> "$GITHUB_PATH"
+          "$dest/python3.12.exe" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
       - name: Build
         run: npm run build
 
