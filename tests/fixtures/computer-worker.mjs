@@ -17,7 +17,10 @@ for await (const line of createInterface({input:process.stdin})) {
         ...fixture.observation,
         screenshot: { id: 'fixture-image', media_type, width: 1, height: 1 },
         elements: Array.from({ length: 100 }, (_, index) => ({
-          ...fixture.observation.elements[0], id: `control-${index}`, label: 'fixture line '.repeat(30),
+          ...fixture.observation.elements[0],
+          id: `control-${index}`,
+          label: index === 99 ? 'Fixture focused editor' : 'fixture line '.repeat(30),
+          ...(index === 99 ? { state: { enabled: true, secure: false, focused: true, value_settable: false } } : {}),
         })),
       };
       value.image = { media_type, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9xkAAAAASUVORK5CYII=' };

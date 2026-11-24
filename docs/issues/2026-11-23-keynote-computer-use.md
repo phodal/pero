@@ -48,3 +48,25 @@ read-only checks. PowerPoint and TextEdit used owned fixture documents.
 Two subtrees of the PowerPoint window expanded successfully from the same
 whole-window observation. This comparison exercised local tool results and did
 not run a hosted model or change data in Feishu.
+
+## Compact and incremental observations
+
+- In the same Feishu window, the raw tree had 1,200 nodes at depth 39. The
+  default projection returned 368 nodes at depth 13. The element JSON fell
+  from about 361 KB to 115 KB. The default call returned a screenshot and
+  retained the conversation pane, search, composer, and sidebar landmarks.
+- PowerPoint kept the slide editor and thumbnail pane while reducing the
+  tree from 124 to 109 nodes. TextEdit kept the entire fixture text.
+- An unchanged Feishu observation returned zero changed nodes. A stale
+  baseline returned a full current observation. The owned AppKit fixture
+  proved that a click yielded a delta with the updated count, and that
+  clipping the output to one node still allowed an ordinary window capture
+  while a secure control outside that output blocked capture.
+- Larger tool results include a bounded inline tree preview that leads
+  with focused and selected controls. The complete structured result remains
+  available through its conversation artifact.
+
+The comparable behavior is compact accessibility output and option-driven
+incremental reads. The original PowerPoint cold OCR limit still applies. A
+standalone CPU-only Vision probe read the image marker but took about 47
+seconds, so this change retains the bounded OCR path.

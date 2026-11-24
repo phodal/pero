@@ -45,6 +45,10 @@ try {
  // Same request is answered from its durable journal, never dispatched twice.
  assert.deepEqual((await call({operation:'act',action})).receipt,receipts[0]);assert.equal((await state()).count,1);
  const stale=await call({operation:'act',action:{...action,request_id:'stale'}});assert.equal(stale.receipt.outcome.status,'rejected');assert.equal(stale.receipt.outcome.error.code,'stale_observation');
+ const changed=await call({operation:'observe',target,options:{want_image:false,since_observation_id:observation.id}});
+ assert.equal(changed.delta?.base_observation_id,observation.id);
+ assert.ok(changed.observation.elements.length < observation.elements.length);
+ assert.ok(changed.observation.elements.some(element=>/\bCount: 1\b/.test(`${element.label} ${element.value ?? ''}`)),JSON.stringify(changed.observation.elements));
  observation=await observe();
  const field=observation.elements.find(e=>e.role==='AXTextField');assert.ok(field,'No expected element; inspect test-results/computer/native-failure.json');
  await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'你好 Pero 🌱'});
@@ -62,6 +66,15 @@ try {
  observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}});await poll(async()=>(await state()).drags>0,'background drag');assert.equal((await state()).clicks,2,'One pointer-down per click/drag, without duplicate transport');
  assert.equal((await state()).activations ?? 0,backgroundActivations,'Background input must not activate the target application');
  assert.equal((await guard.state()).text,'');assert.equal((await guard.state()).clicks,0);
+ const clipped=await call({operation:'observe',target,options:{max_nodes:1}});
+ assert.equal(clipped.observation.elements.length,1);
+ assert.equal(clipped.observation.truncated,true);
+ assert.ok(clipped.image,'Output clipping alone must not suppress a safe screenshot');
+ await fixture.command('secure');
+ const secure=await call({operation:'observe',target,options:{max_nodes:1}});
+ assert.equal(secure.observation.elements.length,1);
+ assert.equal(secure.image,null,'A secure control beyond the returned nodes still blocks the screenshot');
+ await fixture.command('remove_secure');
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
  if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
  await desktop.stop();

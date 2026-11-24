@@ -13,7 +13,8 @@ import { ContentArtifacts } from './content-artifacts.ts';
 import { ContentRead } from '../../../packages/content-source/index.ts';
 import { AppChatContext } from './app-chat-context.ts';
 import { AppUse, type AppUsePorts, type AppUseEvent } from './app-use.ts';
-import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS } from './computer.ts';
+import { DesktopComputer, COMPUTER_TOOL, COMPUTER_INSTRUCTIONS, computerTreePreview } from './computer.ts';
+import type { ComputerResponse } from '../../../protocol/generated/computer-response';
 import { ComputerFailure } from './computer-client.ts';
 import { APP_USE_ACTIONS, APP_USE_VERBS, AppUseError } from './app-use-task.ts';
 import { ControlLabGoals, type ControlLabGoal } from './control-lab-goal.ts';
@@ -542,12 +543,17 @@ export class DesktopAppUse {
           ((message.params?.name === 'browser_use' && this.browser) || (message.params?.name === 'computer_use' && this.computer))) {
           const capability = message.params.name === 'browser_use' ? 'browser' : 'computer';
           const { value, image, isError } = await this.callCua(thread, capability, message.params.arguments, controller.signal);
-          if (capability === 'computer' && value && typeof value === 'object' && 'recognized_text' in value) {
+          if (capability === 'computer' && value && typeof value === 'object' && 'kind' in value && value.kind === 'observation') {
             // A large AX tree may be offloaded. Keep the bounded OCR alongside its screenshot.
-            const { recognized_text, ...observation } = value;
+            const observationResult = value as Extract<ComputerResponse, { kind: 'observation' }>;
+            const { recognized_text, ...observation } = observationResult;
+            const text = await this.results.select(thread, observation);
             result = { content: [
-              { type: 'text', text: await this.results.select(thread, observation) },
-              { type: 'text', text: JSON.stringify({ recognized_text }) },
+              { type: 'text', text },
+              ...(recognized_text ? [{ type: 'text', text: JSON.stringify({ recognized_text }) }] : []),
+              ...(JSON.parse(text).type === 'content_reference'
+                ? [{ type: 'text', text: computerTreePreview(observationResult) }]
+                : []),
               ...(image ? [image] : []),
             ], isError };
           } else {
