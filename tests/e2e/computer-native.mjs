@@ -13,7 +13,10 @@ const out=computerEvidenceDirectory(root);await mkdir(out,{recursive:true});
 await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts')],outfile:resolve(run,'computer.mjs'),bundle:true,platform:'node',format:'esm'});
 const { DesktopComputer }=await import(resolve(run,'computer.mjs'));
 const states=[];
-const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
+const previews = new Map();
+const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)), {
+  preview: (thread, target) => previews.set(thread, target),
+});
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
 let backgroundActivations=0;
@@ -40,8 +43,25 @@ try {
  target=await poll(async()=>{const value=await call({operation:'targets'});return value.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;});
  let observation=await poll(async()=>{const current=await observe();return current.elements.some(e=>e.label==='Increment')?current:false;});
  const button=observation.elements.find(e=>e.label==='Increment');assert.ok(button,'No expected element; inspect test-results/computer/native-failure.json');
+ const preview = previews.get('native-acceptance');
+ assert.ok(preview?.id, 'An authorized window observation should create a preview');
+ const before = await desktop.previewFrame('native-acceptance', preview.id);
+ assert.ok(before.image?.data, 'Preview must return real pixels');
+ assert.equal((await desktop.previewFrame('another-chat', preview.id)).kind, 'ended');
+ // Polling the preview must leave this observation valid for the upcoming input.
  const action=await act(observation,{kind:'click',button:'left',anchor:{kind:'element',element_id:button.id},count:1});
  await poll(async()=>(await state()).count===1);
+ await poll(async () => {
+   const frame = await desktop.previewFrame('native-acceptance', preview.id);
+   return frame.image?.data && frame.image.data !== before.image.data;
+ }, 'preview pixels following the input without a new Agent observation');
+ await fixture.command('secure');
+ const protectedFrame = await desktop.previewFrame('native-acceptance', preview.id);
+ assert.equal(protectedFrame.kind, 'preview_frame');
+ assert.equal(protectedFrame.image, null, 'Protected windows must clear the preview pixels');
+ await fixture.command('remove_secure');
+ await poll(async() => (await desktop.previewFrame('native-acceptance', preview.id)).image,
+   'preview recovery after the protected control closes');
  // Same request is answered from its durable journal, never dispatched twice.
  assert.deepEqual((await call({operation:'act',action})).receipt,receipts[0]);assert.equal((await state()).count,1);
  const stale=await call({operation:'act',action:{...action,request_id:'stale'}});assert.equal(stale.receipt.outcome.status,'rejected');assert.equal(stale.receipt.outcome.error.code,'stale_observation');
@@ -87,6 +107,8 @@ try {
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
  if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
  await desktop.stop();
+ assert.equal((await desktop.previewFrame('native-acceptance', preview.id)).kind, 'ended');
+ assert.equal(previews.get('native-acceptance'), null);
  const old=await call({operation:'observe',target}).catch(error=>error);assert.equal(old.detail?.code,'target_unavailable');
  const lookup=await call({operation:'receipt',request_id:action.request_id});assert.deepEqual(lookup.receipt,receipts[0]);
  await writeFile(resolve(out,'native-result.json'),JSON.stringify({status:status.status,effects:await state(),guard:await guard.state(),backgroundPreservedForeground:true,foreground,receipts,observations:observations.map(o=>({id:o.id,screenshot:o.screenshot,elements:o.elements})),passed:true},null,2));
