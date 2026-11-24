@@ -70,7 +70,7 @@ try {
   frame = page.frameLocator('iframe[title="control-lab"]');
   await expect(frame.getByLabel('Template', { exact: true })).toBeVisible({ timeout: 20000 });
   await chooseSelect(frame, 'Template', scene);
-  await frame.getByLabel('Total candidate budget', { exact: true }).fill('2');
+  await frame.getByLabel('Candidate budget', { exact: true }).fill('2');
   const created = page.waitForResponse(response => new URL(response.url()).pathname === '/api/experiments' && response.request().method() === 'POST');
   await frame.getByRole('button', { name: 'Freeze specification', exact: true }).click();
   const response = await created; expect(response.status()).toBe(201); frozen = await response.json();

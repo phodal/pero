@@ -92,7 +92,7 @@ try {
   expect(v1.sha256).toBe(digest(bytes));
   expect(relative(temp, v1.location)).not.toMatch(/^\.\./);
   expect(await readFile(v1.location)).toEqual(bytes);
-  const preview = () => frame.getByRole('complementary', { name: 'Preview' });
+  const preview = () => frame.getByRole('region', { name: 'Preview' });
   await expect(preview().getByText('001', { exact: true })).toHaveCount(2);
   await preview().getByRole('tab', { name: 'Fields', exact: true }).click();
   await preview().getByLabel('Unit for value', { exact: true }).fill('V');
