@@ -384,6 +384,7 @@ Testing. It loads the actual unpacked extension in a temporary Chrome profile.
 The suite checks listing tabs on two origins in separate Chrome windows
 immediately after pairing, approval before observation, lazy debugger
 attachment, one-turn and persistent permissions, settings reset, an
+approved background read while a child frame keeps the tab loading,
 independently observed trusted click after filling and its stored receipt,
 viewport and cropped PNG hashes, upload of a conversation attachment,
 authenticated and Blob download Artifacts, tab switching and closing, and
