@@ -145,7 +145,11 @@ impl ChatPanel {
             else {
                 continue;
             };
-            if view.scope.is_some() || !view.descriptor.admits_live_binding(view.historical, snapshot) {
+            if view.scope.is_some()
+                || !view
+                    .descriptor
+                    .admits_live_binding(view.historical, snapshot)
+            {
                 continue;
             }
             view.scope = Some((snapshot.incarnation, snapshot.revision));
