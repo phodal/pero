@@ -54,6 +54,21 @@ func TestSessionAccessGenerationAndBounds(t *testing.T) {
 	}
 }
 
+func TestMCPResponseBoundsAdmitPayloadsInsideTheirOwnLimits(t *testing.T) {
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("a", 32) + `"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("a", maxMCPResponseBytes) + `"`)); err == nil {
+		t.Fatal("a tool result over 1 MiB was accepted")
+	}
+	if _, err := BoundedResourceResult(json.RawMessage(`"` + strings.Repeat("b", maxMCPResponseBytes) + `"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BoundedResourceResult(json.RawMessage(`"` + strings.Repeat("b", maxMCPResourceBytes) + `"`)); err == nil {
+		t.Fatal("a resource document over 2 MiB was accepted")
+	}
+}
+
 // Absent metadata must stay absent: the official Apps bridge rejects a null
 // legacy resource URI even when a valid current ui.resourceUri exists.
 func TestSessionAccessCatalogUIMetadata(t *testing.T) {

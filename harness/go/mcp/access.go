@@ -167,21 +167,34 @@ func (a *SessionAccess) Request(ctx context.Context, server string, generation u
 	if err = a.Check(server, generation); err != nil {
 		return nil, err
 	}
+	if action == "read" || action == "resource" {
+		return BoundedResourceResult(result)
+	}
 	return BoundedAccessResult(result)
 }
-// The saved Notebook inspector document is larger than 1 MiB. Conversation
-// adoption returns that document with the original tool result.
-const maxMCPResponseBytes = 2 << 20
+const maxMCPResponseBytes = 1 << 20
 
-func BoundedAccessResult(value any) (json.RawMessage, error) {
+// An MCP App HTML document is read by its resource URI. It is not part of the
+// tool result, which stays within maxMCPResponseBytes.
+const maxMCPResourceBytes = 2 << 20
+
+func boundedResult(value any, limit int, label string) (json.RawMessage, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) > maxMCPResponseBytes {
-		return nil, errors.New("MCP response exceeds 2 MiB")
+	if len(raw) > limit {
+		return nil, errors.New(label)
 	}
 	return raw, nil
+}
+
+func BoundedAccessResult(value any) (json.RawMessage, error) {
+	return boundedResult(value, maxMCPResponseBytes, "MCP response exceeds 1 MiB")
+}
+
+func BoundedResourceResult(value any) (json.RawMessage, error) {
+	return boundedResult(value, maxMCPResourceBytes, "MCP resource exceeds 2 MiB")
 }
 func appResource(meta sdk.Meta) string {
 	ui, _ := meta["ui"].(map[string]any)

@@ -107,14 +107,15 @@ func (a *MCPAccess) prepareApp(ctx context.Context, server string, generation ui
 		return nil, err
 	}
 	id := hex.EncodeToString(token[:])
+	// The HTML document stays on the resource read. The tool result is only
+	// the original call input and output.
 	prepared := struct {
 		Binding     string          `json:"binding"`
-		Resource    json.RawMessage `json:"resource"`
 		Input       json.RawMessage `json:"input,omitempty"`
 		Result      json.RawMessage `json:"result,omitempty"`
 		Tool        string          `json:"tool"`
 		ResourceURI string          `json:"resource_uri"`
-	}{Binding: id, Resource: resource, Tool: name, ResourceURI: uri}
+	}{Binding: id, Tool: name, ResourceURI: uri}
 	if original != nil {
 		prepared.Input, prepared.Result = original.input, original.result
 	}
