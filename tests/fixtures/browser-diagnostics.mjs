@@ -13,7 +13,8 @@ export function browserDiagnosticPage(foreignOrigin) {
 <button onclick="runLiveFixture()">Run live capture fixture</button><output>Waiting for network fixture</output>
 <iframe title="CDP child fixture" srcdoc="<script>console.warn('cdp child marker')</script>"></iframe>
 <iframe title="Same origin CDP frame" src="/diagnostic-frame"></iframe>
-<iframe title="Foreign CDP frame" id="cdp-child" src="${oopif.href}"></iframe>
+<iframe title="Foreign CDP frame" id="cdp-child" src="${oopif.href}" onload="document.querySelector('#cdp-child-loaded').textContent = 'CDP child loaded'"></iframe>
+<span id="cdp-child-loaded">Loading CDP child</span>
 <button onclick="replaceCdpChild()">Replace child document</button><output id="cdp-child-state">Child waiting</output>
 <script>
 console.info('cdp loaded marker');
@@ -49,21 +50,29 @@ function replaceCdpChild() {
 </script>`;
 }
 
-export function serveDiagnosticAssets(request, response, foreignOrigin) {
+export function serveDiagnosticAssets(request, response, peerOrigin) {
   if (request.url.split('?', 1)[0] === '/diagnostic.css') {
     response.writeHead(200, { 'Content-Type': 'text/css' }).end('body { margin: 10px; }');
     return true;
   }
   if (request.url.split('?', 1)[0] === '/diagnostic-frame') {
-    response.writeHead(200, { 'Content-Type': 'text/html' }).end('<p>Browser diagnostics frame</p>');
+    const isChild = peerOrigin && new URL(request.url, peerOrigin).searchParams.has('outside-frame-marker');
+    response.writeHead(200, { 'Content-Type': 'text/html' }).end(isChild ? `<p>Browser diagnostics frame</p>
+      <script>console.info('direct target log'); throw new Error('direct target exception')</script>
+      <iframe title="Nested CDP fixture" src="${new URL('/cdp-nested', peerOrigin).href}"></iframe>`
+      : '<p>Browser diagnostics frame</p>');
+    return true;
+  }
+  if (request.url === '/cdp-nested') {
+    response.writeHead(200, { 'Content-Type': 'text/html' }).end('<p>Nested CDP fixture</p><script>console.info("nested target log")</script>');
     return true;
   }
   if (request.url.startsWith('/cdp-response?')) {
     response.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ fixture: 'network-response' }));
     return true;
   }
-  if (request.url === '/cdp-redirect' && foreignOrigin) {
-    response.writeHead(302, { Location: new URL('/cdp-response?cdp-foreign-query', foreignOrigin).href }).end();
+  if (request.url === '/cdp-redirect' && peerOrigin) {
+    response.writeHead(302, { Location: new URL('/cdp-response?cdp-foreign-query', peerOrigin).href }).end();
     return true;
   }
   return false;
@@ -117,40 +126,63 @@ export async function checkCdpNetwork({ prompt, tabId, menu }) {
   return { body: true, paged: true, timeout: true, redirectedBodyRejected: true, modeRevocation: true, explicitStop: true };
 }
 
-export async function checkCdpTargets({ prompt, tabId, foreignOrigin }) {
+export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin }) {
   const child = new URL(foreignOrigin);
   child.hostname = 'localhost';
   const list = { action: 'cdpListTargets', tabId };
   const approved = { ...list, fromOrigins: [child.origin] };
-  const [scoped, discovered] = await prompt([list, approved]);
+  const [loaded, scoped, direct, discovered] = await prompt([
+    { action: 'wait', tabId, locator: { by: 'text', value: 'CDP child loaded' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+    { ...list, depth: 2 }, approved, { ...approved, depth: 2 },
+  ]);
+  assert.equal(loaded.matched, true, JSON.stringify(loaded));
   assert.deepEqual(scoped.targets, [], JSON.stringify(scoped));
+  assert.equal(direct.targets.length, 1, JSON.stringify({ direct, discovered }));
   assert.equal(discovered.kind, 'cdpTargets', JSON.stringify(discovered));
-  assert.equal(discovered.targets.length, 1, JSON.stringify(discovered));
+  assert.equal(discovered.targets.length, 2, JSON.stringify(discovered));
   const { id, origin, url } = discovered.targets[0];
   assert.equal(origin, child.origin);
   assert.equal(url, child.origin + '/diagnostic-frame');
+  const nested = discovered.targets[1];
+  assert.equal(nested.parentId, id);
+  assert.equal(nested.origin, topOrigin);
+  assert.equal(nested.url, topOrigin + '/cdp-nested');
   const command = { action: 'cdpSend', tabId, target: { id, origin }, command: { method: 'DOM.getDocument', params: { depth: 1 } } };
-  const [dom, wrongOrigin, wrongCommand] = await prompt([command,
+  const nestedTarget = { id: nested.id, origin: nested.origin };
+  const nestedCommand = { ...command, target: nestedTarget };
+  const read = { action: 'cdpReadEvents', tabId, methods: ['Runtime.consoleAPICalled', 'Runtime.exceptionThrown'] };
+  const childRead = { ...read, target: command.target };
+  const nestedRead = { ...read, target: nestedTarget };
+  const [dom, nestedDom, wrongOrigin, wrongCommand, childEvents, nestedEvents, topEvents] = await prompt([command, nestedCommand,
     { ...command, target: { id, origin: new URL(foreignOrigin).origin } },
-    { ...command, command: { method: 'Network.enable' } },
+    { ...command, command: { method: 'Network.enable' } }, childRead, nestedRead, read,
   ]);
   assert.equal(dom.kind, 'cdpResult', JSON.stringify(dom));
   assert.equal(dom.result.root.documentURL, url + '?outside-frame-marker');
+  assert.equal(nestedDom.result.root.documentURL, nested.url);
   assert.match(wrongOrigin.error, /stale/);
   assert.equal(wrongCommand.isError, true);
-  const [click, changed, stale, newTargets] = await prompt([
+  assert.deepEqual(childEvents.events.map(event => event.text), ['direct target log', 'Error: direct target exception']);
+  assert.deepEqual(nestedEvents.events.map(event => event.text), ['nested target log']);
+  assert(!topEvents.events.some(event => event.text.includes('target log')));
+  const [same, foreignCursor] = await prompt([{ ...childRead, after: childEvents.cursor }, { ...nestedRead, after: childEvents.cursor }]);
+  assert.deepEqual(same.events, []);
+  assert.match(foreignCursor.error, /cursor is stale/);
+  const [click, changed, stale, staleDescendant, newTargets] = await prompt([
     { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Replace child document' }, operation: { action: 'click' } },
     { action: 'wait', tabId, locator: { by: 'text', value: 'Child replaced' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
-    command, approved,
+    command, nestedRead, approved,
   ]);
   assert.equal(click.outcome, 'dispatched');
   assert.equal(changed.matched, true);
   assert.match(stale.error, /child document changed|target is stale/);
+  assert.match(staleDescendant.error, /child document changed|target is stale/);
   assert.equal(newTargets.targets.length, 1);
   assert.notEqual(newTargets.targets[0].id, id);
   const [newDom] = await prompt([{ ...command, target: { id: newTargets.targets[0].id, origin } }]);
   assert.equal(newDom.result.root.documentURL, url + '?replacement');
-  return { defaultOriginScope: true, childQuery: true, wrongOriginRejected: true, staleAfterNavigation: true };
+  return { defaultOriginScope: true, childQuery: true, nestedQuery: true, isolatedEvents: true,
+    cursorIsolation: true, wrongOriginRejected: true, staleAfterNavigation: true };
 }
 
 export async function checkCdp({ prompt, tabId }) {
@@ -225,7 +257,7 @@ export async function checkEmbeddedDiagnostics({ app, origin, foreignOrigin, men
   expect(await app.evaluate(() => globalThis.browserUsePrompt?.message)).toBe('Allow browser diagnostics on this site?');
   const cdp = await checkCdp({ prompt, tabId });
   const network = await checkCdpNetwork({ prompt, tabId, menu });
-  const targets = await checkCdpTargets({ prompt, tabId, foreignOrigin });
+  const targets = await checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin: origin });
   await menu('browser-use-developer-mode', false);
   const original = origin + '/';
   const [, activated] = await prompt([{ action: 'closeTab', tabId }, { action: 'activate', tabId: original }]);

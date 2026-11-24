@@ -63,6 +63,10 @@ List exact cross-origin hosts in `fromOrigins` for user review. Pass the
 returned `id` and `origin` as `target` to a read-only `cdpSend` command.
 Discover the target again after the iframe navigates or reloads.
 
+Extension 0.3.15 adds nested iframe discovery with `depth` up to 4, and
+`cdpReadEvents` with a `target` for console and exception replay in that
+iframe. Keep its cursor with the same target.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

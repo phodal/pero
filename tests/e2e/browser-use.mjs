@@ -42,7 +42,7 @@ async function serve(handler) {
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(done => server.close(done)) };
 }
 const foreign = await serve((request, response) => {
-  if (serveDiagnosticAssets(request, response)) return;
+  if (serveDiagnosticAssets(request, response, site.origin)) return;
   if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
   if (request.url === partnerSiteToolPath) { response.setHeader('Content-Type', 'text/html'); response.end(partnerSiteToolPage(site.origin)); return; }

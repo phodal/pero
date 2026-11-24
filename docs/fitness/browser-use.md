@@ -214,7 +214,13 @@ Performance command. Each call asks for approval for the target origin. The
 target identifier expires when the child reloads or navigates, when the top
 document changes, or when a new discovery replaces it. Same-process iframes
 remain available through `observe`, `query` and `act` with a frame selector.
-Network and Runtime cursors are scoped to the top document.
+
+With extension 0.3.15 or Electron, pass `depth` from 2 to 4 to follow nested
+out-of-process frames. Discovery walks approved ancestors and returns
+`parentId` on descendants. With `cdpReadEvents`, pass the same `target` to
+read recent console calls and uncaught exceptions from the selected iframe.
+Its cursor is tied to the target's discovery and its ancestors' documents.
+Live network capture and `timeoutMs` remain scoped to the top document.
 
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a
@@ -370,6 +376,9 @@ The out-of-process iframe fixture uses a separate loopback hostname. Both
 suites check that discovery is scoped by origin, an approved child returns
 its own DOM, and navigation invalidates the old child identifier. The Chrome
 suite also rejects discovery when the child-origin approval is declined.
+The nested case verifies that discovery skips a branch under an unapproved
+ancestor, only the target's own Runtime events are returned, and a cursor
+from a different iframe is rejected.
 
 ### Chrome and embedded browser from an SSH Workbench
 
@@ -446,6 +455,12 @@ reviews the loopback iframe's origin and checks that a declined review
 releases no child identifiers. It then reads the approved iframe's DOM and
 waits for a replacement child document before checking the old identifier.
 Evidence is in `test-results/native-chrome-cdp-targets/result.json`.
+
+For extension 0.3.15, use `--cdp-target-tree`. The signed Native probe finds
+the grandchild through its approved parent, queries its DOM, and verifies
+separate console and exception replay for the two child targets. A cursor
+from the direct child is rejected when used on the grandchild. Evidence is
+in `test-results/native-chrome-cdp-target-tree/result.json`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run

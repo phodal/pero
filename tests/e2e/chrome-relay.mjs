@@ -41,7 +41,7 @@ let foreignHits = 0;
 let leaveRequests = 0;
 const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
-  if (serveDiagnosticAssets(request, response)) return;
+  if (serveDiagnosticAssets(request, response, new URL(siteUrl).origin)) return;
   if (request.url === partnerSiteToolPath) {
     response.setHeader('Content-Type', 'text/html');
     response.end(partnerSiteToolPage(new URL(siteUrl).origin));
@@ -375,7 +375,7 @@ try {
     const [childDeclined] = await prompt([{ action: 'cdpListTargets', tabId: diagnosticId, fromOrigins: [childOrigin.origin] }]);
     assert.match(childDeclined.error, /diagnostics were declined/);
     await app.evaluate(() => { delete globalThis.relayDiagnosticDeniedOrigin; });
-    const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl });
+    const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl, topOrigin: new URL(siteUrl).origin });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
 

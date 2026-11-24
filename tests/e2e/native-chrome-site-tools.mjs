@@ -13,7 +13,8 @@ import { serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const targets = process.argv.includes('--cdp-targets');
+const targetTree = process.argv.includes('--cdp-target-tree');
+const targets = targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
@@ -42,7 +43,7 @@ const site = createServer((req, res) => {
       <iframe title="CDP child fixture" srcdoc="<script>console.warn('native CDP child')</script>"></iframe>
       ${live ? `<link rel="stylesheet" href="/diagnostic.css">
       <iframe title="Local CDP frame" src="/diagnostic-frame"></iframe>
-      <iframe title="Foreign CDP frame" id="cdp-child" src="${targets ? childOrigin : foreignOrigin}/diagnostic-frame?native-foreign-frame"></iframe>
+      <iframe title="Foreign CDP frame" id="cdp-child" src="${targets ? childOrigin : foreignOrigin}/diagnostic-frame?${childQuery}"></iframe>
       <button onclick="requestFixture()">Run network fixture</button><output>Waiting for network fixture</output>
       <script>
         async function requestFixture() {
@@ -67,7 +68,7 @@ const site = createServer((req, res) => {
   res.end(siteToolPage(req.url === '/webmcp-frame', foreignOrigin));
 });
 const partner = createServer((req, res) => {
-  if (live && serveDiagnosticAssets(req, res)) return;
+  if (live && serveDiagnosticAssets(req, res, targetTree ? origin : undefined)) return;
   res.setHeader('Content-Type', 'text/html');
   res.end(partnerSiteToolPage(origin));
 });
@@ -76,6 +77,7 @@ await Promise.all([listen(site), listen(partner)]);
 const origin = 'http://127.0.0.1:' + site.address().port;
 const foreignOrigin = 'http://127.0.0.1:' + partner.address().port;
 const childOrigin = 'http://localhost:' + partner.address().port;
+const childQuery = targetTree ? 'native-foreign-frame&outside-frame-marker' : 'native-foreign-frame';
 const agent = 'browser-use-fixture';
 await mkdir(profile);
 await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: agent }));
@@ -184,13 +186,29 @@ except Exception as error:
     assert "diagnostics were declined" in str(error), repr(error)
 else:
     raise AssertionError("Native disclosed a child target without its origin approval")
-children = await browser("cdpListTargets", fromOrigins=[child_origin])
-assert len(children["targets"]) == 1 and children["targets"][0]["origin"] == child_origin, children
+children = await browser("cdpListTargets", fromOrigins=[child_origin]${targetTree ? ', depth=2' : ''})
+assert len(children["targets"]) == ${targetTree ? 2 : 1} and children["targets"][0]["origin"] == child_origin, children
 child = children["targets"][0]
 target = {"id":child["id"],"origin":child_origin}
 command = {"method":"DOM.getDocument","params":{"depth":1}}
 child_dom = await browser("cdpSend", target=target, command=command)
-assert child_dom["result"]["root"]["documentURL"] == child_origin + "/diagnostic-frame?native-foreign-frame", child_dom
+assert child_dom["result"]["root"]["documentURL"] == child_origin + "/diagnostic-frame?${childQuery}", child_dom
+${targetTree ? `nested = children["targets"][1]
+assert nested["parentId"] == child["id"] and nested["url"] == ${JSON.stringify(origin + '/cdp-nested')}, nested
+nested_target = {"id":nested["id"],"origin":nested["origin"]}
+nested_dom = await browser("cdpSend", target=nested_target, command=command)
+assert nested_dom["result"]["root"]["documentURL"] == nested["url"], nested_dom
+direct_events = await browser("cdpReadEvents", target=target)
+nested_events = await browser("cdpReadEvents", target=nested_target)
+assert [event["text"] for event in direct_events["events"]] == ["direct target log", "Error: direct target exception"], direct_events
+assert [event["text"] for event in nested_events["events"]] == ["nested target log"], nested_events
+try:
+    await browser("cdpReadEvents", target=nested_target, after=direct_events["cursor"])
+except Exception as error:
+    assert "cursor is stale" in str(error), repr(error)
+else:
+    raise AssertionError("Native accepted a cursor from another child target")
+proof["nestedTargets"] = {"nestedDom":True,"isolatedEvents":True,"cursorIsolation":True}` : ''}
 replaced = await browser("act", locator={"by":"role","role":"button","name":"Replace CDP child"}, operation={"action":"click"})
 assert replaced["outcome"] == "dispatched", replaced
 deadline = monotonic() + 5
@@ -349,7 +367,15 @@ try {
       await respond(origin, 'Allow');
       await respond(childOrigin, 'Cancel');
       await respond(origin, 'Allow');
-      for (let i = 0; i < 3; i++) await respond(childOrigin, 'Allow');
+      await respond(childOrigin, 'Allow');
+      await respond(childOrigin, 'Allow');
+      if (targetTree) {
+        await respond(origin, 'Allow');
+        await respond(childOrigin, 'Allow');
+        await respond(origin, 'Allow');
+        await respond(origin, 'Allow');
+      }
+      await respond(childOrigin, 'Allow');
     }
   } else {
     await respond('Native tool declined', 'Cancel');
@@ -377,7 +403,8 @@ try {
   );
   const receipt = JSON.parse(await readFile(resolve(visit, evidence.receiptId + '.result.json'), 'utf8'));
   assert.equal(receipt.outcome, 'dispatched');
-  const output = resolve(root, targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
+  const output = resolve(root, targetTree ? 'test-results/native-chrome-cdp-target-tree'
+    : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
   await mkdir(output, { recursive: true });
   await writeFile(
@@ -395,7 +422,7 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+    `Native Python REPL verified ${targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
       : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
