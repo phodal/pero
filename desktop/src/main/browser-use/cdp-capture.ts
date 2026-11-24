@@ -17,6 +17,8 @@ export class ChromiumCdpCapture {
   private readonly ready: Promise<void>;
   private closing?: Promise<void>;
   private notify?: () => void;
+  private detached = false;
+  private readonly deadline = performance.now() + cdpCaptureMs;
 
   constructor(readonly id: string, private readonly origin: string, private readonly frameId: string,
     private readonly loaderId: string, private readonly send: CdpSend, subscribe: CdpSubscribe,
@@ -45,12 +47,30 @@ export class ChromiumCdpCapture {
   private cancel = () => { void this.stop(); };
 
   stop() {
-    if (this.closing) return this.closing;
     clearTimeout(this.timer);
     this.signal.removeEventListener('abort', this.cancel);
+    this.detached = false;
+    this.buffer.clear();
+    return this.disconnect();
+  }
+
+  detach() {
+    if (!this.active || this.signal.aborted || performance.now() >= this.deadline) return false;
+    this.detached = true;
+    void this.disconnect();
+    return true;
+  }
+
+  readDetached(request: CdpRead) {
+    if (!this.detached) return;
+    if (this.signal.aborted || performance.now() >= this.deadline) { void this.stop(); return; }
+    return { ...this.buffer.read(request, true), detached: true };
+  }
+
+  private disconnect() {
+    if (this.closing) return this.closing;
     this.unsubscribe();
     this.requests.clear();
-    this.buffer.clear();
     this.closing = this.ready.catch(() => {}).then(async () => {
       for (const domain of this.domains.reverse()) await this.send(domain + '.disable').catch(() => {});
       this.onEnd?.();

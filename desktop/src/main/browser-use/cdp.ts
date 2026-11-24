@@ -1,7 +1,7 @@
 import { webOrigin } from '../../../../packages/chrome-extension/src/protocol.ts';
 import type { CdpRequest } from './request.ts';
 import { ChromiumCdpCapture, cdpCaptureMs } from './cdp-capture.ts';
-import { CdpEventBuffer, topRuntimeEvents, type CdpSend, type CdpSubscribe, type RuntimeEvent } from './cdp-events.ts';
+import { CdpEventBuffer, topRuntimeEvents, type CdpRead, type CdpSend, type CdpSubscribe, type RuntimeEvent } from './cdp-events.ts';
 
 type FrameTree = {
   frame: { id: string; loaderId: string; parentId?: string; url: string; mimeType: string; securityOrigin?: string };
@@ -31,6 +31,10 @@ export class ChromiumCdp {
   stopCapture(id?: string) {
     if (!id || this.capture?.id === id) return this.capture?.stop();
   }
+
+  detachCapture() { return this.capture?.detach(); }
+
+  readDetachedEvents(request: CdpRead) { return this.capture?.readDetached(request); }
 
   invalidate() {
     this.document = undefined;

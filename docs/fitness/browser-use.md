@@ -229,6 +229,13 @@ Starting another child capture replaces the previous child capture.
 Navigation or detachment of the child or an ancestor, a fresh target
 discovery, and turning off Developer Mode end the child capture.
 
+With extension 0.3.17 or Electron, after the debugger reports that an iframe
+target detached, `cdpReadEvents` can page its buffered events using the same
+approved target and cursor. Such replies include `detached: true`. Detachment
+ends collection and response-body access. The buffer expires at the original
+one-minute deadline. Disabling Network or Developer Mode, changing the top
+document or pairing, or starting a new discovery or child capture clears it.
+
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a
 page action and pass that cursor as `after` to `cdpReadEvents`. During a live

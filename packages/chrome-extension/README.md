@@ -69,6 +69,11 @@ iframe. Keep its cursor with the same target.
 
 Extension 0.3.16 lets `Network.enable`, `Network.disable`,
 `Network.getResponseBody`, and live event reads take an iframe `target`.
+
+Extension 0.3.17 lets `cdpReadEvents` page a detached iframe's buffered events
+with its original target and cursor until the capture's original deadline.
+Replies include `detached: true`. Collection and response-body access end on
+detachment.
 Keep the capture cursor and request IDs with that target context.
 
 The side panel shares its paired Native conversation’s draft, model selection,
