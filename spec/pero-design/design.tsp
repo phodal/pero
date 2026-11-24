@@ -20,6 +20,7 @@ model Space {
 }
 
 model TypePx {
+  /** At larger UI sizes, titles and headings keep their default gap above body text. */
   title: 24;
   heading: 18;
   body: 14;

@@ -11,7 +11,7 @@ use crate::design_tokens::{
     SPACE_8, SUB_INDENT, TYPE_BODY, TYPE_CAPTION, TYPE_HEADING, TYPE_LABEL, TYPE_TITLE, WEIGHT_BODY,
     WEIGHT_HEADING, WEIGHT_LIST_TITLE, WEIGHT_TITLE,
 };
-use crate::Palette;
+use crate::{Palette, TextRole};
 use gpui_kit::{
     component::{Selectable, Sizable, button::*, input::Input},
     prelude::*,
@@ -46,7 +46,13 @@ impl<'a> Chrome<'a> {
     }
 
     pub fn text(self, base: f32) -> Pixels {
-        px((base * self.ui / TYPE_BODY).max(TYPE_CAPTION))
+        px(if base == TYPE_TITLE {
+            TextRole::Title.pixels(self.ui)
+        } else if base == TYPE_HEADING {
+            TextRole::Heading.pixels(self.ui)
+        } else {
+            (base * self.ui / TYPE_BODY).max(TYPE_CAPTION)
+        })
     }
 
     /// Controls grow with the text while spacing and radii remain stable.
