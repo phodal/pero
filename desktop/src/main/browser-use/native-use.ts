@@ -11,7 +11,8 @@ import { documentScript, type DocumentCommand, type DocumentResult } from './doc
 import type { BrowserDiagnosticApproval, BrowserDiagnosticOptions, captureBrowserDiagnostics } from './diagnostics.ts';
 import type { ChromiumAccessibility } from './accessibility.ts';
 import { answerBrowserDialog, browserEvidenceDirectory, startBrowserReceipt } from './receipt.ts';
-import { browserRequest, type BrowserRequest, type FrameSelector } from './request.ts';
+import { browserDeveloperAction, browserRequest, type BrowserRequest, type CdpRequest, type FrameSelector } from './request.ts';
+import type { ChromiumCdp } from './cdp.ts';
 import { freezeDownloadBytes } from './download.ts';
 import { downloadLinkScript } from './download-link.ts';
 import { SiteToolSession } from './site-tool-session.ts';
@@ -22,7 +23,7 @@ export const nativeActions = [
   'fill', 'press', 'typeSequentially', 'scrollIntoView', 'setChecked', 'selectOption', 'upload', 'download', 'navigate',
   'getJsDialog', 'handleJsDialog',
 ] as const;
-export const chromeActions = [...nativeActions, 'getAXState', 'diagnose', 'listSiteTools', 'callSiteTool'] as const;
+export const chromeActions = [...nativeActions, 'getAXState', 'diagnose', 'cdpSend', 'cdpReadEvents', 'listSiteTools', 'callSiteTool'] as const;
 type WorkbenchAction = typeof chromeActions[number];
 type WorkbenchRequest = Extract<BrowserRequest, { action: WorkbenchAction }>;
 
@@ -51,6 +52,7 @@ export type DriverOperation =
   | { kind: 'screenshot'; clip?: ScreenshotClip; fullPage?: true }
   | { kind: 'getAXState'; since?: string }
   | ({ kind: 'diagnose' } & BrowserDiagnosticOptions)
+  | { kind: 'cdp'; request: CdpRequest }
   | { kind: 'siteTools'; command: SiteToolCommand }
   | { kind: 'download'; url: string }
   | { kind: 'dispatch'; input: DriverInput; expectPopup?: true }
@@ -86,7 +88,7 @@ export class NativeBrowserUse implements BrowserUsePort {
     this.engine = engine;
     const chrome = engine === 'chrome';
     this.actions = chrome ? chromeActions.filter(action => {
-      if (action === 'diagnose') return !!approveDiagnostics;
+      if (browserDeveloperAction(action)) return !!approveDiagnostics;
       if (action === 'listSiteTools' || action === 'callSiteTool') return !!siteToolAccess;
       return true;
     }) : nativeActions;
@@ -232,16 +234,18 @@ export class NativeBrowserUse implements BrowserUsePort {
         signal.throwIfAborted();
         return { ...snapshot, tabId, origin };
       }
-      if (request.action === 'diagnose') {
+      if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
         const approved = await this.approveDiagnostics(thread, origin, signal);
         approved.throwIfAborted();
-        const diagnostics = await run<Awaited<ReturnType<typeof captureBrowserDiagnostics>>>({
-          kind: 'diagnose', captureMs: request.captureMs, profile: request.profile, style: request.style,
-        });
+        const diagnostics = request.action === 'diagnose'
+          ? { kind: 'diagnostics', ...await run<Awaited<ReturnType<typeof captureBrowserDiagnostics>>>({
+            kind: 'diagnose', captureMs: request.captureMs, profile: request.profile, style: request.style,
+          }) }
+          : await run<Awaited<ReturnType<ChromiumCdp['call']>>>({ kind: 'cdp', request });
         await run({ kind: 'check' });
         approved.throwIfAborted();
-        return { kind: 'diagnostics', tabId, origin, ...diagnostics };
+        return { tabId, origin, ...diagnostics };
       }
       if (request.action === 'listSiteTools' || request.action === 'callSiteTool') {
         if (!this.siteToolAccess) throw new Error('Browser Site Tools are unavailable.');

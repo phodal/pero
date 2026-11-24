@@ -60,6 +60,15 @@ export const browserRequest = z.discriminatedUnion('action', [
   z.strictObject({ ...target, action: z.literal('diagnose'),
     captureMs: z.number().int().min(100).max(4000).optional(), profile: z.boolean().optional(),
     style: z.strictObject({ selector: label, properties: z.array(z.string().regex(/^[-a-zA-Z0-9]{1,64}$/)).min(1).max(16) }).optional() }),
+  z.strictObject({ ...target, action: z.literal('cdpSend'), command: z.discriminatedUnion('method', [
+    z.strictObject({ method: z.literal('Page.getLayoutMetrics') }),
+    z.strictObject({ method: z.literal('Performance.getMetrics') }),
+    z.strictObject({ method: z.literal('DOM.getDocument'), params: z.strictObject({ depth: z.union([z.literal(0), z.literal(1)]) }).optional() }),
+  ]) }),
+  z.strictObject({ ...target, action: z.literal('cdpReadEvents'),
+    after: z.strictObject({ stream: z.uuid(), sequence: z.number().int().nonnegative().safe() }).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    methods: z.array(z.enum(['Runtime.consoleAPICalled', 'Runtime.exceptionThrown'])).min(1).max(2).optional() }),
   z.strictObject({ ...tab, action: z.literal('listSiteTools'),
     fromOrigins: z.array(z.string().max(512).refine(origin => webOrigin(origin) === origin)).max(4).optional() }),
   z.strictObject({ ...tab, action: z.literal('callSiteTool'), toolId: z.uuid(),
@@ -88,6 +97,10 @@ export const browserRequest = z.discriminatedUnion('action', [
 
 export const browserInputSchema = { type: 'object', ...z.toJSONSchema(browserRequest, { target: 'draft-7', unrepresentable: 'throw' }) };
 export type BrowserRequest = z.infer<typeof browserRequest>;
+export type CdpRequest = Extract<BrowserRequest, { action: 'cdpSend' | 'cdpReadEvents' }>;
+export function browserDeveloperAction(action: BrowserRequest['action']) {
+  return action === 'diagnose' || action === 'cdpSend' || action === 'cdpReadEvents';
+}
 export type FrameSelector = z.infer<typeof frameSelector>;
 export type Locator = z.infer<typeof locator>;
 export type WaitCondition = z.infer<typeof condition>;

@@ -130,6 +130,7 @@ export class BrowserUse implements BrowserUsePort {
       grant.revision++;
       grant.observation = undefined;
       grant.siteTools.clear();
+      grant.dialogs.clearCdp();
       if (!grant.approvedUrl(url)) this.revokeTab(tab.id);
     };
     const closed = () => this.revokeTab(tab.id);
@@ -269,15 +270,17 @@ export class BrowserUse implements BrowserUsePort {
           return reply.value as SiteToolsReply;
         });
       }
-      if (request.action === 'diagnose') {
+      if (request.action === 'diagnose' || request.action === 'cdpSend' || request.action === 'cdpReadEvents') {
         if (!this.approveDiagnostics) throw new Error('Browser Developer Mode is unavailable.');
         const approved = await this.approveDiagnostics(thread, grant.origin, signal);
         const active = AbortSignal.any([signal, approved]);
         const canDiagnose = () => { active.throwIfAborted(); check(); };
         canDiagnose();
-        const diagnostics = await grant.dialogs.diagnose(grant.origin, request, canDiagnose, active);
+        const diagnostics = request.action === 'diagnose'
+          ? { kind: 'diagnostics', ...await grant.dialogs.diagnose(grant.origin, request, canDiagnose, active) }
+          : await grant.dialogs.cdp(request, String(revision), grant.origin, canDiagnose);
         canDiagnose();
-        return { kind: 'diagnostics', tabId: grant.tab.id, origin: grant.origin, ...diagnostics };
+        return { tabId: grant.tab.id, origin: grant.origin, ...diagnostics };
       }
       if (request.action === 'open') {
         const destination = grant.approvedUrl(request.url);

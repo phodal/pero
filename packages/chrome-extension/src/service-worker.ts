@@ -7,6 +7,7 @@ import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/b
 import { dialogRefusal, type BrowserDialog } from '../../../desktop/src/main/browser-use/dialog.ts';
 import { captureBrowserDiagnostics } from '../../../desktop/src/main/browser-use/diagnostics.ts';
 import { ChromiumAccessibility } from '../../../desktop/src/main/browser-use/accessibility.ts';
+import { ChromiumCdp } from '../../../desktop/src/main/browser-use/cdp.ts';
 import { siteToolsScript } from '../../../desktop/src/main/browser-use/site-tools.ts';
 import type { DriverOperation, TabAction } from '../../../desktop/src/main/browser-use/native-use.ts';
 import type { SidebarRequest } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
@@ -15,6 +16,7 @@ import { readVisiblePage } from './collector-capture.js';
 
 type ChromeTab = { id?: number; windowId?: number; active?: boolean; incognito?: boolean; status?: string; url?: string; pendingUrl?: string; title?: string };
 type TabHandle = { id: string; tabId: number; revision: number; attachment?: Promise<void>; accessibility?: ChromiumAccessibility;
+  cdp?: ChromiumCdp;
   dialog?: { origin?: string; value: BrowserDialog }; dialogOpened?: () => void; pendingInput?: Promise<void> };
 type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
@@ -268,18 +270,21 @@ async function run(connection: Peer, command: Command) {
     checkDocument(after);
     return result;
   }
-  if (operation.kind === 'diagnose') {
+  if (operation.kind === 'diagnose' || operation.kind === 'cdp') {
     const check = () => {
       if (peer !== connection || handle.revision !== current.revision || handle.dialog)
         throw new Error('The Chrome document changed during browser diagnostics.');
     };
-    const result = await captureBrowserDiagnostics(origin, operation, cdp, listener => {
+    const subscribe = (listener: (method: string, params: Record<string, unknown>) => void) => {
       const receive = ({ tabId }: { tabId?: number }, method: string, params?: Record<string, unknown>) => {
         if (tabId === handle.tabId && params && handle.revision === current.revision) listener(method, params);
       };
       chrome.debugger.onEvent.addListener(receive);
       return () => chrome.debugger.onEvent.removeListener(receive);
-    }, check);
+    };
+    const result = operation.kind === 'diagnose'
+      ? await captureBrowserDiagnostics(origin, operation, cdp, subscribe, check)
+      : await (handle.cdp ??= new ChromiumCdp()).call(operation.request, command.stamp, origin, cdp, subscribe, check);
     const after = await snapshot(connection, handle);
     check();
     checkDocument(after);
@@ -413,7 +418,10 @@ function connect(code: string) {
 
 chrome.tabs.onUpdated.addListener((tabId: number, change: { status?: string; url?: string }) => {
   const handle = peer?.tabs.get(tabId);
-  if (handle && (change.status === 'loading' || change.url)) handle.revision++;
+  if (handle && (change.status === 'loading' || change.url)) {
+    handle.revision++;
+    handle.cdp = undefined;
+  }
 });
 chrome.tabs.onRemoved.addListener((tabId: number) => {
   peer?.tabs.delete(tabId);
@@ -440,6 +448,7 @@ chrome.debugger.onDetach.addListener(({ tabId }: { tabId?: number }, reason: str
   if (!connection || !handle?.attachment) return;
   handle.attachment = undefined;
   handle.accessibility = undefined;
+  handle.cdp = undefined;
   handle.dialog = undefined;
   if (reason === 'canceled_by_user') {
     void release(connection, 'Chrome stopped Browser Use.');
