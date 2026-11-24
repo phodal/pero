@@ -224,3 +224,97 @@ The existing Product port fake now includes NotebookInspector, with all 7
 original shutdown/dispatch assertions passing. No assertion or production
 permission was weakened. Updated remote checks must be evaluated on the new
 head rather than counting the previous failed run as passing.
+
+## Read-only history — 2026-11-24
+
+Base: master `0fc86a2b`. Reopening a chat or restarting the process restores
+the saved tool text, source, and `pero.mcpApp` descriptor. It does not call
+the initial tool, send a model request, execute the resource HTML, or admit a
+live binding.
+
+Closing the session in the **current** process uses the same sentence. The
+row is no longer interactive, so the iframe is removed and the tool row shows
+`mcp.history.readonly`. That flag is not the archived-reload flag: `historical`
+stays false until the body is loaded from saved history. An archived row sets
+`historical`, and `admits_live_binding(true, …)` refuses a live binding even
+when a new process reuses the server name and generation. A full replay
+(`history` omitted) includes those tool events immediately; every closed
+thread in that replay is sealed the same way, so it cannot adopt a live view.
+The product startup sends `history: "catalog"`, which defers the tool body
+until the conversation is selected.
+
+The Electron test reads `mcpHistory[].notice` and `mcpHistory[].interactive`
+from the Workbench diagnostic snapshot. `notice` is `history_notice()`, the
+same string the row renders when that row is visible and not interactive. The
+receipt stores those read values. It does not embed a second copy of the
+sentence or a hardcoded `interactive: false`. Keyboard focus of the notice was
+**not verified**.
+
+The Chinese sentence is “历史结果，当前不可交互”. It is not “已关闭”
+(`mcp.runtime.closed`).
+
+#234 still returns the archived body only when that conversation is selected.
+`1268ff1b` can omit tool images from the ACP projection without dropping the
+text or descriptor.
+
+### Local commands
+
+| Command | Result |
+| --- | --- |
+| `PERO_GPUI_KIT_PATH=… node scripts/cargo.mjs test --locked -p pero-contracts --lib -- i18n session_history mcp_source` | 8 passed, 0 failed, 141 filtered out |
+| `go -C harness/go test -race -count=1 -timeout 180s -run 'TestSharedUIResourceStaysOnItsServer\|TestModelInputOmitsUIOnlyMeta\|TestMCPOriginalAppCall\|TestMCPSessionAccessUsesOwnedHTTPConnection' ./harness ./acp` | both packages `ok` |
+| `go -C harness/go test -count=1 -v -run` the same filter | `TestMCPOriginalAppCall` (including its four subtests), `TestSharedUIResourceStaysOnItsServer`, `TestModelInputOmitsUIOnlyMeta`, and `TestMCPSessionAccessUsesOwnedHTTPConnection` passed |
+| `node scripts/check/locales.mjs` | 1416 bilingual messages checked |
+| `xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 node scripts/test/mcp-official-conversation.mjs` | passed, about 42s, after Wasm, `npm run build --workspace @pero/web`, Desktop, Host, and Harness were built |
+
+### Official Electron chain
+
+Unchanged `@modelcontextprotocol/server-basic-vanillajs@2.0.4`, integrity
+`sha512-L+IOxLjfX9oAwvnzLAMGX1pwBsIsXUsc9mB5iOTFuQ7lIaejetsrfYngPKwf9ZPHk9iCNVbHHaI7sj5dqax55Q==`.
+Actual Electron Workbench → Rust Host → Go ACP, deterministic loopback model,
+not an external model. Receipt:
+`test-results/mcp-apps-conversation/result.json`.
+
+Before close, the audit has two `get-time` calls (the initial Agent call and
+one explicit UI click) and three fixture model requests. After switching the
+running Workbench to zh-CN and closing that session, and again after process
+restart, the snapshot notice is “历史结果，当前不可交互”, `interactive` is
+false, and the call counts stay 2 and 3. No interactive iframe is mounted.
+The in-process close keeps `historical` false. The restarted row sets it true
+and keeps the original timestamp text and
+`Official example · ui://get-time/mcp-app.html`.
+
+Screenshots: `history-closed-same-process-zh.png` and
+`history-readonly-zh.png`. Live screenshots from the same run:
+`official-inline-light.png`, `official-inline-dark-narrow.png`,
+`official-conversation-followup.png`.
+
+Keyboard focus of the historical notice was not verified.
+
+### #218 A–D on this head
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| A. Typed result identity through Harness → ACP → tool row | Met | Existing capture plus `TestMCPSessionAccessUsesOwnedHTTPConnection`; the conversation row uses that descriptor |
+| A. UI-only `_meta` stays out of the model request | Met | `TestModelInputOmitsUIOnlyMeta` marshals both `GenerateRequest`s and rejects `UI_ONLY_META_9f3c`, `ui://fixture/private-view`, and `bindingToken` |
+| B. Mount the saved result in the tool row without `execute` | Met | Official conversation: mount, collapse, expand, close, and reopen keep the initial effect at one call until the explicit UI click |
+| C. Reopen or restart restores text, source, and descriptor with no tool or model call | Met | Contract archive test, image-omission projection inside the ACP session test, and the Electron restart above |
+| C. No current binding says “历史结果，当前不可交互” and does not restore live interaction | Met | zh-CN screenshot; `admits_live_binding(true, …)` is false even when generation matches |
+| C. Live follow-up calls still use the existing approval path | Met | Same run: two `ask` approvals before restart; restart adds none |
+| D. Unchanged official 2.0.4 on the full Electron chain | Met | Receipt above |
+| D. Notebook Inspector through the same Agent tool-result entry | 未验证 | This run did not start a Workbench agent turn that calls `app__notebook__read-entry`. The Inspector was not observed in the conversation tool row. Earlier panel screenshots in this file are not that entry |
+| D. Native GPUI | 未验证 | This Linux environment did not launch the Native GPUI shell. There is no observed native window, degraded mode, or interaction result |
+
+Two servers that declare `ui://shared/view` stay apart:
+`TestSharedUIResourceStaysOnItsServer` reads and adopts each server’s own HTML
+and result, rejects the crossed adopt, and leaves each effect count at 1.
+
+Linux core stays at a 15 minute timeout. The Wasm, Workbench, Desktop build
+and this conversation e2e run only in the `mcp-browser` job, which is skipped
+unless that scope is selected. That job’s timeout is 30 minutes. A warm local
+path was about 8 minutes (Wasm about 4 minutes, Host about 1.5 minutes, the
+conversation about 42 seconds); 30 minutes is the cold-compile ceiling, not a
+claim that the job takes that long.
+
+`ui/update-model-context`, Task/Run/Artifact binding, author tooling,
+panel/fullscreen, and marketplace distribution stay out of this pass.

@@ -55,6 +55,14 @@ pub struct McpAppDescriptor {
     pub tool_call: String,
 }
 impl McpAppDescriptor {
+    /// An archived row never admits a live binding, even when a new process reuses the server generation.
+    pub fn admits_live_binding(&self, archived: bool, snapshot: &crate::mcp_runtime::McpRuntimeSession) -> bool {
+        if archived { return false; }
+        crate::mcp_session::McpSessionTarget {
+            thread_id: snapshot.thread_id.clone(), incarnation: snapshot.incarnation, revision: snapshot.revision,
+            server: Some(self.server.clone()), generation: Some(self.generation),
+        }.admit(snapshot, true).is_ok()
+    }
     pub fn from_update(update: &serde_json::Value) -> Option<Self> {
         let value: Self = serde_json::from_value(update["_meta"]["pero.mcpApp"].clone()).ok()?;
         if value.tool_call != update["toolCallId"].as_str()?
@@ -99,5 +107,26 @@ mod tests {
         let mut update=json!({"toolCallId":"call","_meta":{"pero.mcpApp":{"server":"docs","generation":1,"resource_uri":"ui://docs/view","tool_call":"call"}}});
         assert!(McpAppDescriptor::from_update(&update).is_some());
         update["toolCallId"]=json!("other");assert!(McpAppDescriptor::from_update(&update).is_none());
+    }
+    #[test]
+    fn archived_descriptor_stays_read_only_even_when_a_new_generation_matches() {
+        use crate::mcp_runtime::{McpRuntimeSession, McpRuntimeStatus};
+        let mut snapshot = McpRuntimeSession::new("agent".into(), "thread".into(), 4, 9, vec!["alpha".into(), "beta".into()]);
+        snapshot.observable = true;
+        snapshot.session_id = Some("live".into());
+        for server in &mut snapshot.servers { server.generation = 1; server.status = McpRuntimeStatus::Connected; }
+        let shared = "ui://shared/view";
+        let alpha = McpAppDescriptor { server: "alpha".into(), generation: 1, resource_uri: shared.into(), tool_call: "call-a".into() };
+        let beta = McpAppDescriptor { server: "beta".into(), generation: 1, resource_uri: shared.into(), tool_call: "call-b".into() };
+        assert_eq!(alpha.resource_uri, beta.resource_uri);
+        assert_ne!(alpha, beta);
+        assert!(alpha.admits_live_binding(false, &snapshot));
+        assert!(beta.admits_live_binding(false, &snapshot));
+        assert!(!alpha.admits_live_binding(true, &snapshot));
+        assert!(!beta.admits_live_binding(true, &snapshot));
+        snapshot.servers[0].generation = 2;
+        assert!(!alpha.admits_live_binding(false, &snapshot));
+        snapshot.closed = true;
+        assert!(!beta.admits_live_binding(false, &snapshot));
     }
 }

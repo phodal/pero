@@ -299,4 +299,26 @@ mod tests {
             .map(|entry| serde_json::to_value(entry).unwrap()).collect::<Vec<_>>();
         assert_eq!(serde_json::to_value(body.events).unwrap(), json!(eager_body));
     }
+
+    #[test]
+    fn on_demand_history_keeps_an_archived_mcp_app_snapshot() {
+        let mut history = SessionHistory::default();
+        let thread = "archived-mcp";
+        history.record(event("session_created", thread, json!({"agent":"pero"})));
+        history.record(event("user_message", thread, json!({})));
+        history.record(event("session_update", thread, json!({"sessionUpdate":"tool_call","toolCallId":"call-1","title":"inspect","status":"in_progress","rawInput":{"label":"original"}})));
+        history.record(event("session_update", thread, json!({"sessionUpdate":"tool_call_update","toolCallId":"call-1","status":"completed","locations":[{"path":"notes/source.md","line":4}],"content":[{"type":"content","content":{"type":"text","text":"ordinary saved result"}}],"_meta":{"pero.mcpApp":{"server":"Docs","generation":1,"resource_uri":"ui://docs/view","tool_call":"call-1"}}})));
+        history.record(chunk(thread, "agent_message_chunk", "after"));
+        history.record(event("session_closed", thread, json!({})));
+        let catalog = history.replay(vec![], Some(SessionReplayMode::Catalog));
+        assert!(catalog.events.iter().all(|entry| entry.data["sessionUpdate"] != "tool_call_update"));
+        let body = history.thread(thread, false);
+        assert!(!body.active);
+        let snapshot = body.events.iter().find(|entry| entry.data["sessionUpdate"] == "tool_call_update").unwrap();
+        assert_eq!(snapshot.data["content"][0]["content"]["text"], "ordinary saved result");
+        assert_eq!(snapshot.data["locations"][0]["path"], "notes/source.md");
+        assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["server"], "Docs");
+        assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["resource_uri"], "ui://docs/view");
+        assert_eq!(snapshot.data["_meta"]["pero.mcpApp"]["tool_call"], "call-1");
+    }
 }

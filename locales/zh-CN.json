@@ -202,6 +202,7 @@
   "mcp.runtime.disconnected": "已断开，等待 Agent 恢复",
   "mcp.runtime.error": "连接失败；启动新会话以重试",
   "mcp.runtime.closed": "已关闭",
+  "mcp.history.readonly": "历史结果，当前不可交互",
   "mcp.runtime.no_servers": "此会话没有已启用的受管连接器。",
   "mcp.runtime.tools": "工具",
   "mcp.runtime.no_tools": "未报告工具。",
