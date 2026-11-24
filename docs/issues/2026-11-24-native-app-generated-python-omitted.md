@@ -63,7 +63,10 @@ Python exit and returns the missing module name with a repair action. Other
 stderr stays out of the returned error and the structured startup journal;
 the Native failure hint directs users to the details. A real Host stdio
 contract reproduced the missing `pero_source_tools` import and checked the
-returned error and journal metadata.
+returned error and journal metadata. After generating the backend modules from
+their canonical sources, staging each of Paper Agent, Notebook and Data into
+disposable directories and importing their modules with the selected Python
+3.12 environment passed.
 
 The installed macOS `0.1.2` package remains incomplete. The new source has
 not yet been released or installed, and opening the three Apps from a rebuilt
