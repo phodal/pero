@@ -227,18 +227,31 @@ head rather than counting the previous failed run as passing.
 
 ## Read-only history — 2026-11-24
 
-Base: master `0fc86a2b`. This pass restores a saved MCP App row after the chat
-is reopened or the process restarts. It does not call the initial tool, send a
-model request, or recreate a live binding. The notice is
-`mcp.history.readonly`: English “Historical result, not currently interactive”,
-Chinese “历史结果，当前不可交互”. It is not `mcp.runtime.closed` (“Closed” /
-“已关闭”).
+Base: master `0fc86a2b`. Reopening a chat or restarting the process restores
+the saved tool text, source, and `pero.mcpApp` descriptor. It does not call
+the initial tool, send a model request, execute the resource HTML, or admit a
+live binding.
 
-#234 loads an archived body only when that conversation is selected.
-`1268ff1b` omits tool images from the ACP projection when the host asks it to.
-The saved text, source location, and `pero.mcpApp` descriptor still come back
-from that on-demand body. A new process does not admit the old descriptor even
-when the server name and generation happen to match again.
+Closing the session in the **current** process uses the same sentence. The
+row is no longer interactive, so the iframe is removed and the tool row shows
+`mcp.history.readonly`. That flag is not the archived-reload flag: `historical`
+stays false until the body is loaded from saved history. An archived row sets
+`historical`, and `admits_live_binding(true, …)` refuses a live binding even
+when a new process reuses the server name and generation.
+
+The Electron test reads `mcpHistory[].notice` and `mcpHistory[].interactive`
+from the Workbench diagnostic snapshot. `notice` is `history_notice()`, the
+same string the row renders when that row is visible and not interactive. The
+receipt stores those read values. It does not embed a second copy of the
+sentence or a hardcoded `interactive: false`. Keyboard focus of the notice was
+**not verified**.
+
+The Chinese sentence is “历史结果，当前不可交互”. It is not “已关闭”
+(`mcp.runtime.closed`).
+
+#234 still returns the archived body only when that conversation is selected.
+`1268ff1b` can omit tool images from the ACP projection without dropping the
+text or descriptor.
 
 ### Local commands
 
@@ -258,23 +271,21 @@ Actual Electron Workbench → Rust Host → Go ACP, deterministic loopback model
 not an external model. Receipt:
 `test-results/mcp-apps-conversation/result.json`.
 
-Before restart the audit has two `get-time` calls (the initial Agent call and
-one explicit UI click) and three fixture model requests. After process restart,
-reopening the archived chat, expanding it, and pressing Tab, those counts stay
-2 and 3. The restored row keeps the original timestamp text and shows
-`Official example · ui://get-time/mcp-app.html`. No interactive iframe is
-mounted. Screenshot `history-readonly-zh.png` (1100×1000, dark, zh-CN) shows
-“历史结果，当前不可交互” above that source and the saved time. The tool status
-on that row is “已完成”, which is the completed tool state, not the closed
-runtime string.
+Before close, the audit has two `get-time` calls (the initial Agent call and
+one explicit UI click) and three fixture model requests. After switching the
+running Workbench to zh-CN and closing that session, and again after process
+restart, the snapshot notice is “历史结果，当前不可交互”, `interactive` is
+false, and the call counts stay 2 and 3. No interactive iframe is mounted.
+The in-process close keeps `historical` false. The restarted row sets it true
+and keeps the original timestamp text and
+`Official example · ui://get-time/mcp-app.html`.
 
-Tab moved focus to the conversation canvas (`CANVAS`, role `textbox`, the
-composer). The historical notice itself was not a separately focused control.
-Expand and collapse used the painted tool disclosure.
-
-Live screenshots from the same run, before restart:
+Screenshots: `history-closed-same-process-zh.png` and
+`history-readonly-zh.png`. Live screenshots from the same run:
 `official-inline-light.png`, `official-inline-dark-narrow.png`,
 `official-conversation-followup.png`.
+
+Keyboard focus of the historical notice was not verified.
 
 ### #218 A–D on this head
 
@@ -287,12 +298,19 @@ Live screenshots from the same run, before restart:
 | C. No current binding says “历史结果，当前不可交互” and does not restore live interaction | Met | zh-CN screenshot; `admits_live_binding(true, …)` is false even when generation matches |
 | C. Live follow-up calls still use the existing approval path | Met | Same run: two `ask` approvals before restart; restart adds none |
 | D. Unchanged official 2.0.4 on the full Electron chain | Met | Receipt above |
-| D. Notebook Inspector through the same Agent tool-result entry | Not met in this run | Not re-executed. The earlier panel/Electron resource notes in this file are not a Workbench tool-row run |
-| D. Native GPUI | Not run here | This environment did not launch the Native GPUI app |
+| D. Notebook Inspector through the same Agent tool-result entry | 未验证 | This run did not start a Workbench agent turn that calls `app__notebook__read-entry`. The Inspector was not observed in the conversation tool row. Earlier panel screenshots in this file are not that entry |
+| D. Native GPUI | 未验证 | This Linux environment did not launch the Native GPUI shell. There is no observed native window, degraded mode, or interaction result |
 
 Two servers that declare `ui://shared/view` stay apart:
 `TestSharedUIResourceStaysOnItsServer` reads and adopts each server’s own HTML
 and result, rejects the crossed adopt, and leaves each effect count at 1.
+
+Linux core stays at a 15 minute timeout. The Wasm, Workbench, Desktop build
+and this conversation e2e run only in the `mcp-browser` job, which is skipped
+unless that scope is selected. That job’s timeout is 30 minutes. A warm local
+path was about 8 minutes (Wasm about 4 minutes, Host about 1.5 minutes, the
+conversation about 42 seconds); 30 minutes is the cold-compile ceiling, not a
+claim that the job takes that long.
 
 `ui/update-model-context`, Task/Run/Artifact binding, author tooling,
 panel/fullscreen, and marketplace distribution stay out of this pass.

@@ -155,8 +155,13 @@ UI-only `_meta` 不进入模型上下文。结果保存沿用既有会话的数�
 Base `0fc86a2b`. Reopening an archived chat, or restarting the process, restores
 the saved tool text, source, and `pero.mcpApp` descriptor. It does not call the
 initial tool, send a model request, execute the resource HTML, or admit a new
-live binding. The row says “历史结果，当前不可交互”
-(`mcp.history.readonly`), not “已关闭” (`mcp.runtime.closed`).
+live binding. Closing the session in the current process uses the same
+sentence: the iframe goes away and the row is no longer interactive.
+`historical` stays false until saved history is loaded. The sentence is
+“历史结果，当前不可交互” (`mcp.history.readonly`), not “已关闭”
+(`mcp.runtime.closed`). The Electron receipt reads that sentence and
+`interactive` from `mcpHistory` in the Workbench snapshot. Keyboard focus of
+the notice was not verified.
 
 #234 still returns that snapshot from on-demand thread history. `1268ff1b`
 can omit tool images from the ACP projection without dropping the text or
@@ -165,10 +170,10 @@ UI-only `_meta` is absent from the marshaled model `GenerateRequest`.
 
 Electron evidence, 2026-11-24, unchanged
 `@modelcontextprotocol/server-basic-vanillajs@2.0.4`:
-`test-results/mcp-apps-conversation/result.json` and
-`history-readonly-zh.png`. After restart the audit stays at two `get-time`
-calls and three loopback model requests. Tab focused the composer canvas, not
-a separate control on the historical notice.
+`test-results/mcp-apps-conversation/result.json`,
+`history-closed-same-process-zh.png`, and `history-readonly-zh.png`. After
+close and after restart the audit stays at two `get-time` calls and three
+loopback model requests.
 
 ### A–D against this head
 
@@ -180,8 +185,8 @@ a separate control on the historical notice.
 | C. History restore without a tool or model call, with the explicit non-interactive sentence | Met. Contract tests plus the zh-CN Electron restart |
 | C. Live approval path and no cross-process live recovery | Met. Two asks before restart, none after; archived descriptors are not admitted |
 | D. Official 2.0.4 full Electron chain | Met for this run. Receipt above |
-| D. Notebook Inspector as the Agent conversation tool-result entry | Not met in this run. No Workbench agent call opened the Inspector in the tool row |
-| D. Native GPUI | Not run in this Linux environment |
+| D. Notebook Inspector as the Agent conversation tool-result entry | 未验证. This run did not start a Workbench agent turn that calls `app__notebook__read-entry`, so the Inspector was not observed in the tool row |
+| D. Native GPUI | 未验证. This Linux environment did not launch the Native GPUI shell, so there is no observed native window or interaction |
 
 The follow-ups below the original issue (model-context updates, Task/Run/Artifact,
 author tools, panel/fullscreen, distribution) are still not closing conditions.
