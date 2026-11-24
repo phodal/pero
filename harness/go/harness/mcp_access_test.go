@@ -394,3 +394,181 @@ func TestMCPOriginalAppCall(t *testing.T) {
 		t.Fatal("rejected adoption executed a tool")
 	}
 }
+
+func TestSharedUIResourceStaysOnItsServer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	const uri = "ui://shared/view"
+	var alphaCalls, betaCalls atomic.Int32
+	start := func(label string, calls *atomic.Int32) sdk.Transport {
+		t.Helper()
+		server := sdk.NewServer(&sdk.Implementation{Name: label, Version: "1"}, nil)
+		server.AddTool(&sdk.Tool{Name: "show", InputSchema: map[string]any{"type": "object"}, Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+			Meta: sdk.Meta{"ui": map[string]any{"resourceUri": uri, "visibility": []string{"model"}}}}, func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			calls.Add(1)
+			return &sdk.CallToolResult{
+				Content: []sdk.Content{&sdk.TextContent{Text: label + "-result"}}, StructuredContent: map[string]any{"server": label},
+				Meta: sdk.Meta{"ui": map[string]any{"private": label}},
+			}, nil
+		})
+		server.AddResource(&sdk.Resource{URI: uri, Name: label, MIMEType: "text/html;profile=mcp-app"}, func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+			return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: uri, MIMEType: "text/html;profile=mcp-app", Text: "<p>" + label + "</p>"}}}, nil
+		})
+		clientTransport, serverTransport := sdk.NewInMemoryTransports()
+		session, err := server.Connect(ctx, serverTransport, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
+		return clientTransport
+	}
+	alphaTransport := start("alpha", &alphaCalls)
+	betaTransport := start("beta", &betaCalls)
+	ready := make(chan struct{}, 2)
+	h := retirementHarness(t)
+	agent, err := h.Agents().Create(ctx, AgentOptions{ID: "shared-ui", Configure: func(ctx context.Context, run *point.Run, owner *Agent) error {
+		return MountAgentMCPServers(ctx, run, h.Tools(), h.Prompts(), owner, []MCPServerConfig{
+			{Name: "alpha", TestTransport: alphaTransport, FailOnStartupError: true, Observe: func(value MCPConnectionObservation) {
+				if value.Status == "connected" {
+					ready <- struct{}{}
+				}
+			}},
+			{Name: "beta", TestTransport: betaTransport, FailOnStartupError: true, Observe: func(value MCPConnectionObservation) {
+				if value.Status == "connected" {
+					ready <- struct{}{}
+				}
+			}},
+		})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		select {
+		case <-ready:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	access := agent.MCPAccess()
+	for _, label := range []string{"alpha", "beta"} {
+		outcome, err := h.Tools().Execute(ctx, ToolRequest{Agent: agent, CallID: ToolCallID(label + "-call"), Name: PublicMCPToolName(label, "show"), Arguments: json.RawMessage(`{}`)})
+		if err != nil || outcome.Result.IsError {
+			t.Fatalf("%s call: %v %+v", label, err, outcome.Result)
+		}
+		descriptor := access.AppDescriptor(ToolCallID(label + "-call"))
+		if descriptor == nil || descriptor.Server != label || descriptor.ResourceURI != uri || descriptor.ToolCall != ToolCallID(label+"-call") {
+			t.Fatalf("%s descriptor = %+v", label, descriptor)
+		}
+		resource, err := access.Request(ctx, MCPSessionRequest{Action: "read", Server: label, Generation: descriptor.Generation, URI: uri})
+		var document struct {
+			Contents []struct {
+				Text string `json:"text"`
+			} `json:"contents"`
+		}
+		if err != nil || json.Unmarshal(resource, &document) != nil || len(document.Contents) != 1 || document.Contents[0].Text != "<p>"+label+"</p>" {
+			t.Fatalf("%s resource = %s %v", label, resource, err)
+		}
+		adopted, err := access.Request(ctx, MCPSessionRequest{Action: "adopt", Server: label, Generation: descriptor.Generation, ToolCall: descriptor.ToolCall})
+		if err != nil || !strings.Contains(string(adopted), label+"-result") || strings.Contains(string(adopted), map[bool]string{true: "beta-result", false: "alpha-result"}[label == "alpha"]) {
+			t.Fatalf("%s adoption crossed servers: %s %v", label, adopted, err)
+		}
+	}
+	if _, err := access.Request(ctx, MCPSessionRequest{Action: "read", Server: "alpha", Generation: 1, URI: uri}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := access.Request(ctx, MCPSessionRequest{Action: "adopt", Server: "beta", Generation: 1, ToolCall: "alpha-call"}); err == nil {
+		t.Fatal("beta adopted alpha's call for the shared ui://")
+	}
+	if alphaCalls.Load() != 1 || betaCalls.Load() != 1 {
+		t.Fatalf("shared ui:// replayed a tool: alpha=%d beta=%d", alphaCalls.Load(), betaCalls.Load())
+	}
+}
+
+func TestModelInputOmitsUIOnlyMeta(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	const secret = "UI_ONLY_META_9f3c"
+	const uri = "ui://fixture/private-view"
+	var calls atomic.Int32
+	server := sdk.NewServer(&sdk.Implementation{Name: "model-meta", Version: "1"}, nil)
+	server.AddTool(&sdk.Tool{Name: "show", Description: "Show the saved value", InputSchema: map[string]any{"type": "object"}, Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true},
+		Meta: sdk.Meta{"ui": map[string]any{"resourceUri": uri, "visibility": []string{"model"}}, "bindingToken": secret}}, func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		calls.Add(1)
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "ordinary visible result"}}, StructuredContent: map[string]any{"shown": "ordinary-structured"},
+			Meta: sdk.Meta{"ui": map[string]any{"private": true}, "bindingToken": secret}}, nil
+	})
+	server.AddResource(&sdk.Resource{URI: uri, Name: "view", MIMEType: "text/html;profile=mcp-app"}, func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+		return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: uri, MIMEType: "text/html;profile=mcp-app", Text: "<p>view</p>"}}}, nil
+	})
+	clientTransport, serverTransport := sdk.NewInMemoryTransports()
+	session, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	ready := make(chan struct{}, 1)
+	name := PublicMCPToolName("fixture", "show")
+	adapter := &scriptedAdapter{responses: []Completion{
+		{Message: Message{Role: RoleAssistant, Content: []ContentBlock{{Type: BlockToolCall, ToolCallID: "model-call", Name: name, Arguments: json.RawMessage(`{}`)}}}, Finish: FinishToolCalls},
+		{Message: Message{Role: RoleAssistant, Content: []ContentBlock{{Type: BlockText, Text: "done"}}}, Finish: FinishStop},
+	}}
+	h, err := Boot(ctx, Options{Adapter: adapter, ApprovalPolicy: ApprovalNever})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Dispose(context.Background()) })
+	agent, err := h.Agents().Create(ctx, AgentOptions{ID: "model-meta", CWD: t.TempDir(), Provider: "test", Model: "scripted", Configure: func(ctx context.Context, run *point.Run, owner *Agent) error {
+		return MountAgentMCPServers(ctx, run, h.Tools(), h.Prompts(), owner, []MCPServerConfig{{
+			Name: "fixture", TestTransport: clientTransport, FailOnStartupError: true,
+			Observe: func(value MCPConnectionObservation) {
+				if value.Status == "connected" {
+					ready <- struct{}{}
+				}
+			},
+		}})
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if _, err := agent.Prompt(ctx, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: "Show the saved value."}}}); err != nil {
+		t.Fatal(err)
+	}
+	adapter.mu.Lock()
+	requests := append([]GenerateRequest(nil), adapter.requests...)
+	adapter.mu.Unlock()
+	if len(requests) != 2 {
+		t.Fatalf("model requests = %d", len(requests))
+	}
+	raw, err := json.Marshal(requests)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := string(raw)
+	if !strings.Contains(payload, "ordinary visible result") {
+		t.Fatalf("model input lost the ordinary result: %s", payload)
+	}
+	for _, leaked := range []string{secret, uri, "bindingToken", "private-view"} {
+		if strings.Contains(payload, leaked) {
+			t.Fatalf("model input contains UI-only %q: %s", leaked, payload)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("initial tool effect = %d", calls.Load())
+	}
+	descriptor := agent.MCPAccess().AppDescriptor("model-call")
+	if descriptor == nil {
+		t.Fatal("missing descriptor")
+	}
+	if _, err := agent.MCPAccess().Request(ctx, MCPSessionRequest{Action: "adopt", Server: descriptor.Server, Generation: descriptor.Generation, ToolCall: descriptor.ToolCall}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Fatal("opening the saved result repeated the initial tool")
+	}
+}
