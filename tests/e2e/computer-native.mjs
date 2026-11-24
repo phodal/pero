@@ -13,7 +13,7 @@ const out=computerEvidenceDirectory(root);await mkdir(out,{recursive:true});
 await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts')],outfile:resolve(run,'computer.mjs'),bundle:true,platform:'node',format:'esm'});
 const { DesktopComputer }=await import(resolve(run,'computer.mjs'));
 const states=[];
-const desktop=new DesktopComputer(resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
+const desktop=new DesktopComputer(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
 let backgroundActivations=0;
@@ -45,6 +45,12 @@ try {
  // Same request is answered from its durable journal, never dispatched twice.
  assert.deepEqual((await call({operation:'act',action})).receipt,receipts[0]);assert.equal((await state()).count,1);
  const stale=await call({operation:'act',action:{...action,request_id:'stale'}});assert.equal(stale.receipt.outcome.status,'rejected');assert.equal(stale.receipt.outcome.error.code,'stale_observation');
+ const standalone=await call({operation:'screenshot',target});
+ assert.equal(standalone.capture_status,'captured');
+ assert.equal(standalone.ocr_status,'not_requested');
+ assert.equal(standalone.observation.elements.length,0);
+ assert.ok(standalone.image);
+ assert.notEqual(standalone.observation.id,observation.id);
  const changed=await call({operation:'observe',target,options:{want_image:false}});
  assert.equal(changed.delta?.base_observation_id,observation.id);
  assert.ok(changed.observation.elements.length < observation.elements.length);
@@ -57,7 +63,8 @@ try {
  await act(observation,{kind:'press_key',anchor:{kind:'element',element_id:field.id},keys:['Meta','Shift','ArrowLeft']});
  await poll(async()=>(await state()).selection?.length==='你好 Pero 🌱'.length,'background text selection key chord');
  observation=await observe();await act(observation,{kind:'type_text',anchor:{kind:'element',element_id:field.id},text:'Verified'});await poll(async()=>(await state()).text==='Verified');
- observation=await observe();assert.ok(observation.screenshot,'Real capture is required');
+ const pixelFrame=await call({operation:'screenshot',target});
+ observation=pixelFrame.observation;assert.ok(observation.screenshot,'Real capture is required');
  execFileSync('/usr/sbin/screencapture',['-x','-l',String((await state()).windowNumber),resolve(out,'reference.png')]);
  const point={x:Math.round(observation.screenshot.width*0.35),y:Math.round(observation.screenshot.height*0.6)};
  await guard.activate();
@@ -74,6 +81,11 @@ try {
  const secure=await call({operation:'observe',target,options:{max_nodes:1}});
  assert.equal(secure.observation.elements.length,1);
  assert.equal(secure.image,null,'A secure control beyond the returned nodes still blocks the screenshot');
+ assert.equal(secure.capture_status,'secure_content');
+ assert.equal(secure.ocr_status,'no_image');
+ const secureFrame=await call({operation:'screenshot',target});
+ assert.equal(secureFrame.capture_status,'secure_content');
+ assert.equal(secureFrame.image,null);
  await fixture.command('remove_secure');
  const stable = await observe();
  const stableButton = stable.elements.find(element => element.label === 'Increment');

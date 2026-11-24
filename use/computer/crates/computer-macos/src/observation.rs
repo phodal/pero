@@ -2,7 +2,7 @@
 use crate::{bridge, capture};
 use computer_core::{ControlId, Window, WindowImage};
 use computer_runtime::{WindowObservation, error};
-use pero_contracts::computer_use::*;
+use pero_contracts::{computer_runtime::ComputerCaptureStatus, computer_use::*};
 use point_computer_core::types::Frame;
 use point_computer_macos::ffi::{self, CfRef};
 use std::{
@@ -70,8 +70,14 @@ impl AxScan {
         }
     }
 
-    fn allows_pixels(&self) -> bool {
-        !self.incomplete && !self.secure
+    fn capture_block(&self) -> Option<ComputerCaptureStatus> {
+        if self.secure {
+            Some(ComputerCaptureStatus::SecureContent)
+        } else if self.incomplete {
+            Some(ComputerCaptureStatus::IncompleteScan)
+        } else {
+            None
+        }
     }
 }
 
@@ -386,21 +392,25 @@ pub fn observe(
         }
     }
     // A subtree cannot establish that the rest of the window is free of secure fields.
-    let image = if options.want_image
-        && options.root.is_none()
-        && scan.allows_pixels()
-        && ffi::preflight_screen_capture()
-    {
-        capture::window(window.window_id).and_then(|image| {
-            Some(WindowImage {
-                width: NonZeroU32::new(image.width)?,
-                height: NonZeroU32::new(image.height)?,
-                bytes: image.jpeg,
-                media_type: ComputerImageType::Jpeg,
-            })
-        })
+    let image = if !options.want_image {
+        Err(ComputerCaptureStatus::NotRequested)
+    } else if options.root.is_some() {
+        Err(ComputerCaptureStatus::Subtree)
+    } else if let Some(reason) = scan.capture_block() {
+        Err(reason)
+    } else if !ffi::preflight_screen_capture() {
+        Err(ComputerCaptureStatus::ScreenRecordingRequired)
     } else {
-        None
+        capture::window(window.window_id)
+            .and_then(|image| {
+                Some(WindowImage {
+                    width: NonZeroU32::new(image.width)?,
+                    height: NonZeroU32::new(image.height)?,
+                    bytes: image.jpeg,
+                    media_type: ComputerImageType::Jpeg,
+                })
+            })
+            .ok_or(ComputerCaptureStatus::Unavailable)
     };
     let snapshot = Snapshot {
         window: native_window,
@@ -452,7 +462,10 @@ mod tests {
             let mut children = Vec::new();
             scan.add_children(read, &mut children);
             scan.add_children(Ok(None), &mut children);
-            assert_eq!(scan.allows_pixels(), allowed);
+            assert_eq!(
+                scan.capture_block(),
+                (!allowed).then_some(ComputerCaptureStatus::IncompleteScan)
+            );
         }
     }
 }

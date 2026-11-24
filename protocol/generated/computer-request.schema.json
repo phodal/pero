@@ -568,6 +568,24 @@
       "additionalProperties": false,
       "description": "Logical key names/chords (for example [\"Control\", \"a\"]), mapped by the adapter."
     },
+    "ComputerReadOcrRequest": {
+      "title": "ComputerReadOcrRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "read_ocr"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        }
+      },
+      "required": [
+        "operation",
+        "screenshot_id"
+      ],
+      "additionalProperties": false
+    },
     "ComputerReceiptRequest": {
       "title": "ComputerReceiptRequest",
       "type": "object",
@@ -610,6 +628,12 @@
           "$ref": "#/$defs/ComputerObserveRequest"
         },
         {
+          "$ref": "#/$defs/ComputerScreenshotRequest"
+        },
+        {
+          "$ref": "#/$defs/ComputerReadOcrRequest"
+        },
+        {
           "$ref": "#/$defs/ComputerActRequest"
         },
         {
@@ -619,6 +643,27 @@
           "$ref": "#/$defs/ComputerReceiptRequest"
         }
       ]
+    },
+    "ComputerScreenshotRequest": {
+      "title": "ComputerScreenshotRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "screenshot"
+        },
+        "target": {
+          "$ref": "#/$defs/ComputerTargetRef"
+        },
+        "recognize_text": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "target"
+      ],
+      "additionalProperties": false
     },
     "ComputerScroll": {
       "title": "ComputerScroll",

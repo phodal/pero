@@ -63,7 +63,7 @@ try {
  assert.ok(computerTool);
  assert.deepEqual(computerTool.inputSchema.required,['operation']);
  assert(computerTool.inputSchema.properties.operation.enum.includes('status'));
- assert.deepEqual(Object.keys(computerTool.inputSchema.properties).sort(), ['action','application','operation','options','request_id','target']);
+ assert.deepEqual(Object.keys(computerTool.inputSchema.properties).sort(), ['action','application','operation','options','recognize_text','request_id','screenshot_id','target']);
  const status=await rpc('tools/call',{name:'computer_use',arguments:{operation:'status'}});assert.equal(status.value.result.isError,false,JSON.stringify(status.value));
  const observation=await rpc('tools/call',{name:'computer_use',arguments:{operation:'observe',target:corpus.target.reference,options:{want_image:true}}});
  assert.equal(observation.value.result.isError,false,JSON.stringify(observation.value));
@@ -76,6 +76,18 @@ try {
  assert.match(preview.text,/control-0 .*\[disabled\] Fixture disabled button/);
  assert.ok(Buffer.byteLength(preview.text) < 8200);
  assert.equal(image.mimeType,'image/png');
+ assert.match(preview.text.split('\n')[0], /capture=captured OCR=ready screenshot_id=fixture-image/);
+ const capture=await rpc('tools/call',{name:'computer_use',arguments:{operation:'screenshot',target:corpus.target.reference,recognize_text:true}});
+ assert.equal(capture.value.result.isError,false,JSON.stringify(capture.value));
+ const [frame, pixels]=capture.value.result.content;
+ const screenshot=JSON.parse(frame.text);
+ assert.equal(screenshot.capture_status,'captured');
+ assert.equal(screenshot.ocr_status,'pending');
+ assert.deepEqual(screenshot.observation.elements,[]);
+ assert.deepEqual(pixels,image);
+ const text=await rpc('tools/call',{name:'computer_use',arguments:{operation:'read_ocr',screenshot_id:screenshot.observation.screenshot.id}});
+ assert.equal(text.value.result.isError,false,JSON.stringify(text.value));
+ assert.deepEqual(JSON.parse(text.value.result.content[0].text),{kind:'ocr',screenshot_id:'fixture-image',ocr_status:'ready',recognized_text:'车企实践 / Test Agent'});
  const foreign=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}},'foreign');assert.ok(foreign.value.error||foreign.value.result?.isError);
  selected='foreign';const stale=await rpc('tools/call',{name:'computer_use',arguments:{operation:'targets'}});assert.ok(stale.value.error||stale.value.result?.isError);
  await desktop.forget('thread');

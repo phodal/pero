@@ -380,7 +380,7 @@ impl DesktopDriver for Desktop {
                 },
                 bounds: Some(bounds),
                 elements,
-                image: None,
+                image: Err(ComputerCaptureStatus::NotRequested),
                 truncated,
             });
         }
@@ -461,7 +461,7 @@ impl DesktopDriver for Desktop {
             bounds: Some(bounds),
             elements,
             truncated,
-            image: Some(WindowImage {
+            image: Ok(WindowImage {
                 bytes: jpeg,
                 width: NonZeroU32::new(w.into()).unwrap(),
                 height: NonZeroU32::new(h.into()).unwrap(),

@@ -147,6 +147,19 @@
       ],
       "additionalProperties": false
     },
+    "ComputerCaptureStatus": {
+      "title": "ComputerCaptureStatus",
+      "type": "string",
+      "enum": [
+        "captured",
+        "not_requested",
+        "subtree",
+        "screen_recording_required",
+        "incomplete_scan",
+        "secure_content",
+        "unavailable"
+      ]
+    },
     "ComputerDelivery": {
       "title": "ComputerDelivery",
       "type": "string",
@@ -547,6 +560,12 @@
             }
           ]
         },
+        "capture_status": {
+          "$ref": "#/$defs/ComputerCaptureStatus"
+        },
+        "ocr_status": {
+          "$ref": "#/$defs/ComputerOcrStatus"
+        },
         "recognized_text": {
           "type": "string",
           "maxLength": 6000,
@@ -562,6 +581,46 @@
         "observation"
       ],
       "additionalProperties": false
+    },
+    "ComputerOcrResponse": {
+      "title": "ComputerOcrResponse",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ocr"
+        },
+        "screenshot_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "ocr_status": {
+          "$ref": "#/$defs/ComputerOcrStatus"
+        },
+        "recognized_text": {
+          "type": "string",
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "kind",
+        "screenshot_id",
+        "ocr_status"
+      ],
+      "additionalProperties": false
+    },
+    "ComputerOcrStatus": {
+      "title": "ComputerOcrStatus",
+      "type": "string",
+      "enum": [
+        "not_requested",
+        "no_image",
+        "unsupported",
+        "busy",
+        "pending",
+        "ready",
+        "no_text",
+        "failed"
+      ]
     },
     "ComputerOpenedResponse": {
       "title": "ComputerOpenedResponse",
@@ -668,6 +727,9 @@
         },
         {
           "$ref": "#/$defs/ComputerObservationResponse"
+        },
+        {
+          "$ref": "#/$defs/ComputerOcrResponse"
         },
         {
           "$ref": "#/$defs/ComputerReceiptResponse"

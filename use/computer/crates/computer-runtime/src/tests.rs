@@ -98,7 +98,7 @@ impl DesktopDriver for OwnedDesktop {
             source: AppSnapshot(clicks),
             bounds: Some(self.0.borrow().bounds),
             elements,
-            image: None,
+            image: Err(ComputerCaptureStatus::Unavailable),
             truncated: false,
         })
     }

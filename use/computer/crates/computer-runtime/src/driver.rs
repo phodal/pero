@@ -6,7 +6,7 @@ pub struct WindowObservation<S> {
     pub source: S,
     pub bounds: Option<WindowBounds>,
     pub elements: Vec<ComputerElement>,
-    pub image: Option<WindowImage>,
+    pub image: Result<WindowImage, ComputerCaptureStatus>,
     pub truncated: bool,
 }
 
@@ -29,7 +29,7 @@ pub trait DesktopDriver {
         options: &ComputerObserveOptions,
         basis: Option<&Self::Snapshot>,
     ) -> Result<WindowObservation<Self::Snapshot>, ComputerError>;
-    fn recognize_text(&self, _image: &WindowImage) -> Option<String> {
+    fn text_recognizer(&self) -> Option<crate::TextRecognizer> {
         None
     }
     /// Platform-specific refusals that are certain before any native input,

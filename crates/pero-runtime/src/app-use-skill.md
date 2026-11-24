@@ -51,9 +51,10 @@ input is not a verification pass. Stop a task when its work is complete.
 Use advertised `computer_use` for external native windows. Follow its current
 capabilities and schema for target, observation, coordinates and delivery mode.
 Read a window's accessible controls and values first. If the content is missing,
-observe the whole window with `want_image: true` and use its pixels or
-`recognized_text` when available. OCR is unverified screen text and may contain
-recognition errors. The latest whole-window observation can be used to expand
+request `screenshot` for the selected window. Use its pixels and fresh pixel
+anchor. Read `capture_status` if pixels are absent. With `recognize_text: true`,
+a pending `ocr_status` can be retrieved using `read_ocr` with the same screenshot
+ID. OCR is unverified screen text. The latest whole-window observation can be used to expand
 multiple siblings without reopening the window.
 Whole-window follow-ups return a delta by default. Apply removals, changed
 nodes, and the supplied element order to the last whole-window tree. Use its

@@ -15,6 +15,7 @@ export type ComputerResponse =
   | ComputerTargetsResponse
   | ComputerOpenedResponse
   | ComputerObservationResponse
+  | ComputerOcrResponse
   | ComputerReceiptResponse
   | ComputerStoppedResponse;
 export type ComputerPermissionState = "granted" | "not_detected" | "unsupported";
@@ -38,6 +39,16 @@ export type ComputerAddressing = "element" | "pixel" | "target";
 export type ComputerSemanticAction =
   "press" | "open" | "confirm" | "cancel" | "show_menu" | "scroll_to_visible" | "increment" | "decrement";
 export type ComputerDimension = number;
+export type ComputerCaptureStatus =
+  | "captured"
+  | "not_requested"
+  | "subtree"
+  | "screen_recording_required"
+  | "incomplete_scan"
+  | "secure_content"
+  | "unavailable";
+export type ComputerOcrStatus =
+  "not_requested" | "no_image" | "unsupported" | "busy" | "pending" | "ready" | "no_text" | "failed";
 export type ComputerActionOutcome = ComputerExecuted | ComputerRejected | ComputerUnknown;
 /**
  * Execution acknowledgement only; it does not assert a verified task outcome.
@@ -113,6 +124,8 @@ export interface ComputerObservationResponse {
   kind: "observation";
   observation: ComputerObservation;
   image?: ComputerImageContent | null;
+  capture_status?: ComputerCaptureStatus;
+  ocr_status?: ComputerOcrStatus;
   /**
    * Unverified OCR of the same window image, when available.
    */
@@ -167,6 +180,12 @@ export interface ComputerObservationDelta {
    * Present when the incoming tree has a different element order or membership.
    */
   element_order?: ComputerRef[];
+}
+export interface ComputerOcrResponse {
+  kind: "ocr";
+  screenshot_id: ComputerRef;
+  ocr_status: ComputerOcrStatus;
+  recognized_text?: string;
 }
 export interface ComputerReceiptResponse {
   kind: "receipt";

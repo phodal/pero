@@ -10,6 +10,8 @@ export type ComputerRequest =
   | ComputerTargetsRequest
   | ComputerOpenRequest
   | ComputerObserveRequest
+  | ComputerScreenshotRequest
+  | ComputerReadOcrRequest
   | ComputerActRequest
   | ComputerStopRequest
   | ComputerReceiptRequest;
@@ -100,6 +102,15 @@ export interface ComputerObserveOptions {
 export interface ComputerSubtree {
   observation_id: ComputerRef;
   element_id: ComputerRef;
+}
+export interface ComputerScreenshotRequest {
+  operation: "screenshot";
+  target: ComputerTargetRef;
+  recognize_text?: boolean;
+}
+export interface ComputerReadOcrRequest {
+  operation: "read_ocr";
+  screenshot_id: ComputerRef;
 }
 export interface ComputerActRequest {
   operation: "act";

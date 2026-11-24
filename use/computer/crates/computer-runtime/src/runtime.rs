@@ -1,5 +1,5 @@
 //! Persistent native session; platform snapshots remain opaque to this owner.
-use crate::{DesktopDriver, WindowObservation, error};
+use crate::{DesktopDriver, WindowObservation, error, ocr::WindowOcr};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use computer_core::{Window, WindowBounds};
 use pero_contracts::{computer_runtime::*, computer_use::*};
@@ -87,6 +87,10 @@ impl<S> Observations<S> {
             .map(|observation| &observation.native)
     }
 }
+enum ObservationMode {
+    Tree,
+    Screenshot { recognize_text: bool },
+}
 pub struct ComputerRuntime<D: DesktopDriver> {
     driver: D,
     capabilities: ComputerCapabilities,
@@ -94,6 +98,7 @@ pub struct ComputerRuntime<D: DesktopDriver> {
     observations: HashMap<ComputerRef, Observations<D::Snapshot>>,
     // Public state remains available for a diff after input consumes native handles.
     last_windows: HashMap<ComputerRef, WholeWindowBaseline>,
+    ocr: WindowOcr,
     host_pid: i32,
     pub(crate) cancellation: crate::Cancellation,
 }
@@ -114,6 +119,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             targets: HashMap::new(),
             observations: HashMap::new(),
             last_windows: HashMap::new(),
+            ocr: WindowOcr::default(),
             host_pid,
             cancellation: crate::Cancellation::default(),
         }
@@ -147,13 +153,26 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                     .map(|app| self.remember(app));
                 Ok(ComputerResponse::Opened { target, message })
             }
-            ComputerRequest::Observe { target, options } => self.observe(thread, target, options),
+            ComputerRequest::Observe { target, options } => {
+                self.observe(thread, target, options, ObservationMode::Tree)
+            }
+            ComputerRequest::Screenshot {
+                target,
+                recognize_text,
+            } => self.observe(
+                thread,
+                target,
+                ComputerObserveOptions::default(),
+                ObservationMode::Screenshot { recognize_text },
+            ),
+            ComputerRequest::ReadOcr { screenshot_id } => self.ocr.read(&thread, screenshot_id),
             ComputerRequest::Act { action } => Ok(ComputerResponse::Receipt {
                 receipt: self.act(&thread, action),
             }),
             ComputerRequest::Stop {} => {
                 self.observations.remove(&thread);
                 self.last_windows.remove(&thread);
+                self.ocr.stop(&thread);
                 Ok(ComputerResponse::Stopped {})
             }
             ComputerRequest::Receipt { .. } => Err(error(
@@ -214,6 +233,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         thread: ComputerRef,
         target: ComputerTargetRef,
         options: ComputerObserveOptions,
+        mode: ObservationMode,
     ) -> Result<ComputerResponse, ComputerError> {
         let basis = if let Some(root) = &options.root {
             Some(
@@ -238,15 +258,38 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             image,
             truncated,
         } = self.driver.observe(&app, &options, basis)?;
+        let screenshot_only = matches!(mode, ObservationMode::Screenshot { .. });
+        let recognize_text = !matches!(
+            mode,
+            ObservationMode::Screenshot {
+                recognize_text: false
+            }
+        ) && options.want_image
+            && options.root.is_none();
+        let capture_status = image
+            .as_ref()
+            .err()
+            .copied()
+            .unwrap_or(ComputerCaptureStatus::Captured);
+        let image = image.ok();
         let screenshot = image.as_ref().map(|image| ComputerScreenshot {
             id: reference(),
             media_type: image.media_type,
             width: image.width,
             height: image.height,
         });
-        let recognized_text = image
-            .as_ref()
-            .and_then(|image| self.driver.recognize_text(image));
+        let (ocr_status, recognized_text) = if !recognize_text {
+            (ComputerOcrStatus::NotRequested, None)
+        } else if let (Some(image), Some(screenshot)) = (&image, &screenshot) {
+            if let Some(recognize) = self.driver.text_recognizer() {
+                self.ocr
+                    .start(&thread, &screenshot.id, recognize, &image.bytes)
+            } else {
+                (ComputerOcrStatus::Unsupported, None)
+            }
+        } else {
+            (ComputerOcrStatus::NoImage, None)
+        };
         let image = image.map(|image| ComputerImageContent {
             media_type: image.media_type,
             data: STANDARD.encode(image.bytes),
@@ -254,7 +297,11 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         let mut observation = ComputerObservation {
             id: reference(),
             target,
-            elements,
+            elements: if screenshot_only {
+                Vec::new()
+            } else {
+                elements
+            },
             screenshot,
             truncated,
         };
@@ -264,7 +311,17 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             native: source,
             bounds,
         };
-        let delta = if options.root.is_some() {
+        let delta = if screenshot_only {
+            // Pixel input uses this frame. AX follow-ups still use the last tree.
+            self.observations.insert(
+                thread,
+                Observations {
+                    window: snapshot,
+                    subtree: None,
+                },
+            );
+            None
+        } else if options.root.is_some() {
             self.observations.get_mut(&thread).unwrap().subtree = Some(snapshot);
             None
         } else {
@@ -298,6 +355,8 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         Ok(ComputerResponse::Observation {
             observation,
             image,
+            capture_status: Some(capture_status),
+            ocr_status: Some(ocr_status),
             recognized_text,
             delta,
         })

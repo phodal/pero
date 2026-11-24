@@ -26,16 +26,20 @@ model ComputerObserveOptions {
   ...ComputerClosed;
 }
 model ComputerObserveRequest { operation: "observe"; target: ComputerTargetRef; options?: ComputerObserveOptions; ...ComputerClosed; }
+model ComputerScreenshotRequest { operation: "screenshot"; target: ComputerTargetRef; recognize_text?: boolean; ...ComputerClosed; }
+model ComputerReadOcrRequest { operation: "read_ocr"; screenshot_id: ComputerRef; ...ComputerClosed; }
 model ComputerActRequest { operation: "act"; action: ComputerAction; ...ComputerClosed; }
 model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }
-@oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
+@oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerScreenshotRequest, ComputerReadOcrRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
 model ComputerWorkerRequest { id: ComputerRef; thread: ComputerRef; request: ComputerRequest; ...ComputerClosed; }
 enum ComputerPermissionState { granted, not_detected, unsupported }
 model ComputerDriverStatus { available: boolean; accessibility: ComputerPermissionState; screen_recording: ComputerPermissionState; message: string; environment?: ComputerEnvironment | null; ...ComputerClosed; }
 model ComputerUseState { enabled: boolean; running: boolean; status: ComputerDriverStatus; error?: string | null; ...ComputerClosed; }
 model ComputerImageContent { media_type: "image/png" | "image/jpeg"; data: string; ...ComputerClosed; }
+enum ComputerCaptureStatus { captured, not_requested, subtree, screen_recording_required, incomplete_scan, secure_content, unavailable }
+enum ComputerOcrStatus { not_requested, no_image, unsupported, busy, pending, ready, no_text, failed }
 model ComputerStatusResponse { kind: "status"; status: ComputerDriverStatus; ...ComputerClosed; }
 model ComputerTargetsResponse { kind: "targets"; capabilities: ComputerCapabilities; targets: ComputerTarget[]; ...ComputerClosed; }
 model ComputerOpenedResponse { kind: "opened"; target?: ComputerTarget | null; message: string; ...ComputerClosed; }
@@ -50,15 +54,24 @@ model ComputerObservationResponse {
   kind: "observation";
   observation: ComputerObservation;
   image?: ComputerImageContent | null;
+  capture_status?: ComputerCaptureStatus;
+  ocr_status?: ComputerOcrStatus;
   /** Unverified OCR of the same window image, when available. */
   @maxLength(6000) recognized_text?: string;
   /** When present, observation.elements contains only added or changed nodes. */
   delta?: ComputerObservationDelta;
   ...ComputerClosed;
 }
+model ComputerOcrResponse {
+  kind: "ocr";
+  screenshot_id: ComputerRef;
+  ocr_status: ComputerOcrStatus;
+  @maxLength(6000) recognized_text?: string;
+  ...ComputerClosed;
+}
 model ComputerReceiptResponse { kind: "receipt"; receipt: ComputerActionReceipt; ...ComputerClosed; }
 model ComputerStoppedResponse { kind: "stopped"; ...ComputerClosed; }
-@oneOf union ComputerResponse { ComputerStatusResponse, ComputerTargetsResponse, ComputerOpenedResponse, ComputerObservationResponse, ComputerReceiptResponse, ComputerStoppedResponse }
+@oneOf union ComputerResponse { ComputerStatusResponse, ComputerTargetsResponse, ComputerOpenedResponse, ComputerObservationResponse, ComputerOcrResponse, ComputerReceiptResponse, ComputerStoppedResponse }
 model ComputerWorkerSuccess { id: ComputerRef; value: ComputerResponse; ...ComputerClosed; }
 model ComputerWorkerFailure { id: ComputerRef; error: ComputerError; ...ComputerClosed; }
 @oneOf union ComputerWorkerResponse { ComputerWorkerSuccess, ComputerWorkerFailure }
