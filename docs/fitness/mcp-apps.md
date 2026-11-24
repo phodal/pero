@@ -294,19 +294,21 @@ Keyboard focus of the historical notice was not verified.
 ### Notebook Inspector on the tool row
 
 `xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 node scripts/test/mcp-notebook-conversation.mjs`
-passed locally in about 38s. The Agent calls `app__notebook__read-entry` with
-revision 1 after Notebook has saved revision 2. Notebook's `/api/agent-read`
-owns the revision and document. The tool row mounts
-`ui://pero/notebook/inspector-v1` and shows “Sample A: 12.5 U/mL”, not 13.0.
-Browsing blocks adds one pinned read. Close and reopen do not. After restart
-the snapshot notice is “历史结果，当前不可交互”, `interactive` is false, and
-`historical` is true. Receipt:
-`test-results/mcp-notebook-conversation/result.json`. Screenshots:
+passed locally. The Agent calls the Host-registered `app__notebook__read-entry`
+on `pero-app-use`. `desktop/src/main/notebook-inspector.ts` serves
+`ui://pero/notebook/inspector-v1`. `app-write-routes.ts` reads Notebook's
+`/api/agent-read`. The saved tool text is 582 bytes, inside that route's
+1 MiB response limit. The HTML document is read separately by resource URI and
+is not embedded in the tool result. The row shows revision 1 (“Sample A: 12.5
+U/mL”) after Notebook has saved revision 2. Browsing blocks adds one pinned
+read. Close and reopen do not. After restart the snapshot notice is
+“历史结果，当前不可交互”, `interactive` is false, and `historical` is true.
+Receipt: `test-results/mcp-notebook-conversation/result.json`. Screenshots:
 `notebook-inline-pinned.png`, `notebook-history-closed-zh.png`,
 `notebook-history-readonly-zh.png`.
 
-The conversation reply bound is 2 MiB because that inspector document does not
-fit in 1 MiB. Native GPUI was not launched.
+Tool results and other MCP session replies stay at 1 MiB. A resource read may
+be 2 MiB. Native GPUI was not launched.
 
 ### #218 A–D on this head
 
@@ -319,7 +321,7 @@ fit in 1 MiB. Native GPUI was not launched.
 | C. No current binding says “历史结果，当前不可交互” and does not restore live interaction | Met | zh-CN screenshot; `admits_live_binding(true, …)` is false even when generation matches |
 | C. Live follow-up calls still use the existing approval path | Met | Same run: two `ask` approvals before restart; restart adds none |
 | D. Unchanged official 2.0.4 on the full Electron chain | Met | Receipt above |
-| D. Notebook Inspector through the same Agent tool-result entry | Met | Local Electron receipt above: pinned revision 1, two Notebook reads, two model requests, read-only history after restart |
+| D. Notebook Inspector through the same Agent tool-result entry | Met | Real `pero-app-use` / `app__notebook__read-entry` Electron receipt above. The tool result is 582 bytes. The inspector HTML is a separate resource read |
 | D. Native GPUI | 未验证 | `scripts/dev/native.mjs` refuses to launch the Native shell outside macOS. This Linux run did not open a Native window. Re-run `node scripts/test/mcp-native-inspector.mjs` on macOS and record usable, degraded, or not interactive. That script exits 2 and is not a pass |
 
 Two servers that declare `ui://shared/view` stay apart:
