@@ -1,13 +1,63 @@
 use crate::app::Workbench;
 use crate::workspace::WorkspaceItem;
-use gpui_kit::component::{
-    button::*,
-    menu::{DropdownMenu, PopupMenuItem},
-    *,
-};
+use gpui_kit::component::{button::*, *};
 use gpui_kit::{prelude::*, *};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::{collections::BTreeSet, time::Duration};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum ChromeRelayState {
+    Unavailable,
+    NotPaired,
+    Pairing,
+    Connected,
+    Expired,
+    Disconnected,
+    Incompatible,
+}
+
+impl ChromeRelayState {
+    fn key(self) -> &'static str {
+        match self {
+            Self::Unavailable => "browser_use.unavailable",
+            Self::NotPaired => "browser_use.chrome_status_notPaired",
+            Self::Pairing => "browser_use.chrome_status_pairing",
+            Self::Connected => "browser_use.chrome_status_connected",
+            Self::Expired => "browser_use.chrome_status_expired",
+            Self::Disconnected => "browser_use.chrome_status_disconnected",
+            Self::Incompatible => "browser_use.chrome_status_incompatible",
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct ChromeConnectionView {
+    checking: BTreeSet<String>,
+    manually_stopped: bool,
+    polling: bool,
+    status: Option<(String, ChromeRelayState)>,
+}
+
+impl ChromeConnectionView {
+    fn begin_check(&mut self, thread: &str) -> bool {
+        !self.manually_stopped && self.checking.insert(thread.to_owned())
+    }
+
+    fn finish_check(&mut self, requested: &str, selected: Option<&str>, state: Option<ChromeRelayState>) -> bool {
+        self.checking.remove(requested);
+        if self.manually_stopped || selected != Some(requested) {
+            return false;
+        }
+        let Some(state) = state else {
+            self.status = Some((requested.to_owned(), ChromeRelayState::Unavailable));
+            return false;
+        };
+        self.status = Some((requested.to_owned(), state));
+        !matches!(state, ChromeRelayState::Connected | ChromeRelayState::Pairing)
+    }
+}
 
 #[derive(Clone, Copy)]
 enum ChromeMode {
@@ -39,7 +89,6 @@ impl ChromeMode {
 
 enum ChromeAction {
     Pair(String),
-    Status(String),
     Stop,
     PrepareFolder,
     SiteRules,
@@ -71,6 +120,67 @@ pub(crate) struct CloudBrowserView {
 }
 
 impl Workbench {
+    pub(crate) fn auto_check_chrome(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(thread) = self.browser_thread(cx) else { return };
+        let Some(owner) = crate::native::chrome_relay_owner() else { return };
+        if !self.chrome_connection.begin_check(&thread) { return; }
+        cx.spawn_in(window, async move |view, cx| {
+            let requested = thread.clone();
+            let status = cx.background_executor().spawn(async move {
+                owner.request(json!({"operation":"chrome-relay-status", "thread":thread}))
+            }).await;
+            let _ = view.update_in(cx, |this, window, cx| {
+                let state = status.ok().and_then(|value| {
+                    (value["ok"] == true).then(|| value["state"].clone())
+                }).and_then(|value| serde_json::from_value::<ChromeRelayState>(value).ok());
+                let selected = this.browser_thread(cx);
+                let pair = this.chrome_connection.finish_check(&requested, selected.as_deref(), state);
+                if pair {
+                    this.native_chrome_relay(ChromeAction::Pair(requested), window, cx);
+                }
+                cx.notify();
+                if !this.chrome_connection.polling {
+                    this.chrome_connection.polling = true;
+                    this.poll_chrome_connection(window, cx);
+                }
+            });
+        }).detach();
+    }
+
+    fn poll_chrome_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        cx.spawn_in(window, async move |view, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(3)).await;
+                let selected = view.update_in(cx, |this, _, cx| {
+                    Some((crate::native::chrome_relay_owner()?, this.browser_thread(cx)?))
+                });
+                let (owner, thread) = match selected {
+                    Ok(Some(selected)) => selected,
+                    Ok(None) => continue,
+                    Err(_) => break,
+                };
+                let requested = thread.clone();
+                let result = cx.background_executor().spawn(async move {
+                    owner.request(json!({"operation":"chrome-relay-status", "thread":thread}))
+                }).await;
+                let _ = view.update_in(cx, |this, _, cx| {
+                    if this.browser_thread(cx).as_deref() != Some(&requested) { return; }
+                    let state = result.ok().and_then(|value| {
+                        (value["ok"] == true).then(|| value["state"].clone())
+                    }).and_then(|value| serde_json::from_value::<ChromeRelayState>(value).ok());
+                    let next = Some((requested, state.unwrap_or(ChromeRelayState::Unavailable)));
+                    if this.chrome_connection.status != next {
+                        this.chrome_connection.status = next;
+                        if let Some(panel) = &this.settings_panel {
+                            panel.update(cx, |_, cx| cx.notify());
+                        }
+                        cx.notify();
+                    }
+                });
+            }
+        }).detach();
+    }
+
     pub(super) fn native_chrome_approval(
         &mut self,
         event: pero_contracts::HostEvent,
@@ -298,6 +408,18 @@ impl Workbench {
             .and_then(|_| chat.active_chat.and_then(|i| chat.chats.get(i)))
             .map(|c| c.title.display().to_owned())
             .unwrap_or_else(|| self.t("browser_use.choose_chat").into());
+        let state = thread.as_deref().and_then(|thread| {
+            self.chrome_connection.status.as_ref()
+                .filter(|(selected, _)| selected == thread)
+                .map(|(_, state)| *state)
+        });
+        let status_key = if !available {
+            "browser_use.unavailable"
+        } else if thread.is_none() {
+            "browser_use.choose_chat"
+        } else {
+            state.map(ChromeRelayState::key).unwrap_or("browser_use.chrome_status_checking")
+        };
         let pair = pero_theme::action_button(
             "settings-chrome-pair",
             self.t("browser_use.open_chrome"),
@@ -344,12 +466,35 @@ impl Workbench {
         .on_click(cx.listener(|this, _, window, cx| {
             this.native_chrome_relay(ChromeAction::SiteRules, window, cx)
         }));
+        let developer = pero_theme::action_button(
+            "settings-chrome-developer",
+            self.t("browser_use.developer_mode"),
+            pero_theme::ActionKind::Ghost,
+            chrome,
+            cx,
+        ).disabled(!available).on_click(cx.listener(|this, _, window, cx| {
+            this.native_chrome_relay(ChromeAction::Mode(ChromeMode::Developer, None), window, cx)
+        }));
+        let site_tools = pero_theme::action_button(
+            "settings-chrome-site-tools",
+            self.t("browser_use.site_tools"),
+            pero_theme::ActionKind::Ghost,
+            chrome,
+            cx,
+        ).disabled(!available).on_click(cx.listener(|this, _, window, cx| {
+            this.native_chrome_relay(ChromeAction::Mode(ChromeMode::SiteTools, None), window, cx)
+        }));
         div()
             .flex()
             .flex_col()
             .child(pero_theme::settings_status(
                 self.t("browser_use.chrome_selected_chat"),
                 title,
+                chrome,
+            ))
+            .child(pero_theme::settings_status(
+                self.t("browser_use.chrome_status"),
+                self.t(status_key),
                 chrome,
             ))
             .child(pero_theme::settings_message(
@@ -370,78 +515,12 @@ impl Workbench {
                     folder.into_any_element(),
                     stop.into_any_element(),
                     sites.into_any_element(),
+                    developer.into_any_element(),
+                    site_tools.into_any_element(),
                 ],
                 chrome,
             ))
             .into_any_element()
-    }
-
-    pub(crate) fn native_chrome_relay_menu(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let thread = self.browser_thread(cx)?;
-        let owner = cx.entity();
-        let pair = self.t("browser_use.open_chrome").to_owned();
-        let status = self.t("browser_use.chrome_status").to_owned();
-        let stop = self.t("browser_use.chrome_stop").to_owned();
-        let developer = self.t("browser_use.developer_mode").to_owned();
-        let site_tools = self.t("browser_use.site_tools").to_owned();
-        Some(
-            Button::new("chrome-relay")
-                .ghost()
-                .small()
-                .label(self.t("browser_use.chrome_menu"))
-                .accessibility_label(self.t("browser_use.chrome_menu"))
-                .dropdown_menu(move |menu, _, _| {
-                    let start_owner = owner.clone();
-                    let status_owner = owner.clone();
-                    let stop_owner = owner.clone();
-                    let developer_owner = owner.clone();
-                    let site_tools_owner = owner.clone();
-                    let thread = thread.clone();
-                    let status_thread = thread.clone();
-                    menu.item(
-                        PopupMenuItem::new(pair.clone()).on_click(move |_, window, cx| {
-                            start_owner.update(cx, |this, cx| {
-                                this.native_chrome_relay(
-                                    ChromeAction::Pair(thread.clone()),
-                                    window,
-                                    cx,
-                                )
-                            });
-                        }),
-                    )
-                    .item(PopupMenuItem::new(status.clone()).on_click(move |_, window, cx| {
-                        status_owner.update(cx, |this, cx| {
-                            this.native_chrome_relay(
-                                ChromeAction::Status(status_thread.clone()),
-                                window,
-                                cx,
-                            );
-                        });
-                    }))
-                    .item(
-                        PopupMenuItem::new(developer.clone()).on_click(move |_, window, cx| {
-                            developer_owner.update(cx, |this, cx| {
-                                this.native_chrome_relay(ChromeAction::Mode(ChromeMode::Developer, None), window, cx)
-                            });
-                        }),
-                    )
-                    .item(
-                        PopupMenuItem::new(site_tools.clone()).on_click(move |_, window, cx| {
-                            site_tools_owner.update(cx, |this, cx| {
-                                this.native_chrome_relay(ChromeAction::Mode(ChromeMode::SiteTools, None), window, cx)
-                            });
-                        }),
-                    )
-                    .item(
-                        PopupMenuItem::new(stop.clone()).on_click(move |_, window, cx| {
-                            stop_owner.update(cx, |this, cx| {
-                                this.native_chrome_relay(ChromeAction::Stop, window, cx)
-                            });
-                        }),
-                    )
-                })
-                .into_any_element(),
-        )
     }
 
     pub(super) fn pair_sidebar_conversation(&mut self, thread: String, window: &mut Window, cx: &mut Context<Self>) {
@@ -469,7 +548,6 @@ impl Workbench {
                     .unwrap_or(self.t("browser_use.chrome_selected_chat"));
                 json!({"operation": "chrome-relay-pair", "thread": thread, "label": label})
             }
-            ChromeAction::Status(thread) => json!({"operation":"chrome-relay-status", "thread":thread}),
             ChromeAction::Stop => json!({"operation":"chrome-relay-stop"}),
             ChromeAction::PrepareFolder => json!({"operation":"chrome-extension-folder"}),
             ChromeAction::SiteRules => json!({"operation":"chrome-site-rules"}),
@@ -486,7 +564,10 @@ impl Workbench {
                     Ok(value) if value["ok"] == true => {
                         let mut open = std::process::Command::new("/usr/bin/open");
                         match &action {
-                            ChromeAction::Stop | ChromeAction::ClearSiteRules => return,
+                            ChromeAction::Stop | ChromeAction::ClearSiteRules => {
+                                this.chrome_connection.manually_stopped = true;
+                                return;
+                            }
                             ChromeAction::Mode(mode, update) => {
                                 if update.is_some() { return; }
                                 let enabled = value["enabled"] == true;
@@ -537,24 +618,11 @@ impl Workbench {
                                 }).detach();
                                 return;
                             }
-                            ChromeAction::Status(thread) => {
-                                if this.browser_thread(cx).as_ref() == Some(thread)
-                                    && let Some(state) = value["state"].as_str()
-                                {
-                                    let _ = window.prompt(
-                                        PromptLevel::Info,
-                                        this.t(&format!("browser_use.chrome_status_{state}")),
-                                        value["message"].as_str(),
-                                        &[this.t("remote.close_form")],
-                                        cx,
-                                    );
-                                }
-                                return;
-                            }
                             ChromeAction::Pair(thread) => {
                                 if this.browser_thread(cx).as_ref() != Some(thread) {
                                     return;
                                 }
+                                this.chrome_connection.manually_stopped = false;
                                 open.args(["-b", "com.google.Chrome"]);
                             }
                             ChromeAction::PrepareFolder => {}
@@ -584,5 +652,37 @@ impl Workbench {
             });
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChromeConnectionView, ChromeRelayState};
+
+    #[test]
+    fn selected_conversation_connection_check() {
+        let cases = [
+            (Some("chat"), Some(ChromeRelayState::Connected), false),
+            (Some("chat"), Some(ChromeRelayState::Pairing), false),
+            (Some("chat"), Some(ChromeRelayState::NotPaired), true),
+            (Some("chat"), Some(ChromeRelayState::Disconnected), true),
+            (Some("other"), Some(ChromeRelayState::NotPaired), false),
+            (Some("chat"), None, false),
+        ];
+        for (selected, state, should_pair) in cases {
+            let mut connection = ChromeConnectionView::default();
+            assert!(connection.begin_check("chat"));
+            assert!(!connection.begin_check("chat"));
+            assert_eq!(connection.finish_check("chat", selected, state), should_pair);
+            assert!(!connection.checking.contains("chat"));
+            assert_eq!(connection.status.as_ref().map(|(_, state)| *state),
+                if selected != Some("chat") { None } else { Some(state.unwrap_or(ChromeRelayState::Unavailable)) });
+            assert!(connection.begin_check("other"));
+            connection.finish_check("other", Some("other"), Some(ChromeRelayState::Disconnected));
+            assert!(connection.begin_check("chat"));
+            connection.manually_stopped = true;
+            assert!(!connection.finish_check("chat", Some("chat"), Some(ChromeRelayState::Disconnected)));
+            assert!(!connection.begin_check("chat"));
+        }
     }
 }

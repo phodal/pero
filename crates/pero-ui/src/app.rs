@@ -93,6 +93,8 @@ pub(crate) struct Workbench {
     #[cfg(not(target_family = "wasm"))]
     pub settings_window: Option<AnyWindowHandle>,
     pub settings_subscriptions: Vec<Subscription>,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub(crate) chrome_connection: crate::native_chrome_relay::ChromeConnectionView,
     pub recent_tasks: Vec<String>,
     pub selected_project: Option<String>,
     pub(crate) research: crate::research_projects::ResearchProjectsView,
@@ -268,6 +270,8 @@ impl Workbench {
                 ChatAction::OpenContext { reference } => this.open_context_reference(&reference, window, cx),
                 ChatAction::Selected { thread_id } => {
                     this.command(json!({"action":"app_use_selection","thread_id":thread_id}),cx);
+                    #[cfg(all(feature = "native", target_os = "macos", not(feature = "native-probe")))]
+                    this.auto_check_chrome(window, cx);
                 }
                 ChatAction::Activated => {
                     if !this.chat_dock_visible() && !this.project_agent_active() {
@@ -394,6 +398,8 @@ impl Workbench {
             #[cfg(not(target_family = "wasm"))]
             settings_window: None,
             settings_subscriptions: Vec::new(),
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            chrome_connection: Default::default(),
             recent_tasks: Vec::new(),
             selected_project: None,
             research: Default::default(), project_agents: Default::default(),

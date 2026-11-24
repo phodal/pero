@@ -20,7 +20,6 @@ pub(crate) struct MainColumn {
     pub app: Option<FocusedApp>,
     pub open_chat: bool,
     pub close_chat: bool,
-    pub chrome_relay: bool,
     pub conversation_resources: bool,
 }
 
@@ -89,7 +88,6 @@ pub(crate) enum Action {
     Artifacts,
     OpenChat,
     CloseChat,
-    ChromeRelay,
     Retry,
     App {
         id: String,
@@ -173,9 +171,6 @@ fn main_segment(main: &MainColumn) -> Segment {
     if main.close_chat {
         actions.push(Action::CloseChat);
     }
-    if main.chrome_relay {
-        actions.push(Action::ChromeRelay);
-    }
     Segment {
         column: ColumnKind::Main,
         width: SegmentWidth::Fill,
@@ -218,7 +213,6 @@ mod tests {
             app,
             open_chat: false,
             close_chat: false,
-            chrome_relay: false,
             conversation_resources: false,
         }
     }
@@ -236,10 +230,10 @@ mod tests {
         };
         let cases = [
             (
-                "ordinary Native conversation with Chrome Relay",
-                columns(MainColumn { chrome_relay: true, conversation_resources: true, ..main(MainFocus::Tabs, None) }, None),
+                "ordinary Native conversation",
+                columns(MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) }, None),
                 None,
-                vec![Action::ChromeRelay, Action::Artifacts],
+                vec![Action::Artifacts],
             ),
             (
                 "resources closed",
