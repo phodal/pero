@@ -21,6 +21,12 @@ internal static class ComputerFixture
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint thread, uint other, bool attach);
+
+    [DllImport("user32.dll")]
     private static extern bool SetProcessDPIAware();
 
     [DllImport("user32.dll")]
@@ -58,6 +64,23 @@ internal static class ComputerFixture
     private static object Geometry(Rectangle rect)
     {
         return new { x = rect.X, y = rect.Y, width = rect.Width, height = rect.Height };
+    }
+
+    private static void ActivateGuard(Form guard)
+    {
+        guard.Activate();
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == guard.Handle || foreground == IntPtr.Zero ||
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return;
+
+        // The hosted runner can launch from a background shell. Borrow its
+        // desktop's foreground input queue just for this fixture activation.
+        uint guardThread = GetWindowThreadProcessId(guard.Handle, IntPtr.Zero);
+        uint foregroundThread = GetWindowThreadProcessId(foreground, IntPtr.Zero);
+        if (guardThread == foregroundThread || foregroundThread == 0 ||
+            !AttachThreadInput(guardThread, foregroundThread, true)) return;
+        try { guard.Activate(); }
+        finally { AttachThreadInput(guardThread, foregroundThread, false); }
     }
 
     [STAThread]
@@ -146,7 +169,7 @@ internal static class ComputerFixture
             };
             target.Shown += delegate {
                 guard.Show();
-                guard.Activate();
+                guard.BeginInvoke(new Action(() => ActivateGuard(guard)));
                 timer.Start();
             };
             Application.Run(target);

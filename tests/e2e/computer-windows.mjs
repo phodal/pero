@@ -38,10 +38,10 @@ function running(owned, name) {
   assert.ok(!owned.exited, `${name} exited with code ${owned.exitCode}`);
 }
 
-const state = predicate => waitFor(() => {
+const state = (predicate, description = 'WinForms fixture effect') => waitFor(() => {
   running(children[0], 'WinForms fixture');
   return fixtureState && predicate(fixtureState) && fixtureState;
-}, 'WinForms fixture effect');
+}, description);
 
 const replies = new Map();
 async function call(request) {
@@ -85,7 +85,7 @@ try {
   execFileSync(compiler, ['/nologo', '/target:exe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
     '/r:System.Web.Extensions.dll', `/out:${fixturePath}`, resolve(root, 'tests/fixtures/computer-app-windows.cs')], { stdio: 'inherit' });
   worker(fixturePath, [title], 'ignore', value => { fixtureState = value; });
-  const initial = await state(value => value.foreground === 'guard');
+  const initial = await state(value => value.foreground === 'guard', 'WinForms guard window to own the foreground');
   native = worker(process.env.PERO_COMPUTER_BINARY || resolve(root, 'target/debug/pero-computer.exe'), [], 'pipe',
     reply => replies.set(reply.id, reply));
   const { status } = await call({ operation: 'status' });
