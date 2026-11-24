@@ -375,7 +375,7 @@ try {
     const [childDeclined] = await prompt([{ action: 'cdpListTargets', tabId: diagnosticId, fromOrigins: [childOrigin.origin] }]);
     assert.match(childDeclined.error, /diagnostics were declined/);
     await app.evaluate(() => { delete globalThis.relayDiagnosticDeniedOrigin; });
-    const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl, topOrigin: new URL(siteUrl).origin });
+    const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl, topOrigin: new URL(siteUrl).origin, menu });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
 

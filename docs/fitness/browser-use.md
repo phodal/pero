@@ -220,7 +220,14 @@ out-of-process frames. Discovery walks approved ancestors and returns
 `parentId` on descendants. With `cdpReadEvents`, pass the same `target` to
 read recent console calls and uncaught exceptions from the selected iframe.
 Its cursor is tied to the target's discovery and its ancestors' documents.
-Live network capture and `timeoutMs` remain scoped to the top document.
+
+With extension 0.3.16 or Electron, `Network.enable`, `Network.disable`,
+`Network.getResponseBody`, and `cdpReadEvents` with `timeoutMs` also accept an
+iframe `target`. Keep the target with its returned capture cursor and request
+IDs. One child capture and the top-document capture can run side by side.
+Starting another child capture replaces the previous child capture.
+Navigation or detachment of the child or an ancestor, a fresh target
+discovery, and turning off Developer Mode end the child capture.
 
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a
@@ -379,6 +386,10 @@ suite also rejects discovery when the child-origin approval is declined.
 The nested case verifies that discovery skips a branch under an unapproved
 ancestor, only the target's own Runtime events are returned, and a cursor
 from a different iframe is rejected.
+Both suites capture the top document and a child together and check that their
+network events and response bodies stay separate. They also check a child
+read timeout, continued top-document access after stopping the child, and
+revocation of child access when Developer Mode is turned off.
 
 ### Chrome and embedded browser from an SSH Workbench
 

@@ -67,6 +67,10 @@ Extension 0.3.15 adds nested iframe discovery with `depth` up to 4, and
 `cdpReadEvents` with a `target` for console and exception replay in that
 iframe. Keep its cursor with the same target.
 
+Extension 0.3.16 lets `Network.enable`, `Network.disable`,
+`Network.getResponseBody`, and live event reads take an iframe `target`.
+Keep the capture cursor and request IDs with that target context.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

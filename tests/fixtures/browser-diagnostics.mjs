@@ -16,6 +16,7 @@ export function browserDiagnosticPage(foreignOrigin) {
 <iframe title="Foreign CDP frame" id="cdp-child" src="${oopif.href}" onload="document.querySelector('#cdp-child-loaded').textContent = 'CDP child loaded'"></iframe>
 <span id="cdp-child-loaded">Loading CDP child</span>
 <button onclick="replaceCdpChild()">Replace child document</button><output id="cdp-child-state">Child waiting</output>
+<button onclick="runScopedNetwork()">Run scoped network fixture</button><p id="scoped-network-state">Waiting for scoped network</p>
 <script>
 console.info('cdp loaded marker');
 function runDiagnosticWorkload() {
@@ -47,7 +48,27 @@ function replaceCdpChild() {
   child.addEventListener('load', () => document.querySelector('#cdp-child-state').textContent = 'Child replaced', { once: true });
   child.src = ${JSON.stringify(oopif.origin + '/diagnostic-frame?replacement')};
 }
+${scopedNetworkScript(oopif.origin)}
 </script>`;
+}
+
+export function scopedNetworkScript(childOrigin) {
+  return `
+async function runScopedNetwork() {
+  const child = document.querySelector('#cdp-child');
+  const childOrigin = ${JSON.stringify(childOrigin)};
+  const ready = new Promise(resolve => {
+    const receive = event => {
+      if (event.origin !== childOrigin || event.source !== child.contentWindow || event.data !== 'Scoped network ready') return;
+      window.removeEventListener('message', receive);
+      resolve();
+    };
+    window.addEventListener('message', receive);
+  });
+  child.contentWindow.postMessage('Run scoped network', childOrigin);
+  await Promise.all([ready, fetch('/cdp-parent-response?parent-private-query').then(reply => reply.json())]);
+  document.querySelector('#scoped-network-state').textContent = 'Scoped network complete';
+}`;
 }
 
 export function serveDiagnosticAssets(request, response, peerOrigin) {
@@ -59,6 +80,15 @@ export function serveDiagnosticAssets(request, response, peerOrigin) {
     const isChild = peerOrigin && new URL(request.url, peerOrigin).searchParams.has('outside-frame-marker');
     response.writeHead(200, { 'Content-Type': 'text/html' }).end(isChild ? `<p>Browser diagnostics frame</p>
       <script>console.info('direct target log'); throw new Error('direct target exception')</script>
+      <script>
+        window.addEventListener('message', async event => {
+          const rootOrigin = ${JSON.stringify(peerOrigin)};
+          if (event.origin !== rootOrigin || event.source !== window.parent || event.data !== 'Run scoped network') return;
+          const response = await fetch('/cdp-child-response?child-private-query');
+          await response.json();
+          window.parent.postMessage('Scoped network ready', rootOrigin);
+        });
+      </script>
       <iframe title="Nested CDP fixture" src="${new URL('/cdp-nested', peerOrigin).href}"></iframe>`
       : '<p>Browser diagnostics frame</p>');
     return true;
@@ -69,6 +99,11 @@ export function serveDiagnosticAssets(request, response, peerOrigin) {
   }
   if (request.url.startsWith('/cdp-response?')) {
     response.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ fixture: 'network-response' }));
+    return true;
+  }
+  const scoped = /^\/cdp-(parent|child)-response\?/.exec(request.url);
+  if (scoped) {
+    response.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ fixture: scoped[1] }));
     return true;
   }
   if (request.url === '/cdp-redirect' && peerOrigin) {
@@ -126,7 +161,7 @@ export async function checkCdpNetwork({ prompt, tabId, menu }) {
   return { body: true, paged: true, timeout: true, redirectedBodyRejected: true, modeRevocation: true, explicitStop: true };
 }
 
-export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin }) {
+export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin, menu }) {
   const child = new URL(foreignOrigin);
   child.hostname = 'localhost';
   const list = { action: 'cdpListTargets', tabId };
@@ -155,7 +190,7 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin 
   const nestedRead = { ...read, target: nestedTarget };
   const [dom, nestedDom, wrongOrigin, wrongCommand, childEvents, nestedEvents, topEvents] = await prompt([command, nestedCommand,
     { ...command, target: { id, origin: new URL(foreignOrigin).origin } },
-    { ...command, command: { method: 'Network.enable' } }, childRead, nestedRead, read,
+    { ...command, command: { method: 'Runtime.evaluate' } }, childRead, nestedRead, read,
   ]);
   assert.equal(dom.kind, 'cdpResult', JSON.stringify(dom));
   assert.equal(dom.result.root.documentURL, url + '?outside-frame-marker');
@@ -168,6 +203,50 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin 
   const [same, foreignCursor] = await prompt([{ ...childRead, after: childEvents.cursor }, { ...nestedRead, after: childEvents.cursor }]);
   assert.deepEqual(same.events, []);
   assert.match(foreignCursor.error, /cursor is stale/);
+  const target = command.target;
+  const cdp = (method, params, scopedTarget) => ({ action: 'cdpSend', tabId, target: scopedTarget, command: { method, params } });
+  const [rootStart, childStart, networkClick, networkReady] = await prompt([
+    cdp('Network.enable'), cdp('Network.enable', undefined, target),
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Run scoped network fixture' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Scoped network complete' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert.equal(rootStart.kind, 'cdpResult', JSON.stringify(rootStart));
+  assert.equal(childStart.kind, 'cdpResult', JSON.stringify(childStart));
+  assert.equal(networkClick.outcome, 'dispatched', JSON.stringify(networkClick));
+  assert.equal(networkReady.matched, true, JSON.stringify(networkReady));
+  const networkRead = { action: 'cdpReadEvents', tabId, methods: ['Network.responseReceived', 'Network.loadingFinished'] };
+  const [rootNetwork, childNetwork] = await prompt([
+    { ...networkRead, after: rootStart.result.cursor },
+    { ...networkRead, target, after: childStart.result.cursor, timeoutMs: 1500 },
+  ]);
+  const responseId = (page, path) => {
+    const response = page.events.find(event => event.method === 'Network.responseReceived' && event.params.url.endsWith(path));
+    assert.equal(response?.params.status, 202, JSON.stringify(page));
+    assert(page.events.some(event => event.method === 'Network.loadingFinished' && event.params.requestId === response.params.requestId));
+    return response.params.requestId;
+  };
+  const rootBody = cdp('Network.getResponseBody', { requestId: responseId(rootNetwork, '/cdp-parent-response') });
+  const childBody = cdp('Network.getResponseBody', { requestId: responseId(childNetwork, '/cdp-child-response') }, target);
+  assert.doesNotMatch(JSON.stringify(rootNetwork), /cdp-child-response|parent-private-query/);
+  assert.doesNotMatch(JSON.stringify(childNetwork), /cdp-parent-response|child-private-query/);
+  const [rootReply, childReply, foreignBody, quiet, stop, expired, rootStillRunning, rootStop, restarted] = await prompt([
+    rootBody, childBody, { ...childBody, target: undefined },
+    { ...networkRead, target, after: childNetwork.cursor, timeoutMs: 200 },
+    cdp('Network.disable', undefined, target), childBody, rootBody, cdp('Network.disable'), cdp('Network.enable', undefined, target),
+  ]);
+  assert.equal(rootReply.result.body, '{"fixture":"parent"}');
+  assert.equal(childReply.result.body, '{"fixture":"child"}');
+  assert.match(foreignBody.error, /same-origin/);
+  assert.deepEqual(quiet.events, []);
+  assert.equal(stop.kind, 'cdpResult');
+  assert.match(expired.error, /Enable Network/);
+  assert.equal(rootStillRunning.result.body, rootReply.result.body);
+  assert.equal(rootStop.kind, 'cdpResult');
+  assert.equal(restarted.kind, 'cdpResult');
+  await menu('browser-use-developer-mode', false);
+  await menu('browser-use-developer-mode', true);
+  const [revoked] = await prompt([{ ...networkRead, target, after: restarted.result.cursor }]);
+  assert.match(revoked.error, /capture ended/);
   const [click, changed, stale, staleDescendant, newTargets] = await prompt([
     { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Replace child document' }, operation: { action: 'click' } },
     { action: 'wait', tabId, locator: { by: 'text', value: 'Child replaced' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
@@ -182,7 +261,8 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin 
   const [newDom] = await prompt([{ ...command, target: { id: newTargets.targets[0].id, origin } }]);
   assert.equal(newDom.result.root.documentURL, url + '?replacement');
   return { defaultOriginScope: true, childQuery: true, nestedQuery: true, isolatedEvents: true,
-    cursorIsolation: true, wrongOriginRejected: true, staleAfterNavigation: true };
+    cursorIsolation: true, wrongOriginRejected: true, staleAfterNavigation: true,
+    networkIsolation: true, childBody: true, childTimeout: true, childRevocation: true };
 }
 
 export async function checkCdp({ prompt, tabId }) {
@@ -257,7 +337,7 @@ export async function checkEmbeddedDiagnostics({ app, origin, foreignOrigin, men
   expect(await app.evaluate(() => globalThis.browserUsePrompt?.message)).toBe('Allow browser diagnostics on this site?');
   const cdp = await checkCdp({ prompt, tabId });
   const network = await checkCdpNetwork({ prompt, tabId, menu });
-  const targets = await checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin: origin });
+  const targets = await checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin: origin, menu });
   await menu('browser-use-developer-mode', false);
   const original = origin + '/';
   const [, activated] = await prompt([{ action: 'closeTab', tabId }, { action: 'activate', tabId: original }]);
