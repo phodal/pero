@@ -892,7 +892,7 @@ impl ChatPanel {
                 "project.agent.composer_hint"
             });
             return div().id("project-first-composer").flex_1().size_full().min_w_0().min_h_0()
-                .flex().flex_col().justify_center().items_center()
+                .flex().flex_col().justify_end().items_center().pb(px(pero_theme::SPACE_12))
                 .child(self.composer_view(window, cx))
                 .child(div().id("project-first-composer-hint").text_size(appearance.text(pero_theme::TextRole::Caption))
                     .when(starting, |el| el.role(Role::Status))
