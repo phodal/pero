@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pero Browser Use",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "minimum_chrome_version": "125",
   "description": "Connect Chrome web tabs to the selected conversation in Pero.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlLabnFEYd9F4UZ0RovgJSQgUsxSh8oJ5FgzGRLDq8E85U/LhZRaIIJbnFvzZwDOF9LwLre8hQUzBkl16H6mlKqS7ap934LvO8/Q33MbhA3IOptQD2Jm5CnRwZREzt0XNby3zPcMzHgwaQEts3DlOwfNo2F5ICkVPg2agHC95A00O9LQGOuKaW8t4AAuiVlpPXG/5ylu1v6UgUQs0l23w/JXXo5+0H4xKUNfZOXmjJzv8T8r6TdY3zn24/PsAbPQAFanfqyMotbG6hS6siTQmUVvFY0vx1sqB0FViGfguQ6b/kVg1AhTqpBpS73z6JGoX/wWqUpTo6FYDxUk6yKFHiwIDAQAB",

@@ -145,6 +145,10 @@ Page operations require a current document. Pass an explicit `chrome:`
 `tabId` with `background: true` to read or operate an inactive tab without
 selecting it. The default requires the tab to be active. JavaScript dialog
 handling and opening a tab through `open` use the active-tab path.
+Extension 0.3.9 can run requests to different Chrome tabs together. Use
+explicit tab IDs and await dependent operations in order on each tab. A
+conflicting operation on the same tab returns an error. Older extensions
+continue with a single Relay request at a time.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
 With extension 0.3.3, `click` with `expectPopup: true` reports the first
@@ -239,6 +243,11 @@ that an expired ID or invalid answer cannot close a live dialog. The suite check
 inactive tab rejection on the default path, trusted input and reload on an
 explicitly addressed inactive tab, cross-origin guardrails, replay protection
 and debugger release on disconnect.
+The parallel fixture holds one navigation response while another tab
+completes trusted input, both through browser MCP calls and through
+`javascript_repl`. Use `node tests/e2e/native-chrome-parallel.mjs` with a
+Native probe build and rebuilt connectors to run the same fixture through
+the Native Python REPL.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.

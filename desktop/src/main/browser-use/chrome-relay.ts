@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { Server } from 'node:http';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { z } from 'zod';
-import { EXTENSION_ID, MAX_FRAME, PAIR_LIFETIME_MS, RELAY_INCOMPATIBLE, RELAY_PATH, RELAY_PROTOCOL, webOrigin, type Pairing } from '../../../../packages/chrome-extension/src/protocol.ts';
+import { EXTENSION_ID, MAX_FRAME, MAX_PARALLEL_REQUESTS, PAIR_LIFETIME_MS, RELAY_INCOMPATIBLE, RELAY_PATH, RELAY_PROTOCOL, webOrigin, type Pairing } from '../../../../packages/chrome-extension/src/protocol.ts';
 import type { ArtifactDeliveryPort } from '../artifact-delivery.ts';
 import type { AppInputs } from '../app-inputs.ts';
 import type { BrowserUsePort } from './browser-use.ts';
@@ -19,6 +19,7 @@ import { ChromeSiteAccess, type ChromeSiteAccessPort } from './chrome-site-acces
 
 const pair = z.strictObject({
   type: z.literal('pair'), protocol: z.string().max(64), ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  parallel: z.literal(true).optional(),
 });
 const tabIdentity = z.uuid();
 const snapshot = z.strictObject({
@@ -35,7 +36,8 @@ const incoming = z.discriminatedUnion('type', [
 type Ticket = Pairing & { thread: string };
 type Pending = { settle(error?: Error, value?: unknown): void };
 type Connection = {
-  id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number; pending?: Pending;
+  id: string; socket: WebSocket; thread: string; timer: NodeJS.Timeout; lastSeen: number; next: number;
+  parallel: boolean; pending: Map<number, Pending>;
   ended: AbortController;
 };
 type ChromeConnectionStatus =
@@ -92,7 +94,7 @@ class ChromeRelay {
     if (!thread || (expectedThread && expectedThread !== thread) || !address || typeof address === 'string')
       throw new Error('Select an ordinary conversation in Pero before pairing Chrome.');
     this.revoke();
-    const pairing: Pairing = { protocol: RELAY_PROTOCOL, baseUrl: `http://127.0.0.1:${address.port}`,
+    const pairing: Pairing = { protocol: RELAY_PROTOCOL, baseUrl: `http://127.0.0.1:${address.port}`, parallel: true,
       ticket: randomBytes(32).toString('base64url'), expiresAt: Date.now() + PAIR_LIFETIME_MS,
       label: label.slice(0, 160) || 'Selected Pero conversation' };
     this.ticket = { ...pairing, thread };
@@ -187,7 +189,7 @@ class ChromeRelay {
     this.endedPairing = { thread: connection.thread, status };
     connection.ended.abort();
     clearInterval(connection.timer);
-    connection.pending?.settle(new Error(reason));
+    for (const request of connection.pending.values()) request.settle(new Error(reason));
     connection.socket.close(1000, reason);
   }
 
@@ -232,7 +234,8 @@ class ChromeRelay {
                 Date.now() - pairedAt > 30 * 60_000))
               this.disconnect(connection, connectionExpired.message, connectionExpired);
           }, 5000);
-          connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0, ended: new AbortController() };
+          connection = this.connection = { id: randomUUID(), socket, thread: ticket.thread, timer, lastSeen: pairedAt, next: 0,
+            parallel: message.parallel === true, pending: new Map(), ended: new AbortController() };
           clearTimeout(deadline);
           this.send(socket, { type: 'paired', label: ticket.label });
           return;
@@ -263,9 +266,7 @@ class ChromeRelay {
           }
           if (this.connection === current) this.send(current.socket, { type: 'sidebarReply', id: message.id, ...result });
         } else {
-          if (!current.pending || message.id !== current.next)
-            return; // A timed out reply can arrive after its action was invalidated.
-          current.pending.settle(message.error ? new Error(message.error) : undefined, message.value);
+          current.pending.get(message.id)?.settle(message.error ? new Error(message.error) : undefined, message.value);
         }
       };
       received = received.then(receive).catch(() => {
@@ -278,17 +279,19 @@ class ChromeRelay {
   private call(connection: Connection, command: { kind: 'inspect' | 'inspectCloud' } |
     { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
     { kind: 'manage'; tab: string; action: TabAction }) {
-    if (connection.pending) throw new Error('A Chrome Browser Use operation is already in progress.');
+    if (connection.pending.size >= (connection.parallel ? MAX_PARALLEL_REQUESTS : 1))
+      throw new Error('The paired Chrome profile already has the maximum number of in-flight requests.');
     return new Promise<unknown>((resolve, reject) => {
+      const id = ++connection.next;
       const settle = (error?: Error, value?: unknown) => {
         clearTimeout(timer);
-        connection.pending = undefined;
+        connection.pending.delete(id);
         if (error) reject(error);
         else resolve(value);
       };
       const timer = setTimeout(() => this.disconnect(connection, 'Chrome Relay did not reply. Check the tab before retrying.'), 16000);
-      connection.pending = { settle };
-      try { this.send(connection.socket, { type: 'request', id: ++connection.next, command }); }
+      connection.pending.set(id, { settle });
+      try { this.send(connection.socket, { type: 'request', id, command }); }
       catch (error) { settle(error as Error); }
     });
   }

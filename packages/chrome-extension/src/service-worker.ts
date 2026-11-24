@@ -1,6 +1,6 @@
 // Point Relay's socket lifecycle, adapted for Pero's local
 // conversation endpoint. Point source: browser/chrome-extension/relay.mjs (2449d4b98).
-import { parseRelayPairing, webOrigin, MAX_FRAME, MAX_TRANSFER_BYTES, RELAY_PATH, RELAY_PROTOCOL } from './protocol.ts';
+import { parseRelayPairing, webOrigin, MAX_FRAME, MAX_PARALLEL_REQUESTS, MAX_TRANSFER_BYTES, RELAY_PATH, RELAY_PROTOCOL } from './protocol.ts';
 import { sendBrowserInput, type BrowserInput, type BrowserModifier } from '../../../desktop/src/main/browser-use/input.ts';
 import { checkFrames, downloadLink, evaluateDocument, navigate, screenshot } from './tab-operations.ts';
 import type { BrowserPopupResult } from '../../../desktop/src/main/browser-use/browser-use.ts';
@@ -18,7 +18,7 @@ type TabHandle = { id: string; tabId: number; revision: number; attachment?: Pro
 type Command = { kind: 'inspect' | 'inspectCloud' } | { kind: 'run'; tab: string; stamp: string; background?: true; operation: DriverOperation } |
   { kind: 'manage'; tab: string; action: TabAction };
 type Peer = { socket: WebSocket; state: 'connecting' | 'paired'; label: string; timer?: number;
-  lastPong: number; lastId: number; busy: boolean; tabs: Map<number, TabHandle>;
+  lastPong: number; lastId: number; running: Set<string | number>; tabs: Map<number, TabHandle>;
   handedOff: Set<number>;
   sidebar: Map<string, (reply: {value?: unknown; error?: string}) => void>;
   capture?: { key: string; tabId: number; url: string; revision: number;
@@ -340,12 +340,13 @@ function connect(code: string) {
   if (peer) throw new Error('Disconnect the current Pero session first.');
   const pairing = parseRelayPairing(code.trim());
   const socket = new WebSocket(pairing.baseUrl.replace('http:', 'ws:') + RELAY_PATH);
-  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, busy: false,
+  const connection: Peer = { socket, state: 'connecting', label: pairing.label, lastPong: Date.now(), lastId: 0, running: new Set(),
     tabs: new Map(), handedOff: new Set(), sidebar: new Map() };
   peer = connection;
   failure = undefined;
   publish();
-  socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket });
+  socket.onopen = () => send(connection, { type: 'pair', protocol: RELAY_PROTOCOL, ticket: pairing.ticket,
+    ...(pairing.parallel === true && { parallel: true }) });
   socket.onclose = event => void release(connection, event.reason || 'The Pero Relay disconnected.');
   socket.onerror = () => void release(connection, 'Could not connect to Pero. Check the pairing code.');
   connection.timer = setInterval(() => {
@@ -374,21 +375,28 @@ function connect(code: string) {
         publish();
         return;
       }
-      if (message.type !== 'request' || connection.state === 'connecting' || connection.busy ||
+      if (message.type !== 'request' || connection.state === 'connecting' ||
           !Number.isSafeInteger(message.id) || message.id <= connection.lastId)
         throw new Error('Invalid Pero Relay request.');
       connection.lastId = message.id;
-      connection.busy = true;
+      const command: Command = message.command;
+      // Inventory can run beside a page operation. A tab has one debugger operation at a time.
+      const lane = 'tab' in command ? command.tab : message.id;
+      if (connection.running.has(lane) || connection.running.size >= (pairing.parallel === true ? MAX_PARALLEL_REQUESTS : 1)) {
+        send(connection, { type: 'response', id: message.id, error: 'A Chrome Browser Use operation is already in progress for this target.' });
+        return;
+      }
+      connection.running.add(lane);
       try {
         let value;
-        try { value = await run(connection, message.command); }
+        try { value = await run(connection, command); }
         catch (error) {
           if (peer === connection) send(connection, { type: 'response', id: message.id,
             error: (error instanceof Error ? error.message : String(error)).slice(0, 500) });
           return;
         }
         if (peer === connection) send(connection, { type: 'response', id: message.id, value });
-      } finally { connection.busy = false; }
+      } finally { connection.running.delete(lane); }
     };
     void receive().catch(error => void release(connection, error.message));
   };

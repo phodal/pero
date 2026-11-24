@@ -33,6 +33,8 @@ Extension 0.3.8 also exposes `getAXState` under the usual tab and site
 permissions. Pass the previous `snapshotId` as `since` to receive AX changes.
 Pass `background: true` with an explicit `chrome:` tab ID to read or act on
 an inactive tab without selecting it.
+Extension 0.3.9 runs requests to different tabs concurrently. Await each
+operation before using the same tab again.
 
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate

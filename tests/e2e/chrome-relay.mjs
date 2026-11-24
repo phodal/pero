@@ -13,6 +13,7 @@ import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts'
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
 import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
+import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -37,6 +38,7 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
 let leaveRequests = 0;
+const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
   if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
   if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
@@ -55,6 +57,7 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (parallelFixture.handle(request, response)) return;
   if (request.url === axPath || request.url === axFramePath) {
     response.setHeader('Content-Type', 'text/html');
     response.end(request.url === axPath ? axPage(foreignUrl) : axFramePage);
@@ -581,6 +584,10 @@ try {
     assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
     await expect.poll(() => newTab.isClosed()).toBe(true);
 
+    const parallel = await verifyParallelBrowser({ chrome, base: siteUrl, prompt, events: parallelFixture.events });
+    parallelFixture.events.length = 0;
+    const parallelRepl = await verifyParallelBrowser({ chrome, base: siteUrl, prompt, events: parallelFixture.events, repl: true });
+    await target.bringToFront();
     const popupReceipts = [];
     for (const [name, expectedUrl, marker] of [
       ['Open fixture link', siteUrl + '?popup', 'Chrome Relay fixture'],
@@ -780,6 +787,8 @@ nodeRepl.write(answer.outcome);` },
       chromeBackground: { explicitTarget: true, trustedClick: true, trustedKey: true, ax: true, reload: true,
         foregroundUnchanged: true },
       accessibility,
+      parallel,
+      parallelRepl,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
         cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
@@ -810,6 +819,7 @@ nodeRepl.write(answer.outcome);` },
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(output, 'failed-workbench.png') }).catch(() => {});
   throw error;
 } finally {
+  parallelFixture.close();
   await chrome?.close();
   await app?.close();
   await new Promise(done => site.close(done));

@@ -6,10 +6,11 @@ export const RELAY_PATH = '/v1/browser-connector/connect';
 export const MAX_TRANSFER_BYTES = 10 * 1024 * 1024;
 // A bounded file or image plus its Base64 and JSON envelope.
 export const MAX_FRAME = 16 * 1024 * 1024;
+export const MAX_PARALLEL_REQUESTS = 8;
 export const PAIR_LIFETIME_MS = 120000;
 const credential = /^[A-Za-z0-9_-]{43}$/;
 
-export type Pairing = { protocol: typeof RELAY_PROTOCOL; baseUrl: string; ticket: string; expiresAt: number; label: string };
+export type Pairing = { protocol: typeof RELAY_PROTOCOL; baseUrl: string; ticket: string; expiresAt: number; label: string; parallel?: true };
 
 export function parseRelayPairing(value: string, now = Date.now()): Pairing {
   const pairing = JSON.parse(value) as Pairing;

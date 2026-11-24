@@ -63,7 +63,7 @@ export class NativeBrowserUse implements BrowserUsePort {
   readonly tool: BrowserUsePort['tool'];
 
   private readonly observations = new Map<string, Observed>();
-  private executing = false;
+  private readonly executing = new Set<string>();
   private readonly actions: readonly WorkbenchAction[];
   private readonly transport: (request: DriverRequest) => Promise<unknown>;
   private readonly evidenceRoot: string;
@@ -159,8 +159,9 @@ export class NativeBrowserUse implements BrowserUsePort {
     if (request.action === 'files') return { kind: 'files', files: files.catalog(thread) };
     const { stamp, url, tabId, origin, grantId } = tab;
     const background = 'background' in request && request.background;
-    if (this.executing) throw new Error('A Browser Use operation is already in progress.');
-    this.executing = true;
+    const lane = this.engine === 'chrome' ? tabId : 'native';
+    if (this.executing.has(lane)) throw new Error('A Browser Use operation is already in progress for this target.');
+    this.executing.add(lane);
     try {
       if (this.siteAdmission && request.action !== 'activate' && request.action !== 'handoff' &&
           await this.siteAdmission.require(thread, tab, signal)) {
@@ -417,7 +418,7 @@ export class NativeBrowserUse implements BrowserUsePort {
       await record('.result', effect);
       return { receiptId: id, outcome, reason, ...(popup && { popup }), verified: false };
     } finally {
-      this.executing = false;
+      this.executing.delete(lane);
     }
   }
 }
