@@ -8,6 +8,12 @@ import { DesktopAppUse } from './app-use-mcp.ts';
 
 const id = 'a'.repeat(32), hash = 'b'.repeat(64);
 const scope = { app: 'control-lab', panel: 'main' };
+const computerLifecycle = {
+  canRunInBackground: () => true,
+  stop: async () => {},
+  endThread: async () => {},
+  forget: async () => {},
+};
 const ref = (experimentId = id, specHash = hash, app = 'control-lab'): ContextReference => ({
   id: 'app-object-example', kind: 'app_object', label: 'Control Lab', source: 'pero-app://control-lab/',
   content: { type: 'text', text: JSON.stringify({ schema: 'pero.app-object.v1', scope: { app, panel: 'main' }, objectId: app, state: { experimentId, specHash } }) },
@@ -60,7 +66,7 @@ test('MCP requires the bound goal and restricts research Apps to declared domain
   let computerCalls = 0;
   const desktop = new DesktopAppUse(() => window as never, () => {}, tmpdir(), {
     describe: async () => [definition, proposal, labDefinition], apply: async (_write, _signal, goal) => { applied.push(goal); return {}; },
-  }, { stop: async () => {}, forget: async () => {}, call: async () => { computerCalls++; return { kind: 'receipt', receipt: { outcome: { status: 'executed' } } }; } } as never);
+  }, { ...computerLifecycle, call: async () => { computerCalls++; return { kind: 'receipt', receipt: { outcome: { status: 'executed' } } }; } } as never);
   const env = await desktop.start();
   const call = async (name: string, args: object) => {
     const response = await fetch(env.PERO_APP_USE_URL, { method: 'POST', headers: {
@@ -190,7 +196,7 @@ for (const app of ['control-lab', 'lab']) test(`computer dispatch rechecks ${app
     return runInNewContext(expression, { window: { peroDiagnostics: { snapshot: () => JSON.stringify({ chats: [{ id: 'thread' }], activeChat: 0 }) } } });
   } } };
   const desktop = new DesktopAppUse(() => window as never, () => {}, tmpdir(), undefined,
-    { stop: async () => {}, call: async () => { calls++; return {}; } } as never);
+    { ...computerLifecycle, call: async () => { calls++; return {}; } } as never);
   const env = await desktop.start();
   try {
     const result = fetch(env.PERO_APP_USE_URL, { method: 'POST', headers: {

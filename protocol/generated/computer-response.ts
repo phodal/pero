@@ -60,6 +60,7 @@ export type ComputerErrorCode =
   | "target_unavailable"
   | "stale_observation"
   | "invalid_request"
+  | "busy"
   | "cancelled"
   | "timeout"
   | "failed";

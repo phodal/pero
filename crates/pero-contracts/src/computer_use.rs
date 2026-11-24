@@ -356,6 +356,7 @@ pub enum ComputerErrorCode {
     TargetUnavailable,
     StaleObservation,
     InvalidRequest,
+    Busy,
     Cancelled,
     Timeout,
     Failed,

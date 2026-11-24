@@ -133,3 +133,19 @@ seconds, so this change retains the bounded OCR path.
   Its Settings checks therefore cover application discovery and persistence.
   The action effects were verified with the rebuilt helper and the already
   authorized test runner.
+
+## Parallel background Computer Use on macOS
+
+- Two owned AppKit applications received real background input through the
+  shared MCP bridge. A JavaScript REPL cell in an unselected conversation
+  clicked the second app while the first app was still holding its button.
+  The foreground action and second owner of the same app were rejected.
+- Stopping one conversation released its held input, left an unknown journal
+  receipt, and let the other conversation finish its own input. Revoking one
+  bundle grant interrupted only the owning worker. The other worker finished
+  input and reused its runtime reference with the updated allowed app list.
+- The signed test helper started two independent Launch Services socket
+  connections. Stopping one left the other runtime usable. The bundled
+  Native Python REPL also passed its Chat, Host and ACP/MCP fixture.
+  The staged helper reported no OS grants, so GUI input in this comparison
+  used the rebuilt helper with the already authorized test runner.

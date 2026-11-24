@@ -30,7 +30,7 @@ model ComputerEnvironment {
 enum ComputerMouseButton { left, right, middle }
 enum ComputerErrorCode {
   unsupported, permission_required, target_unavailable, stale_observation,
-  invalid_request, cancelled, timeout, failed
+  invalid_request, busy, cancelled, timeout, failed
 }
 
 model ComputerTargetRef {

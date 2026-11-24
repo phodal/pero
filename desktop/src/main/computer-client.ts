@@ -21,6 +21,7 @@ export class ComputerClient {
   private connection?: ComputerProcess;
   private starting?: { controller: AbortController; ready: Promise<void> };
   private closing?: Promise<void>;
+  private exiting?: Promise<void>;
   private queue: Promise<unknown> = Promise.resolve();
   private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
@@ -98,6 +99,9 @@ export class ComputerClient {
     };
     void connection.exited.then(stopped);
   }
+  drained(): Promise<void> {
+    return this.exiting ?? Promise.resolve();
+  }
   stop(reason: 'cancelled' | 'timeout' | 'failed' = 'cancelled'): Promise<void> {
     if (this.closing) return this.closing;
     const starting = this.starting;
@@ -107,6 +111,7 @@ export class ComputerClient {
     }
     const connection = this.connection;
     this.connection = undefined;
+    this.exiting = connection?.exited;
     const pending = this.pending; this.pending = undefined;
     pending?.dispose();
     pending?.reject(new ComputerFailure({ code: reason, message: 'Native work was interrupted. Input may have happened; inspect its receipt and observe again.' }, pending.dispatched));
@@ -114,7 +119,7 @@ export class ComputerClient {
     this.closing = new Promise<void>((resolve, reject) => {
       const force = setTimeout(() => connection.kill(), 1500);
       const deadline = setTimeout(() => reject(new Error('Native desktop process exit is unconfirmed')), 4000);
-      void connection.exited.then(() => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; resolve(); });
+      void connection.exited.then(() => { clearTimeout(force); clearTimeout(deadline); this.closing = undefined; this.exiting = undefined; resolve(); });
       // EOF asks the native worker to cancel and release held input before exit.
       connection.input.end();
     });
