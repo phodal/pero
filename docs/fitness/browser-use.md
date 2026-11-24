@@ -473,6 +473,12 @@ separate console and exception replay for the two child targets. A cursor
 from the direct child is rejected when used on the grandchild. Evidence is
 in `test-results/native-chrome-cdp-target-tree/result.json`.
 
+For extension 0.3.16, use `--cdp-target-network`. The signed Native probe
+verifies that declining the child origin prevents starting a capture, then
+approves the child, reads its HTTP 202 response, and verifies response access
+ends when the capture stops. Evidence is in
+`test-results/native-chrome-cdp-target-network/result.json`.
+
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run
 `node tests/e2e/native-repl-agent.mjs --chrome` with

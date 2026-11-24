@@ -19,6 +19,10 @@ const targets = targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
+const output = resolve(root, targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
+  : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
+    : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
+await rm(resolve(output, 'result.json'), { force: true });
 const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
 const payload = installed && resolve(installed, 'Contents/Resources/app');
 const extension = payload
@@ -455,9 +459,8 @@ try {
   );
   const receipt = JSON.parse(await readFile(resolve(visit, evidence.receiptId + '.result.json'), 'utf8'));
   assert.equal(receipt.outcome, 'dispatched');
-  const output = resolve(root, targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
-    : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
-    : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
+  const tracePrefix = 'Native REPL probe: ';
+  const probeStates = log.split('\n').filter(line => line.startsWith(tracePrefix)).map(line => JSON.parse(line.slice(tracePrefix.length)));
   await mkdir(output, { recursive: true });
   await writeFile(
     resolve(output, 'result.json'),
@@ -467,6 +470,7 @@ try {
         installed: !!installed,
         extensionVersion,
         ...evidence,
+        ...(probeStates.length && { probeStates }),
         receipt,
       },
       null,

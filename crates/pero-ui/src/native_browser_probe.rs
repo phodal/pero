@@ -180,8 +180,16 @@ async fn verify_repl_agent(
             let Some(chat) = snapshot["activeChat"].as_u64().and_then(|index| snapshot["chats"].get(index as usize)) else {
                 return Ok(None);
             };
-            last = json!({"agent":chat["agent"], "state":chat["state"], "error":chat["error"],
+            let pairing_ready = pairing_path.as_ref().is_some_and(|path| path.with_extension("ready").is_file());
+            let window_active = window.is_window_active();
+            let current = json!({"agent":chat["agent"], "state":chat["state"], "error":chat["error"],
+                "pairRequested":pair_requested, "pairingReady":pairing_ready, "windowActive":window_active,
+                "activationRequested":approval_window_requested, "promptSubmitted":sent,
                 "tools":chat["tools"].as_array().into_iter().flatten().map(|tool| (&tool["title"], &tool["status"])).collect::<Vec<_>>()});
+            if last != current {
+                eprintln!("Native REPL probe: {current}");
+                last = current;
+            }
             anyhow::ensure!(chat["agent"] == agent, "Native REPL selected a different Agent: {last}");
             anyhow::ensure!(chat["state"] != "closed", "Native Chat closed: {last}");
             if chat["state"] != "idle" { return Ok(None); }
@@ -195,15 +203,15 @@ async fn verify_repl_agent(
                 }
                 return Ok(None);
             }
-            if let Some(pairing) = &pairing_path {
+            if pairing_path.is_some() {
                 if !pair_requested {
                     pair_thread = root.browser_thread(cx);
                     return Ok(None);
                 }
-                if !pairing.with_extension("ready").is_file() {
+                if !pairing_ready {
                     return Ok(None);
                 }
-                if (site_tools || developer_mode) && !window.is_window_active() {
+                if (site_tools || developer_mode) && !window_active {
                     if !approval_window_requested {
                         window.activate_window();
                         cx.activate(true);
