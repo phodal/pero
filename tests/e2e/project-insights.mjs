@@ -45,6 +45,11 @@ let app, page;
 const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
 const brief = () => page.frameLocator('iframe[title="insights"]');
 const savedSettings = async () => JSON.parse(await readFile(settings, 'utf8')).workbench;
+const projectTabs = ['project.overview', 'research.linked', 'nav.tasks', 'project.sources', 'project.execution', 'settings.title'];
+const visibleTabs = async () => {
+  const controls = (await state()).projectControls;
+  return projectTabs.filter(key => controls[`tab:${key}`]?.width > 0);
+};
 async function launch() {
   app = await electron.launch({ args: ['--use-mock-keychain', resolve(root, 'desktop')], cwd: root, env });
   page = await app.firstWindow();
@@ -87,15 +92,27 @@ try {
   await openProject('alpha');
   await expect(brief().getByRole('heading', { name: 'Saved Alpha finding' })).toBeVisible();
   expect((await state()).sidebarButtonBounds.insights).toBeUndefined();
+  await expect.poll(visibleTabs).toEqual(projectTabs.slice(0, 3));
   await page.screenshot({ path: resolve(out, 'alpha-overview.png') });
+
+  const inspector = state => state.projectControls['agent:splitter'];
+  const narrowInspector = await drag(inspector, -380);
+  await expect.poll(async () => (await bounds(inspector)).x).toBeLessThan(narrowInspector.x - 300);
+  await expect.poll(visibleTabs).toEqual(projectTabs);
+  const controls = (await state()).projectControls;
+  expect(controls['tab:settings.title'].x + controls['tab:settings.title'].width)
+    .toBeLessThanOrEqual(controls['agent:views-overflow'].x);
+  await page.screenshot({ path: resolve(out, 'all-project-tabs.png') });
+  await drag(inspector, 400);
+  await expect.poll(visibleTabs).toEqual(projectTabs.slice(0, 3));
 
   const sidebar = state => state.sidebarButtonBounds.resize;
   const priorSidebar = await drag(sidebar, 75);
   await expect.poll(async () => (await bounds(sidebar)).x).toBeGreaterThan(priorSidebar.x + 50);
   await expect.poll(async () => (await savedSettings()).layout?.sidebar_width ?? 0).toBeGreaterThan(310);
-  const inspector = state => state.projectControls['agent:splitter'];
   const priorInspector = await drag(inspector, -100);
   await expect.poll(async () => (await bounds(inspector)).x).toBeLessThan(priorInspector.x - 75);
+  await expect.poll(visibleTabs).toContain('project.sources');
   await expect(brief().getByRole('heading', { name: 'Saved Alpha finding' })).toBeVisible();
   await page.screenshot({ path: resolve(out, 'resized-overview.png') });
 

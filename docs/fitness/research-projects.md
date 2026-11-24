@@ -649,3 +649,25 @@ The development macOS Native app showed the empty composer at the bottom with
 the directory unavailable. The overview menu opened the deletion confirmation,
 and cancelling left the project visible. Electron performed the confirmed
 deletion against temporary profiles. No installed release was replaced.
+
+## Responsive project views — 2026-11-24
+
+Source: `bdbe87724` with the project toolbar changes. The shared pane tab
+component measures the localized label in the rendered font. The toolbar
+reserves space for its controls and the selected tab, then exposes views in
+project navigation order as width permits. The overflow menu lists hidden
+views and the existing Delete project action.
+
+Electron Project Insights verified three English tabs at 320 logical pixels,
+Repositories & PRs at the intermediate width and all six at 640. Narrowing the
+inspector moved the extra tabs back into the menu. The Project Agent suite
+selected a hidden view by keyboard and checked that it became a tab. The local
+project startup suite passed the existing deletion and cancellation flow.
+The inspected wide capture is `test-results/project-insights/all-project-tabs.png`.
+
+In the macOS Native development window, the Chinese inspector displayed
+Overview, Materials, Tasks and Repositories & PRs at 320 logical pixels.
+The menu displayed Execution environment, Settings and Delete project.
+Selecting Execution environment with the keyboard brought it into the tab
+row. Dragging the inspector to 640 displayed all six tabs and left Delete
+project as the only menu action. The signed release was outside this run.
