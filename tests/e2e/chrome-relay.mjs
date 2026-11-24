@@ -40,6 +40,7 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
 let leaveRequests = 0;
+let pendingFrame;
 const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
   if (serveDiagnosticAssets(request, response, new URL(siteUrl).origin)) return;
@@ -65,6 +66,12 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (request.url === '/slow-frame') {
+    pendingFrame = response;
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.flushHeaders();
+    return;
+  }
   if (serveDiagnosticAssets(request, response, foreignUrl)) return;
   if (parallelFixture.handle(request, response)) return;
   if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
@@ -321,13 +328,26 @@ try {
     assert.equal(declinedSite.siteAccess, 'declined');
     assert.equal(await sitePrompts(), 1);
     assert.equal(await extensionAttached(), false);
+    await target.evaluate(() => {
+      const frame = document.createElement('iframe');
+      frame.id = 'slow-frame';
+      frame.src = '/slow-frame';
+      document.body.append(frame);
+    });
+    await expect.poll(() => worker.evaluate(async url => {
+      const [tab] = await chrome.tabs.query({ url });
+      return tab?.status;
+    }, siteUrl)).toBe('loading');
     await siteDecision(1);
     const [inventoryOnce, observeOnce, onceStatus] = await prompt([
-      { action: 'observe', tabId: paired[0].tabs.find(tab => tab.url === inventoryUrl).tabId }, observeMain, mainStatus,
+      { action: 'observe', tabId: paired[0].tabs.find(tab => tab.url === inventoryUrl).tabId },
+      { ...observeMain, background: true }, mainStatus,
     ]);
     assert.equal(inventoryOnce.url, inventoryUrl);
     assert.equal(observeOnce.url, siteUrl);
     assert.equal(onceStatus.siteAccess, 'allowed');
+    pendingFrame.end('<p>Frame loaded</p>');
+    await target.locator('#slow-frame').evaluate(frame => frame.remove());
     assert.equal((await prompt([mainStatus]))[0].siteAccess, 'ask');
     assert.equal(await sitePrompts(), 3);
     await siteDecision(2);
@@ -841,7 +861,7 @@ nodeRepl.write(answer.outcome);` },
       parallelRepl,
       browserDiagnostics,
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
-        declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
+        declineDoesNotAttach: true, loadingChildFrameApproved: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,
       semanticTree: { snapshot: withTree.tree, codexFixtureMatched: true, preservesNodesAndRefs: true,
         scopedDuplicateResolved: true, foreignFrameContentExcluded: true, trustedClick: true, inlineWithContentReference: true,
