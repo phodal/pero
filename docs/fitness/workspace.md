@@ -132,3 +132,18 @@ Electron smoke opened both submenus using the keyboard in Chinese/light/dark;
 page errors were empty. Light Appearance and dark Language screenshots were
 inspected for alignment and contrast. Evidence: `test-results/settings-menu-icons/`.
 Native window rendering and signed packages were not checked.
+
+## Insights navigation name — 2026-11-24
+
+Source: `ef57360a0` plus the `nav.insights` and `insights.section` catalog edits;
+other worktree changes were in progress concurrently. The Chinese and English
+names are both `Insights`. The existing App title, sidebar row, content tab and
+Spotlight entry consume `nav.insights`; the App's work-brief heading remains a
+description of the page content.
+
+`node scripts/check/locales.mjs`, `npm run build:wasm`, `npm run build:web`,
+`npm run build:desktop` and `npm run build:host` passed. In an isolated macOS
+Electron development profile, opening Insights showed `Insights` in the sidebar
+and active tab in both locales. Screenshots: `test-results/insights-naming/zh-CN.png`
+and `test-results/insights-naming/en.png`. This checks the development Electron
+surface; macOS Native and installed packages were not checked.
