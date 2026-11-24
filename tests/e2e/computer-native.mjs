@@ -13,7 +13,15 @@ const out=computerEvidenceDirectory(root);await mkdir(out,{recursive:true});
 await build({entryPoints:[resolve(root,'desktop/src/main/computer.ts')],outfile:resolve(run,'computer.mjs'),bundle:true,platform:'node',format:'esm'});
 const { DesktopComputer }=await import(resolve(run,'computer.mjs'));
 const states=[];
-const desktop=new DesktopComputer(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)));
+const fixtureId = 'dev.pero.perocomputerfixture';
+const guardId = 'dev.pero.perocomputerguard';
+const grants = new Set();
+const desktop=new DesktopComputer(process.env.PERO_COMPUTER_BINARY||resolve(root,'target/debug/pero-computer'),resolve(run,'evidence'),event=>states.push(structuredClone(event.data)), {
+  saveApplication: async (id, allowed) => {
+    if (allowed) grants.add(id); else grants.delete(id);
+    await desktop.restore(true, [...grants]);
+  },
+});
 const fixture=await computerFixture(root,run);
 const guard=await computerFixture(root,run,true);
 let backgroundActivations=0;
@@ -37,6 +45,14 @@ try {
  backgroundActivations=(await fixture.state()).activations ?? 0;
  const status=await desktop.status();assert.equal(status.status.accessibility,'granted',JSON.stringify(status));assert.equal(status.status.screen_recording,'granted',JSON.stringify(status));
  await desktop.restore(true);
+ assert.deepEqual((await call({operation:'targets'})).targets, [], 'Legacy enable alone grants no applications');
+ const settings = await desktop.command({action:'computer_get'});
+ assert.ok(settings.applications.find(app => app.application_id === fixtureId && !app.allowed));
+ assert.ok(settings.applications.find(app => app.application_id === guardId && !app.allowed));
+ const grant = await desktop.command({action:'computer_application_set',application_id:fixtureId,allowed:true});
+ assert.ok(grant.applications.find(app => app.application_id === fixtureId && app.allowed));
+ assert.ok((await call({operation:'targets'})).targets.every(app => app.application_id === fixtureId));
+ await assert.rejects(call({operation:'open',application:{kind:'bundle_id',bundle_id:guardId}}), error => error.detail?.code === 'permission_required');
  target=await poll(async()=>{const value=await call({operation:'targets'});return value.targets.find(t=>t.title==='Pero Computer Fixture')?.reference;});
  let observation=await poll(async()=>{const current=await observe();return current.elements.some(e=>e.label==='Increment')?current:false;});
  const button=observation.elements.find(e=>e.label==='Increment');assert.ok(button,'No expected element; inspect test-results/computer/native-failure.json');
@@ -98,7 +114,9 @@ try {
  assert.equal((await observe()).elements.find(element => element.label === 'Increment').id,stableButton.id);
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
  if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
- await desktop.stop();
+ const revoked = await desktop.command({action:'computer_application_set',application_id:fixtureId,allowed:false});
+ assert.ok(revoked.applications.find(app => app.application_id === fixtureId && !app.allowed));
+ assert.deepEqual((await call({operation:'targets'})).targets, []);
  const old=await call({operation:'observe',target}).catch(error=>error);assert.equal(old.detail?.code,'target_unavailable');
  const lookup=await call({operation:'receipt',request_id:action.request_id});assert.deepEqual(lookup.receipt,receipts[0]);
  await writeFile(resolve(out,'native-result.json'),JSON.stringify({status:status.status,effects:await state(),guard:await guard.state(),backgroundPreservedForeground:true,foreground,receipts,observations:observations.map(o=>({id:o.id,screenshot:o.screenshot,elements:o.elements})),passed:true},null,2));

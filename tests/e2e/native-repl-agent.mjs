@@ -57,7 +57,7 @@ let log = '';
 try {
   await Promise.all([mkdir(data), mkdir(workspace), mkdir(output, { recursive: true })]);
   await Promise.all([rm(report, { force: true }), rm(resolve(output, 'evidence.json'), { force: true })]);
-  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: !externalChrome } }));
+  await writeFile(resolve(data, 'settings.json'), JSON.stringify({ chat_agent: 'codex', computer_use: { enabled: !externalChrome, allowed_applications: ['dev.pero.perocomputerfixture'] } }));
   if (!externalChrome) fixture = await computerFixture(root, run, false, { background: true });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

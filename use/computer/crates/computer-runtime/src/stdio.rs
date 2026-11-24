@@ -4,7 +4,7 @@ use pero_contracts::computer_use::*;
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
-use crate::{ComputerRuntime, DesktopDriver};
+use crate::{ComputerRuntime, DesktopDriver, access::ApplicationAccess};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -12,6 +12,7 @@ struct Request {
     id: ComputerRef,
     thread: ComputerRef,
     request: ComputerRequest,
+    allowed_applications: Option<Vec<ComputerRef>>,
 }
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -67,7 +68,11 @@ pub fn serve_stream<D: DesktopDriver>(
     });
     for request in receiver {
         let request = request?;
-        let result = driver.call(request.thread, request.request);
+        let access = request
+            .allowed_applications
+            .as_deref()
+            .map_or(ApplicationAccess::Unrestricted, ApplicationAccess::Allowed);
+        let result = driver.call_with_access(request.thread, request.request, access);
         let response = match result {
             Ok(value) => Response::Success {
                 id: request.id,

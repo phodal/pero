@@ -184,7 +184,15 @@ resets the native connection. Process restart invalidates handles;
 receipts remain queryable from the Desktop journal.
 
 Settings are disabled by default and persisted by Host without replacing other
-preferences. Only a trusted Settings/menu gesture can request OS permissions.
+preferences. Local macOS profiles also store allowed bundle IDs. The global
+switch alone grants no applications. Settings can list running app names and
+bundle IDs for the user. The Desktop sends the grants outside the model's
+request. The native helper checks them before returning targets, launching,
+resolving a window for observation or input, or returning OCR. Revoking a grant
+interrupts the local helper and invalidates previous window references.
+Existing execution receipts remain readable. The local macOS list does not
+grant access to attached remote desktops. Only a trusted Settings/menu gesture
+can request OS permissions.
 Preflight is advisory: recent macOS can report grants while returning the app
 itself as every AX window. The adapter reports `permission_required` immediately
 for that shape, rather than walking a cycle or claiming a valid observation.

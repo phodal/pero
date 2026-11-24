@@ -169,13 +169,11 @@ impl NativeConnectors {
         };
         match message.effect.as_deref() {
             Some("computer.settings") => {
-                let enabled = message.value.as_bool().ok_or("COMPUTER_SETTINGS_INVALID")?;
                 let apps = self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?;
-                apps.save_computer(enabled).map_err(|error| {
+                apps.save_computer(message.value.clone()).map_err(|error| {
                     eprintln!("Computer Use settings: {error:#}");
                     "Could not save Computer Use settings"
-                })?;
-                Ok(Value::Null)
+                })
             }
             Some("artifact") => self.apps.lock().unwrap().clone().ok_or("MCP_HOST_UNAVAILABLE")?
                 .deliver_artifact(message.value.clone()).map_err(|error| { eprintln!("Artifact delivery: {error}"); "ARTIFACT_DELIVERY_FAILED" }),

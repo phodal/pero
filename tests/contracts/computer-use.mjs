@@ -44,3 +44,9 @@ for (const request of [
 for (const options of [{ max_nodes: 0 }, { max_nodes: 4097 }, { max_depth: 65 }, { want_image: 'false' }, { root: { element_id: 'editor' } }]) {
   assert.equal(validate('ComputerRequest', { operation: 'observe', target: fixture.target.reference, options }).valid, false);
 }
+
+assert.equal(validate('ComputerRequest', { operation: 'targets', allowed_applications: ['dev.pero.fixture'] }).valid, false);
+assert.ok(validate('ComputerWorkerRequest', {
+  id: 'internal', thread: 'session', request: { operation: 'targets' },
+  allowed_applications: ['dev.pero.fixture'],
+}).valid);

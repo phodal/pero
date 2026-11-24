@@ -12,7 +12,7 @@ const { DesktopComputer }=await import(pathToFileURL(resolve(temp,'computer.mjs'
 const { DesktopAppUse }=await import(pathToFileURL(resolve(temp,'app-use-mcp.mjs')).href);
 const corpus=JSON.parse(await readFile(resolve(root,'tests/contracts/computer-use.json'),'utf8'));
 const action=corpus.actions[0],effects=resolve(temp,'effects.jsonl');
-const create=(mode='normal')=>new DesktopComputer(process.execPath,resolve(temp,'journal'),()=>{}, {args:[resolve(root,'tests/fixtures/computer-worker.mjs'),effects,mode]});
+const create=(mode='normal')=>new DesktopComputer(process.execPath,resolve(temp,'journal'),()=>{}, {applicationGrants:false,args:[resolve(root,'tests/fixtures/computer-worker.mjs'),effects,mode]});
 const signal=new AbortController().signal;
 let desktop=create();let bridge;
 const call=request=>desktop.call('thread',request,signal);

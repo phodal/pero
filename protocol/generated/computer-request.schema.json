@@ -93,6 +93,28 @@
         }
       ]
     },
+    "ComputerApplicationSetControl": {
+      "title": "ComputerApplicationSetControl",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "computer_application_set"
+        },
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "application_id",
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
     "ComputerBundleSelector": {
       "title": "ComputerBundleSelector",
       "type": "object",
@@ -153,6 +175,9 @@
         },
         {
           "$ref": "#/$defs/ComputerSetControl"
+        },
+        {
+          "$ref": "#/$defs/ComputerApplicationSetControl"
         },
         {
           "$ref": "#/$defs/ComputerPermissionsControl"
@@ -736,6 +761,9 @@
         },
         {
           "$ref": "#/$defs/SetComputerSettings"
+        },
+        {
+          "$ref": "#/$defs/SetComputerApplicationSettings"
         }
       ]
     },
@@ -897,6 +925,12 @@
         },
         "request": {
           "$ref": "#/$defs/ComputerRequest"
+        },
+        "allowed_applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          }
         }
       },
       "required": [
@@ -918,6 +952,32 @@
       },
       "required": [
         "method"
+      ],
+      "additionalProperties": false
+    },
+    "SetComputerApplicationSettings": {
+      "title": "SetComputerApplicationSettings",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "settings.computer.application"
+        },
+        "id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "method",
+        "id",
+        "application_id",
+        "allowed"
       ],
       "additionalProperties": false
     },

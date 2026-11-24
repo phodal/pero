@@ -1,5 +1,5 @@
 //! Persistent native session; platform snapshots remain opaque to this owner.
-use crate::{DesktopDriver, WindowObservation, error, ocr::WindowOcr};
+use crate::{DesktopDriver, WindowObservation, access::ApplicationAccess, error, ocr::WindowOcr};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use computer_core::{Window, WindowBounds};
 use pero_contracts::{computer_runtime::*, computer_use::*};
@@ -129,6 +129,15 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         thread: ComputerRef,
         request: ComputerRequest,
     ) -> Result<ComputerResponse, ComputerError> {
+        self.call_with_access(thread, request, ApplicationAccess::Unrestricted)
+    }
+
+    pub(crate) fn call_with_access(
+        &mut self,
+        thread: ComputerRef,
+        request: ComputerRequest,
+        access: ApplicationAccess<'_>,
+    ) -> Result<ComputerResponse, ComputerError> {
         match request {
             ComputerRequest::Status {} => Ok(ComputerResponse::Status {
                 status: self.driver.status(),
@@ -138,7 +147,11 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 let host_pid = self.host_pid;
                 let targets = apps
                     .into_iter()
-                    .filter(|app| app.pid != host_pid && app.window_id != 0)
+                    .filter(|app| {
+                        app.pid != host_pid
+                            && app.window_id != 0
+                            && access.allows(&app.application_id)
+                    })
                     .map(|app| self.remember(app))
                     .collect();
                 Ok(ComputerResponse::Targets {
@@ -147,14 +160,15 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 })
             }
             ComputerRequest::Open { application } => {
+                access.require_open(&application)?;
                 let (app, message) = self.driver.open(&application)?;
                 let target = app
-                    .filter(|app| app.pid != self.host_pid)
+                    .filter(|app| app.pid != self.host_pid && access.allows(&app.application_id))
                     .map(|app| self.remember(app));
                 Ok(ComputerResponse::Opened { target, message })
             }
             ComputerRequest::Observe { target, options } => {
-                self.observe(thread, target, options, ObservationMode::Tree)
+                self.observe(thread, target, options, ObservationMode::Tree, access)
             }
             ComputerRequest::Screenshot {
                 target,
@@ -164,10 +178,13 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 target,
                 ComputerObserveOptions::default(),
                 ObservationMode::Screenshot { recognize_text },
+                access,
             ),
-            ComputerRequest::ReadOcr { screenshot_id } => self.ocr.read(&thread, screenshot_id),
+            ComputerRequest::ReadOcr { screenshot_id } => {
+                self.ocr.read(&thread, screenshot_id, access)
+            }
             ComputerRequest::Act { action } => Ok(ComputerResponse::Receipt {
-                receipt: self.act(&thread, action),
+                receipt: self.act(&thread, action, access),
             }),
             ComputerRequest::Stop {} => {
                 self.observations.remove(&thread);
@@ -201,7 +218,11 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         self.targets.insert(id, app);
         target
     }
-    fn target(&self, target: &ComputerTargetRef) -> Result<Window, ComputerError> {
+    fn target(
+        &self,
+        target: &ComputerTargetRef,
+        access: ApplicationAccess<'_>,
+    ) -> Result<Window, ComputerError> {
         if target.runtime_id != self.capabilities.runtime_id {
             return Err(error(
                 ComputerErrorCode::TargetUnavailable,
@@ -214,6 +235,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 "List and select a current target",
             )
         })?;
+        access.require(&app.application_id)?;
         if app.pid == self.host_pid
             || !self
                 .driver
@@ -234,7 +256,9 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         target: ComputerTargetRef,
         options: ComputerObserveOptions,
         mode: ObservationMode,
+        access: ApplicationAccess<'_>,
     ) -> Result<ComputerResponse, ComputerError> {
+        let app = self.target(&target, access)?;
         let basis = if let Some(root) = &options.root {
             Some(
                 self.observations
@@ -250,7 +274,6 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
         } else {
             None
         };
-        let app = self.target(&target)?;
         let WindowObservation {
             source,
             bounds,
@@ -282,8 +305,13 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             (ComputerOcrStatus::NotRequested, None)
         } else if let (Some(image), Some(screenshot)) = (&image, &screenshot) {
             if let Some(recognize) = self.driver.text_recognizer() {
-                self.ocr
-                    .start(&thread, &screenshot.id, recognize, &image.bytes)
+                self.ocr.start(
+                    &thread,
+                    &screenshot.id,
+                    &app.application_id,
+                    recognize,
+                    &image.bytes,
+                )
             } else {
                 (ComputerOcrStatus::Unsupported, None)
             }
@@ -361,7 +389,12 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             delta,
         })
     }
-    fn act(&mut self, thread: &ComputerRef, action: ComputerAction) -> ComputerActionReceipt {
+    fn act(
+        &mut self,
+        thread: &ComputerRef,
+        action: ComputerAction,
+        access: ApplicationAccess<'_>,
+    ) -> ComputerActionReceipt {
         let mut receipt = ComputerActionReceipt {
             request_id: action.request_id.clone(),
             target: action.target.clone(),
@@ -369,6 +402,7 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
             outcome: ComputerActionOutcome::Executed { execution: None },
         };
         let prepared = (|| {
+            let app = self.target(&action.target, access)?;
             let observations = self.observations.remove(thread).ok_or_else(|| {
                 error(
                     ComputerErrorCode::StaleObservation,
@@ -376,7 +410,6 @@ impl<D: DesktopDriver> ComputerRuntime<D> {
                 )
             })?;
             let observation = observations.subtree.unwrap_or(observations.window);
-            let app = self.target(&action.target)?;
             let action = action
                 .prepare(&observation.public, &self.capabilities)?
                 .into_action();

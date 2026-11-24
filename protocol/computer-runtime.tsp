@@ -33,10 +33,17 @@ model ComputerStopRequest { operation: "stop"; ...ComputerClosed; }
 model ComputerReceiptRequest { operation: "receipt"; request_id: ComputerRef; ...ComputerClosed; }
 @oneOf union ComputerRequest { ComputerStatusRequest, ComputerTargetsRequest, ComputerOpenRequest, ComputerObserveRequest, ComputerScreenshotRequest, ComputerReadOcrRequest, ComputerActRequest, ComputerStopRequest, ComputerReceiptRequest }
 /** Private Desktop-to-worker envelope. The model only sees ComputerRequest. */
-model ComputerWorkerRequest { id: ComputerRef; thread: ComputerRef; request: ComputerRequest; ...ComputerClosed; }
+model ComputerWorkerRequest {
+  id: ComputerRef;
+  thread: ComputerRef;
+  request: ComputerRequest;
+  allowed_applications?: ComputerRef[];
+  ...ComputerClosed;
+}
 enum ComputerPermissionState { granted, not_detected, unsupported }
 model ComputerDriverStatus { available: boolean; accessibility: ComputerPermissionState; screen_recording: ComputerPermissionState; message: string; environment?: ComputerEnvironment | null; ...ComputerClosed; }
-model ComputerUseState { enabled: boolean; running: boolean; status: ComputerDriverStatus; error?: string | null; ...ComputerClosed; }
+model ComputerApplicationAccess { application_id: ComputerRef; name: string; allowed: boolean; ...ComputerClosed; }
+model ComputerUseState { enabled: boolean; running: boolean; status: ComputerDriverStatus; applications?: ComputerApplicationAccess[]; error?: string | null; ...ComputerClosed; }
 model ComputerImageContent { media_type: "image/png" | "image/jpeg"; data: string; ...ComputerClosed; }
 enum ComputerCaptureStatus { captured, not_requested, subtree, screen_recording_required, incomplete_scan, secure_content, unavailable }
 enum ComputerOcrStatus { not_requested, no_image, unsupported, busy, pending, ready, no_text, failed }
@@ -77,13 +84,15 @@ model ComputerWorkerFailure { id: ComputerRef; error: ComputerError; ...Computer
 @oneOf union ComputerWorkerResponse { ComputerWorkerSuccess, ComputerWorkerFailure }
 model ComputerGetControl { action: "computer_get"; ...ComputerClosed; }
 model ComputerSetControl { action: "computer_set"; enabled: boolean; ...ComputerClosed; }
+model ComputerApplicationSetControl { action: "computer_application_set"; application_id: ComputerRef; allowed: boolean; ...ComputerClosed; }
 model ComputerPermissionsControl { action: "computer_permissions"; ...ComputerClosed; }
 model ComputerStopControl { action: "computer_stop"; ...ComputerClosed; }
-@oneOf union ComputerControl { ComputerGetControl, ComputerSetControl, ComputerPermissionsControl, ComputerStopControl }
+@oneOf union ComputerControl { ComputerGetControl, ComputerSetControl, ComputerApplicationSetControl, ComputerPermissionsControl, ComputerStopControl }
 model GetComputerSettings { method: "settings.computer.get"; ...ComputerClosed; }
 model SetComputerSettings { method: "settings.computer"; id: ComputerRef; enabled: boolean; ...ComputerClosed; }
-@oneOf union ComputerSettingsRequest { GetComputerSettings, SetComputerSettings }
-model ComputerSettingsData { enabled: boolean; ...ComputerClosed; }
+model SetComputerApplicationSettings { method: "settings.computer.application"; id: ComputerRef; application_id: ComputerRef; allowed: boolean; ...ComputerClosed; }
+@oneOf union ComputerSettingsRequest { GetComputerSettings, SetComputerSettings, SetComputerApplicationSettings }
+model ComputerSettingsData { enabled: boolean; allowed_applications?: ComputerRef[]; ...ComputerClosed; }
 model ComputerSettingsEvent { version: 1; kind: "computer_settings"; request_id: ComputerRef | null; text: ""; data: ComputerSettingsData; ...ComputerClosed; }
 model ComputerSettingsErrorEvent { version: 1; kind: "computer_settings_error"; request_id: string | null; text: ""; ...ComputerClosed; }
 model ComputerStateEvent { version: 1; kind: "computer_state"; request_id: null; text: ""; data: ComputerUseState; ...ComputerClosed; }

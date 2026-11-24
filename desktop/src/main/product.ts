@@ -13,6 +13,7 @@ import { confirmReproduction } from './reproduction-approval.ts';
 import { DesktopAppUse } from './app-use-mcp';
 import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
+import type { ComputerApplicationAccess } from '../../../protocol/generated/computer-response';
 import { computerPermissions } from './computer-electron';
 import { randomUUID } from 'node:crypto';
 import { translate } from '../../../locales';
@@ -40,6 +41,7 @@ const artifactDelivery = new HostArtifactDelivery(request => {
 let appUse: DesktopAppUse | undefined;
 let computer: DesktopComputer | undefined;
 let computerEnabled = false;
+let computerApplications: ComputerApplicationAccess[] = [];
 const computerWrites = new Map<string, { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 let resolveReady: () => void;
 const hostReady = new Promise<void>(resolve => { resolveReady = resolve; });
@@ -54,6 +56,26 @@ sessionId => appUse?.authority.command({ action: 'cancel', thread_id: sessionId 
 apps.artifactSnapshot = artifactDelivery.resolveSnapshot;
 let locale: 'en' | 'zh-CN' = 'en';
 function context() { return { product, locale, dark: nativeTheme.shouldUseDarkColors, connected: ready }; }
+async function saveComputer(method: 'settings.computer' | 'settings.computer.application', fields: object) {
+  if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable');
+  const id = randomUUID();
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { computerWrites.delete(id); reject(new Error('Saving Computer Use settings timed out')); }, 5000);
+    computerWrites.set(id, {resolve, reject, timer});
+    host.stdin!.write(JSON.stringify({method, id, ...fields}) + '\n');
+  });
+}
+async function updateComputerMenu(command: { action: 'computer_get' } | { action: 'computer_application_set'; application_id: string; allowed: boolean }) {
+  if (!computer) return;
+  try {
+    const state = await computer.command(command);
+    computerApplications = state.applications ?? [];
+  } catch (error) {
+    dialog.showErrorBox(translate(locale, 'computer.title'), String(error));
+  } finally {
+    menus();
+  }
+}
 function menus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: product.name, submenu: [{ role: 'about' }, { role: 'quit' }] },
@@ -66,6 +88,16 @@ function menus() {
     ...(product.chat ? [{ label: translate(locale, 'computer.title'), submenu: [
       { id:'computer-enable', label: translate(locale, 'computer.enable'), type: 'checkbox' as const, checked: computerEnabled, enabled: ['darwin','win32','linux'].includes(process.platform) || computerEnabled, click: () => { void computer?.command({action:'computer_set',enabled:!computerEnabled}).catch(error => dialog.showErrorBox(translate(locale,'computer.title'),String(error))); } },
       { id:'computer-permissions', label: translate(locale, 'computer.permissions'), enabled: process.platform === 'darwin', click: () => { void computer?.command({action:'computer_permissions'}).catch(error => dialog.showErrorBox(translate(locale,'computer.title'),String(error))); } },
+      ...(process.platform === 'darwin' ? [{
+        label: translate(locale, 'computer.application_access'),
+        submenu: [
+          { label: translate(locale, 'computer.refresh'), click: () => { void updateComputerMenu({action:'computer_get'}); } },
+          ...computerApplications.map(({ application_id, name, allowed }) => ({
+            label: name, type: 'checkbox' as const, checked: allowed,
+            click: () => { void updateComputerMenu({action:'computer_application_set',application_id,allowed:!allowed}); },
+          })),
+        ],
+      }] : []),
       { id:'computer-status', label: translate(locale, 'computer.refresh'), click: async () => {
         if (!computer) return;
         const state = await computer.status();
@@ -102,15 +134,8 @@ app.whenReady().then(async () => {
   if (product.chat) {
     computer = new DesktopComputer(resolve(root,'bin',process.platform==='win32'?'pero-computer.exe':'pero-computer'),resolve(profile,'computer-use'),event=>send('product:event',event),{
       permissions: computerPermissions,
-      save: async enabled => {
-        if (!ready || !host.stdin?.writable) throw new Error('The local runtime is unavailable');
-        const id = randomUUID();
-        await new Promise<void>((resolve,reject)=>{
-          const timer=setTimeout(()=>{computerWrites.delete(id);reject(new Error('Saving Computer Use settings timed out'));},5000);
-          computerWrites.set(id,{resolve,reject,timer});
-          host.stdin!.write(JSON.stringify({method:'settings.computer',id,enabled})+'\n');
-        });
-      },
+      save: enabled => saveComputer('settings.computer', { enabled }),
+      saveApplication: (application_id, allowed) => saveComputer('settings.computer.application', { application_id, allowed }),
     });
     globalShortcut.register('CommandOrControl+Shift+Escape',()=>{void computer?.command({action:'computer_stop'}).catch(error=>console.error(error));});
   }
@@ -146,7 +171,7 @@ app.whenReady().then(async () => {
       if (pending) { clearTimeout(pending.timer); computerWrites.delete(message.request_id); }
       if (message.kind === 'computer_settings') {
         computerEnabled = message.data.enabled;
-        void computer?.restore(computerEnabled).then(()=>pending?.resolve(),error=>pending?.reject(error)); menus();
+        void computer?.restore(computerEnabled, message.data.allowed_applications).then(()=>pending?.resolve(),error=>pending?.reject(error)); menus();
       } else pending?.reject(new Error('Could not save Computer Use settings'));
       return;
     }

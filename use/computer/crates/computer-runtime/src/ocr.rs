@@ -1,5 +1,5 @@
 //! Latest OCR frame per conversation, with a single in-flight Vision call.
-use crate::error;
+use crate::{access::ApplicationAccess, error};
 use pero_contracts::{computer_runtime::*, computer_use::*};
 use std::{
     collections::HashMap,
@@ -45,10 +45,16 @@ impl OcrProgress {
     }
 }
 
+struct OcrFrame {
+    screenshot_id: ComputerRef,
+    application_id: String,
+    progress: OcrProgress,
+}
+
 #[derive(Default)]
 pub(crate) struct WindowOcr {
     busy: Arc<AtomicBool>,
-    frames: HashMap<ComputerRef, (ComputerRef, OcrProgress)>,
+    frames: HashMap<ComputerRef, OcrFrame>,
 }
 
 struct OcrSlot(Arc<AtomicBool>);
@@ -63,6 +69,7 @@ impl WindowOcr {
         &mut self,
         thread: &ComputerRef,
         screenshot: &ComputerRef,
+        application_id: &str,
         recognize: TextRecognizer,
         bytes: &[u8],
     ) -> (ComputerOcrStatus, Option<String>) {
@@ -86,8 +93,14 @@ impl WindowOcr {
         };
         // Preserve inline OCR for warm calls. Cold Vision results remain readable.
         let result = progress.result(Duration::from_secs(4));
-        self.frames
-            .insert(thread.clone(), (screenshot.clone(), progress));
+        self.frames.insert(
+            thread.clone(),
+            OcrFrame {
+                screenshot_id: screenshot.clone(),
+                application_id: application_id.to_owned(),
+                progress,
+            },
+        );
         result
     }
 
@@ -95,18 +108,20 @@ impl WindowOcr {
         &mut self,
         thread: &ComputerRef,
         screenshot_id: ComputerRef,
+        access: ApplicationAccess<'_>,
     ) -> Result<ComputerResponse, ComputerError> {
-        let (_, progress) = self
+        let frame = self
             .frames
             .get_mut(thread)
-            .filter(|(id, _)| *id == screenshot_id)
+            .filter(|frame| frame.screenshot_id == screenshot_id)
             .ok_or_else(|| {
                 error(
                     ComputerErrorCode::StaleObservation,
                     "Use the screenshot ID from this conversation's latest OCR request",
                 )
             })?;
-        let (ocr_status, recognized_text) = progress.result(Duration::ZERO);
+        access.require(&frame.application_id)?;
+        let (ocr_status, recognized_text) = frame.progress.result(Duration::ZERO);
         Ok(ComputerResponse::Ocr {
             screenshot_id,
             ocr_status,
@@ -130,12 +145,19 @@ mod tests {
         let frame: ComputerRef = "frame".to_owned().try_into().unwrap();
         let (tx, rx) = mpsc::channel();
         let mut ocr = WindowOcr::default();
-        ocr.frames
-            .insert(thread.clone(), (frame.clone(), OcrProgress::Pending(rx)));
+        ocr.frames.insert(
+            thread.clone(),
+            OcrFrame {
+                screenshot_id: frame.clone(),
+                application_id: "owned".into(),
+                progress: OcrProgress::Pending(rx),
+            },
+        );
+        let access = ApplicationAccess::Unrestricted;
 
-        assert!(ocr.read(&other, frame.clone()).is_err());
+        assert!(ocr.read(&other, frame.clone(), access).is_err());
         assert!(matches!(
-            ocr.read(&thread, frame.clone()).unwrap(),
+            ocr.read(&thread, frame.clone(), access).unwrap(),
             ComputerResponse::Ocr {
                 ocr_status: ComputerOcrStatus::Pending,
                 ..
@@ -143,11 +165,17 @@ mod tests {
         ));
         tx.send(WindowText::Recognized("sample".into())).unwrap();
         assert!(matches!(
-            ocr.read(&thread, frame.clone()).unwrap(),
+            ocr.read(&thread, frame.clone(), access).unwrap(),
             ComputerResponse::Ocr { ocr_status: ComputerOcrStatus::Ready, recognized_text: Some(text), .. }
             if text == "sample"
         ));
+        assert_eq!(
+            ocr.read(&thread, frame.clone(), ApplicationAccess::Allowed(&[]))
+                .unwrap_err()
+                .code,
+            ComputerErrorCode::PermissionRequired,
+        );
         ocr.stop(&thread);
-        assert!(ocr.read(&thread, frame).is_err());
+        assert!(ocr.read(&thread, frame, access).is_err());
     }
 }

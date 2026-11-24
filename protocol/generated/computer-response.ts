@@ -231,7 +231,13 @@ export interface ComputerUseState {
   enabled: boolean;
   running: boolean;
   status: ComputerDriverStatus;
+  applications?: ComputerApplicationAccess[];
   error?: string | null;
+}
+export interface ComputerApplicationAccess {
+  application_id: ComputerRef;
+  name: string;
+  allowed: boolean;
 }
 export interface ComputerSettingsEvent {
   version: 1;
@@ -242,6 +248,7 @@ export interface ComputerSettingsEvent {
 }
 export interface ComputerSettingsData {
   enabled: boolean;
+  allowed_applications?: ComputerRef[];
 }
 export interface ComputerSettingsErrorEvent {
   version: 1;

@@ -117,3 +117,19 @@ seconds, so this change retains the bounded OCR path.
   establish updated-package desktop image input to a hosted model. The helper
   already in `/Applications` had both grants and observed the AppKit fixture
   with AX and pixels using its existing combined operation.
+
+## Per-application access on macOS
+
+- A signed Native test copy showed and persisted a grant for one owned AppKit
+  application. Revoking it persisted an empty list while leaving Computer Use
+  enabled. The final dark-mode settings view kept Refresh and Stop above the
+  application list after refresh. The earlier light-mode view was also inspected.
+- The rebuilt helper's real AppKit test verified empty discovery with a legacy
+  enabled setting, a positive grant for one fixture, denial of its neighbor,
+  and invalidation of the old window reference after revocation. The original
+  executed receipt remained queryable. The Host contract separately verified
+  that a non-revoked grant survives restart.
+- The signed test copy had no macOS Accessibility or Screen Recording grants.
+  Its Settings checks therefore cover application discovery and persistence.
+  The action effects were verified with the rebuilt helper and the already
+  authorized test runner.

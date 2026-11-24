@@ -58,8 +58,12 @@ export type ComputerDwellMs = number;
  */
 export type ComputerHoldMs = number;
 export type ComputerControl =
-  ComputerGetControl | ComputerSetControl | ComputerPermissionsControl | ComputerStopControl;
-export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings;
+  | ComputerGetControl
+  | ComputerSetControl
+  | ComputerApplicationSetControl
+  | ComputerPermissionsControl
+  | ComputerStopControl;
+export type ComputerSettingsRequest = GetComputerSettings | SetComputerSettings | SetComputerApplicationSettings;
 
 export interface ComputerStatusRequest {
   operation: "status";
@@ -239,6 +243,7 @@ export interface ComputerWorkerRequest {
   id: ComputerRef;
   thread: ComputerRef;
   request: ComputerRequest;
+  allowed_applications?: ComputerRef[];
 }
 export interface ComputerGetControl {
   action: "computer_get";
@@ -246,6 +251,11 @@ export interface ComputerGetControl {
 export interface ComputerSetControl {
   action: "computer_set";
   enabled: boolean;
+}
+export interface ComputerApplicationSetControl {
+  action: "computer_application_set";
+  application_id: ComputerRef;
+  allowed: boolean;
 }
 export interface ComputerPermissionsControl {
   action: "computer_permissions";
@@ -260,4 +270,10 @@ export interface SetComputerSettings {
   method: "settings.computer";
   id: ComputerRef;
   enabled: boolean;
+}
+export interface SetComputerApplicationSettings {
+  method: "settings.computer.application";
+  id: ComputerRef;
+  application_id: ComputerRef;
+  allowed: boolean;
 }

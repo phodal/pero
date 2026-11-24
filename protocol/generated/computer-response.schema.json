@@ -111,6 +111,27 @@
         "target"
       ]
     },
+    "ComputerApplicationAccess": {
+      "title": "ComputerApplicationAccess",
+      "type": "object",
+      "properties": {
+        "application_id": {
+          "$ref": "#/$defs/ComputerRef"
+        },
+        "name": {
+          "type": "string"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "application_id",
+        "name",
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
     "ComputerCapabilities": {
       "title": "ComputerCapabilities",
       "type": "object",
@@ -794,6 +815,12 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "allowed_applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerRef"
+          }
         }
       },
       "required": [
@@ -1062,6 +1089,12 @@
         },
         "status": {
           "$ref": "#/$defs/ComputerDriverStatus"
+        },
+        "applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComputerApplicationAccess"
+          }
         },
         "error": {
           "anyOf": [

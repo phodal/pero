@@ -44,12 +44,14 @@ const owner = new HostConnectors({ root, executable, helpers, nodeExecutable: pr
 const mcp = new ConnectorMcp(owner);
 const routes = new AppWriteRoutes((action, fields = {}) => effect('apps', { value: { action, ...fields } }),
   event => effect('surface', { value: { action: 'written', event } }), fetch);
+const saveComputer = async change => {
+  const next = await effect('computer.settings', { value: change });
+  await computer.restore(next.enabled, next.allowed_applications);
+};
 const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'computer-use'),
   event => send({ id: 0, computer_state: event.data }), {
-    save: async enabled => {
-      await effect('computer.settings', { value: enabled });
-      await computer.restore(enabled);
-    },
+    save: enabled => saveComputer({ method: 'settings.computer', enabled }),
+    saveApplication: (application_id, allowed) => saveComputer({ method: 'settings.computer.application', application_id, allowed }),
   });
 const browserEvidence = join(dirname(root), 'browser-use-evidence');
 const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchBrowserUse(
@@ -159,7 +161,7 @@ input.on('line', line => {
     else promise?.reject(Object.assign(new Error(message.code), { code: message.code }));
   } else if (message.event) {
     if (message.event.kind === 'computer_settings') {
-      void computer.restore(message.event.data.enabled).then(() => computer.status()).catch(console.error);
+      void computer.restore(message.event.data.enabled, message.event.data.allowed_applications).then(() => computer.status()).catch(console.error);
     } else {
       mcp.accept(message.event);
       appUse.accept(message.event);

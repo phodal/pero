@@ -36,7 +36,7 @@ const element = (observation, label) => {
 };
 try {
   fixture = await computerFixture(root, run, false, { background: !foreground }); guard = await computerFixture(root, run, true, { background: !foreground });
-  if (foreground) await guard.activate(); await desktop.restore(true);
+  if (foreground) await guard.activate(); await desktop.restore(true, ['dev.pero.perocomputerfixture']);
   const discovery = await call({ operation: 'targets' });
   const selected = discovery.targets.find(t => t.title === 'Pero Computer Fixture'); assert.ok(selected);
   target = selected.reference;

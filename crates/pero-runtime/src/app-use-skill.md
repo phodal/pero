@@ -50,6 +50,8 @@ input is not a verification pass. Stop a task when its work is complete.
 
 Use advertised `computer_use` for external native windows. Follow its current
 capabilities and schema for target, observation, coordinates and delivery mode.
+On macOS, ask the person to open and allow a missing application in Pero
+Settings → Computer Use. List targets again after access changes.
 Read a window's accessible controls and values first. If the content is missing,
 request `screenshot` for the selected window. Use its pixels and fresh pixel
 anchor. Read `capture_status` if pixels are absent. With `recognize_text: true`,

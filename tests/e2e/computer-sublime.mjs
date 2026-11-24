@@ -74,7 +74,7 @@ try {
   const { status } = await desktop.status();
   assert.equal(status.accessibility, 'granted', status.message);
   assert.equal(status.screen_recording, 'granted', status.message);
-  await desktop.restore(true);
+  await desktop.restore(true, ['com.sublimetext.4']);
   await writeFile(path, original);
   launchEditor();
   const window = await waitFor(findWindow, 'owned Sublime document');

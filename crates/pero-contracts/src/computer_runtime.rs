@@ -54,9 +54,39 @@ pub struct ComputerUseState {
     pub enabled: bool,
     pub running: bool,
     pub status: ComputerDriverStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub applications: Option<Vec<ComputerApplicationAccess>>,
     #[serde(default)]
     pub error: Option<String>,
 }
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComputerApplicationAccess {
+    pub application_id: ComputerRef,
+    pub name: String,
+    pub allowed: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ComputerSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub allowed_applications: Vec<ComputerRef>,
+}
+
+impl ComputerSettings {
+    pub fn set_application_allowed(&mut self, application_id: ComputerRef, allowed: bool) {
+        if allowed {
+            if !self.allowed_applications.contains(&application_id) {
+                self.allowed_applications.push(application_id);
+            }
+        } else {
+            self.allowed_applications.retain(|id| id != &application_id);
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComputerImageContent {
@@ -139,6 +169,11 @@ pub enum ComputerControl {
     Get {},
     #[serde(rename = "computer_set")]
     Set { enabled: bool },
+    #[serde(rename = "computer_application_set")]
+    SetApplication {
+        application_id: ComputerRef,
+        allowed: bool,
+    },
     #[serde(rename = "computer_permissions")]
     Permissions {},
     #[serde(rename = "computer_stop")]
@@ -151,4 +186,10 @@ pub enum ComputerSettingsRequest {
     Get {},
     #[serde(rename = "settings.computer")]
     Set { id: ComputerRef, enabled: bool },
+    #[serde(rename = "settings.computer.application")]
+    SetApplication {
+        id: ComputerRef,
+        application_id: ComputerRef,
+        allowed: bool,
+    },
 }

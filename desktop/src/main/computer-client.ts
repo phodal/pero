@@ -2,7 +2,7 @@ import { startComputerProcess, type ComputerProcess } from './computer-process.t
 import { randomUUID } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import schema from '../../../protocol/generated/computer-response.schema.json' with { type: 'json' };
-import type { ComputerRequest } from '../../../protocol/generated/computer-request';
+import type { ComputerRequest, ComputerWorkerRequest } from '../../../protocol/generated/computer-request';
 import type { ComputerResponse, ComputerWorkerResponse, ComputerError } from '../../../protocol/generated/computer-response';
 
 const ajv = new Ajv2020({ strict: true });
@@ -25,7 +25,7 @@ export class ComputerClient {
   private pending?: { id: string; dispatched: boolean; resolve(value: ComputerResponse): void; reject(error: Error): void; dispose(): void };
   constructor(binary: string, args: string[] = []) { this.binary = binary; this.args = args; }
 
-  request(thread: string, request: ComputerRequest, signal: AbortSignal): Promise<ComputerResponse> {
+  request(thread: string, request: ComputerRequest, signal: AbortSignal, allowedApplications?: string[]): Promise<ComputerResponse> {
     const result = this.queue.then(async () => {
       await this.closing;
       signal.throwIfAborted();
@@ -50,7 +50,8 @@ export class ComputerClient {
         const id = randomUUID();
         this.pending = { id, dispatched: true, resolve, reject, dispose: () => { clearTimeout(timer); signal.removeEventListener('abort', abort); } };
         signal.addEventListener('abort', abort, { once: true });
-        connection.input.write(JSON.stringify({ id, thread, request }) + '\n', error => {
+        const envelope: ComputerWorkerRequest = { id, thread, request, allowed_applications: allowedApplications };
+        connection.input.write(JSON.stringify(envelope) + '\n', error => {
           if (error) void this.stop('failed').catch(() => {});
         });
       });

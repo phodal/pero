@@ -1044,6 +1044,8 @@
   "computer.title": "Computer Use",
   "computer.enable": "Enable Computer Use",
   "computer.hint": "Allow the selected conversation to observe and operate other application windows. Agent session approvals still apply.",
+  "computer.application_access": "Application Access",
+  "computer.application_hint": "Allow access to individual applications. Open an application and refresh to add it to this list.",
   "computer.permissions": "Open permissions",
   "computer.drag_badge": "Drag to the permission list",
   "computer.drag_help": "Open each macOS permission pane, then drag Pero Computer Use.app into its list and enable it. You can also reveal the app in Finder and add it with +. Refresh after granting access.",

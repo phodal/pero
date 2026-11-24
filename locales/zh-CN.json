@@ -1044,6 +1044,8 @@
   "computer.title": "电脑操作",
   "computer.enable": "启用电脑操作",
   "computer.hint": "允许当前会话查看和操作其他应用窗口，操作遵循 Agent 会话审批。",
+  "computer.application_access": "应用授权",
+  "computer.application_hint": "按应用授权。打开应用后点击刷新，即可在此列表中授权。",
   "computer.permissions": "打开权限设置",
   "computer.drag_badge": "拖到权限列表",
   "computer.drag_help": "打开两项 macOS 权限设置，分别将 Pero Computer Use.app 拖入列表并启用。也可以在 Finder 中显示应用，再用系统列表的 + 添加。授权后点刷新。",

@@ -1,4 +1,5 @@
 //! Shared native session, driver port and private NDJSON transport.
+mod access;
 mod driver;
 mod ocr;
 mod runtime;
