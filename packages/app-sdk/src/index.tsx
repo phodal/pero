@@ -28,7 +28,7 @@ import {setActiveIconTheme,type IconThemePackage} from '../../icons/theme';
 export {getActiveIconTheme} from '../../icons/theme';
 export type {IconThemePackage} from '../../icons/theme';
 
-export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; hostColumnHeader?: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; slots?: string[]; permissions?: { api: string[]; events: string[]; host: string[] } };
+export type AppContext = { locale: 'en' | 'zh-CN'; dark: boolean; active: boolean; projectId?: string | null; hostColumnHeader?: boolean; appearance?: AppearanceSnapshot; iconTheme?:IconThemePackage|null; name?: string; version?: string; slots?: string[]; permissions?: { api: string[]; events: string[]; host: string[] } };
 const Context = createContext<AppContext>({ locale: 'en', dark: false, active: true });
 
 /** The parent owns context; the App frame never receives Desktop credentials. */
@@ -45,16 +45,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const value = event.data.context;
       if (!value || !['en', 'zh-CN'].includes(value.locale) || typeof value.dark !== 'boolean' || typeof value.active !== 'boolean') return;
       const appearance = readAppearance(value.appearance);
+      const projectId = typeof value.projectId === 'string' || value.projectId === null ? value.projectId : undefined;
       // Locale, activity and theme mode stay usable when an optional palette is incompatible.
       setContext(previous => {
         if (
           previous.locale === value.locale
           && previous.dark === value.dark
           && previous.active === value.active
+          && previous.projectId === projectId
           && previous.hostColumnHeader === (value.hostColumnHeader === true)
           && JSON.stringify(previous.appearance) === JSON.stringify(appearance)
         ) return previous;
-        return { ...previous, locale: value.locale, dark: value.dark, active: value.active, hostColumnHeader: value.hostColumnHeader === true, appearance, iconTheme: previous.iconTheme };
+        return { ...previous, locale: value.locale, dark: value.dark, active: value.active, projectId, hostColumnHeader: value.hostColumnHeader === true, appearance, iconTheme: previous.iconTheme };
       });
     };
     const stopAppUse = installAppUseBridge();

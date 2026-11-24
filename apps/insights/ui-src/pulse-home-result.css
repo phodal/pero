@@ -18,6 +18,42 @@
 .point-insights-split[data-stacked] .pero-content-pane,
 .point-insights-split[data-stacked] .pero-content-pane[data-scroll="pane"] > .pero-content-body { height: auto; overflow: visible; }
 .point-pulse-top { padding-inline: 0; margin: 0; }
+:root:has(.point-insights-embedded),
+body:has(.point-insights-embedded),
+#app:has(.point-insights-embedded),
+.pero-app.point-insights-embedded { background: var(--pero-surface); }
+.point-insights-embedded > section {
+  padding-block: var(--pero-spacing-4);
+  border-block-start: var(--pero-hairline);
+}
+.point-embedded-brief-header,
+.point-embedded-brief-header h1,
+.point-embedded-brief-header > div { display: flex; align-items: center; gap: var(--pero-spacing-2); }
+.point-embedded-brief-header {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-block-end: var(--pero-spacing-2);
+}
+.point-embedded-brief-header h1 {
+  min-height: var(--pero-control-height);
+  margin: 0;
+  font-size: var(--pero-font-body);
+  font-weight: var(--pero-font-weight-semibold);
+}
+.point-embedded-brief-header h1 svg { color: var(--pero-text-muted); flex: none; }
+.point-embedded-brief-header > div { margin-inline-start: auto; flex-wrap: wrap; }
+.point-insights-embedded :is(.point-insights-start, .point-brief-layout, .point-brief-primary, .point-brief-topics) {
+  gap: var(--pero-spacing-3);
+}
+.point-insights-embedded .point-brief-topics { grid-template-columns: minmax(0, 1fr); }
+.point-insights-embedded .point-brief-topic { overflow: visible; }
+.point-insights-embedded .point-brief-topic > .point-pulse-feed { padding: 0; }
+.point-insights-embedded .point-brief-topic-title { color: var(--pero-text-muted); font-size: var(--pero-font-caption); }
+.point-embedded-brief-discussion {
+  margin-block-start: var(--pero-spacing-4);
+  padding-block-start: var(--pero-spacing-3);
+  border-block-start: var(--pero-hairline);
+}
 .point-insights-start { --pero-card-padding: var(--pero-spacing-5); display: grid; gap: var(--pero-spacing-4); }
 .point-insights-start-title { margin: 0; font-size: var(--pero-font-heading); font-weight: var(--pero-font-weight-semibold); line-height: 1.4; }
 .point-insights-start-copy { margin: 0; color: var(--pero-text-muted); }

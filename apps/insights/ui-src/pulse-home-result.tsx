@@ -9,7 +9,7 @@ import './pulse-home-result.css';
 const copy = {
   zh: {
     engineering: '工程进展', research: '研究进展', title: 'Insights', summary: 'AI 工作摘要', findings: '关键结论', attention: '需要你决定', discussion: '继续讨论',
-    openSession: '打开会话', ahead: '接下来', generatedAt: '生成于 {time}', personalEmpty: '暂无新的个人工作更新。',
+    openSession: '打开会话', ahead: '接下来', generatedAt: '生成于 {time}', personalEmpty: '暂无新的个人工作更新。', projectEmpty: '这次简报暂无需要关注的工作更新。',
     legacy: '这份历史简报尚无综合摘要，已有发现与来源仍可查看。',
     summaryNote: '关键结论可沿来源回查；会话完成不代表成果已验收。',
     discuss: '讨论这份简报', continueQuestion: '哪些工作可以继续？', verifyQuestion: '哪些结论还需要核对？',
@@ -22,7 +22,7 @@ const copy = {
   },
   en: {
     engineering: 'Engineering', research: 'Research', title: 'Insights', summary: 'AI work summary', findings: 'Key findings', attention: 'Needs your decision', discussion: 'Continue the conversation',
-    openSession: 'Open session', ahead: 'Ahead', generatedAt: 'Generated at {time}', personalEmpty: 'No new personal work updates.',
+    openSession: 'Open session', ahead: 'Ahead', generatedAt: 'Generated at {time}', personalEmpty: 'No new personal work updates.', projectEmpty: 'No project updates to highlight in this brief.',
     legacy: 'A summary is not available for this saved brief. Its findings and sources remain available.',
     summaryNote: 'Follow the sources to review each conclusion; a completed conversation is not result acceptance.',
     discuss: 'Discuss this brief', continueQuestion: 'Which work can continue?', verifyQuestion: 'Which conclusions still need checking?',
@@ -106,10 +106,10 @@ function RegisterBrief({ brief, title }: { brief: ResultBrief; title: string }) 
   return null;
 }
 
-export function PulseHomeResult({ brief, createdAt, running, locale, notice, onDiscuss, header, supplement, fallback }: {
+export function PulseHomeResult({ brief, createdAt, running, locale, notice, onDiscuss, header, supplement, fallback, embedded }: {
   brief: ResultBrief | null; createdAt?: string; running?: boolean; locale: 'zh' | 'en'; notice?: ReactNode;
   onDiscuss?: (action: { discuss: (question: string) => void; discussing: boolean; label: string } | null) => void;
-  header?: ReactNode; supplement?: ReactNode; fallback?: ReactNode;
+  header?: ReactNode; supplement?: ReactNode; fallback?: ReactNode; embedded?: boolean;
 }) {
   const t = copy[locale], chat = useAppChat(), id = useId();
   const briefTitle = locale === 'zh' ? '工作简报' : 'Work brief';
@@ -136,7 +136,8 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice, onD
   const reading = !brief ? fallback : !populated
     ? <section className="point-insights-empty-result" aria-label={t.title}>
       {notice}
-      <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>
+      {embedded ? <p className="point-insights-start-copy">{t.projectEmpty}</p>
+        : <EmptyState icon={<EmptyIllustration kind="brief"/>} description={t.personalEmpty}/>}
       {running && <p className="point-pulse-muted" role="status">{t.generating}</p>}
       {createdAt && <p className="point-pulse-generated">{t.generatedAt.replace('{time}', stamp)}</p>}
     </section>
@@ -157,19 +158,45 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice, onD
             </aside></Card>}
             {!!edition.cards.length && <section className="point-brief-findings">
               <ContentSection id={`${id}-findings`} title={t.findings}>
-              <div className="point-brief-topics">{edition.topics.map(topic => <Card asChild key={`${topic.type}:${topic.label}`} className="point-brief-topic"><section aria-label={topic.type === 'general' ? topic.label || undefined : t[topic.type]}>
-                <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
-                  <h2 className="point-brief-topic-title">{topic.type === 'general' ? topic.label || t.findings : t[topic.type]}</h2>
-                </CardHeader>
-                <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>
-              </section></Card>)}</div>
+              <div className="point-brief-topics">{edition.topics.map(topic => {
+                const key = `${topic.type}:${topic.label}`;
+                const label = topic.type === 'general' ? topic.label || undefined : t[topic.type];
+                const posts = <div className="point-pulse-feed">{topic.cards.map((card: ResultCard) => <Post key={card.id} card={card} t={t} locale={locale} />)}</div>;
+                return embedded ? <div key={key} className="point-brief-topic">
+                  {label && <h4 className="point-brief-topic-title">{label}</h4>}
+                  {posts}
+                </div> : <Card asChild key={key} className="point-brief-topic"><section aria-label={label}>
+                  <CardHeader tone={topic.type === 'engineering' ? 'blue' : topic.type === 'research' ? 'apricot' : 'neutral'}>
+                    <h2 className="point-brief-topic-title">{label || t.findings}</h2>
+                  </CardHeader>
+                  {posts}
+                </section></Card>;
+              })}</div>
               </ContentSection>
             </section>}
           </div>
         </div>
       </>;
+  const registeredBrief = brief ? <RegisterBrief brief={brief} title={briefTitle} /> : null;
+  const discussion = <section className="point-brief-discussion" aria-label={t.discussion}>
+    {!embedded && <p>{t.discussHint}</p>}
+    <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <ListRow key={question} title={question} onOpen={discussing ? undefined : () => discuss(question)} />)}</div>
+    {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
+    {brief?.tomorrow && <div className="point-pulse-ahead"><ContentSection id={`${id}-ahead`} title={t.ahead}><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></ContentSection></div>}
+    <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
+      {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
+    </Disclosure>
+  </section>;
+  if (embedded) return <>
+    {registeredBrief}
+    {populated && notice}
+    {reading}
+    {populated && <div className="point-embedded-brief-discussion">
+      <ContentSection id={`${id}-discussion`} title={t.discussion}>{discussion}</ContentSection>
+    </div>}
+  </>;
   return <>
-    {brief ? <RegisterBrief brief={brief} title={briefTitle} /> : null}
+    {registeredBrief}
     <Split key="insights-brief-shell" className="point-insights-split" storageKey="pero.insights.brief-inspector" collapseBelow={contentLayout.collapseBelow}>
     <SplitPane id="insights-brief-read" min={contentLayout.mainMin} as="section">
       <ContentPane id="insights-brief" label={briefTitle} as="div" surface="workspace" inset="compact" scroll="pane" header={header}>
@@ -182,15 +209,7 @@ export function PulseHomeResult({ brief, createdAt, running, locale, notice, onD
         header={<InspectorHeader identity={briefTitle} title={t.discussion} />}>
         <div className="point-brief-inspector">
           {notice}
-          <section className="point-brief-discussion" aria-label={t.discussion}>
-            <p>{t.discussHint}</p>
-            <div className="point-brief-questions">{[t.continueQuestion, t.verifyQuestion].map(question => <ListRow key={question} title={question} onOpen={discussing ? undefined : () => discuss(question)} />)}</div>
-            {discussionError && <InsightsError error={discussionError} locale={locale} context="action" />}
-            {brief?.tomorrow && <div className="point-pulse-ahead"><ContentSection id={`${id}-ahead`} title={t.ahead}><ul>{brief.tomorrow.split(/\n+/).filter(line => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></ContentSection></div>}
-            <Disclosure variant="inline" className="point-insights-diagnostics" onOpenChange={setOriginalOpen} summary={<>{t.original}</>}>
-              {originalOpen && <><p>{t.originalNote}</p><pre>{JSON.stringify(brief, null, 2)}</pre></>}
-            </Disclosure>
-          </section>
+          {discussion}
         </div>
       </ContentPane>
     </SplitPane>

@@ -144,6 +144,7 @@ export function briefResultPrompt(recap, repositories = [], conflicts = [], loca
     ? 'Output locale: en. Write all reader-facing fields in natural English. Retain recognizable paper, model, and technical names where useful. This Host has no pulse_context or pulse_publish tool. The JSON below is the whole context for this run. Do not call tools. The entire reply must be one JSON object: the pulse_publish arguments.'
     : '输出语言：zh，所有面向读者的字段使用自然的简体中文；有识别意义的论文名、模型名和技术名词可以保留原文。此 Host 没有 pulse_context 和 pulse_publish 工具。下面的 JSON 就是这次能读到的全部上下文。不要调用工具。整段回复只能是一个 JSON 对象，即 pulse_publish 的参数。';
   const sessions = Array.isArray(recap?.sessions) ? recap.sessions : [];
+  const project = recap?.scope === 'project_host_journal';
   const context = {
     workRecap: recap ? { ...recap, sessions } : null,
     memoryContext: { items: [], coverage: { examined: 0, matched: 0, shown: 0, unreadable: 0, omitted: 0, complete: true }, policy: '' },
@@ -151,10 +152,12 @@ export function briefResultPrompt(recap, repositories = [], conflicts = [], loca
     repositories: repos,
     conflicts: noted,
     sourceStatus: {
-      sessions: 'Cumulative Host journal excerpts; selected by last content activity. Coverage counts returned summaries, not calendar days; unavailable analyses are not reported by this Host.',
+      sessions: project
+        ? 'Current project journal excerpts, selected by last content activity. Describe this project only. Coverage counts returned summaries rather than calendar days.'
+        : 'Cumulative Host journal excerpts; selected by last content activity. Coverage counts returned summaries, not calendar days; unavailable analyses are not reported by this Host.',
       gmail: 'unsupported',
       information: 'unsupported',
-      repositories: { count: repos.length, scope: "this Host's registered repositories only; absent repositories do not establish clean local work" },
+      repositories: { count: repos.length, scope: project ? 'The current project checkout, when available.' : "this Host's registered repositories only; absent repositories do not establish clean local work" },
     },
   };
   return `${pulseBriefPrompt}\n\n${note}\n\n${JSON.stringify(context)}`;

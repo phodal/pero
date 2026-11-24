@@ -1,4 +1,4 @@
-import { openAppSession, useAppAgent, useAppI18n } from '@pero/app-sdk';
+import { openAppSession, useAppAgent, useAppContext, useAppI18n } from '@pero/app-sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppFrame, Disclosure, Button, Card, Feedback, Icon, IconButton, LibraryHeader } from '@pero/app-sdk/ui';
 import { analysisRequest, briefFromReply, briefResultPrompt } from './work-recap-model.mjs';
@@ -71,7 +71,7 @@ function toSession(session: HostSession): RecapSession {
   };
 }
 
-function toRecap(sessions: HostSession[], asOf: string): WorkRecap {
+function toRecap(sessions: HostSession[], asOf: string, projectId: string | null): WorkRecap {
   const work = sessions.filter(session => session.app !== 'insights');
   const mapped = work.slice(-20).map(toSession);
   const omitted = work.length - mapped.length;
@@ -81,33 +81,15 @@ function toRecap(sessions: HostSession[], asOf: string): WorkRecap {
     start: '',
     end: '',
     asOf,
-    scope: 'cumulative_host_journal',
+    scope: projectId ? 'project_host_journal' : 'cumulative_host_journal',
     sessions: mapped,
     coverage: { examined: sessions.length, matched: work.length, shown: mapped.length, unreadable: 0, omitted, complete: omitted === 0 && !mapped.some(session => session.truncated) },
   };
 }
 
 export default function Insights() {
-  const { t } = useAppI18n({ locale: { zh: 'zh', en: 'en' } });
-  const locale = t('locale') === 'zh' ? 'zh' : 'en';
-  const agent = useAppAgent();
-  const [recap, setRecap] = useState<WorkRecap | null>(null);
-  const [repositories, setRepositories] = useState<unknown[]>([]);
-  const [conflicts, setConflicts] = useState<unknown[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [generationError, setGenerationError] = useState<GenerationFailure | null>(null);
-  const [restoreError, setRestoreError] = useState('');
-  const [brief, setBrief] = useState<ResultBrief | null>(null);
-  const [generatedAt, setGeneratedAt] = useState('');
-  const [running, setRunning] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const [selectedThread, setSelectedThread] = useState<string | null>(null);
-  const started = useRef(false);
-  const inFlight = useRef(false), pendingSession = useRef('');
-  const [generationSession, setGenerationSession] = useState('');
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const { projectId, active } = useAppContext();
+  const [location, setLocation] = useState<{ thread: string; revision: number }>();
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.source !== window.parent || event.data?.type !== 'pero:app:location' || typeof event.data.location !== 'string') return;
@@ -118,18 +100,39 @@ export default function Insights() {
           thread = atob(match[1].replace(/-/g, '+').replace(/_/g, '/'));
         } catch { /* Invalid locations are reported by the recovery effect. */ }
       }
-      started.current = true;
-      setBrief(null);
-      setGeneratedAt('');
-      setGenerationError(null);
-      setSelectedThread(thread);
-      setAttempt(value => value + 1);
+      setLocation(previous => ({ thread, revision: (previous?.revision ?? 0) + 1 }));
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, []);
+  if (projectId === undefined && window.location.protocol === 'pero-app:') return null;
+  return <WorkBrief key={projectId ? `project:${projectId}` : `archive:${location?.revision ?? 0}`}
+    projectId={projectId ?? null} selectedThread={projectId ? null : location?.thread ?? null} active={active} />;
+}
 
+function WorkBrief({ projectId, selectedThread, active }: { projectId: string | null; selectedThread: string | null; active: boolean }) {
+  const { t } = useAppI18n({ locale: { zh: 'zh', en: 'en' } });
+  const locale = t('locale') === 'zh' ? 'zh' : 'en';
+  const agent = useAppAgent();
+  const [recap, setRecap] = useState<WorkRecap | null>(null);
+  const [repositories, setRepositories] = useState<unknown[]>([]);
+  const [conflicts, setConflicts] = useState<unknown[]>([]);
+  const [projectAgentId, setProjectAgentId] = useState<string>();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [generationError, setGenerationError] = useState<GenerationFailure | null>(null);
+  const [restoreError, setRestoreError] = useState('');
+  const [brief, setBrief] = useState<ResultBrief | null>(null);
+  const [generatedAt, setGeneratedAt] = useState('');
+  const [running, setRunning] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const started = useRef(false);
+  const inFlight = useRef(false), pendingSession = useRef('');
+  const [generationSession, setGenerationSession] = useState('');
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
+    if (!active) return;
     if (selectedThread === '') {
       setError('');
       setRestoreError(locale === 'zh' ? '简报地址无效。' : 'The brief address is invalid.');
@@ -140,19 +143,20 @@ export default function Insights() {
     setError('');
     setRestoreError('');
     setLoading(true);
-    fetch('/host/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
+    fetch('/host/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(projectId ? { projectId } : {}), signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error((await response.text()).slice(0, 500) || 'Insights failed');
-        return response.json() as Promise<{ sessions?: HostSession[]; repositories?: unknown[]; conflicts?: unknown[] }>;
+        return response.json() as Promise<{ sessions?: HostSession[]; agentId?: string | null; repositories?: unknown[]; conflicts?: unknown[] }>;
       })
       .then(async body => {
         if (controller.signal.aborted) return;
         setRepositories(Array.isArray(body.repositories) ? body.repositories : []);
         setConflicts(Array.isArray(body.conflicts) ? body.conflicts : []);
+        setProjectAgentId(body.agentId ?? undefined);
         const sessions = body.sessions ?? [];
         const history = sessions.filter(session => session.app === 'insights' && session.threadId && (selectedThread === null || session.threadId === selectedThread)).reverse();
         if (history.length || selectedThread !== null) started.current = true;
-        setRecap(toRecap(sessions, new Date().toISOString()));
+        setRecap(toRecap(sessions, new Date().toISOString(), projectId));
         let failure = '';
         for (const session of history) {
           if (controller.signal.aborted) return;
@@ -181,17 +185,19 @@ export default function Insights() {
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Insights failed'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [attempt, selectedThread]);
+  }, [active, attempt, projectId, selectedThread]);
 
   const modelReady = agent.available && agent.agents.some(item => item.available);
   const runAnalysis = (prompt: string) => {
-    const agentId = agent.agents.find(item => item.available)?.id;
+    const agentId = (agent.agents.find(item => item.available && item.id === projectAgentId)
+      ?? agent.agents.find(item => item.available))?.id;
     if (!agentId || inFlight.current) return;
     inFlight.current = true;
     setGenerationError(null);
     setRunning(true);
     const requestId = `insights-${Date.now()}`;
-    const session = pendingSession.current ? Promise.resolve({ sessionId: pendingSession.current }) : agent.start({ requestId, prompt, agentId });
+    const session = pendingSession.current ? Promise.resolve({ sessionId: pendingSession.current })
+      : agent.start({ requestId, prompt, agentId, ...(projectId ? { insightsProjectId: projectId } : {}) });
     void session.then(async startedSession => {
       pendingSession.current = startedSession.sessionId;
       setGenerationSession(startedSession.sessionId);
@@ -222,10 +228,10 @@ export default function Insights() {
     });
   };
   useEffect(() => {
-    if (analysisRequest({ recapReady: !!recap, modelReady, started: started.current }) !== 'start' || !recap) return;
+    if (projectId || selectedThread !== null || !active || analysisRequest({ recapReady: !!recap, modelReady, started: started.current }) !== 'start' || !recap) return;
     started.current = true;
     runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale));
-  }, [recap, repositories, conflicts, modelReady, locale]);
+  }, [active, projectId, selectedThread, recap, repositories, conflicts, modelReady, locale]);
   const waiting = loading || agent.infoLoading;
   const generateLabel = running ? (locale === 'zh' ? '正在更新…' : 'Updating…') : generationSession
     ? (locale === 'zh' ? '继续检查生成结果' : 'Check generation') : brief
@@ -238,10 +244,12 @@ export default function Insights() {
     discussRef.current = action.discuss;
     setDiscussAction(current => current?.label === action.label && current.discussing === action.discussing ? current : { label: action.label, discussing: action.discussing });
   }, []);
-  const generate = brief
-    ? <IconButton label={generateLabel} busy={running} disabled={waiting || !recap || !modelReady}
+  const hasEvidence = !!recap?.sessions.length || repositories.length > 0;
+  const generationDisabled = waiting || !recap || !modelReady || (!!projectId && !hasEvidence);
+  const generate = selectedThread !== null ? undefined : brief
+    ? <IconButton label={generateLabel} busy={running} disabled={generationDisabled}
         onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}><Icon name="refresh" size={16}/></IconButton>
-    : <Button variant="primary" busy={running} disabled={waiting || !recap || !modelReady}
+    : <Button variant="primary" busy={running} disabled={generationDisabled}
         onClick={() => recap && runAnalysis(briefResultPrompt(recap, repositories, conflicts, locale))}>{generateLabel}</Button>;
   const feedback = <>
     {error && <><InsightsError error={error} locale={locale} context="records" /><Button disabled={loading} onClick={() => { started.current = false; setAttempt(value => value + 1); }}>{locale === 'zh' ? '重试' : 'Retry'}</Button></>}
@@ -270,29 +278,44 @@ export default function Insights() {
     </>}
   </>;
   const briefTitle = locale === 'zh' ? '工作简报' : 'Work brief';
-  const briefHeader = <LibraryHeader density="compact" className="point-pulse-top" title={briefTitle} />;
-  const updates = <ResearchUpdates key="insights-research-updates" hideEmpty={!!brief} />;
-  return <AppFrame className="point-pulse-page" label={briefTitle}
-    scope={<span className="point-insights-scope">{locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}</span>}
-    utilities={brief ? generate : undefined}
-    primary={brief
-      ? (discussAction ? <Button variant="primary" busy={discussAction.discussing} onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined)
-      : generate}>
-    <div className="point-insights-body">
-      <PulseHomeResult header={briefHeader} supplement={updates} brief={brief} createdAt={generatedAt || undefined} running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss}
-        fallback={<Card tone="blue" variant="soft" className="point-insights-start">
-          <p className="point-insights-start-title">{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</p>
+  const discuss = discussAction ? <Button variant={projectId ? 'ghost' : 'primary'} busy={discussAction.discussing}
+    onClick={() => discussRef.current?.(discussAction.label)}>{discussAction.label}</Button> : undefined;
+  const startContent = <>
+          {!projectId && selectedThread === null && <p className="point-insights-start-title">{locale === 'zh' ? '今天有哪些值得关注的事？' : 'What deserves your attention today?'}</p>}
           {error || restoreError || generationError ? <div className="point-insights-feedback">{feedback}</div>
             : waiting || running ? <Feedback kind="status">{waiting
               ? (locale === 'zh' ? '正在读取工作记录与 Agent 状态…' : 'Loading work records and Agent availability…')
               : (locale === 'zh' ? '正在整理工作记录，生成你的简报…' : 'Reading your work records and preparing your brief…')}</Feedback>
-            : <p className="point-insights-start-copy">{!modelReady
+            : <p className="point-insights-start-copy">{projectId && !hasEvidence
+              ? (locale === 'zh' ? '开始项目会话后，可以在这里生成工作简报。' : 'Start a project conversation to generate a work brief here.')
+              : !modelReady
               ? (locale === 'zh' ? '未连接可用 Agent。请先在设置 → 模型与 Agent 中配置，再检查连接。' : 'No Agent is connected. Connect an Agent to generate a brief.')
-              : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
+              : projectId
+                ? (locale === 'zh' ? '从项目会话和仓库快照中整理进展、待决事项和需要复核的结果。' : 'Summarize project progress, open decisions, and results to review.')
+                : (locale === 'zh' ? '从工作会话和研究变化中整理重点，生成后可查看来源并继续处理。' : 'Bring together the important changes from your work and research, with sources you can review.')}</p>}
           <div className="point-insights-start-actions">
             {!modelReady && !waiting && <Button variant="ghost" onClick={() => void agent.refresh()}>{locale === 'zh' ? '检查 Agent 连接' : 'Check Agent connection'}</Button>}
+            {projectId && !waiting && !running && <Button variant="ghost" onClick={() => setAttempt(value => value + 1)}>{locale === 'zh' ? '刷新工作记录' : 'Refresh work records'}</Button>}
           </div>
-        </Card>} />
-    </div>
+  </>;
+  const result = <PulseHomeResult embedded={!!projectId} brief={brief} createdAt={generatedAt || undefined}
+    running={running} locale={locale} notice={feedback} onDiscuss={onDiscuss}
+    header={projectId ? undefined : <LibraryHeader density="compact" className="point-pulse-top" title={briefTitle} />}
+    supplement={!projectId && selectedThread === null ? <ResearchUpdates hideEmpty={!!brief} /> : undefined}
+    fallback={projectId ? <div className="point-insights-start">{startContent}</div>
+      : <Card tone="blue" variant="soft" className="point-insights-start">{startContent}</Card>} />;
+  if (projectId) return <AppFrame className="point-pulse-page point-insights-embedded" label={briefTitle}>
+    <section aria-labelledby="project-brief-title">
+      <header className="point-embedded-brief-header">
+        <h1 id="project-brief-title"><Icon name="file-text" size={16} />{briefTitle}</h1>
+        <div>{brief ? discuss : null}{generate}</div>
+      </header>
+      {result}
+    </section>
+  </AppFrame>;
+  return <AppFrame className="point-pulse-page" label={briefTitle}
+    scope={<span className="point-insights-scope">{locale === 'zh' ? '关注工作变化、待决事项与值得复核的结果。' : 'Changes, open decisions, and results worth reviewing.'}</span>}
+    utilities={brief ? generate : undefined} primary={brief ? discuss : generate}>
+    <div className="point-insights-body">{result}</div>
   </AppFrame>;
 }
