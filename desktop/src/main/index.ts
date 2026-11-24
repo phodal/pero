@@ -1,4 +1,5 @@
 import { NotebookInspector } from './notebook-inspector.ts';
+import { BrowserDeveloperMode } from './browser-use/diagnostics.ts';
 import type { ShortcutMenu } from '../../../protocol/generated/shortcuts';
 import { embeddedShortcut } from './shortcuts';
 import { HarnessPreferences } from './harness-settings';
@@ -19,6 +20,7 @@ import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
 import { cloudBrowserRequest } from './browser-use/cloud-use.ts';
 import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
+import { BrowserSiteToolsMode } from './browser-use/site-tool-session.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
 import {McpSessionPanels} from './mcp-session-panels.ts';
@@ -275,6 +277,30 @@ async function manageChromeSites() {
     await access.clear();
   }
 }
+const browserDeveloperMode = new BrowserDeveloperMode(async (thread, origin) => {
+  if (window.isDestroyed() || await appUse?.authority.selectedOrdinaryConversation() !== thread) return false;
+  const { response } = await dialog.showMessageBox(window, {
+    type: 'warning', message: t('browser_use.diagnostic_prompt'),
+    detail: [origin, t('browser_use.diagnostic_detail')].join('\n\n'),
+    buttons: [t('browser_use.deny'), t('browser_use.allow')],
+    defaultId: 0, cancelId: 0, noLink: true,
+  });
+  return response === 1;
+});
+const browserSiteTools = new BrowserSiteToolsMode(async (thread, origin, review) => {
+  if (window.isDestroyed() || await appUse?.authority.selectedOrdinaryConversation() !== thread) return false;
+  const discovery = review.kind === 'discover';
+  const { response } = await dialog.showMessageBox(window, {
+    type: 'warning', message: t(discovery ? 'browser_use.site_discovery_prompt' : 'browser_use.site_tool_prompt'),
+    detail: (discovery
+      ? [origin, t('browser_use.site_discovery_detail'), review.fromOrigins.join('\n')]
+      : [origin, review.tool.origin !== origin && review.tool.origin, review.tool.frameUrl, review.tool.name,
+        t('browser_use.site_tool_detail'), JSON.stringify(review.input, null, 2)]).filter(Boolean).join('\n\n'),
+    buttons: [t('browser_use.deny'), t('browser_use.allow')],
+    defaultId: 0, cancelId: 0, noLink: true,
+  });
+  return response === 1;
+});
 function updateMenus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Pero', submenu: [{ role: 'about', label: t('menu.about') }, { type: 'separator' }, { role: 'quit', label: t('menu.quit') }] },
@@ -300,6 +326,13 @@ function updateMenus() {
         { id: 'browser-use-stop-chrome', label: t('browser_use.chrome_stop'), click: () => appUse?.browser?.relay.revoke() },
       ] : []),
       { id: 'browser-use-revoke', label: t('browser_use.menu_revoke'), click: () => browserUse?.revoke() },
+      ...(!sshProfile ? [{
+        id: 'browser-use-developer-mode', label: t('browser_use.developer_mode'), type: 'checkbox' as const,
+        checked: browserDeveloperMode.enabled, click: ({ checked }: { checked: boolean }) => browserDeveloperMode.set(checked),
+      }, {
+        id: 'browser-use-site-tools', label: t('browser_use.site_tools'), type: 'checkbox' as const,
+        checked: browserSiteTools.enabled, click: ({ checked }: { checked: boolean }) => browserSiteTools.set(checked),
+      }] : []),
       ...(!sshProfile ? [
         { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun('embedded'); } },
         { id: 'browser-use-cloud-chrome', label: t('browser_use.cloud_chrome'), click: () => { void shareBrowserWithCloudRun('chrome'); } },
@@ -387,12 +420,13 @@ app.whenReady().then(async () => {
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
   const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
+  const siteTools = sshProfile ? undefined : browserSiteTools;
   const embedded = browserUse = new BrowserUse(browserEvidence, async url => {
     if (!webPages) throw new Error('Web views are unavailable.');
     const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);
     await ready;
     return tabId;
-  }, options => net.request(options));
+  }, options => net.request(options), sshProfile ? undefined : browserDeveloperMode.approve, siteTools);
   appUse = new DesktopAppUse(() => window, send, resolve(app.getPath('userData'), 'app-use-evidence'),{describe:()=>apps.describeWrites(),apply:(write,signal,goal)=>apps.applyWrite(write,signal,goal)},computer,artifactDelivery.deliver,new NotebookInspector(__dirname),
     selected => new WorkbenchBrowserUse(embedded, selected, browserEvidence, undefined, sshProfile ? 'ssh' : 'local', {
       currentTurn: thread => appUse?.authority.browserTurn(thread),
@@ -406,7 +440,7 @@ app.whenReady().then(async () => {
         });
         return ['decline', 'once', 'allow', 'block'][response];
       },
-    }),
+    }, sshProfile ? undefined : browserDeveloperMode.approve, siteTools),
     sshProfile ? undefined : new ConversationRepl('javascript', startJavaScriptRepl));
   const appUseEnvironment = await appUse.start();
   let connectorEnvironment: Record<string, string> = {};

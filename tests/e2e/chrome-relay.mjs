@@ -11,6 +11,10 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
+import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
+import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
+import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
 const root = resolve(process.env.PERO_CONTENT_TEST_ROOT || source);
@@ -35,7 +39,15 @@ await writeFile(agents, JSON.stringify([{ id: 'browser-use-fixture', name: 'Brow
 await writeFile(settings, JSON.stringify({ chat_agent: 'browser-use-fixture', workbench: { layout: { chat_open: true } } }));
 let foreignHits = 0;
 let leaveRequests = 0;
+const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
+  if (request.url === partnerSiteToolPath) {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(partnerSiteToolPage(new URL(siteUrl).origin));
+    return;
+  }
+  if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
+  if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === '/inventory-window' || request.url === '/popup-destination') {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.end(request.url === '/popup-destination'
@@ -51,6 +63,23 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (parallelFixture.handle(request, response)) return;
+  if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(siteToolPage(request.url === '/webmcp-frame', new URL(foreignUrl).origin));
+    return;
+  }
+  if (request.url === axPath || request.url === axFramePath) {
+    response.setHeader('Content-Type', 'text/html');
+    response.end(request.url === axPath ? axPage(foreignUrl) : axFramePage);
+    return;
+  }
+  if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
+  if (request.url === '/diagnostics') {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(browserDiagnosticPage(foreignUrl));
+    return;
+  }
   if (request.url === '/leave-fixture') leaveRequests++;
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreignUrl }).end();
@@ -92,6 +121,9 @@ const site = createServer((request, response) => {
   document.querySelector('[data-testid="result"]').textContent =
     document.querySelector('#message').value + ' · trusted ' + event.isTrusted;
 };
+document.querySelector('#message').onkeydown = event => {
+  document.querySelector('#message').dataset.key = event.key + ':' + event.isTrusted;
+};
 document.querySelector('#upload').onchange = async event => {
   const [file] = event.target.files;
   document.querySelector('#uploaded').textContent = file.name + ' ' + (await file.text()).length;
@@ -119,11 +151,12 @@ try {
   await page.waitForFunction(() => window.peroDiagnostics && JSON.parse(window.peroDiagnostics.snapshot()).connected && !document.getElementById('loading'));
   const state = () => page.evaluate(() => JSON.parse(window.peroDiagnostics.snapshot()));
   const active = async () => { const value = await state(); return value.chats[value.activeChat]; };
-  const menu = id => app.evaluate(({ Menu, BrowserWindow }, key) => {
-    const item = Menu.getApplicationMenu().getMenuItemById(key);
-    if (!item) throw new Error(`Missing Pero menu action ${key}`);
-    item.click(undefined, BrowserWindow.getAllWindows()[0]);
-  }, id);
+  const menu = (id, checked) => app.evaluate(({ Menu, BrowserWindow }, { id, checked }) => {
+    const item = Menu.getApplicationMenu().getMenuItemById(id);
+    if (!item) throw new Error(`Missing Pero menu action ${id}`);
+    if (checked === undefined || item.checked !== checked) item.click(undefined, BrowserWindow.getAllWindows()[0]);
+    if (checked !== undefined && item.checked !== checked) throw new Error(`Menu action ${id} did not toggle.`);
+  }, { id, checked });
   const prompt = async commands => {
     await expect.poll(async () => (await active())?.state, { timeout: 10000 }).toBe('idle');
     const previous = (await active()).messages.length;
@@ -156,6 +189,10 @@ try {
         globalThis.relaySiteRules = options.detail;
         return { response: globalThis.relayClearSites ? 1 : 0, checkboxChecked: false };
       }
+      if (options.message === 'Allow browser diagnostics on this site?') {
+        globalThis.relayDiagnosticPrompts = (globalThis.relayDiagnosticPrompts ?? 0) + 1;
+        return { response: globalThis.relayDiagnosticDecision ?? 0, checkboxChecked: false };
+      }
       return { response: 0, checkboxChecked: false };
     };
     clipboard.writeText = value => { globalThis.relayFixtureClipboard = value; };
@@ -175,7 +212,7 @@ try {
 
   chrome = await chromium.launchPersistentContext(resolve(temporary, 'chrome'), {
     executablePath: chromeBinary, headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-blink-features=WebMCP'],
   });
   let worker = chrome.serviceWorkers().find(candidate => candidate.url().startsWith('chrome-extension://'));
   worker ??= await chrome.waitForEvent('serviceworker', { predicate: candidate => candidate.url().startsWith('chrome-extension://') });
@@ -272,7 +309,9 @@ try {
     const observeMain = { action: 'observe', tabId: discovered.tabId };
     const mainStatus = { action: 'status', tabId: discovered.tabId };
     await siteDecision(0);
-    const [firstDecline, secondDecline, declinedSite] = await prompt([observeMain, observeMain, mainStatus]);
+    const [firstDecline, secondDecline, declinedSite] = await prompt([
+      { ...observeMain, action: 'getAXState' }, observeMain, mainStatus,
+    ]);
     for (const result of [firstDecline, secondDecline]) assert.match(result.error, /site access was declined/);
     assert.equal(declinedSite.siteAccess, 'declined');
     assert.equal(await sitePrompts(), 1);
@@ -301,6 +340,50 @@ try {
     assert.equal(tabId, discovered.tabId);
     assert.equal(available.tabs[0].url, siteUrl);
     assert.equal(available.tabs[0].authorized, true);
+
+    const diagnosticPage = await chrome.newPage();
+    const diagnosticUrl = new URL('/diagnostics', siteUrl).href;
+    await diagnosticPage.goto(diagnosticUrl);
+    const [diagnosticTabs] = await prompt([{ action: 'tabs' }]);
+    const diagnosticId = diagnosticTabs.tabs.find(tab => tab.url === diagnosticUrl).tabId;
+    const diagnose = { action: 'diagnose', tabId: diagnosticId, captureMs: 1500, profile: true,
+      style: { selector: 'h1', properties: ['color'] } };
+    const [developerOff] = await prompt([diagnose]);
+    assert.match(developerOff.error, /Enable Browser Developer Mode/);
+    assert.equal(await extensionAttached(diagnosticUrl), false);
+    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), undefined);
+    await menu('browser-use-developer-mode', true);
+    const [developerDeclined] = await prompt([diagnose]);
+    assert.match(developerDeclined.error, /diagnostics were declined/);
+    assert.equal(await extensionAttached(diagnosticUrl), false);
+    await app.evaluate(() => { globalThis.relayDiagnosticDecision = 1; });
+    const [diagnostics] = await prompt([diagnose]);
+    verifyBrowserDiagnostics(diagnostics, new URL(siteUrl).origin, { profileRequired: false });
+    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 2);
+    await menu('browser-use-developer-mode', false);
+    await diagnosticPage.close();
+
+    const toolPage = await chrome.newPage();
+    const toolUrl = new URL('/webmcp', siteUrl).href;
+    await toolPage.goto(toolUrl);
+    const readSiteToolPage = expression => toolPage.evaluate(expression);
+    await expect.poll(() => readSiteToolPage(`document.body.dataset.ready + ':' +
+      document.querySelector('iframe').contentDocument?.body?.dataset?.ready`)).toBe('yes:yes');
+    const [toolTabs] = await prompt([{ action: 'tabs' }]);
+    const siteTools = await verifySiteTools({
+      app, origin: new URL(siteUrl).origin, foreignOrigin: new URL(foreignUrl).origin, menu, prompt,
+      tabId: toolTabs.tabs.find(tab => tab.url === toolUrl).tabId, readSiteToolPage,
+      receiptDir: resolve(temporary, 'desktop', 'browser-use-evidence', createHash('sha256').update(original).digest('hex')),
+    });
+    await toolPage.close();
+
+    const accessibilityPage = await chrome.newPage();
+    const accessibilityUrl = new URL(axPath, siteUrl).href;
+    await accessibilityPage.goto(accessibilityUrl);
+    const [axTabs] = await prompt([{ action: 'tabs' }]);
+    const accessibility = await verifyAccessibility({ tabId: axTabs.tabs.find(tab => tab.url === accessibilityUrl).tabId,
+      prompt, readStatus: () => accessibilityPage.getByRole('status').textContent() });
+    await accessibilityPage.close();
 
     const snapshotPage = await chrome.newPage();
     const snapshotUrl = new URL('/snapshot', siteUrl).href;
@@ -492,6 +575,30 @@ try {
     assert.equal(switched[1].isError, true);
     assert.equal(switched[2].url, newUrl);
     assert.equal(switched[2].isError, false);
+    const inactive = { tabId, background: true };
+    const backgroundActions = await prompt([
+      { action: 'observe', background: true },
+      { action: 'observe', ...inactive },
+      { action: 'act', ...inactive, locator: { by: 'label', value: 'Relay message' },
+        operation: { action: 'fill', text: 'Background verified' } },
+      { action: 'act', ...inactive, locator: { by: 'label', value: 'Relay message' },
+        operation: { action: 'press', key: 'End' } },
+      { action: 'act', ...inactive, locator: { by: 'role', role: 'button', name: 'Apply from Chrome' },
+        operation: { action: 'click' } },
+      { action: 'getAXState', ...inactive },
+      { action: 'tabs' },
+    ]);
+    assert.match(backgroundActions[0].error, /explicit Chrome tabId/);
+    assert.equal(backgroundActions[1].url, siteUrl);
+    assert.deepEqual(backgroundActions.slice(2, 5).map(effect => effect.outcome), Array(3).fill('dispatched'),
+      JSON.stringify(backgroundActions.slice(2, 5)));
+    assert.equal(backgroundActions[5].kind, 'axState', JSON.stringify(backgroundActions[5]));
+    assert.deepEqual(backgroundActions[6].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, false], [opened.tabId, true]]);
+    await expect(target.getByTestId('result')).toHaveText('Background verified · trusted true');
+    await expect(target.getByLabel('Relay message')).toHaveAttribute('data-key', 'End:true');
+    const [backgroundReload, afterBackgroundReload] = await prompt([{ action: 'reload', ...inactive }, { action: 'tabs' }]);
+    assert.equal(backgroundReload.outcome, 'dispatched', JSON.stringify(backgroundReload));
+    assert.deepEqual(afterBackgroundReload.tabs.map(tab => [tab.tabId, tab.active]), [[tabId, false], [opened.tabId, true]]);
     const switchedBack = await prompt([
       { action: 'tabs' }, { action: 'activate', tabId }, { action: 'closeTab', tabId: opened.tabId },
       { action: 'tabs' },
@@ -502,6 +609,10 @@ try {
     assert.deepEqual(switchedBack[3].tabs.map(tab => [tab.tabId, tab.active]), [[tabId, true]]);
     await expect.poll(() => newTab.isClosed()).toBe(true);
 
+    const parallel = await verifyParallelBrowser({ chrome, base: siteUrl, prompt, events: parallelFixture.events });
+    parallelFixture.events.length = 0;
+    const parallelRepl = await verifyParallelBrowser({ chrome, base: siteUrl, prompt, events: parallelFixture.events, repl: true });
+    await target.bringToFront();
     const popupReceipts = [];
     for (const [name, expectedUrl, marker] of [
       ['Open fixture link', siteUrl + '?popup', 'Chrome Relay fixture'],
@@ -698,6 +809,14 @@ nodeRepl.write(answer.outcome);` },
       paired: true, pairedTabsAcrossWindows: true, attachesOnFirstUse: true, inactiveTabDenied: true, otherConversationDenied: true,
       clickReceiptVerified: true,
       chromeConnectionStatesVerified: true,
+      chromeBackground: { explicitTarget: true, trustedClick: true, trustedKey: true, ax: true, reload: true,
+        foregroundUnchanged: true },
+      accessibility,
+      siteTools,
+      parallel,
+      parallelRepl,
+      browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
+        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,
@@ -726,6 +845,7 @@ nodeRepl.write(answer.outcome);` },
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(output, 'failed-workbench.png') }).catch(() => {});
   throw error;
 } finally {
+  parallelFixture.close();
   await chrome?.close();
   await app?.close();
   await new Promise(done => site.close(done));

@@ -141,7 +141,14 @@ Chrome pairing. A saved Block also prevents sharing the site with a Cloud run.
 `handoff` releases an individual tab and leaves it open for the user. For
 Chrome it detaches that tab's debugger and keeps other tabs in the pairing
 available. A new pairing can grant access to the tab again.
-Page operations require an active tab in its window and a current document.
+Page operations require a current document. Pass an explicit `chrome:`
+`tabId` with `background: true` to read or operate an inactive tab without
+selecting it. The default requires the tab to be active. JavaScript dialog
+handling and opening a tab through `open` use the active-tab path.
+Extension 0.3.9 can run requests to different Chrome tabs together. Use
+explicit tab IDs and await dependent operations in order on each tab. A
+conflicting operation on the same tab returns an error. Older extensions
+continue with a single Relay request at a time.
 The extension attaches Chrome's debugger only when a page operation needs it.
 Stop and take over or Disconnect Chrome releases the attached tabs.
 With extension 0.3.3, `click` with `expectPopup: true` reports the first
@@ -162,6 +169,74 @@ returns control on the dialog event so the next request can handle it, then
 settles the original input before the next page operation. Dialog action
 receipts record the decision and ID. The prompt answer stays out of the receipt.
 
+### Browser Developer Mode
+
+In Electron, enable **Workbench → Browser Developer Mode**. It works with an
+authorized embedded Chromium tab or paired Chrome 0.3.7 or newer. Native
+offers the toggle in its Chrome menu for paired Chrome tabs. Each capture
+asks for separate approval and remains bound to the current tab and document.
+The mode resets when the Workbench exits.
+
+`browser_use` action `diagnose` takes an optional `captureMs` of 100–4000,
+defaulting to 750. It returns console messages, runtime errors, network
+status and timing, and Chromium performance metrics. Network entries include
+only same-origin URLs, with query strings and fragments omitted. Use
+`style: { selector: "h1", properties: ["color"] }` to inspect computed CSS
+and `profile: true` to request a CPU sample. When the attached driver lacks
+the Profiler domain, the result includes `profileUnavailable: true` with the
+other observations. The Chrome and Electron fixtures independently assert
+that the expected console, network, runtime and CSS values reach ACP. The
+embedded Chromium fixture also checks a named function in its CPU sample.
+
+### Browser Site Tools
+
+Enable **Browser Site Tools** in the Electron Workbench menu or the macOS
+Native Chrome menu. Electron supports an authorized embedded Web tab and
+both shells support an approved site in the paired Chrome profile. For Chrome,
+use extension 0.3.10 or later and pass the explicit `chrome:` tab ID. Chrome must
+make WebMCP available to the page. The loopback fixture enables the feature
+with a Chrome startup flag. Availability on regular sites follows the
+[Chrome WebMCP rollout](https://developer.chrome.com/docs/ai/webmcp).
+`listSiteTools` discovers WebMCP registrations in the
+approved document and its same-origin frames. It returns the browser's tool
+schema and a document-bound ID. Request partner-frame tools by listing the
+exact origins in `fromOrigins`. The user reviews those origins before
+discovery, and Chromium lists the tools each partner has exposed to the page.
+`callSiteTool` uses the returned ID and an `input`
+object. The Workbench shows the origin, frame when applicable, tool name and
+arguments before dispatch. Run discovery again after navigation or reload.
+Each dispatch returns a receipt. If the tool's outcome is unclear, inspect
+the page before calling it again.
+
+The Electron and Chrome Relay fixtures register real WebMCP tools in a page
+and in same-origin and cross-origin frames. Both check the returned schemas,
+private partner tools staying private, separate discovery and call consent,
+independent page effects, a saved receipt and a stale ID after reload.
+On macOS, `node tests/e2e/native-chrome-site-tools.mjs` uses the Native probe
+build, rebuilt connectors, Chrome for Testing, and Python REPL. System Events
+responds to the real Native approval sheets for the disposable fixture. The
+test checks the declined action leaves the page intact and the approved action
+changes it and saves a receipt. Evidence is written to
+`test-results/native-chrome-site-tools/result.json`.
+
+### Chromium accessibility snapshots
+
+`getAXState` reads Chromium's native accessibility tree in an authorized
+Electron Web tab or paired Chrome tab (extension 0.3.8 or later). It includes
+same-origin frames under their owner nodes. A full result contains
+`snapshotId`, `rootId` and `nodes`; each node's `children` lists its
+children in order. Pass the latest `snapshotId` as `since` to get only
+`upserted` nodes and `removed` IDs. If the document or baseline changed,
+the response is a fresh full tree with `baselineReset: true`.
+
+Use `observe` and `locate` for action refs. AX reads leave those refs
+available and omit form values. An observation is bounded by node count,
+depth and same-origin frame count, with `truncated` when the limit is reached.
+The same browser fixture checks real AX roles, table cells, frame ancestry,
+delta insertion and removal, a trusted DOM-ref click and reset after reload.
+
+### Chrome Relay acceptance
+
 `node tests/e2e/chrome-relay.mjs` exercises the production Electron Workbench
 Relay, real Host and deterministic ACP Agent with headed Google Chrome for
 Testing. It loads the actual unpacked extension in a temporary Chrome profile.
@@ -177,7 +252,14 @@ An ordinary click checks the timeout result. Dialog coverage verifies the
 page's confirmation result (including across two REPL cells), the Unicode
 prompt answer, the alert callback, and that cancelling `beforeunload` leaves the document in place. It also checks
 that an expired ID or invalid answer cannot close a live dialog. The suite checks isolation from other conversations,
-inactive tab rejection, cross-origin guardrails, replay protection and debugger release on disconnect.
+inactive tab rejection on the default path, trusted input and reload on an
+explicitly addressed inactive tab, cross-origin guardrails, replay protection
+and debugger release on disconnect.
+The parallel fixture holds one navigation response while another tab
+completes trusted input, both through browser MCP calls and through
+`javascript_repl`. Use `node tests/e2e/native-chrome-parallel.mjs` with a
+Native probe build and rebuilt connectors to run the same fixture through
+the Native Python REPL.
 The same suite compares the optional observation tree against the Codex
 in-app browser snapshot on one shared fixture, checks the flat nodes and
 references, and verifies that only same-origin iframe contents appear.

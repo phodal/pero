@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
 import { browserFiles, browserInputCommands, browserInputFrame, browserInputPage, verifyBrowserInputs } from '../fixtures/browser-use-inputs.mjs';
+import { browserDiagnosticPage, checkEmbeddedDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, checkEmbeddedAccessibility } from '../fixtures/browser-accessibility.mjs';
+import { checkSiteTools, siteToolPage, partnerSiteToolPath, partnerSiteToolPage } from '../fixtures/browser-site-tools.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 
 const source = resolve(import.meta.dirname, '../..');
@@ -38,12 +41,22 @@ async function serve(handler) {
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(done => server.close(done)) };
 }
-const foreign = await serve((_request, response) => {
+const foreign = await serve((request, response) => {
+  if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
+  if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
+  if (request.url === partnerSiteToolPath) { response.setHeader('Content-Type', 'text/html'); response.end(partnerSiteToolPage(site.origin)); return; }
   foreignHits++;
   response.end('Foreign tab');
 });
 const site = await serve(async (request, response) => {
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
+  if (request.url === '/diagnostics') { response.end(browserDiagnosticPage(foreign.origin)); return; }
+  if (request.url === axPath || request.url === axFramePath) { response.end(request.url === axPath ? axPage(foreign.origin) : axFramePage); return; }
+  if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
+    response.end(siteToolPage(request.url === '/webmcp-frame', foreign.origin));
+    return;
+  }
   if (request.url === '/redirect') {
     response.writeHead(302, { Location: foreign.origin });
     response.end();
@@ -291,11 +304,12 @@ try {
     }, { timeout: 15000 }).toBe(true);
     return JSON.parse(response.slice('BROWSER_RESULT:'.length));
   };
-  const menu = id => app.evaluate(({ Menu, BrowserWindow }, key) => {
-    const item = Menu.getApplicationMenu().getMenuItemById(key);
-    if (!item) throw new Error(`Missing desktop menu action ${key}`);
-    item.click(undefined, BrowserWindow.getAllWindows()[0]);
-  }, id);
+  const menu = (id, checked) => app.evaluate(({ Menu, BrowserWindow }, { id, checked }) => {
+    const item = Menu.getApplicationMenu().getMenuItemById(id);
+    if (!item) throw new Error(`Missing desktop menu action ${id}`);
+    if (checked === undefined || item.checked !== checked) item.click(undefined, BrowserWindow.getAllWindows()[0]);
+    if (checked !== undefined && item.checked !== checked) throw new Error(`Menu action ${id} did not toggle.`);
+  }, { id, checked });
   const document = id => state().then(s => s.webDocuments.find(item => item.id === id));
   const browserCommand = command => page.evaluate(input => window.pero.webCommand(input), command);
   const open = async url => {
@@ -353,6 +367,12 @@ try {
     return contents.executeJavaScript("document.querySelector('output').textContent");
   }, original);
   expect(displayed).toBe('Pero verified');
+
+  const diagnostics = await checkEmbeddedDiagnostics({ app, origin: site.origin, menu, prompt, open, confirm, document });
+  const accessibility = await checkEmbeddedAccessibility({ app, origin: site.origin, prompt, open, confirm, document });
+
+  const siteTools = await checkSiteTools({ app, origin: site.origin, foreignOrigin: foreign.origin, menu, prompt, open, confirm, document,
+    receiptDir: resolve(profile, 'browser-use-evidence', createHash('sha256').update((await active()).id).digest('hex')) });
 
   const input = await prompt([
     { action: 'observe' }, { action: 'press', name: 'Foreign submission', key: 'Enter' },
@@ -950,7 +970,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, embeddedDialogReceipts, arrivalDialogHandled: true, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, embeddedDialogReceipts, arrivalDialogHandled: true, browserDiagnostics: { metrics: diagnostics.metrics, cpu: diagnostics.cpu }, accessibility, siteTools, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');

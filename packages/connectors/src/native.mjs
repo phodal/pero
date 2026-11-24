@@ -11,6 +11,8 @@ import { cp } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { EXTENSION_ID } from '../../chrome-extension/src/protocol.ts';
 import { NativeBrowserUse } from '../../../desktop/src/main/browser-use/native-use.ts';
+import { BrowserDeveloperMode } from '../../../desktop/src/main/browser-use/diagnostics.ts';
+import { BrowserSiteToolsMode } from '../../../desktop/src/main/browser-use/site-tool-session.ts';
 import { freezeDownloadBytes } from '../../../desktop/src/main/browser-use/download.ts';
 import { WorkbenchBrowserUse } from '../../../desktop/src/main/browser-use/chrome-relay.ts';
 import { projectSourceCommand } from '../../../desktop/src/main/browser-use/chrome-sidebar.ts';
@@ -57,6 +59,10 @@ const computer = new DesktopComputer(computerExecutable, join(dirname(root), 'co
     saveApplication: (application_id, allowed) => saveComputer({ method: 'settings.computer.application', application_id, allowed }),
   });
 const browserEvidence = join(dirname(root), 'browser-use-evidence');
+const browserDeveloperMode = new BrowserDeveloperMode(async (thread, origin) =>
+  await effect('surface', { value: { action: 'chrome-diagnostic-approval', thread, origin } }) === 'allow');
+const browserSiteTools = new BrowserSiteToolsMode(async (thread, origin, review) =>
+  await effect('surface', { value: { action: 'chrome-site-tool-approval', thread, origin, review } }) === 'allow');
 const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchBrowserUse(
   new NativeBrowserUse(request => effect('surface', { value: { action: 'browser', ...request } }), browserEvidence),
   selected, browserEvidence, async (thread, request, check) => {
@@ -88,7 +94,7 @@ const createBrowser = process.platform === 'darwin' ? selected => new WorkbenchB
   }, 'local', {
     currentTurn: thread => appUse.authority.browserTurn(thread),
     prompt: (thread, origin) => effect('surface', { value: { action: 'chrome-site-approval', thread, origin } }),
-  },
+  }, browserDeveloperMode.approve, browserSiteTools,
 ) : undefined;
 const appUse = new DesktopAppUse({
   selectedThread: () => effect('surface', { value: { action: 'selected' } }),
@@ -207,6 +213,12 @@ input.on('line', line => {
         ? relay.siteAccess.rules().then(rules => ({ ok: true, rules }))
       : relay?.siteAccess && request?.operation === 'chrome-site-clear'
         ? Promise.resolve(relay.revoke()).then(() => relay.siteAccess.clear()).then(() => ({ ok: true }))
+      : relay && ['chrome-developer-mode', 'chrome-site-tools'].includes(request?.operation)
+        ? Promise.resolve().then(() => {
+          const mode = request.operation === 'chrome-site-tools' ? browserSiteTools : browserDeveloperMode;
+          if (typeof request.enabled === 'boolean') mode.set(request.enabled);
+          return { ok: true, enabled: mode.enabled };
+        })
         : relay && request?.operation === 'chrome-relay-stop'
           ? Promise.resolve(relay.revoke()).then(() => ({ ok: true }))
           : owner.request(request);

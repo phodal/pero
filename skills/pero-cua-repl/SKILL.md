@@ -12,7 +12,7 @@ Use the actual shell named in the task and confirm its MCP tools before writing 
 
 An installed macOS Native package launches its pinned CPython from `Contents/Resources/app/runtime/python`. The Native development build discovers Apple Python through `xcrun --find python3`. Both use the macOS sandbox launcher. Tool discovery comes from the shell, independent of the directory or interpreter used to run a development script.
 
-Both runtimes accept `await cua.browser(request)` and `await cua.computer(request)`. Read the advertised `browser_use` and `computer_use` schemas for arguments. Run actions sequentially, reobserve after each input and use the Host receipt to reconcile an interrupted action. Both runtimes persist bindings in the current ordinary Workbench chat. Reset, timeout, cancellation, and close discard bindings.
+Both runtimes accept `await cua.browser(request)` and `await cua.computer(request)`. Read the advertised `browser_use` and `computer_use` schemas for arguments. Keep actions on the same target sequential and reobserve after each input. Chrome Relay 0.3.9 supports `Promise.all` and `asyncio.gather` across explicit, distinct Chrome tab IDs. Use the Host receipt to reconcile an interrupted action. Both runtimes persist bindings in the current ordinary Workbench chat. Reset, timeout, cancellation, and close discard bindings.
 
 For changes, keep runtime selection in Electron Main or the Native connector. Keep CUA calls in the shared Host MCP adapter so tab grants, native action admission and receipts apply per operation. Do not add a second browser or desktop driver in a kernel. Verify state across cells, reset, denied actions and a real page effect through the shell under test. Record which shell and fixture produced the evidence.
 
