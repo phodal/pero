@@ -74,6 +74,11 @@ Extension 0.3.17 lets `cdpReadEvents` page a detached iframe's buffered events
 with its original target and cursor until the capture's original deadline.
 Replies include `detached: true`. Collection and response-body access end on
 detachment.
+
+Extension 0.3.18 supports `cdpReadEvents` with `Target.attachedToTarget`,
+`Target.targetInfoChanged` and `Target.detachedFromTarget`. Take a checkpoint
+without `after`, then pass the cursor and the same `fromOrigins` to page
+events from approved direct out-of-process iframes.
 Keep the capture cursor and request IDs with that target context.
 
 The side panel shares its paired Native conversation’s draft, model selection,

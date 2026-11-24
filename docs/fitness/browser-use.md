@@ -202,8 +202,8 @@ from the top document. Pass `methods` to filter and the returned `cursor` as
 `after` to read the next events with the same filter. Use `hasMore` to page
 through results and `truncated` to detect when the buffer could not cover the
 requested range. The cursor expires when the page reloads or the debugger
-detaches. Each read requires approval. Ordinary JavaScript evaluation and
-event domains outside Runtime and Network are outside these actions.
+detaches. Each read requires approval. Ordinary JavaScript evaluation is
+outside these actions.
 
 `cdpListTargets` discovers directly related out-of-process iframe targets in
 Electron Chromium or paired Chrome with extension 0.3.14 or newer. It
@@ -235,6 +235,18 @@ approved target and cursor. Such replies include `detached: true`. Detachment
 ends collection and response-body access. The buffer expires at the original
 one-minute deadline. Disabling Network or Developer Mode, changing the top
 document or pairing, or starting a new discovery or child capture clears it.
+
+With extension 0.3.18 or Electron, use `cdpReadEvents` with
+`Target.attachedToTarget`, `Target.targetInfoChanged`, or
+`Target.detachedFromTarget` to watch direct out-of-process iframes. The first
+read starts a one-minute stream and returns a checkpoint. Pass the checkpoint
+as `after` on subsequent reads. Use `fromOrigins` to request approval for
+additional origins, and keep the approved origin set with the cursor. A frame
+whose origin was unknown at attachment appears once Chromium supplies an
+approved URL. The events share a stream-local `targetId`; use `cdpListTargets`
+to obtain a handle for a command. Event URLs omit queries and fragments. A
+new watch, navigation of the top document, expiry, debugger release, or
+revocation discards the watch. Read Runtime and Network events separately.
 
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a
@@ -491,6 +503,12 @@ removes the iframe through Browser Use, pages its buffered network events
 with the existing cursor, and verifies that a response body read is refused.
 Chrome independently confirms the fixture removed the iframe. Evidence is in
 `test-results/native-chrome-cdp-target-detach/result.json`.
+
+For extension 0.3.18, use `--cdp-target-lifecycle`. The signed Native probe
+takes a checkpoint, opens two new cross-origin frames, and reads the attach,
+update and detach events for the approved frame. Chrome independently checks
+that both fixture frames were removed. Evidence is in
+`test-results/native-chrome-cdp-target-lifecycle/result.json`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run

@@ -18,6 +18,8 @@ export function browserDiagnosticPage(foreignOrigin) {
 <button onclick="replaceCdpChild()">Replace child document</button><output id="cdp-child-state">Child waiting</output>
 <button onclick="removeCdpChild()">Remove CDP child</button>
 <button onclick="runScopedNetwork()">Run scoped network fixture</button><p id="scoped-network-state">Waiting for scoped network</p>
+<button onclick="addWatchedTargets()">Add watched frames</button>
+<button onclick="removeWatchedTargets()">Remove watched frames</button><p id="target-watch-state">Waiting for watched frames</p>
 <script>
 console.info('cdp loaded marker');
 function runDiagnosticWorkload() {
@@ -52,6 +54,23 @@ function replaceCdpChild() {
 function removeCdpChild() {
   document.querySelector('#cdp-child').remove();
   document.querySelector('#cdp-child-state').textContent = 'Child removed';
+}
+async function addWatchedTargets() {
+  const approved = ${JSON.stringify(oopif.origin + '/diagnostic-frame?target-watch-private')};
+  const outside = new URL('/diagnostic-frame?unapproved-watch-private', location.href);
+  outside.hostname = 'localhost';
+  await Promise.all([approved, outside.href].map(url => new Promise(resolve => {
+    const frame = document.createElement('iframe');
+    frame.className = 'watched-cdp-frame';
+    frame.onload = resolve;
+    frame.src = url;
+    document.body.append(frame);
+  })));
+  document.querySelector('#target-watch-state').textContent = 'Watched frames loaded';
+}
+function removeWatchedTargets() {
+  document.querySelectorAll('.watched-cdp-frame').forEach(frame => frame.remove());
+  document.querySelector('#target-watch-state').textContent = 'Watched frames removed';
 }
 ${scopedNetworkScript(oopif.origin)}
 </script>`;
@@ -300,10 +319,46 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin,
   await menu('browser-use-developer-mode', true);
   const [cleared] = await prompt([{ ...readChild, after: first.cursor }]);
   assert.match(cleared.error, /target is stale|target is detached/);
+  const watch = { action: 'cdpReadEvents', tabId, fromOrigins: [origin],
+    methods: ['Target.attachedToTarget', 'Target.targetInfoChanged', 'Target.detachedFromTarget'] };
+  const [checkpoint, added, loadedTargets] = await prompt([
+    watch,
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Add watched frames' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frames loaded' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert.deepEqual(checkpoint.events, [], JSON.stringify(checkpoint));
+  assert.equal(added.outcome, 'dispatched');
+  assert.equal(loadedTargets.matched, true, JSON.stringify(loadedTargets));
+  const [opened, closed, removedTargets] = await prompt([
+    { ...watch, after: checkpoint.cursor, timeoutMs: 500 },
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Remove watched frames' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frames removed' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert(opened.events?.length >= 2, JSON.stringify(opened));
+  assert.equal(opened.events[0].method, 'Target.attachedToTarget');
+  assert(opened.events.some(event => event.method === 'Target.targetInfoChanged'));
+  assert.equal(closed.outcome, 'dispatched');
+  assert.equal(removedTargets.matched, true);
+  const [finished, wrongScope] = await prompt([
+    { ...watch, after: opened.cursor, timeoutMs: 500 },
+    { ...watch, fromOrigins: [], after: checkpoint.cursor },
+  ]);
+  assert.deepEqual(finished.events?.map(event => event.method), ['Target.detachedFromTarget'], JSON.stringify(finished));
+  for (const event of [...opened.events, ...finished.events]) {
+    assert.deepEqual(event.params, opened.events[0].params);
+    assert.equal(event.params.url, url);
+    assert.equal(event.params.origin, origin);
+  }
+  assert.match(wrongScope.error, /target event origins changed/);
+  await menu('browser-use-developer-mode', false);
+  await menu('browser-use-developer-mode', true);
+  const [revokedWatch] = await prompt([{ ...watch, after: checkpoint.cursor }]);
+  assert.match(revokedWatch.error, /target event stream ended/);
   return { defaultOriginScope: true, childQuery: true, nestedQuery: true, isolatedEvents: true,
     cursorIsolation: true, wrongOriginRejected: true, staleAfterNavigation: true,
     networkIsolation: true, childBody: true, childTimeout: true, childRevocation: true,
-    detachedChildCursor: true, detachedBodyRejected: true, detachedRevocation: true };
+    detachedChildCursor: true, detachedBodyRejected: true, detachedRevocation: true,
+    targetLifecycle: true, targetLifecycleScope: true, targetLifecycleRevocation: true };
 }
 
 export async function checkCdp({ prompt, tabId }) {

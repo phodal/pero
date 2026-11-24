@@ -372,8 +372,12 @@ try {
     const childOrigin = new URL(foreignUrl);
     childOrigin.hostname = 'localhost';
     await app.evaluate((_electron, origin) => { globalThis.relayDiagnosticDeniedOrigin = origin; }, childOrigin.origin);
-    const [childDeclined] = await prompt([{ action: 'cdpListTargets', tabId: diagnosticId, fromOrigins: [childOrigin.origin] }]);
+    const [childDeclined, watchDeclined] = await prompt([
+      { action: 'cdpListTargets', tabId: diagnosticId, fromOrigins: [childOrigin.origin] },
+      { action: 'cdpReadEvents', tabId: diagnosticId, fromOrigins: [childOrigin.origin], methods: ['Target.attachedToTarget'] },
+    ]);
     assert.match(childDeclined.error, /diagnostics were declined/);
+    assert.match(watchDeclined.error, /diagnostics were declined/);
     await app.evaluate(() => { delete globalThis.relayDiagnosticDeniedOrigin; });
     const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl, topOrigin: new URL(siteUrl).origin, menu });
     await menu('browser-use-developer-mode', false);

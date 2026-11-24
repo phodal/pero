@@ -9,18 +9,20 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { siteToolPage, partnerSiteToolPage } from '../fixtures/browser-site-tools.mjs';
-import { scopedNetworkScript, serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, scopedNetworkScript, serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
 const targetDetach = process.argv.includes('--cdp-target-detach');
+const targetLifecycle = process.argv.includes('--cdp-target-lifecycle');
 const targetNetwork = targetDetach || process.argv.includes('--cdp-target-network');
 const targetTree = targetNetwork || process.argv.includes('--cdp-target-tree');
-const targets = targetTree || process.argv.includes('--cdp-targets');
+const targets = targetLifecycle || targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
-const output = resolve(root, targetDetach ? 'test-results/native-chrome-cdp-target-detach' : targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
+const output = resolve(root, targetLifecycle ? 'test-results/native-chrome-cdp-target-lifecycle'
+  : targetDetach ? 'test-results/native-chrome-cdp-target-detach' : targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
   : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
 await rm(resolve(output, 'result.json'), { force: true });
@@ -42,6 +44,7 @@ const report = resolve(temp, 'session.json'),
 const site = createServer((req, res) => {
   if (live && serveDiagnosticAssets(req, res, foreignOrigin)) return;
   res.setHeader('Content-Type', 'text/html');
+  if (targetLifecycle) return res.end(browserDiagnosticPage(foreignOrigin));
   if (cdp) {
     res.end(`<!doctype html><title>Native CDP fixture</title>
       <button onclick="console.info('native CDP clicked')">Log CDP event</button>
@@ -311,6 +314,48 @@ else:
 print(json.dumps({"receiptId":clicked["receiptId"],"denied":True,"tab":tab,"python":sys.executable,
     "childNetwork":{"isolated":True,"body":True,"stopped":True${targetDetach ? ',"detachedCursor":True' : ''}}}))
 `;
+const targetLifecycleCode = `
+import asyncio
+import json
+import sys
+from time import monotonic
+child_origin = ${JSON.stringify(childOrigin)}
+status = await cua.browser({"action":"status","provider":"chrome"})
+assert status["chrome"]["state"] == "connected", status
+tab = next(tab["tabId"] for tab in (await cua.browser({"action":"tabs"}))["tabs"] if tab["url"].endswith("/cdp"))
+async def browser(action, **params):
+    deadline = monotonic() + 3
+    while True:
+        try:
+            return await cua.browser({"action":action,"tabId":tab,**params})
+        except Exception as error:
+            if "Activate the selected tab and wait for the page to finish loading" not in str(error) or monotonic() >= deadline:
+                raise
+        await asyncio.sleep(0.05)
+async def click(name):
+    return await browser("act", locator={"by":"role","role":"button","name":name}, operation={"action":"click"})
+async def wait_for(text):
+    result = await browser("wait", locator={"by":"text","value":text}, condition={"kind":"visible"}, timeoutMs=3000)
+    assert result["matched"], result
+watch = {"methods":["Target.attachedToTarget","Target.targetInfoChanged","Target.detachedFromTarget"],"fromOrigins":[child_origin]}
+checkpoint = await browser("cdpReadEvents", **watch)
+assert checkpoint["events"] == [], checkpoint
+added = await click("Add watched frames")
+assert added["outcome"] == "dispatched", added
+await wait_for("Watched frames loaded")
+attached = await browser("cdpReadEvents", **watch, after=checkpoint["cursor"], timeoutMs=500)
+assert attached["events"][0]["method"] == "Target.attachedToTarget", attached
+assert any(event["method"] == "Target.targetInfoChanged" for event in attached["events"]), attached
+removed = await click("Remove watched frames")
+assert removed["outcome"] == "dispatched", removed
+await wait_for("Watched frames removed")
+detached = await browser("cdpReadEvents", **watch, after=attached["cursor"], timeoutMs=500)
+assert [event["method"] for event in detached["events"]] == ["Target.detachedFromTarget"], detached
+first = attached["events"][0]["params"]
+assert first["origin"] == child_origin and first["url"] == child_origin + "/diagnostic-frame", first
+assert all(event["params"] == first for event in attached["events"] + detached["events"])
+print(json.dumps({"receiptId":removed["receiptId"],"tab":tab,"python":sys.executable,"targetLifecycle":True}))
+`;
 let app,
   chrome,
   exit,
@@ -345,7 +390,7 @@ try {
       PERO_NATIVE_REPL_CHROME_PAIRING_PATH: pairing,
       PERO_NATIVE_REPL_CHROME_SITE_TOOLS: cdp ? undefined : '1',
       PERO_NATIVE_REPL_CHROME_DEVELOPER_MODE: cdp ? '1' : undefined,
-      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code: targetNetwork ? iframeNetworkCode : code,
+      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code: targetLifecycle ? targetLifecycleCode : targetNetwork ? iframeNetworkCode : code,
         ...(targets && { timeout_ms: 60_000 }) }]),
     },
   });
@@ -389,6 +434,7 @@ try {
   await expect(panel.locator('#status')).toContainText('Connected');
   await rm(pairing);
   await target.bringToFront();
+  if (targetLifecycle) await expect(target.getByText('CDP child loaded')).toBeVisible();
   // Use the actual Native sheet. Match both its title and unique fixture
   // input before touching a button, and target only this fixture's PID.
   await writeFile(resolve(temp, 'pairing.ready'), '');
@@ -421,7 +467,12 @@ try {
       )
       .toBe('responded');
   };
-  if (targetNetwork) {
+  if (targetLifecycle) {
+    for (let i = 0; i < 3; i++) {
+      await respond(origin, 'Allow');
+      await respond(childOrigin, 'Allow');
+    }
+  } else if (targetNetwork) {
     await respond(origin, 'Allow');
     await respond(childOrigin, 'Allow');
     await respond(childOrigin, 'Cancel');
@@ -454,13 +505,16 @@ try {
   const [reply] = JSON.parse(result.reply.replace(/^BROWSER_RESULT:/, ''));
   assert.equal(result.error, null, JSON.stringify(result));
   assert.equal(reply.isError, false, reply.text);
-  if (targetNetwork) await expect(target.getByText('Scoped network complete')).toBeVisible();
+  if (targetLifecycle) {
+    await expect(target.getByText('Watched frames removed')).toBeVisible();
+    await expect(target.locator('.watched-cdp-frame')).toHaveCount(0);
+  } else if (targetNetwork) await expect(target.getByText('Scoped network complete')).toBeVisible();
   else if (live) await expect(target.getByText('Native network fixture complete')).toBeVisible();
   if (targetDetach) {
     await expect(target.getByText('Native child removed')).toBeVisible();
     await expect(target.locator('#cdp-child')).toHaveCount(0);
   }
-  if (cdp && !targetNetwork) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
+  if (cdp && !targetNetwork && !targetLifecycle) assert.equal(targetConsole.filter(message => message === 'native CDP clicked').length, 1);
   if (!cdp) await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
   const evidence = JSON.parse(reply.text);
   if (payload)
@@ -494,7 +548,7 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${targetDetach ? 'CDP iframe events after detachment' : targetNetwork ? 'scoped CDP iframe network capture' : targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+    `Native Python REPL verified ${targetLifecycle ? 'CDP iframe target lifecycle' : targetDetach ? 'CDP iframe events after detachment' : targetNetwork ? 'scoped CDP iframe network capture' : targetTree ? 'nested CDP targets and events' : targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
       : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
