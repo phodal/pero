@@ -65,6 +65,33 @@ try {
   const frame = page.frameLocator(`iframe[title="${name}"]`);
   await expect(frame.getByRole('heading', { name: 'Library sample' })).toBeVisible();
   await frame.getByRole('textbox', { name: 'Retained draft' }).fill('keep this draft');
+  const appChatDraft = 'Keep this App chat draft';
+  await frame.locator('body').evaluate((_body, text) => parent.postMessage({ type: 'pero:app:chat', text }, '*'), appChatDraft);
+  await expect.poll(async () => (await state()).appChatOpen).toBe(true);
+  await expect.poll(async () => (await state()).composer).toBe(appChatDraft);
+  await expect.poll(async () => (await state()).floatingChatExpanded).toBe(true);
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  await page.mouse.click(viewport.width - 56, viewport.height - 558);
+  await expect.poll(async () => (await state()).floatingChat).toBe(false);
+  const beforeDockNew = await state();
+  const oldDockChat = beforeDockNew.chats[beforeDockNew.activeChat];
+  expect(beforeDockNew.scope).toEqual({ app: name, panel: 'main' });
+  await expect.poll(async () => (await state()).chatNewButtonBounds?.width ?? 0).toBeGreaterThan(0);
+  const bounds = (await state()).chatNewButtonBounds;
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect.poll(async () => {
+    const current = await state();
+    const selected = current.chats[current.activeChat];
+    return { id: selected?.id, scope: current.scope, composer: current.composer,
+      content: current.activeContent, focused: current.composerFocused };
+  }).toEqual({ id: expect.not.stringMatching(oldDockChat.id),
+    scope: { app: name, panel: 'main' }, composer: '',
+    content: { kind: 'app', value: { name, panel: 'main' } }, focused: true });
+  const afterDockNew = await state();
+  const savedChat = afterDockNew.chats.find(chat => chat.id === oldDockChat.id);
+  expect(savedChat?.messages).toEqual(oldDockChat.messages);
+  expect(afterDockNew.chats[afterDockNew.activeChat].messages).toEqual([]);
+  await shot('app-chat-new.png');
   expect((await state()).sessionRowBounds).toEqual({});
   await clickAppShortcut(page, 'sessions');
   await clickSessionRow(page, 'assay-reading');
@@ -95,7 +122,7 @@ try {
   expect(errors).toEqual([]);
   const saved = await readFile(journal, 'utf8');
   for (const id of ['model-review', 'assay-reading']) expect(saved).toContain(id);
-  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, checks: ['dedicated session list', 'real session selection', 'workspace name folds in place', 'session search', 'enabled Apps in sidebar', 'App grid opens real local panel', 'App draft retained across Sessions navigation', 'new chat within Sessions', 'light/dark and narrow window', 'Host journal preserved'], errors }, null, 2));
+  await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, checks: ['dedicated session list', 'real session selection', 'workspace name folds in place', 'session search', 'enabled Apps in sidebar', 'App grid opens real local panel', 'App ChatDock creates a focused scoped draft without leaving the App', 'App draft retained across Sessions navigation', 'new chat within Sessions', 'light/dark and narrow window', 'Host journal preserved'], errors }, null, 2));
   await rm(resolve(out, 'failure.png'), { force: true });
   console.log('Sessions / Apps navigation passed.');
 } catch (error) {

@@ -39,6 +39,7 @@ pub(crate) struct WorkbenchBounds {
     pub sessions: ViewBounds,
     pub app_open: ViewBounds,
     pub chat_close: ViewBounds,
+    pub chat_new: ViewBounds,
     pub pull_request: ViewBounds,
 }
 
@@ -53,6 +54,7 @@ impl WorkbenchBounds {
         self.sessions.clear();
         self.app_open.clear();
         self.chat_close.clear();
+        self.chat_new.clear();
         self.pull_request.clear();
     }
 }
