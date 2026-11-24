@@ -3,13 +3,13 @@ use crate::{conversation::Tool, panel::ChatPanel};
 #[cfg(target_family = "wasm")]
 use gpui_kit::base::ElementExt;
 use gpui_kit::{
-    component::{button::*, Sizable},
+    component::{Sizable, button::*},
     prelude::*,
     *,
 };
 use pero_contracts::{
-    mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget, mcp_source::McpAppDescriptor,
-    HostEvent,
+    HostEvent, mcp_runtime::McpRuntimeSession, mcp_session::McpSessionTarget,
+    mcp_source::McpAppDescriptor,
 };
 use serde::Serialize;
 
@@ -145,7 +145,11 @@ impl ChatPanel {
             else {
                 continue;
             };
-            if view.scope.is_some() || !view.descriptor.admits_live_binding(view.historical, snapshot) {
+            if view.scope.is_some()
+                || !view
+                    .descriptor
+                    .admits_live_binding(view.historical, snapshot)
+            {
                 continue;
             }
             view.scope = Some((snapshot.incarnation, snapshot.revision));

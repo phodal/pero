@@ -934,12 +934,15 @@ jobs:
           npx playwright install --with-deps chromium
           npm install --prefix target/mcp-official-example --save-exact --ignore-scripts --no-audit --no-fund @modelcontextprotocol/server-basic-vanillajs@2.0.4
           xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-official-conversation
+          xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-notebook-conversation
       - name: Upload conversation evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: mcp-conversation-${{ github.sha }}
-          path: test-results/mcp-apps-conversation/
+          path: |
+            test-results/mcp-apps-conversation/
+            test-results/mcp-notebook-conversation/
           if-no-files-found: warn
 
   complete:

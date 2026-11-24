@@ -1,7 +1,7 @@
 //! Conversation recovery with a catalog and Host-ordered body responses.
 use crate::{panel::ChatPanel, session_state::SessionState};
 use gpui_kit::*;
-use pero_contracts::{session_history::ThreadHistory, HostCommand, HostEvent};
+use pero_contracts::{HostCommand, HostEvent, session_history::ThreadHistory};
 
 #[derive(Clone, Default)]
 pub(crate) enum HistoryLoad {

@@ -185,8 +185,8 @@ loopback model requests.
 | C. History restore without a tool or model call, with the explicit non-interactive sentence | Met. Contract tests plus the zh-CN Electron restart |
 | C. Live approval path and no cross-process live recovery | Met. Two asks before restart, none after; archived descriptors are not admitted |
 | D. Official 2.0.4 full Electron chain | Met for this run. Receipt above |
-| D. Notebook Inspector as the Agent conversation tool-result entry | 未验证. This run did not start a Workbench agent turn that calls `app__notebook__read-entry`, so the Inspector was not observed in the tool row |
-| D. Native GPUI | 未验证. This Linux environment did not launch the Native GPUI shell, so there is no observed native window or interaction |
+| D. Notebook Inspector as the Agent conversation tool-result entry | Met on the Host-registered App. `pero-app-use` calls `app__notebook__read-entry`; Notebook's `/api/agent-read` owns the revision. The tool row showed 12.5, not 13.0. The tool result is 582 bytes, under the 1 MiB App write limit. Close/reopen did not add a call. Restart showed the read-only notice |
+| D. Native GPUI | 未验证. Linux cannot launch `npm run dev:native`. `scripts/test/mcp-native-inspector.mjs` only prints the macOS steps and exits 2 |
 
 The follow-ups below the original issue (model-context updates, Task/Run/Artifact,
 author tools, panel/fullscreen, distribution) are still not closing conditions.

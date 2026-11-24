@@ -695,7 +695,10 @@ async fn run(
                     Some(SessionCommand::McpSession { request, reply }) => {
                         use pero_contracts::mcp_session::McpSessionError;
                         let target = request.target();
-                        let admitted = if request.server.as_ref().is_some_and(|name| !super::mcp_session::managed(&config, name)) {
+                        // The session's own App Use connection is not a user-managed
+                        // settings entry, but its tool results still open in the row.
+                        let own_app_use = request.server.as_deref() == Some("pero-app-use") && app_use.is_some();
+                        let admitted = if request.server.as_ref().is_some_and(|name| !own_app_use && !super::mcp_session::managed(&config, name)) {
                             Err(McpSessionError::Denied)
                         } else { target.admit(&mcp_runtime.lock().unwrap(), mcp_session_negotiated).map(str::to_owned) };
                         let result = match admitted {

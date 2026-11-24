@@ -49,8 +49,23 @@ func TestSessionAccessGenerationAndBounds(t *testing.T) {
 	if err := access.Check("docs", 1); err == nil {
 		t.Fatal("replaced generation accepted")
 	}
-	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("x", 1<<20) + `"`)); err == nil {
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("x", maxMCPResponseBytes) + `"`)); err == nil {
 		t.Fatal("oversize result accepted")
+	}
+}
+
+func TestMCPResponseBoundsAdmitPayloadsInsideTheirOwnLimits(t *testing.T) {
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("a", 32) + `"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BoundedAccessResult(json.RawMessage(`"` + strings.Repeat("a", maxMCPResponseBytes) + `"`)); err == nil {
+		t.Fatal("a tool result over 1 MiB was accepted")
+	}
+	if _, err := BoundedResourceResult(json.RawMessage(`"` + strings.Repeat("b", maxMCPResponseBytes) + `"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BoundedResourceResult(json.RawMessage(`"` + strings.Repeat("b", maxMCPResourceBytes) + `"`)); err == nil {
+		t.Fatal("a resource document over 2 MiB was accepted")
 	}
 }
 
