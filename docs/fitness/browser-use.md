@@ -188,6 +188,18 @@ other observations. The Chrome and Electron fixtures independently assert
 that the expected console, network, runtime and CSS values reach ACP. The
 embedded Chromium fixture also checks a named function in its CPU sample.
 
+Codex exposes permitted CDP commands and event cursors on a tab. Pero exposes
+typed diagnostics actions. On 2026-11-24, the Codex Chrome extension was
+checked against an owned loopback page with a JavaScript workload.
+`Performance.getMetrics` returned 36 metrics after enabling the domain.
+`Profiler.enable` returned CDP error `-32601` with method unavailable,
+matching Pero's extension transport. Chrome's
+[extension debugger domain list](https://developer.chrome.com/docs/extensions/reference/api/debugger#restricted-domains)
+includes Performance. The embedded Chromium Profiler remains a separate
+capability. A page can also opt into the
+[JS Self-Profiling API](https://wicg.github.io/js-self-profiling/) with
+Document Policy. That requires cooperation from the site.
+
 ### Browser Site Tools
 
 Enable **Browser Site Tools** in the Electron Workbench menu or the macOS
