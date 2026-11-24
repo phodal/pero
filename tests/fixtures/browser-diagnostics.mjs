@@ -4,7 +4,10 @@ import { expect } from '@playwright/test';
 export function browserDiagnosticPage(foreignOrigin) {
   const foreign = new URL('/diagnostic-cross-origin?outside-query-marker', foreignOrigin).href;
   return `<!doctype html><title>Browser diagnostics fixture</title><h1 style="color:rgb(24, 70, 120)">Browser diagnostics fixture</h1>
+<button onclick="console.info('cdp action marker')">Log CDP event</button>
+<iframe title="CDP child fixture" srcdoc="<script>console.warn('cdp child marker')</script>"></iframe>
 <script>
+console.info('cdp loaded marker');
 function runDiagnosticWorkload() {
   const deadline = performance.now() + 12;
   let total = 0;
@@ -19,6 +22,41 @@ setInterval(() => {
   throw new Error('diagnostic runtime marker');
 }, 125);
 </script>`;
+}
+
+export async function checkCdp({ prompt, tabId }) {
+  const read = { action: 'cdpReadEvents', tabId, methods: ['Runtime.consoleAPICalled'], limit: 50 };
+  const [layout, metrics, dom, rejected, baseline] = await prompt([
+    { action: 'cdpSend', tabId, command: { method: 'Page.getLayoutMetrics' } },
+    { action: 'cdpSend', tabId, command: { method: 'Performance.getMetrics' } },
+    { action: 'cdpSend', tabId, command: { method: 'DOM.getDocument', params: { depth: 1 } } },
+    { action: 'cdpSend', tabId, command: { method: 'Runtime.evaluate' } },
+    read,
+  ]);
+  assert.equal(layout.kind, 'cdpResult', JSON.stringify(layout));
+  assert(layout.result.cssLayoutViewport.clientWidth > 0);
+  assert(metrics.result.metrics.some(item => item.name === 'ScriptDuration'));
+  assert.equal(dom.result.root.nodeName, '#document');
+  assert.equal(rejected.isError, true);
+  assert(baseline.events.some(item => item.text === 'cdp loaded marker'), JSON.stringify(baseline));
+  assert(!baseline.events.some(item => item.text === 'cdp child marker'));
+  const [clicked, delta] = await prompt([
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Log CDP event' }, operation: { action: 'click' } },
+    { ...read, after: baseline.cursor },
+  ]);
+  assert.equal(clicked.outcome, 'dispatched', JSON.stringify(clicked));
+  assert.equal(delta.cursor.stream, baseline.cursor.stream);
+  assert(delta.events.every(event => event.sequence > baseline.cursor.sequence));
+  assert.equal(delta.events.filter(event => event.text === 'cdp action marker').length, 1);
+  const [next, reloaded, stale, fresh] = await prompt([
+    { ...read, after: delta.cursor }, { action: 'reload', tabId }, { ...read, after: delta.cursor }, read,
+  ]);
+  assert(!next.events.some(item => item.text === 'cdp action marker'));
+  assert.equal(reloaded.outcome, 'dispatched', JSON.stringify(reloaded));
+  assert.match(stale.error, /cursor is stale/i);
+  assert.notEqual(fresh.cursor.stream, delta.cursor.stream);
+  return { metrics: true, layout: true, boundedDocument: true, unsupportedCommandRejected: true,
+    sameDocumentCursor: true, childFrameExcluded: true, duplicateReplaySuppressed: true, staleAfterReload: true };
 }
 
 export function verifyBrowserDiagnostics(result, origin, { profileRequired = true } = {}) {
@@ -46,9 +84,10 @@ export async function checkEmbeddedDiagnostics({ app, origin, menu, prompt, open
     style: { selector: 'h1', properties: ['color'] } }]);
   verifyBrowserDiagnostics(diagnostics, origin);
   expect(await app.evaluate(() => globalThis.browserUsePrompt?.message)).toBe('Allow browser diagnostics on this site?');
+  const cdp = await checkCdp({ prompt, tabId });
   await menu('browser-use-developer-mode', false);
   const original = origin + '/';
   const [, activated] = await prompt([{ action: 'closeTab', tabId }, { action: 'activate', tabId: original }]);
   expect(activated).toMatchObject({ kind: 'tabActivated', tabId: original });
-  return diagnostics;
+  return { ...diagnostics, cdp };
 }

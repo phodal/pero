@@ -11,7 +11,7 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
-import { browserDiagnosticPage, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, checkCdp, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
 import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
@@ -348,18 +348,22 @@ try {
     const diagnosticId = diagnosticTabs.tabs.find(tab => tab.url === diagnosticUrl).tabId;
     const diagnose = { action: 'diagnose', tabId: diagnosticId, captureMs: 1500, profile: true,
       style: { selector: 'h1', properties: ['color'] } };
-    const [developerOff] = await prompt([diagnose]);
+    const readEvents = { action: 'cdpReadEvents', tabId: diagnosticId };
+    const [developerOff, eventsOff] = await prompt([diagnose, readEvents]);
     assert.match(developerOff.error, /Enable Browser Developer Mode/);
+    assert.match(eventsOff.error, /Enable Browser Developer Mode/);
     assert.equal(await extensionAttached(diagnosticUrl), false);
     assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), undefined);
     await menu('browser-use-developer-mode', true);
-    const [developerDeclined] = await prompt([diagnose]);
+    const [developerDeclined, eventsDeclined] = await prompt([diagnose, readEvents]);
     assert.match(developerDeclined.error, /diagnostics were declined/);
+    assert.match(eventsDeclined.error, /diagnostics were declined/);
     assert.equal(await extensionAttached(diagnosticUrl), false);
     await app.evaluate(() => { globalThis.relayDiagnosticDecision = 1; });
     const [diagnostics] = await prompt([diagnose]);
     verifyBrowserDiagnostics(diagnostics, new URL(siteUrl).origin, { profileRequired: false });
-    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 2);
+    assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 3);
+    const cdp = await checkCdp({ prompt, tabId: diagnosticId });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
 
@@ -816,7 +820,7 @@ nodeRepl.write(answer.outcome);` },
       parallel,
       parallelRepl,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
-        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable },
+        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,

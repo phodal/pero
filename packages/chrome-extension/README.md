@@ -43,6 +43,11 @@ Use its explicit `chrome:` tab ID. Chrome must expose WebMCP on the page.
 Pero asks before discovering tools from partner origins and before each
 invocation. Reloading the page requires listing its tools again.
 
+Extension 0.3.11 adds `cdpSend` for layout, performance and shallow DOM
+queries, and `cdpReadEvents` for top-document console and runtime errors.
+Both require Browser Developer Mode and approval in Pero. Reuse the returned
+cursor to read newer events within the same document.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

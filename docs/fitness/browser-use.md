@@ -188,8 +188,21 @@ other observations. The Chrome and Electron fixtures independently assert
 that the expected console, network, runtime and CSS values reach ACP. The
 embedded Chromium fixture also checks a named function in its CPU sample.
 
-Codex exposes permitted CDP commands and event cursors on a tab. Pero exposes
-typed diagnostics actions. On 2026-11-24, the Codex Chrome extension was
+`cdpSend` runs a read-only command on the approved Chromium tab. Pass
+`command: { method: "Page.getLayoutMetrics" }`, `Performance.getMetrics`, or
+`DOM.getDocument`. The DOM command supports depth 0 or 1 and the reply is
+limited to 32 KiB. Paired Chrome requires extension 0.3.11 or newer.
+
+`cdpReadEvents` reads Chromium's recent console calls and uncaught exceptions
+from the top document. Pass `methods` to filter and the returned `cursor` as
+`after` to read the next events with the same filter. Use `hasMore` to page
+through results and `truncated` to detect when the buffer could not cover the
+requested range. The cursor expires when the page reloads or the debugger
+detaches. Each read requires approval. Ordinary JavaScript evaluation, child
+target sessions, and other CDP event domains are outside these actions.
+
+Codex exposes permitted CDP commands and event cursors on a tab. On
+2026-11-24, the Codex Chrome extension was
 checked against an owned loopback page with a JavaScript workload.
 `Performance.getMetrics` returned 36 metrics after enabling the domain.
 `Profiler.enable` returned CDP error `-32601` with method unavailable,
@@ -281,6 +294,12 @@ The large-page fixture checks that the tree stays inline beside the content
 reference. The suite also checks scoped actions after reload, read-only
 queries that leave refs usable, and handing off a tab while it remains open.
 Evidence is written to `test-results/chrome-relay/`.
+
+The Chrome Relay and Electron Browser Use suites exercise layout metrics,
+performance metrics and the shallow DOM reply. They check that a Runtime
+cursor skips previously read events, excludes same-origin iframe console
+messages and expires after reload. The Chrome suite also checks that reads
+fail with Developer Mode off or when the user declines the capture.
 
 ### Chrome and embedded browser from an SSH Workbench
 

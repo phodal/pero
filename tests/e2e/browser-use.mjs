@@ -970,7 +970,7 @@ try {
   const restoredModes = await app.evaluate(async ({ webContents }, url) => Promise.all(webContents.getAllWebContents()
     .filter(view=>view.getURL()===url).map(view=>view.executeJavaScript("document.querySelector('#mode').value"))), controlsUrl);
   expect(restoredModes.sort()).toEqual(['basic','full']);
-  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, embeddedDialogReceipts, arrivalDialogHandled: true, browserDiagnostics: { metrics: diagnostics.metrics, cpu: diagnostics.cpu }, accessibility, siteTools, restoredModes, foreignHits }, null, 2));
+  await writeFile(resolve(output, 'result.json'), JSON.stringify({ passed: true, restoredIds, actions, input, navigation, displayed, scrollY, denied, pointer, edits, form, frame, history, uploaded, transfers, batchInputs, popups: { linkPopup, scriptPopup, blockedPopup }, downloadEvents: { linkedBlob, scriptedBlob, oversizedBlob, httpEvent, noDownload }, embeddedDialogReceipts, arrivalDialogHandled: true, browserDiagnostics: { metrics: diagnostics.metrics, cpu: diagnostics.cpu, cdp: diagnostics.cdp }, accessibility, siteTools, restoredModes, foreignHits }, null, 2));
   await rm(resolve(output, 'failure-state.json'), { force: true });
   await rm(resolve(output, 'failure.png'), { force: true });
   console.log('Browser Use passed through actual Electron, Rust Host and ACP MCP.');
