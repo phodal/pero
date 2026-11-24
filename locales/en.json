@@ -77,6 +77,8 @@
   "browser_use.developer_on": "Chrome diagnostics are enabled. Each capture still requires your approval.",
   "browser_use.developer_off": "Enable Chrome diagnostics for this Workbench session. You can review each capture request before it runs.",
   "browser_use.site_tools": "Browser Site Tools",
+  "browser_use.site_tools_on": "Chrome site tools are enabled. Calls and partner-origin discovery still require approval.",
+  "browser_use.site_tools_off": "Enable site tools for Chrome in this Workbench session.",
   "browser_use.site_tool_prompt": "Run this website tool?",
   "browser_use.site_tool_detail": "The website defines this tool. Review the arguments before letting it act on the page.",
   "browser_use.site_discovery_prompt": "Allow discovery of partner site tools?",

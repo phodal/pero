@@ -77,6 +77,8 @@
   "browser_use.developer_on": "Chrome 诊断已启用。每次采集仍需你的批准。",
   "browser_use.developer_off": "为本次工作台会话启用 Chrome 诊断。每次采集前都可以审查请求。",
   "browser_use.site_tools": "浏览器站点工具",
+  "browser_use.site_tools_on": "Chrome 站点工具已启用。调用和发现合作站点的工具仍需批准。",
+  "browser_use.site_tools_off": "为本次工作台会话启用 Chrome 站点工具。",
   "browser_use.site_tool_prompt": "运行这个网站工具？",
   "browser_use.site_tool_detail": "此工具由网站定义。请在允许它操作网页前审查参数。",
   "browser_use.site_discovery_prompt": "允许发现合作站点的工具？",

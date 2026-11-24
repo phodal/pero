@@ -6,7 +6,36 @@ use gpui_kit::component::{
     *,
 };
 use gpui_kit::{prelude::*, *};
+use serde::Deserialize;
 use serde_json::{Value, json};
+
+#[derive(Clone, Copy)]
+enum ChromeMode {
+    Developer,
+    SiteTools,
+}
+
+impl ChromeMode {
+    fn operation(self) -> &'static str {
+        match self {
+            Self::Developer => "chrome-developer-mode",
+            Self::SiteTools => "chrome-site-tools",
+        }
+    }
+
+    fn labels(self, enabled: bool) -> (&'static str, &'static str) {
+        match self {
+            Self::Developer => (
+                "browser_use.developer_mode",
+                if enabled { "browser_use.developer_on" } else { "browser_use.developer_off" },
+            ),
+            Self::SiteTools => (
+                "browser_use.site_tools",
+                if enabled { "browser_use.site_tools_on" } else { "browser_use.site_tools_off" },
+            ),
+        }
+    }
+}
 
 enum ChromeAction {
     Pair(String),
@@ -15,7 +44,22 @@ enum ChromeAction {
     PrepareFolder,
     SiteRules,
     ClearSiteRules,
-    DeveloperMode(Option<bool>),
+    Mode(ChromeMode, Option<bool>),
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+enum SiteToolReview {
+    Discover { from_origins: Vec<String> },
+    Invoke { tool: SiteToolIdentity, input: serde_json::Map<String, Value> },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SiteToolIdentity {
+    origin: String,
+    frame_url: Option<String>,
+    name: String,
 }
 
 #[derive(Default)]
@@ -41,7 +85,40 @@ impl Workbench {
             apps.shell_reply(&id, Ok(json!("decline")));
             return;
         }
-        let diagnostics = event.data["action"] == "chrome-diagnostic-approval";
+        let action = event.data["action"].as_str();
+        if action == Some("chrome-site-tool-approval") {
+            let Ok(review) = serde_json::from_value::<SiteToolReview>(event.data["review"].clone()) else {
+                apps.shell_reply(&id, Ok(json!("decline")));
+                return;
+            };
+            let (message, detail) = match review {
+                SiteToolReview::Discover { from_origins } => (
+                    "browser_use.site_discovery_prompt",
+                    [origin, self.t("browser_use.site_discovery_detail"), &from_origins.join("\n")].join("\n\n"),
+                ),
+                SiteToolReview::Invoke { tool, input } => (
+                    "browser_use.site_tool_prompt",
+                    [
+                        Some(origin),
+                        (tool.origin != origin).then_some(tool.origin.as_str()),
+                        tool.frame_url.as_deref(),
+                        Some(&tool.name),
+                        Some(self.t("browser_use.site_tool_detail")),
+                        Some(&serde_json::to_string_pretty(&input).expect("a JSON value")),
+                    ].into_iter().flatten().collect::<Vec<_>>().join("\n\n"),
+                ),
+            };
+            let answer = window.prompt(
+                PromptLevel::Warning, self.t(message), Some(&detail),
+                &[self.t("browser_use.deny"), self.t("browser_use.allow")], cx,
+            );
+            cx.spawn(async move |_, _| {
+                let decision = if answer.await == Ok(1) { "allow" } else { "decline" };
+                apps.shell_reply(&id, Ok(json!(decision)));
+            }).detach();
+            return;
+        }
+        let diagnostics = action == Some("chrome-diagnostic-approval");
         let mut buttons = vec![self.t("browser_use.deny")];
         if diagnostics {
             buttons.push(self.t("browser_use.allow"));
@@ -306,6 +383,7 @@ impl Workbench {
         let status = self.t("browser_use.chrome_status").to_owned();
         let stop = self.t("browser_use.chrome_stop").to_owned();
         let developer = self.t("browser_use.developer_mode").to_owned();
+        let site_tools = self.t("browser_use.site_tools").to_owned();
         Some(
             Button::new("chrome-relay")
                 .ghost()
@@ -317,6 +395,7 @@ impl Workbench {
                     let status_owner = owner.clone();
                     let stop_owner = owner.clone();
                     let developer_owner = owner.clone();
+                    let site_tools_owner = owner.clone();
                     let thread = thread.clone();
                     let status_thread = thread.clone();
                     menu.item(
@@ -342,7 +421,14 @@ impl Workbench {
                     .item(
                         PopupMenuItem::new(developer.clone()).on_click(move |_, window, cx| {
                             developer_owner.update(cx, |this, cx| {
-                                this.native_chrome_relay(ChromeAction::DeveloperMode(None), window, cx)
+                                this.native_chrome_relay(ChromeAction::Mode(ChromeMode::Developer, None), window, cx)
+                            });
+                        }),
+                    )
+                    .item(
+                        PopupMenuItem::new(site_tools.clone()).on_click(move |_, window, cx| {
+                            site_tools_owner.update(cx, |this, cx| {
+                                this.native_chrome_relay(ChromeAction::Mode(ChromeMode::SiteTools, None), window, cx)
                             });
                         }),
                     )
@@ -388,7 +474,7 @@ impl Workbench {
             ChromeAction::PrepareFolder => json!({"operation":"chrome-extension-folder"}),
             ChromeAction::SiteRules => json!({"operation":"chrome-site-rules"}),
             ChromeAction::ClearSiteRules => json!({"operation":"chrome-site-clear"}),
-            ChromeAction::DeveloperMode(enabled) => json!({"operation":"chrome-developer-mode", "enabled":enabled}),
+            ChromeAction::Mode(mode, enabled) => json!({"operation":mode.operation(), "enabled":enabled}),
         };
         cx.spawn_in(window, async move |entity, cx| {
             let result = cx
@@ -401,20 +487,22 @@ impl Workbench {
                         let mut open = std::process::Command::new("/usr/bin/open");
                         match &action {
                             ChromeAction::Stop | ChromeAction::ClearSiteRules => return,
-                            ChromeAction::DeveloperMode(update) => {
+                            ChromeAction::Mode(mode, update) => {
                                 if update.is_some() { return; }
                                 let enabled = value["enabled"] == true;
+                                let mode = *mode;
+                                let (title, detail) = mode.labels(enabled);
                                 let answer = window.prompt(
                                     PromptLevel::Info,
-                                    this.t("browser_use.developer_mode"),
-                                    Some(this.t(if enabled { "browser_use.developer_on" } else { "browser_use.developer_off" })),
+                                    this.t(title),
+                                    Some(this.t(detail)),
                                     &[this.t("remote.close_form"), this.t(if enabled { "apps.disable" } else { "apps.enable" })],
                                     cx,
                                 );
                                 cx.spawn_in(window, async move |view, cx| {
                                     if answer.await == Ok(1) {
                                         let _ = view.update_in(cx, |view, window, cx| {
-                                            view.native_chrome_relay(ChromeAction::DeveloperMode(Some(!enabled)), window, cx);
+                                            view.native_chrome_relay(ChromeAction::Mode(mode, Some(!enabled)), window, cx);
                                         });
                                     }
                                 }).detach();

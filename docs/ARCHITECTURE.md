@@ -155,9 +155,9 @@ Workbench 下发一次性配对码，绑定当前选中会话与 Chrome 配置�
 站点获准后才可读取和操作页面，调试器在首次获准的页面操作时挂载。页面操作绑定活动标签和当前文档，
 沿用 Agent 回合准入和回执。
 Chrome 与 Workbench 都可断开连接并释放调试器。
-开发者诊断通过同一标签授权链路，另需开启工作台模式并批准当次采集。Electron 工作台的
-内嵌 Chromium 和配对 Chrome 都通过隔离世界调用浏览器 WebMCP API。每次调用需审批，
-工具 ID 绑定发现时的文档和注册。
+开发者诊断通过同一标签授权链路，另需开启工作台模式并批准当次采集。Electron 的内嵌
+Chromium 和两个工作台配对的 Chrome 都通过隔离世界调用浏览器 WebMCP API。每次调用
+需审批，工具 ID 绑定发现时的文档和注册。
 移植范围及验收见 [Browser Use 验证](fitness/browser-use.md)。
 
 普通 Workbench 会话还可以用 REPL 编排这些工具。Electron Main 装配

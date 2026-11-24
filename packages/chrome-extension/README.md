@@ -36,8 +36,9 @@ an inactive tab without selecting it.
 Extension 0.3.9 runs requests to different tabs concurrently. Await each
 operation before using the same tab again.
 
-With extension 0.3.10 or newer, Electron's **Workbench → Browser Site
-Tools** exposes `listSiteTools` and `callSiteTool` on an approved Chrome site.
+With extension 0.3.10 or newer, **Browser Site Tools** in the Electron
+Workbench menu or Native Chrome menu enables `listSiteTools` and
+`callSiteTool` on an approved Chrome site.
 Use its explicit `chrome:` tab ID. Chrome must expose WebMCP on the page.
 Pero asks before discovering tools from partner origins and before each
 invocation. Reloading the page requires listing its tools again.

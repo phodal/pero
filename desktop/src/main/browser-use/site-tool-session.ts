@@ -6,6 +6,25 @@ type SiteToolRequest = Extract<BrowserRequest, { action: 'listSiteTools' | 'call
 type SiteToolTab = { thread: string; grantId: string; tabId: string; origin: string; url: string };
 const staleTool = 'The site tool registration changed. List the page tools again.';
 
+export class BrowserSiteToolsMode implements SiteToolAccess {
+  private session?: AbortController;
+
+  constructor(readonly approve: SiteToolAccess['approve']) {}
+
+  get enabled() { return !!this.session; }
+
+  set(enabled: boolean) {
+    if (this.enabled === enabled) return;
+    this.session?.abort();
+    this.session = enabled ? new AbortController() : undefined;
+  }
+
+  signal() {
+    if (!this.session) throw new Error('Enable Browser Site Tools in the Workbench first.');
+    return this.session.signal;
+  }
+}
+
 export class SiteToolSession {
   private readonly tools = new Map<string, SiteTool>();
 

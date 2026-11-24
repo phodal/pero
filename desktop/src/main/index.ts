@@ -20,7 +20,7 @@ import {WebPages} from './web-pages';
 import {BrowserUse} from './browser-use/browser-use.ts';
 import { cloudBrowserRequest } from './browser-use/cloud-use.ts';
 import { WorkbenchBrowserUse } from './browser-use/chrome-relay.ts';
-import type { SiteToolAccess } from './browser-use/site-tools.ts';
+import { BrowserSiteToolsMode } from './browser-use/site-tool-session.ts';
 import {McpHost} from './mcp-host.ts';
 import {McpSessionRpc} from './mcp-session-rpc.ts';
 import {McpSessionPanels} from './mcp-session-panels.ts';
@@ -75,7 +75,6 @@ let host: ChildProcessWithoutNullStreams;
 let ready = false;
 let appUse: DesktopAppUse | undefined;
 let browserUse: BrowserUse | undefined;
-let siteToolSession: AbortController | undefined;
 let webPages:WebPages|undefined;
 let mcpHost:McpHost|undefined;
 let mcpReady:Promise<void>|undefined;
@@ -288,6 +287,20 @@ const browserDeveloperMode = new BrowserDeveloperMode(async (thread, origin) => 
   });
   return response === 1;
 });
+const browserSiteTools = new BrowserSiteToolsMode(async (thread, origin, review) => {
+  if (window.isDestroyed() || await appUse?.authority.selectedOrdinaryConversation() !== thread) return false;
+  const discovery = review.kind === 'discover';
+  const { response } = await dialog.showMessageBox(window, {
+    type: 'warning', message: t(discovery ? 'browser_use.site_discovery_prompt' : 'browser_use.site_tool_prompt'),
+    detail: (discovery
+      ? [origin, t('browser_use.site_discovery_detail'), review.fromOrigins.join('\n')]
+      : [origin, review.tool.origin !== origin && review.tool.origin, review.tool.frameUrl, review.tool.name,
+        t('browser_use.site_tool_detail'), JSON.stringify(review.input, null, 2)]).filter(Boolean).join('\n\n'),
+    buttons: [t('browser_use.deny'), t('browser_use.allow')],
+    defaultId: 0, cancelId: 0, noLink: true,
+  });
+  return response === 1;
+});
 function updateMenus() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Pero', submenu: [{ role: 'about', label: t('menu.about') }, { type: 'separator' }, { role: 'quit', label: t('menu.quit') }] },
@@ -318,10 +331,7 @@ function updateMenus() {
         checked: browserDeveloperMode.enabled, click: ({ checked }: { checked: boolean }) => browserDeveloperMode.set(checked),
       }, {
         id: 'browser-use-site-tools', label: t('browser_use.site_tools'), type: 'checkbox' as const,
-        checked: !!siteToolSession, click: ({ checked }: { checked: boolean }) => {
-          siteToolSession?.abort();
-          siteToolSession = checked ? new AbortController() : undefined;
-        },
+        checked: browserSiteTools.enabled, click: ({ checked }: { checked: boolean }) => browserSiteTools.set(checked),
       }] : []),
       ...(!sshProfile ? [
         { id: 'browser-use-cloud-share', label: t('browser_use.cloud_share'), click: () => { void shareBrowserWithCloudRun('embedded'); } },
@@ -408,26 +418,7 @@ app.whenReady().then(async () => {
     void Promise.allSettled([computer?.command({action:'computer_stop'}), linuxDesktop?.session.stop()]);
   });
   const browserEvidence = resolve(app.getPath('userData'), 'browser-use-evidence');
-  const siteTools: SiteToolAccess | undefined = sshProfile ? undefined : {
-    signal: () => {
-      if (!siteToolSession) throw new Error('Enable Browser Site Tools from the Workbench menu first.');
-      return siteToolSession.signal;
-    },
-    approve: async (thread, origin, review) => {
-      if (window.isDestroyed() || await appUse?.authority.selectedOrdinaryConversation() !== thread) return false;
-      const discovery = review.kind === 'discover';
-      const { response } = await dialog.showMessageBox(window, {
-        type: 'warning', message: t(discovery ? 'browser_use.site_discovery_prompt' : 'browser_use.site_tool_prompt'),
-        detail: (discovery
-          ? [origin, t('browser_use.site_discovery_detail'), review.fromOrigins.join('\n')]
-          : [origin, review.tool.origin !== origin && review.tool.origin, review.tool.frameUrl, review.tool.name,
-            t('browser_use.site_tool_detail'), JSON.stringify(review.input, null, 2)]).filter(Boolean).join('\n\n'),
-        buttons: [t('browser_use.deny'), t('browser_use.allow')],
-        defaultId: 0, cancelId: 0, noLink: true,
-      });
-      return response === 1;
-    },
-  };
+  const siteTools = sshProfile ? undefined : browserSiteTools;
   const embedded = browserUse = new BrowserUse(browserEvidence, async url => {
     if (!webPages) throw new Error('Web views are unavailable.');
     const {tabId,ready}=webPages.openNewTab(url,new URL(url).origin);

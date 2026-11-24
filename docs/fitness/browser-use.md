@@ -190,9 +190,10 @@ embedded Chromium fixture also checks a named function in its CPU sample.
 
 ### Browser Site Tools
 
-In Electron, enable **Workbench → Browser Site Tools** and authorize an
-embedded Web tab or a site in the paired Chrome profile. For Chrome, use
-extension 0.3.10 or later and pass the explicit `chrome:` tab ID. Chrome must
+Enable **Browser Site Tools** in the Electron Workbench menu or the macOS
+Native Chrome menu. Electron supports an authorized embedded Web tab and
+both shells support an approved site in the paired Chrome profile. For Chrome,
+use extension 0.3.10 or later and pass the explicit `chrome:` tab ID. Chrome must
 make WebMCP available to the page. The loopback fixture enables the feature
 with a Chrome startup flag. Availability on regular sites follows the
 [Chrome WebMCP rollout](https://developer.chrome.com/docs/ai/webmcp).
@@ -211,6 +212,12 @@ The Electron and Chrome Relay fixtures register real WebMCP tools in a page
 and in same-origin and cross-origin frames. Both check the returned schemas,
 private partner tools staying private, separate discovery and call consent,
 independent page effects, a saved receipt and a stale ID after reload.
+On macOS, `node tests/e2e/native-chrome-site-tools.mjs` uses the Native probe
+build, rebuilt connectors, Chrome for Testing, and Python REPL. System Events
+responds to the real Native approval sheets for the disposable fixture. The
+test checks the declined action leaves the page intact and the approved action
+changes it and saves a receipt. Evidence is written to
+`test-results/native-chrome-site-tools/result.json`.
 
 ### Chromium accessibility snapshots
 

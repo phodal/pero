@@ -158,6 +158,7 @@ async fn verify_repl_agent(
     let workspace = std::env::var("PERO_NATIVE_BROWSER_PROBE_WORKSPACE")?;
     let pairing_path = std::env::var_os("PERO_NATIVE_REPL_CHROME_PAIRING_PATH")
         .map(std::path::PathBuf::from);
+    let site_tools = std::env::var_os("PERO_NATIVE_REPL_CHROME_SITE_TOOLS").is_some();
     let mut pair_requested = false;
     let started = Instant::now();
     let mut chat_created = false;
@@ -222,6 +223,10 @@ async fn verify_repl_agent(
                 .ok_or_else(|| anyhow::anyhow!("Native Chrome Relay is unavailable"))?;
             let path = path.clone();
             cx.background_executor().spawn(async move {
+                if site_tools {
+                    let mode = owner.request(json!({"operation":"chrome-site-tools", "enabled":true}))?;
+                    anyhow::ensure!(mode["enabled"] == true, "Could not enable Browser Site Tools for the Native fixture");
+                }
                 let value = owner.request(json!({
                     "operation":"chrome-relay-pair", "thread":thread, "label":"Native Chrome acceptance"
                 }))?;
