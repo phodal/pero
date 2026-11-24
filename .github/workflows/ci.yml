@@ -423,7 +423,7 @@ jobs:
       MCP_BROWSER: ${{ fromJSON(needs.scope.outputs.scopes)['mcp-browser'] }}
     name: Linux core types, permissions and durable runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
         id: checkout
@@ -682,11 +682,15 @@ jobs:
         if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' && steps.notebook_canvas_python.outcome == 'success' && env.MCP_BROWSER == 'true' }}
         run: |
           node scripts/build/harness.mjs
+          node scripts/build/wasm.mjs
+          npm run build --workspace @pero/web
+          node scripts/build/desktop.mjs
           npx playwright install --with-deps chromium
           node --experimental-transform-types tests/contracts/mcp-session-panel.mjs --browser
           npm run test:mcp-official -- --install
           npm run test:mcp-app-sdk
           PERO_MCP_BROWSER=1 PERO_APP_PYTHON="$RUNNER_TEMP/notebook-canvas-python/bin/python" npm run test:mcp-apps
+          npm run test:mcp-official-conversation
       - name: Host MCP ownership contracts
         id: host_mcp_ownership
         if: ${{ !cancelled() && steps.npm.outcome == 'success' && steps.host_build.outcome == 'success' && steps.mcp_build.outcome == 'success' }}
