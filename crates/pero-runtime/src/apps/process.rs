@@ -4,7 +4,7 @@ use super::definition::{AppDefinition, BackendKind};
 use super::startup_failure::{AppStartupFailure, StartupCode};
 use serde::Serialize;
 use std::{
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
@@ -150,7 +150,7 @@ impl AppProcess {
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::piped());
         let remote_compute = super::remote_compute::RemoteCompute::start(definition.name.as_str(), data)
             .map_err(AppStartupFailure::setup)?;
         if let Some(remote) = &remote_compute { remote.configure(&mut command); }
@@ -172,6 +172,19 @@ impl AppProcess {
             },
         };
         let stdout = process.child.child_mut().stdout.take().expect("piped stdout");
+        let mut stderr = process.child.child_mut().stderr.take().expect("piped stderr");
+        let (stderr_send, stderr_receive) = mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            let mut captured = Vec::new();
+            let mut chunk = [0u8; 1024];
+            while let Ok(count) = stderr.read(&mut chunk) {
+                if count == 0 { break; }
+                let _ = std::io::stderr().write_all(&chunk[..count]);
+                captured.extend_from_slice(&chunk[..count]);
+                if captured.len() > 4096 { captured.drain(..captured.len() - 4096); }
+            }
+            let _ = stderr_send.send(captured);
+        });
         let (send, receive) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);
@@ -198,7 +211,8 @@ impl AppProcess {
             if let Some(status) = process.child.try_wait()
                 .map_err(|error| AppStartupFailure::new(StartupCode::ReadinessIo, error.to_string()))?
             {
-                return Err(AppStartupFailure::exited(status));
+                let stderr = stderr_receive.recv_timeout(Duration::from_millis(250)).unwrap_or_default();
+                return Err(AppStartupFailure::exited(status, matches!(backend.kind, BackendKind::Python), &stderr));
             }
             // The OS can close the pipe before making the exit status available.
             // On EOF, wait for it within the same startup deadline.

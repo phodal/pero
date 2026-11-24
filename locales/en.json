@@ -678,7 +678,7 @@
   "apps.install": "Install from folder",
   "apps.loading": "Loading apps…",
   "apps.open_failed": "Could not open app",
-  "apps.open_failed_hint": "Try opening it again. If it still fails, update the app and runtime, then restart Pero.",
+  "apps.open_failed_hint": "Check the details for the cause, then retry after fixing it.",
   "apps.retry_open": "Retry",
   "apps.show_diagnostics": "Show details",
   "apps.hide_diagnostics": "Hide details",
