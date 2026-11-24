@@ -927,6 +927,7 @@ jobs:
           node scripts/build/harness.mjs
           node scripts/build/wasm.mjs
           npm run build --workspace @pero/web
+          npm ci --prefix packages/connectors --ignore-scripts
           node scripts/build/desktop.mjs
       - name: Official conversation, including same-process close and restart
         run: |
