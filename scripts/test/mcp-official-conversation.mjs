@@ -191,10 +191,16 @@ try{
   const afterRestart=await historyRow();
   assert.equal(liveEvents.filter(event=>event.kind==='permission').length,2,'Agent and View calls each require Host ask approval');
   assert.deepEqual((await businessCalls()).map(call=>call.name),['get-time','get-time']);
+  assert.deepEqual(errors,[]);
+  const businessAfterRestart=await businessCalls();
+  console.log(JSON.stringify({source:'mcpHistory snapshot',callsBeforeRestart,modelsBeforeRestart,
+    businessCalls:businessAfterRestart.map(call=>call.name),modelRequests:provider.calls.length,
+    sameProcessClose:{notice:closedInProcess.notice,interactive:closedInProcess.interactive,historical:closedInProcess.historical},
+    afterRestart:{notice:afterRestart.notice,interactive:afterRestart.interactive,historical:afterRestart.historical}}));
   await writeFile(join(evidence,'result.json'),JSON.stringify({passed:true,package:name,version,integrity:packageReceipt.integrity,unmodifiedUpstream:true,
     actualWorkbench:true,actualElectron:true,actualRustHost:true,actualGoACP:true,realModel:false,model:'deterministic loopback fixture',
-    modelRequests:provider.calls.length,expectedBusinessCalls:2,businessCalls:await businessCalls(),permissions:liveEvents.filter(event=>event.kind==='permission').length,
-    historyRestore:{locale:(await state()).locale,sameProcessClose:closedInProcess,afterRestart,modelRequests:provider.calls.length,businessCalls:await businessCalls()},
+    modelRequests:provider.calls.length,expectedBusinessCalls:2,businessCalls:businessAfterRestart,permissions:liveEvents.filter(event=>event.kind==='permission').length,
+    historyRestore:{locale:(await state()).locale,sameProcessClose:closedInProcess,afterRestart,modelRequests:provider.calls.length,businessCalls:businessAfterRestart},
     checks:['initial Agent tool call','automatic conversation View mounting without picker','tool collapse/expand retains the same iframe and result','explicit official UI tool interaction','two mandatory ask approvals','close/reopen never repeat tools/call',
       'live dark theme and narrower Workbench','official ui/message becomes a subsequent user prompt','actual subsequent model reply','failed adoption retains the inline caller request ID without tool or model calls','session close removes the View',
       'closing the live session shows the rendered read-only notice without a tool or model call','process restart restores the saved result and source as read-only history without a tool or model call'],errors},null,2));
