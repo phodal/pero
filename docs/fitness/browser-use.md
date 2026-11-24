@@ -100,6 +100,21 @@ in `test-results/browser-use/browser-full-page.png` and
 
 ## Native Workbench and external Chrome, historical protocol 2
 
+### Native startup connection and settings — 2026-11-24
+
+The debug macOS Native Preview used a separate data directory at
+`/private/tmp/pero-chrome-settings-review` and the installed Pero Chrome
+extension. Selecting its ordinary conversation connected Chrome without a
+manual menu action. In the real Native settings window, **浏览器设置** showed
+**Chrome 已连接到当前会话**; the conversation titlebar had no Chrome entry.
+**断开 Chrome** changed the status to **Chrome 已断开**. After quitting and
+restarting the same preview, Settings again showed connected without clicking
+Reconnect. `node scripts/cargo.mjs +nightly-2026-10-28 build --locked -p
+pero-ui --features native --bin pero-native` and focused Native titleband and
+connection-state tests passed. This is development Native acceptance for
+connection state and UI. The installed release was not replaced, and this run
+did not re-exercise per-tab approval or a browser page action.
+
 On macOS 27.2.1, the release-mode Pero Native Preview and Google Chrome for
 Testing 156.0.8078.4 ran with isolated profiles. The Native build used
 `a5d918c42` with the menu placement fix and concurrent worktree changes.
