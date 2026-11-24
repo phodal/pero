@@ -796,7 +796,7 @@
   "composer.permission.auto_review_hint": "File changes and commands proceed without a prompt. Commands are not OS-sandboxed.",
   "nav.insights": "Insights",
   "nav.data": "Data",
-  "insights.section": "Session record",
+  "insights.section": "Insights",
   "insights.evidence": "Records and sources",
   "insights.goal": "Goal at the time",
   "insights.turn": "Turn",
