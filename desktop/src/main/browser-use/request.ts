@@ -62,6 +62,8 @@ export const browserRequest = z.discriminatedUnion('action', [
     style: z.strictObject({ selector: label, properties: z.array(z.string().regex(/^[-a-zA-Z0-9]{1,64}$/)).min(1).max(16) }).optional() }),
   z.strictObject({ ...target, action: z.literal('cdpSend'), command: z.discriminatedUnion('method', [
     z.strictObject({ method: z.literal('Page.getLayoutMetrics') }),
+    z.strictObject({ method: z.literal('Page.getFrameTree') }),
+    z.strictObject({ method: z.literal('Page.getResourceTree') }),
     z.strictObject({ method: z.literal('Performance.getMetrics') }),
     z.strictObject({ method: z.literal('DOM.getDocument'), params: z.strictObject({ depth: z.union([z.literal(0), z.literal(1)]) }).optional() }),
   ]) }),

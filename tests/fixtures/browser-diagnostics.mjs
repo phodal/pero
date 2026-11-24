@@ -3,9 +3,14 @@ import { expect } from '@playwright/test';
 
 export function browserDiagnosticPage(foreignOrigin) {
   const foreign = new URL('/diagnostic-cross-origin?outside-query-marker', foreignOrigin).href;
+  const foreignFrame = new URL('/diagnostic-frame?outside-frame-marker', foreignOrigin).href;
+  const foreignStyle = new URL('/diagnostic.css?outside-style-marker', foreignOrigin).href;
   return `<!doctype html><title>Browser diagnostics fixture</title><h1 style="color:rgb(24, 70, 120)">Browser diagnostics fixture</h1>
+<link rel="stylesheet" href="/diagnostic.css"><link rel="stylesheet" href="${foreignStyle}">
 <button onclick="console.info('cdp action marker')">Log CDP event</button>
 <iframe title="CDP child fixture" srcdoc="<script>console.warn('cdp child marker')</script>"></iframe>
+<iframe title="Same origin CDP frame" src="/diagnostic-frame"></iframe>
+<iframe title="Foreign CDP frame" src="${foreignFrame}"></iframe>
 <script>
 console.info('cdp loaded marker');
 function runDiagnosticWorkload() {
@@ -24,12 +29,26 @@ setInterval(() => {
 </script>`;
 }
 
+export function serveDiagnosticAssets(request, response) {
+  if (request.url.split('?', 1)[0] === '/diagnostic.css') {
+    response.writeHead(200, { 'Content-Type': 'text/css' }).end('body { margin: 10px; }');
+    return true;
+  }
+  if (request.url.split('?', 1)[0] === '/diagnostic-frame') {
+    response.writeHead(200, { 'Content-Type': 'text/html' }).end('<p>Browser diagnostics frame</p>');
+    return true;
+  }
+  return false;
+}
+
 export async function checkCdp({ prompt, tabId }) {
   const read = { action: 'cdpReadEvents', tabId, methods: ['Runtime.consoleAPICalled'], limit: 50 };
-  const [layout, metrics, dom, rejected, baseline] = await prompt([
+  const [layout, metrics, dom, frames, resources, rejected, baseline] = await prompt([
     { action: 'cdpSend', tabId, command: { method: 'Page.getLayoutMetrics' } },
     { action: 'cdpSend', tabId, command: { method: 'Performance.getMetrics' } },
     { action: 'cdpSend', tabId, command: { method: 'DOM.getDocument', params: { depth: 1 } } },
+    { action: 'cdpSend', tabId, command: { method: 'Page.getFrameTree' } },
+    { action: 'cdpSend', tabId, command: { method: 'Page.getResourceTree' } },
     { action: 'cdpSend', tabId, command: { method: 'Runtime.evaluate' } },
     read,
   ]);
@@ -37,6 +56,14 @@ export async function checkCdp({ prompt, tabId }) {
   assert(layout.result.cssLayoutViewport.clientWidth > 0);
   assert(metrics.result.metrics.some(item => item.name === 'ScriptDuration'));
   assert.equal(dom.result.root.nodeName, '#document');
+  const frameTree = frames.result.frameTree;
+  const origin = new URL(frameTree.frame.url).origin;
+  assert.equal(new URL(frameTree.frame.url).pathname, '/diagnostics');
+  assert.deepEqual(frameTree.childFrames.map(({ frame }) => frame.url), [origin + '/diagnostic-frame']);
+  const resourceTree = resources.result.frameTree;
+  assert.equal(resourceTree.frame.id, frameTree.frame.id);
+  assert(resourceTree.resources.some(resource => resource.url === origin + '/diagnostic.css' && resource.type === 'Stylesheet'));
+  assert.doesNotMatch(JSON.stringify(resourceTree), /outside-frame-marker|outside-style-marker/);
   assert.equal(rejected.isError, true);
   assert(baseline.events.some(item => item.text === 'cdp loaded marker'), JSON.stringify(baseline));
   assert(!baseline.events.some(item => item.text === 'cdp child marker'));
@@ -55,7 +82,7 @@ export async function checkCdp({ prompt, tabId }) {
   assert.equal(reloaded.outcome, 'dispatched', JSON.stringify(reloaded));
   assert.match(stale.error, /cursor is stale/i);
   assert.notEqual(fresh.cursor.stream, delta.cursor.stream);
-  return { metrics: true, layout: true, boundedDocument: true, unsupportedCommandRejected: true,
+  return { metrics: true, layout: true, boundedDocument: true, scopedFrameTree: true, scopedResourceTree: true, unsupportedCommandRejected: true,
     sameDocumentCursor: true, childFrameExcluded: true, duplicateReplaySuppressed: true, staleAfterReload: true };
 }
 

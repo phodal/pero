@@ -11,7 +11,7 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
-import { browserDiagnosticPage, checkCdp, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, checkCdp, serveDiagnosticAssets, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
 import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
@@ -41,6 +41,7 @@ let foreignHits = 0;
 let leaveRequests = 0;
 const parallelFixture = parallelBrowserFixture();
 const otherOrigin = createServer((request, response) => {
+  if (serveDiagnosticAssets(request, response)) return;
   if (request.url === partnerSiteToolPath) {
     response.setHeader('Content-Type', 'text/html');
     response.end(partnerSiteToolPage(new URL(siteUrl).origin));
@@ -63,6 +64,7 @@ await new Promise(done => otherOrigin.listen(0, '127.0.0.1', done));
 const foreignUrl = `http://127.0.0.1:${otherOrigin.address().port}/outside`;
 const popupUrl = new URL('/popup-destination', foreignUrl).href;
 const site = createServer((request, response) => {
+  if (serveDiagnosticAssets(request, response)) return;
   if (parallelFixture.handle(request, response)) return;
   if (request.url === '/webmcp' || request.url === '/webmcp-frame') {
     response.setHeader('Content-Type', 'text/html');

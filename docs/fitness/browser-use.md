@@ -190,8 +190,12 @@ embedded Chromium fixture also checks a named function in its CPU sample.
 
 `cdpSend` runs a read-only command on the approved Chromium tab. Pass
 `command: { method: "Page.getLayoutMetrics" }`, `Performance.getMetrics`, or
-`DOM.getDocument`. The DOM command supports depth 0 or 1 and the reply is
-limited to 32 KiB. Paired Chrome requires extension 0.3.11 or newer.
+`DOM.getDocument`. The DOM command supports depth 0 or 1. Extension 0.3.12
+adds `Page.getFrameTree` and `Page.getResourceTree`. Both return the tree for
+the approved document and its same-origin HTTP(S) frames. The resource tree
+includes same-origin resource URLs and their Chromium metadata. Replies are
+limited to 32 KiB. Paired Chrome requires extension 0.3.11 or newer for the
+original three commands and event cursor.
 
 `cdpReadEvents` reads Chromium's recent console calls and uncaught exceptions
 from the top document. Pass `methods` to filter and the returned `cursor` as
@@ -201,9 +205,28 @@ requested range. The cursor expires when the page reloads or the debugger
 detaches. Each read requires approval. Ordinary JavaScript evaluation, child
 target sessions, and other CDP event domains are outside these actions.
 
-Codex exposes permitted CDP commands and event cursors on a tab. On
-2026-11-24, the Codex Chrome extension was
-checked against an owned loopback page with a JavaScript workload.
+Codex exposes permitted CDP commands and event cursors on a tab in
+[Browser Developer mode](https://learn.chatgpt.com/docs/whats-new).
+On 2026-11-24, the connected Codex Chrome extension returned frame and
+resource trees on an owned loopback page. After `Network.enable` and a click,
+its numeric cursor paged `Network.requestWillBeSent`,
+`Network.responseReceived`, and `Network.loadingFinished`. The corresponding
+request ID returned the page's HTTP 202 JSON via `Network.getResponseBody`.
+`readEvents()` without a cursor returned an empty page and a checkpoint at
+the current position. Pero's Runtime replay returns recent events when
+called without a cursor. Live network event buffering and response body
+reads remain separate gaps.
+
+That Codex fixture returned both iframe contents in the DOM snapshot.
+Raw `Page.getFrameTree` listed the same-origin child and
+`Target.attachedToTarget` reported an iframe session. Raw
+`Target.setAutoAttach` was refused and sending `Page.getFrameTree` to the
+reported child session returned an unattached-session error. The child
+selector exists in the documented tab capability, and this run verified the
+attachment event. A working child-session query still needs an independent
+check.
+
+In the Codex Chrome workload fixture,
 `Performance.getMetrics` returned 36 metrics after enabling the domain.
 `Profiler.enable` returned CDP error `-32601` with method unavailable,
 matching Pero's extension transport. Chrome's
@@ -296,7 +319,8 @@ queries that leave refs usable, and handing off a tab while it remains open.
 Evidence is written to `test-results/chrome-relay/`.
 
 The Chrome Relay and Electron Browser Use suites exercise layout metrics,
-performance metrics and the shallow DOM reply. They check that a Runtime
+performance metrics, the shallow DOM reply, and origin-scoped frame and
+resource trees. They check that a Runtime
 cursor skips previously read events, excludes same-origin iframe console
 messages and expires after reload. The Chrome suite also checks that reads
 fail with Developer Mode off or when the user declines the capture.

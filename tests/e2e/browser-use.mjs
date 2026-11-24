@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { electron } from './electron.mjs';
 import { browserFiles, browserInputCommands, browserInputFrame, browserInputPage, verifyBrowserInputs } from '../fixtures/browser-use-inputs.mjs';
-import { browserDiagnosticPage, checkEmbeddedDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, checkEmbeddedDiagnostics, serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, checkEmbeddedAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { checkSiteTools, siteToolPage, partnerSiteToolPath, partnerSiteToolPage } from '../fixtures/browser-site-tools.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
@@ -42,6 +42,7 @@ async function serve(handler) {
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(done => server.close(done)) };
 }
 const foreign = await serve((request, response) => {
+  if (serveDiagnosticAssets(request, response)) return;
   if (request.url.startsWith('/diagnostic-cross-origin?')) { response.writeHead(204).end(); return; }
   if (request.url === foreignAxPath) { response.setHeader('Content-Type', 'text/html'); response.end(foreignAxPage); return; }
   if (request.url === partnerSiteToolPath) { response.setHeader('Content-Type', 'text/html'); response.end(partnerSiteToolPage(site.origin)); return; }
@@ -49,6 +50,7 @@ const foreign = await serve((request, response) => {
   response.end('Foreign tab');
 });
 const site = await serve(async (request, response) => {
+  if (serveDiagnosticAssets(request, response)) return;
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (request.url.startsWith('/diagnostic-request?')) { response.writeHead(202).end(); return; }
   if (request.url === '/diagnostics') { response.end(browserDiagnosticPage(foreign.origin)); return; }

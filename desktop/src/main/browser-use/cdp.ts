@@ -5,8 +5,24 @@ type Send = (method: string, params?: Record<string, unknown>) => Promise<unknow
 type Receive = (method: string, params: Record<string, unknown>) => void;
 type Event = { method: 'Runtime.consoleAPICalled' | 'Runtime.exceptionThrown'; timestamp: number; text: string; level?: string };
 type Entry = Event & { sequence: number };
+type FrameTree = {
+  frame: { id: string; loaderId: string; parentId?: string; url: string; mimeType: string; securityOrigin?: string };
+  childFrames?: FrameTree[];
+  resources?: { url: string }[];
+};
 const eventCapacity = 128;
 const replayCapacity = 256;
+
+function scopedFrameTree(tree: FrameTree, origin: string): FrameTree | undefined {
+  const { id, loaderId, parentId, url, mimeType, securityOrigin } = tree.frame;
+  if (webOrigin(url) !== origin) return;
+  const childFrames = tree.childFrames?.flatMap(child => scopedFrameTree(child, origin) ?? []);
+  return {
+    frame: { id, loaderId, parentId, url, mimeType, securityOrigin },
+    ...(childFrames?.length && { childFrames }),
+    ...(tree.resources && { resources: tree.resources.filter(resource => webOrigin(resource.url) === origin) }),
+  };
+}
 
 /** Reads Chromium's document-local replay under an approved, short-lived CDP attachment operation. */
 export class ChromiumCdp {
@@ -21,15 +37,21 @@ export class ChromiumCdp {
     check();
     if (request.action === 'cdpSend') {
       const { command } = request;
+      const frameTree = command.method === 'Page.getFrameTree' || command.method === 'Page.getResourceTree';
       if (command.method !== 'Performance.getMetrics' && command.method !== 'Page.getLayoutMetrics' &&
-          command.method !== 'DOM.getDocument') throw new Error('This CDP command is unavailable.');
+          command.method !== 'DOM.getDocument' && !frameTree) throw new Error('This CDP command is unavailable.');
       const metrics = command.method === 'Performance.getMetrics';
       if (metrics) await send('Performance.enable');
       try {
         check();
-        const result = await send(command.method, command.method === 'DOM.getDocument'
+        let result = await send(command.method, command.method === 'DOM.getDocument'
           ? { depth: command.params?.depth ?? 0 } : undefined);
         check();
+        if (frameTree) {
+          const tree = scopedFrameTree((result as { frameTree: FrameTree }).frameTree, origin);
+          if (!tree) throw new Error('The authorized document changed.');
+          result = { frameTree: tree };
+        }
         if (new TextEncoder().encode(JSON.stringify(result)).length > 32768)
           throw new Error('The browser CDP reply exceeds 32 KiB.');
         return { kind: 'cdpResult', method: command.method, result };

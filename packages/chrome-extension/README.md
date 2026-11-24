@@ -48,6 +48,10 @@ queries, and `cdpReadEvents` for top-document console and runtime errors.
 Both require Browser Developer Mode and approval in Pero. Reuse the returned
 cursor to read newer events within the same document.
 
+Extension 0.3.12 adds `Page.getFrameTree` and `Page.getResourceTree` to
+`cdpSend`. Trees include the approved document's same-origin frames and
+resources.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the
