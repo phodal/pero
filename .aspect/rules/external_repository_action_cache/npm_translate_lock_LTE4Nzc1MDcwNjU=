@@ -3,7 +3,7 @@
 # This file should be checked into version control along with the pnpm-lock.yaml file.
 desktop/package.json=-664844822
 package-lock.json=-135192454
-package.json=-1239861949
+package.json=1900668051
 packages/app-sdk/package.json=-979304599
 packages/mcp-apps/package.json=967965407
 packages/notebook/package.json=-2071900952
