@@ -135,6 +135,10 @@ jobs:
       - name: Install the SVG rasterizer used by connector icons
         if: runner.os == 'macOS'
         run: brew install librsvg
+      # CI-only workaround. crates/pero-runtime still resolves the python3.12
+      # command, which setup-python does not publish on Windows. Copying the
+      # interpreter here does not fix a real Windows install; that runtime
+      # lookup still needs its own change.
       - name: Publish the python3.12 command the App runtime resolves
         if: runner.os == 'Windows'
         run: |
@@ -447,9 +451,9 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm ci --prefix apps/lcms2yield --ignore-scripts
-          # ubuntu-24.04 already has the shared libraries. --with-deps also
-          # downloads multi-megabyte font packages from the apt mirror, which
-          # blew the 5-minute job before Chromium itself finished (~2s).
+          # Depends on the GitHub-hosted ubuntu-24.04 image (this job's runs-on),
+          # which already includes Chromium's shared libraries. --with-deps also
+          # downloads multi-megabyte font packages from apt and blew the 5-minute job.
           npx playwright install chromium
       - name: Verify selected populations and CSV result attribution
         run: |
@@ -467,7 +471,7 @@ jobs:
   data:
     if: inputs.suite == 'data'
     name: Data local catalog and download contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -489,8 +493,9 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm ci --prefix apps/data --ignore-scripts
-          # The runner image already has the shared libraries. --with-deps
-          # spends the 5-minute job on apt font packages instead of Chromium.
+          # Depends on the GitHub-hosted ubuntu-24.04 image (this job's runs-on),
+          # which already includes Chromium's shared libraries. --with-deps also
+          # downloads multi-megabyte font packages from apt and blew the 5-minute job.
           npx playwright install chromium
       - name: Check Data types and keyboard behavior in the real App frame
         run: |
