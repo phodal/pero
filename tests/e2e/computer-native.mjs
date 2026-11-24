@@ -23,7 +23,7 @@ const state=fixture.state;
 const observations=[];const receipts=[];
 let target;
 const observe=async()=>{
-  const value=await call({operation:'observe',target});assert.equal(value.kind,'observation');observations.push(value.observation);
+  const value=await call({operation:'observe',target,options:{disable_diffing:true}});assert.equal(value.kind,'observation');observations.push(value.observation);
   if(value.image){await writeFile(resolve(out,`observation-${observations.length}.jpg`),Buffer.from(value.image.data,'base64'));}
   return value.observation;
 };
@@ -45,7 +45,7 @@ try {
  // Same request is answered from its durable journal, never dispatched twice.
  assert.deepEqual((await call({operation:'act',action})).receipt,receipts[0]);assert.equal((await state()).count,1);
  const stale=await call({operation:'act',action:{...action,request_id:'stale'}});assert.equal(stale.receipt.outcome.status,'rejected');assert.equal(stale.receipt.outcome.error.code,'stale_observation');
- const changed=await call({operation:'observe',target,options:{want_image:false,since_observation_id:observation.id}});
+ const changed=await call({operation:'observe',target,options:{want_image:false}});
  assert.equal(changed.delta?.base_observation_id,observation.id);
  assert.ok(changed.observation.elements.length < observation.elements.length);
  assert.ok(changed.observation.elements.some(element=>/\bCount: 1\b/.test(`${element.label} ${element.value ?? ''}`)),JSON.stringify(changed.observation.elements));
@@ -75,6 +75,15 @@ try {
  assert.equal(secure.observation.elements.length,1);
  assert.equal(secure.image,null,'A secure control beyond the returned nodes still blocks the screenshot');
  await fixture.command('remove_secure');
+ const stable = await observe();
+ const stableButton = stable.elements.find(element => element.label === 'Increment');
+ await fixture.command('insert_before');
+ const inserted = await call({operation:'observe',target,options:{want_image:false}});
+ const insertedNode = inserted.observation.elements.find(element => element.label === 'Inserted control');
+ assert.equal(inserted.delta?.base_observation_id,stable.id);
+ assert.ok(insertedNode);
+ assert.ok(inserted.delta.element_order.indexOf(insertedNode.id) < inserted.delta.element_order.indexOf(stableButton.id), 'Fixture inserts before the existing control');
+ assert.equal((await observe()).elements.find(element => element.label === 'Increment').id,stableButton.id);
  const foreground=process.env.PERO_COMPUTER_FOREGROUND==='1';
  if(foreground){const backgroundDrags=(await state()).drags;await fixture.activate();observation=await observe();const increment=observation.elements.find(e=>e.label==='Increment');await act(observation,{kind:'click',anchor:{kind:'element',element_id:increment.id},button:'left',count:1},'foreground');await poll(async()=>(await state()).count===2,'foreground element click');observation=await observe();await act(observation,{kind:'drag',screenshot_id:observation.screenshot.id,from:point,to:{x:point.x+80,y:point.y+50}},'foreground');await poll(async()=>(await state()).drags>backgroundDrags,'foreground drag');}
  await desktop.stop();

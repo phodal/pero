@@ -36,6 +36,7 @@ for (const request of [
   { operation: 'open', application: { kind: 'bundle_id', bundle_id: 'dev.pero.example' } },
   { operation: 'observe', target: fixture.target.reference, options: { want_image: false, max_nodes: 1, max_depth: 1, root: { observation_id: 'observation-1', element_id: 'editor' } } },
   { operation: 'observe', target: fixture.target.reference, options: { include_containers: true, since_observation_id: 'observation-1' } },
+  { operation: 'observe', target: fixture.target.reference, options: { disable_diffing: true } },
 ]) assert.ok(validate('ComputerRequest', request).valid);
 for (const options of [{ max_nodes: 0 }, { max_nodes: 4097 }, { max_depth: 65 }, { want_image: 'false' }, { root: { element_id: 'editor' } }]) {
   assert.equal(validate('ComputerRequest', { operation: 'observe', target: fixture.target.reference, options }).valid, false);

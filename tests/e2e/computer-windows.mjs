@@ -58,7 +58,7 @@ async function call(request) {
   return response.value;
 }
 
-const observe = (wantImage = false) => call({ operation: 'observe', target, options: { want_image: wantImage } });
+const observe = (wantImage = false) => call({ operation: 'observe', target, options: { want_image: wantImage, disable_diffing: true } });
 const element = (observation, label) => {
   const match = observation.elements.find(item => item.label === label);
   assert.ok(match, `Missing ${label} in ${JSON.stringify(observation.elements)}`);

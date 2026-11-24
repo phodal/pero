@@ -30,7 +30,7 @@ try{
  assert.ok(listed.capabilities.actions.filter(a=>a.delivery==='background').every(a=>a.action==='click'),'Only element click is background');
  const pid=(await effects()).pid;
  const windows=listed.targets.filter(t=>t.title==='Pero AT-SPI Fixture');assert.equal(windows.length,2,'Two same-titled windows');
- const observe=async target=>(await call({operation:'observe',target})).observation;
+ const observe=async target=>(await call({operation:'observe',target,options:{disable_diffing:true}})).observation;
  const trees=[];for(const t of windows)trees.push({target:t.reference,observation:await observe(t.reference)});
  const byLabel=(obs,label)=>obs.elements.find(e=>e.label===label);
  const first=trees.find(t=>byLabel(t.observation,'Increment first')),second=trees.find(t=>byLabel(t.observation,'Increment second'));
@@ -62,7 +62,7 @@ try{
  assert.equal((await call({operation:'act',action:{...action,request_id:'replay'}})).receipt.outcome.error.code,'stale_observation');
  await waitFor(async()=>(await effects()).counts.first===2,'single effect');
  // Tree-only observation: no capture, same facts, and still usable for element input.
- const treeOnly=(await call({operation:'observe',target:first.target,options:{want_image:false}}));assert.ok(!treeOnly.image);assert.ok(!treeOnly.observation.screenshot);assert.deepEqual(byLabel(treeOnly.observation,'Increment first').actions,['click']);
+ const treeOnly=(await call({operation:'observe',target:first.target,options:{want_image:false,disable_diffing:true}}));assert.ok(!treeOnly.image);assert.ok(!treeOnly.observation.screenshot);assert.deepEqual(byLabel(treeOnly.observation,'Increment first').actions,['click']);
  const small=(await call({operation:'observe',target:first.target,options:{want_image:false,max_nodes:2}})).observation;assert.ok(small.elements.length<=2);assert.equal(small.truncated,true,'A requested node budget truncates the tree');
  const subtree=replies.length;native.stdin.write(JSON.stringify({id:'subtree',thread:'atspi-acceptance',request:{operation:'observe',target:first.target,options:{root:{observation_id:small.id,element_id:small.elements[0].id}}}})+'\n');
  const refusedSubtree=await waitFor(()=>replies.slice(subtree).find(r=>r.id==='subtree'),'subtree reply');assert.equal(refusedSubtree.error?.code,'unsupported',JSON.stringify(refusedSubtree));

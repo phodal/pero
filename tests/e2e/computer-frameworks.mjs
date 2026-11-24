@@ -28,7 +28,7 @@ try {
       fixture = { state: async () => JSON.parse(await readFile(output, 'utf8')), close: async () => { child.kill('SIGTERM'); }, pid: await waitFor(async () => { try { return JSON.parse(await readFile(output, 'utf8')).pid; } catch { return false; } }, 'Electron readiness') };
     }
     const target = await waitFor(async () => (await call({ operation: 'targets' })).targets.find(t => t.title === `Pero ${framework} Fixture`)?.reference, `${framework} target`);
-    const observe = async () => (await call({ operation: 'observe', target, options: { want_image: false } })).observation;
+    const observe = async () => (await call({ operation: 'observe', target, options: { want_image: false, disable_diffing: true } })).observation;
     let o = await waitFor(async () => { const value = await observe(); return value.elements.some(e => e.label === 'Framework increment') ? value : false; }, `${framework} native AX controls`);
     const receipts = [];
     const act = async input => {

@@ -70,3 +70,26 @@ The comparable behavior is compact accessibility output and option-driven
 incremental reads. The original PowerPoint cold OCR limit still applies. A
 standalone CPU-only Vision probe read the image marker but took about 47
 seconds, so this change retains the bounded OCR path.
+
+## Default deltas and checked AX reads
+
+- AX distinguishes successfully empty or unsupported attributes from native
+  errors and malformed arrays. A failed or incomplete security-relevant
+  scan withholds pixels. The regression suite checks empty, absent, failed,
+  malformed, and clipped input. An owned AppKit window confirmed an ordinary
+  clipped observation can still include a screenshot and a secure control
+  outside the returned projection still blocks capture.
+- The first complete whole-window read returns the tree. The next compatible
+  read returns a delta by default. `disable_diffing` requests a full tree.
+  Structural deltas supply the current element order. The macOS driver retains
+  IDs for AX identities in the same window, and input still binds to the
+  latest observation.
+- Codex and the rebuilt Pero helper both captured the same PowerPoint fixture
+  and the same Feishu window. Opening the PowerPoint Notes pane produced an
+  incremental response in both. Pero returned nine changed or added nodes,
+  retained the editor and Notes button IDs, and reported the pane's removal on
+  close. The compact preview of the actual window includes disabled and
+  settable states, actions, and secondary actions.
+- Feishu returned an unchanged observation in Codex and zero changed nodes
+  in Pero. Pero retained all 531 element IDs over the two observations. This
+  read-only comparison did not store or publish Feishu's content.

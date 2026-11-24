@@ -19,7 +19,7 @@ let fixture, guard, target, sequence = 0;
 const foreground = process.env.PERO_COMPUTER_FOREGROUND === '1';
 const results = { foreground, receipts: [], observations: [], cases: [] };
 const observe = async options => {
-  const result = await call({ operation: 'observe', target, ...(options ? { options } : {}) });
+  const result = await call({ operation: 'observe', target, options: { disable_diffing: true, ...options } });
   results.observations.push(result.observation);
   if (result.image) await writeFile(resolve(out, 'macos-latest.jpg'), Buffer.from(result.image.data, 'base64'));
   return result.observation;
@@ -70,7 +70,7 @@ try {
   o = await observe();
   await act(o, { kind: 'perform_action', element_id: element(o, 'Increment').id, action: 'decrement' }, 'background', 'rejected');
   results.cases.push('Native writable/enabled facts and finite semantic action admission');
-  o = await observe({ max_nodes: 1, max_depth: 1 }); assert.equal(o.truncated, true); assert.equal(o.elements.length, 1); assert.equal(o.screenshot, undefined);
+  o = await observe({ max_nodes: 1, max_depth: 1, want_image: false }); assert.equal(o.truncated, true); assert.equal(o.elements.length, 1); assert.equal(o.screenshot, undefined);
   const previous = o;
   o = await observe({ root: { observation_id: previous.id, element_id: previous.elements[0].id }, want_image: false });
   assert.notEqual(o.id, previous.id); assert.ok(o.elements.some(e => e.label === 'Fixture text'));
