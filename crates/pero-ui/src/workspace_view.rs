@@ -749,6 +749,31 @@ impl Workbench {
             .bg(p.surface)
             .border_l_1()
             .border_color(p.border)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .px(px(pero_theme::SPACE_8))
+                    .py(px(pero_theme::SPACE_4))
+                    .border_b_1()
+                    .border_color(p.border)
+                    .child(self.t("chat.panel_title"))
+                    .child(
+                        Button::new("workspace-chat-new")
+                            .relative()
+                            .child(self.view_bounds.chat_new.probe("dock".into()))
+                            .ghost()
+                            .small()
+                            .icon(Icon::default().path("icons/plus.svg"))
+                            .label(self.t("chat.new"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                let composer = this.chat.read(cx).composer.clone();
+                                this.chat.update(cx, |chat, cx| chat.new_chat(cx));
+                                composer.update(cx, |input, cx| input.focus(window, cx));
+                            })),
+                    ),
+            )
             .child(self.chat.clone())
             .when(!narrow, |el| {
                 el.child(

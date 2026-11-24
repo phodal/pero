@@ -72,3 +72,21 @@ keyboard shortcut. It captures both selected states in
 `test-results/sessions-apps/{projects-light,sessions-light}.png`.
 The older `test:sidebar` suite stops at its fixed-coordinate click for the
 inferred workspace project, which is listed on the Projects page.
+
+## ChatDock new chat (2026-11-24)
+
+The shared Workbench ChatDock now shows a New chat action above its message
+stream. It calls the existing `ChatPanel` new-chat transition, so an App-scoped
+conversation starts another draft in the same scope while the App view stays
+open. The action focuses the composer and keeps the earlier conversation.
+
+L0: the Workbench WASM, web, Desktop, and Native debug builds passed. L1:
+`node tests/e2e/sessions-apps.mjs` passed with a temporary Host journal, fixture
+ACP Agent, and local frontend App. It opened App Chat, docked the floating
+panel, clicked New chat, and observed a distinct focused empty App-scoped draft,
+the retained App content, and the earlier conversation. The actual Electron
+rendering was inspected in `test-results/sessions-apps/app-chat-new.png`.
+No Agent prompt was submitted by this action. The Native build passed, but
+computer-use app selection could not distinguish the isolated preview from
+other running bundles with the same identifier; this change has no Native
+runtime visual acceptance or signed-package acceptance yet.
