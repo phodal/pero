@@ -26,10 +26,11 @@ await mkdir(output, { recursive: true });
 const effects = [];
 const site = createServer((request, response) => {
   if (request.url.startsWith('/effect/')) { effects.push(request.url); response.writeHead(204).end(); return; }
-  const lane = request.url === '/chrome' ? 'chrome' : 'embedded';
   response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  if (request.url === '/details') { response.end('<!doctype html><h1>Unshared frame contents</h1>'); return; }
+  const lane = request.url === '/chrome' ? 'chrome' : 'embedded';
   response.end(`<!doctype html><title>Cloud Browser fixture ${lane}</title><button>Mark fixture</button>
-    <p data-testid="effect">Waiting</p><script>
+    <p data-testid="effect">Waiting</p><iframe title="Details" src="/details"></iframe><script>
     document.querySelector('button').onclick = event => {
       if (!event.isTrusted) return;
       document.querySelector('p').textContent = 'Trusted Cloud click';
@@ -82,8 +83,10 @@ const clickFixture = async () => {
   assert(ref, JSON.stringify(match.value));
   const click = (await call({ action: 'click', ref })).value;
   assert.equal(click.outcome, 'dispatched', JSON.stringify(click));
-  const result = (await call({ action: 'observe' })).value;
-  assert(JSON.stringify(result).includes('Trusted Cloud click'));
+  const result = (await call({ action: 'observe', includeTree: true })).value;
+  assert.match(result.tree, /Trusted Cloud click/);
+  assert.match(result.tree, /iframe/);
+  assert.doesNotMatch(result.tree, /Unshared frame contents/);
   return click;
 };
 let app, chrome, native, nativeExit;

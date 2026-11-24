@@ -13,11 +13,12 @@ export function cloudBrowserRequest(value: unknown, tabId: string, screenshots: 
   const request = browserRequest.parse(value);
   const viewport = request.action === 'screenshot' && screenshots && !request.fullPage;
   if ((!viewport && !['status', 'observe', 'locate', 'click', 'fill'].includes(request.action)) ||
-      'tabId' in request || 'frame' in request || 'within' in request || 'expectPopup' in request)
+      'tabId' in request || 'provider' in request || 'frame' in request || 'within' in request ||
+      'expectPopup' in request || 'includeFrameContents' in request)
     throw new Error('This Cloud Run can observe and operate only the shared tab.');
   if (viewport && request.clip && Math.max(request.clip.width, request.clip.height) > MAX_IMAGE_EDGE)
     throw new Error('Choose a viewport clip at most 2048 pixels on each edge.');
-  return { ...request, tabId };
+  return { ...request, tabId, ...(request.action === 'observe' && request.includeTree && { includeFrameContents: false }) };
 }
 
 function screenshotReply(result: object) {
