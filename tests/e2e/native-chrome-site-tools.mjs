@@ -14,14 +14,16 @@ import { browserDiagnosticPage, scopedNetworkScript, serveDiagnosticAssets } fro
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
 const targetDetach = process.argv.includes('--cdp-target-detach');
-const targetLifecycle = process.argv.includes('--cdp-target-lifecycle');
+const targetRouting = process.argv.includes('--cdp-target-routing');
+const targetLifecycle = targetRouting || process.argv.includes('--cdp-target-lifecycle');
 const targetNetwork = targetDetach || process.argv.includes('--cdp-target-network');
 const targetTree = targetNetwork || process.argv.includes('--cdp-target-tree');
 const targets = targetLifecycle || targetTree || process.argv.includes('--cdp-targets');
 const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
-const output = resolve(root, targetLifecycle ? 'test-results/native-chrome-cdp-target-lifecycle'
+const output = resolve(root, targetRouting ? 'test-results/native-chrome-cdp-target-routing'
+  : targetLifecycle ? 'test-results/native-chrome-cdp-target-lifecycle'
   : targetDetach ? 'test-results/native-chrome-cdp-target-detach' : targetNetwork ? 'test-results/native-chrome-cdp-target-network' : targetTree ? 'test-results/native-chrome-cdp-target-tree'
   : targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
@@ -81,7 +83,7 @@ const site = createServer((req, res) => {
   res.end(siteToolPage(req.url === '/webmcp-frame', foreignOrigin));
 });
 const partner = createServer((req, res) => {
-  if (live && serveDiagnosticAssets(req, res, targetTree ? origin : undefined)) return;
+  if (live && serveDiagnosticAssets(req, res, targetTree || targetLifecycle ? origin : undefined)) return;
   res.setHeader('Content-Type', 'text/html');
   res.end(partnerSiteToolPage(origin));
 });
@@ -346,15 +348,27 @@ await wait_for("Watched frames loaded")
 attached = await browser("cdpReadEvents", **watch, after=checkpoint["cursor"], timeoutMs=500)
 assert attached["events"][0]["method"] == "Target.attachedToTarget", attached
 assert any(event["method"] == "Target.targetInfoChanged" for event in attached["events"]), attached
+first = attached["events"][0]["params"]
+${targetRouting ? `target = {"id":first["targetId"], "origin":first["origin"]}
+command = {"method":"DOM.getDocument", "params":{"depth":1}}
+dom = await browser("cdpSend", target=target, command=command)
+assert dom["result"]["root"]["documentURL"] == child_origin + "/diagnostic-frame?target-watch-private", dom
+runtime = await browser("cdpReadEvents", target=target, methods=["Runtime.consoleAPICalled"])
+assert [event["text"] for event in runtime["events"]] == ["direct target log"], runtime` : ''}
 removed = await click("Remove watched frames")
 assert removed["outcome"] == "dispatched", removed
 await wait_for("Watched frames removed")
 detached = await browser("cdpReadEvents", **watch, after=attached["cursor"], timeoutMs=500)
 assert [event["method"] for event in detached["events"]] == ["Target.detachedFromTarget"], detached
-first = attached["events"][0]["params"]
 assert first["origin"] == child_origin and first["url"] == child_origin + "/diagnostic-frame", first
 assert all(event["params"] == first for event in attached["events"] + detached["events"])
-print(json.dumps({"receiptId":removed["receiptId"],"tab":tab,"python":sys.executable,"targetLifecycle":True}))
+${targetRouting ? `try:
+    await browser("cdpSend", target=target, command=command)
+except Exception as error:
+    assert "target is stale" in str(error), repr(error)
+else:
+    raise AssertionError("Native routed a command to the detached iframe")` : ''}
+print(json.dumps({"receiptId":removed["receiptId"],"tab":tab,"python":sys.executable,"targetLifecycle":True${targetRouting ? ',"targetRouting":True' : ''}}))
 `;
 let app,
   chrome,
@@ -468,10 +482,17 @@ try {
       .toBe('responded');
   };
   if (targetLifecycle) {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       await respond(origin, 'Allow');
       await respond(childOrigin, 'Allow');
     }
+    if (targetRouting) {
+      await respond(childOrigin, 'Allow');
+      await respond(childOrigin, 'Allow');
+    }
+    await respond(origin, 'Allow');
+    await respond(childOrigin, 'Allow');
+    if (targetRouting) await respond(childOrigin, 'Allow');
   } else if (targetNetwork) {
     await respond(origin, 'Allow');
     await respond(childOrigin, 'Allow');

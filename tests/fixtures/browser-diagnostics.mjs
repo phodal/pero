@@ -19,6 +19,8 @@ export function browserDiagnosticPage(foreignOrigin) {
 <button onclick="removeCdpChild()">Remove CDP child</button>
 <button onclick="runScopedNetwork()">Run scoped network fixture</button><p id="scoped-network-state">Waiting for scoped network</p>
 <button onclick="addWatchedTargets()">Add watched frames</button>
+<button onclick="navigateWatchedTarget(true)">Reload watched frame</button>
+<button onclick="navigateWatchedTarget(false)">Navigate watched frame</button>
 <button onclick="removeWatchedTargets()">Remove watched frames</button><p id="target-watch-state">Waiting for watched frames</p>
 <script>
 console.info('cdp loaded marker');
@@ -62,11 +64,19 @@ async function addWatchedTargets() {
   await Promise.all([approved, outside.href].map(url => new Promise(resolve => {
     const frame = document.createElement('iframe');
     frame.className = 'watched-cdp-frame';
+    if (url === approved) frame.id = 'approved-watched-frame';
     frame.onload = resolve;
     frame.src = url;
     document.body.append(frame);
   })));
   document.querySelector('#target-watch-state').textContent = 'Watched frames loaded';
+}
+function navigateWatchedTarget(reload) {
+  const frame = document.querySelector('#approved-watched-frame');
+  frame.addEventListener('load', () => {
+    document.querySelector('#target-watch-state').textContent = reload ? 'Watched frame reloaded' : 'Watched frame navigated';
+  }, { once: true });
+  frame.src = reload ? frame.src : ${JSON.stringify(oopif.origin + '/diagnostic-frame?target-watch-next-private')};
 }
 function removeWatchedTargets() {
   document.querySelectorAll('.watched-cdp-frame').forEach(frame => frame.remove());
@@ -103,7 +113,8 @@ export function serveDiagnosticAssets(request, response, peerOrigin) {
   }
   if (request.url.split('?', 1)[0] === '/diagnostic-frame') {
     const params = peerOrigin && new URL(request.url, peerOrigin).searchParams;
-    const isChild = params && (params.has('outside-frame-marker') || params.has('replacement'));
+    const isChild = params && ['outside-frame-marker', 'replacement', 'target-watch-private', 'target-watch-next-private']
+      .some(marker => params.has(marker));
     response.writeHead(200, { 'Content-Type': 'text/html' }).end(isChild ? `<p>Browser diagnostics frame</p>
       <script>console.info('direct target log'); throw new Error('direct target exception')</script>
       <script>
@@ -329,36 +340,69 @@ export async function checkCdpTargets({ prompt, tabId, foreignOrigin, topOrigin,
   assert.deepEqual(checkpoint.events, [], JSON.stringify(checkpoint));
   assert.equal(added.outcome, 'dispatched');
   assert.equal(loadedTargets.matched, true, JSON.stringify(loadedTargets));
-  const [opened, closed, removedTargets] = await prompt([
-    { ...watch, after: checkpoint.cursor, timeoutMs: 500 },
-    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Remove watched frames' }, operation: { action: 'click' } },
-    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frames removed' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
-  ]);
+  const [opened] = await prompt([{ ...watch, after: checkpoint.cursor, timeoutMs: 500 }]);
   assert(opened.events?.length >= 2, JSON.stringify(opened));
   assert.equal(opened.events[0].method, 'Target.attachedToTarget');
   assert(opened.events.some(event => event.method === 'Target.targetInfoChanged'));
+  const firstWatched = opened.events[0].params;
+  const watched = { id: firstWatched.targetId, origin: firstWatched.origin };
+  const watchedCommand = { ...command, target: watched };
+  const [watchedDOM, watchedEvents, deniedOrigin, reloadFrame, readyReload, staleAfterReload, navigateFrame, readyNavigation] = await prompt([
+    watchedCommand, { ...read, target: watched }, { ...watchedCommand, target: { ...watched, origin: topOrigin } },
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Reload watched frame' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frame reloaded' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+    watchedCommand,
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Navigate watched frame' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frame navigated' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert.equal(watchedDOM.result?.root.documentURL, `${url}?target-watch-private`, JSON.stringify(watchedDOM));
+  assert.deepEqual(watchedEvents.events?.map(event => event.text), ['direct target log', 'Error: direct target exception']);
+  assert.match(deniedOrigin.error, /target is stale/);
+  assert.equal(reloadFrame.outcome, 'dispatched');
+  assert.equal(readyReload.matched, true);
+  assert.match(staleAfterReload.error, /document changed|target is stale/);
+  assert.equal(navigateFrame.outcome, 'dispatched');
+  assert.equal(readyNavigation.matched, true);
+  const [updated] = await prompt([{ ...watch, after: opened.cursor, timeoutMs: 500 }]);
+  const nextWatched = updated.events?.findLast(event => event.method === 'Target.targetInfoChanged' && event.params.targetId !== watched.id)?.params;
+  assert(nextWatched, JSON.stringify(updated));
+  const nextCommand = { ...command, target: { id: nextWatched.targetId, origin: nextWatched.origin } };
+  const [nextDOM, closed, removedTargets] = await prompt([
+    nextCommand,
+    { action: 'act', tabId, locator: { by: 'role', role: 'button', name: 'Remove watched frames' }, operation: { action: 'click' } },
+    { action: 'wait', tabId, locator: { by: 'text', value: 'Watched frames removed' }, condition: { kind: 'visible' }, timeoutMs: 3000 },
+  ]);
+  assert.equal(nextDOM.result?.root.documentURL, `${url}?target-watch-next-private`, JSON.stringify(nextDOM));
   assert.equal(closed.outcome, 'dispatched');
   assert.equal(removedTargets.matched, true);
-  const [finished, wrongScope] = await prompt([
-    { ...watch, after: opened.cursor, timeoutMs: 500 },
+  const [finished, wrongScope, staleAfterDetach] = await prompt([
+    { ...watch, after: updated.cursor, timeoutMs: 500 },
     { ...watch, fromOrigins: [], after: checkpoint.cursor },
+    nextCommand,
   ]);
   assert.deepEqual(finished.events?.map(event => event.method), ['Target.detachedFromTarget'], JSON.stringify(finished));
-  for (const event of [...opened.events, ...finished.events]) {
-    assert.deepEqual(event.params, opened.events[0].params);
+  assert.deepEqual(finished.events[0].params, nextWatched);
+  for (const event of [...opened.events, ...updated.events, ...finished.events]) {
     assert.equal(event.params.url, url);
     assert.equal(event.params.origin, origin);
   }
+  assert.match(staleAfterDetach.error, /target is stale/);
   assert.match(wrongScope.error, /target event origins changed/);
   await menu('browser-use-developer-mode', false);
   await menu('browser-use-developer-mode', true);
   const [revokedWatch] = await prompt([{ ...watch, after: checkpoint.cursor }]);
   assert.match(revokedWatch.error, /target event stream ended/);
+  const [beforeReload, reloaded] = await prompt([watch, { action: 'reload', tabId }]);
+  assert.equal(reloaded.outcome, 'dispatched');
+  const [oldDocument] = await prompt([{ ...watch, after: beforeReload.cursor }]);
+  assert.match(oldDocument.error, /target event stream ended/);
   return { defaultOriginScope: true, childQuery: true, nestedQuery: true, isolatedEvents: true,
     cursorIsolation: true, wrongOriginRejected: true, staleAfterNavigation: true,
     networkIsolation: true, childBody: true, childTimeout: true, childRevocation: true,
     detachedChildCursor: true, detachedBodyRejected: true, detachedRevocation: true,
-    targetLifecycle: true, targetLifecycleScope: true, targetLifecycleRevocation: true };
+    targetLifecycle: true, targetLifecycleScope: true, targetLifecycleRevocation: true,
+    targetEventRouting: true, targetEventReload: true, targetEventNavigation: true, targetEventDetach: true,
+    targetWatchTopReload: true };
 }
 
 export async function checkCdp({ prompt, tabId }) {
