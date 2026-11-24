@@ -27,6 +27,11 @@ const START: &str = r#"(()=>{
  return true;
 })()"#;
 const READ: &str = "({result:window.nativeResult,identity:window.nativeIdentity,draft:document.querySelector('#native-retained-draft')?.value,dark:document.documentElement.style.colorScheme,locale:document.documentElement.lang,mediaDark:matchMedia('(prefers-color-scheme: dark)').matches})";
+const TYPOGRAPHY: &str = r#"(()=>{
+ const body=document.querySelector('.virtual-cell');if(!body)return null;
+ const size=token=>{const sample=document.createElement('span');sample.style.fontSize=`var(${token})`;body.append(sample);const value=parseFloat(getComputedStyle(sample).fontSize);sample.remove();return value};
+ return {body:parseFloat(getComputedStyle(body).fontSize),heading:size('--pero-font-heading'),title:size('--pero-font-title')};
+})()"#;
 
 pub(crate) fn attach(
     root: Entity<Workbench>,
@@ -205,8 +210,26 @@ async fn verify(
                     );
                     identity = value["identity"].clone();
                     result = value["result"].clone();
+                    let normal = query(root, "virtual-cell", TYPOGRAPHY, cx).await?;
+                    anyhow::ensure!(normal == json!({"body":14,"heading":18,"title":24}),
+                        "Default Native App typography changed: {normal}");
+                    cx.update(|cx| root.update(cx, |root, cx| {
+                        root.preferences.typography.ui_size = pero_contracts::appearance::FontSize::try_from(24).unwrap();
+                        root.install_appearance(cx);
+                        root.sync_native_apps(cx);
+                    }));
+                    let mut large = Value::Null;
+                    for _ in 0..30 {
+                        large = query(root, "virtual-cell", TYPOGRAPHY, cx).await?;
+                        if large["body"] == 24 { break; }
+                        cx.background_executor().timer(Duration::from_millis(100)).await;
+                    }
+                    anyhow::ensure!(large == json!({"body":24,"heading":28,"title":34}),
+                        "Native App headings scaled faster than the body: {large}");
+                    result["typography"] = json!({"normal":normal,"large":large});
                     cx.update(|cx| {
                         root.update(cx, |root, cx| {
+                            root.preferences.typography.ui_size = pero_contracts::appearance::FontSize::try_from(14).unwrap();
                             root.navigate(WorkbenchPage::Projects, cx);
                             root.sync_app_surface(None, cx);
                             root.preferences.appearance =
@@ -243,7 +266,7 @@ async fn verify(
                     })?;
                     anyhow::ensure!(released, "App WebView was retained after tab close");
                     return Ok(
-                        json!({"passed":true,"checks":["real React App assets","authenticated Python GET and POST","real synthetic evaluation","cross-App resource refusal","Host grant refusal","no Workbench bridge","retained DOM and form","SDK dark appearance","WebView teardown"],"app":result,"restored":restoring,"checkpoint":checkpoint,"visual_acceptance":false}),
+                        json!({"passed":true,"checks":["real React App assets","authenticated Python GET and POST","real synthetic evaluation","cross-App resource refusal","Host grant refusal","no Workbench bridge","retained DOM and form","SDK dark appearance","24px WebView title and heading scale","WebView teardown"],"app":result,"restored":restoring,"checkpoint":checkpoint,"visual_acceptance":false}),
                     );
                 }
             }
