@@ -13,7 +13,8 @@ import { serveDiagnosticAssets } from '../fixtures/browser-diagnostics.mjs';
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const live = process.argv.includes('--cdp-live');
+const targets = process.argv.includes('--cdp-targets');
+const live = targets || process.argv.includes('--cdp-live');
 const cdp = live || process.argv.includes('--cdp');
 const fixturePath = cdp ? '/cdp' : '/webmcp';
 const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
@@ -41,7 +42,7 @@ const site = createServer((req, res) => {
       <iframe title="CDP child fixture" srcdoc="<script>console.warn('native CDP child')</script>"></iframe>
       ${live ? `<link rel="stylesheet" href="/diagnostic.css">
       <iframe title="Local CDP frame" src="/diagnostic-frame"></iframe>
-      <iframe title="Foreign CDP frame" src="${foreignOrigin}/diagnostic-frame?native-foreign-frame"></iframe>
+      <iframe title="Foreign CDP frame" id="cdp-child" src="${targets ? childOrigin : foreignOrigin}/diagnostic-frame?native-foreign-frame"></iframe>
       <button onclick="requestFixture()">Run network fixture</button><output>Waiting for network fixture</output>
       <script>
         async function requestFixture() {
@@ -51,6 +52,14 @@ const site = createServer((req, res) => {
           ]);
           await response.json();
           document.querySelector('output').textContent = 'Native network fixture complete';
+        }
+      </script>` : ''}
+      ${targets ? `<button onclick="replaceFixtureChild()">Replace CDP child</button><output id="child-state">Child waiting</output>
+      <script>
+        function replaceFixtureChild() {
+          const frame = document.querySelector('#cdp-child');
+          frame.addEventListener('load', () => document.querySelector('#child-state').textContent = 'Native child replaced', { once: true });
+          frame.src = ${JSON.stringify(childOrigin + '/diagnostic-frame?replacement')};
         }
       </script>` : ''}`);
     return;
@@ -66,6 +75,7 @@ const listen = (server) => new Promise((done) => server.listen(0, '127.0.0.1', d
 await Promise.all([listen(site), listen(partner)]);
 const origin = 'http://127.0.0.1:' + site.address().port;
 const foreignOrigin = 'http://127.0.0.1:' + partner.address().port;
+const childOrigin = 'http://localhost:' + partner.address().port;
 const agent = 'browser-use-fixture';
 await mkdir(profile);
 await writeFile(resolve(profile, 'settings.json'), JSON.stringify({ chat_agent: agent }));
@@ -163,6 +173,44 @@ else:
     raise AssertionError("Native CDP read a response after capture ended")
 proof.update({"commands":8, "scopedTrees":True, "network":{"status":response["status"], "paged":True,
     "responseBody":True, "crossOriginRejected":True, "stopped":True}})` : ''}
+${targets ? `import asyncio
+from time import monotonic
+child_origin = ${JSON.stringify(childOrigin)}
+scoped = await browser("cdpListTargets")
+assert scoped["targets"] == [], scoped
+try:
+    await browser("cdpListTargets", fromOrigins=[child_origin])
+except Exception as error:
+    assert "diagnostics were declined" in str(error), repr(error)
+else:
+    raise AssertionError("Native disclosed a child target without its origin approval")
+children = await browser("cdpListTargets", fromOrigins=[child_origin])
+assert len(children["targets"]) == 1 and children["targets"][0]["origin"] == child_origin, children
+child = children["targets"][0]
+target = {"id":child["id"],"origin":child_origin}
+command = {"method":"DOM.getDocument","params":{"depth":1}}
+child_dom = await browser("cdpSend", target=target, command=command)
+assert child_dom["result"]["root"]["documentURL"] == child_origin + "/diagnostic-frame?native-foreign-frame", child_dom
+replaced = await browser("act", locator={"by":"role","role":"button","name":"Replace CDP child"}, operation={"action":"click"})
+assert replaced["outcome"] == "dispatched", replaced
+deadline = monotonic() + 5
+while True:
+    try:
+        ready = await browser("wait", locator={"by":"text","value":"Native child replaced"}, condition={"kind":"visible"}, timeoutMs=500)
+        if ready["matched"]:
+            break
+    except Exception as error:
+        if "wait for the page to finish loading" not in str(error):
+            raise
+    assert monotonic() < deadline, "Native child replacement did not finish loading"
+    await asyncio.sleep(0.05)
+try:
+    await browser("cdpSend", target=target, command=command)
+except Exception as error:
+    assert "child document changed" in str(error) or "target is stale" in str(error), repr(error)
+else:
+    raise AssertionError("Native used a child target grant on its replacement document")
+proof["childTargets"] = {"scoped":True,"declined":True,"childDom":True,"staleAfterNavigation":True}` : ''}
 print(json.dumps(proof))
 ` : `
 import json
@@ -217,7 +265,8 @@ try {
       PERO_NATIVE_REPL_CHROME_PAIRING_PATH: pairing,
       PERO_NATIVE_REPL_CHROME_SITE_TOOLS: cdp ? undefined : '1',
       PERO_NATIVE_REPL_CHROME_DEVELOPER_MODE: cdp ? '1' : undefined,
-      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code }]),
+      PERO_NATIVE_REPL_PROBE_PROMPT: JSON.stringify([{ action: 'repl', tool: 'python_repl', code,
+        ...(targets && { timeout_ms: 60_000 }) }]),
     },
   });
   app.stderr.on('data', (chunk) => {
@@ -295,6 +344,13 @@ try {
   if (cdp) {
     await respond(origin, 'Cancel');
     for (let i = 0; i < (live ? 16 : 7); i++) await respond(origin, 'Allow');
+    if (targets) {
+      await respond(origin, 'Allow');
+      await respond(origin, 'Allow');
+      await respond(childOrigin, 'Cancel');
+      await respond(origin, 'Allow');
+      for (let i = 0; i < 3; i++) await respond(childOrigin, 'Allow');
+    }
   } else {
     await respond('Native tool declined', 'Cancel');
     await expect(target.getByRole('heading', { name: 'Waiting for a site tool' })).toBeVisible();
@@ -321,7 +377,7 @@ try {
   );
   const receipt = JSON.parse(await readFile(resolve(visit, evidence.receiptId + '.result.json'), 'utf8'));
   assert.equal(receipt.outcome, 'dispatched');
-  const output = resolve(root, live ? 'test-results/native-chrome-cdp-live'
+  const output = resolve(root, targets ? 'test-results/native-chrome-cdp-targets' : live ? 'test-results/native-chrome-cdp-live'
     : cdp ? 'test-results/native-chrome-cdp' : 'test-results/native-chrome-site-tools');
   await mkdir(output, { recursive: true });
   await writeFile(
@@ -339,11 +395,16 @@ try {
     ),
   );
   console.log(
-    `Native Python REPL verified ${live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
+    `Native Python REPL verified ${targets ? 'CDP child targets' : live ? 'live CDP network capture' : cdp ? 'CDP commands and event cursors'
       : 'WebMCP discovery and approved tool calls'} through the real Chrome extension.`,
   );
 } catch (error) {
   if (log.trim()) console.error(log);
+  const completed = await readFile(report, 'utf8').catch(() => undefined);
+  if (completed) {
+    const { error: chatError, reply } = JSON.parse(completed);
+    console.error(JSON.stringify({ chatError, reply }));
+  }
   throw error;
 } finally {
   clearTimeout(timer);

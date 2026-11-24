@@ -58,6 +58,11 @@ network events for up to one minute. Read events with `cdpReadEvents` and
 the capture cursor, then use the request ID to read a completed text or
 JSON response from the same document.
 
+Extension 0.3.14 adds `cdpListTargets` for direct out-of-process iframes.
+List exact cross-origin hosts in `fromOrigins` for user review. Pass the
+returned `id` and `origin` as `target` to a read-only `cdpSend` command.
+Discover the target again after the iframe navigates or reloads.
+
 The side panel shares its paired Native conversation’s draft, model selection,
 `@` context suggestions and `/` commands. Use the arrow keys to navigate
 suggestions and Tab to choose one. Model choices and commands come from the

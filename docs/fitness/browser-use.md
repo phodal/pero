@@ -202,8 +202,19 @@ from the top document. Pass `methods` to filter and the returned `cursor` as
 `after` to read the next events with the same filter. Use `hasMore` to page
 through results and `truncated` to detect when the buffer could not cover the
 requested range. The cursor expires when the page reloads or the debugger
-detaches. Each read requires approval. Ordinary JavaScript evaluation, child
-target sessions, and unlisted CDP event domains are outside these actions.
+detaches. Each read requires approval. Ordinary JavaScript evaluation and
+event domains outside Runtime and Network are outside these actions.
+
+`cdpListTargets` discovers directly related out-of-process iframe targets in
+Electron Chromium or paired Chrome with extension 0.3.14 or newer. It
+defaults to the approved origin. Add exact origins to `fromOrigins` to request
+separate approvals before seeing a cross-origin iframe. With `cdpSend`, pass
+the returned `id` and `origin` as `target` to use a supported Page, DOM or
+Performance command. Each call asks for approval for the target origin. The
+target identifier expires when the child reloads or navigates, when the top
+document changes, or when a new discovery replaces it. Same-process iframes
+remain available through `observe`, `query` and `act` with a frame selector.
+Network and Runtime cursors are scoped to the top document.
 
 With Chrome extension 0.3.13 or Electron, send `Network.enable` with
 `cdpSend` to start a live capture and get its initial cursor. Perform a
@@ -355,6 +366,10 @@ Both suites also click a loopback fixture, page mixed console and network
 events, read the completed HTTP 202 JSON response, reject body access after
 a cross-origin redirect, and verify capture expiry when Developer Mode is
 turned off or `Network.disable` runs.
+The out-of-process iframe fixture uses a separate loopback hostname. Both
+suites check that discovery is scoped by origin, an approved child returns
+its own DOM, and navigation invalidates the old child identifier. The Chrome
+suite also rejects discovery when the child-origin approval is declined.
 
 ### Chrome and embedded browser from an SSH Workbench
 
@@ -425,6 +440,12 @@ then checks scoped frame and resource trees, live network event pagination,
 the HTTP 202 JSON body, cross-origin redirect rejection, and that stopping the
 capture prevents further body access. Evidence is in
 `test-results/native-chrome-cdp-live/result.json`.
+
+For extension 0.3.14, use `--cdp-targets`. The signed probe separately
+reviews the loopback iframe's origin and checks that a declined review
+releases no child identifiers. It then reads the approved iframe's DOM and
+waits for a replacement child document before checking the old identifier.
+Evidence is in `test-results/native-chrome-cdp-targets/result.json`.
 
 For real Codex on macOS, build the extension, install the signed Native bundle
 with the `native-probe` binary and run

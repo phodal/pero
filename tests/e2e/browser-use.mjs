@@ -370,7 +370,8 @@ try {
   }, original);
   expect(displayed).toBe('Pero verified');
 
-  const diagnostics = await checkEmbeddedDiagnostics({ app, origin: site.origin, menu, prompt, open, confirm, document });
+  const diagnostics = await checkEmbeddedDiagnostics({ app, origin: site.origin, foreignOrigin: foreign.origin,
+    menu, prompt, open, confirm, document });
   const accessibility = await checkEmbeddedAccessibility({ app, origin: site.origin, prompt, open, confirm, document });
 
   const siteTools = await checkSiteTools({ app, origin: site.origin, foreignOrigin: foreign.origin, menu, prompt, open, confirm, document,

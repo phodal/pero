@@ -11,7 +11,7 @@ import { electron } from './electron.mjs';
 import { clickNewChat, clickSessionRow } from './sidebar-controls.mjs';
 import { RELAY_PROTOCOL } from '../../packages/chrome-extension/src/protocol.ts';
 import { browserSnapshotFrame, browserSnapshotPage, browserSnapshotTree } from '../fixtures/browser-snapshot.mjs';
-import { browserDiagnosticPage, checkCdp, checkCdpNetwork, serveDiagnosticAssets, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
+import { browserDiagnosticPage, checkCdp, checkCdpNetwork, checkCdpTargets, serveDiagnosticAssets, verifyBrowserDiagnostics } from '../fixtures/browser-diagnostics.mjs';
 import { axPath, axPage, axFramePath, axFramePage, foreignAxPath, foreignAxPage, verifyAccessibility } from '../fixtures/browser-accessibility.mjs';
 import { parallelBrowserFixture, verifyParallelBrowser } from '../fixtures/browser-parallel.mjs';
 import { partnerSiteToolPage, partnerSiteToolPath, siteToolPage, verifySiteTools } from '../fixtures/browser-site-tools.mjs';
@@ -193,6 +193,8 @@ try {
       }
       if (options.message === 'Allow browser diagnostics on this site?') {
         globalThis.relayDiagnosticPrompts = (globalThis.relayDiagnosticPrompts ?? 0) + 1;
+        if (options.detail.split('\n', 1)[0] === globalThis.relayDiagnosticDeniedOrigin)
+          return { response: 0, checkboxChecked: false };
         return { response: globalThis.relayDiagnosticDecision ?? 0, checkboxChecked: false };
       }
       return { response: 0, checkboxChecked: false };
@@ -367,6 +369,13 @@ try {
     assert.equal(await app.evaluate(() => globalThis.relayDiagnosticPrompts), 3);
     const cdp = await checkCdp({ prompt, tabId: diagnosticId });
     const network = await checkCdpNetwork({ prompt, tabId: diagnosticId, menu });
+    const childOrigin = new URL(foreignUrl);
+    childOrigin.hostname = 'localhost';
+    await app.evaluate((_electron, origin) => { globalThis.relayDiagnosticDeniedOrigin = origin; }, childOrigin.origin);
+    const [childDeclined] = await prompt([{ action: 'cdpListTargets', tabId: diagnosticId, fromOrigins: [childOrigin.origin] }]);
+    assert.match(childDeclined.error, /diagnostics were declined/);
+    await app.evaluate(() => { delete globalThis.relayDiagnosticDeniedOrigin; });
+    const targets = await checkCdpTargets({ prompt, tabId: diagnosticId, foreignOrigin: foreignUrl });
     await menu('browser-use-developer-mode', false);
     await diagnosticPage.close();
 
@@ -823,7 +832,7 @@ nodeRepl.write(answer.outcome);` },
       parallel,
       parallelRepl,
       browserDiagnostics: { defaultOff: true, separateConsent: true, metrics: diagnostics.metrics, style: diagnostics.style,
-        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp: { ...cdp, network } },
+        cpu: diagnostics.cpu, profileUnavailable: diagnostics.profileUnavailable, cdp: { ...cdp, network, targets: { ...targets, declined: true } } },
       chromeSitePermissions: { pendingAfterPairing: true, onceEndsWithTurn: true, persistentAllow: true,
         declineDoesNotAttach: true, persistentBlock: true, settingsClear: true },
       chromeHandoffLeavesTabOpenAndReleasesDebugger: true,
