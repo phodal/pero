@@ -1,4 +1,4 @@
-// Opt-in macOS development acceptance. System Events needs Accessibility access.
+// Opt-in macOS acceptance. Set PERO_NATIVE_SITE_TOOLS_MANUAL=1 to use the Native sheets directly.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,8 +12,15 @@ import { siteToolPage, partnerSiteToolPage } from '../fixtures/browser-site-tool
 
 assert.equal(process.platform, 'darwin');
 const root = resolve(import.meta.dirname, '../..');
-const extension = resolve(root, 'target/chrome-extension');
-const binary = process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+const installed = process.env.PERO_NATIVE_REPL_INSTALLED_APP;
+const manual = process.env.PERO_NATIVE_SITE_TOOLS_MANUAL === '1';
+const extension = installed
+  ? resolve(installed, 'Contents/Resources/app/packages/connectors/helpers/chrome-extension')
+  : resolve(root, 'target/chrome-extension');
+const binary = installed
+  ? resolve(installed, 'Contents/MacOS/pero-native')
+  : process.env.PERO_NATIVE_BROWSER_BINARY || resolve(root, 'target/debug/pero-native');
+if (installed) execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--deep', installed]);
 const temp = await mkdtemp(resolve(tmpdir(), 'pero-native-chrome-site-tools-'));
 const profile = resolve(temp, 'profile'),
   agents = resolve(temp, 'agents.json');
@@ -70,13 +77,19 @@ let app,
   timer,
   log = '';
 try {
+  const env = { ...process.env };
+  if (installed) {
+    delete env.PERO_NATIVE_HOST;
+    delete env.PERO_ADAPTER_NODE;
+  } else {
+    env.PERO_NATIVE_HOST ||= resolve(root, 'target/debug/pero-host');
+    env.PERO_ADAPTER_NODE = process.execPath;
+  }
   app = spawn(binary, ['--verify-apps', report, 'browser'], {
     cwd: root,
     stdio: ['ignore', 'ignore', 'pipe'],
     env: {
-      ...process.env,
-      PERO_ADAPTER_NODE: process.execPath,
-      PERO_NATIVE_HOST: process.env.PERO_NATIVE_HOST || resolve(root, 'target/debug/pero-host'),
+      ...env,
       PERO_NATIVE_EPHEMERAL_SECRETS: '1',
       PERO_NATIVE_DATA_DIR: profile,
       PERO_AGENTS_FILE: agents,
@@ -111,6 +124,11 @@ try {
   const target = chrome.pages()[0] ?? (await chrome.newPage());
   await target.goto(origin + '/webmcp');
   await expect.poll(() => target.evaluate(() => document.body.dataset.ready)).toBe('yes');
+  await target.evaluate(() => {
+    const heading = document.querySelector('h1');
+    window.headingChanges = [];
+    new MutationObserver(() => window.headingChanges.push(heading.textContent)).observe(heading, { childList: true });
+  });
   let credential;
   await expect
     .poll(
@@ -159,15 +177,20 @@ try {
       )
       .toBe('responded');
   };
-  await respond('Native tool declined', 'Cancel');
-  await expect(target.getByRole('heading', { name: 'Waiting for a site tool' })).toBeVisible();
-  await respond('Native tool approved', 'Allow');
+  if (manual) {
+    console.log('In the Native sheets, click Cancel for “Native tool declined”, then Allow for “Native tool approved”.');
+  } else {
+    await respond('Native tool declined', 'Cancel');
+    await expect(target.getByRole('heading', { name: 'Waiting for a site tool' })).toBeVisible();
+    await respond('Native tool approved', 'Allow');
+  }
   assert.deepEqual(await exit, [0, null], log);
   const result = JSON.parse(await readFile(report, 'utf8'));
   const [reply] = JSON.parse(result.reply.replace(/^BROWSER_RESULT:/, ''));
   assert.equal(result.error, null, JSON.stringify(result));
   assert.equal(reply.isError, false, reply.text);
   await expect(target.getByRole('heading', { name: 'Native tool approved' })).toBeVisible();
+  assert.deepEqual(await target.evaluate(() => window.headingChanges), ['Native tool approved']);
   const evidence = JSON.parse(reply.text);
   const visit = resolve(
     profile,
@@ -181,7 +204,7 @@ try {
   await writeFile(
     resolve(output, 'result.json'),
     JSON.stringify(
-      { passed: true, installed: false, denied: evidence.denied, tab: evidence.tab, receipt },
+      { passed: true, installed: Boolean(installed), denied: evidence.denied, tab: evidence.tab, receipt },
       null,
       2,
     ),

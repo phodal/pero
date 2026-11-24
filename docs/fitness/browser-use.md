@@ -213,11 +213,12 @@ and in same-origin and cross-origin frames. Both check the returned schemas,
 private partner tools staying private, separate discovery and call consent,
 independent page effects, a saved receipt and a stale ID after reload.
 On macOS, `node tests/e2e/native-chrome-site-tools.mjs` uses the Native probe
-build, rebuilt connectors, Chrome for Testing, and Python REPL. System Events
-responds to the real Native approval sheets for the disposable fixture. The
-test checks the declined action leaves the page intact and the approved action
-changes it and saves a receipt. Evidence is written to
-`test-results/native-chrome-site-tools/result.json`.
+build, Chrome for Testing, and Python REPL. Set `PERO_NATIVE_REPL_INSTALLED_APP`
+to use the signed probe bundle and its packaged extension and Python. Set
+`PERO_NATIVE_SITE_TOOLS_MANUAL=1` to respond directly to the two approval
+sheets. The test checks that the approved action is the only page mutation
+and saves a receipt. The combined signed macOS candidate passed this check on
+2026-11-24. Evidence is written to `test-results/native-chrome-site-tools/result.json`.
 
 ### Chromium accessibility snapshots
 
