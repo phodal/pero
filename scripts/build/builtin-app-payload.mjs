@@ -53,6 +53,12 @@ export function verifyBuiltinAppDependencies(directory, name) {
     throw new Error(`${name} payload needs its own App directory and app.json`);
   }
   const root = realpathSync(directory);
+  for (const entry of GENERATED_BACKEND_FILES[name] ?? []) {
+    const path = resolve(root, entry);
+    if (!lstatSync(path, { throwIfNoEntry: false })?.isFile() || realpathSync(path) !== path) {
+      throw new Error(`${name} payload requires generated backend file ${entry}; build the App before packaging`);
+    }
+  }
   const manifest = JSON.parse(readFileSync(join(root, 'app.json'), 'utf8'));
   const dependencies = manifest.requiresAgentPlugins === undefined ? [] : manifest.requiresAgentPlugins;
   if (!Array.isArray(dependencies) || !dependencies.every(value =>
@@ -86,12 +92,7 @@ export function verifyBuiltinAppDependencies(directory, name) {
 /** Builtin distribution payload, shared by Workbench and standalone Products. */
 export function stageBuiltinApp(source, name, destination) {
   const root = realpathSync(source);
-  for (const entry of GENERATED_BACKEND_FILES[name] ?? []) {
-    const path = resolve(root, entry);
-    if (!lstatSync(path, { throwIfNoEntry: false })?.isFile() || realpathSync(path) !== path) {
-      throw new Error(`${name} payload requires generated backend file ${entry}; build the App before packaging`);
-    }
-  }
+  const plugins = verifyBuiltinAppDependencies(root, name);
   const extra = name === 'paper-agent' ? PAPER_ENTRIES
     : name === 'scientific-viewer' ? ['skills/molecular-report/SKILL.md'] : [];
   // Each App's advertised installed CLI/skill must ship together. Do not include an
@@ -102,7 +103,6 @@ export function stageBuiltinApp(source, name, destination) {
       throw new Error(`${name} payload requires a regular file inside its App: ${entry}`);
     }
   }
-  const plugins = verifyBuiltinAppDependencies(root, name);
   for (const entry of [...APP_ENTRIES, ...extra, ...plugins]) {
     const path = resolve(root, entry);
     if (existsSync(path)) cpSync(path, join(destination, entry), { recursive: true, filter: path => !path.includes('__pycache__') });

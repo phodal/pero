@@ -72,3 +72,13 @@ The installed macOS `0.1.2` package remains incomplete. The new source has
 not yet been released or installed, and opening the three Apps from a rebuilt
 macOS package in a fresh Native profile remains unverified. This issue stays
 open until that product acceptance is complete.
+
+## 2026-11-25 rebuilt package verification
+
+The independently mounted DMG verifier now checks the same generated inputs as
+staging. A signed test image that omitted `pero_source_tools.py` was rejected
+even though the staged App contained it. The rebuilt Native bundle opened
+Paper and Notebook in a new profile with the existing managed Python
+environment. Data's generated modules were verified inside the mounted DMG.
+The full research workflow and its scope are in [release verification](../fitness/release-products.md#native-research-project-handoff-2026-11-2425).
+The public package and the Data window still have separate acceptance criteria.

@@ -97,8 +97,8 @@ test('Builtin staging ships only each App’s declared CLI and skill additions',
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Builtin staging rejects missing generated backend inputs', async () => {
-  const { stageBuiltinApp } = await import('./builtin-app-payload.mjs');
+test('Builtin staging and archive verification reject missing generated backend inputs', async () => {
+  const { stageBuiltinApp, verifyBuiltinAppDependencies } = await import('./builtin-app-payload.mjs');
   const directory = mkdtempSync(join(tmpdir(), 'pero-generated-backend-'));
   const cases = [
     ['paper-agent', ['backend/pero_source_tools.py']],
@@ -118,8 +118,12 @@ test('Builtin staging rejects missing generated backend inputs', async () => {
         writeFileSync(join(source, missing), missing);
       }
       if (name !== 'paper-agent') {
-        stageBuiltinApp(source, name, join(directory, `${name}-complete`));
-        for (const file of generated) assert.equal(readFileSync(join(directory, `${name}-complete`, file), 'utf8'), file);
+        const payload = join(directory, `${name}-complete`);
+        stageBuiltinApp(source, name, payload);
+        verifyBuiltinAppDependencies(payload, name);
+        for (const file of generated) assert.equal(readFileSync(join(payload, file), 'utf8'), file);
+        rmSync(join(payload, generated[0]));
+        assert.throws(() => verifyBuiltinAppDependencies(payload, name), /requires generated backend file/);
       }
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }

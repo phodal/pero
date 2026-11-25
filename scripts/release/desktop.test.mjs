@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createMacOSDmg, withMountedMacOSDmg } from '../lib/macos-dmg.mjs';
 
-test('release verification rejects a DMG missing Paper’s plugin even when the staged App is valid', { skip: process.platform !== 'darwin' }, () => {
+test('release verification checks Paper dependencies in the DMG even when the staged App is valid', { skip: process.platform !== 'darwin' }, () => {
   const source = resolve(import.meta.dirname, '../..');
   const root = mkdtempSync(join(tmpdir(), 'pero-release-verification-'));
   try {
@@ -36,6 +36,8 @@ test('release verification rejects a DMG missing Paper’s plugin even when the 
     put(payload + '/desktop/dist/release.json', { sourceRevision: git('rev-parse', 'HEAD'), releaseTag: env.RELEASE_TAG, taskCenter: 'https://app.openpero.com', productId: 'com.openpero.desktop', platform: 'darwin', arch: process.arch, buildProvider: 'GitHub Actions' });
     put(payload + '/desktop/dist/main.cjs', 'const taskCenter = "https://app.openpero.com";');
     put(paper + '/app.json', { requiresAgentPlugins: ['paper-autoresearch'] });
+    const generated = paper + '/backend/pero_source_tools.py';
+    put(generated, '# generated module fixture\n');
     mkdirSync(join(app, 'Contents/MacOS'));
     mkdirSync(join(root, payload, 'bin'));
     put('main.c', 'int main(void) { return 0; }');
@@ -54,6 +56,16 @@ test('release verification rejects a DMG missing Paper’s plugin even when the 
     assert.match(rejected.stderr, /paper-agent payload .*Agent Plugin paper-autoresearch: plugin\.json/);
     assert.equal(existsSync(checksums), false);
     assert.deepEqual(readdirSync(env.TMPDIR), []);
+
+    rmSync(join(root, generated));
+    sign();
+    createMacOSDmg(app, 'Pero', archive);
+    put(generated, '# generated module fixture\n');
+    sign();
+    const missingGenerated = verify();
+    assert.equal(missingGenerated.status, 1, missingGenerated.stdout + missingGenerated.stderr);
+    assert.match(missingGenerated.stderr, /paper-agent payload requires generated backend file backend\/pero_source_tools\.py/);
+    assert.equal(existsSync(checksums), false);
 
     createMacOSDmg(app, 'Pero', archive);
     const accepted = verify();
