@@ -226,7 +226,9 @@ export default function PaperAgent() {
     if (importingPdf) return;
     setImportingPdf(true); setError('');
     try {
-      const response = await fetch(`/api/pdf/import?filename=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+      // WKWebView's custom App scheme drops File-backed HTTP body streams.
+      const bytes = await file.arrayBuffer();
+      const response = await fetch(`/api/pdf/import?filename=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: bytes });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail ?? t('pdfLoadError'));
       await added(result, true);

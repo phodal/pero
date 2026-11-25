@@ -303,22 +303,19 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                     let pdf=std::fs::read(std::env::var("PERO_NATIVE_PAPER_PDF")?)?;
                     query(root,"paper-agent",&format!("window.paperProbePdf={}",json!(pdf)),cx).await?;
                     query(root,"paper-agent",r#"(()=>{
-                      window.paperProbe={pending:true};
-                      (async()=>{
-                        const get=async(path,body)=>{const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();};
-                        const reply=await fetch('/api/pdf/import?filename=Research-paper.pdf',{method:'POST',headers:{'Content-Type':'application/pdf'},body:new Uint8Array(window.paperProbePdf)});
-                        if(!reply.ok)throw Error(await reply.text());const paper=await reply.json();
-                        document.querySelector('.pa-library-screen button[aria-label="Refresh"]').click();
-                        window.paperProbe={paperId:paper.id};
-                      })().catch(error=>window.paperProbe={error:String(error)});
+                      const input = new DataTransfer();
+                      input.items.add(new File([new Uint8Array(window.paperProbePdf)], 'Research-paper.pdf', {type:'application/pdf'}));
+                      document.querySelector('.pa-workbench').dispatchEvent(new DragEvent('drop', {bubbles:true,dataTransfer:input}));
+                      delete window.paperProbePdf;
                       return true;
                     })()"#,cx).await?;
                     stage=2;
                 }
             }
             2=>{
-                let clicked=query(root,"paper-agent",r#"(()=>{const button=document.querySelector('.pa-library-list .pero-list-open');if(!button)return false;button.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));return true;})()"#,cx).await?;
-                if clicked==true {stage=3;}
+                let imported=query(root,"paper-agent",r#"({ready:!!document.querySelector('.pa-reading-bar'),error:document.querySelector('.pa-global-error')?.textContent??''})"#,cx).await?;
+                anyhow::ensure!(imported["error"]=="","Native PDF import failed: {imported}");
+                if imported["ready"]==true {stage=3;}
             }
             3=>{
                 let active=window.update(cx,|_,window,cx|{if window.is_window_active(){true}else{window.activate_window();cx.activate(true);false}})?;
@@ -356,8 +353,8 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
                 }
             }
             6=>{
-                let value=query(root,"paper-agent",r#"(()=>{if(!window.paperProbeReading){window.paperProbeReading=true;fetch('/api/library').then(r=>r.json()).then(value=>{window.paperProbeLibrary=value;window.paperProbeReading=false;});}return {library:window.paperProbeLibrary,error:window.paperProbe?.error};})()"#,cx).await?;
-                anyhow::ensure!(value["error"].is_null(),"Native App failed: {value}");
+                let value=query(root,"paper-agent",r#"(()=>{if(!window.paperProbeReading){window.paperProbeReading=true;fetch('/api/library').then(r=>r.json()).then(value=>{window.paperProbeLibrary=value;}).finally(()=>{window.paperProbeReading=false;});}return {library:window.paperProbeLibrary,error:document.querySelector('.pa-global-error')?.textContent??''};})()"#,cx).await?;
+                anyhow::ensure!(value["error"]=="","Native App failed: {value}");
                 last=cx.update(|cx|root.read(cx).chat.read(cx).snapshot(cx));
                 if value["library"]["reports"].as_array().is_some_and(|r|!r.is_empty()) {
                     let active=last["activeChat"].as_u64().unwrap_or(0) as usize;
@@ -393,7 +390,7 @@ async fn verify_paper_chat(root:&Entity<Workbench>,window:AnyWindowHandle,cx:&mu
             8=>{
                 let highlighted=query(root,"paper-agent","!!document.querySelector('[data-citation-region=\"true\"]')",cx).await.unwrap_or(Value::Null);
                 if highlighted==true {
-                    return Ok(json!({"passed":true,"realModel":real_model,"checks":["native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events, reopens the App and highlights PDF"],"resize":resize,"library":library,"chat":last}));
+                    return Ok(json!({"passed":true,"realModel":real_model,"checks":["native Paper file drop imports the PDF","native Paper Ask freezes App context without auto-send","shared Host saves an exact PDF evidence report","native Chat source button receives real pointer events, reopens the App and highlights PDF"],"resize":resize,"library":library,"chat":last}));
                 }
             }
             _=>unreachable!(),
