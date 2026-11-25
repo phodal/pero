@@ -498,7 +498,7 @@ function Notebook() {
             <IconButton label={t('notebooks')} title={t('expandNotebooks')} aria-expanded={false} aria-controls="notebook-list"
               onClick={() => setNavigationOpen(true)}><Icon name="panel-left-open" /></IconButton>
           </div>}
-          {!shown || !draft || !current ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
+          {!shown || !draft ? (openError ? null : <LoadingSkeleton label={t('loading')}><SkeletonBlock shape="title" width="40%" /><SkeletonText /></LoadingSkeleton>)
             : <div className="notebook-document" onKeyDownCapture={event => {
               const action = snapshot ? null : documentHistoryShortcut(event);
               if (!action) return;

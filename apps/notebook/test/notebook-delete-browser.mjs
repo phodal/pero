@@ -68,11 +68,15 @@ test('Notebook links reopen saved revisions and deletion confirms inside the App
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', dialog => { nativeDialogs.push(dialog.type()); void dialog.dismiss(); });
   page.on('request', request => { if (request.method() === 'DELETE') deletions.push(request.url()); });
+  // A cold Project link must open the pinned revision even when the current
+  // editable record has not loaded. The revision has its own endpoint.
+  await page.route('**' + selectedPath, route => route.request().method() === 'GET'
+    ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Current entry temporarily unavailable' }) })
+    : route.continue());
   await page.goto(origin);
   const rows = page.locator('.notebook-list li');
   const title = page.getByRole('textbox', { name: 'Notebook title', exact: true });
-  await rows.filter({ hasText: 'Selected notebook' }).locator('.pero-list-open').click();
-  await expect(title).toHaveValue('Selected notebook');
+  await expect(rows.filter({ hasText: 'Selected notebook' })).toBeVisible();
   const openRevision = revision => page.evaluate(({ id, revision }) => window.postMessage({
     type: 'pero:app:location', location: `entry/${id}/revision/${revision}`,
   }, location.origin), { id: entries[1].id, revision });
@@ -81,6 +85,7 @@ test('Notebook links reopen saved revisions and deletion confirms inside the App
   await expect(title).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Notebook content', exact: true })).toHaveAttribute('contenteditable', 'false');
   await expect(page.locator('.notebook-status')).toHaveText('Revision 3');
+  await page.unroute('**' + selectedPath);
   await page.getByRole('button', { name: 'Return to current notebook', exact: true }).click();
   await expect(title).toHaveValue('Selected notebook');
   await openRevision(99);
