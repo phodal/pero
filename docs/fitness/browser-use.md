@@ -965,6 +965,26 @@ bytes and receipt after relaunch, then removes the two fixture credentials.
 This passed in an isolated copy of the Native bundle. Evidence is under
 `test-results/installed-shared-project-sources/`. The Cloud API was a loopback
 fixture. A hosted deployment still needs acceptance.
+
+The 2026-11-24 repeat checked a fresh ad-hoc-signed probe copy of the rebuilt
+macOS bundle. The writer and reader used distinct Cloud identities against an
+isolated Go/PostgreSQL instance. The writer's reviewed preview SHA-256 selected
+the exact record in the reader's Materials, and the same reader identity and
+receipt were recovered from Keychain after restart. The runner now reports an
+early Native exit directly. A binary built without `native-probe` previously
+reported a misleading timeout before pairing. The separate `chrome-sidebar.mjs`
+run passed retry after a dropped response, panel reload, navigation and Host
+restart using the original receipt.
+
+For hosted acceptance, run `node tests/e2e/native-shared-project-sources.mjs`
+with `PERO_TEST_SHARED_SOURCES_APP` pointing to a signed probe copy,
+`PERO_SHARED_SOURCES_ORIGIN` set to the HTTPS service, and
+`PERO_SHARED_SOURCES_PROJECT` set to an approved disposable shared Project.
+Supply `PERO_SHARED_SOURCES_WRITER` and `PERO_SHARED_SOURCES_READER` through the
+local test environment. Both identities must already have access. The runner
+checks identity and Project membership before saving a uniquely named loopback
+excerpt. The hosted test leaves that excerpt in the selected Project.
+
 # Signed Native Chrome REPL verification
 
 The signed Native candidate ran the real Codex agent over the bundled Python

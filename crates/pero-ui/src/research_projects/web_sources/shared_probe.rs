@@ -13,15 +13,21 @@ pub(crate) async fn verify(
     cx: &mut AsyncApp,
 ) -> anyhow::Result<Value> {
     let origin = std::env::var("PERO_SHARED_SOURCES_ORIGIN")?;
+    let project = std::env::var("PERO_SHARED_SOURCES_PROJECT")?;
     anyhow::ensure!(
-        origin.starts_with("http://127.0.0.1:"),
-        "Expected a loopback Cloud fixture"
+        origin.starts_with("http://127.0.0.1:") || origin.starts_with("https://"),
+        "Expected a loopback or HTTPS Cloud service"
     );
     let files = PathBuf::from(
         std::env::var_os("PERO_SHARED_SOURCES_FILES")
             .ok_or_else(|| anyhow::anyhow!("Missing fixture path"))?,
     );
     let phase = std::env::args().nth(4).unwrap_or_default();
+    let saved_digest = if phase == "write" {
+        None
+    } else {
+        Some(std::fs::read_to_string(files.join("saved"))?)
+    };
     if phase != "restore" {
         let token = std::env::var("PERO_SHARED_SOURCES_CLIENT")?;
         cx.update(|cx| {
@@ -74,7 +80,7 @@ pub(crate) async fn verify(
                     "Unknown fixture phase"
                 );
                 if !opened {
-                    root.open_project("shared:lab".into(), window, cx);
+                    root.open_project(format!("shared:{project}"), window, cx);
                     root.select_project_view(ProjectTab::ResearchResources, cx);
                     opened = true;
                 }
@@ -103,9 +109,10 @@ pub(crate) async fn verify(
                     } else if !asked {
                         let id = view
                             .sources
-                            .first()
+                            .iter()
+                            .find(|source| Some(source.sha256.as_str()) == saved_digest.as_deref())
                             .ok_or_else(|| {
-                                anyhow::anyhow!("Native shared Materials listed no sources")
+                                anyhow::anyhow!("Native shared Materials did not list the saved source")
                             })?
                             .id
                             .clone();
