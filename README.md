@@ -62,6 +62,10 @@ When a report is saved, close the chat and open **Research record** (the reader'
 
 ![Review a saved report and follow its citations](docs/assets/openpero-paper-research-04-review.svg)
 
+### 5. Keep evidence in a project
+
+In **Projects**, create a local research project. Export the saved Paper report as JSON. In **Notebook**, add an **Evidence** block, import the report and choose a citation. Add a **Finding**, select the evidence it relies on and save the revision. In the project's **Materials & experiments**, choose **Link existing records → Notebook** and link that revision. Reopen it from the project to review the saved Finding and its original source.
+
 More: [Paper usage and boundaries](apps/paper-agent/README.md#pdf-reading) · [Recorded Paper journey](docs/fitness/paper-harness-journey.md).
 
 ### More research Apps
@@ -78,20 +82,20 @@ This is a curated single-result reanalysis, not general paper reproduction; the 
 ## Try Pero
 
 > [!NOTE]
-> **Development preview.** Capabilities follow current source; downloaded packages may lag behind. The walkthrough uses November 4 controls, with no new installed-package or real-model acceptance claimed here.
+> **Development preview.** Capabilities follow current source. The illustrations show the November 4 controls. See the version-specific release notes and [installation evidence](docs/fitness/release-products.md) for the downloaded build.
 
 ### Download a development build
 
-The [2026-11-04 prerelease](https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261104) provides these packages. Check [Releases](https://github.com/phodal/pero/releases) for newer builds and read the release notes.
+Open the [latest published release](https://github.com/phodal/pero/releases/latest) and read its notes before choosing an asset. The filenames below are from v0.1.0.
 
 | Product | Platform | Asset |
 | --- | --- | --- |
-| Pero, native workbench | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
+| Pero, native workbench | macOS Apple Silicon | `Pero-Native-macos-arm64.dmg` |
 | Pero, Electron workbench | Windows x64 | `Pero-windows-x64.zip` |
 | Pero, Electron workbench | Linux x64 | `Pero-linux-x64.tar.gz` |
-| Pero Electron, optional workbench | macOS Apple Silicon | `Pero-Electron-macos-arm64.dmg` |
+| Pero Electron, optional workbench | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
 
-Build metadata and SHA256SUMS accompany the downloads. macOS packages are ad-hoc signed, not notarized; Windows/Linux packages are unsigned. Electron and Native use separate profiles. Use **Electron** for the Paper walkthrough above; Native has a [fresh-profile limitation](DEVELOPMENT.md#native-fresh-profile-limitation). See [release verification](docs/fitness/release-products.md).
+Build metadata and SHA256SUMS accompany the downloads. macOS packages use ad-hoc signatures without notarization. Windows and Linux packages are unsigned. Electron and Native use separate profiles. For the November 4 preview, use **Electron** for Paper. See the [recorded Native first-use issue](DEVELOPMENT.md#native-fresh-profile-limitation).
 
 ### Run from source
 

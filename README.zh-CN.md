@@ -62,6 +62,10 @@ Pero 把论文原文、科研 App 和 Agent 对话放进同一个桌面工作台
 
 ![回查：打开保存的报告，通过引用核对原文](docs/assets/openpero-paper-research-04-review.zh-CN.svg)
 
+### 5. 把证据留在项目中
+
+在 **Projects** 创建本地研究项目。在 Paper 将已保存的报告导出为 JSON。在 **Notebook** 插入 **Evidence** 块，导入报告并选定一条引文。添加 **Finding**，勾选支持它的证据并保存修订。在项目的**资料与实验**里选择**关联已有记录 → Notebook**，关联该修订。从项目重开，即可查看保存的 Finding 并回到原始证据。
+
 详见 [Paper 使用与边界](apps/paper-agent/README.md#pdf-reading) · [已有 Paper 流程记录](docs/fitness/paper-harness-journey.md)。
 
 ### 更多科研 App
@@ -78,20 +82,20 @@ Pero 把论文原文、科研 App 和 Agent 对话放进同一个桌面工作台
 ## 开始体验
 
 > [!NOTE]
-> **开发预览。** 能力说明对应当前源码，下载包可能落后。上手步骤使用 11 月 4 日版本的控件；本次文档更新不代表重新验收了安装包或真实模型。
+> **开发预览。** 能力说明对应当前源码，示意图沿用 11 月 4 日版本的控件。下载包的能力和验收范围以对应版本的发布说明和[安装验证记录](docs/fitness/release-products.md)为准。
 
 ### 下载开发版
 
-[2026-11-04 开发预览版](https://github.com/phodal/pero/releases/tag/v0.1.0-dev.20261104)提供以下安装包。更新版本请查看 [Releases](https://github.com/phodal/pero/releases)，并阅读发布说明。
+打开[最新公开发布页](https://github.com/phodal/pero/releases/latest)，按发布说明选择对应的文件。下表使用 v0.1.0 的文件名。
 
 | 产品 | 平台 | 文件 |
 | --- | --- | --- |
-| Pero，原生工作台 | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
+| Pero，原生工作台 | macOS Apple Silicon | `Pero-Native-macos-arm64.dmg` |
 | Pero，Electron 工作台 | Windows x64 | `Pero-windows-x64.zip` |
 | Pero，Electron 工作台 | Linux x64 | `Pero-linux-x64.tar.gz` |
-| Pero Electron，可选工作台 | macOS Apple Silicon | `Pero-Electron-macos-arm64.dmg` |
+| Pero Electron，可选工作台 | macOS Apple Silicon | `Pero-macos-arm64.dmg` |
 
-下载页附有构建信息和 SHA256SUMS。macOS 包为 ad-hoc 签名，未经公证；Windows/Linux 包未签名。Electron 与 Native 使用独立配置。首次体验建议用 **Electron**；Native 有[新配置限制](DEVELOPMENT.md#native-fresh-profile-limitation)。详见[发行验证记录](docs/fitness/release-products.md)。
+下载页附有构建信息和 SHA256SUMS。macOS 包采用 ad-hoc 签名，尚未公证。Windows 与 Linux 包未签名。Electron 与 Native 使用独立配置。使用 11 月 4 日预览包体验 Paper 时请选择 **Electron**。详见 [Native 首次启动问题记录](DEVELOPMENT.md#native-fresh-profile-limitation)。
 
 ### 从源码运行
 

@@ -233,3 +233,33 @@ press, the Host recorded `executed`, and the fixture independently recorded
 Count=1. Both 1200 × 944 AppKit JPEGs matched the corresponding ACP payloads
 byte for byte by SHA-256. The same run read the WebKit screenshot marker
 `1F4032`. Evidence is in `target/native-repl-dmg-grants-verified/native-repl-codex/`.
+
+## Native research project handoff, 2026-11-24–25
+
+A new profile using the existing managed Python environment reproduced the
+Paper startup failure in the locally installed 0.1.2 App. The ordinary rebuilt
+bundle opened Paper and Notebook. A real macOS file-picker import exposed a
+separate WebKit issue: passing `File` to `fetch` sent an empty request body.
+After buffering the bytes, the picker imported all 26 pages of the pinned
+Meta-Harness v1 PDF. An ad-hoc-signed probe copy of the DMG also exercised the
+App's import handler and reached the exact citation from a real DeepSeek turn.
+
+In the ordinary bundle, a real DeepSeek turn produced a saved Paper report.
+**Export JSON** wrote the report to disk. Notebook imported a page-four excerpt,
+saved a Finding with that evidence in revision 2, and Project Materials linked
+that revision. Before the Notebook fix, reopening from a cold Project left
+the saved snapshot on the loading screen because the editable head had not
+loaded. The browser regression reproduces this with an unavailable editable
+entry. With the fix in the final local bundle, restarting to Projects and
+opening the linked record showed revision 2 read-only, including the claim and
+the same excerpt. **Open in Paper Agent** opened page 4 of the original 26-page
+PDF with its original digest. The research profile recorded one provider
+submission and one finished turn across the reopen.
+
+The first attempt in the ordinary bundle was rejected by the workspace lease
+while the separate signed probe was running in the same workspace. The probe
+was allowed to finish before the successful submission. First-submit draft
+recovery was checked separately in the scripted Electron Project Agent suite.
+The final DMG is a local ad-hoc-signed build. Public release rollout, a Mac
+without an existing managed Python environment, and live Cloud acceptance are
+separate checks. Local artifacts are under `test-results/next-priorities/`.
