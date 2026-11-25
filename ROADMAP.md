@@ -437,7 +437,7 @@
 - [x] Browser Use（Electron 工作台）. 授权当前会话读取和操作所选标签与站点，支持页面观察、定位器、表单状态与操作、条件等待、同源 iframe、可信输入和视口截图。独立标签以实例保存历史和状态，支持返回、前进和刷新。上传复用会话附件，下载返回 Host Artifact 版本回执。见 [Browser Use 验证](docs/fitness/browser-use.md)。
 - [x] Browser Use（macOS Native 内置浏览器）. WKWebView 已验证会话授权、可信输入、标签与历史、文件传递和对话框。证据来自 Native 开发版、本地 ad-hoc 签名探针包与 ACP 替身。见 [Native Browser Use](docs/fitness/browser-use.md#macos-pero-native)。
 - [x] Chrome 配对与侧栏聊天. macOS Native 已通过设置与日用 Chrome 配对，侧栏可向绑定会话发送消息。已在安装版观察真实 Codex 回复，并验证从 Native 断开。见 [Chrome 侧栏验证](docs/fitness/browser-use.md#installed-native-and-daily-chrome-sidebar-2026-11-23)。
-- [ ] Chrome 项目采集. Chrome 已验证右键入口、原回执恢复，以及本地签名探针包上两个独立身份的共享 Materials 读写和重启回查。验收：在托管服务中用两个获准测试身份保存并回查同一条来源。见[采集验证](docs/fitness/browser-use.md#project-sources-from-chrome-collector)。
+- [x] Chrome 项目采集. 已验证右键入口和原回执恢复。托管服务中，一个测试身份通过 Collector 保存，另一个在 Native Materials 打开同一来源并在重启后回查。两个身份读取的来源 ID 与 SHA-256 完全一致。见[托管双账号验收](docs/fitness/browser-use.md#hosted-two-account-acceptance-2026-11-25)。
 - [x] Chrome 站点工具与诊断. macOS 本地 ad-hoc 签名探针包已验证单独授权的 WebMCP、诊断事件和 iframe 访问范围，撤销后停止访问。见 [Chrome Relay 验证](docs/fitness/browser-use.md#external-chrome-from-native-workbench)。
 
 ### 桌面与终端

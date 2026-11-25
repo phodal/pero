@@ -962,9 +962,8 @@ the probe binary to run the same test against the bundled Host, Node and
 Chrome extension. This lane uses the macOS Keychain and starts the reader
 again without supplying a token. It asserts the same client identity, source
 bytes and receipt after relaunch, then removes the two fixture credentials.
-This passed in an isolated copy of the Native bundle. Evidence is under
-`test-results/installed-shared-project-sources/`. The Cloud API was a loopback
-fixture. A hosted deployment still needs acceptance.
+This passed in an isolated copy of the Native bundle against the loopback
+Cloud API. Evidence is under `test-results/installed-shared-project-sources/`.
 
 The 2026-11-24 repeat checked a fresh ad-hoc-signed probe copy of the rebuilt
 macOS bundle. The writer and reader used distinct Cloud identities against an
@@ -984,6 +983,24 @@ Supply `PERO_SHARED_SOURCES_WRITER` and `PERO_SHARED_SOURCES_READER` through the
 local test environment. Both identities must already have access. The runner
 checks identity and Project membership before saving a uniquely named loopback
 excerpt. The hosted test leaves that excerpt in the selected Project.
+
+### Hosted two-account acceptance, 2026-11-25
+
+On `https://app.openpero.com`, two independent hosted Client identities were
+scoped to the empty test Project `materials-acceptance-20261125-3a038d88`.
+Chrome for Testing used the extension from the signed Native probe bundle.
+The writer reviewed and saved a synthetic excerpt through Collector. The
+reader opened that exact source in Native Materials, then reopened it after
+relaunching with the restored Keychain identity. Separate authenticated HTTPS
+reads confirmed that both identities listed exactly one matching source and
+received the same saved content, capture ID and SHA-256.
+
+The capture ID is `697fcec5-a505-4f5f-98d8-f9c6fdfc94bf` and the SHA-256 is
+`3c4bb965770cb2b8f034475d41adf96129418bcb937628f588dfa70a6fe4f39c`.
+The receipt and Collector screenshot are under
+`test-results/hosted-shared-project-sources/`. The test source and Client records
+remain in the isolated hosted Project. The runner removed both local fixture
+Keychain entries after verification.
 
 # Signed Native Chrome REPL verification
 
