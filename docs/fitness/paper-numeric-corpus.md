@@ -149,3 +149,11 @@ caption does not independently supply this numeric point. The initial unresolved
 record is retained. This proves real-input storage/calibration/report wiring,
 not human approval, independently validated scientific accuracy, or a successful
 reproduction. The replayed visual choices are explicitly AI-labelled assertions.
+
+## Figure 10 digitization recheck — 2026-11-24
+
+The original TN-2825 PDF was obtained from the [UNT government document archive](https://digital.library.unt.edu/ark:/67531/metadc56347/m2/1/high_res_d/19930083484.pdf). Its SHA-256 matched the pinned NASA original. The production `numeric_reference.py` path rejected an unresolved observation, froze the explicit AI-reviewed PDFium reading, and reopened the same PDF, crop and reference from a new store. The scope is the upper-surface NACA 0006 curve at the printed Mach `.7` tick and 4° angle of attack on PDF page 28.
+
+An independent Poppler 26.04.0 render at 185 DPI used the full 1619 × 2071 page. Reading the crossing at x=910 and y=520–526 against `.8` at y=272 and `0` at y=945 gives a digitization interval of approximately **0.498–0.505**. This contains the frozen PDFium reading of approximately **0.50**. The interval reflects the chosen stroke bounds in this scan. It carries no statistical interpretation. The checker returns `INCONCLUSIVE` without a matching frozen reference and rejects altered source, rendered page or frozen-reference content.
+
+The archive contains the original, both images, frozen report and a Python standard-library checker. Extract it and run `python3 -I -S verify_tn2825_figure.py`. Rechecking the extracted archive produced `CONSISTENT` for digitization and `INCONCLUSIVE` for the original paper's experimental claim. Both readings use the same published scan and the reference review is AI-labelled.
