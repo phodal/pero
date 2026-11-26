@@ -175,3 +175,33 @@ signature enters ACP surface events. Expect ten loopback requests total.
 This is synthetic protocol and session-restart evidence. Real DeepSeek
 acceptance, Files and Desktop Host wiring are separate; signed mode remains
 opt-in and existing launch defaults are unchanged.
+
+## Upstream-only Files replay and fallback baseline
+
+Run without a Pero binary:
+
+```sh
+PERO_ACP_DSH_FILES=1 node scripts/harness/compare-acp-alpha2.mjs \
+  "$scratch/node_modules/@deepseek-ai/dsh/package.json"
+```
+
+This lane starts the actual alpha.2 ACP executable three times. It uses a
+disposable profile patch to select the upstream catalog's image-capable
+`deepseek-flash` route and serialize uploads for the test. The stock ACP
+profile did not advertise image prompts against the loopback catalog.
+Only two synthetic PNG swatches and fake credentials are used.
+
+1. The first process uploads both images and sends both returned file IDs.
+2. Resume with the same credentials makes no request on its own. The next
+   prompt sends the same two IDs from durable history without uploading.
+3. Resume with changed credentials again makes no request on its own. The
+   next prompt attempts both uploads under the new credential. The fixture
+   accepts one and rejects the other. The resulting Messages request uses
+   inline base64 for **both** images, with exact byte equality and no file IDs.
+
+Expect four upload requests and three Messages requests. This measures
+upstream behavior only. It does not show that Pero supports Files or that
+the live service behaves like the fixture. The
+[upstream attachment contract](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/attachment/attachment/README.md)
+also distinguishes raster inputs from generic files such as PDFs, which
+stay local and are read on demand. No PDF or user file is part of this test.

@@ -8,9 +8,11 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { createFilesFixture, compareDSHFiles } from './compare-dsh-alpha2-files.mjs';
 
 const [dshPackage, peroBinary] = process.argv.slice(2);
-assert.ok(dshPackage && peroBinary,
+const filesLane = process.env.PERO_ACP_DSH_FILES === '1';
+assert.ok(dshPackage && (peroBinary || filesLane),
   'usage: node scripts/harness/compare-acp-alpha2.mjs <DSH package.json> <pero-agent-acp binary>');
 const manifest = JSON.parse(await readFile(dshPackage, 'utf8'));
 const dshVersion = '0.2.3-alpha.2';
@@ -31,9 +33,11 @@ const key = 'offline-fixture-only';
 const replayKey = 'ab'.repeat(32);
 const thought = 'synthetic fixture thought';
 const signature = 'synthetic-fixture-signature';
+const filesFixture = filesLane ? createFilesFixture(key) : null;
 const provider = createServer(async (request, response) => {
   providerRequests++;
   try {
+    if (filesFixture) return await filesFixture.handle(request, response);
     assert.ok(plan, 'unexpected provider request');
     const { engine, sessionId, cancel, cancelled, stages } = plan;
     const dsh = engine.name === 'dsh';
@@ -146,7 +150,7 @@ async function withAgent(engine, paths, run) {
       DSH_HOME: join(paths.home, 'dsh'),
       DSH_TELEMETRY_DISABLED: '1',
       DEEPSEEK_BASE_URL: endpoint,
-      DEEPSEEK_API_KEY: key,
+      DEEPSEEK_API_KEY: engine.credential ?? key,
       PERO_FIXTURE_API_KEY: engine.credential ?? key,
       ...(engine.signed && {PERO_FIXTURE_REPLAY_KEY: replayKey}),
     },
@@ -357,19 +361,26 @@ async function compare(engine) {
 try {
   provider.listen(0, '127.0.0.1');
   await once(provider, 'listening');
-  const engines = [
-    { name: 'dsh', command: process.execPath, args: () => [dshEntry, '--profile', 'acp'] },
-    { name: 'pero', messages: messagesLane, signed: signedLane, command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
-      '--endpoint', endpoint + (messagesLane ? '/anthropic' : '/v1'),
-      ...(messagesLane ? ['--api-format', 'deepseek-messages', '--max-tokens', '128'] : []),
-      ...(signedLane ? ['--messages-replay-key-env', 'PERO_FIXTURE_REPLAY_KEY'] : []), '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
-      '--session-dir', join(home, 'sessions'), ...(effects ? ['--workspace', workspace] : []), '--approval', effects ? 'ask' : 'never',
-    ] },
-  ];
-  const results = [];
-  for (const engine of engines) results.push(await compare(engine));
-  assert.equal(providerRequests, signedLane ? 10 : messagesLane ? 9 : effects ? 8 : 0, 'unexpected provider request count');
-  console.log(JSON.stringify({ dshVersion, scope: effects ? 'loopback provider; write, cancel and restart' : 'empty ACP lifecycle; no prompts', providerRequests, results }, null, 2));
+  if (filesFixture) {
+    const result = await compareDSHFiles({root, dshEntry, key, withAgent, fixture: filesFixture});
+    assert.deepEqual(fixtureErrors, []);
+    assert.equal(providerRequests, 7);
+    console.log(JSON.stringify({dshVersion, providerRequests, ...result}, null, 2));
+  } else {
+    const engines = [
+      { name: 'dsh', command: process.execPath, args: () => [dshEntry, '--profile', 'acp'] },
+      { name: 'pero', messages: messagesLane, signed: signedLane, command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
+        '--endpoint', endpoint + (messagesLane ? '/anthropic' : '/v1'),
+        ...(messagesLane ? ['--api-format', 'deepseek-messages', '--max-tokens', '128'] : []),
+        ...(signedLane ? ['--messages-replay-key-env', 'PERO_FIXTURE_REPLAY_KEY'] : []), '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
+        '--session-dir', join(home, 'sessions'), ...(effects ? ['--workspace', workspace] : []), '--approval', effects ? 'ask' : 'never',
+      ] },
+    ];
+    const results = [];
+    for (const engine of engines) results.push(await compare(engine));
+    assert.equal(providerRequests, signedLane ? 10 : messagesLane ? 9 : effects ? 8 : 0, 'unexpected provider request count');
+    console.log(JSON.stringify({ dshVersion, scope: effects ? 'loopback provider; write, cancel and restart' : 'empty ACP lifecycle; no prompts', providerRequests, results }, null, 2));
+  }
 } finally {
   provider.closeAllConnections();
   if (provider.listening) await new Promise(resolveClose => provider.close(resolveClose));
