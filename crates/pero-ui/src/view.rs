@@ -314,6 +314,8 @@ impl Workbench {
 
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(target_family = "wasm")]
+        pero_chat_ui::ChatPanel::clear_desktop_surface();
         let dragging = window.use_keyed_state("window-chrome", cx, |_, _| false);
         self.view_bounds.clear();
         self.leave_settings_route(window, cx);

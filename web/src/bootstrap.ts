@@ -15,6 +15,7 @@ import { normalizeLocale, translate } from '../../locales';
 import { mountAppSurfaces, type AppSurface, type AppSurfaceBatch } from './apps';
 import { admitAgents, exchangeMcpSettings } from './mcp-settings-bridge';
 import { mountArtifactPreview, type ArtifactSurface } from './artifact-preview';
+import { mountLinuxDesktop, type LinuxDesktopHost } from './linux-desktop-surface';
 
 export interface HostEvent { version: number; kind: string; request_id: string | null; text: string; message_key?: string; thread_id?: string; data?: unknown }
 declare global {
@@ -25,11 +26,12 @@ declare global {
     peroPrepareWindowClose():Promise<boolean>;
     peroWindowCloseResult(ready:boolean):void;
     peroAllowUnloadOnce?:boolean;
-    pero?: { shortcutMenu(menu:import('../../protocol/generated/shortcuts').ShortcutMenu):Promise<void>; webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
+    pero?: LinuxDesktopHost & { shortcutMenu(menu:import('../../protocol/generated/shortcuts').ShortcutMenu):Promise<void>; webCommand(command:object):Promise<void>; readContent(request:ConversationReadParameters):Promise<ContentChunk>; connect(): Promise<HostEvent>; getLocale(): Promise<string>; setLocale(locale: string): Promise<void>; sendProbe(request: { id: string; text: string }): Promise<void>; onEvent(callback: (event: HostEvent) => void): () => void; sessionCommand(command: object): Promise<void>; remoteCommand(command: object): Promise<void>; computerCommand(command: object): Promise<unknown>; appsCommand(command: object): Promise<void>; appUseCommand(command: object): Promise<unknown>; chooseWorkspace(): Promise<void>; chooseContext(command?: object): Promise<void> };
     peroSendProbe(json: string): void;
     peroSetLocale(locale: string): void;
     peroSessionCommand(json: string): void;
     peroAppSurface(json: string): void;
+    peroLinuxDesktopSurface(json: string): void;
     peroArtifactSurface(json: string): void;
     peroOpenAppLocation(json:string):void;
     peroAppChatOverlay(json: string): void;
@@ -52,6 +54,7 @@ try {
   await init();
   const mcpSurfaces=mountMcpSurfaces();
   window.peroMcpAppSurface=json=>mcpSurfaces.update(JSON.parse(json));
+  window.peroLinuxDesktopSurface = window.pero ? mountLinuxDesktop(window.pero, t('linux_desktop.title')) : () => {};
   const artifactPreview = mountArtifactPreview(
     (target, text, id) => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_compose', request_id: id, text, data: target })),
     target => receive_host_event(JSON.stringify({ version: 1, kind: 'artifact_select', request_id: null, text: '', data: target })),
