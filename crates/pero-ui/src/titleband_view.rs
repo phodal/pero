@@ -161,6 +161,7 @@ impl Workbench {
                     pero_chat_ui::ResourcePrimary::Files => titleband::ResourcePrimary::Files,
                     pero_chat_ui::ResourcePrimary::Artifacts => titleband::ResourcePrimary::Artifacts,
                     pero_chat_ui::ResourcePrimary::Changes => titleband::ResourcePrimary::Changes,
+                    pero_chat_ui::ResourcePrimary::Desktop => titleband::ResourcePrimary::Desktop,
                 },
             }
         }).or_else(|| self.project_inspector_width(viewport_width, cx).map(|width| {

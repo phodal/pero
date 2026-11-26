@@ -392,6 +392,37 @@ uses a scripted ACP agent and a development Electron build. Provider-driven
 Linux GUI actions, signed packages, and a Native workbench viewer are outside
 this evidence.
 
+### Conversation Desktop tab on Linux, 2026-11-26
+
+Source: `975c93b14` with the conversation resources integration applied.
+The development Electron 45.1.0 arm64 build ran inside an Ubuntu 24.04.4
+Linux VM on an Xvfb display with software WebGL. Docker Engine 29.2.1 ran
+the existing `pero/linux-desktop:dev` X11 guest from the same VM. The
+Rust Host was built from the matching source and used a scripted ACP agent.
+
+The suite opened **Desktop** from Composer, dragged the shared resource
+splitter, and switched between Desktop, Files, and Artifacts while retaining
+the viewer. A real Mousepad window proved that the watching connection
+ignored input. In manual mode the agent was denied and the user saved
+`Agent-Human` through noVNC. Explicit return rejected the stale observation.
+The agent then observed again and saved `Agent-Human-Resumed`, verified
+independently inside the container. Switching to Artifacts during manual
+control returned the desktop to watching and retained the guest. The native
+stop confirmation, guest exit, restart, and cleanup also passed.
+
+The Linux Workbench capture shows the resource navigation above the noVNC
+surface during manual control. A repeat with X11 pointer and keyboard
+input verified tab switching, keyboard focus in view-only mode, and the same
+file contents after manual input and return. The standard test writes to
+`test-results/linux-desktop/`. This lane exercised an isolated X11 guest,
+a development build, and a scripted agent.
+
+```sh
+PERO_TEST_HEADED=1 PERO_TEST_SOFTWARE_GL=1 \
+  PERO_REMOTE_DESKTOP_DOCKER_SOCKET=/var/run/docker.sock \
+  xvfb-run -a -s "-screen 0 1600x1000x24" node tests/e2e/linux-desktop.mjs
+```
+
 ### SSH Host and paired-viewer follow-up
 
 The SSH lanes use the Colima Linux machine's real OpenSSH server and a Host

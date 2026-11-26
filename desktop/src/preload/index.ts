@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('peroLinuxDesktopAvailable', process.platform !== 'win32');
 contextBridge.exposeInMainWorld('pero', {
+  linuxDesktopAction: (action: unknown, value: unknown) => ipcRenderer.invoke('pero:linux-desktop', action, value),
+  onLinuxDesktop: (callback: (state: unknown) => void) => {
+    ipcRenderer.on('pero:linux-desktop-state', (_, state) => callback(state));
+    ipcRenderer.on('pero:linux-desktop-unmount', () => callback(null));
+  },
+  linuxDesktopSurface: (surface: unknown) => ipcRenderer.invoke('pero:linux-desktop-surface', surface),
   connect: () => ipcRenderer.invoke('pero:connect'),
   getLocale: () => ipcRenderer.invoke('pero:locale:get'),
   setLocale: (locale: string) => ipcRenderer.invoke('pero:locale:set', locale),

@@ -3,6 +3,7 @@ use crate::{
     content_reader::{ContentReader, ReaderAction},
     file_tree::FileTree,
     panel::{ChatAction, ChatPanel},
+    session_artifacts::ResourceView,
 };
 use gpui_kit::{prelude::*, *};
 use pero_contracts::{
@@ -67,8 +68,7 @@ impl ChatPanel {
             .conversations
             .entry(thread.into())
             .or_default();
-        state.show_pane();
-        state.show_changes = false;
+        state.show_pane(ResourceView::Contents);
         cx.emit(ChatAction::ResourceTab { tab });
         if tab == pero_contracts::workbench::ResourceTab::Files {
             self.ensure_files(thread, cx);
@@ -96,6 +96,7 @@ impl ChatPanel {
         for key in [
             "files-tab",
             "artifacts-tab",
+            "desktop-tab",
             "refresh",
             "back",
             "copy",

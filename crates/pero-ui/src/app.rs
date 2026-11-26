@@ -289,7 +289,13 @@ impl Workbench {
                         this.sync_follow(cx);
                     }
                 }
-                ChatAction::OpenDesktop => this.command(json!({"action":"linux_desktop_open"}), cx),
+                ChatAction::OpenDesktop => {
+                    if this.chat.read(cx).active_chat.is_some() {
+                        this.chat.update(cx, |chat, cx| chat.open_desktop_pane(cx));
+                    } else {
+                        this.command(json!({"action":"linux_desktop_open"}), cx);
+                    }
+                }
                 ChatAction::OpenCompute => {
                     if this.apps.contains_panel("compute", "main") { this.open_app("compute".into(), "main".into(), cx); }
                 }

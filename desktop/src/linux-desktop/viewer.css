@@ -13,6 +13,3 @@ h1 { margin: 0; font: var(--pero-font-title) system-ui, sans-serif; font-weight:
 .connection label { display: grid; gap: var(--pero-spacing-1); min-width: 0; }
 .connection input[type="number"] { width: 6rem; }
 footer { grid-row: 4; color: var(--pero-muted); }
-
-.heading.movable { cursor: grab; touch-action: none; user-select: none; }
-.heading.movable:active { cursor: grabbing; }

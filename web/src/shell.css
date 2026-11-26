@@ -3,6 +3,13 @@
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--pero-material-chrome); color: var(--pero-text); font: var(--pero-font-body)/1.4 var(--pero-font-family-sans, system-ui, sans-serif); }
 #loading { position: fixed; inset: 0; display: grid; place-items: center; font: var(--pero-font-body) var(--pero-font-family-sans, system-ui, sans-serif); color: var(--pero-text-muted); background: var(--pero-material-chrome); }
 canvas { display: block; }
+#pero-linux-desktop { position: fixed; border: 0; z-index: 0; }
+/* Preserve the GPUI header above the live desktop in Chromium's software compositor. */
+body:has(> #pero-linux-desktop:not([hidden])) > canvas[tabindex="-1"]:not([data-gpui-input]) {
+  position: relative;
+  z-index: 1;
+  clip-path: var(--pero-linux-desktop-cutout);
+}
 body > input, body > textarea { font-size: var(--pero-font-body); }
 #pero-app-surface { position: fixed; z-index: 2; background: var(--pero-material-chrome); overflow: hidden; }
 #pero-app-surface[hidden], #pero-app-surface .app-panel-surface[hidden], #pero-app-surface iframe[hidden], .app-panel-status[hidden] { display: none; }
