@@ -13,6 +13,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,12 +35,17 @@ type messagesFileRecord struct {
 	Expires time.Time `json:"expires"`
 }
 
-func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Request) bool {
+type messagesInlineRetry struct {
+	ids     []string
+	prepare func(context.Context) ([]byte, error)
+}
+
+func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Request) []string {
 	files := a.messagesFiles
 	bounded, cancel := context.WithTimeout(ctx, messagesFilesDeadline)
 	defer cancel()
 	resolved := make(map[[32]byte]string)
-	return wire.PreferFiles(func(src messages.ImageSource) (string, error) {
+	used := wire.PreferFiles(func(src messages.ImageSource) (string, error) {
 		if err := bounded.Err(); err != nil {
 			return "", err
 		}
@@ -58,7 +64,7 @@ func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Reques
 		now := time.Now()
 		record := readMessagesFileRecord(location)
 		if !validMessagesFileID(record.ID) || !record.Expires.After(now.Add(time.Hour)) ||
-			record.Expires.After(now.Add(messagesFileLifetime)) {
+			record.Expires.After(now.Add(messagesFileLifetime)) || files.isStale(record.ID) {
 			if err := a.reserveHTTPRequest(); err != nil {
 				return "", err
 			}
@@ -67,12 +73,76 @@ func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Reques
 			if err != nil {
 				return "", err
 			}
+			if files.isStale(record.ID) {
+				return "", errors.New("messages: upload returned a previously rejected file ID")
+			}
 			// A read-only or unavailable cache must not break online use.
 			writeMessagesFileRecord(location, record)
 		}
 		resolved[digest] = record.ID
 		return record.ID, nil
 	})
+	if !used {
+		return nil
+	}
+	ids := make([]string, 0, len(resolved))
+	for _, id := range resolved {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// Tombstones are scoped to this endpoint and credential and name only the
+// rejected ID. A newer cache entry installed by another writer is unaffected.
+func (f *messagesFiles) staleMarker(id string) string {
+	sum := sha256.Sum256([]byte(id))
+	return filepath.Join(f.root, hex.EncodeToString(sum[:])+".stale")
+}
+
+func (f *messagesFiles) isStale(id string) bool {
+	_, err := os.Stat(f.staleMarker(id))
+	return err == nil
+}
+
+func (f *messagesFiles) markStale(id string) {
+	if os.MkdirAll(f.root, 0700) != nil {
+		return
+	}
+	if marker, err := os.OpenFile(f.staleMarker(id), os.O_CREATE|os.O_WRONLY, 0600); err == nil {
+		_ = marker.Close()
+	}
+}
+
+var staleFileReason = regexp.MustCompile(`(?i)\bfile(?:[_ -]?id)?\b[^\n]{0,120}(?:expired|not[ _-]found|deleted|does not exist|not created under)|(?:expired|missing|deleted)[^\n]{0,40}\bfile(?:[_ -]?id)?\b`)
+
+func confirmedStaleMessagesID(status int, kind, code, message string, used []string) string {
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusGone:
+	default:
+		return ""
+	}
+	rejected := func(code string) bool {
+		switch strings.ToLower(code) {
+		case "file_not_found", "file_expired", "file_deleted", "invalid_file_id":
+			return true
+		default:
+			return false
+		}
+	}
+	if !rejected(kind) && !rejected(code) && !staleFileReason.MatchString(message) {
+		return ""
+	}
+	var found string
+	for _, id := range used {
+		exact := regexp.MustCompile(`(?:^|[^\p{L}\p{N}_-])` + regexp.QuoteMeta(id) + `(?:$|[^\p{L}\p{N}_-])`)
+		if exact.MatchString(message) {
+			if found != "" && found != id {
+				return ""
+			}
+			found = id
+		}
+	}
+	return found
 }
 
 func (f *messagesFiles) upload(ctx context.Context, key string, source messages.ImageSource, now time.Time) (messagesFileRecord, error) {

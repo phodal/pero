@@ -20,7 +20,7 @@ import (
 // pumpMessages uses the same HTTP transport, auditing and cancellation
 // context as the other explicit provider protocols. The Messages decoder,
 // rather than the Chat [DONE] wrapper, owns terminal validation.
-func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messages.ReplayRoute, filesUsed bool, out chan<- openAIStreamEvent) {
+func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messages.ReplayRoute, fallback *messagesInlineRetry, out chan<- openAIStreamEvent) {
 	defer close(out)
 	send := func(event openAIStreamEvent) error {
 		select {
@@ -30,38 +30,58 @@ func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messag
 			return ctx.Err()
 		}
 	}
-	post, err := http.NewRequestWithContext(ctx, http.MethodPost, a.messagesURL, bytes.NewReader(payload))
-	if err != nil {
-		_ = send(openAIStreamEvent{err: harness.NewProviderError("messages adapter: cannot prepare HTTP request", "INVALID_REQUEST", nil), decoded: true})
-		return
-	}
-	post.Header.Set("Content-Type", "application/json")
-	post.Header.Set("Accept", "text/event-stream")
-	post.Header.Set("User-Agent", "pero-agent/0.1")
-	post.Header.Set("X-API-Key", a.messagesKey)
-	post.Header.Set("Anthropic-Version", "2023-06-01")
-	if filesUsed {
-		post.Header.Set("Anthropic-Beta", messagesFilesBeta)
-	}
-	response, err := a.messagesClient.Do(post)
-	if err != nil {
-		_ = send(openAIStreamEvent{err: err})
-		return
+	var response *http.Response
+	var err error
+	for {
+		post, err := http.NewRequestWithContext(ctx, http.MethodPost, a.messagesURL, bytes.NewReader(payload))
+		if err != nil {
+			_ = send(openAIStreamEvent{err: harness.NewProviderError("messages adapter: cannot prepare HTTP request", "INVALID_REQUEST", nil), decoded: true})
+			return
+		}
+		post.Header.Set("Content-Type", "application/json")
+		post.Header.Set("Accept", "text/event-stream")
+		post.Header.Set("User-Agent", "pero-agent/0.1")
+		post.Header.Set("X-API-Key", a.messagesKey)
+		post.Header.Set("Anthropic-Version", "2023-06-01")
+		if fallback != nil {
+			post.Header.Set("Anthropic-Beta", messagesFilesBeta)
+		}
+		response, err = a.messagesClient.Do(post)
+		if err != nil {
+			_ = send(openAIStreamEvent{err: err})
+			return
+		}
+
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			var info struct {
+				Error struct{ Type, Code, Message string }
+			}
+			decodeErr := json.NewDecoder(io.LimitReader(response.Body, 8192)).Decode(&info)
+			_ = response.Body.Close()
+			if fallback != nil && decodeErr == nil {
+				stale := confirmedStaleMessagesID(response.StatusCode, info.Error.Type, info.Error.Code, info.Error.Message, fallback.ids)
+				if stale != "" {
+					a.messagesFiles.markStale(stale)
+					payload, err = fallback.prepare(ctx)
+					if err != nil {
+						_ = send(openAIStreamEvent{decoded: true, err: err})
+						return
+					}
+					fallback = nil
+					continue
+				}
+			}
+			status := response.StatusCode
+			_ = send(openAIStreamEvent{decoded: true, err: harness.NewProviderErrorWithFailure(harness.ProviderFailure{
+				Message: fmt.Sprintf("messages adapter: HTTP %d: %s", status, http.StatusText(status)),
+				Code:    httpErrorCode(status, info.Error.Type+" "+info.Error.Message), Status: status,
+				ProviderRetryAfterMS: retryAfterMilliseconds(response.Header, time.Now()),
+			}, nil)})
+			return
+		}
+		break
 	}
 	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		var info struct {
-			Error struct{ Type, Message string }
-		}
-		_ = json.NewDecoder(io.LimitReader(response.Body, 8192)).Decode(&info)
-		status := response.StatusCode
-		_ = send(openAIStreamEvent{decoded: true, err: harness.NewProviderErrorWithFailure(harness.ProviderFailure{
-			Message: fmt.Sprintf("messages adapter: HTTP %d: %s", status, http.StatusText(status)),
-			Code:    httpErrorCode(status, info.Error.Type+" "+info.Error.Message), Status: status,
-			ProviderRetryAfterMS: retryAfterMilliseconds(response.Header, time.Now()),
-		}, nil)})
-		return
-	}
 	emit := func(chunk harness.StreamChunk) error {
 		return send(openAIStreamEvent{delta: &chunk})
 	}

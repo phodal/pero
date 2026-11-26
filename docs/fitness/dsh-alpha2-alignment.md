@@ -246,7 +246,26 @@ Run the same fixture with `PERO_ACP_PERO_FILES=1` and both binary paths.
 It exercises three real Pero processes with the same assertions as the
 upstream baseline: four uploads, three model requests, reuse after
 restart, credential separation and full inline fallback. The inline and
-signed lanes still run independently. This does not implement provider
-stale-ID recovery, quota reclamation, adaptive backoff, cross-process
-concurrent upload deduplication, or full upstream vision budget/offload
-parity. Live provider and Desktop Host acceptance are still unverified.
+signed lanes still run independently. See below for bounded provider
+stale-ID recovery. Quota reclamation, adaptive backoff, cross-process
+concurrent upload deduplication and full upstream vision budget/offload
+parity are not implemented. Live provider and Desktop Host acceptance are still unverified.
+
+### Rejected remote file IDs
+
+If the Files-mode Messages request receives HTTP 400, 404 or 410 before
+streaming, and the structured error explicitly identifies one used ID as
+expired, deleted, missing or invalid, Pero tombstones that ID in the
+current endpoint/credential cache. It retries the same inference at most
+once, entirely inline. Each dispatched payload has its own budget slot,
+HTTP audit and durable wire-size receipt. Later Files requests may upload
+fresh bytes for the rejected mapping; unrelated IDs and credentials are
+unaffected. An unnamed or ambiguous rejection, other provider failure,
+or a truncated SSE stream does not trigger this fallback.
+
+The pinned
+[DSH implementation](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/llm/llm-deepseek/src/request-files.ts)
+may invalidate unnamed mappings and attempt replacement uploads during the
+same inference; Pero deliberately uses the narrower inline retry. A
+loopback Go adapter test checks exact body hashes, audit counts, restart
+cache behavior and the no-retry cases. Live-provider acceptance remains open.

@@ -105,7 +105,8 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	toolResultBytes, toolResults := 0, 0
 	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
 	var messagesRoute messages.ReplayRoute
-	var filesUsed, reserved bool
+	var reserved bool
+	var fallback *messagesInlineRetry
 	if a.apiFormat == DeepSeekMessages {
 		if request.MaxTokens == 0 {
 			request.MaxTokens = a.models[request.Model].MaxTokens
@@ -130,7 +131,22 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return harness.Completion{}, err
 			}
 			reserved = true
-			filesUsed = a.preferMessagesFiles(ctx, &wire)
+			inline, encodeErr := json.Marshal(wire)
+			if encodeErr != nil {
+				return harness.Completion{}, encodeErr
+			}
+			inlineTools, inlineResultBytes, inlineResults := wire.WireAccounting()
+			if used := a.preferMessagesFiles(ctx, &wire); len(used) > 0 {
+				fallback = &messagesInlineRetry{ids: used, prepare: func(retryCtx context.Context) ([]byte, error) {
+					if err := retryCtx.Err(); err != nil {
+						return nil, err
+					}
+					if err := a.reserveHTTPRequest(); err != nil {
+						return nil, err
+					}
+					return inline, recordWirePayload(retryCtx, request, inline, inlineTools, inlineResultBytes, inlineResults)
+				}}
+			}
 			if err := ctx.Err(); err != nil {
 				return harness.Completion{}, err
 			}
@@ -193,31 +209,11 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 			return harness.Completion{}, err
 		}
 	}
-	if request.Agent != nil {
-		hash := sha256.Sum256(payload)
-		promptID, promptReceiptSeq := harness.PromptReceiptLink(ctx)
-		_, err := request.Agent.Session().Append("request/wire-size", struct {
-			Stage                  string `json:"stage"`
-			Purpose                string `json:"purpose,omitempty"`
-			Turn                   int    `json:"turn,omitempty"`
-			Step                   int    `json:"step,omitempty"`
-			PromptID               string `json:"promptId,omitempty"`
-			PromptReceiptSeq       uint64 `json:"promptReceiptSeq,omitempty"`
-			PayloadBytes           int    `json:"payload_bytes"`
-			ToolsBytes             int    `json:"tools_bytes"`
-			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
-			ToolResults            int    `json:"tool_results"`
-			SHA256                 string `json:"payload_sha256"`
-		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, promptID, promptReceiptSeq, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
-		if err != nil {
-			return harness.Completion{}, err
-		}
-		if err := request.Agent.Session().Flush(ctx); err != nil {
-			return harness.Completion{}, err
-		}
+	if err := recordWirePayload(ctx, request, payload, toolsPayload, toolResultBytes, toolResults); err != nil {
+		return harness.Completion{}, err
 	}
 	if a.apiFormat == DeepSeekMessages {
-		go a.pumpMessages(streamCtx, payload, messagesRoute, filesUsed, events)
+		go a.pumpMessages(streamCtx, payload, messagesRoute, fallback, events)
 	} else if a.apiFormat == Responses {
 		go a.pumpResponses(streamCtx, payload, events)
 	} else if a.disableStreaming {
@@ -325,6 +321,33 @@ type openAIStreamEvent struct {
 func (a *Adapter) reserveHTTPRequest() error {
 	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
 		return harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+	}
+	return nil
+}
+
+func recordWirePayload(ctx context.Context, request harness.GenerateRequest, payload, toolsPayload []byte, toolResultBytes, toolResults int) error {
+	if request.Agent != nil {
+		hash := sha256.Sum256(payload)
+		promptID, promptReceiptSeq := harness.PromptReceiptLink(ctx)
+		_, err := request.Agent.Session().Append("request/wire-size", struct {
+			Stage                  string `json:"stage"`
+			Purpose                string `json:"purpose,omitempty"`
+			Turn                   int    `json:"turn,omitempty"`
+			Step                   int    `json:"step,omitempty"`
+			PromptID               string `json:"promptId,omitempty"`
+			PromptReceiptSeq       uint64 `json:"promptReceiptSeq,omitempty"`
+			PayloadBytes           int    `json:"payload_bytes"`
+			ToolsBytes             int    `json:"tools_bytes"`
+			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
+			ToolResults            int    `json:"tool_results"`
+			SHA256                 string `json:"payload_sha256"`
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, promptID, promptReceiptSeq, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		if err != nil {
+			return err
+		}
+		if err := request.Agent.Session().Flush(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -1,13 +1,20 @@
 package openai
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
 )
@@ -220,6 +227,147 @@ func TestDeepSeekFilesRespectsRequestBudgetAndRedirectBoundary(t *testing.T) {
 			}
 			if got := []int32{uploads.Load(), models.Load(), redirected.Load(), audits.Load()}; !slices.Equal(got, []int32{int32(budget - 1), 1, 0, int32(budget)}) {
 				t.Fatalf("uploads/models/redirects/audits = %v", got)
+			}
+		})
+	}
+}
+
+// Observe exact bodies, attempts and persisted cache state across adapters.
+func TestDeepSeekFilesRecoversOnlyConfirmedStaleID(t *testing.T) {
+	for _, tc := range []struct {
+		name, rejection           string
+		budget, wantFirstAttempts int
+		stale, truncated          bool
+	}{
+		{"named rejection", "file ID file-old expired", 0, 2, true, false},
+		{"unnamed rejection", "a file ID expired", 0, 1, false, false},
+		{"other ID", "file ID file-old-other expired", 0, 1, false, false},
+		{"invalid image", "file ID file-old contains an invalid image", 0, 1, false, false},
+		{"budget exhausted", "file ID file-old expired", 2, 1, true, false},
+		{"began SSE", "", 0, 1, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var uploads, attempts, audits atomic.Int32
+			var wiresMu sync.Mutex
+			var wires [][]byte
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/files" {
+					n := uploads.Add(1)
+					part, err := r.MultipartReader()
+					if err != nil {
+						t.Errorf("upload: %v", err)
+						w.WriteHeader(400)
+						return
+					}
+					file, err := part.NextPart()
+					if err != nil {
+						t.Errorf("upload part: %v", err)
+						w.WriteHeader(400)
+						return
+					}
+					data, err := io.ReadAll(file)
+					if err != nil {
+						t.Errorf("image bytes: %v", err)
+						w.WriteHeader(400)
+						return
+					}
+					id := "file-new"
+					if n == 1 {
+						id = "file-old"
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(map[string]any{"type": "file", "id": id, "created_at": time.Now(), "mime_type": file.Header.Get("Content-Type"), "size_bytes": len(data)})
+					return
+				}
+				n := attempts.Add(1)
+				raw, _ := io.ReadAll(r.Body)
+				wiresMu.Lock()
+				wires = append(wires, raw)
+				wiresMu.Unlock()
+				if n == 1 || (tc.stale && tc.budget == 0 && n == 2) {
+					wantFile := n == 1
+					if (r.Header.Get("Anthropic-Beta") == messagesFilesBeta) != wantFile ||
+						bytes.Contains(raw, []byte(`"file_id":"file-old"`)) != wantFile ||
+						bytes.Contains(raw, []byte(`"type":"base64"`)) == wantFile {
+						t.Error("request did not switch all images from Files to inline")
+					}
+				}
+				if n == 1 && !tc.truncated {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"type": "invalid_request_error", "message": tc.rejection}})
+					return
+				}
+				if n == 1 && tc.truncated {
+					w.Header().Set("Content-Type", "text/event-stream")
+					event(w, `{"type":"message_start","message":{"id":"x","type":"message","role":"assistant","model":"vision","content":[]}}`)
+					return
+				}
+				w.WriteHeader(http.StatusBadRequest) // the number of attempts, not model output, is asserted here
+			}))
+			defer s.Close()
+			cfg := Config{APIFormat: DeepSeekMessages, Endpoint: s.URL + "/v1/messages", APIKey: "synthetic",
+				ProviderName: "fixture", Models: []ModelConfig{{ID: "vision", MaxTokens: 128, InputModalities: []string{"text", "image"}}},
+				MessagesFilesDirectory: t.TempDir(), MessagesFilesKey: make([]byte, 32), MaxRequests: tc.budget,
+				BeforeHTTPAttempt: func() error { audits.Add(1); return nil },
+			}
+			a, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h, err := harness.Boot(t.Context(), harness.Options{Adapter: a})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
+			agent, err := h.Agents().Create(t.Context(), harness.AgentOptions{CWD: t.TempDir(), Provider: "fixture", Model: "vision"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := harness.GenerateRequest{Agent: agent, Provider: "fixture", Model: "vision", Messages: []harness.Message{{Role: harness.RoleUser, Content: []harness.ContentBlock{
+				{Type: harness.BlockImage, MIMEType: "image/png", Data: ownedPNG(t, 4, 4)},
+			}}}}
+			_, _ = a.Generate(t.Context(), req, nil)
+			if int(attempts.Load()) != tc.wantFirstAttempts || int(audits.Load()) != tc.wantFirstAttempts+1 {
+				t.Fatalf("attempts=%d uploads=%d audits=%d", attempts.Load(), uploads.Load(), audits.Load())
+			}
+			wiresMu.Lock()
+			observed := append([][]byte(nil), wires...)
+			wiresMu.Unlock()
+			var receipts []string
+			for _, entry := range agent.Session().Events() {
+				if entry.Type != "request/wire-size" {
+					continue
+				}
+				var metric struct {
+					SHA string `json:"payload_sha256"`
+				}
+				if err := json.Unmarshal(entry.Data, &metric); err != nil {
+					t.Fatal(err)
+				}
+				receipts = append(receipts, metric.SHA)
+			}
+			var want []string
+			for _, raw := range observed {
+				digest := sha256.Sum256(raw)
+				want = append(want, hex.EncodeToString(digest[:]))
+			}
+			if !slices.Equal(receipts, want) {
+				t.Fatalf("wire receipts=%v want %v", receipts, want)
+			}
+			cfg.MaxRequests = 0
+			restored, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Agent = nil
+			_, _ = restored.Generate(t.Context(), req, nil)
+			wantUploads := int32(1)
+			if tc.stale {
+				wantUploads++
+			}
+			if uploads.Load() != wantUploads {
+				t.Fatalf("cache reuse after new adapter: uploads=%d want=%d", uploads.Load(), wantUploads)
 			}
 		})
 	}
