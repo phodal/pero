@@ -79,6 +79,7 @@ impl ChatPanel {
         let thread = &chat.id;
         let state = self.artifacts.conversations.get(thread)?;
         if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files
+            || state.resource_view != crate::session_artifacts::ResourceView::Contents
             || (!state.open && !state.inline_open)
             || (!state.inline_open && state.chart.is_some() && !state.chart_source_open)
         {
