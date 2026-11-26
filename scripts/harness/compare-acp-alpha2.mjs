@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -185,7 +185,9 @@ async function compare(engine) {
   const home = join(root, engine.name);
   const workspace = join(home, 'workspace');
   const other = join(home, 'other-workspace');
+  const alias = join(home, 'workspace-alias');
   await Promise.all([mkdir(workspace, { recursive: true }), mkdir(other, { recursive: true })]);
+  await symlink(workspace, alias, 'junction');
   const paths = { home, workspace };
   const params = { cwd: workspace, mcpServers: [] };
   const prompt = (request, sessionId, text) => request('session/prompt', {
@@ -197,7 +199,7 @@ async function compare(engine) {
     assert.equal(providerRequests, count, 'session lifecycle must not call the provider');
   };
   const sessionId = await withAgent(engine, paths, async ({ request, notify, approvals, bounded, updates }) => {
-    const created = await request('session/new', params);
+    const created = await request('session/new', { ...params, cwd: alias });
     assert.equal(typeof created.sessionId, 'string');
     assert.ok(created.sessionId);
     assert.deepEqual((await request('session/list', { cwd: workspace })).sessions, []);
@@ -228,10 +230,11 @@ async function compare(engine) {
   return withAgent(engine, paths, async ({ ask, request, updates, approvals, capabilities }) => {
     const list = await request('session/list', { cwd: workspace });
     assert.deepEqual(list.sessions.map(s => [s.sessionId, s.cwd]), [[sessionId, workspace]]);
+    assert.deepEqual((await request('session/list', { cwd: alias })).sessions.map(s => [s.sessionId, s.cwd]), [[sessionId, workspace]]);
     assert.deepEqual((await request('session/list', { cwd: other })).sessions, []);
     const wrong = await ask('session/resume', { ...params, cwd: other, sessionId });
     assert.equal(typeof wrong.error?.code, 'number', 'wrong workspace must not resume');
-    await noInference(() => request('session/resume', { ...params, sessionId }));
+    await noInference(() => request('session/resume', { ...params, cwd: alias, sessionId }));
     assert.deepEqual((await request('session/list', { cwd: workspace })).sessions, []);
     assert.ok(!updates.some(kind => ['agent_message_chunk', 'user_message_chunk', 'tool_call'].includes(kind)),
       'resume must not emit conversation messages or tool calls');
@@ -260,7 +263,7 @@ async function compare(engine) {
     }
     return {
       engine: engine.name, protocolVersion: 1,
-      newCloseRestartListResume: 'passed', differentWorkspaceRejected: true,
+      newCloseRestartListResume: 'passed', differentWorkspaceRejected: true, canonicalCwd: true,
       loadSession: supportsLoad ? 'advertised; load passed' : 'not advertised',
       ...(effects && { writes: 1, noReplay: true, inFlightCancelled: true, explicitNewTurnAfterRestart: true }),
     };
