@@ -113,6 +113,10 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		var err error
 		if a.messagesReplayScope != "" {
 			messagesRoute = messages.ReplayRoute{Scope: a.messagesReplayScope, Model: request.Model}
+		}
+		if imagesAllowed {
+			wire, err = messages.EncodeVision(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools, messagesRoute, messagesImageEncoder(ctx, request.Attachments))
+		} else if messagesRoute.Scope != "" {
 			wire, err = messages.EncodeSigned(messagesRoute, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
 		} else {
 			wire, err = messages.Encode(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)

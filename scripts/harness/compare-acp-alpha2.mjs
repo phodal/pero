@@ -8,10 +8,12 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { createFilesFixture, compareDSHFiles } from './compare-dsh-alpha2-files.mjs';
+import { createFilesFixture, compareDSHFiles, comparePeroImages } from './compare-dsh-alpha2-files.mjs';
 
 const [dshPackage, peroBinary] = process.argv.slice(2);
 const filesLane = process.env.PERO_ACP_DSH_FILES === '1';
+const imageLane = process.env.PERO_ACP_PERO_IMAGES === '1';
+assert.ok(!imageLane || !filesLane, 'run image comparisons separately');
 assert.ok(dshPackage && (peroBinary || filesLane),
   'usage: node scripts/harness/compare-acp-alpha2.mjs <DSH package.json> <pero-agent-acp binary>');
 const manifest = JSON.parse(await readFile(dshPackage, 'utf8'));
@@ -33,7 +35,7 @@ const key = 'offline-fixture-only';
 const replayKey = 'ab'.repeat(32);
 const thought = 'synthetic fixture thought';
 const signature = 'synthetic-fixture-signature';
-const filesFixture = filesLane ? createFilesFixture(key) : null;
+const filesFixture = filesLane || imageLane ? createFilesFixture(key) : null;
 const provider = createServer(async (request, response) => {
   providerRequests++;
   try {
@@ -362,9 +364,11 @@ try {
   provider.listen(0, '127.0.0.1');
   await once(provider, 'listening');
   if (filesFixture) {
-    const result = await compareDSHFiles({root, dshEntry, key, withAgent, fixture: filesFixture});
+    const result = imageLane
+      ? await comparePeroImages({root, peroBinary: resolve(peroBinary), withAgent, fixture: filesFixture})
+      : await compareDSHFiles({root, dshEntry, key, withAgent, fixture: filesFixture});
     assert.deepEqual(fixtureErrors, []);
-    assert.equal(providerRequests, 7);
+    assert.equal(providerRequests, imageLane ? 2 : 7);
     console.log(JSON.stringify({dshVersion, providerRequests, ...result}, null, 2));
   } else {
     const engines = [

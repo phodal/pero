@@ -262,7 +262,14 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	var attachments harness.AttachmentStore
+	if providerConfig.APIFormat == openai.DeepSeekMessages && budget.ImageInput {
+		attachments, err = harness.OpenLocalAttachmentStore(harness.LocalAttachmentStoreConfig{Home: *sessions})
+		if err != nil {
+			return err
+		}
+	}
+	h, err := harness.Boot(ctx, harness.Options{Attachments: attachments, EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}

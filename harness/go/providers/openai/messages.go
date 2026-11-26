@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/media"
 	"github.com/phodal/pero/harness/go/providers/messages"
 )
 
@@ -82,4 +83,37 @@ func messagesReplayScope(key []byte, endpoint, provider, credential string) stri
 	mac := hmac.New(sha256.New, key)
 	fmt.Fprintf(mac, "pero/deepseek-messages-replay/v1 %q %q %q", endpoint, provider, credential)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// Resolve immutable local references or already held tool bytes, never paths
+// or URLs. Budgets cover every image occurrence in the HTTP request.
+func messagesImageEncoder(ctx context.Context, store harness.AttachmentStore) messages.ImageEncoder {
+	remaining, count := MaxRequestImageBytes, 0
+	return func(block harness.ContentBlock) (messages.ImageSource, error) {
+		var zero messages.ImageSource
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+		if count >= harness.DefaultMaxImagesPerMessage {
+			return zero, fmt.Errorf("messages: too many images in request")
+		}
+		raw, mime := block.Data, block.MIMEType
+		if block.Attachment != nil {
+			if store == nil || len(raw) != 0 {
+				return zero, fmt.Errorf("messages: invalid image attachment source")
+			}
+			stored, err := store.ReadImage(ctx, *block.Attachment)
+			if err != nil {
+				return zero, fmt.Errorf("messages: could not resolve the saved image")
+			}
+			raw, mime = stored.Data, stored.Ref.MediaType
+		}
+		data, normalized, err := media.NormalizeToolImage(raw, mime)
+		if err != nil || len(data) > remaining {
+			return zero, fmt.Errorf("messages: invalid raster or request image budget exceeded")
+		}
+		remaining -= len(data)
+		count++
+		return messages.ImageSource{Type: "base64", MediaType: normalized, Data: data}, nil
+	}
 }

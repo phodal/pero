@@ -75,25 +75,9 @@ export async function compareDSHFiles({root, dshEntry, key, withAgent, fixture})
   await mkdir(workspace,{recursive:true});
   // Alpha.2's stock ACP model ID is not the image-capable catalog entry.
   await writeFile(patch, '- id: acp\n  config:\n    provider: deepseek-official\n    model: deepseek-flash\n- id: llm-deepseek\n  config:\n    fileUploadConcurrency: 1\n');
-  const params = {cwd:workspace,mcpServers:[]};
   const engine = {name:'dsh',command:process.execPath,args:() => [dshEntry,'--profile','acp','--patch',patch]};
-  const {uploads,inference} = fixture;
-  const run = (agent, originalID) => withAgent(agent,{home,workspace},async ({request,capabilities}) => {
-    assert.equal(capabilities.promptCapabilities.image,true);
-    let sessionId = originalID;
-    if (sessionId) {
-      const before = [uploads.length, inference.length];
-      await request('session/resume', {...params, sessionId});
-      assert.deepEqual([uploads.length, inference.length], before, 'resume alone sent provider traffic');
-    } else {
-      ({sessionId} = await request('session/new',params));
-    }
-    const prompt = [{type:'text', text:'Describe the two synthetic swatches.'}];
-    if (!originalID) prompt.push(...swatches.map(data => ({type:'image',mimeType:'image/png',data})));
-    assert.equal((await request('session/prompt',{sessionId,prompt})).stopReason,'end_turn');
-    await request('session/close',{sessionId});
-    return sessionId;
-  });
+  const {uploads, inference} = fixture;
+  const run = createImageSessions(withAgent, {home, workspace}, fixture);
   const id = await run(engine);
   assert.equal(uploads.length,2);
   assert.notDeepEqual(uploads[0].image,uploads[1].image);
@@ -111,4 +95,51 @@ export async function compareDSHFiles({root, dshEntry, key, withAgent, fixture})
   assert.deepEqual(inference[2].sources.map(s => Buffer.from(s.data,'base64')),uploads.slice(2).map(u => u.image));
   return {scope:'DSH-only loopback Files baseline',uploads:uploads.length,
     inference:inference.map(r => r.sources.map(i => i.type)),sameIdsAfterRestart:true};
+}
+
+
+function createImageSessions(withAgent, paths, fixture) {
+  const params = {cwd:paths.workspace, mcpServers:[]};
+  const {uploads,inference} = fixture;
+  return (agent, originalID) => withAgent(agent, paths,async ({request,capabilities}) => {
+    assert.equal(capabilities.promptCapabilities.image,true);
+    let sessionId = originalID;
+    if (sessionId) {
+      const before = [uploads.length, inference.length];
+      await request('session/resume', {...params, sessionId});
+      assert.deepEqual([uploads.length, inference.length], before, 'resume alone sent provider traffic');
+    } else {
+      ({sessionId} = await request('session/new',params));
+    }
+    const prompt = [{type:'text', text:'Describe the two synthetic swatches.'}];
+    if (!originalID) prompt.push(...swatches.map(data => ({type:'image',mimeType:'image/png',data})));
+    assert.equal((await request('session/prompt',{sessionId,prompt})).stopReason,'end_turn');
+    await request('session/close',{sessionId});
+    return sessionId;
+  });
+}
+
+export async function comparePeroImages({root, peroBinary, withAgent, fixture}) {
+  const home = join(root, 'pero-images');
+  const workspace = join(home, 'workspace');
+  await mkdir(workspace, {recursive:true});
+  const engine = {name:'pero', command:peroBinary, args:({endpoint}) => [
+    '--endpoint', endpoint+'/v1/messages', '--api-format', 'deepseek-messages',
+    '--model', 'deepseek-flash', '--image-input', '--max-tokens', '128',
+    '--api-key-env', 'PERO_FIXTURE_API_KEY', '--session-dir', join(home,'sessions'),
+  ]};
+  const {uploads, inference} = fixture;
+  const run = createImageSessions(withAgent, {home, workspace}, fixture);
+  const id = await run(engine);
+  await run(engine, id);
+  assert.equal(uploads.length, 0);
+  assert.equal(inference.length, 2);
+  for (const row of inference) {
+    assert.ok(!row.beta?.includes(beta));
+    assert.deepEqual(row.sources.map(s => s.type), ['base64', 'base64']);
+    assert.ok(row.sources.every(s => /^image\/(png|jpeg)$/.test(s.media_type) && s.data));
+    assert.notEqual(row.sources[0].data, row.sources[1].data);
+  }
+  assert.deepEqual(inference[1].sources, inference[0].sources);
+  return {scope:'Pero-only inline Messages images', uploads:0, inference:2, sameImagesAfterRestart:true};
 }

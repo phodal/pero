@@ -145,8 +145,8 @@ func New(c Config) (*Adapter, error) {
 				return nil, errors.New("openai adapter: unsupported input modality")
 			}
 		}
-		if c.APIFormat == DeepSeekMessages && (imageInput || m.Reasoning != nil || (m.MaxTokens == 0 && c.MaxOutputTokens == 0)) {
-			return nil, errors.New("messages adapter: text-only model without reasoning and an explicit max-tokens limit required")
+		if c.APIFormat == DeepSeekMessages && (m.Reasoning != nil || (m.MaxTokens == 0 && c.MaxOutputTokens == 0)) {
+			return nil, errors.New("messages adapter: model without configured reasoning and an explicit max-tokens limit required")
 		}
 		if !textInput {
 			return nil, errors.New("openai adapter: text input must remain enabled")

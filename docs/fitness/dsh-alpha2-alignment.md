@@ -205,3 +205,19 @@ the live service behaves like the fixture. The
 [upstream attachment contract](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/attachment/attachment/README.md)
 also distinguishes raster inputs from generic files such as PDFs, which
 stay local and are read on demand. No PDF or user file is part of this test.
+
+## Pero opt-in inline Images
+
+The Go CLI can now generate a Messages request with bounded inline rasters
+using the explicit `--api-format deepseek-messages --image-input` flags. ACP
+uploads the input to the private local attachment store, not the provider's
+Files endpoint. Resolved rasters can be sent to the explicitly configured
+model in prompt blocks or nested in tool results. Raw paths and URLs are not
+accepted. The HTTP image budget is 20 occurrences and 16 MiB of raster bytes
+before base64. Existing model and protocol defaults remain unchanged.
+
+Run the same ACP fixture with `PERO_ACP_PERO_IMAGES=1` and both binary paths
+from the baseline. It confirms two distinct image blocks, the same wire
+bytes after a real process restart, no requests from resume alone, and zero
+Files uploads. Durable provider file IDs, provider fallback, live service
+acceptance and Desktop Host integration remain separate.
