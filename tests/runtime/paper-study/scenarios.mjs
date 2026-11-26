@@ -7,6 +7,8 @@ export const scenes = {
   injection: { explicitSkill: true, seed: 'https://research.example.org/unusual-release', analysis: true, inspectOnly: true, decline: true, injection: true },
   source: { seed: 'https://research.example.org/source-ready', version: '2610.00004v1', source: true, pdf: true },
   vision: { seed: 'https://research.example.org/visual-source', version: '2610.00005v1', source: true, vision: true },
+  'vision-files': { seed: 'https://research.example.org/visual-source', version: '2610.00005v1', source: true,
+    vision: true, pdf: true, files: true, imagePath: 'illustration.png', caption: 'Authored visual fixture.' },
   nonstandard: { seed: 'https://research.example.org/unusual-release', analysis: true },
   'nonstandard-read': { seed: 'https://research.example.org/unusual-release', analysis: true, source: true,
     sourceURL: 'https://research.example.org/attachments?id=methods', unknownIdentity: true },
@@ -27,6 +29,6 @@ export function prompts(scene) {
   if (!value.source) return [first];
   if (value.unknownIdentity) return [first,
     `明确批准仅获取刚才页面真实链接 ${value.sourceURL}。我已知其作品身份、版本、许可与大小尚未确定，且接受只读源包工具既有大小/安全限制；其他附件、PDF和GitHub仓库均不批准获取。检查实际回执，列出成员，再实际读取main.tex中的原始表格/caption行并给出archive/member hash和原始行号。即使取得TeX也不能猜出论文身份或发布日期/版本，GitHub的许可不适用于此附件；不克隆、不编译、不执行、不安装。简洁区分实际读到的内容和仍未知项。`];
-  const second = `明确批准仅获取刚才列出的 https://arxiv.org/src/${value.version}${value.pdf ? ` 和独立的 https://arxiv.org/pdf/${value.version}` : '，不批准 PDF'}。不批准其他文件、克隆、执行或安装。完成后检查实际获取回执，列出安全源文件索引，读取相关原始 TeX 行并用 archive/member hash 与原文件行号引用。${value.vision ? '请实际打开源包中的安全图片并描述你看见的形状、数量、颜色和相对位置；不能用标题、caption 或文件名代替实际图像观察。若无法接收图片请明确说无法观察。' : (value.explicitSkill ? '本会话没有图像输入，不调用operation=image，明确未视觉观察图片。先等待源包获取终态，再启动PDF获取。' : '') + '查阅原始表格与图 caption，把能够确定的 literal caption 和独立 PDF 页面对照；不要把源文件行号当 PDF 页码。另实际读取 PDF，保存带工具验证引用的简短研究报告；不做实验、不编译 TeX。'}请区分原文、工具索引、图像观察与未解决项。`;
+  const second = `明确批准仅获取刚才列出的 https://arxiv.org/src/${value.version}${value.pdf ? ` 和独立的 https://arxiv.org/pdf/${value.version}` : '，不批准 PDF'}。不批准其他文件、克隆、执行或安装。完成后检查实际获取回执，列出安全源文件索引，读取相关原始 TeX 行并用 archive/member hash 与原文件行号引用。${value.vision ? '请实际打开源包中的安全图片并描述你看见的形状、数量、颜色和相对位置；不能用标题、caption 或文件名代替实际图像观察。若无法接收图片请明确说无法观察。' : (value.explicitSkill ? '本会话没有图像输入，不调用operation=image，明确未视觉观察图片。先等待源包获取终态，再启动PDF获取。' : '') + '查阅原始表格与图 caption，把能够确定的 literal caption 和独立 PDF 页面对照；不要把源文件行号当 PDF 页码。另实际读取 PDF，保存带工具验证引用的简短研究报告；不做实验、不编译 TeX。'}${value.files ? '同时核对源图 caption 对应的独立 PDF 页，保存原始页引用，再读取图片。' : ''}请区分原文、工具索引、图像观察与未解决项。`;
   return [first, second];
 }

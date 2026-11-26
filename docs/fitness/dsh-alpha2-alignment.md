@@ -291,3 +291,18 @@ behaviors, including delegation and cancellation) also passed.
 This is a Host contract, not a Desktop renderer, Paper source/PDF provenance,
 packaged Native/Electron, or live DeepSeek acceptance. No real provider
 credentials or research files are used.
+
+## Paper source-side provenance over Messages Files
+
+The separate `vision-files` Paper campaign uses the actual Go Harness,
+Rust Host, Desktop App Use broker, and Paper parser with synthetic source/PDF
+transport. It verifies one safe PNG upload with the exact persisted preview
+digest, not the metadata-bearing original, and the returned file ID inside
+the corresponding typed tool result. The Paper records retain the original
+archive/member identity, preview digest, literal caption match to the
+independently acquired PDF's first page, and validated PDF citation. The
+reference-only first turn acquires no bytes. No files are sent to a real
+provider. Dependencies and invocation are in the
+[fixture guide](../../tests/runtime/paper-study/README.md#opt-in-messages-files-provenance).
+Desktop click-through, packaged runtime and visual-model acceptance remain
+separate. The built-in DeepSeek route is unchanged.

@@ -923,6 +923,16 @@ jobs:
           node scripts/build/desktop.mjs
       - name: Project Agent Messages Files contract
         run: node tests/contracts/dsh-messages-files.mjs
+      - name: Paper source provenance over Messages Files
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
+          mkdir -p apps/data/backend/_core
+          cp harness/go/charts/python/{dataset,view,chart_document}.py apps/data/backend/_core/
+          venv="$RUNNER_TEMP/paper-messages-python"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -c 'import json,subprocess,sys; deps=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*deps],check=True)'
+          PAPER_STUDY_PYTHON_ENV="$venv" node --experimental-transform-types tests/runtime/paper-study/run.mjs --fixture vision-files "$PWD/target/debug/pero-agent-acp"
       - name: Official conversation, including same-process close and restart
         run: |
           npx playwright install --with-deps chromium

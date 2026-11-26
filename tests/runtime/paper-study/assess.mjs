@@ -95,6 +95,31 @@ export async function assess({ host, scene, directory, digest, credential }) {
       assert.equal(createHash('sha256').update(original).digest('hex'), member.sha256);
     }
     actualBytes.push({ receipt: job.receipt, memberCount: index.members.length, allMemberHashesVerified: true });
+    if (spec.files) {
+      const member = index.members.find(item => item.path === spec.imagePath);
+      assert(member?.previewSha256, 'Expected the named source image and its indexed preview');
+      assert.notEqual(member.sha256, member.previewSha256, 'The safe preview must strip original PNG metadata');
+      const [image] = action('research-source-read', 'image');
+      assert.equal(input(image).memberId, member.id);
+      const observations = await records(directory, 'source-observations');
+      const imageObservation = observations.find(item => item.kind === 'source_image');
+      assert.equal(imageObservation?.archiveDigest, job.receipt.archiveDigest);
+      assert.equal(imageObservation.resourceId, input(image).resourceId);
+      assert.equal(imageObservation.sources[0]?.memberId, member.id);
+      assert.equal(imageObservation.sources[0]?.memberDigest, member.sha256);
+      assert.equal(imageObservation.previewSha256, member.previewSha256);
+      const preview = await readFile(resolve(directory, 'app-data/paper-agent/research-v1/source-previews', member.id + '.png'));
+      assert.equal(createHash('sha256').update(preview).digest('hex'), member.previewSha256);
+      const comparison = observations.find(item => item.kind === 'source_pdf_comparison');
+      assert.equal(comparison?.bundleId, imageObservation.bundleId);
+      assert.equal(comparison.archiveDigest, job.receipt.archiveDigest);
+      assert.equal(comparison.comparisonStatus, 'matched');
+      assert.equal(comparison.pdfs[0]?.page, 1);
+      assert.equal(comparison.pdfs[0]?.documentId, pdfJobs[0]?.receipt.documentId);
+      assert.equal(comparison.pdfs[0]?.fileDigest, pdfJobs[0]?.receipt.fileDigest);
+      checks.paperPreviewSHA256 = member.previewSha256;
+      checks.paperCaptionPDFPage = comparison.pdfs[0].page;
+    }
     if (spec.publicRecording) {
       const reads = action('research-source-read', 'read').map(appResult).filter(Boolean);
       const main = index.members.find(member => member.path === 'main.tex');
@@ -139,12 +164,14 @@ export async function assess({ host, scene, directory, digest, credential }) {
     assert(checks.imageTool && checks.typedImageResults, 'Need actual typed MCP image content, not a filename/caption');
     checks.publicResponseAfterImage = publicMessages.some(message => message.seq > action('research-source-read', 'image').at(-1).seq);
     assert(checks.publicResponseAfterImage, 'Image delivery without a subsequent public model response is not an end-to-end result');
-    assert.deepEqual(pdfJobs, []);
+    if (!spec.pdf) assert.deepEqual(pdfJobs, []);
   }
   if (spec.pdf) {
     assert.equal(pdfJobs.length, 1); assert.equal(pdfJobs[0].status, 'completed'); assert(checks.sourceCompare);
     const reports = await records(directory, 'reports');
     checks.validatedPDFReportCount = reports.length; assert(reports.length > 0, 'No validated PDF report persisted');
+    if (spec.files) assert(reports.some(report => report.sections.some(section => section.evidence.some(evidence =>
+      evidence.paperId === pdfJobs[0].receipt.paperId && evidence.quote === spec.caption))));
     assert(calls.some(call => appName(call) === 'research-step' && input(call)?.action === 'read' && good(call)));
     assert(calls.some(call => appName(call) === 'research-step' && input(call)?.action === 'finalize' && good(call)));
   }

@@ -88,7 +88,8 @@ try {
   host = await openHost({ directory, agent, endpoint: real ? plan.endpoint : provider.endpoint,
     model: real ? plan.model : 'fixture', credential, audit, useEnvironmentProxy: real, prepareApp,
     allowedPaperTools: scenes[scene].publicRecording ? publicSourceTools : undefined,
-    pythonEnvironment, fixtureApproval, providerBudget: plan?.limits, imageInput: scenes[scene].vision === true });
+    pythonEnvironment, fixtureApproval, providerBudget: plan?.limits, imageInput: scenes[scene].vision === true,
+    fixtureMessagesFiles: scenes[scene].files === true });
   if (interrupted) throw new Error('Cancelled during startup');
   thread = await host.start();
   const turns = prompts(scene); result.prompts = turns; result.turns = [];
@@ -105,7 +106,11 @@ try {
   assert.deepEqual(fixtureApproval.errors, [], 'Unexpected permission requests');
   if (result.automatedFailure) throw new Error(result.automatedFailure);
   if (provider) { result.fixtureCounts = provider.counts(); result.fixtureErrors = provider.errors; assert.deepEqual(provider.errors, []);
-    if (scenes[scene].vision) assert.equal(result.fixtureCounts.imageRequests, 1, 'Require actual image_url provider payload'); }
+    if (scenes[scene].vision) assert.equal(result.fixtureCounts.imageRequests, 1, 'Require actual image provider payload');
+    if (scenes[scene].files) {
+      assert.equal(result.fixtureCounts.uploadCount, 1);
+      assert.equal(result.fixtureCounts.uploadSHA256, result.checks.paperPreviewSHA256, 'Files upload must contain the exact persisted Paper preview');
+    } }
   assert.equal(await hash(agent), identity.agentSHA256); assert.equal(await hash(resolve(root, 'target/debug/pero-host')), identity.hostSHA256);
   assert.equal(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), identity.sourceCommit, 'Source changed during run');
 } catch (error) { failure = scrub(error.stack || error); }

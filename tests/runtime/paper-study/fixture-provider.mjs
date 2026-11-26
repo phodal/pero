@@ -80,12 +80,13 @@ export function* plan(scene, digest) {
     const read = yield* write('research-source-read', { ...base, operation: 'read', memberId: tex.id, startLine, endLine });
     assert.equal(read.memberDigest, tex.sha256); assert.equal(read.archiveDigest, job.receipt.archiveDigest);
   }
-  if (spec.vision) {
+  const inspectImage = function* () {
     const image = members.members.find(member => spec.imagePath ? member.path === spec.imagePath : member.kind === 'image');
     const observed = yield* write('research-source-read', { ...base, operation: 'image', memberId: image.id });
     assert.equal(observed.type, 'source_image'); assert.equal(observed.provenance.memberId, image.id);
     return 'Synthetic wire probe received typed image input; scripted fixture makes no visual understanding claim.';
   }
+  if (spec.vision && !spec.pdf) return yield* inspectImage();
   if (!spec.pdf) {
     assert.equal(job.receipt.workIdentity, null); assert.equal(job.receipt.revision, null);
     return 'Synthetic nonstandard protocol completed explicit source-only acquisition and actual original lines. Work identity, release version and license remain unknown; byte SHA is not an inferred paper version.';
@@ -103,8 +104,9 @@ export function* plan(scene, digest) {
   const passage = reading.observation.passages[0];
   const saved = yield* write('research-step', { studyId: context.studyId, action: 'finalize', report: {
     title: 'Authored fixture reading', sections: [{ heading: 'Observed caption', content: 'The synthetic PDF contains the source caption.', paperIds: [pdfJob.receipt.paperId],
-      evidence: [{ paperId: pdfJob.receipt.paperId, passageId: passage.id, quote: 'Synthetic source figure.' }] }], experiments: [], limitations: 'Synthetic transport and scripted provider only; no scientific verification.' } });
+      evidence: [{ paperId: pdfJob.receipt.paperId, passageId: passage.id, quote: spec.caption || 'Synthetic source figure.' }] }], experiments: [], limitations: 'Synthetic transport and scripted provider only; no scientific verification.' } });
   assert(saved.observation);
+  if (spec.vision) return yield* inspectImage();
   return 'Synthetic protocol completed source lines, literal PDF comparison and validated PDF passage report; not LLM evidence.';
 }
 
@@ -117,20 +119,90 @@ export function verifyFirstSkillInput(body, skillBody) {
     'First provider request must contain actual Go-injected Skill instructions');
 }
 
+// Keep one scripted trajectory for both protocols; only decode/encode the wire here.
+function reply(response, messages, body, delta, finish) {
+  response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+  if (!messages) {
+    response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: finish }] })}\n\ndata: [DONE]\n\n`);
+    return;
+  }
+  const send = value => response.write(`event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`);
+  send({ type: 'message_start', message: { id: 'paper-fixture', type: 'message', role: 'assistant',
+    model: body.model, content: [], usage: { input_tokens: 1, output_tokens: 0 } } });
+  let index = 0;
+  if (delta.content) {
+    send({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } });
+    send({ type: 'content_block_delta', index, delta: { type: 'text_delta', text: delta.content } });
+    send({ type: 'content_block_stop', index: index++ });
+  }
+  for (const call of delta.tool_calls ?? []) {
+    send({ type: 'content_block_start', index, content_block: { type: 'tool_use', id: call.id, name: call.function.name, input: {} } });
+    send({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: call.function.arguments } });
+    send({ type: 'content_block_stop', index: index++ });
+  }
+  send({ type: 'message_delta', delta: { stop_reason: finish === 'stop' ? 'end_turn' : 'tool_use' }, usage: { output_tokens: 1 } });
+  send({ type: 'message_stop' });
+  response.end();
+}
+
 export async function startFixtureProvider(scene, digest, skillBody, fixtureApproval) {
-  const iterator = plan(scene, digest), errors = [];
+  const spec = scenes[scene], iterator = plan(scene, digest), errors = [];
+  const messages = spec.files === true, fileID = 'file-paper-fixture';
+  const beta = 'files-api-2025-04-14';
+  let upload, uploadCount = 0, imageToolID;
   let requests = 0, imageRequests = 0, firstProviderSkillContent = false;
   const server = createServer(async (request, response) => {
     try {
-      assert.equal(request.headers.authorization, 'Bearer local-paper-study-fixture');
-      assert.equal(request.url, '/v1/chat/completions');
-      let raw = ''; for await (const chunk of request) raw += chunk;
+      assert.equal(request.method, 'POST');
+      assert.equal(messages ? request.headers['x-api-key'] : request.headers.authorization,
+        messages ? 'local-paper-study-fixture' : 'Bearer local-paper-study-fixture');
+      let length = 0;
+      const chunks = [];
+      for await (const chunk of request) {
+        length += chunk.length;
+        assert(length <= 8 * 1024 * 1024, 'Fixture request exceeded its bound');
+        chunks.push(chunk);
+      }
+      const raw = Buffer.concat(chunks);
+      if (messages && request.url === '/v1/files') {
+        assert(imageToolID, 'Only the explicitly requested Paper image can upload');
+        assert.equal(++uploadCount, 1, 'A single preview should upload exactly once');
+        assert.equal(request.headers['anthropic-beta'], beta);
+        const form = await new Response(raw, { headers: { 'Content-Type': request.headers['content-type'] } }).formData();
+        const file = form.get('file');
+        assert(file instanceof File && file.type === 'image/png');
+        assert.equal(form.get('expires_after[anchor]'), 'created_at');
+        upload = Buffer.from(await file.arrayBuffer());
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+          id: fileID, type: 'file', mime_type: file.type, filename: file.name, size_bytes: file.size, created_at: new Date().toISOString(),
+        }));
+        return;
+      }
+      assert.equal(request.url, messages ? '/v1/messages' : '/v1/chat/completions');
       const body = JSON.parse(raw); requests++;
+      const advertised = name => body.tools.some(tool => (messages ? tool.name : tool.function.name) === name);
       if (requests === 1 && scenes[scene].explicitSkill) { verifyFirstSkillInput(body, skillBody); firstProviderSkillContent = true; }
-      assert.equal(body.max_tokens, undefined);
+      assert.equal(body.max_tokens, messages ? 1024 : undefined);
       if (scenes[scene].publicRecording) for (const name of ['import-paper', 'prepare-research', 'research-pdf', 'research-assets'])
-        assert(!body.tools.some(tool => tool.function.name === alias(name)), 'Public replay must not advertise unrelated access');
-      const last = body.messages.filter(message => message.role === 'tool').at(-1)?.content;
+        assert(!advertised(alias(name)), 'Public replay must not advertise unrelated access');
+      let last = body.messages.filter(message => message.role === 'tool').at(-1)?.content;
+      if (messages) {
+        const latest = body.messages.at(-1);
+        const result = latest.role === 'user' && latest.content.findLast(block => block.type === 'tool_result');
+        const blocks = result?.content;
+        const images = blocks?.filter(block => block.type === 'image') ?? [];
+        if (images.length) {
+          assert.equal(result.tool_use_id, imageToolID, 'Files input must stay inside its matching Paper tool result');
+          assert.equal(request.headers['anthropic-beta'], beta);
+          assert.deepEqual(images.map(block => block.source), [{ type: 'file', file_id: fileID }]);
+          assert(upload, 'Messages referenced a file before uploading it');
+          last = [...blocks.filter(block => block.type === 'text'),
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,' + upload.toString('base64') } }];
+        } else {
+          assert.notEqual(result?.tool_use_id, imageToolID || null, 'Paper image tool result lost its Files input');
+          last = blocks?.filter(block => block.type === 'text').map(block => block.text).join('');
+        }
+      }
       if (Array.isArray(last)) {
         const images = last.filter(part => part.type === 'image_url');
         assert(images.length === 1 && images[0].image_url.url.startsWith('data:image/png;base64,'));
@@ -142,8 +214,7 @@ export async function startFixtureProvider(scene, digest, skillBody, fixtureAppr
       }
       if (typeof last === 'string' && last.startsWith('tool approval ')) {
         errors.push(`Fixture tool denied before dispatch: ${last}`);
-        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-        response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'Synthetic trajectory stopped: tool permission denied; no retry.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        reply(response, messages, body, { content: 'Synthetic trajectory stopped: tool permission denied; no retry.' }, 'stop');
         return;
       }
       const step = iterator.next(Array.isArray(last) ? last.filter(part => part.type === 'text').map(part => part.text).join('') : last);
@@ -152,16 +223,18 @@ export async function startFixtureProvider(scene, digest, skillBody, fixtureAppr
       else {
         const call = step.value;
         fixtureApproval?.expect(`fixture-${requests}`, call.name, call.args);
-        assert(body.tools.some(tool => tool.function.name === call.name), `Not advertised: ${call.name}`);
+        assert(advertised(call.name), `Not advertised: ${call.name}`);
+        if (call.name === alias('research-source-read') && call.args.operation === 'image') imageToolID = `fixture-${requests}`;
         if (call.args.operation === 'status' || call.args.draftId) await pause(50); // Poll an actual external worker condition.
         delta = { ...(call.text ? { content: call.text } : {}), tool_calls: [{ index: 0, id: `fixture-${requests}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] };
         finish_reason = 'tool_calls';
       }
-      response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason }] })}\n\ndata: [DONE]\n\n`);
+      reply(response, messages, body, delta, finish_reason);
     } catch (error) { errors.push(error.stack); response.writeHead(500).end('Synthetic fixture assertion failed'); }
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   return { endpoint: `http://127.0.0.1:${server.address().port}/v1`, errors,
-    counts: () => ({ requests, imageRequests, firstProviderSkillContent }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
+    counts: () => ({ requests, imageRequests, firstProviderSkillContent, ...(messages ? {
+      uploadCount, uploadSHA256: upload && createHash('sha256').update(upload).digest('hex'),
+    } : {}) }), async close() { server.closeAllConnections(); await new Promise(done => server.close(done)); } };
 }
