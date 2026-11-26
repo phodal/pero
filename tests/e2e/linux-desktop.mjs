@@ -176,6 +176,15 @@ try {
   await expect(desktopTab).toBeHidden();
   await openViewer();
   await frame();
+  const standaloneClosed = viewer.waitForEvent('close');
+  await focusPage(workbench);
+  await resourceTab('desktop-tab');
+  await standaloneClosed;
+  await dockFrame();
+  await resourceTab('files-tab');
+  await expect(desktopTab).toBeHidden();
+  await openViewer();
+  await frame();
   await expect(button('Take control')).toBeVisible();
   await expect.poll(saved).toBe('Agent-Human-Resumed');
 
@@ -215,7 +224,7 @@ try {
   expect(errors).toEqual([]);
   await writeFile(resolve(out, 'result.json'), JSON.stringify({ passed: true, guest, runtime: resumed.runtime,
     fileContent: 'Agent-Human-Resumed', provider: 'scripted ACP', platform: process.platform, arch: process.arch, checks: ['composer @remote', 'right resource tab', 'resource splitter', 'Files and Artifacts tab switching', 'retained viewer', 'attached chat input', 'view-only', 'handoff', 'fresh observation', 'independent guest file',
-      'switching tabs returns control', 'disconnect refuses local fallback', 'stop cancel and confirmation', 'guest exit and restart'] }, null, 2));
+      'switching tabs returns control', 'standalone-to-tab viewer transfer', 'disconnect refuses local fallback', 'stop cancel and confirmation', 'guest exit and restart'] }, null, 2));
   for (const file of ['failure.png', 'workbench-failure.png']) await rm(resolve(out, file), { force: true });
   console.log(`Real Electron (${process.platform}/${process.arch}) and Docker Linux desktop passed right resource tabs, VNC takeover, return, saved file, and disconnect checks.`);
 } catch (error) {

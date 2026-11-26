@@ -21,6 +21,7 @@ export class LinuxDesktopWindow {
   private url?: Promise<string>;
   private window?: BrowserWindow;
   private workbench?: BrowserWindow;
+  private viewerDrain?: Promise<void>;
   private surface: DesktopSurface = null;
   private relay = relayOrigin();
 
@@ -93,8 +94,9 @@ export class LinuxDesktopWindow {
     if (this.surface !== surface || !surface?.visible) return;
     if (this.window) {
       this.window.close();
-      await this.session.vnc.disconnectViewer();
+      this.viewerDrain = this.session.vnc.disconnectViewer();
     }
+    await this.viewerDrain;
     if (this.surface === surface) return this.viewerUrl();
   }
 
@@ -109,7 +111,8 @@ export class LinuxDesktopWindow {
     }
     if (this.window && !this.window.isDestroyed()) { this.window.show(); this.window.focus(); return; }
     if (this.workbench && !this.workbench.isDestroyed()) this.workbench.webContents.send('pero:linux-desktop-unmount');
-    await this.session.vnc.disconnectViewer();
+    this.viewerDrain = this.session.vnc.disconnectViewer();
+    await this.viewerDrain;
     const url = await this.viewerUrl();
     if (this.window || this.surface?.visible) return;
     const window = this.window = new BrowserWindow({
