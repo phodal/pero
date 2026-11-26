@@ -33,7 +33,7 @@ import { startJavaScriptRepl } from './repl/javascript.ts';
 import { HostArtifactDelivery } from './artifact-delivery.ts';
 import { DesktopComputer } from './computer';
 import { computerPermissions } from './computer-electron';
-import { LinuxDesktopWindow } from './linux-desktop-window.ts';
+import { LinuxDesktopWindow, linuxDesktopSurface } from './linux-desktop-window.ts';
 import { openSshHost, readSshHostProfile } from './ssh-host.ts';
 import { backgroundTest, testWindowOptions } from './test-display';
 import { prepareWorkbenchHome } from './home.ts';
@@ -615,6 +615,10 @@ app.whenReady().then(async () => {
     if (!r || typeof r.id !== 'string' || r.id.length > 128 || typeof r.text !== 'string' || Array.from(r.text).length > 4096 || !ready) throw new Error('Invalid probe');
     host.stdin.write(JSON.stringify({ id: r.id, text: r.text }) + '\n');
   });
+  ipcMain.handle('pero:linux-desktop-surface', (sender, value: unknown) => {
+    trusted(sender);
+    return linuxDesktop?.setSurface(window, linuxDesktopSurface.parse(value));
+  });
   ipcMain.handle('pero:web',async(sender,command:unknown)=>{
     trusted(sender);
     try {if(!webPages)throw new Error('Web views are unavailable');await webPages.command(command);}
@@ -641,10 +645,6 @@ app.whenReady().then(async () => {
       const callerId=request.request_id===undefined?id:z.string().min(1).max(128).parse(request.request_id);
       mcpRequests.set(id,{request_id:callerId,thread,mode,call});
       host.stdin.write(JSON.stringify({method:'mcp',action:call?'adopt':'open',request_id:id,thread_id:thread,mode,...call})+'\n');return;
-    }
-    if (action === 'linux_desktop_open') {
-      if (!linuxDesktop) throw new Error('Linux desktop is unavailable');
-      return linuxDesktop.open(window);
     }
     if (action === 'composer_catalog' && appUse) return appUse.composerCatalog(command as {thread_id?: unknown; request_id?: unknown});
     if (action === 'harness_get' || action === 'harness_save') return harness.command(command);

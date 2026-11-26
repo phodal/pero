@@ -33,7 +33,7 @@ export class LinuxDesktopVnc {
         const bytes = await readFile(join(assets, file[0]));
         response.writeHead(200, {
           'content-type': file[1], 'cache-control': 'no-store', 'referrer-policy': 'no-referrer',
-          'content-security-policy': `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'${relay ? ' ' + relay.replace(/^http/, 'ws') : ''}; frame-ancestors 'none'`,
+          'content-security-policy': `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'${relay ? ' ' + relay.replace(/^http/, 'ws') : ''}; frame-ancestors pero://workbench`,
         }).end(bytes);
       } catch { response.writeHead(404).end(); }
     });
@@ -81,12 +81,16 @@ export class LinuxDesktopVnc {
 
   get endpoint() { return this.target && `${this.origin.replace('http:', 'ws:')}${this.target.path}`; }
 
-  async revoke() {
-    this.target = undefined;
+  async disconnectViewer() {
     const client = this.client;
     if (!client) return;
     client.close();
     await client.done;
+  }
+
+  async revoke() {
+    this.target = undefined;
+    await this.disconnectViewer();
   }
 
   async close() {
