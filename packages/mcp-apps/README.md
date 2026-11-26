@@ -14,6 +14,7 @@ const runtime = await mountMcpApp(container, {
   readResource: uri => host.readBoundResource(binding, uri),
   openLink: url => host.openBoundLink(binding, url),
   sendMessage: text => host.submitBoundMessage(binding, text), // optional, text only
+  updateModelContext: text => host.stageBoundContext(binding, text), // optional, text only
   revoke: () => host.closeBinding(binding),
   onState: state => showState(state),
   onError: error => showError(error),
@@ -138,7 +139,9 @@ the Zed MCP Apps proposal and implemented tool-result ownership. Agent calls
 automatically mount their recorded input/result in the conversation. Expanding
 or reopening the view never executes the initial tool. Managed `ui/message`
 submits text through the existing Host prompt owner and returns only an
-acknowledgement. `ui/update-model-context` remains unsupported.
+acknowledgement. A Host that supplies `updateModelContext` advertises text
+`ui/update-model-context`. Pero stages the latest text for that tool call in
+the Composer. An empty update clears the draft attachment.
 
 After building Desktop, Web/WASM, Host and Harness, verify the actual conversation:
 

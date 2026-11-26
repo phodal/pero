@@ -525,10 +525,51 @@ impl ChatPanel {
                     .ok_or_else(|| "This conversation is no longer available".to_string())?;
                 let active = self.active_chat == Some(index);
                 let chat = &self.chats[index];
-                let current = ComposerDraft {
+                let mut current = ComposerDraft {
                     content: if active { self.composer.read(cx).content() } else { chat.draft.clone() },
                     references: if active { self.composer_state.references.clone() } else { chat.draft_references.clone() },
                 };
+                if let [reference] = insertion.contexts.as_slice() {
+                    if pero_contracts::mcp_resource::is_app_context(reference) {
+                        if let Some(range) = current.content.tokens().iter()
+                            .find(|span| span.token().id().as_ref() == reference.id).map(|span| span.range()) {
+                            if matches!(&reference.content, ContextContent::Text { text } if text.is_empty()) {
+                                let end = range.end + usize::from(current.content.text()[range.end..].starts_with(' '));
+                                if active {
+                                    self.replace_composer_range(range.start..end, "", window, cx);
+                                    self.update_composer_completion(cx);
+                                } else {
+                                    let mut text = String::from(current.content.text().as_ref());
+                                    text.replace_range(range.start..end, "");
+                                    let mut content = gpui_kit::component::input::InputContent::new(text);
+                                    for span in current.content.tokens() {
+                                        let mut other = span.range();
+                                        if other == range { continue; }
+                                        if other.start >= end {
+                                            other.start -= end - range.start;
+                                            other.end -= end - range.start;
+                                        }
+                                        content = content.with_token(other, span.token().clone()).map_err(|error| error.to_string())?;
+                                    }
+                                    self.chats[index].draft = content;
+                                }
+                            } else {
+                                current.references = current.admit_contexts(&insertion.contexts, false)
+                                    .map_err(|error| error.message(&self.locale))?;
+                                if active {
+                                    self.composer_state.references = current.references;
+                                    self.update_composer_completion(cx);
+                                } else {
+                                    self.chats[index].draft_references = current.references;
+                                }
+                            }
+                            return Ok(());
+                        }
+                        if matches!(&reference.content, ContextContent::Text { text } if text.is_empty()) {
+                            return Ok(());
+                        }
+                    }
+                }
                 let next = current.append(&insertion.text, &insertion.contexts, insertion.replace,
                     chat.state == SessionState::Draft || chat.capabilities.images)
                     .map_err(|error| error.message(&self.locale))?;

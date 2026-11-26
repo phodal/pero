@@ -187,8 +187,9 @@ test('an invalid original result revokes its adopted binding without executing a
   assert.deepEqual(calls.map(call=>call.action),['list','adopt','close']);await sources.close();
 });
 
-test('conversation views reuse the original call on mount and reopen; only live bindings can send messages',async()=>{
+test('conversation views reuse the original call; only live bindings can send messages or stage context',async()=>{
   const calls:McpSessionCall[]=[],messages:{scope:typeof scope;text:string}[]=[];
+  const selections:unknown[]=[];
   const original={content:[{type:'text' as const,text:'original'}],structuredContent:{time:'original-time'},_meta:{private:'retained'}};
   const sources=new McpSessionSources(scope,async(_,call)=>{
     calls.push(call);
@@ -196,18 +197,26 @@ test('conversation views reuse the original call on mount and reopen; only live 
     if(call.action==='adopt')return {binding:`remote-${calls.length}`,resource,input:{revision:4},result:original,tool:'show',resource_uri:'ui://fixture/view'};
     if(call.action==='close')return {};
     throw new Error('Opening a recorded view must not execute a tool');
-  },undefined,undefined,async(scope,text)=>{messages.push({scope,text});});
+  },undefined,selection=>selections.push(selection),async(scope,text)=>{messages.push({scope,text});});
   await sources.list();
   const adopt=()=>sources.command({action:'adopt',server:'same',generation:2,tool_call:'actual-call',operation:'mount'}) as Promise<any>;
   const first=await adopt();
   assert.equal(first.binding.tool_call,'actual-call');assert.deepEqual(first.input,{revision:4});assert.deepEqual(first.result,original);
   await sources.command({action:'message',binding:first.binding.id,text:'Follow up from the App'});
   assert.deepEqual(messages,[{scope,text:'Follow up from the App'}]);
+  await sources.command({action:'update_model_context',binding:first.binding.id,text:'selected row'});
+  await sources.command({action:'update_model_context',binding:first.binding.id,text:''});
+  assert.deepEqual(selections,[
+    {...scope,server:'same',generation:2,uri:'ui://fixture/view',tool_call:'actual-call',
+      contents:[{uri:'ui://fixture/view',mimeType:'text/plain',text:'selected row'}]},
+    {...scope,server:'same',generation:2,uri:'ui://fixture/view',tool_call:'actual-call',contents:[]},
+  ]);
   await sources.command({action:'close',binding:first.binding.id});
   await assert.rejects(sources.command({action:'message',binding:first.binding.id,text:'closed'}),/closed/);
   const reopened=await adopt();assert.deepEqual(reopened.result,original);assert.equal(reopened.binding.tool_call,first.binding.tool_call);
   assert.equal(calls.filter(call=>call.action==='tool'||call.action==='prepare').length,0);
   sources.observeServers([{server:'same',generation:3,status:'connected'}]);
   await assert.rejects(sources.command({action:'message',binding:reopened.binding.id,text:'stale'}),/closed/);
+  await assert.rejects(sources.command({action:'update_model_context',binding:reopened.binding.id,text:'stale'}),/closed/);
   assert.equal(messages.length,1);await sources.close();
 });

@@ -85,6 +85,7 @@ pub struct ChatPanel {
     pub composer: Entity<TextareaState>,
     pub chats: Vec<Conversation>,
     pub active_chat: Option<usize>,
+    pub(crate) expanded_mcp: Option<(String, String)>,
     pub deleting_chat: Option<String>,
     pub agents: Vec<AgentChoice>,
     pub agent_index: usize,
@@ -180,6 +181,7 @@ impl ChatPanel {
             composer,
             chats: vec![],
             active_chat: None,
+            expanded_mcp: None,
             deleting_chat: None,
             agents: vec![],
             agent_index: 0,
@@ -350,7 +352,7 @@ impl ChatPanel {
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
-            if !visible { self.hide_mcp_surfaces(); }
+            if !visible { self.expanded_mcp = None; self.hide_mcp_surfaces(); }
             if visible {
                 if let Some(chat) = self.active_chat.and_then(|index| self.chats.get_mut(index)) { chat.notice.read(); }
                 if self.active_chat.is_none() && self.replayed && self.project_composer.scope.is_none() {
@@ -530,6 +532,11 @@ impl ChatPanel {
                     && chat.mcp.as_ref().is_some_and(|snapshot| view.available(snapshot));
                 let mut row = json!({"chat":chat.id,"tool":tool.id,"historical":view.historical,"interactive":interactive,"server":view.descriptor.server,"resourceUri":view.descriptor.resource_uri});
                 row["notice"] = if visible && !interactive { Value::String(history_notice.into()) } else { Value::Null };
+                let expanded = self.mcp_expanded_active(&chat.id, &tool.id);
+                row["expanded"] = expanded.into();
+                if interactive || expanded {
+                    row["placementBounds"] = view.placement_control.snapshot();
+                }
                 Some(row)
             })
         }).collect();
@@ -593,7 +600,11 @@ impl Render for ChatPanel {
             });
         }
         self.prepare_artifacts(window, cx);
+        if let Some(result) = self.expanded_mcp_surface(cx) {
+            return result;
+        }
         let view = cx.entity().clone();
         container_query(move |size, window, cx| view.update(cx, |this, cx| this.artifact_chat_layout(size, window, cx)))
+            .into_any_element()
     }
 }

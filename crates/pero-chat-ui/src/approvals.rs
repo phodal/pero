@@ -7,11 +7,17 @@ use pero_theme::{
 };
 use serde_json::json;
 
+pub(crate) enum ApprovalPlacement<'a> {
+    Thread,
+    Tool(&'a str),
+    ExpandedResult,
+}
+
 impl ChatPanel {
     pub(crate) fn approval(
         &self,
         thread: &str,
-        tool: Option<&str>,
+        placement: ApprovalPlacement<'_>,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let chat = self.chats.iter().find(|chat| chat.id == thread)?;
@@ -25,7 +31,11 @@ impl ChatPanel {
                 matches!(item, crate::conversation::StreamItem::Tool(index) if chat.tools[*index].id == *target)
             })
         });
-        if tool != target {
+        if !match placement {
+            ApprovalPlacement::Thread => target.is_none(),
+            ApprovalPlacement::Tool(tool) => target == Some(tool),
+            ApprovalPlacement::ExpandedResult => true,
+        } {
             return None;
         }
         let chrome = Chrome::from_app(cx);
@@ -82,7 +92,7 @@ impl ChatPanel {
                                 )
                                 .child(self.t("chat.permission")),
                         )
-                        .when(tool.is_none(), |el| {
+                        .when(!matches!(placement, ApprovalPlacement::Tool(_)), |el| {
                             el.child(
                                 div().whitespace_normal().child(
                                     crate::tool_ui::display_tool_title(

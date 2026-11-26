@@ -63,11 +63,16 @@ receives bound callback ports, not raw connector clients or credentials.
 ## Explicit limits
 
 The tools/resources menu supports explicit exploration alongside automatic
-conversation rendering. Views retain original tool-call identity when collapsed
-or reopened. The runtime does not persist MCP bindings across process restarts,
-replay tool calls, or implement `ui/update-model-context`, non-text `ui/message`,
+conversation rendering. A live result can move between the tool row and the
+Workbench content area with the same frame and binding. Notebook links to the
+saved revision through the existing App location route. Text
+`ui/update-model-context` adds or replaces a reviewable draft attachment for
+the original tool call. An empty update clears that attachment. Only explicit
+submission sends it to the model.
+
+MCP bindings expire on restart. Non-text `ui/message`, structured model context,
 Run/Artifact identity, event subscriptions, approval editors, cross-plugin
-orchestration, panel/fullscreen negotiation, or Data/CI inspectors. Those require
+orchestration, App-requested fullscreen negotiation, and Data/CI inspectors require
 their actual owners and separate product acceptance. Runtime support is not a
 claim of compatibility with every third-party Host or server.
 

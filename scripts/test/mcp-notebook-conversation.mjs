@@ -12,17 +12,13 @@ import {tmpdir} from 'node:os';
 import {expect} from '@playwright/test';
 import {electron} from '../../tests/e2e/electron.mjs';
 import {clickSessionRow} from '../../tests/e2e/sidebar-controls.mjs';
-import {notebookConversationProvider, notebookConversationPrompt, notebookInitialAnswer} from '../../tests/fixtures/mcp-app/notebook-conversation-provider.mjs';
+import {notebookConversationProvider, notebookConversationPrompt, notebookInitialAnswer,
+  notebookContextPrompt, notebookContextAnswer} from '../../tests/fixtures/mcp-app/notebook-conversation-provider.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const html = resolve('desktop/dist/notebook-inspector.html');
 assert.equal(existsSync(html), true, 'Build Desktop so the registered inspector document exists');
-const panelEntry = resolve('apps/notebook/dist/index.html');
-const createdPanel = !existsSync(panelEntry);
-if (createdPanel) {
-  await mkdir(dirname(panelEntry), {recursive: true});
-  await writeFile(panelEntry, '<!doctype html><title>Notebook</title>\n');
-}
+await promisify(execFile)(process.execPath, ['scripts/build/apps.mjs', '--app', 'notebook']);
 const sourceTools = resolve('apps/notebook/backend/pero_source_tools.py');
 const copiedTools = !existsSync(sourceTools);
 if (copiedTools) copyFileSync(resolve('packages/source-extraction/python/pero_source_tools.py'), sourceTools);
@@ -142,8 +138,37 @@ try {
   const savedTool = (await conversation()).tools.find(tool => tool.id === 'notebook-read-call');
   assert(savedTool?.content?.includes('12.5'));
   assert(!savedTool.content.includes('13.0'));
+  assert(savedTool.app_links.some(link => link.url === `pero-app-location://notebook/main/entry/${entry.id}/revision/1`));
   assert.ok(Buffer.byteLength(savedTool.content) < 1_000_000, 'The Notebook route response must stay inside the 1 MiB App write limit');
   await page.screenshot({path: join(evidence, 'notebook-inline-pinned.png'), scale: 'css'});
+  const historyRow = async () => (await state()).mcpHistory?.find(item => item.chat === thread && item.tool === 'notebook-read-call');
+  const togglePlacement = async (expanded) => {
+    let bounds;
+    await expect.poll(async () => {
+      const row = await historyRow();
+      bounds = row?.placementBounds;
+      return row?.expanded === !expanded && !!bounds?.width && !!bounds?.height;
+    }).toBe(true);
+    await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await expect(outer.locator('..')).toHaveAttribute('data-expanded', String(expanded));
+  };
+  await outer.evaluate(frame => { frame.dataset.retained = 'yes'; });
+  await app.locator('body').evaluate(body => { body.dataset.retained = 'yes'; });
+  await togglePlacement(true);
+  await expect(app.getByText('Revision 1', {exact: true})).toBeVisible();
+  await expect(outer).toHaveAttribute('data-retained', 'yes');
+  await expect(app.locator('body')).toHaveAttribute('data-retained', 'yes');
+  await page.screenshot({path: join(evidence, 'notebook-workbench-pinned.png'), scale: 'css'});
+  const appearance = mode => page.evaluate(value => window.pero.sessionCommand({method: 'settings.workbench',
+    preferences: {...JSON.parse(window.peroDiagnostics.snapshot()).preferences, appearance: value},
+  }), mode);
+  await appearance('dark');
+  await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 760));
+  await expect(app.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => app.locator('html').evaluate(el => el.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path: join(evidence, 'notebook-workbench-dark-narrow.png'), scale: 'css'});
+  await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setContentSize(1400, 1050));
+  await appearance('light');
   await app.getByRole('button', {name: 'Browse blocks', exact: true}).evaluate(button => button.click());
   await expect.poll(async () => (await conversation())?.permission ? 'ask' : await writes() >= 2 ? 'read' : '', {timeout: 20000}).not.toBe('');
   if ((await conversation())?.permission) await approve();
@@ -151,16 +176,34 @@ try {
   await expect(app.getByText('13.0', {exact: false})).toHaveCount(0);
   assert.equal(await writes(), 2);
   assert.equal(provider.calls.length, 2, 'Inspector interaction invoked the model');
+  await app.getByRole('button', {name: 'Read observations', exact: true}).evaluate(button => button.click());
+  await expect.poll(async () => (await conversation())?.permission ? 'ask' : await writes() >= 3 ? 'read' : '', {timeout: 20000}).not.toBe('');
+  if ((await conversation())?.permission) await approve();
+  await app.getByRole('button', {name: 'Add block to chat', exact: true}).click();
+  await expect(app.getByText('Added to the chat draft.')).toBeVisible();
+  await app.getByRole('button', {name: 'Add block to chat', exact: true}).click();
+  await expect(app.getByText('Added to the chat draft.')).toBeVisible();
+  await expect.poll(async () => ((await state()).composer.match(/ui:\/\/pero\/notebook\/inspector-v1/g) ?? []).length).toBe(1);
+  assert.equal(provider.calls.length, 2, 'Attaching context invoked the model');
+  await togglePlacement(false);
+  await expect(outer).toHaveAttribute('data-retained', 'yes');
+  await expect(app.locator('body')).toHaveAttribute('data-retained', 'yes');
+  assert.equal(await writes(), 3, 'changing the Inspector placement called Notebook');
+  const composer = (await state()).composerBounds.input;
+  await page.mouse.click(composer.x + composer.width - 15, composer.y + composer.height / 2);
+  await page.keyboard.press('End');
+  await page.keyboard.insertText(notebookContextPrompt);
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await conversation()).messages.some(message => message.text.includes(notebookContextAnswer)), {timeout: 30000}).toBe(true);
   await inline.getByRole('button', {name: 'Close view', exact: true}).click();
   await expect(inline.locator('#view iframe')).toHaveCount(0);
   await inline.getByRole('button', {name: 'Open view', exact: true}).click();
   await expect(app.getByText('Sample A: 12.5 U/mL. Review pending.', {exact: true})).toBeVisible({timeout: 20000});
-  assert.equal(await writes(), 2, 'reopening the Inspector called Notebook');
-  assert.equal(provider.calls.length, 2);
+  assert.equal(await writes(), 3, 'reopening the Inspector called Notebook');
+  assert.equal(provider.calls.length, 3);
   const savedContent = savedTool.content;
   const callsBeforeRestart = await writes();
   const modelsBeforeRestart = provider.calls.length;
-  const historyRow = async () => (await state()).mcpHistory?.find(item => item.chat === thread && item.tool === 'notebook-read-call');
   const readOnlyNotice = async phase => {
     let row;
     await expect.poll(async () => { row = await historyRow(); return row?.notice; }, {timeout: 30000}).toBe('历史结果，当前不可交互');
@@ -205,6 +248,22 @@ try {
   assert.equal(provider.calls.length, modelsBeforeRestart);
   await page.screenshot({path: join(evidence, 'notebook-history-readonly-zh.png'), scale: 'css'});
   const afterRestart = await historyRow();
+  let sourceBounds;
+  await expect.poll(async () => {
+    sourceBounds = (await state()).appLinkBounds.find(link => link.chat === thread &&
+      link.url === `pero-app-location://notebook/main/entry/${entry.id}/revision/1`)?.bounds;
+    return !!sourceBounds?.height;
+  }).toBe(true);
+  await page.mouse.click(sourceBounds.x + sourceBounds.width / 2, sourceBounds.y + sourceBounds.height / 2);
+  const notebook = page.frameLocator('iframe[title="notebook"]');
+  await expect(notebook.getByRole('heading', {level: 1, name: 'Enzyme assay'})).toBeVisible({timeout: 20000});
+  await expect(notebook.getByRole('textbox', {name: '笔记正文', exact: true})).toHaveAttribute('contenteditable', 'false');
+  await expect(notebook.locator('.notebook-status')).toHaveText('修订 1');
+  await expect(notebook.getByText('Sample A: 12.5 U/mL. Review pending.', {exact: true})).toBeVisible();
+  await expect(notebook.getByText('13.0', {exact: false})).toHaveCount(0);
+  assert.equal(await writes(), 0, 'Opening the saved Notebook version called the MCP tool');
+  assert.equal(provider.calls.length, modelsBeforeRestart);
+  await page.screenshot({path: join(evidence, 'notebook-reopened-pinned.png'), scale: 'css'});
   assert.deepEqual(provider.errors, []);
   console.log(JSON.stringify({
     source: 'mcpHistory snapshot', entryId: entry.id, route: 'pero-app-use app__notebook__read-entry',
@@ -216,7 +275,7 @@ try {
   await writeFile(join(evidence, 'result.json'), JSON.stringify({
     passed: true, route: 'host-registered-notebook-app', entryId: entry.id, pinnedRevision: 1, laterRevision: 2,
     modelRequests: provider.calls.length, notebookReadsBeforeRestart: callsBeforeRestart,
-    toolResultBytes: Buffer.byteLength(savedContent),
+    toolResultBytes: Buffer.byteLength(savedContent), retainedAcrossPlacement: true, contextReachedModelAfterSubmit: true, sourceReopenedAfterRestart: true,
     historyRestore: {sameProcessClose: closedInProcess, afterRestart}, errors,
   }, null, 2));
   console.log('Notebook Inspector: pinned revision mounted from the registered App tool row.');
@@ -231,5 +290,4 @@ try {
   await provider.close();
   await rm(home, {recursive: true, force: true});
   if (copiedTools) unlinkSync(sourceTools);
-  if (createdPanel) await rm(panelEntry, {force: true});
 }

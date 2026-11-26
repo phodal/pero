@@ -4,6 +4,8 @@ import {createServer} from 'node:http';
 
 export const notebookConversationPrompt = 'Open the pinned Notebook revision in the Inspector.';
 export const notebookInitialAnswer = 'NOTEBOOK_INSPECTOR_PINNED_OK';
+export const notebookContextPrompt = 'Discuss the selected Notebook block.';
+export const notebookContextAnswer = 'NOTEBOOK_CONTEXT_RECEIVED';
 
 export async function notebookConversationProvider(entryId) {
   const calls = [], errors = [];
@@ -28,12 +30,19 @@ export async function notebookConversationProvider(entryId) {
           arguments: JSON.stringify({entryId, revision: 1}),
         }}]};
         finish = 'tool_calls';
-      } else {
-        assert.equal(calls.length, 2, 'The pinned read must reach exactly one following model request');
+      } else if (calls.length === 2) {
         const result = JSON.stringify(body.messages.filter(message => message.role === 'tool'));
         assert(result.includes('12.5'), `The model did not receive the pinned Notebook text: ${result.slice(0, 1200)}`);
         assert(!result.includes('13.0'), 'The model received a later Notebook revision');
         delta = {content: notebookInitialAnswer};
+        finish = 'stop';
+      } else {
+        assert.equal(calls.length, 3, 'Expected one explicit follow-up after attaching context');
+        assert(prompt.includes(notebookContextPrompt));
+        const sent = JSON.stringify(body.messages);
+        assert(sent.includes('Untrusted MCP resource snapshot'), 'The model did not receive the draft attachment');
+        assert(sent.includes('Block observations') && sent.includes('Sample A: 12.5 U/mL.'));
+        delta = {content: notebookContextAnswer};
         finish = 'stop';
       }
       response.writeHead(200, {'Content-Type': 'text/event-stream'});

@@ -253,7 +253,14 @@ def handler(store, secret):
                     content = selection.read(entry.document)
                 except LookupError as error:
                     return self.error(404, 'not-found', str(error))
-                return self.reply(200, {**entry.wire(summary=True), **content})
+                return self.reply(200, {
+                    **entry.wire(summary=True),
+                    **content,
+                    'links': [{
+                        'label': f'Open Notebook revision {entry.revision}',
+                        'location': f'entry/{entry.identity}/revision/{entry.revision}',
+                    }],
+                })
             if self.path == '/api/agent-apply':
                 data = fields(self.body(), {'entryId', 'baseRevision', 'operations'})
                 identity = entry_id(data['entryId'])

@@ -17,8 +17,9 @@ Task/Run 与远程 App 部署尚未与此机制连接。
 
 [ADR 0036](adr/0036-mcp-apps-host-runtime.md) 将标准 MCP Apps 渲染与生命周期提取到
 `packages/mcp-apps`。Host 继续拥有 MCP 连接、资源绑定和授权，首个业务消费者是
-读取已保存修订的 Notebook Inspector。当前通过会话工具与资源入口显式打开；
-自动内联呈现、Run/Artifact 关联和跨重启恢复仍待实现。
+读取已保存修订的 Notebook Inspector。工具结果可在会话内呈现并展开到工作台内容区，
+两种布局沿用同一个视图和会话绑定。重启后恢复只读结果和来源，Notebook 版本链接
+可打开已保存的修订。Run/Artifact 关联仍待实现。
 
 App 安装和执行仅依赖 Pero 自身的 App SDK、Host 与声明式后端协议；
 不需要外部 Point SDK checkout、兼容运行包或 Project 二进制。

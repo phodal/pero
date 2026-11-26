@@ -11646,6 +11646,9 @@
             "uri": {
               "type": "string"
             },
+            "tool_call": {
+              "type": "string"
+            },
             "contents": {
               "type": "array",
               "items": {

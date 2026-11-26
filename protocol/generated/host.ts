@@ -2458,6 +2458,7 @@ export interface McpResourceSelectedEvent {
     server: string;
     generation: number;
     uri: string;
+    tool_call?: string;
     contents: McpResourceText[];
   };
 }

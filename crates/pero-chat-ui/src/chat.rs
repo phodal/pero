@@ -79,6 +79,7 @@ impl ChatPanel {
     pub fn focus_chat(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
         if index.is_some() { self.set_project_composer(None, cx); }
         if self.active_chat != index {
+            self.expanded_mcp = None;
             if let Some(chat) = self.active_chat.and_then(|i| self.chats.get_mut(i)) {
                 chat.draft = self
                     .composer_restore
@@ -974,7 +975,7 @@ impl ChatPanel {
                                 .on_click(cx.listener(move|this,_,_,cx|this.command(json!({"action":"authenticate","thread_id":thread,"method_id":method_id}),cx))))
                     })))
             }))
-            .children(self.approval(&id, None, cx))
+            .children(self.approval(&id, crate::approvals::ApprovalPlacement::Thread, cx))
             .children(self.user_questions(window, cx))
             .when_some(tools_unavailable.filter(|_| self.compact), |el, warning| {
                 el.child(div().px(px(12.)).py(px(6.)).bg(p.warning_bg).text_color(p.warning).child(warning))

@@ -183,7 +183,7 @@ model McpSessionRequest {
   server?:string;generation?:safeint;name?:string;uri?:string;cursor?:string;arguments?:McpSessionArguments;binding?:string;tool_call?:string;...Closed
 }
 model McpResourceText {uri:string;text:string;mimeType?:string;...Closed}
-model McpResourceSelectedEvent {kind:"mcp_resource_selected";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;server:string;generation:safeint;uri:string;contents:McpResourceText[];...Closed}}
+model McpResourceSelectedEvent {kind:"mcp_resource_selected";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;server:string;generation:safeint;uri:string;tool_call?:string;contents:McpResourceText[];...Closed}}
 model McpSessionEvent {kind:"mcp_session";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;result:unknown;...Closed}}
 model McpSessionErrorEvent {kind:"mcp_session_error";...ThreadEventBase;data:{incarnation:safeint;revision:safeint;reason:"invalid"|"unavailable"|"stale"|"unsupported"|"denied";...Closed}}
 

@@ -53,6 +53,7 @@ adapter. The original result is a value, not an instruction to run a tool again.
 | Panel/Notebook theme assignments | `@pero/mcp-apps/theme` | Live theme/locale, existing generated tokens and standard Host styles |
 | Runtime's fixed iframe heights | `McpAppSizePolicy` | Container bounds, standard size notifications, no reconnect on resize |
 | Bare Host method callbacks | Receiver-preserving runtime calls | Class adapters revoke their actual binding |
+| Result rendering inside the tools/resources catalog | `BoundResultView` with the shared `McpAppSurface` | Catalog execution and recorded adoption share rendering and teardown. The conversation and Workbench reuse the same mounted frame. |
 
 Controls remain in `@pero/app-sdk/ui`; no token source or generated style is
 changed. Resource retry requires an owner callback to obtain current authority

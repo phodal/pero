@@ -11,7 +11,7 @@ import {admitMcpCsp} from './mcp-policy.ts';
 
 type AppTool={tool:Tool;resource?:string;visible:boolean};
 type Connected={client:Client;tools:Map<string,AppTool>;resources:Map<string,Resource>};
-export type McpView={binding:McpAppBinding;html:string;csp?:McpUiResourceCsp;input:Record<string,unknown>;result:CallToolResult};
+export type McpView={binding:McpAppBinding;html:string;csp?:McpUiResourceCsp;input:Record<string,unknown>;result:CallToolResult;canUpdateModelContext?:boolean};
 type BoundView={view:McpView;tools:Set<string>};
 /** The privileged Host owns connections and bindings; frames cannot select their authority. */
 export class McpSources {
@@ -60,7 +60,7 @@ export class McpSources {
     switch(command.action){
       case 'adopt':case 'message':throw new Error('This operation requires a managed conversation');
       case 'list':return this.list();
-      case 'resources':case 'templates':case 'read':case 'attach_resource':case 'cancel_open':throw new Error('Resource browsing requires a managed session panel');
+      case 'resources':case 'templates':case 'read':case 'attach_resource':case 'update_model_context':case 'cancel_open':throw new Error('This operation requires a managed session panel');
       case 'configure':{
         // Each save replaces the whole file, so base it on the last committed snapshot.
         const write = this.configWrite.then(async () => {

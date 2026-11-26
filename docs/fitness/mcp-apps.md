@@ -336,4 +336,30 @@ conversation about 42 seconds); 30 minutes is the cold-compile ceiling, not a
 claim that the job takes that long.
 
 `ui/update-model-context`, Task/Run/Artifact binding, author tooling,
-panel/fullscreen, and marketplace distribution stay out of this pass.
+panel/fullscreen, and marketplace distribution stayed outside the 2026-11-24 pass.
+
+## Workbench placement and Notebook draft context — 2026-11-26
+
+Local macOS Electron, source based on `32132b5ad` with the Workbench changes.
+Built Wasm, Web, Desktop and Rust Host. Ran
+`npm run test:mcp-notebook-conversation` and the unchanged official 2.0.4 MCP App
+through `npm run test:mcp-official-conversation`. The Notebook Python backend,
+Rust Host and Go ACP were running. Model requests went to the loopback fixture.
+
+- From the tool row, **Open in workbench** and **Back to chat** retained the same
+  outer frame and guest document. Notebook continued to show revision 1 and
+  `12.5 U/mL` after revision 2 had been saved.
+- Browsing and selecting the block made the two explicit follow-up reads.
+  Adding the block twice produced one draft attachment. The model fixture only
+  received its source text after the user submitted from the Composer.
+- Closing or reopening the view did not repeat the tool. Restart restored the
+  read-only history. Following its source link opened the saved Notebook revision
+  read-only, with zero additional MCP tool or model calls.
+- Inspected the light 1400px and dark 1000px Workbench captures and the reopened
+  Notebook. The back action and revision link were visible, revision 1 remained
+  readable, and the dark view fit without horizontal overflow.
+
+Evidence is in `test-results/mcp-notebook-conversation/` (`result.json`,
+`notebook-workbench-pinned.png`, `notebook-workbench-dark-narrow.png`,
+`notebook-reopened-pinned.png`). Native shell compilation passed. Native
+graphical interaction and signed distribution were outside this run.

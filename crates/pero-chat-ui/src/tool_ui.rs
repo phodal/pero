@@ -350,7 +350,7 @@ mod rendering {
                         .children(tool.control.as_ref().map(|result| self.inline_control(conversation_id, &tool.id, result, cx)))
                         .children(tool.molecule.as_ref().map(|result| self.inline_molecule(conversation_id, &tool.id, result, cx)))
                 })
-                .children(self.approval(conversation_id, Some(&tool.id), cx))
+                .children(self.approval(conversation_id, crate::approvals::ApprovalPlacement::Tool(&tool.id), cx))
                 .when(show_failure && (tool.status == "failed" || tool.body.failed()) && !tool.cancelled, |el| {
                     let failure = tool.content.lines().map(str::trim).find(|line| !line.is_empty() && !line.starts_with("```"))
                         .map(|line| crate::tool_activity::preview(line, 180)).unwrap_or_else(|| self.t("chat.tool_failed").into());

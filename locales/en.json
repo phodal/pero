@@ -217,6 +217,8 @@
   "mcp.runtime.error": "Connection failed; start a new session to retry",
   "mcp.runtime.closed": "Closed",
   "mcp.history.readonly": "Historical result, not currently interactive",
+  "mcp.open_workbench": "Open in workbench",
+  "mcp.back_to_chat": "Back to chat",
   "mcp.runtime.no_servers": "No enabled managed connectors in this session.",
   "mcp.runtime.tools": "Tools",
   "mcp.runtime.no_tools": "No tools reported.",
