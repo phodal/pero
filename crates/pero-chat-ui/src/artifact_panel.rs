@@ -2,7 +2,7 @@
 use crate::{
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
-    session_artifacts::{ArtifactCollection, ArtifactPaneResize},
+    session_artifacts::{ArtifactCollection, ArtifactPaneResize, ResourceView},
 };
 use gpui_kit::{
     base::Selectable,
@@ -27,6 +27,14 @@ pub enum ResourcePrimary {
     Files,
     Artifacts,
     Changes,
+    Desktop,
+}
+
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_namespace = window, js_name = peroLinuxDesktopSurface)]
+    fn publish_desktop_surface(json: &str);
 }
 
 impl ChatPanel {
@@ -90,6 +98,83 @@ impl ChatPanel {
         }
     }
 
+    pub(crate) fn desktop_pane_available(&self) -> bool {
+        self.desktop_available && self.scope.is_none()
+    }
+
+    pub fn open_desktop_pane(&mut self, cx: &mut Context<Self>) {
+        if !self.desktop_pane_available() {
+            return;
+        }
+        let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) else {
+            return;
+        };
+        self.artifacts
+            .conversations
+            .entry(chat.id.clone())
+            .or_default()
+            .show_pane(ResourceView::Desktop);
+        if self.compact {
+            cx.emit(ChatAction::CompactNeedsSpace);
+        }
+        cx.notify();
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub fn clear_desktop_surface() {
+        publish_desktop_surface("null");
+    }
+
+    fn desktop_pane(&self, thread: &str, inset: f32) -> AnyElement {
+        let body = div().size_full();
+        #[cfg(target_family = "wasm")]
+        let body = {
+            let thread = thread.to_owned();
+            let covered = self.artifact_surface_covered() || self.artifacts.resize.is_some();
+            body.child(
+                canvas(
+                    move |bounds, _, _| {
+                        let width = f32::from(bounds.size.width);
+                        let height = f32::from(bounds.size.height);
+                        let bounds = (!covered && width > 0. && height > 0.).then(|| {
+                            serde_json::json!({
+                                "x": f32::from(bounds.origin.x),
+                                "y": f32::from(bounds.origin.y),
+                                "width": width,
+                                "height": height,
+                            })
+                        });
+                        publish_desktop_surface(
+                            &serde_json::json!({"thread": thread, "bounds": bounds}).to_string(),
+                        );
+                    },
+                    |_, _, _, _| {},
+                )
+                .size_full(),
+            )
+        };
+        #[cfg(not(target_family = "wasm"))]
+        let _ = thread;
+        div().size_full().pl(px(inset)).child(body).into_any_element()
+    }
+
+    fn resource_body(
+        &self,
+        thread: &str,
+        state: &ArtifactCollection,
+        inset: f32,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        match state.resource_view {
+            ResourceView::Desktop => self.desktop_pane(thread, inset),
+            ResourceView::Changes => self.changes_panel(thread, state, cx),
+            ResourceView::Contents if self.files.selection.tab == ResourceTab::Files => {
+                self.file_panel(thread, cx)
+            }
+            ResourceView::Contents => self.artifact_panel(thread, state, cx),
+        }
+    }
+
     /// Close the selected conversation's resources while preserving its contents.
     pub fn resource_pane_open(&self) -> bool {
         self.active_chat.and_then(|index| self.chats.get(index))
@@ -114,7 +199,7 @@ impl ChatPanel {
     pub fn titlebar_artifacts(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let thread = &self.chats.get(self.active_chat?)?.id;
         let active = self.files.selection.tab == ResourceTab::Artifacts
-            && self.artifacts.conversations.get(thread).is_some_and(|state| state.open && !state.show_changes);
+            && self.artifacts.conversations.get(thread).is_some_and(|state| state.open && state.resource_view == ResourceView::Contents);
         let action = self.t(if active { "artifacts.close" } else { "artifacts.title" });
         Some(
             pero_theme::ghost_icon_button("titleband-artifacts", pero_theme::Chrome::from_app(cx), cx)
@@ -163,13 +248,7 @@ impl ChatPanel {
         let Some(state) = self.artifacts.conversations.get(&thread) else {
             return div().into_any_element();
         };
-        let pane = if state.show_changes {
-            self.changes_panel(&thread, state, cx)
-        } else if self.files.selection.tab == ResourceTab::Files {
-            self.file_panel(&thread, cx)
-        } else {
-            self.artifact_panel(&thread, state, cx)
-        };
+        let pane = self.resource_body(&thread, state, Self::PANE_DIVIDER, cx);
         let shown = self
             .resource_column
             .map(|column| column.width)
@@ -324,7 +403,7 @@ impl ChatPanel {
                 .artifacts
                 .conversations
                 .get(&thread)
-                .is_some_and(|state| state.open)
+                .is_some_and(|state| state.open && state.resource_view == ResourceView::Contents)
         {
             self.prepare_file_reader(&thread, window, cx);
         }
@@ -335,18 +414,18 @@ impl ChatPanel {
             < Self::CHAT_COLUMN_MIN + f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
-        let reviewing = state.is_some_and(|state| state.show_changes);
-        let bottom = state.is_some_and(|state| state.bottom);
-        let maximized = !reviewing
-            && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
+        let view = state.map_or(ResourceView::Contents, |state| state.resource_view);
+        let desktop = view == ResourceView::Desktop;
+        let bottom = !desktop && state.is_some_and(|state| state.bottom);
+        let maximized = view == ResourceView::Contents
+            && self.files.selection.tab == ResourceTab::Artifacts
             && state.is_some_and(|state| state.maximized);
         let split = open && !self.artifacts.narrow && !maximized;
-        let resource_primary = if reviewing {
-            ResourcePrimary::Changes
-        } else if self.files.selection.tab == ResourceTab::Files {
-            ResourcePrimary::Files
-        } else {
-            ResourcePrimary::Artifacts
+        let resource_primary = match view {
+            ResourceView::Desktop => ResourcePrimary::Desktop,
+            ResourceView::Changes => ResourcePrimary::Changes,
+            ResourceView::Contents if self.files.selection.tab == ResourceTab::Files => ResourcePrimary::Files,
+            ResourceView::Contents => ResourcePrimary::Artifacts,
         };
         let mut side_width = None;
         let count = state.map_or(0, |state| state.items.len());
@@ -387,7 +466,8 @@ impl ChatPanel {
                                     .entry(toggle_thread.clone())
                                     .or_default();
                                 state.inline_open = false;
-                                state.open = !state.open;
+                                state.open = true;
+                                state.resource_view = ResourceView::Contents;
                                 if this.compact {
                                     cx.emit(ChatAction::CompactNeedsSpace);
                                 }
@@ -400,7 +480,7 @@ impl ChatPanel {
                         &thread,
                         state.expect("open artifact catalog"),
                         false,
-                        None,
+                        desktop.then_some(size.width.into()),
                         cx,
                     )))
                 })
@@ -431,13 +511,8 @@ impl ChatPanel {
             .into_any_element();
         let body = if open {
             let collection = state.expect("open artifact catalog");
-            let pane = if collection.show_changes {
-                self.changes_panel(&thread, collection, cx)
-            } else if self.files.selection.tab == pero_contracts::workbench::ResourceTab::Files {
-                self.file_panel(&thread, cx)
-            } else {
-                self.artifact_panel(&thread, collection, cx)
-            };
+            let inset = if desktop && split { Self::PANE_DIVIDER } else { 0. };
+            let pane = self.resource_body(&thread, collection, inset, cx);
             if !split {
                 pane
             } else if !bottom && self.host_titleband {
@@ -456,8 +531,8 @@ impl ChatPanel {
                     side_width = Some(self.artifact_column_width(available));
                     side_width.expect("side column width")
                 };
-                let compact_toolbar = !bottom && shown < Self::RESOURCE_TOOLBAR_MIN;
-                let has_identity = !reviewing
+                let compact_toolbar = !desktop && !bottom && shown < Self::RESOURCE_TOOLBAR_MIN;
+                let has_identity = view == ResourceView::Contents
                     && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
                     && collection.selected.is_some()
                     && (self.artifacts.view == pero_contracts::workbench::ArtifactView::Gallery
@@ -521,7 +596,7 @@ impl ChatPanel {
                                                 &thread,
                                                 collection,
                                                 compact_toolbar,
-                                                None,
+                                                desktop.then_some(shown),
                                                 cx,
                                             )),
                                         )

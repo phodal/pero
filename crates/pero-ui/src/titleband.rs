@@ -57,6 +57,7 @@ pub(crate) enum ResourcePrimary {
     Files,
     Artifacts,
     Changes,
+    Desktop,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
