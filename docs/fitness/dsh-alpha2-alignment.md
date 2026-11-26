@@ -144,3 +144,19 @@ Tool execution is still gated by ACP and the existing workspace permission
 policy. Images, signed thinking, native Files, hosted provider tools, moving
 system instructions during a conversation, real models and Desktop Host
 acceptance are outside this lane.
+
+## Opt-in signed thinking over HTTP/ACP
+
+Rerun the two-executable fixture with `PERO_ACP_SIGNED=1`. DSH still
+tests the text/tool baseline; the Go executable opts into signed thinking
+with a separate synthetic local key. The Messages peer checks the signature
+and tool-call ID during the tool result round trip and again after an ACP
+restart from the same private session directory. A third Go process uses
+a different synthetic provider credential at the same endpoint: no thinking
+text or signature may be transmitted, the previous tool ID is still present,
+and the already executed write must not run again. Neither replay key nor
+signature enters ACP surface events. Expect ten loopback requests total.
+
+This is synthetic protocol and session-restart evidence. Real DeepSeek
+acceptance, Files and Desktop Host wiring are separate; signed mode remains
+opt-in and existing launch defaults are unchanged.

@@ -41,6 +41,10 @@ type ModelConfig struct {
 }
 type Config struct {
 	APIFormat APIFormat
+	// A 32-byte local secret explicitly enables signed Messages thinking.
+	// It scopes replay to this endpoint, provider and credential. Do not reuse
+	// the API key itself or send this secret to the provider.
+	MessagesReplayKey []byte
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
 	// Explicit transport choice for compatible providers without an SSE route.
@@ -66,6 +70,7 @@ type Adapter struct {
 	responses                responses.ResponseService
 	messagesClient           *http.Client
 	messagesURL, messagesKey string
+	messagesReplayScope      string
 	disableThinking          bool
 	disableStreaming         bool
 	maxRequests              int64
@@ -91,6 +96,9 @@ func New(c Config) (*Adapter, error) {
 	}
 	if c.APIFormat == DeepSeekMessages && c.DisableStreaming {
 		return nil, errors.New("messages adapter: this protocol requires streaming")
+	}
+	if c.MessagesReplayKey != nil && (len(c.MessagesReplayKey) != 32 || c.APIFormat != DeepSeekMessages || c.DisableThinking) {
+		return nil, errors.New("messages adapter: signed thinking requires DeepSeek Messages, a 32-byte local replay key and thinking not disabled")
 	}
 	if c.MaxRequests < 0 || c.MaxOutputTokens < 0 {
 		return nil, errors.New("openai adapter: budget limits must be non-negative")
@@ -191,6 +199,9 @@ func New(c Config) (*Adapter, error) {
 	adapter := &Adapter{apiFormat: c.APIFormat, disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}
 	if c.APIFormat == DeepSeekMessages {
 		adapter.messagesClient, adapter.messagesURL, adapter.messagesKey = &client, u.String(), c.APIKey
+		if c.MessagesReplayKey != nil {
+			adapter.messagesReplayScope = messagesReplayScope(c.MessagesReplayKey, u.String(), c.ProviderName, c.APIKey)
+		}
 	} else {
 		adapter.client = openaisdk.NewChatCompletionService(sdkOptions...)
 		adapter.responses = responses.NewResponseService(sdkOptions...)

@@ -3,6 +3,9 @@ package openai
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,7 +19,7 @@ import (
 // pumpMessages uses the same HTTP transport, auditing and cancellation
 // context as the other explicit provider protocols. The Messages decoder,
 // rather than the Chat [DONE] wrapper, owns terminal validation.
-func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, out chan<- openAIStreamEvent) {
+func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messages.ReplayRoute, out chan<- openAIStreamEvent) {
 	defer close(out)
 	send := func(event openAIStreamEvent) error {
 		select {
@@ -55,9 +58,15 @@ func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, out chan<- o
 		}, nil)})
 		return
 	}
-	result, err := messages.ReadStream(response.Body, func(chunk harness.StreamChunk) error {
+	emit := func(chunk harness.StreamChunk) error {
 		return send(openAIStreamEvent{delta: &chunk})
-	})
+	}
+	var result harness.Completion
+	if route.Scope == "" {
+		result, err = messages.ReadStream(response.Body, emit)
+	} else {
+		result, err = messages.ReadSignedStream(response.Body, route, emit)
+	}
 	if err != nil {
 		// Once a successful HTTP response starts, replay is not safe: it may
 		// have consumed budget and emitted deltas. Never return a partial call.
@@ -65,4 +74,12 @@ func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, out chan<- o
 		return
 	}
 	_ = send(openAIStreamEvent{completion: &result})
+}
+
+// This durable identifier changes when the credential or exact endpoint
+// changes, without exposing an unkeyed fingerprint of the API credential.
+func messagesReplayScope(key []byte, endpoint, provider, credential string) string {
+	mac := hmac.New(sha256.New, key)
+	fmt.Fprintf(mac, "pero/deepseek-messages-replay/v1 %q %q %q", endpoint, provider, credential)
+	return hex.EncodeToString(mac.Sum(nil))
 }

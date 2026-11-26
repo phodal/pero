@@ -19,7 +19,8 @@ assert.equal(manifest.version, dshVersion);
 const dshEntry = resolve(dirname(dshPackage), manifest.bin.dsh);
 const root = await realpath(await mkdtemp(join(tmpdir(), 'pero-dsh-acp-')));
 const timeoutMillis = 15000;
-const messagesLane = process.env.PERO_ACP_MESSAGES === '1';
+const signedLane = process.env.PERO_ACP_SIGNED === '1';
+const messagesLane = signedLane || process.env.PERO_ACP_MESSAGES === '1';
 const effects = messagesLane || process.env.PERO_ACP_EFFECTS === '1';
 let providerRequests = 0;
 let plan;
@@ -27,6 +28,9 @@ const fixtureErrors = [];
 const receipt = 'one explicit fixture write\n';
 const success = 'fixture turn completed';
 const key = 'offline-fixture-only';
+const replayKey = 'ab'.repeat(32);
+const thought = 'synthetic fixture thought';
+const signature = 'synthetic-fixture-signature';
 const provider = createServer(async (request, response) => {
   providerRequests++;
   try {
@@ -37,7 +41,7 @@ const provider = createServer(async (request, response) => {
     assert.equal(request.method, 'POST');
     assert.equal(request.url, engine.messages ? '/anthropic/v1/messages' : dsh ? '/v1/messages' : '/v1/chat/completions');
     assert.equal(messages ? request.headers['x-api-key'] : request.headers.authorization,
-      messages ? key : `Bearer ${key}`);
+      messages ? (engine.credential ?? key) : `Bearer ${key}`);
     let raw = '';
     for await (const chunk of request) {
       raw += chunk;
@@ -47,7 +51,8 @@ const provider = createServer(async (request, response) => {
     if (engine.messages) {
       assert.equal(request.headers['anthropic-version'], '2023-06-01');
       assert.equal(request.headers.authorization, undefined);
-      assert.deepEqual(body.thinking, { type: 'disabled' });
+      assert.deepEqual(body.thinking, { type: engine.signed ? 'enabled' : 'disabled' });
+      assert.ok(!raw.includes(replayKey), 'local replay key must not reach the provider');
       assert.equal(body.stream, true);
       assert.equal(body.max_tokens, 128);
     }
@@ -67,7 +72,17 @@ const provider = createServer(async (request, response) => {
       assert.equal(order[1].content[0].tool_use_id, 'fixture-write');
       assert.ok(order[1].content[0].content.some(b => b.type === 'text' && b.text.includes('effect.txt')));
     }
-    if (stage === 'tool-result' || stage === 'after-restart') {
+    if (engine.signed) {
+      const blocks = body.messages.flatMap(m => m.content);
+      if (stage === 'tool-result' || stage === 'after-restart') {
+        const toolTurn = body.messages.find(m => m.content.some(b => b.type === 'tool_use' && b.id === 'fixture-write'));
+        assert.deepEqual(toolTurn?.content[0], {type: 'thinking', thinking: thought, signature});
+      } else if (stage === 'credential-changed') {
+        assert.equal(blocks.some(b => b.type === 'thinking'), false, 'credential change must drop signed history');
+        assert.ok(!raw.includes(signature) && !raw.includes(thought));
+      }
+    }
+    if (stage === 'tool-result' || stage === 'after-restart' || stage === 'credential-changed') {
       assert.ok(hasToolResult, `${engine.name}: tool result missing in ${stage}`);
     }
     response.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -88,11 +103,19 @@ const provider = createServer(async (request, response) => {
     if (messages) {
       send({ type: 'message_start', message: { id: 'fixture-message', type: 'message', role: 'assistant',
         model: body.model, content: [], usage: { input_tokens: 3, output_tokens: 0 } } });
-      send({ type: 'content_block_start', index: 0, content_block: write
+      const signedWrite = engine.signed && stage === 'write';
+      if (signedWrite) {
+        send({type: 'content_block_start', index: 0, content_block: {type: 'thinking', thinking: '', signature: ''}});
+        send({type: 'content_block_delta', index: 0, delta: {type: 'thinking_delta', thinking: thought}});
+        send({type: 'content_block_delta', index: 0, delta: {type: 'signature_delta', signature}});
+        send({type: 'content_block_stop', index: 0});
+      }
+      const index = signedWrite ? 1 : 0;
+      send({ type: 'content_block_start', index, content_block: write
         ? { type: 'tool_use', id, name, input: {} } : { type: 'text', text: '' } });
-      send({ type: 'content_block_delta', index: 0, delta: write
+      send({ type: 'content_block_delta', index, delta: write
         ? { type: 'input_json_delta', partial_json: JSON.stringify(args) } : { type: 'text_delta', text: success } });
-      send({ type: 'content_block_stop', index: 0 });
+      send({ type: 'content_block_stop', index });
       send({ type: 'message_delta', delta: { stop_reason: write ? 'tool_use' : 'end_turn',
         stop_sequence: null }, usage: { output_tokens: 1 } });
       if (stage !== 'truncated') send({ type: 'message_stop' });
@@ -124,7 +147,8 @@ async function withAgent(engine, paths, run) {
       DSH_TELEMETRY_DISABLED: '1',
       DEEPSEEK_BASE_URL: endpoint,
       DEEPSEEK_API_KEY: key,
-      PERO_FIXTURE_API_KEY: key,
+      PERO_FIXTURE_API_KEY: engine.credential ?? key,
+      ...(engine.signed && {PERO_FIXTURE_REPLAY_KEY: replayKey}),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -157,6 +181,7 @@ async function withAgent(engine, paths, run) {
         const next = await lines.next();
         assert.ok(!next.done, `${engine.name}: stdout closed during ${method}`);
         const message = JSON.parse(next.value);
+        if (engine.signed) assert.ok(!next.value.includes(signature) && !next.value.includes(replayKey), 'ACP exposed private replay metadata');
         assert.equal(message.jsonrpc, '2.0');
         if (message.id === undefined && message.method === 'session/update') {
           updates.push(message.params?.update?.sessionUpdate);
@@ -249,7 +274,12 @@ async function compare(engine) {
     await request('session/close', { sessionId: created.sessionId });
     return created.sessionId;
   });
-  return withAgent(engine, paths, async ({ ask, request, updates, approvals, capabilities }) => {
+  if (engine.signed) {
+    const journal = await readFile(join(home, 'sessions', sessionId + '.jsonl'), 'utf8');
+    assert.ok(journal.includes(signature), 'complete signature must survive in the private journal');
+    assert.ok(!journal.includes(replayKey) && !journal.includes(key), 'credential material must not enter the journal');
+  }
+  const report = await withAgent(engine, paths, async ({ ask, request, updates, approvals, capabilities }) => {
     const list = await request('session/list', { cwd: workspace });
     assert.deepEqual(list.sessions.map(s => [s.sessionId, s.cwd]), [[sessionId, workspace]]);
     assert.deepEqual((await request('session/list', { cwd: alias })).sessions.map(s => [s.sessionId, s.cwd]), [[sessionId, workspace]]);
@@ -300,13 +330,28 @@ async function compare(engine) {
       plan = undefined;
     }
     return {
-      ...(engine.messages && { messages: 'explicit text/tools', incompleteEffects: 0 }),
+      ...(engine.messages && { messages: engine.signed ? 'explicit signed thinking' : 'explicit text/tools', incompleteEffects: 0 }),
       engine: engine.name, protocolVersion: 1,
       newCloseRestartListResume: 'passed', differentWorkspaceRejected: true, canonicalCwd: true,
       loadSession: supportsLoad ? 'advertised; load passed' : 'not advertised',
       ...(effects && { writes: 1, noReplay: true, inFlightCancelled: true, explicitNewTurnAfterRestart: true }),
     };
   });
+  if (engine.signed) {
+    const rotated = {...engine, credential: 'rotated-offline-fixture-only'};
+    await withAgent(rotated, paths, async ({request, approvals}) => {
+      await request('session/resume', {...params, sessionId});
+      plan = {engine: rotated, stages: ['credential-changed']};
+      assert.equal((await prompt(request, sessionId, 'Answer without replaying private thinking.')).stopReason, 'end_turn');
+      assert.deepEqual(plan.stages, []);
+      assert.deepEqual(approvals, []);
+      assert.equal(await readFile(join(workspace, 'effect.txt'), 'utf8'), 'external change after the turn\n');
+      await request('session/close', {sessionId});
+      plan = undefined;
+    });
+    report.signedReplay = 'same-route restart preserved; changed credential suppressed';
+  }
+  return report;
 }
 
 try {
@@ -314,15 +359,16 @@ try {
   await once(provider, 'listening');
   const engines = [
     { name: 'dsh', command: process.execPath, args: () => [dshEntry, '--profile', 'acp'] },
-    { name: 'pero', messages: messagesLane, command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
+    { name: 'pero', messages: messagesLane, signed: signedLane, command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
       '--endpoint', endpoint + (messagesLane ? '/anthropic' : '/v1'),
-      ...(messagesLane ? ['--api-format', 'deepseek-messages', '--max-tokens', '128'] : []), '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
+      ...(messagesLane ? ['--api-format', 'deepseek-messages', '--max-tokens', '128'] : []),
+      ...(signedLane ? ['--messages-replay-key-env', 'PERO_FIXTURE_REPLAY_KEY'] : []), '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
       '--session-dir', join(home, 'sessions'), ...(effects ? ['--workspace', workspace] : []), '--approval', effects ? 'ask' : 'never',
     ] },
   ];
   const results = [];
   for (const engine of engines) results.push(await compare(engine));
-  assert.equal(providerRequests, messagesLane ? 9 : effects ? 8 : 0, 'unexpected provider request count');
+  assert.equal(providerRequests, signedLane ? 10 : messagesLane ? 9 : effects ? 8 : 0, 'unexpected provider request count');
   console.log(JSON.stringify({ dshVersion, scope: effects ? 'loopback provider; write, cancel and restart' : 'empty ACP lifecycle; no prompts', providerRequests, results }, null, 2));
 } finally {
   provider.closeAllConnections();

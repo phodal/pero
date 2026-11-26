@@ -104,11 +104,19 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	var toolsPayload []byte
 	toolResultBytes, toolResults := 0, 0
 	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
+	var messagesRoute messages.ReplayRoute
 	if a.apiFormat == DeepSeekMessages {
 		if request.MaxTokens == 0 {
 			request.MaxTokens = a.models[request.Model].MaxTokens
 		}
-		wire, err := messages.Encode(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		var wire messages.Request
+		var err error
+		if a.messagesReplayScope != "" {
+			messagesRoute = messages.ReplayRoute{Scope: a.messagesReplayScope, Model: request.Model}
+			wire, err = messages.EncodeSigned(messagesRoute, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		} else {
+			wire, err = messages.Encode(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		}
 		if err != nil {
 			return harness.Completion{}, harness.NewProviderError(err.Error(), "INVALID_REQUEST", nil)
 		}
@@ -192,7 +200,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		}
 	}
 	if a.apiFormat == DeepSeekMessages {
-		go a.pumpMessages(streamCtx, payload, events)
+		go a.pumpMessages(streamCtx, payload, messagesRoute, events)
 	} else if a.apiFormat == Responses {
 		go a.pumpResponses(streamCtx, payload, events)
 	} else if a.disableStreaming {

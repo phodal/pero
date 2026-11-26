@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -66,6 +67,7 @@ func run() (resultErr error) {
 	maintenance := flag.Bool("maintenance", false, "run Setup maintenance, then exit without a conversation")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
+	replayKeyEnv := flag.String("messages-replay-key-env", "", "enable signed DeepSeek Messages thinking; name of an environment variable holding a private 32-byte hex replay key")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
@@ -201,6 +203,20 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	var messagesReplayKey []byte
+	if *replayKeyEnv != "" {
+		if *replayKeyEnv == *keyEnv {
+			return errors.New("Messages replay key requires a separate environment variable")
+		}
+		value, err := takeProviderCredential(*replayKeyEnv)
+		if err != nil {
+			return err
+		}
+		messagesReplayKey, err = hex.DecodeString(value)
+		if err != nil || len(messagesReplayKey) != 32 {
+			return errors.New("Messages replay key must contain exactly 32 hex-encoded bytes")
+		}
+	}
 	webProvider, err := configuredWeb(*web, *keyEnv, credential)
 	if err != nil {
 		return err
@@ -213,6 +229,7 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	providerConfig.MessagesReplayKey = messagesReplayKey
 	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
 	if paperResearch != nil {
 		providerConfig.BeforeHTTPAttempt, err = researchAttemptAudit(paperResearch.AuditPath, paperResearch.ModelRequests)
@@ -236,6 +253,8 @@ func run() (resultErr error) {
 		return err
 	}
 	adapter, err := openai.New(providerConfig)
+	clear(messagesReplayKey)
+	providerConfig.MessagesReplayKey = nil
 	if err != nil {
 		return err
 	}
@@ -510,7 +529,7 @@ func run() (resultErr error) {
 	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
 		return err
 	}
-	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking || budget.APIFormat == string(openai.DeepSeekMessages), ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking || (budget.APIFormat == string(openai.DeepSeekMessages) && *replayKeyEnv == ""), ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
 		return err
 	}
 	if *initOnly || *maintenance {

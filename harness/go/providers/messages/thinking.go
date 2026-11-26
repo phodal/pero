@@ -27,7 +27,7 @@ type signedThinking struct {
 
 // ReadSignedStream is the opt-in codec for signed thinking. A signature
 // remains opaque; authenticity is for the provider to validate. The current
-// HTTP adapter only calls ReadStream and continues to reject thinking.
+// HTTP adapter uses ReadStream unless signed thinking is explicitly enabled.
 func ReadSignedStream(src io.Reader, route ReplayRoute, emit func(model.StreamChunk) error) (model.Completion, error) {
 	if !route.valid() {
 		return model.Completion{}, errors.New("messages: signed thinking requires an explicit route")
