@@ -53,6 +53,7 @@ try {
     if (command === 'write') {
       const input = (await state()).composerBounds.input;
       await workbench.mouse.click(input.x + input.width/2, input.y + input.height/2);
+      await expect.poll(async () => (await state()).composerFocused).toBe(true);
       await workbench.keyboard.insertText('DESKTOP_TEST:write @remo');
       const target = 'Use attached Linux desktop';
       await expect.poll(async () => {
