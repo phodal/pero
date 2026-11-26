@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "4ff6a03a2f59c46b81daaaa6956f564b882b0a98",
+  "right_ref": "89b905e269afc4e1a09d6b633d4e8de51b0f177e",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -239,9 +239,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "e6ad9b987008579cd487aefcc45b681f5ab63ce3dfb17301810aebd18217b5bf"
+        "sha256": "927eb0bb8c4f593f5a29f737fd50fa92cd72d43187674cddb2cf2fedc021ed97"
       },
-      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence.",
+      "notes": "AbortController/Go context are analogous cancellation mechanisms. Preserve admission ownership and request slot until settlement. ACP may explicitly enable bounded output-limit follow-up turns. Each uses a plugin source and the same prompt lifetime; default zero retains the single-prompt contract. The core sticky max-token outcome is unchanged. Recovery, exhausted budgets and cancellation are pinned by native tests. PR #225 adds explicit /review handling and optional bounded post-turn review under the same promptCtx/inflight admission. Manual review reads retained evidence instead of submitting another ordinary model prompt. ACP admission, review cancellation and output-limit regression tests cover this intentional local composition; the refreshed receipt does not assert cross-language equivalence. The opt-in native /goal command also owns this slot through all bounded rounds; each round uses a context-bound guarded follow-up. It does not alter default admission.",
       "landmarks": [
         {
           "id": "admission-context",
@@ -278,9 +278,9 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "f6b6320c5fcf2ad12c0943b36a802c0ac7e1b5bcc29a7e830d7bd6b5feb07839"
+        "sha256": "8f499b0047289fb9cffab3a705e6f0c93aa296a6a0acbd18c1b7c4455c52e068"
       },
-      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity.",
+      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option changes composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
       "landmarks": [
         {
           "id": "cancel-admission",
@@ -307,9 +307,9 @@
         "path": "harness/go/acp/prompt.go",
         "language": "go",
         "symbol": "Server.prompt",
-        "sha256": "e6ad9b987008579cd487aefcc45b681f5ab63ce3dfb17301810aebd18217b5bf"
+        "sha256": "927eb0bb8c4f593f5a29f737fd50fa92cd72d43187674cddb2cf2fedc021ed97"
       },
-      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence.",
+      "notes": "Go waits for the active Agent to become idle before releasing its ACP slot after cancellation; official also drains descendants/output updates. PR #225 settles optional bounded review within the admitted prompt lifetime before the existing WhenIdle and inflight-slot release. Manual /review uses the same cancellable prompt slot without starting the ordinary parent turn. Review and prompt-termination regressions cover the local paths; extraction remains a cross-language review, not semantic equivalence. Opt-in Goal cancellation joins its exact follow-up owner before returning from the same prompt slot. Session reopen does not rearm the goal; the explicit resume regression exercises that distinction.",
       "landmarks": [
         {
           "id": "settlement",
