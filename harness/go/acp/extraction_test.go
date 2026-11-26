@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	harnesssession "github.com/phodal/pero/harness/go/session"
 )
 
 func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
@@ -144,6 +147,7 @@ func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
 	firstRequest := make(chan struct{})
 	queuedRequest := make(chan struct{})
 	var generated []string
+	var guardedGenerations int
 	h, err := harness.Boot(ctx, harness.Options{
 		AdapterProviders: []string{"fixture"},
 		Adapter: harness.AdapterFunc(func(callCtx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
@@ -151,6 +155,9 @@ func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
 			for _, message := range req.Messages {
 				if message.Role == harness.RoleUser && len(message.Content) > 0 {
 					last = message.Content[0].Text
+					if last == "unadmitted automatic continuation" {
+						guardedGenerations++
+					}
 				}
 			}
 			generated = append(generated, last)
@@ -236,6 +243,27 @@ func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// This is the durable prefix of a native follow-up that was reserved but
+	// never admitted. Its in-process receipt does not survive this checkpoint.
+	guarded := harness.Message{
+		ID: "unadmitted-goal-fixture", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"fixture-goal"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "unadmitted automatic continuation"}},
+	}
+	data, err := json.Marshal(guarded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := saved.Append("agent/inbox/guarded", struct {
+		MessageID string `json:"messageId"`
+		Digest    string `json:"digest"`
+		Producer  string `json:"producer"`
+	}{guarded.ID, fmt.Sprintf("%x", sha256.Sum256(data)), "fixture-goal"}); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := inbox.Append(harness.InboxNextTurn, guarded); err != nil || !inserted {
+		t.Fatalf("staging guarded inbox work: inserted=%v err=%v", inserted, err)
+	}
 	inserted, appendErr := inbox.Append(harness.InboxNextTurn, harness.Message{
 		ID: "queued-fixture", Role: harness.RoleUser,
 		Source:  json.RawMessage(`{"kind":"workflow-settled"}`),
@@ -270,11 +298,53 @@ func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
 		if pending := record.agent.PendingDurableInbox(harness.InboxNextTurn); len(pending) != 0 {
 			t.Fatalf("resume %d left queued work pending: %v", i, pending)
 		}
+		if i == 0 {
+			if len(generated) != 2 || generated[0] != "cancel this turn" || generated[1] != "intentionally queued work" {
+				t.Fatalf("automatic resume generated for %q", generated)
+			}
+			// A native driver can explicitly reserve a fresh follow-up. Its
+			// round fact belongs to the same admission as the user message.
+			accepted, err := record.agent.TryFollowupWithAdmission(harness.Message{
+				Role: harness.RoleUser, Source: guarded.Source,
+				Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "explicit automatic continuation"}},
+			}, harness.FollowupAdmission{
+				Producer: "fixture-goal", Lifetime: ctx,
+				Check: func(context.Context, harness.Message) (bool, error) { return true, nil },
+				Commit: func(_ context.Context, message harness.Message, commit func(uint64, []harnesssession.AdmissionFact) error) (bool, error) {
+					err := commit(uint64(len(record.agent.Session().Events())), []harnesssession.AdmissionFact{{
+						Type: "fixture-goal/round", Value: message.ID,
+					}})
+					return err == nil, err
+				},
+			})
+			if err != nil || !accepted {
+				t.Fatalf("explicit guarded follow-up: accepted=%v err=%v", accepted, err)
+			}
+			if err := record.agent.WhenIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := record.agent.Session().Events()
+		rounds := 0
+		for j, event := range events {
+			if event.Type != "fixture-goal/round" {
+				continue
+			}
+			rounds++
+			var messageID string
+			var message harness.Message
+			if j+1 == len(events) || events[j+1].Type != "user/message" ||
+				json.Unmarshal(event.Data, &messageID) != nil ||
+				json.Unmarshal(events[j+1].Data, &message) != nil ||
+				messageID == "" || messageID != message.ID || messageID == guarded.ID {
+				t.Fatalf("round fact is not paired with a fresh admitted message: %s", event.Data)
+			}
+		}
 		if err := reopened.closeSession(ctx, id); err != nil {
 			t.Fatal(err)
 		}
-		if len(generated) != 2 || generated[0] != "cancel this turn" || generated[1] != "intentionally queued work" {
-			t.Fatalf("resume %d generated for %q", i, generated)
+		if rounds != 1 || guardedGenerations != 0 || len(generated) != 3 || generated[2] != "explicit automatic continuation" {
+			t.Fatalf("resume %d: round facts=%d, stale provider inputs=%d, generated=%q", i, rounds, guardedGenerations, generated)
 		}
 	}
 }

@@ -54,6 +54,7 @@ go_test(
         "//mcp",
         "//runtime",
         "//scientificreviewer",
+        "//session",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ],
 )

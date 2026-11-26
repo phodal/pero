@@ -101,6 +101,25 @@ queued-inbox, live-model, macOS or Windows verification.
    test that reopens the same research evidence after restart. Track any
    unported scope explicitly rather than changing defaults to imitate it.
 
+## Goal restart boundary
+
+The [pinned upstream Goal driver](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/goal/goal-round-driver/README.md)
+counts a round only when its message enters session history. It does not
+automatically arm a restored or forked goal.
+
+Pero's ACP restart regression exercises the existing native follow-up seam,
+not a Goal driver. The fixture saves both an unadmitted guarded continuation
+and an ordinary durable inbox item. Resume drops the guarded input and runs the
+ordinary item once. A fresh explicit native admission then writes its round fact
+alongside the matching user message. A second restore retains that fact and
+does not send either input again. The test uses a scripted provider, with no
+network or tools.
+
+The remaining Goal work is to own objective/revision, round cap and stop state,
+and wire an explicit Goal resume. Persist round accounting at admission, not
+when reserving a queue slot. Keep restored and forked goals disarmed while
+preserving ordinary ACP inbox recovery.
+
 ## Compaction route and evidence
 
 The Go regression writes a JSONL session, removes the active agent, loads
