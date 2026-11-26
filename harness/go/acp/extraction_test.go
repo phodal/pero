@@ -138,6 +138,147 @@ func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
 	rpc("session/close", map[string]any{"sessionId": id})
 }
 
+func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	firstRequest := make(chan struct{})
+	queuedRequest := make(chan struct{})
+	var generated []string
+	h, err := harness.Boot(ctx, harness.Options{
+		AdapterProviders: []string{"fixture"},
+		Adapter: harness.AdapterFunc(func(callCtx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+			var last string
+			for _, message := range req.Messages {
+				if message.Role == harness.RoleUser && len(message.Content) > 0 {
+					last = message.Content[0].Text
+				}
+			}
+			generated = append(generated, last)
+			if len(generated) == 1 {
+				close(firstRequest)
+				<-callCtx.Done()
+				return harness.Completion{}, callCtx.Err()
+			}
+			if len(generated) == 2 {
+				close(queuedRequest)
+			}
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}},
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	newServer := func() *Server {
+		t.Helper()
+		server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+		t.Cleanup(func() { _ = server.closeAll(context.Background()) })
+		return server
+	}
+	first := newServer()
+	cwd := t.TempDir()
+	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type promptResult struct {
+		stop string
+		err  error
+	}
+	finished := make(chan promptResult, 1)
+	go func() {
+		stop, err := first.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "cancel this turn"}}})
+		finished <- promptResult{stop, err}
+	}()
+	select {
+	case <-firstRequest:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	params, err := json.Marshal(SessionParams{SessionID: string(id)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.handleNotification(request{Method: "session/cancel", Params: params})
+	select {
+	case result := <-finished:
+		if result.err != nil || result.stop != "cancelled" {
+			t.Fatalf("cancelled prompt: %+v", result)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if err := first.closeSession(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	// Construct the persisted input that an independent owner staged for
+	// the next activation. Explicit session/close retires live work, so the
+	// recovery fixture starts after that close, not before it.
+	saved, err := disk.Load(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox, err := harness.NewDurableInbox(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach, err := disk.Attach(ctx, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inserted, appendErr := inbox.Append(harness.InboxNextTurn, harness.Message{
+		ID: "queued-fixture", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"workflow-settled"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "intentionally queued work"}},
+	})
+	flushErr := saved.Flush(ctx)
+	if err := errors.Join(appendErr, flushErr, detach()); err != nil || !inserted {
+		t.Fatalf("staging independent inbox work: inserted=%v err=%v", inserted, err)
+	}
+
+	resume := ResumeSessionParams{SessionID: string(id), CWD: cwd}
+	// First resume claims the queued notice; the second must not claim it again.
+	for i := 0; i < 2; i++ {
+		reopened := newServer()
+		if err := reopened.resumeSession(ctx, resume); err != nil {
+			t.Fatal(err)
+		}
+		record, err := reopened.currentRecord(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			select {
+			case <-queuedRequest:
+			case <-ctx.Done():
+				t.Fatal("queued work did not generate:", ctx.Err())
+			}
+		}
+		if err := record.agent.WhenIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if pending := record.agent.PendingDurableInbox(harness.InboxNextTurn); len(pending) != 0 {
+			t.Fatalf("resume %d left queued work pending: %v", i, pending)
+		}
+		if err := reopened.closeSession(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		if len(generated) != 2 || generated[0] != "cancel this turn" || generated[1] != "intentionally queued work" {
+			t.Fatalf("resume %d generated for %q", i, generated)
+		}
+	}
+}
+
 // A signal may close stdin, but must not turn a final durability failure into success.
 func TestCancelledInputPreservesFinalCloseError(t *testing.T) {
 	h, err := harness.Boot(context.Background(), harness.Options{})
