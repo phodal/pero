@@ -22,3 +22,12 @@ routes are unchanged.
 Run `go -C harness/go test -race ./providers/messages ./providers/openai`.
 See [the ACP fixture](../../../../docs/fitness/dsh-alpha2-alignment.md)
 for the two-executable loopback check. These tests do not contact a model.
+
+The separate `ReadSignedStream` and `EncodeSigned` codecs preserve completed
+thinking and opaque signature bytes through the canonical message JSON, in
+their original order before a tool call. Replay requires the exact same
+locally admitted scope and model; a different model or scope receives no
+thinking block. The codec does not verify provider signatures. A future HTTP
+integration must own route/credential scope creation and verify that a real
+provider accepts replay and route changes. The existing CLI and Host do not
+call these codecs and still run with thinking disabled on this route.

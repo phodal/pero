@@ -33,6 +33,8 @@ type wireEvent struct {
 	Block *struct {
 		Type, ID, Name string
 		Text           *string
+		Thinking       *string
+		Signature      *string
 		Input          json.RawMessage
 	} `json:"content_block"`
 	Delta *struct {
@@ -40,14 +42,17 @@ type wireEvent struct {
 		Text       *string
 		Partial    *string `json:"partial_json"`
 		StopReason string  `json:"stop_reason"`
+		Thinking   *string `json:"thinking"`
+		Signature  *string `json:"signature"`
 	} `json:"delta"`
 	Usage wireUsage `json:"usage"`
 }
 
 type streamedBlock struct {
-	block   model.ContentBlock
-	payload bytes.Buffer
-	closed  bool
+	block     model.ContentBlock
+	payload   bytes.Buffer
+	signature bytes.Buffer
+	closed    bool
 }
 
 // ReadStream decodes text and tool-use SSE. Deltas are observations only: a
@@ -55,6 +60,10 @@ type streamedBlock struct {
 // Completion. Thinking signatures and other content types are not supported
 // by this initial codec and are rejected, not lossy-translated.
 func ReadStream(src io.Reader, emit func(model.StreamChunk) error) (model.Completion, error) {
+	return readStream(src, ReplayRoute{}, emit)
+}
+
+func readStream(src io.Reader, route ReplayRoute, emit func(model.StreamChunk) error) (model.Completion, error) {
 	var zero model.Completion
 	result := model.Completion{Message: model.Message{Role: model.RoleAssistant}}
 	usage := model.TokenUsage{}
@@ -161,6 +170,15 @@ func ReadStream(src io.Reader, emit func(model.StreamChunk) error) (model.Comple
 					}
 					block.block = model.ContentBlock{Type: model.BlockText}
 					block.payload.WriteString(*native.Text)
+				case "thinking":
+					if !route.valid() || native.Thinking == nil {
+						return zero, errors.New("messages: unsupported response content")
+					}
+					block.block.Type = model.BlockReasoning
+					block.payload.WriteString(*native.Thinking)
+					if native.Signature != nil {
+						block.signature.WriteString(*native.Signature)
+					}
 				case "tool_use":
 					id := model.ToolCallID(native.ID)
 					if id == "" || native.Name == "" || toolIDs[id] || !jsonObject(native.Input) {
@@ -173,6 +191,9 @@ func ReadStream(src io.Reader, emit func(model.StreamChunk) error) (model.Comple
 				}
 				order = append(order, index)
 				blocks[index] = block
+				if block.block.Type == model.BlockReasoning {
+					continue // Signature metadata is committed only on message_stop.
+				}
 				delta := block.block
 				delta.Arguments = nil
 				if delta.Type == model.BlockText {
@@ -191,6 +212,12 @@ func ReadStream(src io.Reader, emit func(model.StreamChunk) error) (model.Comple
 				case block.block.Type == model.BlockText && delta.Type == "text_delta" && delta.Text != nil:
 					block.payload.WriteString(*delta.Text)
 					chunk = model.ContentBlock{Type: model.BlockText, Text: *delta.Text}
+				case block.block.Type == model.BlockReasoning && delta.Type == "thinking_delta" && delta.Thinking != nil && block.signature.Len() == 0:
+					block.payload.WriteString(*delta.Thinking)
+					continue
+				case block.block.Type == model.BlockReasoning && delta.Type == "signature_delta" && delta.Signature != nil && *delta.Signature != "":
+					block.signature.WriteString(*delta.Signature)
+					continue
 				case block.block.Type == model.BlockToolCall && delta.Type == "input_json_delta" && delta.Partial != nil:
 					block.payload.WriteString(*delta.Partial)
 					chunk = model.ContentBlock{Type: model.BlockToolCall, ToolCallID: block.block.ToolCallID,
@@ -253,6 +280,20 @@ func ReadStream(src io.Reader, emit func(model.StreamChunk) error) (model.Comple
 				}
 				if block.block.Type == model.BlockText {
 					block.block.Text = block.payload.String()
+				}
+				if block.block.Type == model.BlockReasoning {
+					if result.Finish == model.FinishMaxTokens || result.Finish == model.FinishRefusal {
+						continue
+					}
+					if block.signature.Len() == 0 {
+						return zero, errors.New("messages: unsigned thinking cannot be continued")
+					}
+					block.block.Text = block.payload.String()
+					raw, err := json.Marshal(signedThinking{Route: route, Signature: block.signature.String()})
+					if err != nil {
+						return zero, err
+					}
+					block.block.Extensions = map[string]json.RawMessage{thinkingExtension: raw}
 				}
 				if result.Finish != model.FinishRefusal {
 					result.Message.Content = append(result.Message.Content, block.block)

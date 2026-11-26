@@ -9,7 +9,7 @@ import (
 	"github.com/phodal/pero/harness/go/model"
 )
 
-// Request is a provider wire value. Only text and local tool use are encoded.
+// Request is a provider wire value.
 type Request struct {
 	Model       string   `json:"model"`
 	System      string   `json:"system,omitempty"`
@@ -32,6 +32,8 @@ type requestMessage struct {
 type requestBlock struct {
 	Type      string           `json:"type"`
 	Text      string           `json:"text,omitempty"`
+	Thinking  *string          `json:"thinking,omitempty"`
+	Signature string           `json:"signature,omitempty"`
 	ID        model.ToolCallID `json:"id,omitempty"`
 	Name      string           `json:"name,omitempty"`
 	Input     json.RawMessage  `json:"input,omitempty"`
@@ -47,12 +49,29 @@ type requestTool struct {
 }
 
 func Encode(modelID, system string, maxTokens int, temperature *float64, stop []string, history []model.Message, tools []model.ToolSchema) (Request, error) {
+	return encode(modelID, system, maxTokens, temperature, stop, history, tools, ReplayRoute{})
+}
+
+// EncodeSigned explicitly selects thinking mode and permits replay only on
+// the same locally admitted route. A different route receives neither the
+// signed block nor the reasoning text; normal text/tools are preserved.
+func EncodeSigned(route ReplayRoute, system string, maxTokens int, temperature *float64, stop []string, history []model.Message, tools []model.ToolSchema) (Request, error) {
+	if !route.valid() {
+		return Request{}, errors.New("messages: signed thinking requires an explicit route")
+	}
+	return encode(route.Model, system, maxTokens, temperature, stop, history, tools, route)
+}
+
+func encode(modelID, system string, maxTokens int, temperature *float64, stop []string, history []model.Message, tools []model.ToolSchema, route ReplayRoute) (Request, error) {
 	var zero Request
 	if modelID == "" || maxTokens < 1 || (temperature != nil && (math.IsNaN(*temperature) || *temperature < 0 || *temperature > 2)) {
 		return zero, errors.New("messages: invalid generation controls")
 	}
 	r := Request{Model: modelID, MaxTokens: maxTokens, Temperature: temperature, Stop: stop, Stream: true}
 	r.Thinking.Type = "disabled"
+	if route.valid() {
+		r.Thinking.Type = "enabled"
+	}
 	var instructions []string
 	if system != "" {
 		instructions = append(instructions, system)
@@ -68,6 +87,16 @@ func Encode(modelID, system string, maxTokens int, temperature *float64, stop []
 		}
 		var content []requestBlock
 		for _, b := range m.Content {
+			if b.Type == model.BlockReasoning && m.Role == model.RoleAssistant && route.valid() {
+				replay, keep, err := replayThinking(b, route)
+				if err != nil {
+					return zero, err
+				}
+				if keep {
+					content = append(content, replay)
+				}
+				continue
+			}
 			if len(b.Extensions) != 0 {
 				return zero, errors.New("messages: unsupported content extensions")
 			}

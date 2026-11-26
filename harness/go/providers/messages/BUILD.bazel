@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "request.go",
         "stream.go",
+        "thinking.go",
     ],
     importpath = "github.com/phodal/pero/harness/go/providers/messages",
     visibility = ["//visibility:public"],
@@ -16,6 +17,7 @@ go_test(
     srcs = [
         "request_test.go",
         "stream_test.go",
+        "thinking_test.go",
     ],
     embed = [":messages"],
     deps = ["//model"],
