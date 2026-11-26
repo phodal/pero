@@ -88,9 +88,10 @@ queued-inbox, live-model, macOS or Windows verification.
 1. Pin restart behavior separately for a cancelled turn and an intentionally
    queued inbox item. Do not suppress legitimate queued work to make a
    cancellation test pass.
-2. Evaluate an explicit compatibility mode for last-answered summary routing.
-   The two-model baseline and dispatched-route receipt are implemented below.
-   Do not redirect research inputs to an earlier provider after a route change.
+2. Keep the latest durable request as the default summary recipient. Use the
+   explicit summary route when an operator wants another model. The persisted
+   routing contract below deliberately does not implement DSH's implicit
+   last-answered recipient.
 3. Compare the DeepSeek Messages stream, model/reasoning options and file
    behavior against the pinned release. Keep Chat Completions available for
    existing deployments. Treat new remote file uploads as an explicit policy
@@ -102,13 +103,27 @@ queued-inbox, live-model, macOS or Windows verification.
 
 ## Compaction route and evidence
 
-The Go regression runs an in-memory adapter and a persisted-event-shaped
-session: model A answered; model B has the latest durable request header
-and a 512-token output reservation but no answer. Pressure selects B and
+The Go regression writes a JSONL session, removes the active agent, loads
+the journal through a fresh persistence instance, and resumes it before
+compaction. Model A answered; model B has the latest durable request header
+and a 512-token output reservation but no answer. Resume itself makes no
+provider request. Pressure selects B and
 does not reuse A's 128k context capacity. The pinned DSH source also uses
 the latest request route to calculate pressure, but its summary target
 and summary-policy overrides follow the last model that answered. The Go
-summary still uses B by default; an explicit summary override selects A.
+summary uses B by default; an explicit summary override selects A. An
+exact B model policy can override the global summary route. The summary
+budget still comes from B's policy, even when the operator explicitly
+chooses A to write the summary.
+
+Do not infer an opt-in destination from the last assistant message.
+The durable provider/model strings identify the recorded route, not
+the current adapter endpoint, credential, or permission to send old
+research input there. A stable same-provider name alone is not enough
+to establish a safe fallback after a restart or configuration change.
+A separate loopback HTTP contract verifies default cross-provider routing
+delivers the excerpt to B only, while an explicit override can send it to A.
+This is a deliberate compatibility difference, not runtime parity.
 
 A request hook in the same fixture moves an explicit A summary to B,
 without changing the provider. Before the fix the adapter received B,

@@ -47,11 +47,12 @@ func TestCheckpointFileOperations(t *testing.T) {
 func TestCompactionRouteAndRetainedSource(t *testing.T) {
 	for _, tc := range []struct {
 		name, configured, dispatched string
-		reroute                      bool
+		reroute, perModel            bool
 	}{
-		{"latest request is current Go default", "", "model-b", false},
-		{"explicit summary override", "model-a", "model-a", false},
-		{"receipt follows adapter dispatch", "model-a", "model-b", true},
+		{"latest request is current Go default", "", "model-b", false, false},
+		{"explicit summary override", "model-a", "model-a", false, false},
+		{"receipt follows adapter dispatch", "model-a", "model-b", true, false},
+		{"latest model policy wins over global summary override", "model-a", "model-b", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -71,15 +72,22 @@ func TestCompactionRouteAndRetainedSource(t *testing.T) {
 				_ = h.Dispose(context.Background())
 				_ = h.Drain(context.Background())
 			})
-			auto, headroom, summaryCap := false, 2048, 97
+			auto, headroom, summaryCap, previousSummaryCap := false, 2048, 97, 41
 			cfg := BasicCompactionConfig{
 				Auto: &auto, HeadroomTokens: &headroom,
-				ModelPolicies: []ModelCompactionPolicy{{Provider: "fixture", Model: "model-b", MaxTokens: &summaryCap}},
+				ModelPolicies: []ModelCompactionPolicy{
+					{Provider: "fixture", Model: "model-a", MaxTokens: &previousSummaryCap},
+					{Provider: "fixture", Model: "model-b", MaxTokens: &summaryCap},
+				},
 			}
 			if tc.configured != "" {
 				cfg.SummarizationProvider, cfg.SummarizationModel = "fixture", tc.configured
 			}
-			agent, err := h.Agents().Create(ctx, AgentOptions{
+			if tc.perModel {
+				provider, model := "fixture", "model-b"
+				cfg.ModelPolicies[1].SummarizationProvider, cfg.ModelPolicies[1].SummarizationModel = &provider, &model
+			}
+			options := AgentOptions{
 				Provider: "fixture", Model: "model-a", Compaction: &cfg,
 				Configure: func(_ context.Context, run *point.Run, _ *Agent) error {
 					if !tc.reroute {
@@ -93,11 +101,26 @@ func TestCompactionRouteAndRetainedSource(t *testing.T) {
 					})
 					return err
 				},
-			})
+			}
+			agent, err := h.Agents().Create(ctx, options)
 			if err != nil {
 				t.Fatal(err)
 			}
 			session := agent.Session()
+			dir := t.TempDir()
+			persistence, err := NewJSONLSessionPersistence(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			detach, err := persistence.Attach(ctx, session)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if detach != nil {
+					_ = detach()
+				}
+			}()
 			appendEvent := func(kind string, value any) Event {
 				t.Helper()
 				event, err := session.Append(kind, value)
@@ -126,6 +149,35 @@ func TestCompactionRouteAndRetainedSource(t *testing.T) {
 			appendEvent("request/header", RequestHeaderEvent{Turn: 2, Step: 1, Provider: "fixture", Model: "model-b", MaxTokens: 512})
 			appendEvent("step/end", struct{ Turn, Step int }{2, 1})
 			appendEvent("turn/end", struct{ Turn int }{2})
+
+			id := agent.ID()
+			if err := h.Agents().RemoveExact(ctx, agent); err != nil {
+				t.Fatal(err)
+			}
+			if err := detach(); err != nil {
+				t.Fatal(err)
+			}
+			detach = nil
+			persistence, err = NewJSONLSessionPersistence(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored, err := persistence.Load(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent, err = h.Agents().Resume(ctx, restored, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			session = agent.Session()
+			detach, err = persistence.Attach(ctx, session)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(calls) != 0 {
+				t.Fatal("restoring a closed turn must not send a provider request")
+			}
 
 			engine := agent.compaction.(*BasicCompactor)
 			_, target, outputReserve, found, err := engine.routedPolicySnapshot(agent)
