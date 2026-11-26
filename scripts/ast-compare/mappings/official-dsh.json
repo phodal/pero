@@ -84,7 +84,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "streamAssembly.completion",
-        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
+        "sha256": "f6a6a0ed871682863df0ea21c6626b1a6d9210575e619cdb245cbc5ac5706be4"
       },
       "notes": "Official neutral assembler and Go Chat Completions assembler have different roles. Both must discard unsafe tool calls at output truncation; replay-envelope support remains a separate capability.",
       "landmarks": [
@@ -152,7 +152,7 @@
         "path": "harness/go/providers/openai/stream.go",
         "language": "go",
         "symbol": "mapUsage",
-        "sha256": "5c12b239a3d2283adffd9f07b0f41467e4348aa3d78dc4cb09cb9cccae9d5cda"
+        "sha256": "f6a6a0ed871682863df0ea21c6626b1a6d9210575e619cdb245cbc5ac5706be4"
       },
       "notes": "Official component counts are exclusive Messages values. Cached<=prompt in Go is a separate Chat Completions conversion invariant, not a literal upstream rule.",
       "landmarks": [

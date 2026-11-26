@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -27,8 +28,9 @@ var errStreamClosed = errors.New("SSE stream ended without [DONE]")
 type APIFormat string
 
 const (
-	ChatCompletions APIFormat = "chat-completions"
-	Responses       APIFormat = "responses"
+	ChatCompletions  APIFormat = "chat-completions"
+	Responses        APIFormat = "responses"
+	DeepSeekMessages APIFormat = "deepseek-messages"
 )
 
 type ModelConfig struct {
@@ -60,30 +62,35 @@ type Config struct {
 	RequestTimeoutMS               int64
 }
 type Adapter struct {
-	apiFormat         APIFormat
-	responses         responses.ResponseService
-	disableThinking   bool
-	disableStreaming  bool
-	maxRequests       int64
-	maxOutputTokens   int
-	requests          atomic.Int64
-	client            openaisdk.ChatCompletionService
-	models            map[string]ModelConfig
-	providerName      string
-	retryPolicy       llm.ResolvedRetryPolicy
-	streamIdleTimeout time.Duration
-	requestTimeout    time.Duration
+	apiFormat                APIFormat
+	responses                responses.ResponseService
+	messagesClient           *http.Client
+	messagesURL, messagesKey string
+	disableThinking          bool
+	disableStreaming         bool
+	maxRequests              int64
+	maxOutputTokens          int
+	requests                 atomic.Int64
+	client                   openaisdk.ChatCompletionService
+	models                   map[string]ModelConfig
+	providerName             string
+	retryPolicy              llm.ResolvedRetryPolicy
+	streamIdleTimeout        time.Duration
+	requestTimeout           time.Duration
 }
 
 func New(c Config) (*Adapter, error) {
 	if c.APIFormat == "" {
 		c.APIFormat = ChatCompletions
 	}
-	if c.APIFormat != ChatCompletions && c.APIFormat != Responses {
+	if c.APIFormat != ChatCompletions && c.APIFormat != Responses && c.APIFormat != DeepSeekMessages {
 		return nil, errors.New("openai adapter: unsupported API format")
 	}
 	if c.APIFormat == Responses && (!c.DisableStreaming || c.DisableThinking) {
 		return nil, errors.New("openai adapter: Responses requires disable-streaming and does not accept the Chat thinking extension")
+	}
+	if c.APIFormat == DeepSeekMessages && c.DisableStreaming {
+		return nil, errors.New("messages adapter: this protocol requires streaming")
 	}
 	if c.MaxRequests < 0 || c.MaxOutputTokens < 0 {
 		return nil, errors.New("openai adapter: budget limits must be non-negative")
@@ -101,7 +108,16 @@ func New(c Config) (*Adapter, error) {
 	if strings.TrimSpace(c.APIKey) == "" || strings.TrimSpace(c.ProviderName) == "" || len(c.Models) == 0 {
 		return nil, errors.New("openai adapter: explicit credential, provider and model catalog required")
 	}
-	u.Path = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions"), "/responses") + "/"
+	if c.APIFormat == DeepSeekMessages {
+		// Accept the official /anthropic base, a /v1 base, or the exact endpoint.
+		p := strings.TrimSuffix(u.Path, "/")
+		if !strings.HasSuffix(p, "/v1/messages") {
+			p = strings.TrimSuffix(p, "/v1") + "/v1/messages"
+		}
+		u.Path, u.RawPath = p, ""
+	} else {
+		u.Path = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions"), "/responses") + "/"
+	}
 	models := map[string]ModelConfig{}
 	for _, m := range c.Models {
 		if m.ID == "" || m.ContextWindow < 0 || m.MaxTokens < 0 {
@@ -120,6 +136,9 @@ func New(c Config) (*Adapter, error) {
 			default:
 				return nil, errors.New("openai adapter: unsupported input modality")
 			}
+		}
+		if c.APIFormat == DeepSeekMessages && (imageInput || m.Reasoning != nil || (m.MaxTokens == 0 && c.MaxOutputTokens == 0)) {
+			return nil, errors.New("messages adapter: text-only model without reasoning and an explicit max-tokens limit required")
 		}
 		if !textInput {
 			return nil, errors.New("openai adapter: text input must remain enabled")
@@ -142,6 +161,9 @@ func New(c Config) (*Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.APIFormat == DeepSeekMessages && (policy.Mode == llm.RetryAlways || slices.Contains(policy.RetryableCodes, harness.StreamClosedCode)) {
+		return nil, errors.New("messages adapter: retry policy must not replay an incomplete stream")
+	}
 	if c.StreamIdleTimeoutMS == 0 {
 		c.StreamIdleTimeoutMS = 300000
 	}
@@ -161,13 +183,19 @@ func New(c Config) (*Adapter, error) {
 	if transport == nil {
 		transport = configuredTransport(c.UseEnvironmentProxy)
 	}
-	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming}
+	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming, messages: c.APIFormat == DeepSeekMessages}
 	if c.BeforeHTTPAttempt != nil {
 		client.Transport = attemptAuditTransport{next: client.Transport, before: c.BeforeHTTPAttempt}
 	}
 	sdkOptions := []option.RequestOption{option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1")}
-	sdk := openaisdk.NewChatCompletionService(sdkOptions...)
-	return &Adapter{apiFormat: c.APIFormat, responses: responses.NewResponseService(sdkOptions...), disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}, nil
+	adapter := &Adapter{apiFormat: c.APIFormat, disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}
+	if c.APIFormat == DeepSeekMessages {
+		adapter.messagesClient, adapter.messagesURL, adapter.messagesKey = &client, u.String(), c.APIKey
+	} else {
+		adapter.client = openaisdk.NewChatCompletionService(sdkOptions...)
+		adapter.responses = responses.NewResponseService(sdkOptions...)
+	}
+	return adapter, nil
 }
 
 type attemptAuditTransport struct {

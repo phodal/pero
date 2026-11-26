@@ -267,6 +267,7 @@ func finishKind(reason string) (harness.FinishKind, error) {
 type terminalCheckingTransport struct {
 	next         http.RoundTripper
 	nonStreaming bool
+	messages     bool
 }
 
 type streamActivityContextKey struct{}
@@ -295,7 +296,7 @@ func (t terminalCheckingTransport) RoundTrip(request *http.Request) (*http.Respo
 		if activity, ok := request.Context().Value(streamActivityContextKey{}).(chan struct{}); ok {
 			body = &activityReadCloser{ReadCloser: body, activity: activity}
 		}
-		if !t.nonStreaming {
+		if !t.nonStreaming && !t.messages {
 			body = &doneCheckingBody{ReadCloser: body}
 		}
 		response.Body = body

@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "messages",
-    srcs = ["stream.go"],
+    srcs = ["request.go", "stream.go"],
     importpath = "github.com/phodal/pero/harness/go/providers/messages",
     visibility = ["//visibility:public"],
     deps = ["//model"],
@@ -10,7 +10,7 @@ go_library(
 
 go_test(
     name = "messages_test",
-    srcs = ["stream_test.go"],
+    srcs = ["request_test.go", "stream_test.go"],
     embed = [":messages"],
     deps = ["//model"],
 )

@@ -123,3 +123,24 @@ Run `go -C harness/go test -race ./harness -run TestCompactionRouteAndRetainedSo
 This verifies the local Go adapter and durable receipts; the DSH behavior
 was checked against the pinned implementation and upstream tests, not
 against a live provider or a second run of the upstream suite.
+
+## Opt-in Go Messages HTTP round trip
+
+With the two executables from the baseline above, rerun the same script with
+`PERO_ACP_MESSAGES=1`. DSH keeps its normal Messages route. Pero uses its
+Go adapter via `--api-format deepseek-messages --max-tokens 128`. The
+loopback fixture checks Pero's path and auth/version headers, the explicit
+disabled-thinking field on every request, and the exact tool call and
+matching user-role result in the next request. A separate trial returns a
+complete-looking tool call but omits `message_stop`: no permission prompt,
+file creation or automatic retry may occur. The lane also exercises
+cancellation at the provider connection, nonempty history after restart,
+and load without another tool execution. Nine HTTP requests in total are
+expected (four DSH, five Pero).
+
+The new route reuses the Go request audit and budgets, connected provider
+selection, cancellation, idle/deadline handling, and no-redirect transport.
+Tool execution is still gated by ACP and the existing workspace permission
+policy. Images, signed thinking, native Files, hosted provider tools, moving
+system instructions during a conversation, real models and Desktop Host
+acceptance are outside this lane.

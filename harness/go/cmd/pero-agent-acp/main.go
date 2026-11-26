@@ -53,7 +53,7 @@ func run() (resultErr error) {
 	if len(os.Args) > 1 && os.Args[1] == "plugins" {
 		return runPlugins(os.Args[2:], os.Stdout)
 	}
-	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
+	endpoint := flag.String("endpoint", "", "explicit provider HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
 	modelProfilePath := flag.String("model-profile", "", "explicit versioned JSON launch defaults for one matching model; CLI flags override defaults")
 	toolFormatFlag := flag.String("tool-format", "auto", "native or claude tool names; auto preserves package-selected behavior")
@@ -510,7 +510,7 @@ func run() (resultErr error) {
 	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
 		return err
 	}
-	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking || budget.APIFormat == string(openai.DeepSeekMessages), ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
 		return err
 	}
 	if *initOnly || *maintenance {
@@ -601,7 +601,7 @@ type providerBudget struct {
 
 func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
 	budget := &providerBudget{}
-	flags.StringVar(&budget.APIFormat, "api-format", "chat-completions", "provider protocol: chat-completions or responses (Responses requires --disable-streaming)")
+	flags.StringVar(&budget.APIFormat, "api-format", "chat-completions", "provider protocol: chat-completions, responses (requires --disable-streaming), or deepseek-messages (requires --max-tokens)")
 	flags.BoolVar(&budget.DisableStreaming, "disable-streaming", false, "request a complete JSON response instead of SSE; no automatic transport fallback")
 	flags.BoolVar(&budget.DisableThinking, "disable-thinking", false, "explicitly send thinking.type=disabled to a compatible provider")
 	flags.BoolVar(&budget.UseEnvironmentProxy, "use-env-proxy", false, "opt in to standard HTTP(S)_PROXY/NO_PROXY routing; TLS verification remains enabled")

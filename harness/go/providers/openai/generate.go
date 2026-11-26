@@ -9,6 +9,7 @@ import (
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/providers/messages"
 	"slices"
 	"time"
 )
@@ -103,7 +104,17 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	var toolsPayload []byte
 	toolResultBytes, toolResults := 0, 0
 	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
-	if a.apiFormat == Responses {
+	if a.apiFormat == DeepSeekMessages {
+		if request.MaxTokens == 0 {
+			request.MaxTokens = a.models[request.Model].MaxTokens
+		}
+		wire, err := messages.Encode(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		if err != nil {
+			return harness.Completion{}, harness.NewProviderError(err.Error(), "INVALID_REQUEST", nil)
+		}
+		body = wire
+		toolsPayload, toolResultBytes, toolResults = wire.WireAccounting()
+	} else if a.apiFormat == Responses {
 		wire, err := encodeResponses(request, imagesAllowed)
 		if err != nil {
 			return harness.Completion{}, err
@@ -180,7 +191,9 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 			return harness.Completion{}, err
 		}
 	}
-	if a.apiFormat == Responses {
+	if a.apiFormat == DeepSeekMessages {
+		go a.pumpMessages(streamCtx, payload, events)
+	} else if a.apiFormat == Responses {
 		go a.pumpResponses(streamCtx, payload, events)
 	} else if a.disableStreaming {
 		go a.pumpCompletion(streamCtx, params, events)
@@ -190,12 +203,16 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	timer := time.NewTimer(a.streamIdleTimeout)
 	defer timer.Stop()
 	assembly := newStreamAssembly()
+	observedStream := false
 	for {
 		select {
 		case event, open := <-events:
 			if !open {
 				if ctx.Err() != nil {
 					return harness.Completion{}, ctx.Err()
+				}
+				if a.apiFormat == DeepSeekMessages {
+					return harness.Completion{}, harness.NewProviderError("messages adapter: missing terminal completion", harness.StreamClosedCode, nil)
 				}
 				return assembly.completion()
 			}
@@ -206,7 +223,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return harness.Completion{}, normalizeStreamError(ctx, event.err)
 			}
 			if event.completion != nil {
-				if emit != nil {
+				if emit != nil && a.apiFormat != DeepSeekMessages {
 					chunk := harness.StreamChunk{Usage: event.completion.Usage}
 					for _, block := range event.completion.Message.Content {
 						block.Extensions = nil
@@ -226,6 +243,15 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return *event.completion, nil
 			}
 			resetTimer(timer, a.streamIdleTimeout)
+			if event.delta != nil {
+				observedStream = true
+				if emit != nil {
+					if err := emit(*event.delta); err != nil {
+						return harness.Completion{}, err
+					}
+				}
+				continue
+			}
 			chunk, consumeErr := assembly.consume(event.chunk)
 			if consumeErr != nil {
 				return harness.Completion{}, consumeErr
@@ -238,6 +264,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		case <-timer.C:
 			select {
 			case <-activity:
+				observedStream = true
 				timer.Reset(a.streamIdleTimeout)
 				continue
 			default:
@@ -246,6 +273,9 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return harness.Completion{}, err
 			}
 			cancelStream()
+			if observedStream && a.apiFormat == DeepSeekMessages {
+				return harness.Completion{}, harness.NewProviderError("messages adapter: idle timeout after response data", harness.StreamClosedCode, nil)
+			}
 			return harness.Completion{}, harness.NewProviderError(
 				fmt.Sprintf("openai adapter: provider stream idle timeout after %dms", a.streamIdleTimeout.Milliseconds()),
 				"TIMEOUT", context.DeadlineExceeded,
@@ -253,12 +283,14 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		case <-ctx.Done():
 			return harness.Completion{}, ctx.Err()
 		case <-activity:
+			observedStream = true
 			resetTimer(timer, a.streamIdleTimeout)
 		}
 	}
 }
 
 type openAIStreamEvent struct {
+	delta      *harness.StreamChunk
 	decoded    bool
 	completion *harness.Completion
 	chunk      openaisdk.ChatCompletionChunk

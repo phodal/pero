@@ -19,7 +19,8 @@ assert.equal(manifest.version, dshVersion);
 const dshEntry = resolve(dirname(dshPackage), manifest.bin.dsh);
 const root = await realpath(await mkdtemp(join(tmpdir(), 'pero-dsh-acp-')));
 const timeoutMillis = 15000;
-const effects = process.env.PERO_ACP_EFFECTS === '1';
+const messagesLane = process.env.PERO_ACP_MESSAGES === '1';
+const effects = messagesLane || process.env.PERO_ACP_EFFECTS === '1';
 let providerRequests = 0;
 let plan;
 const fixtureErrors = [];
@@ -32,26 +33,45 @@ const provider = createServer(async (request, response) => {
     assert.ok(plan, 'unexpected provider request');
     const { engine, sessionId, cancel, cancelled, stages } = plan;
     const dsh = engine.name === 'dsh';
+    const messages = dsh || engine.messages;
     assert.equal(request.method, 'POST');
-    assert.equal(request.url, dsh ? '/v1/messages' : '/v1/chat/completions');
-    assert.equal(dsh ? request.headers['x-api-key'] : request.headers.authorization,
-      dsh ? key : `Bearer ${key}`);
+    assert.equal(request.url, engine.messages ? '/anthropic/v1/messages' : dsh ? '/v1/messages' : '/v1/chat/completions');
+    assert.equal(messages ? request.headers['x-api-key'] : request.headers.authorization,
+      messages ? key : `Bearer ${key}`);
     let raw = '';
     for await (const chunk of request) {
       raw += chunk;
       assert.ok(raw.length < 2 * 1024 * 1024, 'fixture request too large');
     }
     const body = JSON.parse(raw);
+    if (engine.messages) {
+      assert.equal(request.headers['anthropic-version'], '2023-06-01');
+      assert.equal(request.headers.authorization, undefined);
+      assert.deepEqual(body.thinking, { type: 'disabled' });
+      assert.equal(body.stream, true);
+      assert.equal(body.max_tokens, 128);
+    }
     const stage = stages.shift();
     assert.ok(stage, 'unexpected extra inference');
-    const hasToolResult = dsh
+    const hasToolResult = messages
       ? body.messages.some(m => Array.isArray(m.content) && m.content.some(b => b.type === 'tool_result' && b.tool_use_id === 'fixture-write' && !b.is_error))
       : body.messages.some(m => m.role === 'tool' && m.tool_call_id === 'fixture-write');
+    if (engine.messages && stage === 'tool-result') {
+      const order = body.messages.slice(-2);
+      assert.equal(order[0].role, 'assistant');
+      assert.deepEqual(order[0].content.find(b => b.type === 'tool_use'), {
+        type: 'tool_use', id: 'fixture-write', name: 'write_file', input: { path: 'effect.txt', content: receipt },
+      });
+      assert.equal(order[1].role, 'user');
+      assert.equal(order[1].content[0].type, 'tool_result');
+      assert.equal(order[1].content[0].tool_use_id, 'fixture-write');
+      assert.ok(order[1].content[0].content.some(b => b.type === 'text' && b.text.includes('effect.txt')));
+    }
     if (stage === 'tool-result' || stage === 'after-restart') {
       assert.ok(hasToolResult, `${engine.name}: tool result missing in ${stage}`);
     }
     response.writeHead(200, { 'content-type': 'text/event-stream' });
-    const send = obj => response.write(`${dsh ? `event: ${obj.type}\n` : ''}data: ${JSON.stringify(obj)}\n\n`);
+    const send = obj => response.write(`${messages ? `event: ${obj.type}\n` : ''}data: ${JSON.stringify(obj)}\n\n`);
     if (stage === 'cancel') {
       response.once('close', cancelled);
       response.flushHeaders();
@@ -59,21 +79,23 @@ const provider = createServer(async (request, response) => {
       return;
     }
     const name = dsh ? 'write' : 'write_file';
-    const args = { [dsh ? 'file_path' : 'path']: 'effect.txt', content: receipt };
+    const write = stage === 'write' || stage === 'truncated';
+    const id = stage === 'truncated' ? 'fixture-truncated' : 'fixture-write';
+    const args = { [dsh ? 'file_path' : 'path']: stage === 'truncated' ? 'must-not-exist.txt' : 'effect.txt', content: receipt };
     if (stage === 'write') {
-      assert.ok(body.tools.some(t => (dsh ? t.name : t.function.name) === name), 'write tool not advertised');
+      assert.ok(body.tools.some(t => (messages ? t.name : t.function.name) === name), 'write tool not advertised');
     }
-    if (dsh) {
+    if (messages) {
       send({ type: 'message_start', message: { id: 'fixture-message', type: 'message', role: 'assistant',
         model: body.model, content: [], usage: { input_tokens: 3, output_tokens: 0 } } });
-      send({ type: 'content_block_start', index: 0, content_block: stage === 'write'
-        ? { type: 'tool_use', id: 'fixture-write', name, input: {} } : { type: 'text', text: '' } });
-      send({ type: 'content_block_delta', index: 0, delta: stage === 'write'
+      send({ type: 'content_block_start', index: 0, content_block: write
+        ? { type: 'tool_use', id, name, input: {} } : { type: 'text', text: '' } });
+      send({ type: 'content_block_delta', index: 0, delta: write
         ? { type: 'input_json_delta', partial_json: JSON.stringify(args) } : { type: 'text_delta', text: success } });
       send({ type: 'content_block_stop', index: 0 });
-      send({ type: 'message_delta', delta: { stop_reason: stage === 'write' ? 'tool_use' : 'end_turn',
+      send({ type: 'message_delta', delta: { stop_reason: write ? 'tool_use' : 'end_turn',
         stop_sequence: null }, usage: { output_tokens: 1 } });
-      send({ type: 'message_stop' });
+      if (stage !== 'truncated') send({ type: 'message_stop' });
       response.end();
     } else {
       send({ choices: [{ index: 0, delta: stage === 'write'
@@ -261,7 +283,24 @@ async function compare(engine) {
       }
       await request('session/close', { sessionId });
     }
+    if (engine.messages) {
+      const newSession = await request('session/new', params);
+      await request('session/set_config_option', {
+        sessionId: newSession.sessionId, configId: 'permission', value: 'workspace-write',
+      });
+      plan = { engine, stages: ['truncated'] };
+      const answer = await ask('session/prompt', {
+        sessionId: newSession.sessionId, prompt: [{type: 'text', text: 'Run the truncated fixture.'}],
+      });
+      assert.match(answer.error?.message ?? '', /^STREAM_CLOSED:/);
+      assert.deepEqual(plan.stages, []);
+      assert.deepEqual(approvals, [], 'incomplete stream must not request permission');
+      await assert.rejects(readFile(join(workspace, 'must-not-exist.txt')), { code: 'ENOENT' });
+      await request('session/close', { sessionId: newSession.sessionId });
+      plan = undefined;
+    }
     return {
+      ...(engine.messages && { messages: 'explicit text/tools', incompleteEffects: 0 }),
       engine: engine.name, protocolVersion: 1,
       newCloseRestartListResume: 'passed', differentWorkspaceRejected: true, canonicalCwd: true,
       loadSession: supportsLoad ? 'advertised; load passed' : 'not advertised',
@@ -275,14 +314,15 @@ try {
   await once(provider, 'listening');
   const engines = [
     { name: 'dsh', command: process.execPath, args: () => [dshEntry, '--profile', 'acp'] },
-    { name: 'pero', command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
-      '--endpoint', endpoint + '/v1', '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
+    { name: 'pero', messages: messagesLane, command: resolve(peroBinary), args: ({ home, endpoint, workspace }) => [
+      '--endpoint', endpoint + (messagesLane ? '/anthropic' : '/v1'),
+      ...(messagesLane ? ['--api-format', 'deepseek-messages', '--max-tokens', '128'] : []), '--model', 'fixture', '--api-key-env', 'PERO_FIXTURE_API_KEY',
       '--session-dir', join(home, 'sessions'), ...(effects ? ['--workspace', workspace] : []), '--approval', effects ? 'ask' : 'never',
     ] },
   ];
   const results = [];
   for (const engine of engines) results.push(await compare(engine));
-  assert.equal(providerRequests, effects ? 8 : 0, 'unexpected provider request count');
+  assert.equal(providerRequests, messagesLane ? 9 : effects ? 8 : 0, 'unexpected provider request count');
   console.log(JSON.stringify({ dshVersion, scope: effects ? 'loopback provider; write, cancel and restart' : 'empty ACP lifecycle; no prompts', providerRequests, results }, null, 2));
 } finally {
   provider.closeAllConnections();
