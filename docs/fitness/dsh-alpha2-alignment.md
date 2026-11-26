@@ -88,10 +88,9 @@ queued-inbox, live-model, macOS or Windows verification.
 1. Pin restart behavior separately for a cancelled turn and an intentionally
    queued inbox item. Do not suppress legitimate queued work to make a
    cancellation test pass.
-2. Compare compaction pressure and summary routing with independent
-   two-model fixtures, including summary-route override and retained source
-   attachments. A compatibility mode must not silently send research inputs
-   to a different provider when the operator changes route.
+2. Evaluate an explicit compatibility mode for last-answered summary routing.
+   The two-model baseline and dispatched-route receipt are implemented below.
+   Do not redirect research inputs to an earlier provider after a route change.
 3. Compare the DeepSeek Messages stream, model/reasoning options and file
    behavior against the pinned release. Keep Chat Completions available for
    existing deployments. Treat new remote file uploads as an explicit policy
@@ -100,3 +99,27 @@ queued-inbox, live-model, macOS or Windows verification.
    existing Go Workflow and Host controls. Close the alignment with a Host
    test that reopens the same research evidence after restart. Track any
    unported scope explicitly rather than changing defaults to imitate it.
+
+## Compaction route and evidence
+
+The Go regression runs an in-memory adapter and a persisted-event-shaped
+session: model A answered; model B has the latest durable request header
+and a 512-token output reservation but no answer. Pressure selects B and
+does not reuse A's 128k context capacity. The pinned DSH source also uses
+the latest request route to calculate pressure, but its summary target
+and summary-policy overrides follow the last model that answered. The Go
+summary still uses B by default; an explicit summary override selects A.
+
+A request hook in the same fixture moves an explicit A summary to B,
+without changing the provider. Before the fix the adapter received B,
+but both the response and summary recorded A. Go now records the model
+and provider from the request passed to the adapter. This matches the
+observable upstream receipt contract without changing how providers are
+selected by default. The fixture checks the recent synthetic PDF
+reference survives compaction with the original event sequence, attachment
+ID, file name and byte count. No file was resolved, sent or uploaded.
+
+Run `go -C harness/go test -race ./harness -run TestCompactionRouteAndRetainedSource -count=5`.
+This verifies the local Go adapter and durable receipts; the DSH behavior
+was checked against the pinned implementation and upstream tests, not
+against a live provider or a second run of the upstream suite.
