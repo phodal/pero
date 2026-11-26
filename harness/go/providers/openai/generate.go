@@ -105,6 +105,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	toolResultBytes, toolResults := 0, 0
 	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
 	var messagesRoute messages.ReplayRoute
+	var filesUsed, reserved bool
 	if a.apiFormat == DeepSeekMessages {
 		if request.MaxTokens == 0 {
 			request.MaxTokens = a.models[request.Model].MaxTokens
@@ -123,6 +124,16 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		}
 		if err != nil {
 			return harness.Completion{}, harness.NewProviderError(err.Error(), "INVALID_REQUEST", nil)
+		}
+		if imagesAllowed && a.messagesFiles != nil {
+			if err := a.reserveHTTPRequest(); err != nil {
+				return harness.Completion{}, err
+			}
+			reserved = true
+			filesUsed = a.preferMessagesFiles(ctx, &wire)
+			if err := ctx.Err(); err != nil {
+				return harness.Completion{}, err
+			}
 		}
 		body = wire
 		toolsPayload, toolResultBytes, toolResults = wire.WireAccounting()
@@ -177,8 +188,10 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	events := make(chan openAIStreamEvent, 1)
 	// Consume budget immediately before any HTTP generation; failed requests count.
 	// The SDK has retries disabled, and exhaustion is not a retryable error.
-	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
-		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+	if !reserved {
+		if err := a.reserveHTTPRequest(); err != nil {
+			return harness.Completion{}, err
+		}
 	}
 	if request.Agent != nil {
 		hash := sha256.Sum256(payload)
@@ -204,7 +217,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		}
 	}
 	if a.apiFormat == DeepSeekMessages {
-		go a.pumpMessages(streamCtx, payload, messagesRoute, events)
+		go a.pumpMessages(streamCtx, payload, messagesRoute, filesUsed, events)
 	} else if a.apiFormat == Responses {
 		go a.pumpResponses(streamCtx, payload, events)
 	} else if a.disableStreaming {
@@ -307,4 +320,11 @@ type openAIStreamEvent struct {
 	completion *harness.Completion
 	chunk      openaisdk.ChatCompletionChunk
 	err        error
+}
+
+func (a *Adapter) reserveHTTPRequest() error {
+	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
+		return harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+	}
+	return nil
 }

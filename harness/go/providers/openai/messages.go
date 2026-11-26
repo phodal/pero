@@ -20,7 +20,7 @@ import (
 // pumpMessages uses the same HTTP transport, auditing and cancellation
 // context as the other explicit provider protocols. The Messages decoder,
 // rather than the Chat [DONE] wrapper, owns terminal validation.
-func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messages.ReplayRoute, out chan<- openAIStreamEvent) {
+func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messages.ReplayRoute, filesUsed bool, out chan<- openAIStreamEvent) {
 	defer close(out)
 	send := func(event openAIStreamEvent) error {
 		select {
@@ -40,6 +40,9 @@ func (a *Adapter) pumpMessages(ctx context.Context, payload []byte, route messag
 	post.Header.Set("User-Agent", "pero-agent/0.1")
 	post.Header.Set("X-API-Key", a.messagesKey)
 	post.Header.Set("Anthropic-Version", "2023-06-01")
+	if filesUsed {
+		post.Header.Set("Anthropic-Beta", messagesFilesBeta)
+	}
 	response, err := a.messagesClient.Do(post)
 	if err != nil {
 		_ = send(openAIStreamEvent{err: err})

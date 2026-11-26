@@ -46,8 +46,9 @@ type requestBlock struct {
 // ImageSource is the Messages representation of an already admitted raster.
 type ImageSource struct {
 	Type      string `json:"type"`
-	MediaType string `json:"media_type"`
-	Data      []byte `json:"data"`
+	MediaType string `json:"media_type,omitempty"`
+	Data      []byte `json:"data,omitempty"`
+	FileID    string `json:"file_id,omitempty"`
 }
 
 // ImageEncoder owns image admission and per-request budgets outside the codec.
@@ -228,4 +229,36 @@ func (r Request) WireAccounting() (tools []byte, resultBytes, results int) {
 		}
 	}
 	return
+}
+
+// PreferFiles replaces every image only after all resolutions succeed. On
+// partial failure the exact inline request survives, with no mixed sources.
+func (r *Request) PreferFiles(resolve func(ImageSource) (string, error)) bool {
+	type resolvedImage struct {
+		source *ImageSource
+		id     string
+	}
+	var resolved []resolvedImage
+	for _, msg := range r.Messages {
+		for _, block := range msg.Content {
+			parts := []requestBlock{block}
+			if block.Type == "tool_result" {
+				parts = block.Content
+			}
+			for _, part := range parts {
+				if part.Source == nil {
+					continue
+				}
+				id, err := resolve(*part.Source)
+				if err != nil || id == "" {
+					return false
+				}
+				resolved = append(resolved, resolvedImage{part.Source, id})
+			}
+		}
+	}
+	for _, image := range resolved {
+		*image.source = ImageSource{Type: "file", FileID: image.id}
+	}
+	return len(resolved) > 0
 }

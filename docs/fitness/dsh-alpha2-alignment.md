@@ -221,3 +221,32 @@ from the baseline. It confirms two distinct image blocks, the same wire
 bytes after a real process restart, no requests from resume alone, and zero
 Files uploads. Durable provider file IDs, provider fallback, live service
 acceptance and Desktop Host integration remain separate.
+
+## Pero opt-in Files transport
+
+With Messages and `--image-input` configured, use
+`--messages-files-key-env NAME` to explicitly enable remote upload of
+admitted raster bytes. Set the named variable to 32 random bytes encoded as
+64 hex characters, separate from the provider credential and signed
+thinking key. The CLI removes the variable before assembling tool child
+environments. The operator must treat this as remote data retention, not
+just the existing inline inference request. Nothing uploads by default.
+
+Pero keys its private disk cache by normalized Files endpoint, provider and
+credential, using the independent local key; entries represent exact raster
+bytes and MIME. A seven-day requested lifetime, bounded locally by creation
+time, is refreshed with an hour left. Identical images in one request reuse
+one ID. Missing, near-expiry or invalid records need a new upload. Failed
+upload resolution leaves the whole model request inline, including any
+images successfully uploaded earlier in that attempt. The already-reserved
+inference budget stays available; uploads consume the same attempt budget
+and audit gate. Files and Messages reject HTTP redirects.
+
+Run the same fixture with `PERO_ACP_PERO_FILES=1` and both binary paths.
+It exercises three real Pero processes with the same assertions as the
+upstream baseline: four uploads, three model requests, reuse after
+restart, credential separation and full inline fallback. The inline and
+signed lanes still run independently. This does not implement provider
+stale-ID recovery, quota reclamation, adaptive backoff, cross-process
+concurrent upload deduplication, or full upstream vision budget/offload
+parity. Live provider and Desktop Host acceptance are still unverified.

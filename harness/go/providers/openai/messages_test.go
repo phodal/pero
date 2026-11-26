@@ -2,8 +2,10 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -160,6 +162,64 @@ func TestDeepSeekMessagesVisionWire(t *testing.T) {
 			}
 			if _, err := a.Generate(t.Context(), r, nil); err == nil || requests.Load() != wantRequests {
 				t.Fatalf("unexpected HTTP admission: count=%d err=%v", requests.Load(), err)
+			}
+		})
+	}
+}
+
+func TestDeepSeekFilesRespectsRequestBudgetAndRedirectBoundary(t *testing.T) {
+	for _, budget := range []int{1, 2} {
+		t.Run(fmt.Sprint(budget), func(t *testing.T) {
+			var uploads, models, redirected, audits atomic.Int32
+			destination := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { redirected.Add(1) }))
+			defer destination.Close()
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/files" {
+					uploads.Add(1)
+					http.Redirect(w, r, destination.URL, http.StatusTemporaryRedirect)
+					return
+				}
+				models.Add(1)
+				var body struct {
+					Messages []struct {
+						Content []struct {
+							Source struct {
+								Type string
+								Data []byte
+							}
+						}
+					}
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Messages) != 1 ||
+					len(body.Messages[0].Content) != 1 || body.Messages[0].Content[0].Source.Type != "base64" ||
+					len(body.Messages[0].Content[0].Source.Data) == 0 || r.Header.Get("Anthropic-Beta") != "" {
+					t.Error("expected inline fallback without the Files beta header")
+				}
+				w.WriteHeader(http.StatusBadRequest)
+			}))
+			defer provider.Close()
+			a, err := New(Config{
+				APIFormat: DeepSeekMessages, Endpoint: provider.URL + "/v1/messages", APIKey: "synthetic", ProviderName: "fixture",
+				Models:      []ModelConfig{{ID: "vision", MaxTokens: 128, InputModalities: []string{"text", "image"}}},
+				MaxRequests: budget, MessagesFilesDirectory: t.TempDir(), MessagesFilesKey: make([]byte, 32),
+				BeforeHTTPAttempt: func() error { audits.Add(1); return nil },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := a.ResolveModelInfo(t.Context(), "fixture", "vision")
+			if err != nil || !slices.Contains(info.InputModalities, "image") {
+				t.Fatalf("vision route metadata: %+v err=%v", info, err)
+			}
+			req := harness.GenerateRequest{Provider: "fixture", Model: "vision", Messages: []harness.Message{{Role: harness.RoleUser, Content: []harness.ContentBlock{
+				{Type: harness.BlockImage, MIMEType: "image/png", Data: ownedPNG(t, 4, 4)},
+			}}}}
+			_, _ = a.Generate(t.Context(), req, nil)
+			if _, err := a.Generate(t.Context(), req, nil); harness.ProviderFailureFromError(err).Code != harness.RequestBudgetExhaustedCode {
+				t.Fatalf("second inference must fail before HTTP: %v", err)
+			}
+			if got := []int32{uploads.Load(), models.Load(), redirected.Load(), audits.Load()}; !slices.Equal(got, []int32{int32(budget - 1), 1, 0, int32(budget)}) {
+				t.Fatalf("uploads/models/redirects/audits = %v", got)
 			}
 		})
 	}

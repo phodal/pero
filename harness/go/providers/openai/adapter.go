@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -45,6 +46,10 @@ type Config struct {
 	// It scopes replay to this endpoint, provider and credential. Do not reuse
 	// the API key itself or send this secret to the provider.
 	MessagesReplayKey []byte
+	// Both fields explicitly enable raster-only Files uploads. The directory
+	// must be owner-controlled and the key must not be the provider credential.
+	MessagesFilesDirectory string
+	MessagesFilesKey       []byte
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
 	// Explicit transport choice for compatible providers without an SSE route.
@@ -71,6 +76,7 @@ type Adapter struct {
 	messagesClient           *http.Client
 	messagesURL, messagesKey string
 	messagesReplayScope      string
+	messagesFiles            *messagesFiles
 	disableThinking          bool
 	disableStreaming         bool
 	maxRequests              int64
@@ -99,6 +105,11 @@ func New(c Config) (*Adapter, error) {
 	}
 	if c.MessagesReplayKey != nil && (len(c.MessagesReplayKey) != 32 || c.APIFormat != DeepSeekMessages || c.DisableThinking) {
 		return nil, errors.New("messages adapter: signed thinking requires DeepSeek Messages, a 32-byte local replay key and thinking not disabled")
+	}
+	if c.MessagesFilesDirectory != "" || c.MessagesFilesKey != nil {
+		if c.APIFormat != DeepSeekMessages || !filepath.IsAbs(c.MessagesFilesDirectory) || len(c.MessagesFilesKey) != 32 {
+			return nil, errors.New("messages adapter: Files requires DeepSeek Messages, a private absolute directory and a 32-byte scope key")
+		}
 	}
 	if c.MaxRequests < 0 || c.MaxOutputTokens < 0 {
 		return nil, errors.New("openai adapter: budget limits must be non-negative")
@@ -202,6 +213,16 @@ func New(c Config) (*Adapter, error) {
 		if c.MessagesReplayKey != nil {
 			adapter.messagesReplayScope = messagesReplayScope(c.MessagesReplayKey, u.String(), c.ProviderName, c.APIKey)
 		}
+		if c.MessagesFilesDirectory != "" {
+			filesClient := client
+			filesClient.Transport = terminalCheckingTransport{next: transport, nonStreaming: true}
+			if c.BeforeHTTPAttempt != nil {
+				filesClient.Transport = attemptAuditTransport{next: filesClient.Transport, before: c.BeforeHTTPAttempt}
+			}
+			filesURL := strings.TrimSuffix(u.String(), "/messages") + "/files"
+			scope := messagesReplayScope(c.MessagesFilesKey, filesURL, c.ProviderName, c.APIKey)
+			adapter.messagesFiles = &messagesFiles{client: &filesClient, url: filesURL, root: filepath.Join(c.MessagesFilesDirectory, scope)}
+		}
 	} else {
 		adapter.client = openaisdk.NewChatCompletionService(sdkOptions...)
 		adapter.responses = responses.NewResponseService(sdkOptions...)
@@ -232,7 +253,7 @@ func (a *Adapter) ResolveModelInfo(_ context.Context, provider, model string) (l
 		r.Efforts = append([]llm.ReasoningEffortInfo(nil), r.Efforts...)
 		reasoning = &r
 	}
-	return llm.ModelInfo{Provider: provider, Model: model, Name: m.Name, Description: m.Description, InputModalities: []string{"text"}, ContextWindow: m.ContextWindow, DefaultMaxTokens: m.MaxTokens, Reasoning: reasoning}, nil
+	return llm.ModelInfo{Provider: provider, Model: model, Name: m.Name, Description: m.Description, InputModalities: append([]string(nil), m.InputModalities...), ContextWindow: m.ContextWindow, DefaultMaxTokens: m.MaxTokens, Reasoning: reasoning}, nil
 }
 func (a *Adapter) RetryPolicyForProvider(provider string) (llm.ResolvedRetryPolicy, bool) {
 	p := a.retryPolicy

@@ -12,7 +12,8 @@ import { createFilesFixture, compareDSHFiles, comparePeroImages } from './compar
 
 const [dshPackage, peroBinary] = process.argv.slice(2);
 const filesLane = process.env.PERO_ACP_DSH_FILES === '1';
-const imageLane = process.env.PERO_ACP_PERO_IMAGES === '1';
+const peroFilesLane = process.env.PERO_ACP_PERO_FILES === '1';
+const imageLane = peroFilesLane || process.env.PERO_ACP_PERO_IMAGES === '1';
 assert.ok(!imageLane || !filesLane, 'run image comparisons separately');
 assert.ok(dshPackage && (peroBinary || filesLane),
   'usage: node scripts/harness/compare-acp-alpha2.mjs <DSH package.json> <pero-agent-acp binary>');
@@ -154,6 +155,7 @@ async function withAgent(engine, paths, run) {
       DEEPSEEK_BASE_URL: endpoint,
       DEEPSEEK_API_KEY: engine.credential ?? key,
       PERO_FIXTURE_API_KEY: engine.credential ?? key,
+      ...(engine.files && {PERO_FIXTURE_FILES_KEY: 'cd'.repeat(32)}),
       ...(engine.signed && {PERO_FIXTURE_REPLAY_KEY: replayKey}),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -365,10 +367,10 @@ try {
   await once(provider, 'listening');
   if (filesFixture) {
     const result = imageLane
-      ? await comparePeroImages({root, peroBinary: resolve(peroBinary), withAgent, fixture: filesFixture})
+      ? await comparePeroImages({root, peroBinary: resolve(peroBinary), withAgent, fixture: filesFixture, files: peroFilesLane, key})
       : await compareDSHFiles({root, dshEntry, key, withAgent, fixture: filesFixture});
     assert.deepEqual(fixtureErrors, []);
-    assert.equal(providerRequests, imageLane ? 2 : 7);
+    assert.equal(providerRequests, imageLane && !peroFilesLane ? 2 : 7);
     console.log(JSON.stringify({dshVersion, providerRequests, ...result}, null, 2));
   } else {
     const engines = [

@@ -68,6 +68,7 @@ func run() (resultErr error) {
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
 	replayKeyEnv := flag.String("messages-replay-key-env", "", "enable signed DeepSeek Messages thinking; name of an environment variable holding a private 32-byte hex replay key")
+	filesKeyEnv := flag.String("messages-files-key-env", "", "enable DeepSeek Messages raster uploads with a separate private 32-byte hex scope key")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
@@ -217,6 +218,20 @@ func run() (resultErr error) {
 			return errors.New("Messages replay key must contain exactly 32 hex-encoded bytes")
 		}
 	}
+	var messagesFilesKey []byte
+	if *filesKeyEnv != "" {
+		if *filesKeyEnv == *keyEnv || *filesKeyEnv == *replayKeyEnv || !budget.ImageInput || budget.APIFormat != string(openai.DeepSeekMessages) {
+			return errors.New("Messages Files needs a separate key environment variable and DeepSeek Messages image input")
+		}
+		value, err := takeProviderCredential(*filesKeyEnv)
+		if err != nil {
+			return err
+		}
+		messagesFilesKey, err = hex.DecodeString(value)
+		if err != nil || len(messagesFilesKey) != 32 {
+			return errors.New("Messages Files key must contain exactly 32 hex-encoded bytes")
+		}
+	}
 	webProvider, err := configuredWeb(*web, *keyEnv, credential)
 	if err != nil {
 		return err
@@ -230,6 +245,13 @@ func run() (resultErr error) {
 		return err
 	}
 	providerConfig.MessagesReplayKey = messagesReplayKey
+	if messagesFilesKey != nil {
+		providerConfig.MessagesFilesDirectory, err = filepath.Abs(filepath.Join(*sessions, "deepseek-files-v1"))
+		if err != nil {
+			return err
+		}
+		providerConfig.MessagesFilesKey = messagesFilesKey
+	}
 	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
 	if paperResearch != nil {
 		providerConfig.BeforeHTTPAttempt, err = researchAttemptAudit(paperResearch.AuditPath, paperResearch.ModelRequests)
@@ -254,6 +276,8 @@ func run() (resultErr error) {
 	}
 	adapter, err := openai.New(providerConfig)
 	clear(messagesReplayKey)
+	clear(messagesFilesKey)
+	providerConfig.MessagesFilesKey = nil
 	providerConfig.MessagesReplayKey = nil
 	if err != nil {
 		return err

@@ -9,6 +9,7 @@ go_library(
         "generate.go",
         "image_input.go",
         "messages.go",
+        "messages_files.go",
         "provider_errors.go",
         "request_encode.go",
         "responses_decode.go",

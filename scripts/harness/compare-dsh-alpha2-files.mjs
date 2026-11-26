@@ -34,7 +34,7 @@ export function createFilesFixture(key) {
       const [headers, ...body] = part.split('\r\n\r\n');
       const image = Buffer.from(body.join('\r\n\r\n').slice(0, -2), 'latin1');
       const mime = /content-type: (image\/[^\r]+)/i.exec(headers)?.[1];
-      assert.equal(mime, 'image/png');
+      assert.match(mime, /^image\/(png|jpeg)$/);
       const id = `file-fixture-${uploads.length + 1}`;
       uploads.push({id, credential, image});
       res.setHeader('content-type', 'application/json');
@@ -44,7 +44,7 @@ export function createFilesFixture(key) {
       } else {
         res.end(JSON.stringify({
           id, type:'file', created_at:new Date().toISOString(), mime_type:mime,
-          size_bytes:image.length, filename:id+'.png',
+          size_bytes:image.length, filename:id+(mime==='image/png'?'.png':'.jpeg'),
         }));
       }
       return;
@@ -78,23 +78,7 @@ export async function compareDSHFiles({root, dshEntry, key, withAgent, fixture})
   const engine = {name:'dsh',command:process.execPath,args:() => [dshEntry,'--profile','acp','--patch',patch]};
   const {uploads, inference} = fixture;
   const run = createImageSessions(withAgent, {home, workspace}, fixture);
-  const id = await run(engine);
-  assert.equal(uploads.length,2);
-  assert.notDeepEqual(uploads[0].image,uploads[1].image);
-  assert.deepEqual(inference[0].sources.map(s => s.file_id),uploads.map(u => u.id));
-  assert.ok(inference[0].beta?.includes(beta));
-  await run(engine,id);
-  assert.equal(uploads.length,2);
-  assert.deepEqual(inference[1].sources,inference[0].sources);
-  await run({...engine,credential:key+'-new'},id);
-  assert.deepEqual(uploads.map(u => u.credential),[key,key,key+'-new',key+'-new']);
-  assert.equal(inference.length,3);
-  assert.equal(inference[2].credential,key+'-new');
-  assert.ok(!inference[2].beta?.includes(beta));
-  assert.deepEqual(inference[2].sources.map(s => s.type),['base64','base64']);
-  assert.deepEqual(inference[2].sources.map(s => Buffer.from(s.data,'base64')),uploads.slice(2).map(u => u.image));
-  return {scope:'DSH-only loopback Files baseline',uploads:uploads.length,
-    inference:inference.map(r => r.sources.map(i => i.type)),sameIdsAfterRestart:true};
+  return verifyFileReplay(run, engine, {uploads, inference}, key, 'DSH-only loopback Files baseline');
 }
 
 
@@ -119,17 +103,19 @@ function createImageSessions(withAgent, paths, fixture) {
   });
 }
 
-export async function comparePeroImages({root, peroBinary, withAgent, fixture}) {
+export async function comparePeroImages({root, peroBinary, withAgent, fixture, files, key}) {
   const home = join(root, 'pero-images');
   const workspace = join(home, 'workspace');
   await mkdir(workspace, {recursive:true});
-  const engine = {name:'pero', command:peroBinary, args:({endpoint}) => [
+  const engine = {name:'pero', files, command:peroBinary, args:({endpoint}) => [
     '--endpoint', endpoint+'/v1/messages', '--api-format', 'deepseek-messages',
     '--model', 'deepseek-flash', '--image-input', '--max-tokens', '128',
     '--api-key-env', 'PERO_FIXTURE_API_KEY', '--session-dir', join(home,'sessions'),
+    ...(files ? ['--messages-files-key-env','PERO_FIXTURE_FILES_KEY'] : []),
   ]};
   const {uploads, inference} = fixture;
   const run = createImageSessions(withAgent, {home, workspace}, fixture);
+  if (files) return verifyFileReplay(run, engine, fixture, key, 'Pero opt-in loopback Files');
   const id = await run(engine);
   await run(engine, id);
   assert.equal(uploads.length, 0);
@@ -142,4 +128,25 @@ export async function comparePeroImages({root, peroBinary, withAgent, fixture}) 
   }
   assert.deepEqual(inference[1].sources, inference[0].sources);
   return {scope:'Pero-only inline Messages images', uploads:0, inference:2, sameImagesAfterRestart:true};
+}
+
+
+async function verifyFileReplay(run, engine, {uploads, inference}, key, scope) {
+  const id = await run(engine);
+  assert.equal(uploads.length,2);
+  assert.notDeepEqual(uploads[0].image,uploads[1].image);
+  assert.deepEqual(inference[0].sources.map(s => s.file_id),uploads.map(u => u.id));
+  assert.ok(inference[0].beta?.includes(beta));
+  await run(engine,id);
+  assert.equal(uploads.length,2);
+  assert.deepEqual(inference[1].sources,inference[0].sources);
+  await run({...engine,credential:key+'-new'},id);
+  assert.deepEqual(uploads.map(u => u.credential),[key,key,key+'-new',key+'-new']);
+  assert.equal(inference.length,3);
+  assert.equal(inference[2].credential,key+'-new');
+  assert.ok(!inference[2].beta?.includes(beta));
+  assert.deepEqual(inference[2].sources.map(s => s.type),['base64','base64']);
+  assert.deepEqual(inference[2].sources.map(s => Buffer.from(s.data,'base64')),uploads.slice(2).map(u => u.image));
+  return {scope,uploads:uploads.length,
+    inference:inference.map(r => r.sources.map(i => i.type)),sameIdsAfterRestart:true};
 }
