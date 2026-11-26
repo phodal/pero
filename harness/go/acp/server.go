@@ -481,6 +481,14 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 		return "", err
 	}
 	defer done()
+	// Persist the physical workspace for new sessions so a transient alias
+	// does not become the session's durable identity. Validate the exact path
+	// we will use for both the session and its MCP clients.
+	if filepath.IsAbs(params.CWD) {
+		if canonical, err := filepath.EvalSymlinks(params.CWD); err == nil {
+			params.CWD = canonical
+		}
+	}
 	if err := s.checkWorkingDirectory(params.CWD); err != nil {
 		return "", err
 	}
