@@ -370,15 +370,15 @@ func (a *Agent) TryFollowup(message Message) (bool, error) {
 }
 
 func (a *Agent) tryFollowup(message Message, admission *FollowupAdmission) (bool, error) {
-	return a.tryFollowupOwned(message, admission, nil)
+	return a.tryFollowupOwned(context.Background(), message, admission, nil)
 }
 
-func (a *Agent) tryFollowupOwned(message Message, admission *FollowupAdmission, owned *OwnedFollowupReceipt) (accepted bool, resultErr error) {
+func (a *Agent) tryFollowupOwned(ctx context.Context, message Message, admission *FollowupAdmission, owned *OwnedFollowupReceipt) (accepted bool, resultErr error) {
 	message, err := validatePluginMessage(a, message)
 	if err != nil {
 		return false, err
 	}
-	message, err = a.prepareQueuedMessage(context.Background(), message, false)
+	message, err = a.prepareQueuedMessage(ctx, message, false)
 	if err != nil {
 		return false, err
 	}
@@ -401,7 +401,7 @@ func (a *Agent) tryFollowupOwned(message Message, admission *FollowupAdmission, 
 		}()
 	}
 	request := promptRequest{
-		ctx: context.Background(), message: cloneMessage(message), owned: owned,
+		ctx: ctx, message: cloneMessage(message), owned: owned,
 		result: make(chan promptResult, 1), admitted: make(chan struct{}), userAuthored: false,
 	}
 	a.admissionMu.Lock()

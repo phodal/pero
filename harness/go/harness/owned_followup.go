@@ -58,7 +58,13 @@ type OwnedFollowupReceipt struct {
 // before preparation, guard facts, or synchronous insertion notifications.
 // A nonnil receipt is returned even when later preparation/enqueue fails.
 func (a *Agent) TryFollowupOwned(message Message, admission FollowupAdmission, owner *OwnedFollowupOwner) (*OwnedFollowupReceipt, bool, error) {
-	if owner == nil || a == nil {
+	return a.TryFollowupOwnedContext(context.Background(), message, admission, owner)
+}
+
+// TryFollowupOwnedContext binds a native follow-up's exact execution to ctx.
+// Cancelling it does not cancel unrelated turns.
+func (a *Agent) TryFollowupOwnedContext(ctx context.Context, message Message, admission FollowupAdmission, owner *OwnedFollowupOwner) (*OwnedFollowupReceipt, bool, error) {
+	if owner == nil || a == nil || ctx == nil {
 		return nil, false, errors.New("harness: owned followup requires an Agent and owner")
 	}
 	if admission.Producer == "" || admission.Lifetime == nil || admission.Check == nil || admission.Commit == nil {
@@ -82,7 +88,7 @@ func (a *Agent) TryFollowupOwned(message Message, admission FollowupAdmission, o
 	owner.receipts[receipt] = struct{}{}
 	owner.notifyLocked()
 	owner.mu.Unlock()
-	accepted, err := a.tryFollowupOwned(message, &admission, receipt)
+	accepted, err := a.tryFollowupOwned(ctx, message, &admission, receipt)
 	if !accepted {
 		receipt.settle(TurnOutcome{Err: err})
 	}

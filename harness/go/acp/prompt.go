@@ -49,6 +49,17 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 	var result harness.TurnResult
 	var cleanup func()
 	manualReview := false
+	manualGoal := false
+	if s.goal && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
+		if command, matched := harness.ParseCommand(params.Prompt[0].Text); matched && command.Name == "goal" {
+			manualGoal = true
+			if len(params.Prompt) != 1 {
+				promptErr = invalidError("/goal expects one text block and no attachments")
+			} else {
+				result.Reason, promptErr = s.runGoalCommand(promptCtx, record, command.RawInput)
+			}
+		}
+	}
 	if s.scientificReviewer != nil && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
 		line := params.Prompt[0].Text
 		if parsed, matched := harness.ParseCommand(line); matched && parsed.Name == "review" {
@@ -85,10 +96,10 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 		}
 	}
-	if !manualReview {
+	if !manualReview && !manualGoal {
 		content, promptErr = promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
 	}
-	if promptErr == nil && !manualReview {
+	if promptErr == nil && !manualReview && !manualGoal {
 		message := harness.Message{Role: harness.RoleUser, Content: content}
 		if s.preparePrompt != nil {
 			var id harness.SessionID
@@ -142,7 +153,7 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		}
 		return "", promptErr
 	}
-	if s.sessionTitles && !manualReview {
+	if s.sessionTitles && !manualReview && !manualGoal {
 		record.agent.StartSessionTitle(result.Turn)
 	}
 	return promptStopReason(result.Reason), nil

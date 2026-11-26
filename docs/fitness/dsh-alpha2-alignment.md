@@ -115,10 +115,30 @@ alongside the matching user message. A second restore retains that fact and
 does not send either input again. The test uses a scripted provider, with no
 network or tools.
 
-The remaining Goal work is to own objective/revision, round cap and stop state,
-and wire an explicit Goal resume. Persist round accounting at admission, not
-when reserving a queue slot. Keep restored and forked goals disarmed while
-preserving ordinary ACP inbox recovery.
+The native Go ACP harness now has an opt-in bounded Goal slice. Start
+`pero-agent-acp` with `--enable-goal`, then send one text block via
+`session/prompt`:
+
+- `/goal start 2 Verify the recorded result` starts a new revision and runs up
+  to two rounds in the same conversation.
+- `/goal status` reads the current objective, consumed rounds and stop status.
+- `/goal resume` explicitly runs the remaining rounds. Session resume/load
+  alone does not start a goal; ordinary durable inbox recovery still works.
+- `/goal complete` records an operator's completion decision while idle.
+  `session/cancel` stops active execution without refunding a round that already
+  entered history.
+
+The cap is 1–10 rounds per goal revision, not a request/token quota. Provider
+budgets, tool policy, permissions and configured scientific review still apply.
+Refusal, truncation, execution failure and cancellation stop continuation. A
+round's journaled admission is flushed before model dispatch. A fork cannot
+count an admission fact severed from its matching message, and does not carry execution authority.
+
+This slice does not implement upstream model-callable Goal tools, revision
+edits during execution or descendant-aware scheduling. It does not change
+the default slash-command path. It is not enabled for external harnesses or
+profiles with specialized prompt preparation. Desktop command discovery,
+production model service and packaging are not verified.
 
 ## Compaction route and evidence
 

@@ -49,8 +49,10 @@ type Options struct {
 	// OutputLimitRecoveries explicitly allows attributed new turns after an
 	// output-limit stop. Zero preserves ACP's single-prompt stop contract.
 	OutputLimitRecoveries int
-	Compaction            *harness.BasicCompactionConfig
-	ToolResultPruner      *harness.ToolResultPruneConfig
+	// Goal enables the opt-in native ACP /goal command.
+	Goal             bool
+	Compaction       *harness.BasicCompactionConfig
+	ToolResultPruner *harness.ToolResultPruneConfig
 	// OmitToolImages keeps the receipt in ACP notifications when the host
 	// transport cannot carry raster bytes. Model context and journal are intact.
 	OmitToolImages      bool
@@ -74,6 +76,7 @@ type Options struct {
 
 type Server struct {
 	sessionTitles            bool
+	goal                     bool
 	modelChoices             []harness.ModelCatalogEntry
 	modelCapacity            int
 	modelOutput              int
@@ -179,6 +182,7 @@ func NewServer(options Options) (*Server, error) {
 	}
 	return &Server{
 		sessionTitles: options.SessionTitles,
+		goal:          options.Goal,
 		modelChoices:  choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		registerAppDeferredTools: options.RegisterAppDeferredTools,

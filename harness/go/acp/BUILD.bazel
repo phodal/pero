@@ -4,6 +4,7 @@ go_library(
     name = "acp",
     srcs = [
         "app_tool_loading.go",
+        "goal.go",
         "lifecycle.go",
         "mcp_access.go",
         "mcp_policy.go",
@@ -28,6 +29,7 @@ go_library(
         "//runtime",
         "//scientificreview",
         "//scientificreviewer",
+        "//session",
     ],
 )
 
@@ -35,6 +37,7 @@ go_test(
     name = "acp_test",
     srcs = [
         "extraction_test.go",
+        "goal_test.go",
         "mcp_access_test.go",
         "mcp_policy_test.go",
         "mcp_runtime_test.go",
