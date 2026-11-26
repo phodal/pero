@@ -269,3 +269,25 @@ may invalidate unnamed mappings and attempt replacement uploads during the
 same inference; Pero deliberately uses the narrower inline retry. A
 loopback Go adapter test checks exact body hashes, audit counts, restart
 cache behavior and the no-retry cases. Live-provider acceptance remains open.
+
+## Project Agent Host acceptance for Messages Files
+
+Build `pero-host` and `pero-agent-acp` as in the CI job for the official
+MCP conversation, then run `node tests/contracts/dsh-messages-files.mjs`.
+The regression uses the actual Host stdio surface shared by the desktop
+runtime, a disposable Project/profile, and a separate explicitly selected
+Agent registry entry. Only the provider is scripted and local. The built-in
+Pero (DeepSeek) route and its defaults are unchanged.
+
+The first Project prompt negotiates ACP image support and sends two different
+synthetic PNG swatches. The loopback provider records exactly two uploads and
+one Messages inference with the two returned file IDs. After a clean Host and
+Harness restart, opening the original Project Agent loads the same ACP
+session and sends no provider requests. An explicit follow-up reuses both
+IDs, with exactly one new inference and no new uploads. This lane passed five
+consecutive times on Linux. The existing Project Agent Host contract (nine
+behaviors, including delegation and cancellation) also passed.
+
+This is a Host contract, not a Desktop renderer, Paper source/PDF provenance,
+packaged Native/Electron, or live DeepSeek acceptance. No real provider
+credentials or research files are used.

@@ -921,6 +921,8 @@ jobs:
           npm run build --workspace @pero/web
           npm ci --prefix packages/connectors --ignore-scripts
           node scripts/build/desktop.mjs
+      - name: Project Agent Messages Files contract
+        run: node tests/contracts/dsh-messages-files.mjs
       - name: Official conversation, including same-process close and restart
         run: |
           npx playwright install --with-deps chromium

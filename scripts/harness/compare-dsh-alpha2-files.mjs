@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const swatches = [
+export const swatches = [
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAQMAAABJtOi3AAAAA1BMVEX/AAAZ4gk3AAAADElEQVQI12NgGNwAAACgAAFhJX1HAAAAAElFTkSuQmCC',
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAQMAAABJtOi3AAAAA1BMVEUAAP+KeNJXAAAADElEQVQI12NgGNwAAACgAAFhJX1HAAAAAElFTkSuQmCC',
 ];
@@ -55,7 +55,10 @@ export function createFilesFixture(key) {
     const sources = body.messages.flatMap(m => Array.isArray(m.content)
       ? m.content.filter(b => b.type === 'image').map(b => b.source) : []);
     assert.equal(sources.length, 2);
-    inference.push({credential, sources, beta:req.headers['anthropic-beta']});
+    const latest = body.messages.findLast(m => m.role === 'user')?.content;
+    const userText = typeof latest === 'string' ? latest
+      : (latest ?? []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    inference.push({credential, sources, userText, beta:req.headers['anthropic-beta']});
     res.writeHead(200, {'content-type':'text/event-stream'});
     const send = obj => res.write(`event: ${obj.type}\ndata: ${JSON.stringify(obj)}\n\n`);
     send({type:'message_start',message:{id:'fixture',type:'message',role:'assistant',model:body.model,content:[],usage:{input_tokens:3,output_tokens:0}}});
