@@ -161,7 +161,14 @@ asks the model for a closing explanation.
 Unlike DSH's editable live service, Pero only accepts edits as explicit ACP
 commands outside an active prompt. An old revision's delayed admission or
 stop does not apply to an edited goal. The model cannot make edits. A
-configurable blocker threshold and descendant-aware scheduling are not included. The default slash-command path is unchanged.
+configurable blocker threshold is not included. When subagents are enabled,
+Goal joins its own progressing descendants before reserving the next round.
+Idle descendants with parked input and other sessions do not block it.
+Cancelling while waiting disarms the Goal without consuming another round.
+The ACP regression gates a real in-process child after round one, keeps an
+unrelated session's child active, and checks that only settlement (or explicit
+resume after cancellation) leads to one admission and one model request for
+round two. The default slash-command path is unchanged.
 Goal stays disabled for external harnesses and profiles with specialized
 prompt preparation. The ACP server advertises `/goal` in the same complete session command
 snapshot as `/review` on eligible native sessions. Official DSH alpha.2 has

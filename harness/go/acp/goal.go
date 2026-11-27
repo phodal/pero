@@ -242,6 +242,14 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 		if err := agent.WhenIdle(ctx); err != nil {
 			return harness.FinishAborted, err
 		}
+		// Join only this Agent's progressing delegation tree before reserving
+		// another round. Owned admission below still checks root idleness and
+		// the exact Goal revision and round; cancellation disarms this driver.
+		if descendants := s.h.Subagents(); descendants != nil {
+			if _, err := descendants.WaitForChildren(ctx, agent); err != nil {
+				return harness.FinishAborted, err
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return harness.FinishAborted, err
 		}

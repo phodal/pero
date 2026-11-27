@@ -16,6 +16,7 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
 	harnesssession "github.com/phodal/pero/harness/go/session"
+	"github.com/phodal/pero/harness/go/subagents"
 )
 
 func TestGoalACPExplicitResumeAndCap(t *testing.T) {
@@ -41,7 +42,7 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 		}}, nil
 	})
 	home, cwd := t.TempDir(), t.TempDir()
-	newServer := func() *Server { return newGoalTestServer(t, ctx, home, adapter) }
+	newServer := func() *Server { return newGoalTestServer(t, ctx, home, adapter, false) }
 	first := newServer()
 	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
 	if err != nil {
@@ -131,6 +132,149 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 	check("Goal round 1/2", "Goal round 2/2")
 }
 
+func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
+	for _, name := range []string{"settle", "cancel"} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			ownedStarted, releaseOwned := make(chan struct{}), make(chan struct{})
+			unrelatedStarted, releaseUnrelated := make(chan struct{}), make(chan struct{})
+			nextRound := make(chan struct{}, 2)
+			owned := make(chan harness.SubagentActivation, 1)
+			var startOwned func() (harness.SubagentActivation, error)
+			adapter := harness.AdapterFunc(func(turnCtx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+				last := req.Messages[len(req.Messages)-1].Content[0].Text
+				switch {
+				case strings.HasPrefix(last, "Goal round 1/2"):
+					child, err := startOwned()
+					if err != nil {
+						return harness.Completion{}, err
+					}
+					owned <- child
+				case strings.HasPrefix(last, "Goal round 2/2"):
+					nextRound <- struct{}{}
+				case last == "owned evidence":
+					close(ownedStarted)
+					select {
+					case <-releaseOwned:
+					case <-turnCtx.Done():
+						return harness.Completion{}, turnCtx.Err()
+					}
+				case last == "unrelated evidence":
+					close(unrelatedStarted)
+					select {
+					case <-releaseUnrelated:
+					case <-turnCtx.Done():
+						return harness.Completion{}, turnCtx.Err()
+					}
+				default:
+					return harness.Completion{}, fmt.Errorf("unexpected test prompt %q", last)
+				}
+				return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+					Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "evidence checked"}},
+				}}, nil
+			})
+			server := newGoalTestServer(t, ctx, t.TempDir(), adapter, true)
+			if _, err := subagents.MountInProcess(ctx, server.h, subagents.InProcessOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			newAgent := func() *harness.Agent {
+				t.Helper()
+				id, err := server.newSession(ctx, NewSessionParams{CWD: t.TempDir()})
+				if err != nil {
+					t.Fatal(err)
+				}
+				record, err := server.currentRecord(id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return record.agent
+			}
+			root, other := newAgent(), newAgent()
+			start := func(parent *harness.Agent, prompt string) (harness.SubagentActivation, error) {
+				return server.h.Subagents().StartActivation(ctx, "spawn", harness.SubagentRequest{
+					Parent: parent, Prompt: prompt, MaxDepth: 1,
+				}, "caller")
+			}
+			startOwned = func() (harness.SubagentActivation, error) { return start(root, "owned evidence") }
+			unrelated, err := start(other, "unrelated evidence")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer close(releaseUnrelated)
+			waitStarted := func(started <-chan struct{}) {
+				t.Helper()
+				select {
+				case <-started:
+				case <-ctx.Done():
+					t.Fatal("subagent never reached the model adapter")
+				}
+			}
+			waitStarted(unrelatedStarted)
+			run := func(line string) (any, *rpcError) {
+				body, _ := json.Marshal(PromptParams{SessionID: string(root.ID()), Prompt: []PromptContent{{Type: "text", Text: line}}})
+				return server.handle(ctx, request{Method: "session/prompt", Params: body})
+			}
+			var result any
+			var rpc *rpcError
+			finished := make(chan struct{})
+			go func() {
+				result, rpc = run("/goal start 2 Verify the evidence")
+				close(finished)
+			}()
+			waitStarted(ownedStarted)
+			child := <-owned
+			select {
+			case <-nextRound:
+				t.Fatal("round two dispatched while owned child was progressing")
+			case <-finished:
+				t.Fatalf("Goal stopped before owned child settled: %v %v", result, rpc)
+			case <-time.After(100 * time.Millisecond):
+			}
+			if state := foldGoal(root.Session().Events()); state.Rounds != 1 {
+				t.Fatalf("round two reserved before child settlement: %+v", state)
+			}
+			want := "end_turn"
+			if name == "cancel" {
+				body, _ := json.Marshal(SessionParams{SessionID: string(root.ID())})
+				server.handleNotification(request{Method: "session/cancel", Params: body})
+				want = "cancelled"
+			} else {
+				close(releaseOwned)
+			}
+			select {
+			case <-finished:
+			case <-ctx.Done():
+				t.Fatal("Goal did not settle while the unrelated session remained active")
+			}
+			if rpc != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": want}) {
+				t.Fatalf("result=%+v error=%+v", result, rpc)
+			}
+			if name == "cancel" {
+				close(releaseOwned)
+				if err := child.Wait(ctx); err != nil {
+					t.Fatal(err)
+				}
+				if state := foldGoal(root.Session().Events()); state.Rounds != 1 || len(nextRound) != 0 {
+					t.Fatalf("cancelled Goal advanced after child settled: %+v", state)
+				}
+				r, err := run("/goal resume")
+				if err != nil || !reflect.DeepEqual(r, map[string]any{"stopReason": "end_turn"}) {
+					t.Fatalf("explicit resume: result=%+v error=%+v", r, err)
+				}
+			}
+			if len(nextRound) != 1 || foldGoal(root.Session().Events()).Rounds != 2 {
+				t.Fatal("expected exactly one second model call and admission")
+			}
+			select {
+			case <-unrelated.Done:
+				t.Fatal("unrelated control was not active when Goal finished")
+			default:
+			}
+		})
+	}
+}
+
 func TestGoalForkRoundRequiresMatchingMessage(t *testing.T) {
 	parent := harnesssession.NewSession("parent", t.TempDir())
 	def, err := parent.Append(goalDefined, goalDefinition{ID: "revision-1", Objective: "Verify evidence", Limit: 2})
@@ -159,9 +303,9 @@ func TestGoalForkRoundRequiresMatchingMessage(t *testing.T) {
 	}
 }
 
-func newGoalTestServer(t *testing.T, ctx context.Context, home string, adapter harness.AdapterFunc) *Server {
+func newGoalTestServer(t *testing.T, ctx context.Context, home string, adapter harness.AdapterFunc, enableSubagents bool) *Server {
 	t.Helper()
-	h, err := harness.Boot(ctx, harness.Options{Adapter: adapter, AdapterProviders: []string{"fixture"}})
+	h, err := harness.Boot(ctx, harness.Options{Adapter: adapter, AdapterProviders: []string{"fixture"}, EnableSubagents: enableSubagents})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +370,7 @@ func TestGoalModelDecision(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			home, cwd := t.TempDir(), t.TempDir()
-			server := newGoalTestServer(t, ctx, home, adapter)
+			server := newGoalTestServer(t, ctx, home, adapter, false)
 			if row.name == "failed tool finalizer" {
 				fixture := point.Define(point.Descriptor{ID: "fixture/goal-finalizer"}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 					_, err := server.h.Tools().Finalized.On(run, func(_ context.Context, o harness.ToolOutcome) error {
@@ -286,7 +430,7 @@ func TestGoalModelDecision(t *testing.T) {
 			if err := server.closeSession(ctx, id); err != nil {
 				t.Fatal(err)
 			}
-			second := newGoalTestServer(t, ctx, home, adapter)
+			second := newGoalTestServer(t, ctx, home, adapter, false)
 			if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
 				t.Fatal(err)
 			}
@@ -342,7 +486,7 @@ func TestGoalBlockedReasonAfterThreeAdmittedRounds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	home, cwd := t.TempDir(), t.TempDir()
-	first := newGoalTestServer(t, ctx, home, adapter)
+	first := newGoalTestServer(t, ctx, home, adapter, false)
 	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
 	if err != nil {
 		t.Fatal(err)
@@ -362,7 +506,7 @@ func TestGoalBlockedReasonAfterThreeAdmittedRounds(t *testing.T) {
 	if err := first.closeSession(ctx, id); err != nil {
 		t.Fatal(err)
 	}
-	second := newGoalTestServer(t, ctx, home, adapter)
+	second := newGoalTestServer(t, ctx, home, adapter, false)
 	var output bytes.Buffer
 	second.writer = &wireWriter{encoder: json.NewEncoder(&output)}
 	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
@@ -397,7 +541,7 @@ func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
 		}}, nil
 	})
 	home, cwd := t.TempDir(), t.TempDir()
-	first := newGoalTestServer(t, ctx, home, adapter)
+	first := newGoalTestServer(t, ctx, home, adapter, false)
 	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
 	if err != nil {
 		t.Fatal(err)
@@ -456,7 +600,7 @@ func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
 	if err := first.closeSession(ctx, id); err != nil {
 		t.Fatal(err)
 	}
-	second := newGoalTestServer(t, ctx, home, adapter)
+	second := newGoalTestServer(t, ctx, home, adapter, false)
 	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
 		t.Fatal(err)
 	}

@@ -59,6 +59,7 @@ go_test(
         "//runtime",
         "//scientificreviewer",
         "//session",
+        "//subagents",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ],
 )
