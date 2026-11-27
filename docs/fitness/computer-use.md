@@ -460,6 +460,37 @@ This lane used deterministic Computer Use requests in an X11 guest and
 fixture-owned files. Receipts, screenshots, hashes, the BLEND and the OBJ with
 its MTL are in `test-results/linux-desktop-blender/`.
 
+### Native Blender Run on a named Worker, 2026-11-27
+
+The macOS arm64 Native development build selected **Blender Linux Run** in
+Cloud Tasks and dispatched the Blender desktop profile. A real Go control
+plane, PostgreSQL, Linux arm64 Colima Worker and Blender 3.4.1 guest served
+Run `run_f29b109dbca24162b851e9afbcb427d3`, generation 5.
+
+WKWebView displayed the shared noVNC viewer over the loopback Relay. The
+initial connection was view-only. Take Control enabled human keyboard input
+for Blender's first-run setup, during which the actual Codex ACP Agent
+reported that the human held control. After Return Control the Agent observed
+the guest again. Switching to evidence closed the viewer, and Reconnect
+display restored the same Run's view-only desktop.
+
+Codex `gpt-6.1-sol` used Computer Use for the scene edit and save. The final
+file-save receipt `save-result-final` was executed. The Run's `actions.json`
+contains 17 executed GUI receipts and the handoff sequence. After verifying
+the original container was gone, the client downloaded the receipt, final
+JPEG and `.blend` from the original Run and checked all three SHA-256 hashes.
+Native's **Save evidence file** exported the same screenshot. An independent
+Blender process opened the downloaded model and read Cube at `(1, 0, 0)`.
+A freshly started control plane read the same three objects from PostgreSQL.
+Evidence is in `test-results/native-run-desktop/`.
+
+Earlier attempts exposed an unavailable account model and the Worker event
+cap when ACP echoed full screenshots. The verified run used a supported
+model and kept screenshot bytes in the Artifact path while projecting
+bounded text into Run events. The Go regression also covers foreign Worker,
+wrong instance, stale generation, immutable upload and historical download.
+Public Relay deployment and release packages remain separate acceptance.
+
 ```sh
 npm run build:desktop
 node tests/e2e/linux-desktop.mjs
