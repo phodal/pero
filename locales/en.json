@@ -1003,6 +1003,8 @@
   "workspace.recently_closed": "Recently closed",
   "workspace.resize_chat": "Resize chat. Use Left and Right arrow keys. Press Enter or double-click to reset.",
   "workspace.resize_sessions": "Resize session list. Use Left, Right, Home or End; double-click to reset.",
+  "sessions.hide_list": "Hide session list",
+  "sessions.show_list": "Show session list",
   "workspace.resize_sidebar": "Resize sidebar. Use arrow keys, Home or End. Press Enter or double-click to reset.",
   "composer.app_object": "App objects",
   "composer.preview": "Preview",

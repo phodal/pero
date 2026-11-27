@@ -471,7 +471,7 @@ impl Render for Workbench {
         #[cfg(not(target_family="wasm"))]
         self.sync_inline_mcp(cx);
         let sidebar_width = layout.sidebar_width;
-        let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
+        let sessions = self.sessions_available()
             .then(|| self.preferences.layout.visible_sessions_width(width - sidebar_width))
             .flatten()
             .map(|width| self.sessions_panel(width, window, cx).into_any_element());

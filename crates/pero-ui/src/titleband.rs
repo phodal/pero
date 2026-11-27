@@ -18,6 +18,7 @@ pub(crate) struct MainColumn {
     /// Installed column-header actions and whether that app failed.
     /// Failure keeps retry and drops the declared actions.
     pub app: Option<FocusedApp>,
+    pub toggle_sessions: bool,
     pub open_chat: bool,
     pub close_chat: bool,
     pub resource_launcher: bool,
@@ -87,6 +88,7 @@ pub(crate) enum Primary {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Action {
     SidebarToggle,
+    SessionsToggle,
     Search,
     RightPanel,
     OpenChat,
@@ -168,6 +170,9 @@ fn main_segment(main: &MainColumn) -> Segment {
             (Primary::Tabs, actions)
         }
     };
+    if main.toggle_sessions {
+        actions.push(Action::SessionsToggle);
+    }
     if main.open_chat {
         actions.push(Action::OpenChat);
     }
@@ -214,6 +219,7 @@ mod tests {
         MainColumn {
             focus,
             app,
+            toggle_sessions: false,
             open_chat: false,
             close_chat: false,
             resource_launcher: false,
@@ -243,6 +249,15 @@ mod tests {
                 columns(main(MainFocus::Tabs, None), None),
                 None,
                 vec![],
+            ),
+            (
+                "conversation list can be toggled",
+                columns(
+                    MainColumn { toggle_sessions: true, ..main(MainFocus::Tabs, None) },
+                    None,
+                ),
+                None,
+                vec![Action::SessionsToggle],
             ),
             (
                 "resources open at W",

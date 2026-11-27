@@ -14,6 +14,16 @@ use std::rc::Rc;
 const INITIAL_VISIBLE_SESSIONS: usize = 5;
 const SESSION_REVEAL_STEP: usize = 10;
 impl Workbench {
+    pub(crate) fn sessions_available(&self) -> bool {
+        self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat
+    }
+
+    pub(crate) fn toggle_sessions(&mut self, cx: &mut Context<Self>) {
+        self.preferences.layout.sessions_open = !self.preferences.layout.sessions_open;
+        self.save_preferences(self.preferences.clone(), cx);
+        cx.notify();
+    }
+
     pub(crate) fn receive_session_workspace(
         &mut self,
         event: &pero_contracts::HostEvent,

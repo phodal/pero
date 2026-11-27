@@ -198,6 +198,10 @@ impl Workbench {
                 } else {
                     self.focused_column_app(cx)
                 },
+                toggle_sessions: self.sessions_available()
+                    && pero_contracts::workbench::LayoutPreferences::sessions_fit(
+                        viewport_width - self.layout.sidebar_width,
+                    ),
                 open_chat: self.titleband_open_chat(),
                 close_chat: self.titleband_close_chat(cx),
                 resource_launcher,
@@ -419,6 +423,18 @@ impl Workbench {
             _ => div().into_any_element(),
         }};
         let actions = self.titleband_actions(&segment.actions, cx);
+        let sessions_toggle = segment.actions.contains(&Action::SessionsToggle).then(|| {
+            let open = self.preferences.layout.sessions_open;
+            let label = self.t(if open { "sessions.hide_list" } else { "sessions.show_list" });
+            keep_click(div()).flex_shrink_0().ml(px(pero_theme::SPACE_4)).child(
+                pero_theme::ghost_icon_button("sessions-list-toggle", pero_theme::Chrome::from_app(cx), cx)
+                    .icon(Icon::default().path("icons/layout-list.svg"))
+                    .toggled(open)
+                    .tooltip(label)
+                    .accessibility_label(label)
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_sessions(cx))),
+            )
+        });
         window_drag(
             div()
                 .id("titleband-main")
@@ -442,6 +458,7 @@ impl Workbench {
                             .children(controls),
                     )
                 })
+                .children(sessions_toggle)
                 .child(
                     div()
                         .flex_1()
@@ -618,7 +635,7 @@ impl Workbench {
                     painted.push(button);
                 }
                 Action::SidebarToggle => painted.push(self.sidebar_toggle_button(cx).into_any_element()),
-                Action::ResourceToolbar => {}
+                Action::SessionsToggle | Action::ResourceToolbar => {}
             }
         }
         painted
