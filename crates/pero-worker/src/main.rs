@@ -3,6 +3,7 @@ mod control;
 mod executor;
 mod journal;
 mod model;
+mod run_desktop;
 mod supervisor;
 
 use control::{CloudFailure, Control};
@@ -358,6 +359,16 @@ fn run() -> Result<(), String> {
             config.execution(&run)
         };
         let mut result = match execution {
+            Ok(mut execution) if run.desktop_profile.is_some() => {
+                match run_desktop::RunDesktop::start(&control, &run, &mut execution) {
+                    Ok(desktop) => {
+                        let result = supervisor::execute(&control, &mut journal, execution, started)
+                            .unwrap_or_else(|error| Outcome::new("reconcile", error));
+                        desktop.finish(&control, &run, result)
+                    }
+                    Err(error) => Outcome::blocked(error),
+                }
+            }
             Ok(execution) => supervisor::execute(&control, &mut journal, execution, started)
                 .unwrap_or_else(|error| Outcome::new("reconcile", error)),
             Err(error) => Outcome::blocked(error),

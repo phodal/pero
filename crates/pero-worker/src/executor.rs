@@ -48,9 +48,21 @@ pub struct Execution {
     approval: Option<Policy>,
     #[serde(default)]
     remote: bool,
+    #[serde(default)]
+    run_desktop: bool,
 }
 
 impl Execution {
+    pub(crate) fn attach_desktop(&mut self, url: &str, access: &str) -> Result<(), String> {
+        let server = serde_json::from_value(json!({"type":"http", "name":"pero-run-desktop", "url":url,
+            "headers":[{"name":"Authorization","value":format!("Bearer {access}")}]}))
+            .map_err(|_| "Invalid desktop MCP configuration")?;
+        self.agent.mcp_servers.push(server);
+        self.run_desktop = true;
+        self.prompt.push_str("\n\nUse the Run's computer_use tool to work in the isolated Blender desktop. The Worker collects Blender models saved as /home/pero/result.blend and optional /home/pero/result.obj. Capture a final screenshot using the tool after saving. If a human controls the desktop, wait and obtain a fresh observation after control returns.");
+        Ok(())
+    }
+
     pub fn inherit_environment(&self) -> bool {
         self.approval.is_none() && !self.remote
     }
@@ -139,7 +151,7 @@ impl Config {
         };
         Ok(Execution {
             workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
-            approval: None, remote: true,
+            approval: None, remote: true, run_desktop: false,
         })
     }
     pub fn execution(&self, run: &Run) -> Result<Execution, String> {
@@ -205,6 +217,7 @@ impl Config {
             run_id: run.id.clone(),
             approval,
             remote: false,
+            run_desktop: false,
         })
     }
 }
@@ -254,7 +267,7 @@ pub fn child_execute() -> Result<(), String> {
         return Err("Worker process supervision currently requires Unix".into());
     }
     let mut input = std::io::stdin().lock();
-    let execution: Execution = serde_json::from_slice(
+    let mut execution: Execution = serde_json::from_slice(
         &bounded_line(&mut input, 512 * 1024)?.ok_or("Missing execution configuration")?,
     )
     .map_err(|_| "Invalid execution configuration")?;
@@ -283,6 +296,10 @@ pub fn child_execute() -> Result<(), String> {
     // A supervisor dying must not release the checkout while its child still writes.
     let _workspace_lease = WorkspaceLease::acquire(&execution.workspace)?;
     let mut gate = Gate::new(execution.approval.clone(), execution.workspace.clone());
+    let run_desktop = execution.run_desktop;
+    if run_desktop {
+        execution.agent.required_mcp_servers.insert("pero-run-desktop".into());
+    }
     let (tx, rx) = mpsc::channel();
     let handle = acp::start_supervised(execution.agent, execution.workspace, execution.run_id, tx);
     let cancel = Arc::new(AtomicBool::new(false));
@@ -309,11 +326,14 @@ pub fn child_execute() -> Result<(), String> {
         if closing_at.is_some_and(|at: Instant| at.elapsed() > Duration::from_secs(2)) {
             break;
         }
-        let event = match rx.recv_timeout(Duration::from_millis(50)) {
+        let mut event = match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(event) => event,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => break,
         };
+        if run_desktop && event.kind == "session_update" && event.data["sessionUpdate"] == "tool_call_update" {
+            retain_tool_evidence_references(&mut event.data);
+        }
         if event.kind == "permission" {
             // Only a live local responder can consume a decision. No remote action
             // or agent-supplied display text can create approval authority.
@@ -345,7 +365,12 @@ pub fn child_execute() -> Result<(), String> {
             )?;
             continue;
         }
-        emit(&event.kind, &event.text, event.data.clone())?;
+        if let Err(error) = emit(&event.kind, &event.text, event.data.clone()) {
+            gate.revoke();
+            let _ = handle.tx.send(SessionCommand::Close);
+            result = Some(Outcome::new("failed", format!("{}: {error}", event.kind)));
+            break;
+        }
         match event.kind.as_str() {
             "session_ready" => {
                 gate.ready(event.data["sessionId"].as_str());
@@ -402,9 +427,40 @@ fn emit(kind: &str, text: &str, data: Value) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+// ACP forwards MCP results both to the model and to the event journal. Keep
+// images in the model path and Run artifact storage, outside the JSON event cap.
+fn retain_tool_evidence_references(data: &mut Value) {
+    const EVIDENCE: &str = "See Run desktop evidence for the saved tool output.";
+    fn strip_images(value: &mut Value) {
+        if value["type"] == "image" && value["data"].is_string() {
+            *value = json!({"type":"text","text":EVIDENCE});
+            return;
+        }
+        match value {
+            Value::Array(items) => items.iter_mut().for_each(strip_images),
+            Value::Object(fields) => fields.values_mut().for_each(strip_images),
+            _ => {}
+        }
+    }
+    strip_images(data);
+    if serde_json::to_vec(data).is_ok_and(|wire| wire.len() > 60_000) {
+        *data = json!({"sessionUpdate":"tool_call_update","toolCallId":data["toolCallId"],
+            "status":data["status"],"content":[{"type":"content","content":{"type":"text","text":EVIDENCE}}]});
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_tool_event_retains_receipt_without_inline_image_bytes() {
+        let mut event = json!({"toolCallId":"tool-1", "rawOutput":{"result":{"content":[
+            {"type":"text","text":"observation 1"}, {"type":"image","data":"a".repeat(90_000),"mimeType":"image/jpeg"}
+        ]}}});
+        retain_tool_evidence_references(&mut event);
+        assert_eq!(event["rawOutput"]["result"]["content"][0]["text"], "observation 1");
+        assert!(serde_json::to_vec(&event).unwrap().len() < 1024);
+    }
     #[test]
     fn lines_are_bounded_and_truncation_rejected() {
         assert!(bounded_line(&mut std::io::Cursor::new(b"long\n"), 3).is_err());
@@ -426,6 +482,7 @@ mod tests {
             allowed_agents: BTreeMap::new(),
         };
         let run = Run {
+            desktop_profile: None,
             remote_execution: None,
             id: "r".into(),
             generation: 1,

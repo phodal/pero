@@ -185,6 +185,11 @@ export class LinuxDesktop {
     else if (this.phase === 'controlling') await this.handoff(false);
   }
 
+  model(file: 'result.blend' | 'result.obj') {
+    if (!(this.guest instanceof LinuxDesktopGuest)) throw new Error('The Run has no local desktop guest.');
+    return this.guest.model(file);
+  }
+
   async stop() {
     await this.pending;
     if (this.phase === 'stopping') return this.pending;
