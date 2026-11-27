@@ -383,14 +383,21 @@ impl Render for Workbench {
             resizing,
             SurfaceStacking::CURRENT,
         );
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        self.sync_run_desktop(covered, cx);
         let mut layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
             covered,
-            pane_layout,
+            self.navigation.pane_layout().filter(|_| pane_tree),
         );
+        if self.run_desktop_active() {
+            layout.chat = ChatPlacement::Hidden;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+        }
         if self.project_agent_active() {
             layout.chat = ChatPlacement::Main;
             layout.chat_width = 0.;
@@ -464,7 +471,7 @@ impl Render for Workbench {
         #[cfg(not(target_family="wasm"))]
         self.sync_inline_mcp(cx);
         let sidebar_width = layout.sidebar_width;
-        let sessions = (self.navigation.page() == WorkbenchPage::Conversation && self.tab == ConversationTab::Chat)
+        let sessions = self.sessions_available()
             .then(|| self.preferences.layout.visible_sessions_width(width - sidebar_width))
             .flatten()
             .map(|width| self.sessions_panel(width, window, cx).into_any_element());

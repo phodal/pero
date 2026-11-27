@@ -2,6 +2,7 @@
 use crate::{
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
+    resource_panel::ResourceColumn,
     session_artifacts::{ArtifactCollection, ArtifactPaneResize, ResourceView},
 };
 use gpui_kit::{
@@ -14,21 +15,6 @@ use pero_contracts::{
     session_artifact::{ArtifactSource, SessionArtifact},
     workbench::{LayoutPreferences, ResourceTab},
 };
-
-/// Side resources column measured for the workbench titleband.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ResourceColumn {
-    pub width: f32,
-    pub primary: ResourcePrimary,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ResourcePrimary {
-    Files,
-    Artifacts,
-    Changes,
-    Desktop,
-}
 
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
@@ -99,7 +85,7 @@ impl ChatPanel {
     }
 
     pub(crate) fn desktop_pane_available(&self) -> bool {
-        self.desktop_available && self.scope.is_none()
+        (self.desktop_available || self.tabbed_resources()) && self.scope.is_none()
     }
 
     pub fn open_desktop_pane(&mut self, cx: &mut Context<Self>) {
@@ -120,6 +106,13 @@ impl ChatPanel {
         cx.notify();
     }
 
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub fn desktop_pane_thread(&self) -> Option<&str> {
+        let chat = self.chats.get(self.active_chat?)?;
+        let state = self.artifacts.conversations.get(&chat.id)?;
+        (state.open && state.resource_view == ResourceView::Desktop).then_some(chat.id.as_str())
+    }
+
     #[cfg(target_family = "wasm")]
     pub fn clear_desktop_surface() {
         publish_desktop_surface("null");
@@ -127,6 +120,8 @@ impl ChatPanel {
 
     fn desktop_pane(&self, thread: &str, inset: f32) -> AnyElement {
         let body = div().size_full();
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        let body = body.children(self.native_desktop_pane.clone());
         #[cfg(target_family = "wasm")]
         let body = {
             let thread = thread.to_owned();
@@ -166,6 +161,7 @@ impl ChatPanel {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         match state.resource_view {
+            ResourceView::Launcher => self.conversation_panel_launcher(thread, cx),
             ResourceView::Desktop => self.desktop_pane(thread, inset),
             ResourceView::Changes => self.changes_panel(thread, state, cx),
             ResourceView::Contents if self.files.selection.tab == ResourceTab::Files => {
@@ -197,22 +193,23 @@ impl ChatPanel {
     }
 
     pub fn titlebar_artifacts(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let thread = &self.chats.get(self.active_chat?)?.id;
-        let active = self.files.selection.tab == ResourceTab::Artifacts
-            && self.artifacts.conversations.get(thread).is_some_and(|state| state.open && state.resource_view == ResourceView::Contents);
-        let action = self.t(if active { "artifacts.close" } else { "artifacts.title" });
+        let thread = self.chats.get(self.active_chat?)?.id.clone();
+        let active = self.resource_pane_open();
+        let action = self.t(if active { "resources.close_panel" } else { "resources.open_panel" });
         Some(
             pero_theme::ghost_icon_button("titleband-artifacts", pero_theme::Chrome::from_app(cx), cx)
-            .icon(Icon::default().path(UiIcon::Box.path()))
+            .icon(Icon::default().path(if active { "icons/panel-right-close.svg" } else { "icons/panel-right-open.svg" }))
             .selected(active)
             .toggled(active)
             .tooltip(action)
             .accessibility_label(action)
             .relative()
-            .children(self.artifact_probe(thread, "toggle"))
+            .children(self.artifact_probe(&thread, "toggle"))
             .on_click(cx.listener(move |this, _, _, cx| {
                 if active {
                     this.close_resource_pane(cx);
+                } else if this.tabbed_resources() {
+                    this.open_panel_launcher(&thread, cx);
                 } else {
                     this.open_resource_tab(ResourceTab::Artifacts, cx);
                 }
@@ -232,7 +229,11 @@ impl ChatPanel {
         let Some(state) = self.artifacts.conversations.get(&thread) else {
             return div().into_any_element();
         };
-        self.pane_toolbar(&thread, state, false, Some(width), cx)
+        if self.tabbed_resources() {
+            self.conversation_panel_tabs(&thread, state, cx)
+        } else {
+            self.pane_toolbar(&thread, state, false, Some(width), false, cx)
+        }
     }
 
     /// Files, artifacts, or changes for the workbench resources column.
@@ -254,7 +255,11 @@ impl ChatPanel {
             .map(|column| column.width)
             .unwrap_or_else(|| self.artifact_pane_width());
         let limit = self.artifacts.side_limit.max(shown);
-        let identity = (toolbar_width < Self::RESOURCE_TOOLBAR_MIN).then(|| self.pane_resource_identity(&thread,state,cx)).flatten();
+        let tabbed = self.tabbed_resources();
+        let actions = (tabbed && matches!(state.resource_view, ResourceView::Contents | ResourceView::Changes))
+            .then(|| self.pane_toolbar(&thread, state, false, Some(toolbar_width), true, cx));
+        let identity = (toolbar_width < Self::RESOURCE_TOOLBAR_MIN)
+            .then(|| self.pane_resource_identity(&thread, state, cx)).flatten();
         div()
             .size_full()
             .relative()
@@ -262,8 +267,10 @@ impl ChatPanel {
             .min_w_0()
             .flex().flex_col()
             .child(self.artifact_resize_capture(cx))
+            .children(actions.map(|actions| div().h(px(34.)).flex_shrink_0().border_b_1()
+                .border_color(pero_theme::UiAppearance::global(cx).palette.border).child(actions)))
             .children(identity.map(|identity| div().h(px(32.)).flex_shrink_0().px(px(8.)).flex().items_center().child(identity)))
-            .child(div().flex_1().min_h_0().min_w_0().child(pane))
+            .child(div().flex_1().min_h_0().min_w_0().flex().flex_col().child(pane))
             .child(
                 div()
                     .id(SharedString::from(format!("artifact-column-resize-{thread}")))
@@ -412,21 +419,26 @@ impl ChatPanel {
         self.artifacts.side_limit = available;
         self.artifacts.narrow = available
             < Self::CHAT_COLUMN_MIN + f32::from(LayoutPreferences::MIN_ARTIFACT_PANE_WIDTH);
+        if let Some(view) = self.artifacts.conversations.get(&thread)
+            .filter(|state| state.open).map(|state| state.resource_view)
+        {
+            let pane = self.resource_primary(view);
+            if let Some(state) = self.artifacts.conversations.get_mut(&thread) {
+                state.panel_tabs.opened(pane);
+            }
+        }
         let state = self.artifacts.conversations.get(&thread);
         let open = state.is_some_and(|state| state.open);
         let view = state.map_or(ResourceView::Contents, |state| state.resource_view);
         let desktop = view == ResourceView::Desktop;
+        let tabbed = self.tabbed_resources();
+        let show_actions = tabbed && matches!(view, ResourceView::Contents | ResourceView::Changes);
         let bottom = !desktop && state.is_some_and(|state| state.bottom);
         let maximized = view == ResourceView::Contents
             && self.files.selection.tab == ResourceTab::Artifacts
             && state.is_some_and(|state| state.maximized);
         let split = open && !self.artifacts.narrow && !maximized;
-        let resource_primary = match view {
-            ResourceView::Desktop => ResourcePrimary::Desktop,
-            ResourceView::Changes => ResourcePrimary::Changes,
-            ResourceView::Contents if self.files.selection.tab == ResourceTab::Files => ResourcePrimary::Files,
-            ResourceView::Contents => ResourcePrimary::Artifacts,
-        };
+        let resource_primary = self.resource_primary(view);
         let mut side_width = None;
         let count = state.map_or(0, |state| state.items.len());
         let toggle_thread = thread.clone();
@@ -460,29 +472,27 @@ impl ChatPanel {
                         self.artifact_button(&thread, "session-artifacts-toggle", "toggle", &label)
                             .icon(Icon::default().path(UiIcon::Columns2.path()))
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                let state = this
-                                    .artifacts
-                                    .conversations
-                                    .entry(toggle_thread.clone())
-                                    .or_default();
-                                state.inline_open = false;
-                                state.open = true;
-                                state.resource_view = ResourceView::Contents;
-                                if this.compact {
-                                    cx.emit(ChatAction::CompactNeedsSpace);
+                                if this.tabbed_resources() {
+                                    this.open_panel_launcher(&toggle_thread, cx);
+                                } else {
+                                    this.artifacts.conversations.entry(toggle_thread.clone()).or_default()
+                                        .show_pane(ResourceView::Contents);
+                                    if this.compact {
+                                        cx.emit(ChatAction::CompactNeedsSpace);
+                                    }
+                                    cx.notify();
                                 }
-                                cx.notify();
                             })),
                     )
                 })
                 .when(open, |el| {
-                    el.child(div().min_w_0().flex_1().child(self.pane_toolbar(
-                        &thread,
-                        state.expect("open artifact catalog"),
-                        false,
-                        desktop.then_some(size.width.into()),
-                        cx,
-                    )))
+                    let state = state.expect("open artifact catalog");
+                    let toolbar = if tabbed {
+                        self.conversation_panel_tabs(&thread, state, cx)
+                    } else {
+                        self.pane_toolbar(&thread, state, false, desktop.then_some(size.width.into()), false, cx)
+                    };
+                    el.child(div().min_w_0().flex_1().child(toolbar))
                 })
                 .when(self.docked, |el| {
                     el.child(
@@ -531,7 +541,7 @@ impl ChatPanel {
                     side_width = Some(self.artifact_column_width(available));
                     side_width.expect("side column width")
                 };
-                let compact_toolbar = !desktop && !bottom && shown < Self::RESOURCE_TOOLBAR_MIN;
+                let compact_toolbar = !tabbed && !desktop && !bottom && shown < Self::RESOURCE_TOOLBAR_MIN;
                 let has_identity = view == ResourceView::Contents
                     && self.files.selection.tab == pero_contracts::workbench::ResourceTab::Artifacts
                     && collection.selected.is_some()
@@ -592,13 +602,11 @@ impl ChatPanel {
                                         .items_center()
                                         .min_w_0()
                                         .child(
-                                            div().flex_1().min_w_0().child(self.pane_toolbar(
-                                                &thread,
-                                                collection,
-                                                compact_toolbar,
-                                                desktop.then_some(shown),
-                                                cx,
-                                            )),
+                                            div().flex_1().min_w_0().child(if tabbed {
+                                                self.conversation_panel_tabs(&thread, collection, cx)
+                                            } else {
+                                                self.pane_toolbar(&thread, collection, compact_toolbar, desktop.then_some(shown), false, cx)
+                                            }),
                                         )
                                         .when(self.docked, |row| {
                                             row.child(
@@ -616,7 +624,12 @@ impl ChatPanel {
                                         }),
                                 )
                             })
-                            .child(div().flex_1().min_h_0().min_w_0().child(pane))
+                            .when(show_actions, |column| {
+                                column.child(div().h(px(34.)).flex_shrink_0().child(
+                                    self.pane_toolbar(&thread, collection, false, (!bottom).then_some(shown), true, cx),
+                                ))
+                            })
+                            .child(div().flex_1().min_h_0().min_w_0().flex().flex_col().child(pane))
                             .child(
                                 div()
                                     .id(SharedString::from(format!("artifact-pane-resize-{thread}")))
@@ -676,6 +689,11 @@ impl ChatPanel {
         } else {
             chat
         };
+        let inline_actions = state.filter(|_| !split && show_actions && open).map(|state| {
+            div().h(px(34.)).flex_shrink_0().child(
+                self.pane_toolbar(&thread, state, false, Some(size.width.into()), true, cx),
+            )
+        });
         self.note_resource_column(
             side_width.map(|width| ResourceColumn {
                 width,
@@ -691,6 +709,7 @@ impl ChatPanel {
             .flex()
             .flex_col()
             .children(header)
+            .children(inline_actions)
             .child(div().flex_1().min_h_0().min_w_0().flex().child(body))
             .into_any_element()
     }

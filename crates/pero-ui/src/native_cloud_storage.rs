@@ -96,6 +96,18 @@ struct SavedConnection {
 }
 
 impl CloudSession {
+    pub(super) fn api(&self) -> &'static str {
+        if self.client_mode {
+            "/api/client/v1"
+        } else {
+            "/api/v1"
+        }
+    }
+
+    pub(super) fn configured(&self) -> bool {
+        !self.token.is_empty()
+    }
+
     pub(crate) fn with_store(data: &Path, ephemeral: bool) -> Self {
         Self::load_vault(SecretStore::open(data, "cloud", ephemeral))
     }

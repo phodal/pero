@@ -1,5 +1,6 @@
 //! One pane toolbar for workspace files, artifact deliveries and code changes.
 use crate::{
+    resource_panel::{ResourcePrimary, resource_menu},
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
     session_artifacts::{ArtifactCollection, ResourceView},
@@ -31,6 +32,7 @@ impl ChatPanel {
         state: &ArtifactCollection,
         compact: bool,
         titleband_width: Option<f32>,
+        actions_only: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
@@ -67,52 +69,30 @@ impl ChatPanel {
                 None => button.label(label.to_owned()),
             }
         };
-        let destinations = if narrow_band && !desktop {
+        let selected = match state.resource_view {
+            ResourceView::Launcher => ResourcePrimary::Launcher,
+            ResourceView::Changes => ResourcePrimary::Changes,
+            ResourceView::Desktop => ResourcePrimary::Desktop,
+            ResourceView::Contents if files => ResourcePrimary::Files,
+            ResourceView::Contents => ResourcePrimary::Artifacts,
+        };
+        let panel_menu = |show_current, cx: &Context<Self>| {
+            let available = [ResourcePrimary::Files, ResourcePrimary::Artifacts, ResourcePrimary::Changes, ResourcePrimary::Desktop]
+                .into_iter().filter(|view| *view != ResourcePrimary::Desktop || self.desktop_pane_available());
+            let owner = cx.entity().downgrade();
             let thread = thread.to_owned();
-            let labels = [
-                self.t("files.title").to_owned(),
-                self.t("artifacts.title").to_owned(),
-                self.t("changes.title").to_owned(),
-            ];
-            let destination_owner = cx.entity().downgrade();
-            Button::new("resource-destination")
-                .ghost()
-                .small()
-                .label(self.t(if files {
-                    "files.title"
-                } else if artifacts {
-                    "artifacts.title"
-                } else {
-                    "changes.title"
-                }))
-                .dropdown_caret(true)
-                .dropdown_menu(move |mut menu, _, _| {
-                    for (destination, label, selected) in [
-                        (Some(ResourceTab::Files), labels[0].clone(), files),
-                        (Some(ResourceTab::Artifacts), labels[1].clone(), artifacts),
-                        (
-                            None,
-                            labels[2].clone(),
-                            !files && !artifacts,
-                        ),
-                    ] {
-                        let thread = thread.clone();
-                        let owner = destination_owner.clone();
-                        menu = menu.item(PopupMenuItem::new(label).checked(selected).on_click(
-                            move |_, _, cx| {
-                                let _ = owner.update(cx, |this, cx| {
-                                    if let Some(tab) = destination {
-                                        this.choose_resource_tab(&thread, tab, cx);
-                                    } else {
-                                        this.open_changes_pane(&thread, cx);
-                                    }
-                                });
-                            },
-                        ));
-                    }
-                    menu
-                })
-                .into_any_element()
+            resource_menu(available, selected, &self.locale, show_current, move |view, cx| {
+                let _ = owner.update(cx, |this, cx| match view {
+                    ResourcePrimary::Launcher => this.open_panel_launcher(&thread, cx),
+                    ResourcePrimary::Files => this.choose_resource_tab(&thread, ResourceTab::Files, cx),
+                    ResourcePrimary::Artifacts => this.choose_resource_tab(&thread, ResourceTab::Artifacts, cx),
+                    ResourcePrimary::Changes => this.open_changes_pane(&thread, cx),
+                    ResourcePrimary::Desktop => this.open_desktop_pane(cx),
+                });
+            })
+        };
+        let destinations = if narrow_band && !desktop {
+            panel_menu(true, cx)
         } else {
             div()
                 .flex()
@@ -430,7 +410,7 @@ impl ChatPanel {
                     })),
                 )
             })
-            .when(files, |el| {
+            .when(files && !actions_only, |el| {
                 let close_thread = thread.to_owned();
                 el.child(
                     Button::new("files-close")
@@ -456,7 +436,7 @@ impl ChatPanel {
                         })),
                 )
             })
-            .when(!files, |el| {
+            .when(!files && !actions_only, |el| {
                 el.child(
                     self.artifact_icon_button(
                         thread,
@@ -481,6 +461,8 @@ impl ChatPanel {
         } else {
             (identity, None)
         };
+        let panel_menu = (!actions_only && titleband_width.is_some() && (!narrow_band || desktop))
+            .then(|| panel_menu(false, cx));
         div()
             .id("artifact-pane-toolbar")
             .w_full()
@@ -493,20 +475,21 @@ impl ChatPanel {
             })
             .when(!compact, |el| el.items_center())
             .when(titleband_width.is_none(), |el| el.border_b(px(0.5)).border_color(p.border))
-            .child(
+            .when(!actions_only, |el| el.child(
                 div().flex().items_center().gap(px(4.)).child(destinations)
-                    .when(self.desktop_pane_available(), |el| {
+                    .when(self.desktop_pane_available() && (!narrow_band || desktop), |el| {
                         el.child(destination("desktop-tab", "linux_desktop.tab", desktop, "desktop-tab", None)
                             .on_click(cx.listener(|this, _, _, cx| this.open_desktop_pane(cx))))
                     }),
-            )
+            ))
             .children(leading_identity)
             .child(actions)
+            .children(panel_menu)
             .children(trailing_identity)
             .into_any_element()
     }
 
-    fn open_changes_pane(&mut self, thread: &str, cx: &mut Context<Self>) {
+    pub(crate) fn open_changes_pane(&mut self, thread: &str, cx: &mut Context<Self>) {
         let first = self
             .chats
             .iter()

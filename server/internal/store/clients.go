@@ -227,7 +227,7 @@ func (s *Store) ReleaseTask(ctx context.Context, client *Client, id string) (*Ta
 	return t, nil
 }
 
-func (s *Store) ClientDispatch(ctx context.Context, client *Client, id, worker, key string) (*Run, error) {
+func (s *Store) ClientDispatch(ctx context.Context, client *Client, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -243,7 +243,7 @@ func (s *Store) ClientDispatch(ctx context.Context, client *Client, id, worker, 
 	if key != "" {
 		key = "client:" + client.ID + ":" + key
 	}
-	run, err := dispatchTx(ctx, tx, id, worker, key)
+	run, err := dispatchTx(ctx, tx, id, worker, key, desktop...)
 	if err != nil {
 		return nil, err
 	}

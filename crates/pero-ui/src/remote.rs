@@ -12,6 +12,8 @@ pub(crate) struct RemoteState {
     pub data: Value,
     #[cfg(all(feature = "native", target_os = "macos"))]
     pub(crate) browser_share: crate::native_chrome_relay::CloudBrowserView,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub(crate) run_desktop: crate::native_run_desktop::RunDesktopPanel,
     pub connection: crate::remote_connection::ConnectionForm,
     seen_connection: bool,
     pub creating: bool,
@@ -66,6 +68,8 @@ impl RemoteState {
             data: json!({"configured":false,"loading":false,"tasks":[],"workers":[],"detail":null}),
             #[cfg(all(feature = "native", target_os = "macos"))]
             browser_share: Default::default(),
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            run_desktop: Default::default(),
             creating: false,
             creation_request_id: String::new(),
             target_worker: None,

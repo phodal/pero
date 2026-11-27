@@ -11,6 +11,7 @@ go_library(
         "contributions.go",
         "github.go",
         "routes.go",
+        "run_desktop.go",
         "sandbox.go",
         "worker.go",
         "worker_devices.go",
@@ -36,6 +37,7 @@ go_test(
     name = "httpapi_test",
     srcs = [
         "clients_test.go",
+        "run_desktop_test.go",
         "project_sources_test.go",
         "artifacts_test.go",
         "isolated_process_test.go",

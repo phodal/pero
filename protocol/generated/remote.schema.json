@@ -200,6 +200,10 @@
       "properties": {
         "worker_id": {
           "type": "string"
+        },
+        "desktop_profile": {
+          "type": "string",
+          "const": "blender"
         }
       },
       "additionalProperties": false
@@ -829,6 +833,13 @@
         "remote_execution": {
           "$ref": "#/$defs/RemoteExecution"
         },
+        "desktop_profile": {
+          "type": "string",
+          "const": "blender"
+        },
+        "desktop_handoff": {
+          "$ref": "#/$defs/RunDesktopHandoff"
+        },
         "summary": {
           "type": "string"
         },
@@ -845,6 +856,38 @@
         "generation",
         "status",
         "spec"
+      ],
+      "additionalProperties": false
+    },
+    "RunDesktopHandoff": {
+      "title": "RunDesktopHandoff",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "requested"
+            },
+            {
+              "type": "string",
+              "const": "returned"
+            }
+          ]
+        }
+      },
+      "required": [
+        "request_id",
+        "reason",
+        "state"
       ],
       "additionalProperties": false
     },
@@ -1425,6 +1468,10 @@
         },
         "current_run_id": {
           "type": "string"
+        },
+        "current_desktop_profile": {
+          "type": "string",
+          "const": "blender"
         },
         "run": {
           "anyOf": [

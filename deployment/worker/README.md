@@ -151,3 +151,30 @@ The local package, checksums, build metadata and receipt are retained under
 `test-results/worker-service/`. This run used an isolated control plane and a
 fixture Agent. Hosted release publication and deployment to a laboratory
 server remain separate verification steps.
+
+## Blender desktop Runs
+
+An operator can opt a named Linux Worker into the Blender desktop by installing
+the bundled `desktop/dist/run-desktop-worker.cjs` produced by `npm run build:desktop`
+and the `pero/linux-desktop:blender` image produced by
+`environments/linux-desktop/run.sh build-blender`. Set `PERO_RUN_DESKTOP_SCRIPT` to
+the installed absolute script path and `PERO_RUN_DESKTOP_NODE` to the Node 24
+executable when it is outside the service PATH. The Worker uses `/var/run/docker.sock`
+by default and supports `PERO_REMOTE_DESKTOP_DOCKER_SOCKET` for a separate engine.
+
+Use the existing Linux Desktop Relay with `PERO_DESKTOP_RELAY_URL` and
+`PERO_DESKTOP_RELAY_KEY` in the Worker service. Set the same Relay URL on the Go
+control plane. The Relay carries RFB while the control plane grants a one-use URL
+for the selected active Run. Use HTTPS outside a loopback setup. Keep the Worker
+and Relay credentials in the existing service environment.
+
+In macOS Native, open Cloud Tasks, select a prepared Linux Worker and use **Run in
+Blender desktop**. Open **Open Run desktop** once the Worker claims the Run. The
+viewer offers **Take control**, **Return control** and **Reconnect display**.
+Closing the view or switching to evidence releases manual input. Configure a
+vision-capable ACP Agent on the Worker for the screenshot-based Blender tools.
+
+Save the model with Blender to `/home/pero/result.blend`. The Worker publishes
+the last observed screenshot, action receipts and the model through the Run's
+artifact API before cleaning up the guest. `result.obj` is optional. Each file
+is bounded to 8 MiB. Use **Run evidence** to save the files after the guest exits.

@@ -139,7 +139,8 @@ func (a *API) releaseTask(w http.ResponseWriter, r *http.Request) {
 }
 func (a *API) clientDispatch(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		WorkerID string `json:"worker_id"`
+		WorkerID       string                  `json:"worker_id"`
+		DesktopProfile store.RunDesktopProfile `json:"desktop_profile,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -152,7 +153,7 @@ func (a *API) clientDispatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	run, err := a.db.ClientDispatch(r.Context(), clientIdentity(r), r.PathValue("id"), in.WorkerID, key)
+	run, err := a.db.ClientDispatch(r.Context(), clientIdentity(r), r.PathValue("id"), in.WorkerID, key, in.DesktopProfile)
 	if err != nil {
 		failure(w, err)
 		return

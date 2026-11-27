@@ -373,7 +373,7 @@ impl Workbench {
         Some(self.clamp_inspector_width(self.chat.read(cx).artifact_pane_width(), viewport_width))
     }
 
-    fn clamp_inspector_width(&self, width: f32, viewport: f32) -> f32 {
+    pub(crate) fn clamp_inspector_width(&self, width: f32, viewport: f32) -> f32 {
         let available = viewport - self.layout.sidebar_width - PROJECT_CHAT_MIN_WIDTH;
         width.clamp(PROJECT_INSPECTOR_MIN_WIDTH, available.clamp(PROJECT_INSPECTOR_MIN_WIDTH, PROJECT_INSPECTOR_MAX_WIDTH))
     }
@@ -393,7 +393,8 @@ impl Workbench {
         let border = pero_theme::UiAppearance::global(cx).palette.action;
         let default = f32::from(pero_contracts::workbench::LayoutPreferences::DEFAULT_ARTIFACT_PANE_WIDTH);
         div().id("project-inspector-splitter").absolute().left_0().top_0().bottom_0().w(px(PROJECT_INSPECTOR_GRIP_WIDTH))
-            .focusable().tab_index(0).role(Role::Splitter).aria_label(self.t("project.resize_inspector"))
+            .focusable().tab_index(0).role(Role::Splitter)
+            .aria_label(self.t(if self.run_desktop_active() { "run_desktop.resize" } else { "project.resize_inspector" }))
             .aria_numeric_value(width.into()).cursor(CursorStyle::ResizeLeftRight)
             .hover(move |el| el.border_l_1().border_color(border))
             .focus(move |el| el.border_l_1().border_color(border))

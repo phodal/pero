@@ -82,6 +82,7 @@ export interface Task {
   id: Id;
   state: TaskStatus;
   current_run_id?: string;
+  current_desktop_profile?: "blender";
   run?: Run | null;
   claimed_by?: Claimant;
   latest_source?: Source;
@@ -95,6 +96,7 @@ export interface Task {
     | Source
     | string[]
     | TaskStatus
+    | "blender"
     | Run
     | null
     | Claimant
@@ -110,6 +112,8 @@ export interface Run {
   lease_expires_at?: string | null;
   spec: TaskSpec;
   remote_execution?: RemoteExecution;
+  desktop_profile?: "blender";
+  desktop_handoff?: RunDesktopHandoff;
   summary?: string;
   created_at?: string;
   updated_at?: string;
@@ -117,6 +121,11 @@ export interface Run {
 export interface RemoteExecution {
   session_id: Id;
   working_directory: "/workspace/repo";
+}
+export interface RunDesktopHandoff {
+  request_id: Id;
+  reason: string;
+  state: "requested" | "returned";
 }
 export interface Claimant {
   id: Id;
@@ -250,6 +259,7 @@ export interface GitHubSyncResult {
 }
 export interface Dispatch {
   worker_id?: string;
+  desktop_profile?: "blender";
 }
 export interface Claim {
   request_id: Id;

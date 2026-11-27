@@ -32,6 +32,7 @@ pub(crate) struct ArtifactCollection {
     pub bottom_height: Option<f32>,
     pub maximized: bool,
     pub resource_view: ResourceView,
+    pub panel_tabs: crate::resource_panel::PanelTabs,
     pub selected: Option<(String, u64)>,
     pub preview_request: Option<u64>,
     pub chart: Option<crate::chart_view::ChartView>,
@@ -49,6 +50,7 @@ pub(crate) struct ArtifactCollection {
 pub(crate) enum ResourceView {
     #[default]
     Contents,
+    Launcher,
     Changes,
     Desktop,
 }

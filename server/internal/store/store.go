@@ -38,12 +38,12 @@ func Open(ctx context.Context, url string, lease time.Duration) (*Store, error) 
 func (s *Store) Close()                         { s.pool.Close() }
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 
-const runColumns = `id,task_id,generation,COALESCE(worker_id,''),COALESCE(instance_id,''),status,lease_expires_at,spec,summary`
+const runColumns = `id,task_id,generation,COALESCE(worker_id,''),COALESCE(instance_id,''),status,lease_expires_at,spec,summary,desktop_profile,desktop_handoff`
 
 func readRun(row pgx.Row) (*Run, error) {
 	var r Run
 	var spec []byte
-	err := row.Scan(&r.ID, &r.TaskID, &r.Generation, &r.WorkerID, &r.InstanceID, &r.Status, &r.LeaseExpiresAt, &spec, &r.Summary)
+	err := row.Scan(&r.ID, &r.TaskID, &r.Generation, &r.WorkerID, &r.InstanceID, &r.Status, &r.LeaseExpiresAt, &spec, &r.Summary, &r.DesktopProfile, &r.DesktopHandoff)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

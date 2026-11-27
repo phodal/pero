@@ -61,6 +61,12 @@ model TaskSpec {
 }
 // Selected by the trusted control plane, never accepted in TaskSpec.
 model RemoteExecution { session_id: Id; working_directory: "/workspace/repo"; ...Closed }
+model RunDesktopHandoff {
+  request_id: Id;
+  @minLength(1) @maxLength(300) reason: string;
+  state: "requested" | "returned";
+  ...Closed;
+}
 model Run {
   id: Id;
   task_id: Id;
@@ -71,6 +77,8 @@ model Run {
   lease_expires_at?: string | null;
   spec: TaskSpec;
   remote_execution?: RemoteExecution;
+  desktop_profile?: "blender";
+  desktop_handoff?: RunDesktopHandoff;
   summary?: string;
   created_at?: string;
   updated_at?: string;
@@ -81,6 +89,7 @@ model Task {
   id: Id;
   state: TaskStatus;
   current_run_id?: string;
+  current_desktop_profile?: "blender";
   run?: Run | null;
   claimed_by?: Claimant;
   latest_source?: Source;
@@ -158,7 +167,7 @@ model WorkerCapability { project_id: Id; workspace_key: Id; agent_id: Id; ...Clo
 model EnrollWorker { device_id: Id; request_id: Id; name: string; projects: string[]; capabilities: WorkerCapability[]; @minLength(64) @maxLength(64) enrollment_secret: string; ...Closed }
 model DisableWorkerResult { disabled: boolean; ...Closed }
 model WorkerCredential { worker: Worker; token: string; ...Closed }
-model Dispatch { worker_id?: string; ...Closed }
+model Dispatch { worker_id?: string; desktop_profile?: "blender"; ...Closed }
 model Claim { request_id: Id; instance_id: Id; runtime_pod_uid?: Id; ...Closed }
 model ClaimResult { run: Run | null; ...Closed }
 model LeaseIdentity { generation: safeint; instance_id: Id; ...Closed }
