@@ -82,6 +82,10 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 	if state := foldGoal(saved.Events()); state.Objective != "Verify the recorded result" || state.Rounds != 1 || state.Limit != 2 {
 		t.Fatalf("round was not durable before dispatch: %+v", state)
 	}
+	ref := foldGoal(saved.Events()).ref()
+	if _, rpc := run(first, fmt.Sprintf("/goal edit %s 3 Edit while running", ref)); rpc == nil || rpc.Code != -32602 || !strings.Contains(rpc.Message, "active prompt") {
+		t.Fatalf("edit was not rejected during the active round: %+v", rpc)
+	}
 	params, _ := json.Marshal(SessionParams{SessionID: string(id)})
 	first.handleNotification(request{Method: "session/cancel", Params: params})
 	select {
@@ -129,11 +133,11 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 
 func TestGoalForkRoundRequiresMatchingMessage(t *testing.T) {
 	parent := harnesssession.NewSession("parent", t.TempDir())
-	def, err := parent.Append(goalDefined, goalDefinition{"revision-1", "Verify evidence", 2})
+	def, err := parent.Append(goalDefined, goalDefinition{ID: "revision-1", Objective: "Verify evidence", Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var facts = []harnesssession.AdmissionFact{{Type: goalAdmitted, Value: goalRound{"revision-1", 1, "admitted"}}}
+	var facts = []harnesssession.AdmissionFact{{Type: goalAdmitted, Value: goalRound{goalRef{GoalID: "revision-1"}, 1, "admitted"}}}
 	batch, err := parent.AppendUserAdmissionCAS(t.Context(), def.Seq, facts, []harness.Message{{
 		ID: "admitted", Role: harness.RoleUser, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "first"}},
 	}})
@@ -379,5 +383,96 @@ func TestGoalBlockedReasonAfterThreeAdmittedRounds(t *testing.T) {
 	state := foldGoal(saved.Events())
 	if requests != 6 || state.Rounds != 4 || state.Stop != "round-limit" || state.StopDetail != "" {
 		t.Fatalf("last round after explicit resume: requests=%d state=%+v", requests, state)
+	}
+}
+
+func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	var roundPrompts []string
+	adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		roundPrompts = append(roundPrompts, req.Messages[len(req.Messages)-1].Content[0].Text)
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+			Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Checked the record."}},
+		}}, nil
+	})
+	home, cwd := t.TempDir(), t.TempDir()
+	first := newGoalTestServer(t, ctx, home, adapter)
+	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(s *Server, line, wantError string) {
+		t.Helper()
+		params, _ := json.Marshal(PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: line}}})
+		result, err := s.handle(ctx, request{Method: "session/prompt", Params: params})
+		if wantError != "" {
+			if err == nil || err.Code != -32602 || !strings.Contains(err.Message, wantError) {
+				t.Fatalf("%s: error=%+v; want %s", line, err, wantError)
+			}
+			return
+		}
+		if err != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": "end_turn"}) {
+			t.Fatalf("%s: result=%+v error=%+v", line, result, err)
+		}
+	}
+	saved := func(s *Server) goalState {
+		t.Helper()
+		sess, err := s.persistence.Load(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return foldGoal(sess.Events())
+	}
+	run(first, "/goal start 1 Verify the original evidence", "")
+	before := saved(first)
+	run(first, fmt.Sprintf("/goal edit %s 3 Verify the revised evidence", before.ref()), "")
+	after := saved(first)
+	if after.ID != before.ID || after.Revision != 2 || after.Rounds != 1 || after.Limit != 3 ||
+		after.Objective != "Verify the revised evidence" || after.Stop != "" || len(roundPrompts) != 1 {
+		t.Fatalf("edit changed round admission or did not persist: %+v, prompts=%v", after, roundPrompts)
+	}
+	run(first, fmt.Sprintf("/goal edit %s 4 Stale", before.ref()), "stale or missing")
+	run(first, fmt.Sprintf("/goal edit %s 0", after.ref()), "cap must be")
+	record, err := first.currentRecord(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal := record.agent.Session()
+	// Even if old facts were present in a journal, neither the prior stop
+	// nor the prior round can advance the edited revision.
+	if _, err := journal.Append(goalStopped, goalStop{goalRef: before.ref(), Reason: "completed", By: goalStopModel}); err != nil {
+		t.Fatal(err)
+	}
+	events := journal.Events()
+	if _, err := journal.AppendUserAdmissionCAS(ctx, uint64(len(events)), []harnesssession.AdmissionFact{{
+		Type: goalAdmitted, Value: goalRound{before.ref(), 2, "old-round"},
+	}}, []harness.Message{{ID: "old-round", Role: harness.RoleUser, Source: json.RawMessage(`{"kind":"pero-goal"}`), Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "old work"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := foldGoal(journal.Events()); got != after {
+		t.Fatalf("old-revision facts changed the current goal: %+v", got)
+	}
+	if err := first.closeSession(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	second := newGoalTestServer(t, ctx, home, adapter)
+	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
+		t.Fatal(err)
+	}
+	run(second, "/goal status", "")
+	if got := saved(second); got != after || len(roundPrompts) != 1 {
+		t.Fatalf("restart changed goal or ran work: %+v, prompts=%v", got, roundPrompts)
+	}
+	run(second, "/goal resume", "")
+	if len(roundPrompts) != 3 || !strings.Contains(roundPrompts[1], `Goal round 2/3. The operator's objective is "Verify the revised evidence"`) ||
+		!strings.Contains(roundPrompts[2], `Goal round 3/3. The operator's objective is "Verify the revised evidence"`) {
+		t.Fatalf("resumed prompts did not use the edited objective and remaining budget: %q", roundPrompts)
+	}
+	run(second, "/goal complete", "")
+	run(second, fmt.Sprintf("/goal edit %s 4", after.ref()), "")
+	run(second, "/goal resume", "")
+	if got := saved(second); got.Revision != 3 || got.Rounds != 3 || got.Stop != "completed" || len(roundPrompts) != 3 {
+		t.Fatalf("edit reopened a completed goal: %+v", got)
 	}
 }

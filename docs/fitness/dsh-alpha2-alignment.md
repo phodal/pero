@@ -121,7 +121,14 @@ The native Go ACP harness now has an opt-in bounded Goal slice. Start
 
 - `/goal start 2 Verify the recorded result` starts a new revision and runs up
   to two rounds in the same conversation.
-- `/goal status` reads the current objective, consumed rounds and stop status.
+- `/goal status` reads the current objective, consumed rounds, stop status and
+  exact `id@revision`.
+- `/goal edit <id@revision> <rounds or -> [objective]` updates the cap and/or
+  objective in place. Use `-` to retain the cap. Edits require an idle prompt
+  slot, preserve consumed rounds and completion, and never schedule work.
+  Increasing an exhausted cap makes remaining rounds available to an explicit
+  `/goal resume`. A stale reference is rejected; a pre-revision journal is
+  read as revision 1.
 - `/goal resume` explicitly runs the remaining rounds. Session resume/load
   alone does not start a goal; ordinary durable inbox recovery still works.
 - `/goal complete` records an operator's completion decision while idle.
@@ -151,8 +158,10 @@ be requested via `paused`. Pero saves the accepted reason and displays it in
 the closing status and after restart, without another inference. DSH instead
 asks the model for a closing explanation.
 
-The tool does not implement upstream revision edits, a configurable blocker
-threshold, or descendant-aware scheduling. The default slash-command path is unchanged.
+Unlike DSH's editable live service, Pero only accepts edits as explicit ACP
+commands outside an active prompt. An old revision's delayed admission or
+stop does not apply to an edited goal. The model cannot make edits. A
+configurable blocker threshold and descendant-aware scheduling are not included. The default slash-command path is unchanged.
 Goal stays disabled for external harnesses and profiles with specialized
 prompt preparation. Desktop command discovery, production model service
 and packaging are not verified.
