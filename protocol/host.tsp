@@ -227,6 +227,7 @@ model LayoutPreferences {
   @minValue(200) @maxValue(480) sidebar_width?: uint16 = 260;
   @minValue(280) @maxValue(1200) artifact_pane_width?: uint16 = 280;
   @minValue(200) @maxValue(480) sessions_width?: uint16 = 280;
+  sessions_open?: boolean = true;
   artifact_view?: ArtifactView = "icons";
   resource_tab?: "files" | "artifacts" = "artifacts";
   link_surface?: "in_app" | "external_browser" = "in_app";

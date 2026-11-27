@@ -171,9 +171,9 @@ try {
   const legacyWorkbench = {appearance:'dark',projects:[{workspace:temp,project_id:'pero'}]};
   host.send({method:'settings.workbench',preferences:legacyWorkbench});
   const migrated = await host.next('workbench_settings');
-  const expectedLegacy={...legacyWorkbench,shortcuts:{macos:{},other:{}},research_projects:[],accent:'teal',typography:{ui_size:14,chat_size:12,code_size:null},layout:{chat_width:420,chat_open:false,sidebar_width:260,sessions_width:280,artifact_pane_width:280,artifact_view:'icons',resource_tab:'artifacts',link_surface:'in_app',diff_soft_wrap:true}};
+  const expectedLegacy={...legacyWorkbench,shortcuts:{macos:{},other:{}},research_projects:[],accent:'teal',typography:{ui_size:14,chat_size:12,code_size:null},layout:{chat_width:420,chat_open:false,sidebar_width:260,sessions_width:280,sessions_open:true,artifact_pane_width:280,artifact_view:'icons',resource_tab:'artifacts',link_surface:'in_app',diff_soft_wrap:true}};
   if (!isDeepStrictEqual(migrated.data,expectedLegacy)) failures.push('Legacy workbench preferences did not restore default layout');
-  const workbench = {...expectedLegacy,shortcuts:{macos:{new_chat:['alt-cmd-n'],toggle_sidebar:[]},other:{}},accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true,sidebar_width:260,sessions_width:360,artifact_pane_width:640,artifact_view:'gallery',resource_tab:'files',link_surface:'in_app',diff_soft_wrap:false}, research_projects: [
+  const workbench = {...expectedLegacy,shortcuts:{macos:{new_chat:['alt-cmd-n'],toggle_sidebar:[]},other:{}},accent:'blue',typography:{ui_size:18,chat_size:20,code_size:null},layout:{chat_width:512,chat_open:true,sidebar_width:260,sessions_width:360,sessions_open:false,artifact_pane_width:640,artifact_view:'gallery',resource_tab:'files',link_surface:'in_app',diff_soft_wrap:false}, research_projects: [
     { id: 'with-directory', title: 'Checkout Project', goal: '', workspace: projectDirectory, resources: [] },
     { id: 'without-directory', title: 'Research Project', goal: '', workspace: null, resources: [] },
   ]};
