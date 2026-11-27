@@ -18,6 +18,7 @@ go_library(
         "server.go",
         "server_history.go",
         "stream.go",
+        "team.go",
         "types.go",
         "user_questions.go",
     ],
@@ -31,6 +32,7 @@ go_library(
         "//scientificreview",
         "//scientificreviewer",
         "//session",
+        "//team",
     ],
 )
 
@@ -49,6 +51,7 @@ go_test(
         "science_test.go",
         "scientific_review_test.go",
         "stream_test.go",
+        "team_test.go",
         "title_test.go",
         "user_questions_test.go",
     ],
@@ -60,6 +63,7 @@ go_test(
         "//scientificreviewer",
         "//session",
         "//subagents",
+        "//team",
         "@com_github_modelcontextprotocol_go_sdk//mcp",
     ],
 )

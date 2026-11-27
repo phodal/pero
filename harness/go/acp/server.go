@@ -21,6 +21,7 @@ import (
 	"github.com/phodal/pero/harness/go/model"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/scientificreviewer"
+	"github.com/phodal/pero/harness/go/team"
 )
 
 type Options struct {
@@ -72,6 +73,8 @@ type Options struct {
 	Science func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 	// ScientificReviewer shares the existing session and bounded subagent owner.
 	ScientificReviewer *scientificreviewer.App
+	// TeamBoard exposes an already mounted native Team board to session configuration.
+	TeamBoard *team.Board
 }
 
 type Server struct {
@@ -120,6 +123,7 @@ type Server struct {
 	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 	science             func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 	scientificReviewer  *scientificreviewer.App
+	teamBoard           *team.Board
 }
 
 type clientResponse struct {
@@ -193,6 +197,7 @@ func NewServer(options Options) (*Server, error) {
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
 		science:            options.Science,
 		scientificReviewer: options.ScientificReviewer,
+		teamBoard:          options.TeamBoard,
 		sessions:           make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil

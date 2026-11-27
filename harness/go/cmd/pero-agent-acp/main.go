@@ -93,7 +93,7 @@ func run() (resultErr error) {
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
-	enableTeam := flag.Bool("enable-team", false, "enable per-session shared task boards via the ACP commands/execute /team command")
+	enableTeam := flag.Bool("enable-team", false, "enable per-session shared task boards via ACP session configuration or the /team command")
 	enableGoal := flag.Bool("enable-goal", false, "Enable bounded /goal continuation in the native ACP harness")
 	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
 	sessionTitles := flag.Bool("session-titles", false, "generate one conversation title after its first completed ACP turn")
@@ -599,6 +599,9 @@ func run() (resultErr error) {
 	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
 	serverOptions.Goal = *enableGoal
+	if *enableTeam {
+		serverOptions.TeamBoard = &team.Board{Registry: h.Subagents()}
+	}
 	serverOptions.OmitToolImages = cloudBrowser
 	serverOptions.ScientificReviewer = reviewer
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)

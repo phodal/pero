@@ -49,6 +49,19 @@ func (b Board) root(caller *harness.Agent) (*harness.Agent, error) {
 	return root, nil
 }
 
+// Mode reads the current durable setting of an eligible root without enabling it.
+func (b Board) Mode(caller *harness.Agent) (bool, error) {
+	root, err := b.root(caller)
+	if err != nil {
+		return false, err
+	}
+	if root != caller {
+		return false, ErrForbidden
+	}
+	s, err := fold(root.ID(), root.Session().Events())
+	return s.enabled, err
+}
+
 func (b Board) SetEnabled(ctx context.Context, caller *harness.Agent, enabled bool) error {
 	_, err := b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if caller != root {

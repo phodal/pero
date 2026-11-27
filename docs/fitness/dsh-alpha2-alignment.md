@@ -185,11 +185,15 @@ puts shared task ownership in the live root session, not in individual member
 sessions. Pero now has a separate native board; the existing Claude
 `TaskCreate`, `TaskUpdate`, `TaskGet`, and `TaskList` remain session-local.
 
-Launch native `pero-agent-acp` with `--enable-subagents --enable-team`. In
-the existing ACP `commands/execute` method pass the session ID as `agentId`
-and `"/team on"` as `line`. `/team status` reads mode and count; `/team off`
-hides the tools without discarding the saved board. Starting the binary
-with those flags never enables a session automatically.
+Launch native `pero-agent-acp` with `--enable-subagents --enable-team`.
+New and loaded eligible roots expose the `team` ACP select (off/on). Change
+it while idle with `session/set_config_option`; it neither changes the
+current model nor submits a prompt. The existing `commands/execute`
+path (`agentId` and `line: "/team on"`, `off`, or `status`) shares the
+saved mode. Off hides the tools without discarding the board. Launch flags
+never enable a session automatically. The two-root ACP wire regression
+isolates the setting and model, then reloads and re-enables the board
+without inference or changes to task identity or revision.
 
 - The live root and its owned children see `team_task_create`, `team_task_list`,
   `team_task_get` and `team_task_update` only while opted in. Unrelated roots
@@ -236,7 +240,9 @@ readiness before applying a zero-based cursor. Owner and unowned cannot be
 combined. The default is 50 summaries, with an explicit limit of 1–100;
 get returns the full description. Readiness and write-scope warnings are
 still calculated against the whole board. DSH agent-name aliases beyond
-`lead` and Desktop mode controls remain open. The Team regression transfers
+`lead` and a Desktop task panel remain open. The ACP setting is ready for
+clients that surface generic settings; the shipped Desktop launch and GUI
+are not verified here. The Team regression transfers
 A's claim to a continuable B, rejects A's late completion, and reassigns to B again
 while cold without making a model request. The graph regression exercises
 the actual model tool dispatch and a JSONL restart: a two-task cycle and a

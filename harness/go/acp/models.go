@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+
 	"github.com/phodal/pero/harness/go/harness"
 )
 
@@ -104,6 +105,13 @@ func (s *Server) configOptions(agent *harness.Agent) ([]any, error) {
 		}
 		options = append(options, review)
 	}
+	teamOption, err := s.teamConfig(agent)
+	if err != nil {
+		return nil, err
+	}
+	if teamOption != nil {
+		options = append(options, teamOption)
+	}
 	return options, nil
 }
 
@@ -150,6 +158,8 @@ func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (
 		return nil, classify(err)
 	}
 	switch p.ConfigID {
+	case "team":
+		return s.setTeamOption(ctx, record, p.Value)
 	case "scientific_review":
 		return s.setScientificReviewOption(ctx, record, p.Value)
 	case "permission":
