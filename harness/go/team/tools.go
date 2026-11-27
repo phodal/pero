@@ -12,9 +12,9 @@ import (
 )
 
 type taskToolInput struct {
-	Subject   string             `json:"subject"`
-	Details   string             `json:"description"`
-	BlockedBy []string           `json:"blocked_by"`
+	Subject   *string            `json:"subject"`
+	Details   *string            `json:"description"`
+	BlockedBy *[]TaskID          `json:"blocked_by"`
 	TaskID    string             `json:"task_id"`
 	Revision  uint64             `json:"expected_revision"`
 	Action    Update             `json:"action"`
@@ -35,7 +35,7 @@ func Mount(ctx context.Context, h *harness.Harness) error {
 	}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		return h.Tools().RegisterCatalogProvider(run, "pero-team", harness.ToolCatalogProvider{
 			Schemas: func(_ context.Context, candidate *harness.Agent) ([]harness.ToolSchema, error) {
-				if _, err := board.List(candidate); err != nil {
+				if _, err := board.read(candidate); err != nil {
 					return nil, nil
 				}
 				schemas := make([]harness.ToolSchema, 0, len(tools))
@@ -47,7 +47,7 @@ func Mount(ctx context.Context, h *harness.Harness) error {
 			Resolve: func(_ context.Context, candidate *harness.Agent, name string) (harness.Tool, bool, error) {
 				t, ok := tools[name]
 				if ok {
-					_, err := board.List(candidate)
+					_, err := board.read(candidate)
 					ok = err == nil
 				}
 				return t, ok, nil
@@ -98,6 +98,8 @@ func Mount(ctx context.Context, h *harness.Harness) error {
 func (b Board) tools() map[string]harness.Tool {
 	const names = "team_task_"
 	const taskID = `"task_id":{"type":"string","pattern":"^[1-9][0-9]{0,8}$"}`
+	const taskText = `"subject":{"type":"string","minLength":1,"maxLength":200},"description":{"type":"string","minLength":1,"maxLength":16384}`
+	const dependencies = `"blocked_by":{"type":"array","maxItems":256,"items":{"type":"string","pattern":"^[1-9][0-9]{0,8}$"}}`
 	type action func(context.Context, *harness.Agent, taskToolInput) (any, error)
 	tools := make(map[string]harness.Tool, 4)
 	add := func(name, title, args, required string, run action) {
@@ -123,57 +125,68 @@ func (b Board) tools() map[string]harness.Tool {
 		}
 	}
 	add("create", "Create one unowned task. Add only existing prerequisite IDs.",
-		`"subject":{"type":"string","minLength":1,"maxLength":200},"description":{"type":"string","minLength":1,"maxLength":16384},"blocked_by":{"type":"array","maxItems":256,"items":{"type":"string","pattern":"^[1-9][0-9]{0,8}$"}}`,
+		taskText+","+dependencies,
 		`"subject","description"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
-			ids := make([]TaskID, 0, len(in.BlockedBy))
-			for _, raw := range in.BlockedBy {
-				id, err := parseTaskID(raw)
-				if err != nil {
-					return nil, err
-				}
-				ids = append(ids, id)
+			if in.Subject == nil || in.Details == nil {
+				return nil, ErrArgument
 			}
-			return b.Create(ctx, caller, NewTask{Title: in.Subject, Details: in.Details, Dependencies: ids})
+			input := NewTask{Title: *in.Subject, Details: *in.Details}
+			if in.BlockedBy != nil {
+				input.Dependencies = *in.BlockedBy
+			}
+			return b.Create(ctx, caller, input)
 		})
 	add("list", "List up to 20 shared task summaries from the optional zero-based cursor. Read full details using team_task_get.",
 		`"cursor":{"type":"integer","minimum":0,"maximum":256}`, "", func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
-			tasks, err := b.List(caller)
+			s, err := b.read(caller)
 			if err != nil {
 				return nil, err
 			}
+			tasks := s.list()
 			start := min(in.Cursor, len(tasks))
 			end := min(start+20, len(tasks))
-			page := tasks[start:end]
-			for i := range page {
-				page[i].Details = ""
+			page := make([]taskView, 0, end-start)
+			for _, task := range tasks[start:end] {
+				task.Details = ""
+				page = append(page, s.view(task))
 			}
 			next := 0
 			if end < len(tasks) {
 				next = end
 			}
 			return struct {
-				Tasks      []Task `json:"tasks"`
-				NextCursor int    `json:"nextCursor,omitempty"`
+				Tasks      []taskView `json:"tasks"`
+				NextCursor int        `json:"nextCursor,omitempty"`
 			}{page, next}, nil
 		})
-	add("get", "Read one shared task with its current revision.", taskID, `"task_id"`, func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+	add("get", "Read one shared task (including a deleted record) with its revision and readiness.", taskID, `"task_id"`, func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 		id, err := parseTaskID(in.TaskID)
 		if err != nil {
 			return nil, err
 		}
-		tasks, err := b.List(caller)
+		s, err := b.read(caller)
 		if err != nil {
 			return nil, err
 		}
-		return (state{tasks: tasks}).get(id)
+		task, err := s.get(id)
+		if err != nil {
+			return nil, err
+		}
+		return s.view(task), nil
 	})
-	add("update", "Claim, release, complete or reassign a shared task using its latest revision. Only the Lead can reassign. Use owner lead or a continuable child session ID; omit owner to unassign. Does not start an agent.",
-		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign"]},"owner":{"type":"string","minLength":1,"maxLength":256}`, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+	add("update", "Change a shared task using its latest revision. Edit subject/description; set_dependencies replaces blocked_by (use [] to clear). The owner or Lead can edit, rewire, reopen completed tasks, or delete tasks without dependents. Only the Lead can reassign to lead or a continuable child session ID; omit owner to unassign. Never starts an agent.",
+		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign","edit","set_dependencies","reopen","delete"]},"owner":{"type":"string","minLength":1,"maxLength":256}`+","+taskText+","+dependencies, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			id, err := parseTaskID(in.TaskID)
 			if err != nil {
 				return nil, err
 			}
 			ref := TaskRef{ID: id, Revision: in.Revision}
+			if (in.Subject != nil || in.Details != nil) && in.Action != Edit {
+				return nil, fmt.Errorf("%w: subject and description are only valid for edit", ErrArgument)
+			}
+			if in.BlockedBy != nil && in.Action != SetDependencies {
+				return nil, fmt.Errorf("%w: blocked_by is only valid for set_dependencies", ErrArgument)
+			}
 			if in.Action == Reassign {
 				var target harness.SessionID
 				if in.Owner != nil {
@@ -182,9 +195,9 @@ func (b Board) tools() map[string]harness.Tool {
 				return b.Reassign(ctx, caller, ref, target)
 			}
 			if in.Owner != nil {
-				return nil, errors.New("TEAM_INVALID_ARGUMENT: owner is only valid for reassignment")
+				return nil, fmt.Errorf("%w: owner is only valid for reassignment", ErrArgument)
 			}
-			return b.Update(ctx, caller, ref, in.Action)
+			return b.update(ctx, caller, ref, mutation{operation: in.Action, title: in.Subject, details: in.Details, dependencies: in.BlockedBy})
 		})
 	return tools
 }

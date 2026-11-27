@@ -86,9 +86,9 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 			t.Fatalf("Team tool count for %s: got %d, want %d", agent.ID(), got, want)
 		}
 	}
-	call := func(agent *harness.Agent, name, input string) harness.ToolResult {
+	call := func(runtime *harness.Harness, agent *harness.Agent, name, input string) harness.ToolResult {
 		t.Helper()
-		out, err := h.Tools().Execute(ctx, harness.ToolRequest{
+		out, err := runtime.Tools().Execute(ctx, harness.ToolRequest{
 			Agent: agent, Name: name, CallID: harness.ToolCallID(name + "-fixture"), Arguments: json.RawMessage(input),
 		})
 		if err != nil {
@@ -134,7 +134,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	if err := board.SetEnabled(ctx, a, false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("child changed root mode: %v", err)
 	}
-	created := call(a, "team_task_create", `{"subject":"Check dataset","description":"Verify the checksum"}`)
+	created := call(h, a, "team_task_create", `{"subject":"Check dataset","description":"Verify the checksum"}`)
 	var first Task
 	if created.IsError || len(created.Content) != 1 || json.Unmarshal([]byte(created.Content[0].Text), &first) != nil || first.ID != 1 {
 		t.Fatalf("create on child produced no shared task: %+v", created)
@@ -171,7 +171,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	if won.err != nil || !errors.Is(lost.err, ErrStale) || won.task.Revision != 2 || won.task.Owner != won.agent.ID() {
 		t.Fatalf("expected exactly one owner at revision 2: %v / %v", won, lost)
 	}
-	if out := call(lost.agent, "team_task_update", `{"task_id":"1","expected_revision":2,"action":"claim","owner":"root"}`); !out.IsError {
+	if out := call(h, lost.agent, "team_task_update", `{"task_id":"1","expected_revision":2,"action":"claim","owner":"root"}`); !out.IsError {
 		t.Fatal("tool accepted a forged owner")
 	}
 	if _, err := board.Update(ctx, root, TaskRef{first.ID, 2}, Claim); !errors.Is(err, ErrClaimed) {
@@ -194,7 +194,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 	assertTools(root, 0)
 	assertTools(a, 0)
-	if out := call(a, "team_task_get", `{"task_id":"1"}`); !out.IsError {
+	if out := call(h, a, "team_task_get", `{"task_id":"1"}`); !out.IsError {
 		t.Fatal("direct Team tool dispatch succeeded while disabled")
 	}
 	if _, err := board.Update(ctx, won.agent, TaskRef{first.ID, 2}, Complete); !errors.Is(err, ErrDisabled) {
@@ -282,5 +282,129 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	released, err := replayed.Update(ctx, resumed, TaskRef{second.ID, 2}, Release)
 	if err != nil || released.Status != Pending || released.Owner != "" || released.Revision != 3 {
 		t.Fatalf("lead could not release its task: %+v, %v", released, err)
+	}
+	if err := Mount(ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	assertTool := func(runtime *harness.Harness, caller *harness.Agent, name, args, fault string, dst any) {
+		t.Helper()
+		out := call(runtime, caller, "team_task_"+name, args)
+		if len(out.Content) != 1 || out.IsError != (fault != "") {
+			t.Fatalf("unexpected %s response: %+v", name, out)
+		}
+		if fault != "" {
+			if !strings.Contains(out.Content[0].Text, fault) {
+				t.Fatalf("%s: wanted %s, got %s", name, fault, out.Content[0].Text)
+			}
+		} else if err := json.Unmarshal([]byte(out.Content[0].Text), dst); err != nil {
+			t.Fatalf("%s response: %v", name, err)
+		}
+	}
+	var view taskView
+	var task Task
+	assertTool(fresh, resumed, "get", `{"task_id":"2"}`, "", &view)
+	if !view.Ready || view.Revision != 3 {
+		t.Fatalf("completed prerequisite did not project readiness: %+v", view)
+	}
+	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":3,"action":"set_dependencies","blocked_by":["2"]}`, ErrCycle.Error(), nil)
+	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":3,"action":"reopen"}`, "", &task)
+	if task.Revision != 4 || task.Status != Pending || task.Owner != "" {
+		t.Fatalf("reopen did not preserve ID and clear the owner: %+v", task)
+	}
+	assertTool(fresh, resumed, "get", `{"task_id":"2"}`, "", &view)
+	if view.Ready || view.Revision != 3 {
+		t.Fatalf("reopening prerequisite did not reblock unchanged dependent: %+v", view)
+	}
+	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":4,"action":"delete"}`, ErrDependents.Error(), nil)
+	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":2,"action":"set_dependencies","blocked_by":[]}`, ErrStale.Error(), nil)
+	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":3,"action":"set_dependencies"}`, ErrArgument.Error(), nil)
+	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":3,"action":"set_dependencies","blocked_by":[]}`, "", &task)
+	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":4,"action":"edit","subject":"Reproduce the revised figure"}`, "", &task)
+	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":4,"action":"delete"}`, "", &task)
+	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":5,"action":"claim"}`, ErrDeleted.Error(), nil)
+	assertTool(fresh, resumed, "create", `{"subject":"Missing input","description":"Do not create","blocked_by":["1"]}`, ErrNotFound.Error(), nil)
+	if err := fresh.Dispose(ctx); err != nil && !errors.Is(err, harness.ErrHarnessDisposalInProgress) {
+		t.Fatal(err)
+	}
+	if err := fresh.Drain(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := resumedDetach(); err != nil {
+		t.Fatal(err)
+	}
+	restarted := boot()
+	if err := Mount(ctx, restarted); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := freshDisk.Load(ctx, resumed.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := restarted.Agents().Resume(ctx, reloaded, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastDetach, err := freshDisk.Attach(ctx, reloaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lastDetach()
+	view = taskView{}
+	assertTool(restarted, agent, "get", `{"task_id":"1"}`, "", &view)
+	if view.Status != Deleted || view.Revision != 5 || view.Ready {
+		t.Fatalf("restart lost tombstone: %+v", view)
+	}
+	view = taskView{}
+	assertTool(restarted, agent, "get", `{"task_id":"2"}`, "", &view)
+	if !view.Ready || view.Revision != 5 || view.Title != "Reproduce the revised figure" || view.Details != "Reproduce the figure" {
+		t.Fatalf("restart lost edited ready task: %+v", view)
+	}
+	var page struct{ Tasks []taskView }
+	assertTool(restarted, agent, "list", `{}`, "", &page)
+	if len(page.Tasks) != 1 || page.Tasks[0].ID != 2 || !page.Tasks[0].Ready || page.Tasks[0].Details != "" {
+		t.Fatalf("list leaked a tombstone or omitted the active task: %+v", page)
+	}
+	assertTool(restarted, agent, "create", `{"subject":"New task","description":"Never recycle deleted IDs"}`, "", &task)
+	if task.ID != 3 {
+		t.Fatalf("task ID recycled after deletion: %+v", task)
+	}
+
+}
+
+func TestGraphMutationRules(t *testing.T) {
+	s := state{tasks: []Task{
+		{ID: 1, Revision: 1, Status: Pending},
+		{ID: 2, Revision: 1, Status: InProgress, Owner: "worker", Dependencies: []TaskID{1}},
+		{ID: 3, Revision: 1, Status: Completed, Owner: "other", Dependencies: []TaskID{2}},
+	}}
+	ids := func(v ...TaskID) *[]TaskID { return &v }
+	updated, blank := "updated", " "
+	for _, tc := range []struct {
+		name  string
+		id    TaskID
+		actor harness.SessionID
+		input mutation
+		want  error
+	}{
+		{"transitive cycle", 1, "lead", mutation{operation: SetDependencies, dependencies: ids(3)}, ErrCycle},
+		{"self edge", 2, "worker", mutation{operation: SetDependencies, dependencies: ids(2)}, ErrCycle},
+		{"duplicate edge", 2, "worker", mutation{operation: SetDependencies, dependencies: ids(1, 1)}, ErrArgument},
+		{"missing blocker", 2, "worker", mutation{operation: SetDependencies, dependencies: ids(4)}, ErrNotFound},
+		{"unowned edit", 1, "worker", mutation{operation: Edit, title: &updated}, ErrForbidden},
+		{"other member edit", 2, "other", mutation{operation: Edit, title: &updated}, ErrForbidden},
+		{"owner edit", 2, "worker", mutation{operation: Edit, title: &updated}, nil},
+		{"blank title", 2, "worker", mutation{operation: Edit, title: &blank}, ErrArgument},
+		{"completed dependent retains provenance", 2, "worker", mutation{operation: Delete}, ErrDependents},
+		{"reopen incomplete", 2, "worker", mutation{operation: Reopen}, ErrTransition},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			task, err := s.update(TaskRef{tc.id, 1}, tc.input, tc.actor, "lead")
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+			if tc.want == nil && (task.Title != "updated" || task.Revision != 2 || task.Owner != "worker" || task.Status != InProgress) {
+				t.Fatalf("edit changed task identity, owner or status: %+v", task)
+			}
+		})
 	}
 }

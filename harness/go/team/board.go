@@ -5,6 +5,7 @@ package team
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,10 @@ var (
 	ErrLeadRequired   = errors.New("TEAM_LEAD_REQUIRED")
 	ErrMemberNotFound = errors.New("TEAM_MEMBER_NOT_FOUND")
 	ErrLimit          = errors.New("TEAM_TASK_LIMIT")
+	ErrDeleted        = errors.New("TEAM_TASK_DELETED")
+	ErrDependents     = errors.New("TEAM_TASK_HAS_DEPENDENTS")
+	ErrCycle          = errors.New("TEAM_TASK_DEPENDENCY_CYCLE")
+	ErrArgument       = errors.New("TEAM_INVALID_ARGUMENT")
 )
 
 type TaskID uint32
@@ -59,6 +64,7 @@ const (
 	Pending    Status = "pending"
 	InProgress Status = "in_progress"
 	Completed  Status = "completed"
+	Deleted    Status = "deleted"
 )
 
 type Task struct {
@@ -85,11 +91,26 @@ type TaskRef struct {
 type Update string
 
 const (
-	Claim    Update = "claim"
-	Release  Update = "release"
-	Complete Update = "complete"
-	Reassign Update = "reassign"
+	Claim           Update = "claim"
+	Release         Update = "release"
+	Complete        Update = "complete"
+	Reassign        Update = "reassign"
+	Edit            Update = "edit"
+	SetDependencies Update = "set_dependencies"
+	Reopen          Update = "reopen"
+	Delete          Update = "delete"
 )
+
+type mutation struct {
+	operation      Update
+	title, details *string
+	dependencies   *[]TaskID
+}
+
+type taskView struct {
+	Task
+	Ready bool `json:"ready"`
+}
 
 type state struct {
 	enabled bool
@@ -132,28 +153,83 @@ func (s state) get(id TaskID) (Task, error) {
 	return s.tasks[int(id)-1], nil
 }
 
+func taskText(input, label string, limit int) (string, error) {
+	value := strings.TrimSpace(input)
+	if value == "" || len(value) > limit {
+		return "", fmt.Errorf("%w: invalid %s", ErrArgument, label)
+	}
+	return value, nil
+}
+
+func (s state) validateDependencies(id TaskID, dependencies []TaskID) error {
+	if len(dependencies) > taskLimit {
+		return fmt.Errorf("%w: too many task dependencies", ErrArgument)
+	}
+	direct := make(map[TaskID]bool, len(dependencies))
+	for _, dependency := range dependencies {
+		task, err := s.get(dependency)
+		if err != nil || task.Status == Deleted {
+			return fmt.Errorf("%w: prerequisite %d", ErrNotFound, dependency)
+		}
+		if direct[dependency] {
+			return fmt.Errorf("%w: duplicate prerequisite %d", ErrArgument, dependency)
+		}
+		direct[dependency] = true
+	}
+	visited := make(map[TaskID]bool)
+	pending := append([]TaskID(nil), dependencies...)
+	for len(pending) != 0 {
+		dependency := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		if dependency == id {
+			return fmt.Errorf("%w: task %d cannot depend on itself", ErrCycle, id)
+		}
+		if !visited[dependency] {
+			visited[dependency] = true
+			task, err := s.get(dependency)
+			if err != nil || task.Status == Deleted {
+				return fmt.Errorf("%w: prerequisite %d", ErrNotFound, dependency)
+			}
+			pending = append(pending, task.Dependencies...)
+		}
+	}
+	return nil
+}
+
 func (s state) create(input NewTask) (Task, error) {
+	// Keep the existing lifetime bound, including tombstones: IDs are never
+	// recycled and the whole board is replayed from the root journal.
 	if len(s.tasks) >= taskLimit {
 		return Task{}, ErrLimit
 	}
-	title := strings.TrimSpace(input.Title)
-	details := strings.TrimSpace(input.Details)
-	if title == "" || len(title) > 200 || details == "" || len(details) > 16384 || len(input.Dependencies) > taskLimit {
-		return Task{}, errors.New("team: invalid title, details or dependencies")
+	title, err := taskText(input.Title, "subject", 200)
+	if err != nil {
+		return Task{}, err
 	}
-	seen := make(map[TaskID]bool, len(input.Dependencies))
-	for _, dependency := range input.Dependencies {
-		if _, err := s.get(dependency); err != nil {
-			return Task{}, err
-		}
-		if seen[dependency] {
-			return Task{}, errors.New("team: duplicate task dependency")
-		}
-		seen[dependency] = true
+	details, err := taskText(input.Details, "description", 16384)
+	if err != nil {
+		return Task{}, err
 	}
-	// Only existing tasks can be prerequisites, so creation cannot create cycles.
-	return Task{ID: TaskID(len(s.tasks) + 1), Title: title, Details: details,
+	id := TaskID(len(s.tasks) + 1)
+	if err := s.validateDependencies(id, input.Dependencies); err != nil {
+		return Task{}, err
+	}
+	return Task{ID: id, Title: title, Details: details,
 		Dependencies: append([]TaskID(nil), input.Dependencies...), Revision: 1, Status: Pending}, nil
+}
+
+func (s state) list() []Task {
+	active := make([]Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if task.Status != Deleted {
+			active = append(active, task)
+		}
+	}
+	return active
+}
+
+func (s state) view(task Task) taskView {
+	return taskView{Task: task, Ready: task.Status == Pending && s.ready(task) == nil}
 }
 
 func (s state) current(ref TaskRef) (Task, error) {
@@ -163,6 +239,9 @@ func (s state) current(ref TaskRef) (Task, error) {
 	}
 	if task.Revision != ref.Revision {
 		return Task{}, fmt.Errorf("%w: current revision %d", ErrStale, task.Revision)
+	}
+	if task.Status == Deleted {
+		return Task{}, ErrDeleted
 	}
 	return task, nil
 }
@@ -200,12 +279,15 @@ func (s state) reassign(ref TaskRef, target harness.SessionID, lead bool) (Task,
 	return task, nil
 }
 
-func (s state) update(ref TaskRef, operation Update, actor, root harness.SessionID) (Task, error) {
+func (s state) update(ref TaskRef, input mutation, actor, root harness.SessionID) (Task, error) {
 	task, err := s.current(ref)
 	if err != nil {
 		return Task{}, err
 	}
-	switch operation {
+	if input.operation != Claim && task.Owner != actor && actor != root {
+		return Task{}, ErrForbidden
+	}
+	switch input.operation {
 	case Claim:
 		if task.Owner != "" && task.Owner != actor {
 			return Task{}, ErrClaimed
@@ -218,19 +300,52 @@ func (s state) update(ref TaskRef, operation Update, actor, root harness.Session
 		}
 		task.Status, task.Owner = InProgress, actor
 	case Complete, Release:
-		if task.Owner != actor && actor != root {
-			return Task{}, ErrForbidden
-		}
 		if task.Status != InProgress {
 			return Task{}, ErrTransition
 		}
-		if operation == Complete {
+		if input.operation == Complete {
 			task.Status = Completed
 		} else {
 			task.Status, task.Owner = Pending, ""
 		}
+	case Edit:
+		if input.title == nil && input.details == nil {
+			return Task{}, fmt.Errorf("%w: edit requires subject or description", ErrArgument)
+		}
+		if input.title != nil {
+			task.Title, err = taskText(*input.title, "subject", 200)
+			if err != nil {
+				return Task{}, err
+			}
+		}
+		if input.details != nil {
+			task.Details, err = taskText(*input.details, "description", 16384)
+			if err != nil {
+				return Task{}, err
+			}
+		}
+	case SetDependencies:
+		if input.dependencies == nil {
+			return Task{}, fmt.Errorf("%w: set_dependencies requires blocked_by", ErrArgument)
+		}
+		if err := s.validateDependencies(task.ID, *input.dependencies); err != nil {
+			return Task{}, err
+		}
+		task.Dependencies = append([]TaskID(nil), (*input.dependencies)...)
+	case Reopen:
+		if task.Status != Completed {
+			return Task{}, ErrTransition
+		}
+		task.Status, task.Owner = Pending, ""
+	case Delete:
+		for _, dependent := range s.tasks {
+			if dependent.Status != Deleted && slices.Contains(dependent.Dependencies, task.ID) {
+				return Task{}, fmt.Errorf("%w: task %d still blocks %d", ErrDependents, task.ID, dependent.ID)
+			}
+		}
+		task.Status = Deleted
 	default:
-		return Task{}, errors.New("team: unknown operation")
+		return Task{}, fmt.Errorf("%w: unknown operation", ErrArgument)
 	}
 	task.Revision++
 	return task, nil

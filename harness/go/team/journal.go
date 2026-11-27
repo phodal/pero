@@ -63,18 +63,26 @@ func (b Board) SetEnabled(ctx context.Context, caller *harness.Agent, enabled bo
 }
 
 func (b Board) List(caller *harness.Agent) ([]Task, error) {
-	root, err := b.root(caller)
+	s, err := b.read(caller)
 	if err != nil {
 		return nil, err
+	}
+	return s.list(), nil
+}
+
+func (b Board) read(caller *harness.Agent) (state, error) {
+	root, err := b.root(caller)
+	if err != nil {
+		return state{}, err
 	}
 	s, err := fold(root.ID(), root.Session().Events())
 	if err != nil {
-		return nil, err
+		return state{}, err
 	}
 	if !s.enabled {
-		return nil, ErrDisabled
+		return state{}, ErrDisabled
 	}
-	return s.tasks, nil
+	return s, nil
 }
 
 func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask) (Task, error) {
@@ -88,11 +96,15 @@ func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask)
 }
 
 func (b Board) Update(ctx context.Context, caller *harness.Agent, ref TaskRef, operation Update) (Task, error) {
+	return b.update(ctx, caller, ref, mutation{operation: operation})
+}
+
+func (b Board) update(ctx context.Context, caller *harness.Agent, ref TaskRef, input mutation) (Task, error) {
 	return b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
 		}
-		task, err := s.update(ref, operation, caller.ID(), root.ID())
+		task, err := s.update(ref, input, caller.ID(), root.ID())
 		return change{Task: &task}, err
 	})
 }

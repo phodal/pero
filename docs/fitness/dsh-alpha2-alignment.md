@@ -208,14 +208,27 @@ with those flags never enables a session automatically.
   owner. Mode, owner and revision survive reloading the root's JSONL journal.
   Updating tasks does not submit prompts, wake teammates, or grant file or
   shell access. This is an in-process board, not distributed Task/Run.
+- The owner or Lead can edit a task's subject and description, replace its
+  prerequisites using `set_dependencies` (an empty `blocked_by` clears them),
+  reopen a completed task without carrying forward the owner, or delete a
+  task no other non-deleted task references. A rejected cyclic, missing, or
+  stale update leaves the previous revision untouched. List and get derive
+  readiness from current prerequisites, so reopening one task reblocks a
+  pending dependent without changing that dependent's revision. Deletion
+  retains a readable tombstone but removes it from list, count, and new
+  dependency selection. IDs are never reused; Pero's 256-task lifetime
+  bound includes deleted records, unlike DSH's active-task ceiling.
 
-This slice does not implement DSH's complete tool schema: named owner filters
-and aliases beyond `lead`, edits, dependency rewiring, reopen/delete, write-scope
-warnings and Desktop mode controls remain open. List returns a 20-row page
-of summaries; get returns the full description. The Team regression transfers
-A’s claim to a continuable B, rejects A’s late completion, and reassigns to
-B again while cold without making a model request. No change to checkout or
-artifact boundaries is implied.
+Named owner filters and aliases beyond `lead`, write-scope warnings and
+Desktop mode controls remain open. List returns a 20-row page of summaries;
+get returns the full description. The Team regression transfers A's claim
+to a continuable B, rejects A's late completion, and reassigns to B again
+while cold without making a model request. The graph regression exercises
+the actual model tool dispatch and a JSONL restart: a two-task cycle and a
+referenced delete are rejected, reopening reblocks the dependent, and
+clearing that edge allows deletion. The deleted row and edited successor
+are read back after restart. No change to checkout or artifact boundaries
+is implied.
 
 ## Compaction route and evidence
 
