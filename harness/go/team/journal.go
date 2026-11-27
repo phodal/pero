@@ -49,17 +49,40 @@ func (b Board) root(caller *harness.Agent) (*harness.Agent, error) {
 	return root, nil
 }
 
-// Mode reads the current durable setting of an eligible root without enabling it.
-func (b Board) Mode(caller *harness.Agent) (bool, error) {
+func (b Board) rootState(caller *harness.Agent) (state, error) {
 	root, err := b.root(caller)
 	if err != nil {
-		return false, err
+		return state{}, err
 	}
 	if root != caller {
-		return false, ErrForbidden
+		return state{}, ErrForbidden
 	}
-	s, err := fold(root.ID(), root.Session().Events())
+	return fold(root.ID(), root.Session().Events())
+}
+
+// Mode reads the current durable setting of an eligible root without enabling it.
+func (b Board) Mode(caller *harness.Agent) (bool, error) {
+	s, err := b.rootState(caller)
 	return s.enabled, err
+}
+
+// BoardSnapshot is a bounded, read-only projection for the root's Host UI.
+type BoardSnapshot struct {
+	Enabled bool       `json:"enabled"`
+	Tasks   []TaskView `json:"tasks"`
+}
+
+// Snapshot reports mode and visible tasks from the same journal read. Disabling
+// the board hides its tasks from the Host projection without discarding them.
+func (b Board) Snapshot(caller *harness.Agent) (BoardSnapshot, error) {
+	s, err := b.rootState(caller)
+	if err != nil {
+		return BoardSnapshot{}, err
+	}
+	if !s.enabled {
+		return BoardSnapshot{Tasks: []TaskView{}}, nil
+	}
+	return BoardSnapshot{Enabled: true, Tasks: s.page(taskQuery{limit: taskLimit}).Tasks}, nil
 }
 
 func (b Board) SetEnabled(ctx context.Context, caller *harness.Agent, enabled bool) error {

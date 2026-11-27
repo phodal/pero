@@ -2,11 +2,38 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/phodal/pero/harness/go/harness"
 	"github.com/phodal/pero/harness/go/team"
 )
+
+const teamBoardCapability = "pero.teamBoard"
+const teamBoardMethod = "_pero/team/board"
+
+func (s *Server) teamBoardRequest(raw json.RawMessage) (any, *rpcError) {
+	if s.teamBoard == nil {
+		return nil, invalid("Agent Teams are not available")
+	}
+	var params SessionParams
+	if err := decodeParams(raw, &params); err != nil {
+		return nil, invalid(err.Error())
+	}
+	record, finish, err := s.beginCommandRecord(params.SessionID)
+	if err != nil {
+		return nil, classify(err)
+	}
+	defer finish()
+	snapshot, err := s.teamBoard.Snapshot(record.agent)
+	if errors.Is(err, team.ErrDisabled) || errors.Is(err, team.ErrForbidden) {
+		return nil, invalid("Agent Teams are only available on an eligible root session")
+	}
+	if err != nil {
+		return nil, classify(err)
+	}
+	return snapshot, nil
+}
 
 func (s *Server) teamConfig(agent *harness.Agent) (map[string]any, error) {
 	if s.teamBoard == nil {

@@ -195,6 +195,16 @@ never enable a session automatically. The two-root ACP wire regression
 isolates the setting and model, then reloads and re-enables the board
 without inference or changes to task identity or revision.
 
+A Host can discover `agentCapabilities._meta["pero.teamBoard"] = 1` and
+read `_pero/team/board` with only `{sessionId}` for an active, eligible root.
+The response combines mode and task summaries from a single journal read.
+Off returns an empty list; re-enabling reveals the same saved IDs, revisions and
+owners. Summaries exclude descriptions and deleted tasks. This ACP read does not
+mutate the journal, dispatch a prompt, or let children inspect a root via their
+own session ID. Model-side Team tools for owned members are unchanged. The
+desktop task panel and reconnect flow are not part of this transport slice.
+
+
 - The live root and its owned children see `team_task_create`, `team_task_list`,
   `team_task_get` and `team_task_update` only while opted in. Unrelated roots
   and ordinary forks never gain access to the source board. A fork can still

@@ -106,8 +106,20 @@ func TestTeamModeACPWire(t *testing.T) {
 		return record.agent
 	}
 
+	boardSnapshot := func(w *questionWire, id string, enabled bool) []team.TaskView {
+		t.Helper()
+		raw := w.rpc(teamBoardMethod, map[string]string{"sessionId": id})
+		var snapshot team.BoardSnapshot
+		if err := json.Unmarshal(raw, &snapshot); err != nil || snapshot.Enabled != enabled || snapshot.Tasks == nil {
+			t.Fatalf("unexpected board mode or task projection: %s, %v", raw, err)
+		}
+		return snapshot.Tasks
+	}
 	create := map[string]any{"cwd": cwd, "mcpServers": []any{}}
 	server, wire, stop := start(true)
+	if !strings.Contains(string(wire.rpc("initialize", map[string]any{"protocolVersion": 1})), `"pero.teamBoard":1`) {
+		t.Fatal("mounted ACP process did not advertise Team projection")
+	}
 	a := check(wire.rpc("session/new", create), "off", "a")
 	b := check(wire.rpc("session/new", create), "off", "a")
 	check(set(wire, a, "model", "b"), "off", "b")
@@ -118,7 +130,36 @@ func TestTeamModeACPWire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	task, err = server.teamBoard.Update(ctx, root, team.TaskRef{ID: task.ID, Revision: task.Revision}, team.Claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tombstone, err := server.teamBoard.Create(ctx, root, team.NewTask{Title: "Discarded task", Details: "Not visible"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = server.teamBoard.Update(ctx, root, team.TaskRef{ID: tombstone.ID, Revision: tombstone.Revision}, team.Delete); err != nil {
+		t.Fatal(err)
+	}
+	checkProjection := func(w *questionWire) {
+		t.Helper()
+		rows := boardSnapshot(w, a, true)
+		if len(rows) != 1 || rows[0].ID != task.ID || rows[0].Revision != task.Revision || rows[0].Owner != harness.SessionID(a) || rows[0].Title != task.Title || rows[0].Status != team.InProgress || rows[0].Ready || rows[0].Details != "" {
+			t.Fatalf("saved task was not projected accurately or exposed its body/tombstone: %+v", rows)
+		}
+		if other := boardSnapshot(w, b, false); len(other) != 0 {
+			t.Fatalf("other root received tasks: %+v", other)
+		}
+	}
+	before := len(root.Session().Events())
+	checkProjection(wire)
+	if len(root.Session().Events()) != before {
+		t.Fatal("reading the board changed its root journal")
+	}
 	check(set(wire, a, "team", "off"), "off", "b")
+	if hidden := boardSnapshot(wire, a, false); len(hidden) != 0 {
+		t.Fatalf("disabled board exposed tasks: %+v", hidden)
+	}
 	assertTools(server, a, 0)
 	stop()
 
@@ -128,15 +169,15 @@ func TestTeamModeACPWire(t *testing.T) {
 	assertTools(server, a, 0)
 	assertTools(server, b, 0)
 	check(set(wire, a, "team", "on"), "on", "b")
-	root = assertTools(server, a, 4)
-	tasks, err := server.teamBoard.List(root)
-	if err != nil || len(tasks) != 1 || tasks[0].ID != task.ID || tasks[0].Revision != task.Revision {
-		t.Fatalf("toggle or restart changed saved task: %v, %v", tasks, err)
-	}
+	assertTools(server, a, 4)
+	checkProjection(wire)
 	assertTools(server, b, 0)
 	stop()
 
 	server, wire, _ = start(false)
+	if strings.Contains(string(wire.rpc("initialize", map[string]any{"protocolVersion": 1})), teamBoardCapability) {
+		t.Fatal("default ACP process advertised Team projection")
+	}
 	unavailable := check(wire.rpc("session/new", create), "", "a")
 	assertTools(server, unavailable, 0)
 	check(wire.rpc("session/load", map[string]any{"sessionId": a, "cwd": cwd, "mcpServers": []any{}}), "", "b")

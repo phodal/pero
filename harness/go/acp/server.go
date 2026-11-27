@@ -353,6 +353,8 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		return s.mcpSessionRequest(ctx, message.Params)
 	case ScienceSessionMethod:
 		return s.scienceSessionRequest(ctx, message.Params)
+	case teamBoardMethod:
+		return s.teamBoardRequest(message.Params)
 	case "session/new":
 		var params NewSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {

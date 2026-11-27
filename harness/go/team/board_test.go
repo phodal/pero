@@ -135,6 +135,9 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	if _, err := board.Mode(a); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("child advertised a root-only mode setting: %v", err)
 	}
+	if _, err := board.Snapshot(a); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("child could read a root-only Host projection: %v", err)
+	}
 	if err := board.SetEnabled(ctx, a, false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("child changed root mode: %v", err)
 	}
