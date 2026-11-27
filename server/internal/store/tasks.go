@@ -180,13 +180,13 @@ func (s *Store) Tasks(ctx context.Context, cursor string, limit int, filters ...
 	return page, nil
 }
 
-func (s *Store) Dispatch(ctx context.Context, id, worker, key string) (*Run, error) {
+func (s *Store) Dispatch(ctx context.Context, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	r, err := dispatchTx(ctx, tx, id, worker, key)
+	r, err := dispatchTx(ctx, tx, id, worker, key, desktop...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,14 @@ func (s *Store) Dispatch(ctx context.Context, id, worker, key string) (*Run, err
 }
 
 // dispatchTx shares the caller's task lock and transaction with claim/source guards.
-func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, error) {
+func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string, desktop ...RunDesktopProfile) (*Run, error) {
+	var profile RunDesktopProfile
+	if len(desktop) != 0 {
+		profile = desktop[0]
+	}
+	if profile != "" && (profile != BlenderDesktop || worker == "") {
+		return nil, ErrTaskInput
+	}
 	var spec []byte
 	var current string
 	err := tx.QueryRow(ctx, `SELECT spec,COALESCE(current_run_id,'') FROM tasks WHERE id=$1 FOR UPDATE`, id).Scan(&spec, &current)
@@ -212,7 +219,11 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 		return nil, err
 	}
 	operation := "dispatch:" + id
-	previous, digest, err := receipt(ctx, tx, key, operation, worker)
+	var selection any = worker
+	if profile != "" {
+		selection = [2]string{worker, string(profile)}
+	}
+	previous, digest, err := receipt(ctx, tx, key, operation, selection)
 	if err != nil {
 		return nil, err
 	}
@@ -228,14 +239,15 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 	}
 	if current != "" {
 		var status, target string
-		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,'') FROM runs WHERE id=$1`, current).Scan(&status, &target); err != nil {
+		var existingProfile RunDesktopProfile
+		if err = tx.QueryRow(ctx, `SELECT status,COALESCE(target_worker_id,''),desktop_profile FROM runs WHERE id=$1`, current).Scan(&status, &target, &existingProfile); err != nil {
 			return nil, err
 		}
 		if status == "reconcile" {
 			return nil, ErrConflict
 		}
 		if status == "queued" || status == "running" || status == "cancel_requested" {
-			if target != worker {
+			if target != worker || existingProfile != profile {
 				return nil, ErrConflict
 			}
 			r, err := readRun(tx.QueryRow(ctx, `SELECT `+runColumns+` FROM runs WHERE id=$1`, current))
@@ -262,7 +274,7 @@ func dispatchTx(ctx context.Context, tx pgx.Tx, id, worker, key string) (*Run, e
 		}
 	}
 	runID := newID("run")
-	r, err := readRun(tx.QueryRow(ctx, `INSERT INTO runs(id,task_id,generation,spec,target_worker_id,status) SELECT $1,$2,COALESCE(MAX(generation),0)+1,$3,NULLIF($4,''),'queued' FROM runs WHERE task_id=$2 RETURNING `+runColumns, runID, id, spec, worker))
+	r, err := readRun(tx.QueryRow(ctx, `INSERT INTO runs(id,task_id,generation,spec,target_worker_id,status,desktop_profile) SELECT $1,$2,COALESCE(MAX(generation),0)+1,$3,NULLIF($4,''),'queued',$5 FROM runs WHERE task_id=$2 RETURNING `+runColumns, runID, id, spec, worker, profile))
 	if err != nil {
 		return nil, err
 	}

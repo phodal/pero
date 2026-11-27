@@ -45,9 +45,53 @@ func (a *API) registerArtifacts(mux *http.ServeMux, reader ArtifactReader) {
 			for _, e := range exports {
 				views = append(views, viewArtifact(e))
 			}
+			runID := r.PathValue("id")
+			files, err := a.db.RunDesktopFiles(r.Context(), runID)
+			if err != nil {
+				failure(w, err)
+				return
+			}
+			if len(files) != 0 {
+				var desktopClient *store.Client
+				if client {
+					desktopClient = clientIdentity(r)
+				}
+				run, err := a.db.DesktopRun(r.Context(), desktopClient, runID, false)
+				if err != nil {
+					failure(w, err)
+					return
+				}
+				view := artifactView{ID: "desktop", RunID: runID, Generation: run.Generation, Phase: artifacts.Committed, Files: []artifactFileView{}, Missing: []string{}}
+				present := map[store.DesktopFile]bool{}
+				for _, f := range files {
+					present[f.Name] = true
+					view.Files = append(view.Files, artifactFileView{ID: string(f.Name), Path: string(f.Name), Bytes: int64(f.Bytes), SHA256: f.SHA256})
+				}
+				for _, name := range []store.DesktopFile{"actions.json", "result.blend"} {
+					if !present[name] {
+						view.Missing = append(view.Missing, string(name))
+					}
+				}
+				if !present["screenshot.png"] && !present["screenshot.jpg"] {
+					view.Missing = append(view.Missing, "screenshot")
+				}
+				view.Outcome = "complete"
+				if len(view.Missing) != 0 {
+					view.Outcome = "partial"
+				}
+				views = append(views, view)
+			}
 			respond(w, 200, map[string]any{"artifacts": views})
 		})
 		mux.HandleFunc("GET "+prefix+"/runs/{id}/artifacts/{export}/files/{file}", func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("export") == "desktop" {
+				var desktopClient *store.Client
+				if client {
+					desktopClient = clientIdentity(r)
+				}
+				a.desktopArtifact(w, r, desktopClient)
+				return
+			}
 			exports, err := a.authorizedArtifacts(r, client)
 			if err != nil {
 				failure(w, err)

@@ -8,6 +8,7 @@ go_library(
         "artifacts.go",
         "artifact_objects.go",
         "runtime_channels.go",
+        "run_desktop.go",
         "contribution.go",
         "contributions.go",
         "community.go",

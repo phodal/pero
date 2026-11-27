@@ -200,6 +200,10 @@
       "properties": {
         "worker_id": {
           "type": "string"
+        },
+        "desktop_profile": {
+          "type": "string",
+          "const": "blender"
         }
       },
       "additionalProperties": false
@@ -828,6 +832,10 @@
         },
         "remote_execution": {
           "$ref": "#/$defs/RemoteExecution"
+        },
+        "desktop_profile": {
+          "type": "string",
+          "const": "blender"
         },
         "summary": {
           "type": "string"

@@ -28,6 +28,7 @@ type API struct {
 	github       *gh.Service
 	sandbox      *sandbox.Runtime
 	gateway      *runtimegateway.Gateway
+	runDesktops  runDesktopBroker
 }
 type contextKey struct{}
 
@@ -54,6 +55,7 @@ func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.R
 	a.registerGitHub(mux)
 	a.registerSandbox(mux)
 	a.registerArtifacts(mux, artifactReader)
+	a.registerRunDesktops(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			respond(w, 503, map[string]string{"status": "unavailable"})
@@ -267,7 +269,8 @@ func (a *API) task(w http.ResponseWriter, r *http.Request) {
 }
 func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		WorkerID string `json:"worker_id"`
+		WorkerID       string                  `json:"worker_id"`
+		DesktopProfile store.RunDesktopProfile `json:"desktop_profile,omitempty"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -280,7 +283,7 @@ func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	run, err := a.db.Dispatch(r.Context(), r.PathValue("id"), in.WorkerID, key)
+	run, err := a.db.Dispatch(r.Context(), r.PathValue("id"), in.WorkerID, key, in.DesktopProfile)
 	if err != nil {
 		failure(w, err)
 		return

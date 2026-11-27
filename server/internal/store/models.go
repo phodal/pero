@@ -86,16 +86,17 @@ type RemoteExecution struct {
 	WorkingDirectory string `json:"working_directory"`
 }
 type Run struct {
-	RemoteExecution *RemoteExecution `json:"remote_execution,omitempty"`
-	ID              string           `json:"id"`
-	TaskID          string           `json:"task_id"`
-	Generation      int64            `json:"generation"`
-	WorkerID        string           `json:"worker_id,omitempty"`
-	InstanceID      string           `json:"instance_id,omitempty"`
-	Status          string           `json:"status"`
-	LeaseExpiresAt  *time.Time       `json:"lease_expires_at,omitempty"`
-	Spec            Spec             `json:"spec"`
-	Summary         string           `json:"summary"`
+	RemoteExecution *RemoteExecution  `json:"remote_execution,omitempty"`
+	DesktopProfile  RunDesktopProfile `json:"desktop_profile,omitempty"`
+	ID              string            `json:"id"`
+	TaskID          string            `json:"task_id"`
+	Generation      int64             `json:"generation"`
+	WorkerID        string            `json:"worker_id,omitempty"`
+	InstanceID      string            `json:"instance_id,omitempty"`
+	Status          string            `json:"status"`
+	LeaseExpiresAt  *time.Time        `json:"lease_expires_at,omitempty"`
+	Spec            Spec              `json:"spec"`
+	Summary         string            `json:"summary"`
 }
 
 type Worker struct {

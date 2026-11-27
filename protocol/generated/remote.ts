@@ -110,6 +110,7 @@ export interface Run {
   lease_expires_at?: string | null;
   spec: TaskSpec;
   remote_execution?: RemoteExecution;
+  desktop_profile?: "blender";
   summary?: string;
   created_at?: string;
   updated_at?: string;
@@ -250,6 +251,7 @@ export interface GitHubSyncResult {
 }
 export interface Dispatch {
   worker_id?: string;
+  desktop_profile?: "blender";
 }
 export interface Claim {
   request_id: Id;
