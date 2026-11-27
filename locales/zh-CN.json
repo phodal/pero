@@ -1,11 +1,9 @@
 {
   "run_desktop.dispatch": "在 Blender 桌面运行",
-  "run_desktop.open": "打开本次运行的桌面",
   "run_desktop.resources": "运行资源",
   "run_desktop.resize": "调整桌面面板宽度",
   "run_desktop.handoff_requested": "Agent 请求人工接管",
   "run_desktop.handoff_returned": "已将控制权归还给 Agent",
-  "run_desktop.evidence": "运行证据",
   "run_desktop.evidence_empty": "本次运行还没有保存的桌面证据。",
   "run_desktop.save": "保存证据文件",
   "run_desktop.saved": "已保存证据文件",

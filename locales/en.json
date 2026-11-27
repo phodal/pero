@@ -1,11 +1,9 @@
 {
   "run_desktop.dispatch": "Run in Blender desktop",
-  "run_desktop.open": "Open Run desktop",
   "run_desktop.resources": "Run resources",
   "run_desktop.resize": "Resize desktop panel",
   "run_desktop.handoff_requested": "Agent requests control",
   "run_desktop.handoff_returned": "Control returned to the Agent",
-  "run_desktop.evidence": "Run evidence",
   "run_desktop.evidence_empty": "This Run has no saved desktop evidence yet.",
   "run_desktop.save": "Save evidence file",
   "run_desktop.saved": "Evidence file saved",
