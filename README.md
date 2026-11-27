@@ -20,6 +20,8 @@
 
 Pero brings original papers, research Apps and Agent conversations into one desktop workspace. Start with a PDF: read it, ask a question, then follow the answer's citations back to the source.
 
+[Watch the Pero introduction on Bilibili](https://www.bilibili.com/video/BV13ZyQzhEiN/) for a walkthrough of Pero and its architecture built around pluggable research Apps.
+
 ## Our approach
 
 - **Keep the original evidence.** Save papers and link report claims to observed passages. Earlier answers do not replace source evidence.
