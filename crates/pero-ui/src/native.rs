@@ -392,6 +392,11 @@ pub fn run() -> anyhow::Result<()> {
             };
             let action = value["action"].as_str().unwrap_or_default();
             #[cfg(target_os = "macos")]
+            if action.starts_with("remote_desktop_") {
+                let _ = events.send_blocking(cloud.run_desktop(&value));
+                continue;
+            }
+            #[cfg(target_os = "macos")]
             if action.starts_with("remote_browser_") {
                 if let Some(event) = browser.command(&cloud, cloud_browser_owner.as_deref(), action, &value) {
                     let _ = events.send_blocking(event);
@@ -613,6 +618,11 @@ pub fn run() -> anyhow::Result<()> {
             let (mut host_ready, mut harness_ready, mut apps_ready) = (false, false, false);
             let mut computer_check = None;
             while let Ok(event) = received.recv().await {
+                #[cfg(target_os = "macos")]
+                if event.kind == "native_run_desktop" {
+                    let _ = window.update(cx, |_, _, cx| crate::native_run_desktop::accept(&event.data, cx));
+                    continue;
+                }
                 if event.kind == "native_docling_confirmation" {
                     if let Ok(prompt) = serde_json::from_value::<crate::native_docling::Prompt>(event.data) {
                         let id = prompt.id;

@@ -1,4 +1,12 @@
 {
+  "run_desktop.dispatch": "Run in Blender desktop",
+  "run_desktop.open": "Open Run desktop",
+  "run_desktop.evidence": "Run evidence",
+  "run_desktop.evidence_empty": "This Run has no saved desktop evidence yet.",
+  "run_desktop.save": "Save evidence file",
+  "run_desktop.saved": "Evidence file saved",
+  "run_desktop.refresh": "Refresh evidence",
+  "run_desktop.close": "Close",
   "linux_desktop.attach": "Connect selected chat",
   "linux_desktop.attached": "A chat is connected to this Linux desktop.",
   "linux_desktop.cancel": "Cancel",

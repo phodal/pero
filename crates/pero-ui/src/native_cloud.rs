@@ -6,6 +6,9 @@ mod project_sources;
 #[cfg(target_os = "macos")]
 #[path = "native_cloud_browser.rs"]
 pub(crate) mod browser;
+#[cfg(target_os = "macos")]
+#[path = "native_cloud_desktop.rs"]
+mod desktop;
 use crate::cloud_links::{self, idempotency_key};
 use crate::desktop_login::{self, Attempt, CALLBACK_ERROR, DEFAULT_ORIGIN};
 use pero_contracts::HostEvent;
@@ -198,7 +201,7 @@ impl CloudSession {
             return;
         };
         let verb = action.trim_start_matches("remote_");
-        let body = if verb == "dispatch" {
+        let mut body = if verb == "dispatch" {
             match value.get("worker_id").filter(|worker| !worker.is_null()) {
                 Some(worker) => {
                     let Some(worker) = identifier(Some(worker)) else {
@@ -212,6 +215,9 @@ impl CloudSession {
         } else {
             json!({})
         };
+        if verb == "dispatch" && value["desktop_profile"] == "blender" {
+            body["desktop_profile"] = json!("blender");
+        }
         if let Err(message) = self.post(&format!("{}/tasks/{id}/{verb}", self.api()), &body) {
             self.error = Some(message);
             return;

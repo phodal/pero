@@ -381,6 +381,29 @@ impl Workbench {
                                 })),
                         )
                     })
+                    .when(cfg!(all(feature = "native", target_os = "macos")) && can_dispatch && target_worker.is_some(), |el| {
+                        el.child(Button::new("remote-dispatch-blender").outline().small()
+                            .label(self.t("run_desktop.dispatch"))
+                            .disabled(busy)
+                            .on_click(cx.listener({
+                                let id = id.clone();
+                                let worker_id = target_worker.clone();
+                                move |this, _, _, cx| this.command(json!({"action":"remote_dispatch", "task_id":id, "worker_id":worker_id, "desktop_profile":"blender"}), cx)
+                            })))
+                    })
+                    .when(cfg!(all(feature = "native", target_os = "macos")) && run["desktop_profile"] == "blender", |el| {
+                        #[cfg(all(feature = "native", target_os = "macos"))]
+                        let el = {
+                            let run_id = string(run, "id").to_owned();
+                            let live = phase == Phase::Running && (operator || mine);
+                            el.child(Button::new("remote-open-run-desktop").outline().small()
+                                .label(self.t(if live { "run_desktop.open" } else { "run_desktop.evidence" }))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    crate::native_run_desktop::open(&run_id, live, &this.locale, cx);
+                                })))
+                        };
+                        el
+                    })
                     .when(can_cancel && !confirming, |el| {
                         el.child(
                             Button::new("remote-cancel")

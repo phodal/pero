@@ -1,4 +1,12 @@
 {
+  "run_desktop.dispatch": "在 Blender 桌面运行",
+  "run_desktop.open": "打开本次运行的桌面",
+  "run_desktop.evidence": "运行证据",
+  "run_desktop.evidence_empty": "本次运行还没有保存的桌面证据。",
+  "run_desktop.save": "保存证据文件",
+  "run_desktop.saved": "已保存证据文件",
+  "run_desktop.refresh": "刷新证据",
+  "run_desktop.close": "关闭",
   "linux_desktop.attach": "连接选中的聊天",
   "linux_desktop.attached": "已有一个聊天连接到这台 Linux 桌面。",
   "linux_desktop.cancel": "取消",
