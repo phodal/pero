@@ -1,6 +1,6 @@
 {
   "left_ref": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "right_ref": "89b905e269afc4e1a09d6b633d4e8de51b0f177e",
+  "right_ref": "6dc3bc64471dd5a6745c6936151716a81bd581da",
   "purpose": "Official DSH is the primary behavioral reference. Explicit cross-language mappings are reviewer-supplied hypotheses, not AST equivalence assertions.",
   "pairs": [
     {
@@ -278,9 +278,9 @@
         "path": "harness/go/acp/server.go",
         "language": "go",
         "symbol": "Server.handleNotification",
-        "sha256": "8f499b0047289fb9cffab3a705e6f0c93aa296a6a0acbd18c1b7c4455c52e068"
+        "sha256": "03491bd69fd556f0fa2b0f63102aa488005afb7db7c416c413faea63cafd6865"
       },
-      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option changes composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
+      "notes": "Official descendant/output settlement is richer; Go supports current synchronous in-process subset. Compare actual cancellation wiring, not full ACP feature parity. Issue #50 also cancels outstanding same-session MCP App operations before Agent cancellation; the existing prompt admission and active-turn cancellation remain intact. PR #225 adds the shared science-session request and Reviewer setup elsewhere in this file. The selected Server.handleNotification cancellation handler is unchanged from master 60c800888; its file receipt is refreshed after reviewing the added composition and existing ACP cancellation tests, not to claim new upstream parity. The opt-in Goal option and model decision bookkeeping change composition elsewhere in server.go; the selected cancellation handler remains unchanged and cancels the Goal command through the existing promptCancel path.",
       "landmarks": [
         {
           "id": "cancel-admission",
