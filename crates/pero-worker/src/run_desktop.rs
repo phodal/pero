@@ -3,7 +3,7 @@ use crate::{
     executor::{Execution, bounded_line},
     model::{Outcome, Run},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     io::{BufReader, Write},
@@ -17,6 +17,31 @@ use std::{
 struct DesktopMcp {
     url: String,
     access: String,
+    worker_access: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct HandoffMonitor {
+    port: u16,
+    access: String,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub(crate) enum HandoffStatus {
+    Idle,
+    Requested,
+    Returned { request_id: String },
+}
+
+impl HandoffMonitor {
+    pub fn poll(&self, http: &reqwest::blocking::Client) -> Result<HandoffStatus, reqwest::Error> {
+        http.post(format!("http://127.0.0.1:{}/handoff", self.port))
+            .bearer_auth(&self.access)
+            .send()?
+            .error_for_status()?
+            .json()
+    }
 }
 
 pub(crate) struct RunDesktop {
@@ -70,19 +95,20 @@ impl RunDesktop {
         let mcp: DesktopMcp =
             serde_json::from_value(reply).map_err(|_| "Invalid Run desktop response")?;
         let url = reqwest::Url::parse(&mcp.url).map_err(|_| "Invalid Run desktop MCP URL")?;
+        let port = url.port().ok_or("Missing Run desktop MCP port")?;
         if url.scheme() != "http"
             || url.host_str() != Some("127.0.0.1")
-            || url.port().is_none()
             || url.path() != "/mcp"
             || url.query().is_some()
             || url.fragment().is_some()
             || !url.username().is_empty()
             || url.password().is_some()
             || uuid::Uuid::parse_str(&mcp.access).is_err()
+            || uuid::Uuid::parse_str(&mcp.worker_access).is_err()
         {
             return Err("Run desktop MCP must use a scoped loopback endpoint".into());
         }
-        execution.attach_desktop(url.as_str(), &mcp.access)?;
+        execution.attach_desktop(url.as_str(), &mcp.access, HandoffMonitor { port, access: mcp.worker_access })?;
         Ok(desktop)
     }
 

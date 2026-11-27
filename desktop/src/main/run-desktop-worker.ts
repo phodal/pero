@@ -16,7 +16,17 @@ import { connectPair, publishRfb } from '../linux-desktop/paired-transport.ts';
 
 const identitySchema = z.object({ id: z.string().regex(/^run_[a-f0-9]{32}$/), generation: z.number().int().positive(),
   instance_id: z.string().uuid(), url: z.string().url(), token: z.string().min(1) }).strict();
-const commandSchema = z.object({ command: z.object({ id: z.string(), mode: z.enum(['watch', 'control', 'release']) }).nullable() });
+const commandSchema = z.object({ command: z.object({ id: z.string(), mode: z.enum(['watch', 'control', 'release', 'return']),
+  handoff_id: z.string().optional() }).nullable() });
+const handoffArgs = z.object({ reason: z.string().trim().min(1).max(300) }).strict();
+const HANDOFF_TOOL = {
+  name: 'request_handoff',
+  description: 'Ask the user to take over this Run desktop for one concrete reason. After a request is recorded, end the current turn. The Worker will resume this session when the user returns control.',
+  inputSchema: { type: 'object', required: ['reason'], additionalProperties: false,
+    properties: { reason: { type: 'string', minLength: 1, maxLength: 300 } } },
+};
+
+type Handoff = { id: string; connected: boolean; state: 'requested' | 'returned' };
 
 async function runDesktop() {
   if (process.platform !== 'linux') throw new Error('A Blender desktop requires a Linux Worker.');
@@ -35,7 +45,9 @@ async function runDesktop() {
   const desktop = new LinuxDesktop(vnc, () => computer.enabled, () => {});
   const lifetime = new AbortController();
   const access = randomUUID();
-  const handoffs: { mode: string; at: string }[] = [];
+  const workerAccess = randomUUID();
+  const handoffs: { mode: string; at: string; request_id?: string; reason?: string }[] = [];
+  let handoff: Handoff | undefined;
   let peer: (() => void) | undefined;
   let lastImage: string | undefined;
 
@@ -51,6 +63,12 @@ async function runDesktop() {
   }
 
   const mcp = createServer(async (request, response) => {
+    if (request.method === 'POST' && request.url === '/handoff' && request.headers.authorization === `Bearer ${workerAccess}`) {
+      const status = handoff ? { state: handoff.state, request_id: handoff.id } : { state: 'idle' };
+      if (handoff?.state === 'returned') handoff = undefined;
+      response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(status));
+      return;
+    }
     if (request.method !== 'POST' || request.url !== '/mcp' || request.headers.authorization !== `Bearer ${access}`) {
       response.writeHead(403).end();
       return;
@@ -72,9 +90,27 @@ async function runDesktop() {
       switch (message.method) {
         case 'initialize': result = { protocolVersion: message.params?.protocolVersion ?? '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'pero-run-desktop', version: '1' } }; break;
         case 'ping': result = {}; break;
-        case 'tools/list': result = { tools: [COMPUTER_TOOL] }; break;
+        case 'tools/list': result = { tools: [COMPUTER_TOOL, HANDOFF_TOOL] }; break;
         case 'tools/call': {
+          if (message.params?.name === HANDOFF_TOOL.name) {
+            const { reason } = handoffArgs.parse(message.params.arguments);
+            if (handoff) throw new Error('This Run is already waiting for the user to return control.');
+            const pending: Handoff = { id: randomUUID(), connected: false, state: 'requested' };
+            handoff = pending;
+            try {
+              const reply = await cloud('/handoff', { id: pending.id, reason });
+              if (reply.status !== 200) throw new Error('The Run could not record the handoff request.');
+            } catch (error) {
+              handoff = undefined;
+              throw error;
+            }
+            handoffs.push({ mode: 'requested', request_id: pending.id, reason, at: new Date().toISOString() });
+            result = { content: [{ type: 'text', text: JSON.stringify({ status: 'requested', request_id: pending.id,
+              next: 'End this turn. The Worker will resume this session after the user returns control.' }) }] };
+            break;
+          }
           if (message.params?.name !== COMPUTER_TOOL.name) throw new Error('Unknown desktop tool.');
+          if (handoff) throw new Error('This Run is waiting for the user to return control.');
           const answer = await computer.call(id, message.params.arguments, lifetime.signal);
           const content = [];
           if (answer.kind === 'observation') {
@@ -107,11 +143,18 @@ async function runDesktop() {
           if (command) {
             let invitation: string | undefined;
             try {
+              const requested = command.handoff_id && handoff?.state === 'requested' ? handoff : undefined;
+              if (command.handoff_id && requested?.id !== command.handoff_id)
+                throw new Error('This handoff request is no longer active.');
+              if (command.mode === 'return' && !requested?.connected)
+                throw new Error('Open the requested desktop and connect before returning control.');
               const previous = peer;
               peer = undefined;
               previous?.();
               await desktop.returnControl();
-              if (command.mode !== 'release') {
+              if (command.mode === 'return' && desktop.state.phase !== 'watching')
+                throw new Error('The desktop could not release human input.');
+              if (command.mode !== 'release' && command.mode !== 'return') {
                 if (command.mode === 'control') await desktop.handoff(true);
                 const display = await desktop.share();
                 const pair = await createDesktopPair(display.viewOnly, relay);
@@ -129,6 +172,7 @@ async function runDesktop() {
                   void desktop.returnControl().catch(console.error);
                 };
                 closePair = connectPair(pair, 'owner', channel => {
+                  if (requested && command.mode === 'control') requested.connected = true;
                   clearTimeout(expired);
                   closeDisplay = publishRfb(display.endpoint, channel, close, address => {
                     const origin = new URL(address);
@@ -140,10 +184,15 @@ async function runDesktop() {
               }
               const reply = await cloud('', { id: command.id, invitation });
               if (reply.status !== 200) peer?.();
-              else handoffs.push({ mode: command.mode, at: new Date().toISOString() });
-            } catch {
+              else {
+                handoffs.push({ mode: command.mode, request_id: command.handoff_id, at: new Date().toISOString() });
+                if (command.mode === 'return' && requested) {
+                  requested.state = 'returned';
+                }
+              }
+            } catch (error) {
               await desktop.returnControl();
-              await cloud('', { id: command.id, error: 'Could not open the current desktop. Retry from this Run.' });
+              await cloud('', { id: command.id, error: error instanceof Error ? error.message.slice(0, 160) : 'Desktop request could not be completed.' });
             }
           }
         }
@@ -190,7 +239,7 @@ async function runDesktop() {
     serving = serve();
     const address = mcp.address();
     if (!address || typeof address === 'string') throw new Error('MCP listener unavailable.');
-    process.stdout.write(JSON.stringify({ url:`http://127.0.0.1:${address.port}/mcp`, access }) + '\n');
+    process.stdout.write(JSON.stringify({ url:`http://127.0.0.1:${address.port}/mcp`, access, worker_access: workerAccess }) + '\n');
     const finish = await lines.next();
     lifetime.abort();
     await serving;

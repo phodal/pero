@@ -1,6 +1,7 @@
 use crate::{
     approval::{Gate, Policy, protected_path},
     model::{Outcome, RemoteGrant, Run},
+    run_desktop::{HandoffMonitor, HandoffStatus},
 };
 use pero_contracts::HostEvent;
 use pero_runtime::acp::{self, AgentConfig, SessionCommand};
@@ -49,17 +50,17 @@ pub struct Execution {
     #[serde(default)]
     remote: bool,
     #[serde(default)]
-    run_desktop: bool,
+    run_desktop: Option<HandoffMonitor>,
 }
 
 impl Execution {
-    pub(crate) fn attach_desktop(&mut self, url: &str, access: &str) -> Result<(), String> {
+    pub(crate) fn attach_desktop(&mut self, url: &str, access: &str, monitor: HandoffMonitor) -> Result<(), String> {
         let server = serde_json::from_value(json!({"type":"http", "name":"pero-run-desktop", "url":url,
             "headers":[{"name":"Authorization","value":format!("Bearer {access}")}]}))
             .map_err(|_| "Invalid desktop MCP configuration")?;
         self.agent.mcp_servers.push(server);
-        self.run_desktop = true;
-        self.prompt.push_str("\n\nUse the Run's computer_use tool to work in the isolated Blender desktop. The Worker collects Blender models saved as /home/pero/result.blend and optional /home/pero/result.obj. Capture a final screenshot using the tool after saving. If a human controls the desktop, wait and obtain a fresh observation after control returns.");
+        self.run_desktop = Some(monitor);
+        self.prompt.push_str("\n\nUse the Run's computer_use tool to work in the isolated Blender desktop. The Worker collects Blender models saved as /home/pero/result.blend and optional /home/pero/result.obj. Capture a final screenshot using the tool after saving. If you need the user to operate the desktop, call request_handoff with the specific reason. Once the tool returns requested, end the current turn. The Worker will resume this session after the user returns control.");
         Ok(())
     }
 
@@ -151,7 +152,7 @@ impl Config {
         };
         Ok(Execution {
             workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
-            approval: None, remote: true, run_desktop: false,
+            approval: None, remote: true, run_desktop: None,
         })
     }
     pub fn execution(&self, run: &Run) -> Result<Execution, String> {
@@ -217,7 +218,7 @@ impl Config {
             run_id: run.id.clone(),
             approval,
             remote: false,
-            run_desktop: false,
+            run_desktop: None,
         })
     }
 }
@@ -297,7 +298,14 @@ pub fn child_execute() -> Result<(), String> {
     let _workspace_lease = WorkspaceLease::acquire(&execution.workspace)?;
     let mut gate = Gate::new(execution.approval.clone(), execution.workspace.clone());
     let run_desktop = execution.run_desktop;
-    if run_desktop {
+    let handoff_http = run_desktop.as_ref().map(|_| {
+        reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+    }).transpose().map_err(|_| "Cannot connect to the Run desktop handoff endpoint")?;
+    if run_desktop.is_some() {
         execution.agent.required_mcp_servers.insert("pero-run-desktop".into());
     }
     let (tx, rx) = mpsc::channel();
@@ -313,6 +321,8 @@ pub fn child_execute() -> Result<(), String> {
     let mut cancelled_at = None;
     let mut result = None;
     let mut closing_at = None;
+    let mut handoff_poll_at = None;
+    let completed = || Outcome::new("succeeded", "Agent turn completed; independent verification remains pending");
     loop {
         if cancel.load(Ordering::SeqCst) && cancelled_at.is_none() {
             gate.revoke();
@@ -323,6 +333,28 @@ pub fn child_execute() -> Result<(), String> {
             result = Some(Outcome::new("cancelled", "Execution cancelled"));
             break;
         }
+        if cancelled_at.is_none()
+            && handoff_poll_at.is_some_and(|at| Instant::now() >= at)
+            && let Some((monitor, http)) = run_desktop.as_ref().zip(handoff_http.as_ref())
+        {
+            handoff_poll_at = None;
+            match monitor.poll(http) {
+                Ok(HandoffStatus::Idle) => result = Some(completed()),
+                Ok(HandoffStatus::Requested) => handoff_poll_at = Some(Instant::now() + Duration::from_millis(500)),
+                Ok(HandoffStatus::Returned { request_id }) => {
+                    emit("desktop_handoff_resumed", "Control returned to the Agent", json!({"request_id":request_id}))?;
+                    handle.tx.send(SessionCommand::Prompt(
+                        "The user returned control of this Run's desktop. Get fresh targets and observe the current desktop before sending any input. Continue the original task from what you see.".into(),
+                    )).map_err(|_| "Agent closed before continuing after desktop handoff")?;
+                }
+                Err(_) => result = Some(Outcome::new("failed", "Run desktop handoff could not be read")),
+            }
+        }
+        if result.is_some() && closing_at.is_none() {
+            gate.revoke();
+            let _ = handle.tx.send(SessionCommand::Close);
+            closing_at = Some(Instant::now());
+        }
         if closing_at.is_some_and(|at: Instant| at.elapsed() > Duration::from_secs(2)) {
             break;
         }
@@ -331,7 +363,7 @@ pub fn child_execute() -> Result<(), String> {
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => break,
         };
-        if run_desktop && event.kind == "session_update" && event.data["sessionUpdate"] == "tool_call_update" {
+        if run_desktop.is_some() && event.kind == "session_update" && event.data["sessionUpdate"] == "tool_call_update" {
             retain_tool_evidence_references(&mut event.data);
         }
         if event.kind == "permission" {
@@ -387,24 +419,20 @@ pub fn child_execute() -> Result<(), String> {
             }
             "turn_finished" => {
                 let reason = event.data["stopReason"].as_str().unwrap_or("");
+                if cancelled_at.is_none() && reason == "end_turn" && run_desktop.is_some() {
+                    handoff_poll_at = Some(Instant::now());
+                    continue;
+                }
                 result = Some(if cancelled_at.is_some() || reason == "cancelled" {
                     Outcome::new("cancelled", "Execution cancelled")
                 } else if reason == "end_turn" {
-                    Outcome::new(
-                        "succeeded",
-                        "Agent turn completed; independent verification remains pending",
-                    )
+                    completed()
                 } else {
                     Outcome::new("failed", format!("Agent stopped: {reason}"))
                 });
             }
             "session_closed" => break,
             _ => {}
-        }
-        if result.is_some() && closing_at.is_none() {
-            gate.revoke();
-            let _ = handle.tx.send(SessionCommand::Close);
-            closing_at = Some(Instant::now());
         }
     }
     let result =
