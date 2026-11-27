@@ -595,10 +595,7 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 		}
 	}
 	committed = true
-	if s.scientificReviewer != nil && s.writer != nil {
-		return s.advertiseScientificReview(agent.ID())
-	}
-	return nil
+	return s.advertiseSessionCommands(agent)
 }
 
 func (s *Server) closeSession(ctx context.Context, id harness.SessionID) error {

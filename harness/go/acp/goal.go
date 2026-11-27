@@ -141,10 +141,14 @@ func (g goalState) canRun() bool {
 	return g.ID != "" && g.Rounds < g.Limit && g.Stop != string(goalCompleted)
 }
 
+func (s *Server) goalAvailable(agent *harness.Agent) bool {
+	return s.goal && !agent.IsExternal() && s.preparePrompt == nil && agent.Session().DurabilityAttached()
+}
+
 func (s *Server) runGoalCommand(ctx context.Context, record *activeSession, input string) (harness.FinishKind, error) {
 	agent := record.agent
 	session := agent.Session()
-	if agent.IsExternal() || s.preparePrompt != nil || !session.DurabilityAttached() {
+	if !s.goalAvailable(agent) {
 		return "", invalidError("/goal requires a durable native ACP session without specialized prompt preparation")
 	}
 	input = strings.TrimSpace(input)

@@ -44,10 +44,29 @@ func (s *Server) setScientificReviewOption(ctx context.Context, record *activeSe
 	return map[string]any{"configOptions": options}, nil
 }
 
-func (s *Server) advertiseScientificReview(id harness.SessionID) error {
+// Each update replaces the client's command list. Report all session commands
+// in one snapshot so advertising a new capability cannot hide an existing one.
+func (s *Server) advertiseSessionCommands(agent *harness.Agent) error {
+	if s.writer == nil {
+		return nil
+	}
+	var commands []map[string]any
+	if s.scientificReviewer != nil {
+		commands = append(commands, map[string]any{
+			"name": "review", "description": "Review scientific evidence consistency; model opinion is not scientific acceptance",
+			"input": map[string]any{"hint": "[status | auto on|off | resolve|dismiss <finding-id> <reason>]"},
+		})
+	}
+	if s.goalAvailable(agent) {
+		commands = append(commands, map[string]any{
+			"name": "goal", "description": "Set, inspect, or explicitly resume a bounded research goal",
+			"input": map[string]any{"hint": "start <rounds> <objective> | status | edit <id@revision> <rounds or -> [objective] | resume | complete"},
+		})
+	}
+	if len(commands) == 0 {
+		return nil
+	}
 	return s.writer.write(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{
-		"sessionId": id, "update": map[string]any{"sessionUpdate": "available_commands_update", "availableCommands": []any{
-			map[string]any{"name": "review", "description": "Review scientific evidence consistency; model opinion is not scientific acceptance", "input": map[string]any{"hint": "[status | auto on|off | resolve|dismiss <finding-id> <reason>]"}},
-		}},
+		"sessionId": agent.ID(), "update": map[string]any{"sessionUpdate": "available_commands_update", "availableCommands": commands},
 	}})
 }

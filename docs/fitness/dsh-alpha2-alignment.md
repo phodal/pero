@@ -163,8 +163,11 @@ commands outside an active prompt. An old revision's delayed admission or
 stop does not apply to an edited goal. The model cannot make edits. A
 configurable blocker threshold and descendant-aware scheduling are not included. The default slash-command path is unchanged.
 Goal stays disabled for external harnesses and profiles with specialized
-prompt preparation. Desktop command discovery, production model service
-and packaging are not verified.
+prompt preparation. The ACP server advertises `/goal` in the same complete session command
+snapshot as `/review` on eligible native sessions. Official DSH alpha.2 has
+interactive discovery through its Web profile, not ACP; this is a Pero
+extension. Desktop UI, production model service and packaging remain
+unverified.
 
 ## Compaction route and evidence
 

@@ -27,7 +27,7 @@ func TestScientificReviewSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "test", Model: "a", ScientificReviewer: reviewer})
+	server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "test", Model: "a", ScientificReviewer: reviewer, Goal: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +39,45 @@ func TestScientificReviewSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(wire.String(), "available_commands_update") || !strings.Contains(wire.String(), `"name":"review"`) {
-		t.Fatal("manual review was not discoverable in the composer")
+	assertCatalog := func(wantUpdates int) {
+		t.Helper()
+		server.writer.mu.Lock()
+		data := append([]byte(nil), wire.Bytes()...)
+		server.writer.mu.Unlock()
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		updates := 0
+		for decoder.More() {
+			var msg struct {
+				Params struct {
+					SessionID harness.SessionID `json:"sessionId"`
+					Update    struct {
+						Kind     string `json:"sessionUpdate"`
+						Commands []struct {
+							Name string `json:"name"`
+						} `json:"availableCommands"`
+					} `json:"update"`
+				} `json:"params"`
+			}
+			if err := decoder.Decode(&msg); err != nil {
+				t.Fatal(err)
+			}
+			if msg.Params.Update.Kind != "available_commands_update" {
+				continue
+			}
+			updates++
+			names := make(map[string]bool)
+			for _, command := range msg.Params.Update.Commands {
+				names[command.Name] = true
+			}
+			if msg.Params.SessionID != id || len(names) != 2 || !names["goal"] || !names["review"] {
+				t.Fatalf("expected one complete command menu for the session, got %+v", msg)
+			}
+		}
+		if updates != wantUpdates {
+			t.Fatalf("got %d command menu replacements, want %d", updates, wantUpdates)
+		}
 	}
+	assertCatalog(1)
 	record, err := server.currentRecord(id)
 	if err != nil {
 		t.Fatal(err)
@@ -90,6 +126,7 @@ func TestScientificReviewSession(t *testing.T) {
 	if err := server.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
 		t.Fatal(err)
 	}
+	assertCatalog(2)
 	record, err = server.currentRecord(id)
 	if err != nil || current() != "auto" {
 		t.Fatalf("automatic setting did not survive restore: %v", err)
