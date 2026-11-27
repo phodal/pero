@@ -143,8 +143,16 @@ assessment from operator completion; it is not independent scientific
 review. Only the operator can resume a blocked/paused goal, within the
 original cap. Completed goals cannot resume.
 
-The tool does not implement upstream revision edits, blocker thresholds,
-or descendant-aware scheduling. The default slash-command path is unchanged.
+A model can complete or pause on round one, but `blocked` requires at least
+three admitted rounds and a nonblank `blocked_reason`. This is the default
+threshold of the pinned DSH version; the model is still responsible for judging
+whether the blocker persisted. Below that threshold, an operator decision can
+be requested via `paused`. Pero saves the accepted reason and displays it in
+the closing status and after restart, without another inference. DSH instead
+asks the model for a closing explanation.
+
+The tool does not implement upstream revision edits, a configurable blocker
+threshold, or descendant-aware scheduling. The default slash-command path is unchanged.
 Goal stays disabled for external harnesses and profiles with specialized
 prompt preparation. Desktop command discovery, production model service
 and packaging are not verified.

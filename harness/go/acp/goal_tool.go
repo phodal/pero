@@ -5,13 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/phodal/pero/harness/go/harness"
 	point "github.com/phodal/pero/harness/go/runtime"
 )
 
-const goalStopTool = "pero_goal_stop"
+const (
+	goalStopTool         = "pero_goal_stop"
+	goalBlockAfterRounds = 3
+	goalBlockReasonMax   = 1024
+)
 
 type goalDecision string
 
@@ -22,7 +28,8 @@ const (
 )
 
 type goalDecisionArgs struct {
-	Outcome goalDecision `json:"outcome"`
+	Outcome       goalDecision `json:"outcome"`
+	BlockedReason string       `json:"blocked_reason,omitempty"`
 }
 
 // goalRoundControl stages a proposal until that exact tool result and turn
@@ -32,30 +39,47 @@ type goalRoundControl struct {
 	mu      sync.Mutex
 	call    harness.ToolCallID
 	receipt json.RawMessage
-	value   goalDecision
+	number  int
+	value   goalDecisionArgs
 }
 
-func (r *goalRoundControl) reset() {
+func (r *goalRoundControl) reset(number int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.call, r.receipt, r.value = "", nil, ""
+	r.number, r.call, r.receipt, r.value = number, "", nil, goalDecisionArgs{}
 }
 
-func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMessage, value goalDecision) bool {
+func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMessage, value goalDecisionArgs) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if call == "" || r.call != "" {
-		return false
+		return errors.New("Goal round already has a decision or the call has no identity")
+	}
+	value.BlockedReason = strings.TrimSpace(value.BlockedReason)
+	switch value.Outcome {
+	case goalBlocked:
+		if value.BlockedReason == "" || len(value.BlockedReason) > goalBlockReasonMax {
+			return fmt.Errorf("blocked requires a nonempty blocked_reason of at most %d bytes", goalBlockReasonMax)
+		}
+		if r.number < goalBlockAfterRounds {
+			return fmt.Errorf("blocked requires at least %d admitted Goal rounds; current round is %d", goalBlockAfterRounds, r.number)
+		}
+	case goalCompleted, goalPaused:
+		if value.BlockedReason != "" {
+			return errors.New("blocked_reason is only allowed for blocked")
+		}
+	default:
+		return errors.New("unknown Goal decision")
 	}
 	r.call, r.receipt, r.value = call, receipt, value
-	return true
+	return nil
 }
 
-func (r *goalRoundControl) settledDecision(events []harness.Event) goalDecision {
+func (r *goalRoundControl) settledDecision(events []harness.Event) goalDecisionArgs {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.call == "" {
-		return ""
+		return goalDecisionArgs{}
 	}
 	// Match the exact successful persisted tool result, not model text or a
 	// reused provider call ID. A finalization error loses this receipt.
@@ -69,7 +93,7 @@ func (r *goalRoundControl) settledDecision(events []harness.Event) goalDecision 
 			}
 		}
 	}
-	return ""
+	return goalDecisionArgs{}
 }
 
 func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
@@ -93,8 +117,9 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 		Schema: harness.ToolSchema{
 			Name: goalStopTool,
 			Description: "End automatic Goal rounds. First report evidence or the blocker in your answer. " +
-				"Use completed only if the objective is met, blocked if further progress is impossible, or paused if an operator decision is needed.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"outcome":{"enum":["completed","blocked","paused"]}},"required":["outcome"],"additionalProperties":false}`),
+				"Use completed when the objective is met or paused when an operator decision is needed. " +
+				"Use blocked only from round three if the same blocker persists, and include a concrete blocked_reason.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"outcome":{"enum":["completed","blocked","paused"]},"blocked_reason":{"type":"string","maxLength":1024}},"required":["outcome"],"additionalProperties":false}`),
 		},
 		ExecutionMode: harness.ExecutionSerial,
 		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
@@ -114,8 +139,8 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			receipt, _ := json.Marshal(struct {
 				GoalReceipt harness.SessionID `json:"peroGoalReceipt"`
 			}{id})
-			if !round.propose(request.CallID, receipt, args.Outcome) {
-				return harness.ToolResult{}, errors.New("Goal round already has a decision or the call has no identity")
+			if err := round.propose(request.CallID, receipt, args); err != nil {
+				return harness.ToolResult{}, err
 			}
 			return harness.ToolResult{
 				ConcludesTurn: true,

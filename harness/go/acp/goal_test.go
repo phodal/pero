@@ -1,9 +1,11 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -179,7 +181,6 @@ func TestGoalModelDecision(t *testing.T) {
 		canResume           bool
 	}{
 		{"completed", "completed", "completed", 1, false},
-		{"blocked", "blocked", "blocked", 1, true},
 		{"paused", "paused", "paused", 1, true},
 		{"invalid", "increase-limit", "round-limit", 3, false},
 		{"plain text", "", "round-limit", 3, false},
@@ -299,5 +300,84 @@ func TestGoalModelDecision(t *testing.T) {
 				t.Fatalf("explicit resume: got %d total requests, want %d", requests, want)
 			}
 		})
+	}
+}
+
+func TestGoalBlockedReasonAfterThreeAdmittedRounds(t *testing.T) {
+	const blocker = "The versioned input dataset is unavailable."
+	var requests int
+	var earlyError, emptyError bool
+	adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		requests++
+		last := req.Messages[len(req.Messages)-1]
+		if last.Role == harness.RoleTool && len(last.Content) > 0 {
+			result := last.Content[0]
+			if result.IsError && len(result.Content) > 0 {
+				text := result.Content[0].Text
+				earlyError = earlyError || strings.Contains(text, "at least 3 admitted Goal rounds")
+				emptyError = emptyError || strings.Contains(text, "requires a nonempty blocked_reason")
+			}
+		}
+		switch requests {
+		case 1, 4, 5:
+			reason := " " + blocker + " "
+			if requests == 4 {
+				reason = "  "
+			}
+			args, _ := json.Marshal(goalDecisionArgs{Outcome: goalBlocked, BlockedReason: reason})
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: goalStopTool,
+					ToolCallID: harness.ToolCallID(fmt.Sprintf("block-%d", requests)), Arguments: args}},
+			}}, nil
+		default:
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Looked for alternate sources."}},
+			}}, nil
+		}
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	home, cwd := t.TempDir(), t.TempDir()
+	first := newGoalTestServer(t, ctx, home, adapter)
+	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(s *Server, line string) {
+		t.Helper()
+		body, _ := json.Marshal(PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: line}}})
+		result, err := s.handle(ctx, request{Method: "session/prompt", Params: body})
+		if err != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": "end_turn"}) {
+			t.Fatalf("%s: result=%+v error=%+v", line, result, err)
+		}
+	}
+	run(first, "/goal start 4 Find the required dataset")
+	if requests != 5 || !earlyError || !emptyError {
+		t.Fatalf("expected round-one rejection, empty reason rejection and no extra closing inference: requests=%d early=%v empty=%v", requests, earlyError, emptyError)
+	}
+	if err := first.closeSession(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	second := newGoalTestServer(t, ctx, home, adapter)
+	var output bytes.Buffer
+	second.writer = &wireWriter{encoder: json.NewEncoder(&output)}
+	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(id), CWD: cwd}); err != nil {
+		t.Fatal(err)
+	}
+	run(second, "/goal status")
+	second.writer.mu.Lock()
+	status := output.String()
+	second.writer.mu.Unlock()
+	if requests != 5 || !strings.Contains(status, "3/4 (blocked by model)") || !strings.Contains(status, "Blocker: "+blocker) {
+		t.Fatalf("restored status=%s requests=%d", status, requests)
+	}
+	run(second, "/goal resume")
+	saved, err := second.persistence.Load(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := foldGoal(saved.Events())
+	if requests != 6 || state.Rounds != 4 || state.Stop != "round-limit" || state.StopDetail != "" {
+		t.Fatalf("last round after explicit resume: requests=%d state=%+v", requests, state)
 	}
 }

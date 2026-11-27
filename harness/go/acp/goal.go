@@ -35,6 +35,7 @@ type goalStop struct {
 	GoalID string         `json:"goalId"`
 	Reason string         `json:"reason"`
 	By     goalStopSource `json:"by,omitempty"`
+	Detail string         `json:"detail,omitempty"`
 }
 
 type goalStopSource string
@@ -47,9 +48,10 @@ const (
 
 type goalState struct {
 	goalDefinition
-	Rounds int
-	Stop   string
-	StopBy goalStopSource
+	Rounds     int
+	Stop       string
+	StopBy     goalStopSource
+	StopDetail string
 }
 
 // foldGoal is session intent and consumed rounds only. There is no persisted
@@ -79,14 +81,14 @@ func foldGoal(events []harness.Event) goalState {
 				var message harness.Message
 				if json.Unmarshal(next.Data, &message) == nil && message.ID == round.MessageID {
 					state.Rounds++
-					state.Stop, state.StopBy = "", ""
+					state.Stop, state.StopBy, state.StopDetail = "", "", ""
 					break
 				}
 			}
 		case goalStopped:
 			var stop goalStop
 			if state.ID != "" && json.Unmarshal(event.Data, &stop) == nil && stop.GoalID == state.ID {
-				state.Stop, state.StopBy = stop.Reason, stop.By
+				state.Stop, state.StopBy, state.StopDetail = stop.Reason, stop.By, stop.Detail
 			}
 		}
 	}
@@ -136,7 +138,7 @@ func (s *Server) runGoalCommand(ctx context.Context, record *activeSession, inpu
 			return harness.FinishStop, s.showGoalStatus(record, state)
 		}
 		if action == "complete" {
-			return harness.FinishStop, s.stopGoal(ctx, record, string(goalCompleted), goalStopOperator)
+			return harness.FinishStop, s.stopGoal(ctx, record, goalStop{Reason: string(goalCompleted), By: goalStopOperator})
 		}
 	default:
 		return "", invalidError("usage: /goal start <rounds> <objective> | /goal resume | /goal status | /goal complete")
@@ -172,11 +174,11 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 		matches := func(current goalState) bool {
 			return current.ID == state.ID && current.Rounds == expected && current.canRun()
 		}
-		control.reset()
+		control.reset(expected + 1)
 		message := harness.Message{
 			Role: harness.RoleUser, Source: source,
 			Content: []harness.ContentBlock{{Type: harness.BlockText, Text: fmt.Sprintf(
-				"Goal round %d/%d. The operator's objective is %q. Continue from the retained conversation and current workspace; verify actual progress. If the objective is complete, further work is blocked, or an operator decision is needed, report the evidence or blocker, then call pero_goal_stop to end automatic rounds.",
+				"Goal round %d/%d. The operator's objective is %q. Continue from the retained conversation and current workspace; verify actual progress. Report the evidence or blocker. Use pero_goal_stop to end automatic rounds when the objective is complete, operator input is needed, or a blocker persists after the first two rounds. Include blocked_reason when reporting a blocker.",
 				expected+1, state.Limit, state.Objective)}},
 		}
 		receipt, queued, err := agent.TryFollowupOwnedContext(ctx, message, harness.FollowupAdmission{
@@ -200,7 +202,7 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 			return "", err
 		}
 		if !queued {
-			return harness.FinishStop, s.stopGoal(ctx, record, "busy", goalStopDriver)
+			return harness.FinishStop, s.stopGoal(ctx, record, goalStop{Reason: "busy", By: goalStopDriver})
 		}
 		outcome, err := receipt.Wait(ctx)
 		if err != nil {
@@ -216,41 +218,42 @@ func (s *Server) runGoalRounds(ctx context.Context, record *activeSession, state
 			if harness.ProviderFailureFromError(outcome.Err).Code == harness.RequestBudgetExhaustedCode {
 				stop = "request-budget"
 			}
-			return outcome.Turn.Reason, errors.Join(outcome.Err, s.stopGoal(ctx, record, stop, goalStopDriver))
+			return outcome.Turn.Reason, errors.Join(outcome.Err, s.stopGoal(ctx, record, goalStop{Reason: stop, By: goalStopDriver}))
 		}
 		if s.scientificReviewer != nil {
 			if err := s.scientificReviewer.AfterTurn(ctx, agent, outcome.Turn); err != nil {
-				return outcome.Turn.Reason, errors.Join(err, s.stopGoal(ctx, record, "error", goalStopDriver))
+				return outcome.Turn.Reason, errors.Join(err, s.stopGoal(ctx, record, goalStop{Reason: "error", By: goalStopDriver}))
 			}
 		}
 		switch outcome.Turn.Reason {
 		case harness.FinishStop:
 			// Only a normally settled round can stop by model decision or
 			// lead to another automatic round.
-			if decision := control.settledDecision(session.Events()); decision != "" {
-				return harness.FinishStop, s.stopGoal(ctx, record, string(decision), goalStopModel)
+			if decision := control.settledDecision(session.Events()); decision.Outcome != "" {
+				return harness.FinishStop, s.stopGoal(ctx, record, goalStop{Reason: string(decision.Outcome), By: goalStopModel, Detail: decision.BlockedReason})
 			}
 		case harness.FinishRefusal:
-			return harness.FinishRefusal, s.stopGoal(ctx, record, "refusal", goalStopDriver)
+			return harness.FinishRefusal, s.stopGoal(ctx, record, goalStop{Reason: "refusal", By: goalStopDriver})
 		case harness.FinishMaxTokens:
-			return harness.FinishMaxTokens, s.stopGoal(ctx, record, "max-tokens", goalStopDriver)
+			return harness.FinishMaxTokens, s.stopGoal(ctx, record, goalStop{Reason: "max-tokens", By: goalStopDriver})
 		default:
-			return outcome.Turn.Reason, s.stopGoal(ctx, record, "interrupted", goalStopDriver)
+			return outcome.Turn.Reason, s.stopGoal(ctx, record, goalStop{Reason: "interrupted", By: goalStopDriver})
 		}
 	}
-	return harness.FinishStop, s.stopGoal(ctx, record, "round-limit", goalStopDriver)
+	return harness.FinishStop, s.stopGoal(ctx, record, goalStop{Reason: "round-limit", By: goalStopDriver})
 }
 
-func (s *Server) stopGoal(ctx context.Context, record *activeSession, reason string, by goalStopSource) error {
+func (s *Server) stopGoal(ctx context.Context, record *activeSession, stop goalStop) error {
 	session := record.agent.Session()
 	state := foldGoal(session.Events())
-	if _, err := session.Append(goalStopped, goalStop{state.ID, reason, by}); err != nil {
+	stop.GoalID = state.ID
+	if _, err := session.Append(goalStopped, stop); err != nil {
 		return err
 	}
 	if err := session.Flush(ctx); err != nil {
 		return err
 	}
-	state.Stop, state.StopBy = reason, by
+	state.Stop, state.StopBy, state.StopDetail = stop.Reason, stop.By, stop.Detail
 	return s.showGoalStatus(record, state)
 }
 
@@ -266,6 +269,9 @@ func (s *Server) showGoalStatus(record *activeSession, state goalState) error {
 		reason += " by model"
 	}
 	text := fmt.Sprintf("Goal: %s\nRounds: %d/%d (%s)", state.Objective, state.Rounds, state.Limit, reason)
+	if state.StopDetail != "" {
+		text += "\nBlocker: " + state.StopDetail
+	}
 	return s.writer.write(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{
 		"sessionId": record.agent.ID(), "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": text}},
 	}})
