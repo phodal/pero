@@ -81,7 +81,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     notify({ sessionUpdate: 'tool_call', toolCallId: 'historical-tool', title: 'Prior read', status: 'in_progress' });
     notify({ sessionUpdate: 'tool_call_update', toolCallId: 'historical-tool', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: 'Prior result' } }] });
     notify({ sessionUpdate: 'plan', entries: [{ content: 'Prior plan', priority: 'medium', status: 'completed' }] });
+    model = 'model-b';
     mode = 'plan';
+    effort = 'low';
     notify({ sessionUpdate: 'config_option_update', configOptions: configs() });
     notify({ sessionUpdate: 'session_info_update', title: 'Original conversation' });
     reply(id, { sessionId: 'fixture-session', configOptions: configs() });
@@ -143,7 +145,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       finish('end_turn');
       return;
     }
-    update(`turn-${turn}:${text}`);
+    update(scenario === 'load_replay' ? `${model}/${effort}:turn-${turn}:${text}` : `turn-${turn}:${text}`);
     setTimeout(() => finish('end_turn'), 100);
   } else if (method === 'session/cancel') {
     if (scenario === 'ignore_cancel') return;

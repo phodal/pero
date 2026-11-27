@@ -567,7 +567,8 @@ async fn run(
             }
             session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             *model_api.lock().unwrap() = ModelApi::from_session(&session_data);
-            if let Some(model) = config.model.clone() {
+            // The registry model seeds new sessions; load restores the Agent's saved choice.
+            if resume_id.is_none() && let Some(model) = config.model.clone() {
                 let selector = model_api.lock().unwrap().clone();
                 let request = selector.request(&session_id, &model)?;
                 let Some(response) = setup_request(

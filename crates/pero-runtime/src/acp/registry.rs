@@ -26,6 +26,7 @@ pub struct AgentConfig {
     pub args: Vec<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    /// Model to select when creating a new ACP session, not when loading one.
     #[serde(default)]
     pub model: Option<String>,
     /// Trusted operator configuration only; never inferred from prompts or discovered.

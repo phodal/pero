@@ -204,6 +204,15 @@ mutate the journal, dispatch a prompt, or let children inspect a root via their
 own session ID. Model-side Team tools for owned members are unchanged. The
 desktop task panel and reconnect flow are not part of this transport slice.
 
+For Host callers that already reopen a saved ACP session, `session/load`
+keeps the session's model and reasoning effort instead of reapplying the
+registry's new-session model. Host history remains the displayed timeline:
+historical messages and tool records from ACP load are not appended again.
+The lifecycle fixture distinguishes a configured default (A) from the loaded
+model (B), then verifies that the first explicit follow-up still uses B.
+An ordinary Desktop history row does not yet start this reconnect.
+
+
 
 - The live root and its owned children see `team_task_create`, `team_task_list`,
   `team_task_get` and `team_task_update` only while opted in. Unrelated roots
