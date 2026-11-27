@@ -522,6 +522,27 @@ The Worker now waits under the Run lease and prompts the original ACP
 session after the Run records the return. This lane used a local control
 plane, PostgreSQL and Relay.
 
+### Open a Run desktop from a Native conversation, 2026-11-27
+
+The macOS conversation right panel opens a new tab with **Files**,
+**Artifacts**, **Code changes**, and **Desktop**. **Desktop** lists running
+Blender Runs the connected account can control. Selecting a Run opens its
+view-only noVNC stream beside the current conversation. The right panel shows
+the handoff reason, Take control, Return control, and Reconnect. **View Run**
+explicitly opens the task detail and its saved Artifacts.
+
+On a local control plane and ARM64 Lima Worker, Native connected from an
+ordinary conversation to Run `run_88d01c468a6cbc41c47d3323eb17437a`.
+The same conversation tab and composer remained visible through connection,
+reconnection, Blender Quick Setup input, and return to Codex ACP. The Agent
+resumed its original session at event 82, observed a fresh desktop runtime
+at event 110, and saved the scene in Blender. After guest removal, Native
+listed `actions.json`, `result.blend`, and `screenshot.jpg` in the original
+Run. The verifier downloaded and checked all three hashes, counted five
+executed input receipts, and opened the saved model with Blender. Evidence is
+in `test-results/native-run-desktop-attached/`. The acceptance task only
+exists in the disposable local project service.
+
 ```sh
 npm run build:desktop
 node tests/e2e/linux-desktop.mjs
