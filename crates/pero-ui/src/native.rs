@@ -620,7 +620,9 @@ pub fn run() -> anyhow::Result<()> {
             while let Ok(event) = received.recv().await {
                 #[cfg(target_os = "macos")]
                 if event.kind == "native_run_desktop" {
-                    let _ = window.update(cx, |_, _, cx| crate::native_run_desktop::accept(&event.data, cx));
+                    let _ = window.update(cx, |_, window, cx| view.update(cx, |this, cx| {
+                        this.accept_run_desktop(&event.data, window, cx)
+                    }));
                     continue;
                 }
                 if event.kind == "native_docling_confirmation" {

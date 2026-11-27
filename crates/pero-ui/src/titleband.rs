@@ -20,7 +20,7 @@ pub(crate) struct MainColumn {
     pub app: Option<FocusedApp>,
     pub open_chat: bool,
     pub close_chat: bool,
-    pub conversation_resources: bool,
+    pub resource_launcher: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,6 +58,7 @@ pub(crate) enum ResourcePrimary {
     Artifacts,
     Changes,
     Desktop,
+    Run,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -86,7 +87,7 @@ pub(crate) enum Primary {
 pub(crate) enum Action {
     SidebarToggle,
     Search,
-    Artifacts,
+    RightPanel,
     OpenChat,
     CloseChat,
     Retry,
@@ -138,9 +139,9 @@ pub(crate) fn project(columns: &WorkbenchColumns) -> Titleband {
             actions: vec![Action::ResourceToolbar],
         });
     }
-    if columns.main.conversation_resources {
+    if columns.main.resource_launcher {
         if let Some(rightmost) = segments.last_mut() {
-            rightmost.actions.push(Action::Artifacts);
+            rightmost.actions.push(Action::RightPanel);
         }
     }
     Titleband { segments }
@@ -214,7 +215,7 @@ mod tests {
             app,
             open_chat: false,
             close_chat: false,
-            conversation_resources: false,
+            resource_launcher: false,
         }
     }
 
@@ -232,9 +233,9 @@ mod tests {
         let cases = [
             (
                 "ordinary Native conversation",
-                columns(MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) }, None),
+                columns(MainColumn { resource_launcher: true, ..main(MainFocus::Tabs, None) }, None),
                 None,
-                vec![Action::Artifacts],
+                vec![Action::RightPanel],
             ),
             (
                 "resources closed",
@@ -245,7 +246,7 @@ mod tests {
             (
                 "resources open at W",
                 columns(
-                    MainColumn { conversation_resources: true, ..main(MainFocus::Tabs, None) },
+                    MainColumn { resource_launcher: true, ..main(MainFocus::Tabs, None) },
                     Some(ResourcesColumn {
                         width: 420.,
                         primary: ResourcePrimary::Files,
@@ -290,7 +291,7 @@ mod tests {
                 Some(width) => {
                     let resources = band.segment(ColumnKind::Resources).expect(name);
                     assert_eq!(resources.width, SegmentWidth::Fixed(width), "{name}");
-                    assert_eq!(resources.actions, vec![Action::ResourceToolbar, Action::Artifacts], "{name}");
+                    assert_eq!(resources.actions, vec![Action::ResourceToolbar, Action::RightPanel], "{name}");
                 }
             }
         }

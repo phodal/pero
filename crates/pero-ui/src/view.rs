@@ -383,14 +383,21 @@ impl Render for Workbench {
             resizing,
             SurfaceStacking::CURRENT,
         );
+        #[cfg(all(feature = "native", target_os = "macos"))]
+        self.sync_run_desktop(covered, cx);
         let mut layout = WorkspaceLayout::resolve(
             width,
             self.navigation.route(),
             self.tab,
             &self.preferences.layout,
             covered,
-            pane_layout,
+            self.navigation.pane_layout().filter(|_| pane_tree),
         );
+        if self.run_desktop_active() {
+            layout.chat = ChatPlacement::Hidden;
+            layout.chat_width = 0.;
+            layout.content_visible = true;
+        }
         if self.project_agent_active() {
             layout.chat = ChatPlacement::Main;
             layout.chat_width = 0.;

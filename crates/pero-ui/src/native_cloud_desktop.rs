@@ -14,12 +14,13 @@ impl CloudSession {
                 Some("remote_desktop_open") => {
                     let mode = value["mode"]
                         .as_str()
-                        .filter(|mode| matches!(*mode, "watch" | "control" | "release"))
+                        .filter(|mode| matches!(*mode, "watch" | "control" | "release" | "return"))
                         .ok_or("Invalid desktop mode")?;
-                    self.post(
-                        &format!("{route}/desktop"),
-                        &json!({"id":value["request_id"], "mode":mode}),
-                    )
+                    let mut command = json!({"id":value["request_id"], "mode":mode});
+                    if let Some(handoff_id) = value.get("handoff_id") {
+                        command["handoff_id"] = handoff_id.clone();
+                    }
+                    self.post(&format!("{route}/desktop"), &command)
                 }
                 Some("remote_desktop_artifacts") => self.get(&format!("{route}/artifacts")),
                 Some("remote_desktop_save") => {
@@ -77,7 +78,7 @@ impl CloudSession {
                 _ => Err("Invalid Run desktop action".into()),
             }
         })();
-        event.data = json!({"run_id":value["run_id"],"request_id":value["request_id"],"action":value["action"],"mode":value["mode"]});
+        event.data = json!({"run_id":value["run_id"],"request_id":value["request_id"],"action":value["action"],"mode":value["mode"],"handoff_id":value["handoff_id"]});
         match result {
             Ok(result) => event.data["result"] = result,
             Err(error) => event.data["error"] = json!(error),
