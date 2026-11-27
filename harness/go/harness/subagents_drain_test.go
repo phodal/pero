@@ -259,6 +259,20 @@ func TestSubagentWaitForChildrenSkipsNonProgressing(t *testing.T) {
 		if parked != 1 {
 			t.Fatal("wait discarded parked input")
 		}
+		if err := child.InterruptDSH(nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := child.durableInbox.Splice(InboxNextTurn, 0, 0, []Message{{
+			ID: "parked-next-turn", Role: RoleUser, Source: []byte(`{"kind":"fixture"}`), Content: []ContentBlock{{Type: BlockText, Text: "interrupted turn"}},
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		if observed, err := r.WaitForChildren(ctx, parent); observed || err != nil {
+			t.Fatalf("explicitly interrupted input incorrectly joined: %v %v", observed, err)
+		}
+		if child.Status() != AgentIdle || !child.durableInbox.HasNextTurn() {
+			t.Fatal("wait woke the child or discarded its parked next turn")
+		}
 	})
 	for _, tc := range []struct {
 		name     string

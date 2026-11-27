@@ -168,7 +168,9 @@ Cancelling while waiting disarms the Goal without consuming another round.
 The ACP regression gates a real in-process child after round one, keeps an
 unrelated session's child active, and checks that only settlement (or explicit
 resume after cancellation) leads to one admission and one model request for
-round two. The default slash-command path is unchanged.
+round two. A gated inbox callback additionally verifies that published waking
+work is not treated as parked while the child still reports idle during
+admission. The default slash-command path is unchanged.
 Goal stays disabled for external harnesses and profiles with specialized
 prompt preparation. The ACP server advertises `/goal` in the same complete session command
 snapshot as `/review` on eligible native sessions. Official DSH alpha.2 has

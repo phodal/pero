@@ -133,11 +133,12 @@ func TestGoalACPExplicitResumeAndCap(t *testing.T) {
 }
 
 func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
-	for _, name := range []string{"settle", "cancel"} {
+	for _, name := range []string{"settle", "cancel", "admitting next turn"} {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			ownedStarted, releaseOwned := make(chan struct{}), make(chan struct{})
+			ownedCancelled := make(chan error, 1)
 			unrelatedStarted, releaseUnrelated := make(chan struct{}), make(chan struct{})
 			nextRound := make(chan struct{}, 2)
 			owned := make(chan harness.SubagentActivation, 1)
@@ -158,6 +159,7 @@ func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
 					select {
 					case <-releaseOwned:
 					case <-turnCtx.Done():
+						ownedCancelled <- context.Cause(turnCtx)
 						return harness.Completion{}, turnCtx.Err()
 					}
 				case last == "unrelated evidence":
@@ -191,6 +193,31 @@ func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
 				return record.agent
 			}
 			root, other := newAgent(), newAgent()
+			admitting, releaseAdmission := make(chan struct{}), make(chan struct{})
+			finishAdmission := sync.OnceFunc(func() { close(releaseAdmission) })
+			defer finishAdmission()
+			if name == "admitting next turn" {
+				definition := point.Define(point.Descriptor{ID: "fixture/goal-child-admission"}, point.DecodeJSON[struct{}],
+					func(run *point.Run, _ struct{}) (point.Dispose, error) {
+						_, err := server.h.Hooks().InboxInserted.On(run, func(_ context.Context, in harness.InboxInsertedInput) error {
+							if in.Agent.Parent() == root && in.Target == harness.InboxNextTurn {
+								// Prompt has published a waking input, but hasn't
+								// moved the child from idle to running yet.
+								close(admitting)
+								<-releaseAdmission
+							}
+							return nil
+						})
+						return nil, err
+					})
+				instance, err := server.h.Runtime().Mount(nil, "fixture/goal-child-admission", definition, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := instance.WaitStable(ctx); err != nil || instance.Snapshot().State != point.Active {
+					t.Fatalf("child admission fixture listener did not activate: %+v, %v", instance.Snapshot(), err)
+				}
+			}
 			start := func(parent *harness.Agent, prompt string) (harness.SubagentActivation, error) {
 				return server.h.Subagents().StartActivation(ctx, "spawn", harness.SubagentRequest{
 					Parent: parent, Prompt: prompt, MaxDepth: 1,
@@ -222,14 +249,29 @@ func TestGoalWaitsForOwnedDescendantsBetweenRounds(t *testing.T) {
 				result, rpc = run("/goal start 2 Verify the evidence")
 				close(finished)
 			}()
-			waitStarted(ownedStarted)
+			if name == "admitting next turn" {
+				waitStarted(admitting)
+			} else {
+				waitStarted(ownedStarted)
+			}
 			child := <-owned
 			select {
 			case <-nextRound:
-				t.Fatal("round two dispatched while owned child was progressing")
+				agent, live := server.h.Agents().Get(child.ChildID)
+				var status harness.AgentStatus
+				if live {
+					status = agent.Status()
+				}
+				t.Fatalf("round two dispatched before owned child settled: live=%t status=%s", live, status)
+			case err := <-ownedCancelled:
+				t.Fatalf("owned child was unexpectedly cancelled: %v", err)
 			case <-finished:
 				t.Fatalf("Goal stopped before owned child settled: %v %v", result, rpc)
 			case <-time.After(100 * time.Millisecond):
+			}
+			if name == "admitting next turn" {
+				finishAdmission()
+				waitStarted(ownedStarted)
 			}
 			if state := foldGoal(root.Session().Events()); state.Rounds != 1 {
 				t.Fatalf("round two reserved before child settlement: %+v", state)
