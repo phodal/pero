@@ -144,7 +144,7 @@ type mutation struct {
 	writeScopes    *[]string
 }
 
-type taskView struct {
+type TaskView struct {
 	Task
 	Ready              bool     `json:"ready"`
 	WriteScopeWarnings []string `json:"writeScopeWarnings,omitempty"`
@@ -159,7 +159,7 @@ type taskQuery struct {
 }
 
 type taskPage struct {
-	Tasks      []taskView `json:"tasks"`
+	Tasks      []TaskView `json:"tasks"`
 	NextCursor int        `json:"nextCursor,omitempty"`
 }
 
@@ -298,7 +298,7 @@ func (s state) page(q taskQuery) taskPage {
 	}
 	start := int(min(q.cursor, uint64(len(matched))))
 	end := min(start+q.limit, len(matched))
-	page := taskPage{Tasks: make([]taskView, 0, end-start)}
+	page := taskPage{Tasks: make([]TaskView, 0, end-start)}
 	for _, task := range matched[start:end] {
 		task.Details = ""
 		page.Tasks = append(page.Tasks, s.view(task))
@@ -313,8 +313,8 @@ func (s state) isReady(task Task) bool {
 	return task.Status == Pending && s.ready(task) == nil
 }
 
-func (s state) view(task Task) taskView {
-	view := taskView{Task: task, Ready: s.isReady(task)}
+func (s state) view(task Task) TaskView {
+	view := TaskView{Task: task, Ready: s.isReady(task)}
 	if len(task.WriteScopes) == 0 || (task.Status != Pending && task.Status != InProgress) {
 		return view
 	}

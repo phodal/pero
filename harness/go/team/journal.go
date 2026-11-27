@@ -90,7 +90,7 @@ func (b Board) readRoot(caller *harness.Agent) (*harness.Agent, state, error) {
 	return root, s, nil
 }
 
-func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask) (Task, error) {
+func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask) (TaskView, error) {
 	return b.commit(ctx, caller, func(s state, _ *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
@@ -100,11 +100,11 @@ func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask)
 	})
 }
 
-func (b Board) Update(ctx context.Context, caller *harness.Agent, ref TaskRef, operation Update) (Task, error) {
+func (b Board) Update(ctx context.Context, caller *harness.Agent, ref TaskRef, operation Update) (TaskView, error) {
 	return b.update(ctx, caller, ref, mutation{operation: operation})
 }
 
-func (b Board) update(ctx context.Context, caller *harness.Agent, ref TaskRef, input mutation) (Task, error) {
+func (b Board) update(ctx context.Context, caller *harness.Agent, ref TaskRef, input mutation) (TaskView, error) {
 	return b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
@@ -116,7 +116,7 @@ func (b Board) update(ctx context.Context, caller *harness.Agent, ref TaskRef, i
 
 // Reassign changes the saved owner only; resolving a member never resumes it
 // or submits a message. An empty target releases the task back to pending.
-func (b Board) Reassign(ctx context.Context, caller *harness.Agent, ref TaskRef, target harness.SessionID) (Task, error) {
+func (b Board) Reassign(ctx context.Context, caller *harness.Agent, ref TaskRef, target harness.SessionID) (TaskView, error) {
 	return b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
@@ -142,40 +142,36 @@ func (b Board) Reassign(ctx context.Context, caller *harness.Agent, ref TaskRef,
 	})
 }
 
-func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(state, *harness.Agent) (change, error)) (Task, error) {
+func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(state, *harness.Agent) (change, error)) (TaskView, error) {
 	for {
 		if err := ctx.Err(); err != nil {
-			return Task{}, err
+			return TaskView{}, err
 		}
 		root, err := b.root(caller)
 		if err != nil {
-			return Task{}, err
+			return TaskView{}, err
 		}
 		session := root.Session()
 		events := session.Events()
 		board, err := fold(root.ID(), events)
 		if err != nil {
-			return Task{}, err
+			return TaskView{}, err
 		}
 		next, err := apply(board, root)
 		if err != nil {
-			return Task{}, err
-		}
-		var task Task
-		if next.Task != nil {
-			task = *next.Task
+			return TaskView{}, err
 		}
 		if next.Mode != nil || next.Task != nil {
 			if err := ctx.Err(); err != nil {
-				return Task{}, err
+				return TaskView{}, err
 			}
 			// Assignee discovery may have read durable storage while the caller
 			// was closing. Recheck exact runtime ownership before publication.
 			if current, err := b.root(caller); err != nil || current != root {
 				if err != nil {
-					return Task{}, err
+					return TaskView{}, err
 				}
-				return Task{}, ErrForbidden
+				return TaskView{}, ErrForbidden
 			}
 			next.Root = root.ID()
 			var tail uint64
@@ -185,12 +181,19 @@ func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(sta
 			if _, err := session.AppendIfLastSeq(tail, eventType, next); errors.Is(err, harness.ErrSessionChanged) {
 				continue
 			} else if err != nil {
-				return Task{}, err
+				return TaskView{}, err
 			}
 		}
-		if err := session.Flush(ctx); err != nil {
-			return task, fmt.Errorf("team: change in memory but durability failed; inspect before retrying: %w", err)
+		// The append validated this exact board snapshot. Project the newly
+		// committed task against it, not a later read that might include
+		// another caller's changes. Readiness and warnings depend on peers.
+		var view TaskView
+		if next.Task != nil {
+			view = board.view(*next.Task)
 		}
-		return task, nil
+		if err := session.Flush(ctx); err != nil {
+			return view, fmt.Errorf("team: change in memory but durability failed; inspect before retrying: %w", err)
+		}
+		return view, nil
 	}
 }

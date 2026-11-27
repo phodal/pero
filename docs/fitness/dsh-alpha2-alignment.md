@@ -222,9 +222,12 @@ with those flags never enables a session automatically.
 - Create and edit accept advisory `write_scopes`; edit with `[]` clears
   them. Pero stores up to 32 normalized relative prefixes (each up to 256
   bytes), rejecting absolute paths, drive letters, empty and dot components.
-  Get and list warn a pending or in-progress task about overlapping scopes of
-  another in-progress task. Matching uses slash boundaries: `src/foo` covers
-  `src/foo/a.go`, not `src/foobar`. Completing the other task removes the
+  Get, list, and successful create/update results warn a pending or
+  in-progress task about overlapping scopes of another in-progress task.
+  Mutation results project readiness and warnings at the same journal
+  snapshot that accepted the change; no extra read is required. Matching uses
+  slash boundaries: `src/foo` covers `src/foo/a.go`, not `src/foobar`.
+  Completing the other task removes the
   warning without changing this task's revision. Scopes neither lock files
   nor block claims, grant tools, or modify file permissions.
 
@@ -234,8 +237,7 @@ combined. The default is 50 summaries, with an explicit limit of 1–100;
 get returns the full description. Readiness and write-scope warnings are
 still calculated against the whole board. DSH agent-name aliases beyond
 `lead` and Desktop mode controls remain open. The Team regression transfers
-A's claim
-to a continuable B, rejects A's late completion, and reassigns to B again
+A's claim to a continuable B, rejects A's late completion, and reassigns to B again
 while cold without making a model request. The graph regression exercises
 the actual model tool dispatch and a JSONL restart: a two-task cycle and a
 referenced delete are rejected, reopening reblocks the dependent, and

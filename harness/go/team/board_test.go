@@ -161,7 +161,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 		go func() {
 			<-gate
 			task, err := board.Update(ctx, agent, TaskRef{first.ID, first.Revision}, Claim)
-			results <- claimResult{agent, task, err}
+			results <- claimResult{agent, task.Task, err}
 		}()
 	}
 	close(gate)
@@ -307,7 +307,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 			t.Fatalf("%s response: %v", name, err)
 		}
 	}
-	var view taskView
+	var view TaskView
 	var task Task
 	assertTool(fresh, resumed, "get", `{"task_id":"2"}`, "", &view)
 	if !view.Ready || view.Revision != 3 {
@@ -356,17 +356,17 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lastDetach()
-	view = taskView{}
+	view = TaskView{}
 	assertTool(restarted, agent, "get", `{"task_id":"1"}`, "", &view)
 	if view.Status != Deleted || view.Revision != 5 || view.Ready {
 		t.Fatalf("restart lost tombstone: %+v", view)
 	}
-	view = taskView{}
+	view = TaskView{}
 	assertTool(restarted, agent, "get", `{"task_id":"2"}`, "", &view)
 	if !view.Ready || view.Revision != 5 || view.Title != "Reproduce the revised figure" || view.Details != "Reproduce the figure" || !reflect.DeepEqual(view.WriteScopes, []writeScope{"src/foo/a.go"}) {
 		t.Fatalf("restart lost edited ready task: %+v", view)
 	}
-	var page struct{ Tasks []taskView }
+	var page struct{ Tasks []TaskView }
 	assertTool(restarted, agent, "list", `{}`, "", &page)
 	if len(page.Tasks) != 1 || page.Tasks[0].ID != 2 || !page.Tasks[0].Ready || page.Tasks[0].Details != "" {
 		t.Fatalf("list leaked a tombstone or omitted the active task: %+v", page)
@@ -383,12 +383,13 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 		len(page.Tasks[2].WriteScopeWarnings) != 0 {
 		t.Fatalf("scope advisory crossed a path boundary or changed readiness: %+v", page)
 	}
-	assertTool(restarted, agent, "update", `{"task_id":"2","expected_revision":5,"action":"claim"}`, "", &task)
-	if task.Status != InProgress {
-		t.Fatalf("advisory blocked claim: %+v", task)
+	view = TaskView{}
+	assertTool(restarted, agent, "update", `{"task_id":"2","expected_revision":5,"action":"claim"}`, "", &view)
+	if view.Status != InProgress || view.Ready || !reflect.DeepEqual(view.WriteScopeWarnings, []string{"write scopes overlap with task 3"}) {
+		t.Fatalf("claim did not succeed with current advisory: %+v", view)
 	}
 	assertTool(restarted, agent, "update", `{"task_id":"3","expected_revision":2,"action":"complete"}`, "", &task)
-	view = taskView{}
+	view = TaskView{}
 	assertTool(restarted, agent, "get", `{"task_id":"2"}`, "", &view)
 	if view.Revision != 6 || len(view.WriteScopeWarnings) != 0 {
 		t.Fatalf("completion did not clear advisory without changing the other task: %+v", view)
@@ -401,7 +402,11 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 
 	assertTool(restarted, agent, "create", `{"subject":"Blocked","description":"Wait on task 4","blocked_by":["4"]}`, "", &task)
-	assertTool(restarted, agent, "create", `{"subject":"Ready","description":"Another ready task"}`, "", &task)
+	view = TaskView{}
+	assertTool(restarted, agent, "create", `{"subject":"Ready","description":"Another ready task"}`, "", &view)
+	if !view.Ready || view.Revision != 1 {
+		t.Fatalf("create omitted newly committed readiness: %+v", view)
+	}
 	for _, tc := range []struct {
 		args string
 		ids  []TaskID
