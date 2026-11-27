@@ -837,6 +837,9 @@
           "type": "string",
           "const": "blender"
         },
+        "desktop_handoff": {
+          "$ref": "#/$defs/RunDesktopHandoff"
+        },
         "summary": {
           "type": "string"
         },
@@ -853,6 +856,38 @@
         "generation",
         "status",
         "spec"
+      ],
+      "additionalProperties": false
+    },
+    "RunDesktopHandoff": {
+      "title": "RunDesktopHandoff",
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "requested"
+            },
+            {
+              "type": "string",
+              "const": "returned"
+            }
+          ]
+        }
+      },
+      "required": [
+        "request_id",
+        "reason",
+        "state"
       ],
       "additionalProperties": false
     },

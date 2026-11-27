@@ -61,6 +61,12 @@ model TaskSpec {
 }
 // Selected by the trusted control plane, never accepted in TaskSpec.
 model RemoteExecution { session_id: Id; working_directory: "/workspace/repo"; ...Closed }
+model RunDesktopHandoff {
+  request_id: Id;
+  @minLength(1) @maxLength(300) reason: string;
+  state: "requested" | "returned";
+  ...Closed;
+}
 model Run {
   id: Id;
   task_id: Id;
@@ -72,6 +78,7 @@ model Run {
   spec: TaskSpec;
   remote_execution?: RemoteExecution;
   desktop_profile?: "blender";
+  desktop_handoff?: RunDesktopHandoff;
   summary?: string;
   created_at?: string;
   updated_at?: string;

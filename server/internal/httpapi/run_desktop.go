@@ -14,8 +14,9 @@ import (
 )
 
 type desktopCommand struct {
-	ID   string `json:"id"`
-	Mode string `json:"mode"`
+	ID        string `json:"id"`
+	Mode      string `json:"mode"`
+	HandoffID string `json:"handoff_id,omitempty"`
 }
 
 type desktopOffer struct {
@@ -52,6 +53,7 @@ func (a *API) registerRunDesktops(mux *http.ServeMux) {
 	}
 	const worker = "/api/worker/v1/runs/{id}/desktop"
 	mux.HandleFunc("POST "+worker+"/poll", a.pollRunDesktop)
+	mux.HandleFunc("POST "+worker+"/handoff", a.requestRunDesktopHandoff)
 	mux.HandleFunc("POST "+worker, a.answerRunDesktop)
 	mux.HandleFunc("PUT "+worker+"/files/{file}", a.putRunDesktopFile)
 }
@@ -61,13 +63,20 @@ func (a *API) openRunDesktop(w http.ResponseWriter, r *http.Request, client *sto
 	if !decode(w, r, &command) {
 		return
 	}
-	if !bounded(command.ID, 128) || (command.Mode != "watch" && command.Mode != "control" && command.Mode != "release") {
+	if !bounded(command.ID, 128) || (command.Mode != "watch" && command.Mode != "control" && command.Mode != "release" && command.Mode != "return") ||
+		(command.HandoffID != "" && (!bounded(command.HandoffID, 128) || (command.Mode != "control" && command.Mode != "return"))) ||
+		(command.Mode == "return" && command.HandoffID == "") {
 		invalid(w)
 		return
 	}
 	id := r.PathValue("id")
-	if _, err := a.db.DesktopRun(r.Context(), client, id, true); err != nil {
+	run, err := a.db.DesktopRun(r.Context(), client, id, true)
+	if err != nil {
 		failure(w, err)
+		return
+	}
+	if command.HandoffID != "" && !run.DesktopHandoff.Requested(command.HandoffID) {
+		failure(w, store.ErrConflict)
 		return
 	}
 	broker := &a.runDesktops
@@ -87,18 +96,40 @@ func (a *API) openRunDesktop(w http.ResponseWriter, r *http.Request, client *sto
 	}()
 	select {
 	case offer := <-pending.answer:
-		if _, err := a.db.DesktopRun(r.Context(), client, id, true); err != nil {
-			failure(w, err)
-			return
-		}
 		if offer.Error != "" {
 			respond(w, 409, offer)
 			return
+		}
+		if offer.Invitation != "" {
+			if _, err := a.db.DesktopRun(r.Context(), client, id, true); err != nil {
+				failure(w, err)
+				return
+			}
 		}
 		respond(w, 200, offer)
 	case <-r.Context().Done():
 		respond(w, 504, map[string]string{"error": "The Worker did not answer the desktop request"})
 	}
+}
+
+func (a *API) requestRunDesktopHandoff(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		executionInput
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if !validExecution(input.executionInput) || !bounded(input.ID, 128) || input.Reason == "" {
+		invalid(w)
+		return
+	}
+	if err := a.db.RunDesktopHandoff(r.Context(), r.PathValue("id"), workerID(r), input.InstanceID, input.Generation, input.ID, input.Reason); err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 200, struct{}{})
 }
 
 func (a *API) pollRunDesktop(w http.ResponseWriter, r *http.Request) {
@@ -145,9 +176,15 @@ func (a *API) answerRunDesktop(w http.ResponseWriter, r *http.Request) {
 		failure(w, store.ErrConflict)
 		return
 	}
-	if data.Error == "" && (pending.command.Mode == "release") != (data.Invitation == "") {
+	if data.Error == "" && (pending.command.Mode == "release" || pending.command.Mode == "return") != (data.Invitation == "") {
 		invalid(w)
 		return
+	}
+	if data.Error == "" && pending.command.Mode == "return" {
+		if err := a.db.RunDesktopHandoff(r.Context(), r.PathValue("id"), workerID(r), data.InstanceID, data.Generation, pending.command.HandoffID, ""); err != nil {
+			failure(w, err)
+			return
+		}
 	}
 	pending.answer <- data.desktopOffer
 	respond(w, 200, struct{}{})

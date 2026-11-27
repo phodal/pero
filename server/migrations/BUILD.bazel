@@ -19,6 +19,7 @@ go_library(
         "018_worker_presence.sql",
         "019_project_web_sources.sql",
         "020_run_desktop.sql",
+        "021_run_desktop_handoff.sql",
     ],
     importpath = "github.com/phodal/pero/server/migrations",
     visibility = ["//server:__subpackages__"],

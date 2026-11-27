@@ -111,6 +111,7 @@ export interface Run {
   spec: TaskSpec;
   remote_execution?: RemoteExecution;
   desktop_profile?: "blender";
+  desktop_handoff?: RunDesktopHandoff;
   summary?: string;
   created_at?: string;
   updated_at?: string;
@@ -118,6 +119,11 @@ export interface Run {
 export interface RemoteExecution {
   session_id: Id;
   working_directory: "/workspace/repo";
+}
+export interface RunDesktopHandoff {
+  request_id: Id;
+  reason: string;
+  state: "requested" | "returned";
 }
 export interface Claimant {
   id: Id;

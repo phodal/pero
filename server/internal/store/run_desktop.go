@@ -5,6 +5,9 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -12,6 +15,72 @@ import (
 type RunDesktopProfile string
 
 const BlenderDesktop RunDesktopProfile = "blender"
+
+type RunDesktopHandoff struct {
+	RequestID string                 `json:"request_id"`
+	Reason    string                 `json:"reason"`
+	State     RunDesktopHandoffState `json:"state"`
+}
+
+type RunDesktopHandoffState string
+
+const (
+	desktopHandoffRequested RunDesktopHandoffState = "requested"
+	desktopHandoffReturned  RunDesktopHandoffState = "returned"
+)
+
+func (h *RunDesktopHandoff) Requested(id string) bool {
+	return h != nil && h.State == desktopHandoffRequested && h.RequestID == id
+}
+
+// An empty reason acknowledges the existing request after the Worker releases
+// human input. A new request can replace a completed one.
+func (h *RunDesktopHandoff) transition(id, reason string) (RunDesktopHandoff, error) {
+	if reason == "" {
+		if h == nil || h.RequestID != id {
+			return RunDesktopHandoff{}, ErrConflict
+		}
+		next := *h
+		next.State = desktopHandoffReturned
+		return next, nil
+	}
+	if reason != strings.TrimSpace(reason) || utf8.RuneCountInString(reason) > 300 || strings.ContainsFunc(reason, unicode.IsControl) {
+		return RunDesktopHandoff{}, ErrTaskInput
+	}
+	if h != nil && h.RequestID == id {
+		if h.Reason == reason {
+			return *h, nil
+		}
+		return RunDesktopHandoff{}, ErrConflict
+	}
+	if h != nil && h.State == desktopHandoffRequested {
+		return RunDesktopHandoff{}, ErrConflict
+	}
+	return RunDesktopHandoff{RequestID: id, Reason: reason, State: desktopHandoffRequested}, nil
+}
+
+func (s *Store) RunDesktopHandoff(ctx context.Context, id, worker, instance string, generation int64, requestID, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	run, err := guard(ctx, tx, id, worker, instance, generation)
+	if err != nil {
+		return err
+	}
+	if run.DesktopProfile != BlenderDesktop || run.Status != "running" {
+		return ErrLease
+	}
+	next, err := run.DesktopHandoff.transition(requestID, reason)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE runs SET desktop_handoff=$2 WHERE id=$1`, id, next); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
 type DesktopFile string
 
