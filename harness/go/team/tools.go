@@ -20,7 +20,11 @@ type taskToolInput struct {
 	Revision    uint64             `json:"expected_revision"`
 	Action      Update             `json:"action"`
 	Owner       *harness.SessionID `json:"owner"`
-	Cursor      int                `json:"cursor"`
+	Cursor      uint64             `json:"cursor"`
+	Limit       *int               `json:"limit"`
+	Status      Status             `json:"status"`
+	Unowned     *bool              `json:"unowned"`
+	Ready       *bool              `json:"ready"`
 }
 
 // Mount contributes opt-in Team tools and a trusted host command. Mode is
@@ -141,28 +145,27 @@ func (b Board) tools() map[string]harness.Tool {
 			}
 			return b.Create(ctx, caller, input)
 		})
-	add("list", "List up to 20 shared task summaries from the optional zero-based cursor. Read full details using team_task_get.",
-		`"cursor":{"type":"integer","minimum":0,"maximum":256}`, "", func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
-			s, err := b.read(caller)
+	add("list", "Filter shared task summaries by status, owner (lead or exact session ID), unowned, or readiness, then page through the results. Read full details using team_task_get.",
+		`"status":{"enum":["pending","in_progress","completed"]},"owner":{"type":"string","minLength":1,"maxLength":256},"unowned":{"type":"boolean"},"ready":{"type":"boolean"},"cursor":{"type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"type":"integer","minimum":1,"maximum":100}`,
+		"", func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+			if in.Owner != nil && in.Unowned != nil {
+				return nil, fmt.Errorf("%w: owner and unowned cannot be combined", ErrArgument)
+			}
+			root, s, err := b.readRoot(caller)
 			if err != nil {
 				return nil, err
 			}
-			tasks := s.list()
-			start := min(in.Cursor, len(tasks))
-			end := min(start+20, len(tasks))
-			page := make([]taskView, 0, end-start)
-			for _, task := range tasks[start:end] {
-				task.Details = ""
-				page = append(page, s.view(task))
+			q := taskQuery{status: in.Status, unowned: in.Unowned, ready: in.Ready, cursor: in.Cursor, limit: 50}
+			if in.Limit != nil {
+				q.limit = *in.Limit
 			}
-			next := 0
-			if end < len(tasks) {
-				next = end
+			if in.Owner != nil {
+				q.owner = *in.Owner
+				if q.owner == "lead" {
+					q.owner = root.ID()
+				}
 			}
-			return struct {
-				Tasks      []taskView `json:"tasks"`
-				NextCursor int        `json:"nextCursor,omitempty"`
-			}{page, next}, nil
+			return s.page(q), nil
 		})
 	add("get", "Read one shared task (including a deleted record) with its revision, readiness and advisory write-scope warnings.", taskID, `"task_id"`, func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 		id, err := parseTaskID(in.TaskID)

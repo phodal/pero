@@ -228,9 +228,13 @@ with those flags never enables a session automatically.
   warning without changing this task's revision. Scopes neither lock files
   nor block claims, grant tools, or modify file permissions.
 
-Named owner filters and aliases beyond `lead` and Desktop mode controls
-remain open. List returns a 20-row page of summaries;
-get returns the full description. The Team regression transfers A's claim
+List filters by status, exact owner session ID or `lead`, unowned, and
+readiness before applying a zero-based cursor. Owner and unowned cannot be
+combined. The default is 50 summaries, with an explicit limit of 1–100;
+get returns the full description. Readiness and write-scope warnings are
+still calculated against the whole board. DSH agent-name aliases beyond
+`lead` and Desktop mode controls remain open. The Team regression transfers
+A's claim
 to a continuable B, rejects A's late completion, and reassigns to B again
 while cold without making a model request. The graph regression exercises
 the actual model tool dispatch and a JSONL restart: a two-task cycle and a

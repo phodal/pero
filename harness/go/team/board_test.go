@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -173,6 +174,12 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 	if out := call(h, lost.agent, "team_task_update", `{"task_id":"1","expected_revision":2,"action":"claim","owner":"root"}`); !out.IsError {
 		t.Fatal("tool accepted a forged owner")
+	}
+	owned := call(h, root, "team_task_list", `{"owner":`+strconv.Quote(string(won.agent.ID()))+`,"status":"in_progress"}`)
+	var selected taskPage
+	if owned.IsError || json.Unmarshal([]byte(owned.Content[0].Text), &selected) != nil ||
+		len(selected.Tasks) != 1 || selected.Tasks[0].ID != first.ID || selected.Tasks[0].Owner != won.agent.ID() {
+		t.Fatalf("exact child ownership filter did not resolve the saved owner: %+v", owned)
 	}
 	if _, err := board.Update(ctx, root, TaskRef{first.ID, 2}, Claim); !errors.Is(err, ErrClaimed) {
 		t.Fatalf("Lead stole another member's claim: %v", err)
@@ -392,6 +399,34 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	if task.Revision != 7 || len(task.WriteScopes) != 0 {
 		t.Fatalf("explicit empty scopes did not clear only that field: %+v", task)
 	}
+
+	assertTool(restarted, agent, "create", `{"subject":"Blocked","description":"Wait on task 4","blocked_by":["4"]}`, "", &task)
+	assertTool(restarted, agent, "create", `{"subject":"Ready","description":"Another ready task"}`, "", &task)
+	for _, tc := range []struct {
+		args string
+		ids  []TaskID
+		next int
+	}{
+		{`{"status":"pending","unowned":true,"ready":true,"limit":1}`, []TaskID{4}, 1},
+		{`{"status":"pending","unowned":true,"ready":true,"limit":1,"cursor":1}`, []TaskID{6}, 0},
+		{`{"status":"pending","ready":false}`, []TaskID{5}, 0},
+		{`{"owner":"lead","ready":false,"status":"completed"}`, []TaskID{3}, 0},
+		{`{"unowned":false}`, []TaskID{2, 3}, 0},
+		{`{"owner":"unknown"}`, []TaskID{}, 0},
+		{`{"cursor":9007199254740991}`, []TaskID{}, 0},
+	} {
+		var response taskPage
+		assertTool(restarted, agent, "list", tc.args, "", &response)
+		ids := make([]TaskID, 0, len(response.Tasks))
+		for _, v := range response.Tasks {
+			ids = append(ids, v.ID)
+		}
+		if !reflect.DeepEqual(ids, tc.ids) || response.NextCursor != tc.next || response.Tasks == nil {
+			t.Fatalf("list %s returned ids %v, cursor %d", tc.args, ids, response.NextCursor)
+		}
+	}
+	assertTool(restarted, agent, "list", `{"owner":"lead","unowned":false}`, ErrArgument.Error(), nil)
+	assertTool(restarted, agent, "list", `{"limit":0}`, "invalid tool arguments", nil)
 }
 
 func TestGraphMutationRules(t *testing.T) {

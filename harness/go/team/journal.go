@@ -71,18 +71,23 @@ func (b Board) List(caller *harness.Agent) ([]Task, error) {
 }
 
 func (b Board) read(caller *harness.Agent) (state, error) {
+	_, s, err := b.readRoot(caller)
+	return s, err
+}
+
+func (b Board) readRoot(caller *harness.Agent) (*harness.Agent, state, error) {
 	root, err := b.root(caller)
 	if err != nil {
-		return state{}, err
+		return nil, state{}, err
 	}
 	s, err := fold(root.ID(), root.Session().Events())
 	if err != nil {
-		return state{}, err
+		return nil, state{}, err
 	}
 	if !s.enabled {
-		return state{}, ErrDisabled
+		return nil, state{}, ErrDisabled
 	}
-	return s, nil
+	return root, s, nil
 }
 
 func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask) (Task, error) {

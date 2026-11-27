@@ -150,6 +150,19 @@ type taskView struct {
 	WriteScopeWarnings []string `json:"writeScopeWarnings,omitempty"`
 }
 
+type taskQuery struct {
+	status         Status
+	owner          harness.SessionID
+	unowned, ready *bool
+	cursor         uint64
+	limit          int
+}
+
+type taskPage struct {
+	Tasks      []taskView `json:"tasks"`
+	NextCursor int        `json:"nextCursor,omitempty"`
+}
+
 type state struct {
 	enabled bool
 	tasks   []Task
@@ -270,8 +283,38 @@ func (s state) list() []Task {
 	return active
 }
 
+// page applies filters before paging. The original board remains the source
+// of readiness and overlap warnings even for tasks outside the filtered page.
+func (s state) page(q taskQuery) taskPage {
+	matched := make([]Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if task.Status == Deleted || q.status != "" && task.Status != q.status ||
+			q.owner != "" && task.Owner != q.owner ||
+			q.unowned != nil && (task.Owner == "") != *q.unowned ||
+			q.ready != nil && s.isReady(task) != *q.ready {
+			continue
+		}
+		matched = append(matched, task)
+	}
+	start := int(min(q.cursor, uint64(len(matched))))
+	end := min(start+q.limit, len(matched))
+	page := taskPage{Tasks: make([]taskView, 0, end-start)}
+	for _, task := range matched[start:end] {
+		task.Details = ""
+		page.Tasks = append(page.Tasks, s.view(task))
+	}
+	if end < len(matched) {
+		page.NextCursor = end
+	}
+	return page
+}
+
+func (s state) isReady(task Task) bool {
+	return task.Status == Pending && s.ready(task) == nil
+}
+
 func (s state) view(task Task) taskView {
-	view := taskView{Task: task, Ready: task.Status == Pending && s.ready(task) == nil}
+	view := taskView{Task: task, Ready: s.isReady(task)}
 	if len(task.WriteScopes) == 0 || (task.Status != Pending && task.Status != InProgress) {
 		return view
 	}
