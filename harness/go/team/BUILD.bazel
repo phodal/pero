@@ -17,7 +17,10 @@ go_library(
 
 go_test(
     name = "team_test",
-    srcs = ["board_test.go"],
+    srcs = [
+        "board_test.go",
+        "reassign_test.go",
+    ],
     embed = [":team"],
     deps = [
         "//harness",

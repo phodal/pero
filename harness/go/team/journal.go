@@ -50,7 +50,7 @@ func (b Board) root(caller *harness.Agent) (*harness.Agent, error) {
 }
 
 func (b Board) SetEnabled(ctx context.Context, caller *harness.Agent, enabled bool) error {
-	_, err := b.commit(ctx, caller, func(s state, caller, root harness.SessionID) (change, error) {
+	_, err := b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if caller != root {
 			return change{}, ErrForbidden
 		}
@@ -78,7 +78,7 @@ func (b Board) List(caller *harness.Agent) ([]Task, error) {
 }
 
 func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask) (Task, error) {
-	return b.commit(ctx, caller, func(s state, _, _ harness.SessionID) (change, error) {
+	return b.commit(ctx, caller, func(s state, _ *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
 		}
@@ -88,16 +88,44 @@ func (b Board) Create(ctx context.Context, caller *harness.Agent, input NewTask)
 }
 
 func (b Board) Update(ctx context.Context, caller *harness.Agent, ref TaskRef, operation Update) (Task, error) {
-	return b.commit(ctx, caller, func(s state, actor, root harness.SessionID) (change, error) {
+	return b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
 		if !s.enabled {
 			return change{}, ErrDisabled
 		}
-		task, err := s.update(ref, operation, actor, root)
+		task, err := s.update(ref, operation, caller.ID(), root.ID())
 		return change{Task: &task}, err
 	})
 }
 
-func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(state, harness.SessionID, harness.SessionID) (change, error)) (Task, error) {
+// Reassign changes the saved owner only; resolving a member never resumes it
+// or submits a message. An empty target releases the task back to pending.
+func (b Board) Reassign(ctx context.Context, caller *harness.Agent, ref TaskRef, target harness.SessionID) (Task, error) {
+	return b.commit(ctx, caller, func(s state, root *harness.Agent) (change, error) {
+		if !s.enabled {
+			return change{}, ErrDisabled
+		}
+		assignee := target
+		if assignee == "lead" {
+			assignee = root.ID()
+		}
+		task, err := s.reassign(ref, assignee, caller == root)
+		if err != nil {
+			return change{}, err
+		}
+		if assignee != "" && assignee != root.ID() {
+			ok, err := b.Registry.IsContinuableDescendant(ctx, root, assignee)
+			if err != nil {
+				return change{}, err
+			}
+			if !ok {
+				return change{}, fmt.Errorf("%w: %q", ErrMemberNotFound, assignee)
+			}
+		}
+		return change{Task: &task}, nil
+	})
+}
+
+func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(state, *harness.Agent) (change, error)) (Task, error) {
 	for {
 		if err := ctx.Err(); err != nil {
 			return Task{}, err
@@ -112,7 +140,7 @@ func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(sta
 		if err != nil {
 			return Task{}, err
 		}
-		next, err := apply(board, caller.ID(), root.ID())
+		next, err := apply(board, root)
 		if err != nil {
 			return Task{}, err
 		}
@@ -123,6 +151,14 @@ func (b Board) commit(ctx context.Context, caller *harness.Agent, apply func(sta
 		if next.Mode != nil || next.Task != nil {
 			if err := ctx.Err(); err != nil {
 				return Task{}, err
+			}
+			// Assignee discovery may have read durable storage while the caller
+			// was closing. Recheck exact runtime ownership before publication.
+			if current, err := b.root(caller); err != nil || current != root {
+				if err != nil {
+					return Task{}, err
+				}
+				return Task{}, ErrForbidden
 			}
 			next.Root = root.ID()
 			var tail uint64

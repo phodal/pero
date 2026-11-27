@@ -128,3 +128,57 @@ func (p *managedClaudeProvider) PrepareManagedResume(ctx context.Context, parent
 	keepMemory = true
 	return p.continuationRun(ctx, child), harness.SubagentSnapshot{ID: id, Parent: parent.ID(), Provider: p.name, Label: descriptor.Label, Depth: header.DelegationDepth, Continuable: true, SuppressParentSettlement: descriptor.SuppressParentSettlement}, nil
 }
+
+// ListPersisted projects only recognizable selected Claude continuations. It
+// never resumes a child or grants an execution lease. An unreadable or no
+// longer configured child is not eligible for ownership reassignment.
+func (p *managedClaudeProvider) ListPersisted(ctx context.Context) ([]harness.SubagentCatalogEntry, error) {
+	if p.persistence == nil {
+		return nil, nil
+	}
+	var headers []harness.SessionHeader
+	if catalog, ok := p.persistence.(harness.SessionCatalogPersistence); ok {
+		candidates, err := catalog.ListCandidates(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, candidate := range candidates {
+			if candidate.Err == nil && candidate.Header != nil {
+				headers = append(headers, *candidate.Header)
+			}
+		}
+	} else {
+		var err error
+		headers, err = p.persistence.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var result []harness.SubagentCatalogEntry
+	for _, header := range headers {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if header.Origin != "subagent" || header.ParentSession == "" || header.DelegationDepth <= 0 {
+			continue
+		}
+		child, err := p.persistence.Load(ctx, header.ID)
+		if err != nil || child.Header().ParentSession != header.ParentSession {
+			continue
+		}
+		descriptor, found, err := harness.FoldSubagentDescriptor(child)
+		if err != nil || !found || descriptor.Provider != p.name || descriptor.Mode != harness.SubagentDescriptorContinuable {
+			continue
+		}
+		identity, found, err := selectedClaudeDefinition(child)
+		if _, selected := p.definitions[identity.Name]; err != nil || !found || !selected {
+			continue
+		}
+		result = append(result, harness.SubagentCatalogEntry{
+			Kind: harness.SubagentCatalogChild, ID: header.ID, Parent: header.ParentSession,
+			Provider: p.name, Label: descriptor.Label, Mode: descriptor.Mode, Depth: header.DelegationDepth,
+			StartedAt: header.CreatedAt,
+		})
+	}
+	return result, ctx.Err()
+}

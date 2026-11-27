@@ -12,13 +12,14 @@ import (
 )
 
 type taskToolInput struct {
-	Subject   string   `json:"subject"`
-	Details   string   `json:"description"`
-	BlockedBy []string `json:"blocked_by"`
-	TaskID    string   `json:"task_id"`
-	Revision  uint64   `json:"expected_revision"`
-	Action    Update   `json:"action"`
-	Cursor    int      `json:"cursor"`
+	Subject   string             `json:"subject"`
+	Details   string             `json:"description"`
+	BlockedBy []string           `json:"blocked_by"`
+	TaskID    string             `json:"task_id"`
+	Revision  uint64             `json:"expected_revision"`
+	Action    Update             `json:"action"`
+	Owner     *harness.SessionID `json:"owner"`
+	Cursor    int                `json:"cursor"`
 }
 
 // Mount contributes opt-in Team tools and a trusted host command. Mode is
@@ -166,13 +167,24 @@ func (b Board) tools() map[string]harness.Tool {
 		}
 		return (state{tasks: tasks}).get(id)
 	})
-	add("update", "Claim a ready task for yourself, or release or complete an in-progress task. Pass the latest revision. Claiming a task does not start an agent.",
-		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete"]}`, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+	add("update", "Claim, release, complete or reassign a shared task using its latest revision. Only the Lead can reassign. Use owner lead or a continuable child session ID; omit owner to unassign. Does not start an agent.",
+		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign"]},"owner":{"type":"string","minLength":1,"maxLength":256}`, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			id, err := parseTaskID(in.TaskID)
 			if err != nil {
 				return nil, err
 			}
-			return b.Update(ctx, caller, TaskRef{ID: id, Revision: in.Revision}, in.Action)
+			ref := TaskRef{ID: id, Revision: in.Revision}
+			if in.Action == Reassign {
+				var target harness.SessionID
+				if in.Owner != nil {
+					target = *in.Owner
+				}
+				return b.Reassign(ctx, caller, ref, target)
+			}
+			if in.Owner != nil {
+				return nil, errors.New("TEAM_INVALID_ARGUMENT: owner is only valid for reassignment")
+			}
+			return b.Update(ctx, caller, ref, in.Action)
 		})
 	return tools
 }

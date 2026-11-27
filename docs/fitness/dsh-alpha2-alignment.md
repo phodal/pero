@@ -196,16 +196,23 @@ with those flags never enables a session automatically.
 - New tasks are unowned and may depend on existing tasks. Claim requires a
   pending task with completed prerequisites and the current task revision.
   The saved owner is the exact caller's session ID, never supplied by the
-  model. The owner or Lead can release or complete an in-progress task.
+  model. The owner or Lead can release or complete an in-progress task. The Lead
+  can also assign a ready pending or in-progress task to itself (`lead`) or a
+  reachable continuable child by exact session ID, or omit the target to
+  unassign. One-shot and archived children are not eligible. Selected Claude
+  continuations can be resolved from their saved descriptors without waking
+  them, even after restart.
 - Two owned children racing the same revision yield exactly one committed
   owner. Mode, owner and revision survive reloading the root's JSONL journal.
   Updating tasks does not submit prompts, wake teammates, or grant file or
   shell access. This is an in-process board, not distributed Task/Run.
 
 This slice does not implement DSH's complete tool schema: named owner filters
-and reassignment, edits, dependency rewiring, reopen/delete, write-scope
+and aliases beyond `lead`, edits, dependency rewiring, reopen/delete, write-scope
 warnings and Desktop mode controls remain open. List returns a 20-row page
-of summaries; get returns the full description. No change to checkout or
+of summaries; get returns the full description. The Team regression transfers
+A’s claim to a continuable B, rejects A’s late completion, and reassigns to
+B again while cold without making a model request. No change to checkout or
 artifact boundaries is implied.
 
 ## Compaction route and evidence

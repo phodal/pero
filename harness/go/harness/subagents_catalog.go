@@ -203,30 +203,30 @@ func (r *SubagentRegistry) catalogBySessionID(ctx context.Context, parentID Sess
 		r.mu.RUnlock()
 		return nil, errors.New("harness: agent registry is unavailable")
 	}
-	records := make([]*subagentRecord, 0, len(r.records))
+	records := make([]SubagentSnapshot, 0, len(r.records))
 	for _, record := range r.records {
-		records = append(records, record)
+		records = append(records, record.snapshot)
 	}
 	providers := append([]subagentProviderEntry(nil), r.providers...)
 	r.mu.RUnlock()
 
 	entries := make(map[SessionID]SubagentCatalogEntry, len(records))
-	for _, record := range records {
+	for _, snapshot := range records {
 		mode := SubagentDescriptorOneShot
-		if record.snapshot.Continuable {
+		if snapshot.Continuable {
 			mode = SubagentDescriptorContinuable
 		}
 		activity := SubagentActivityReady
-		if agent, ok := agents.Get(record.snapshot.ID); ok && agent != nil {
+		if agent, ok := agents.Get(snapshot.ID); ok && agent != nil {
 			activity = SubagentActivityIdle
 			if agent.Status() == AgentRunning {
 				activity = SubagentActivityRunning
 			}
 		}
-		entries[record.snapshot.ID] = SubagentCatalogEntry{
-			Kind: SubagentCatalogChild, ID: record.snapshot.ID, Parent: record.snapshot.Parent,
-			Provider: record.snapshot.Provider, Label: record.snapshot.Label, Mode: mode,
-			Activity: activity, Depth: record.snapshot.Depth, StartedAt: record.snapshot.StartedAt,
+		entries[snapshot.ID] = SubagentCatalogEntry{
+			Kind: SubagentCatalogChild, ID: snapshot.ID, Parent: snapshot.Parent,
+			Provider: snapshot.Provider, Label: snapshot.Label, Mode: mode,
+			Activity: activity, Depth: snapshot.Depth, StartedAt: snapshot.StartedAt,
 		}
 	}
 
@@ -458,4 +458,52 @@ func (r *SubagentRegistry) notifyProviderWatchers() {
 	for _, watcher := range watchers {
 		watcher.deliver(r)
 	}
+}
+
+// IsContinuableDescendant checks assignment identity against the exact live
+// root's topology. Persisted descriptors can establish identity without
+// recreating an agent. Diagnostic, one-shot and archived rows grant no access.
+func (r *SubagentRegistry) IsContinuableDescendant(ctx context.Context, root *Agent, target SessionID) (bool, error) {
+	if err := r.requireLiveParent(root); err != nil {
+		return false, err
+	}
+	entries, err := r.Catalog(ctx, root, true)
+	if err != nil {
+		return false, err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.disposed || !r.parentAdmitsLocked(root) {
+		return false, ErrSubagentAdmissionClosed
+	}
+	// Catalog is parent-first. A descendant of an unavailable or noncontinuable
+	// parent cannot be cold-reached and should not be selected as a new owner.
+	reachable := map[SessionID]bool{root.ID(): true}
+	for _, entry := range entries {
+		if !reachable[entry.Parent] || entry.Kind != SubagentCatalogChild || entry.Mode != SubagentDescriptorContinuable {
+			continue
+		}
+		archived := false
+		for _, check := range r.archiveChecks {
+			if check(entry.ID) {
+				archived = true
+				break
+			}
+		}
+		if archived {
+			continue
+		}
+		if live, found := r.agents.Get(entry.ID); found {
+			record := r.records[entry.ID]
+			if record == nil || record.child != live || record.parent.ID() != entry.Parent ||
+				!r.parentAdmitsLocked(live) || !r.activationAcceptsInput(record) {
+				continue
+			}
+		}
+		reachable[entry.ID] = true
+		if entry.ID == target {
+			return true, nil
+		}
+	}
+	return false, nil
 }

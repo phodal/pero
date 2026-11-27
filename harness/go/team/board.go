@@ -17,14 +17,16 @@ const (
 )
 
 var (
-	ErrDisabled   = errors.New("TEAM_DISABLED")
-	ErrForbidden  = errors.New("TEAM_TASK_UNAUTHORIZED")
-	ErrNotFound   = errors.New("TEAM_TASK_NOT_FOUND")
-	ErrStale      = errors.New("TEAM_TASK_STALE_REVISION")
-	ErrBlocked    = errors.New("TEAM_TASK_BLOCKED")
-	ErrClaimed    = errors.New("TEAM_TASK_ALREADY_CLAIMED")
-	ErrTransition = errors.New("TEAM_TASK_INVALID_TRANSITION")
-	ErrLimit      = errors.New("TEAM_TASK_LIMIT")
+	ErrDisabled       = errors.New("TEAM_DISABLED")
+	ErrForbidden      = errors.New("TEAM_TASK_UNAUTHORIZED")
+	ErrNotFound       = errors.New("TEAM_TASK_NOT_FOUND")
+	ErrStale          = errors.New("TEAM_TASK_STALE_REVISION")
+	ErrBlocked        = errors.New("TEAM_TASK_BLOCKED")
+	ErrClaimed        = errors.New("TEAM_TASK_ALREADY_CLAIMED")
+	ErrTransition     = errors.New("TEAM_TASK_INVALID_TRANSITION")
+	ErrLeadRequired   = errors.New("TEAM_LEAD_REQUIRED")
+	ErrMemberNotFound = errors.New("TEAM_MEMBER_NOT_FOUND")
+	ErrLimit          = errors.New("TEAM_TASK_LIMIT")
 )
 
 type TaskID uint32
@@ -86,6 +88,7 @@ const (
 	Claim    Update = "claim"
 	Release  Update = "release"
 	Complete Update = "complete"
+	Reassign Update = "reassign"
 )
 
 type state struct {
@@ -153,13 +156,54 @@ func (s state) create(input NewTask) (Task, error) {
 		Dependencies: append([]TaskID(nil), input.Dependencies...), Revision: 1, Status: Pending}, nil
 }
 
-func (s state) update(ref TaskRef, operation Update, actor, root harness.SessionID) (Task, error) {
+func (s state) current(ref TaskRef) (Task, error) {
 	task, err := s.get(ref.ID)
 	if err != nil {
 		return Task{}, err
 	}
 	if task.Revision != ref.Revision {
 		return Task{}, fmt.Errorf("%w: current revision %d", ErrStale, task.Revision)
+	}
+	return task, nil
+}
+
+func (s state) ready(task Task) error {
+	for _, dependency := range task.Dependencies {
+		required, err := s.get(dependency)
+		if err != nil || required.Status != Completed {
+			return fmt.Errorf("%w: unfinished prerequisite %d", ErrBlocked, dependency)
+		}
+	}
+	return nil
+}
+
+func (s state) reassign(ref TaskRef, target harness.SessionID, lead bool) (Task, error) {
+	task, err := s.current(ref)
+	if err != nil {
+		return Task{}, err
+	}
+	if !lead {
+		return Task{}, ErrLeadRequired
+	}
+	if task.Status != Pending && task.Status != InProgress {
+		return Task{}, ErrTransition
+	}
+	if target == "" {
+		task.Status, task.Owner = Pending, ""
+	} else {
+		if err := s.ready(task); err != nil {
+			return Task{}, err
+		}
+		task.Status, task.Owner = InProgress, target
+	}
+	task.Revision++
+	return task, nil
+}
+
+func (s state) update(ref TaskRef, operation Update, actor, root harness.SessionID) (Task, error) {
+	task, err := s.current(ref)
+	if err != nil {
+		return Task{}, err
 	}
 	switch operation {
 	case Claim:
@@ -169,11 +213,8 @@ func (s state) update(ref TaskRef, operation Update, actor, root harness.Session
 		if task.Status != Pending {
 			return Task{}, ErrBlocked
 		}
-		for _, dependency := range task.Dependencies {
-			required, err := s.get(dependency)
-			if err != nil || required.Status != Completed {
-				return Task{}, fmt.Errorf("%w: unfinished prerequisite %d", ErrBlocked, dependency)
-			}
+		if err := s.ready(task); err != nil {
+			return Task{}, err
 		}
 		task.Status, task.Owner = InProgress, actor
 	case Complete, Release:
