@@ -491,6 +491,37 @@ bounded text into Run events. The Go regression also covers foreign Worker,
 wrong instance, stale generation, immutable upload and historical download.
 Public Relay deployment and release packages remain separate acceptance.
 
+### Agent-initiated handoff in the Native right panel, 2026-11-27
+
+The workspace right-panel control opens the selected Run's **Desktop** and
+**Artifacts** views. The panel menu uses the same destination labels and icons
+as conversation resources. The existing resources column owns the split and
+its saved width. The Run owns the desktop session and artifact identity.
+
+The macOS Native development build selected **Blender Linux ARM64** and
+started Run `run_fc99460925c134a6a355626556b27655`, generation 1, on a Linux
+arm64 Lima Worker. Actual Codex ACP (`gpt-6.1-sol`) observed Blender 3.4.1 and
+requested a handoff to finish Quick Setup. Native showed the reason in the
+right-side Desktop tab and acquired input through WKWebView, the local Relay,
+and noVNC. Switching to Artifacts released input while the request stayed
+pending. Returning to Desktop reconnected to the same guest. The operator
+took control again, finished Quick Setup, and explicitly returned control.
+
+The Agent finished its first ACP turn while the Worker waited. The same
+session resumed at Run event 83. The new observation at event 112 used a
+fresh desktop runtime ID. The Agent saved the scene via Blender's UI.
+`confirm-save-as` was one of 10 executed input receipts. The original guest
+was gone before the Run downloads. All three artifacts matched their SHA-256
+hashes, and Native exported the identical JPEG from the Artifacts tab. A
+separate Blender process opened the exported `.blend` and found the default
+Cube at `(0, 0, 0)`. Evidence is in
+`test-results/native-run-desktop-handoff/`.
+
+An earlier blocking-tool implementation hit Codex's 300-second MCP timeout.
+The Worker now waits under the Run lease and prompts the original ACP
+session after the Run records the return. This lane used a local control
+plane, PostgreSQL and Relay.
+
 ```sh
 npm run build:desktop
 node tests/e2e/linux-desktop.mjs
