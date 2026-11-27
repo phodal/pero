@@ -883,3 +883,24 @@ func callSubagentCleanup(callback func() error) (err error) {
 // Dispose may synchronously retire another Agent whose observers reenter this
 // exact disposer, even using a new background context. Waiting would deadlock.
 var ErrSubagentDisposalInProgress = errors.New("harness: subagent disposal is in progress")
+
+// LiveTreeRoot resolves runtime ownership, not saved parent metadata. A normal
+// session fork is its own root; a resident or recently retired ID cannot act on
+// behalf of a different live Agent with the same Session ID.
+func (r *SubagentRegistry) LiveTreeRoot(caller *Agent) (*Agent, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for current := caller; ; {
+		if r.disposed || !r.liveParentLocked(current) || !r.parentAdmitsLocked(current) {
+			return nil, &subagentActivationError{"harness: tree access requires an exact live Agent", "UNAUTHORIZED"}
+		}
+		record := r.records[current.ID()]
+		if record == nil && !current.Delegated() {
+			return current, nil
+		}
+		if record == nil || record.child != current || !r.activationAcceptsInput(record) {
+			return nil, &subagentActivationError{"harness: Agent is not an active member of this tree", "UNAUTHORIZED"}
+		}
+		current = record.parent
+	}
+}

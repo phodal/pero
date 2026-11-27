@@ -8,4 +8,8 @@ Children use the same adapter, process request cap, selected model route and val
 
 **Children are restrictive:** approval is pinned to `never`, so operations requiring approval are rejected even if the parent can request permission. This is not a promise of autonomous child coding. Children inherit operator-granted MCP capabilities visible in the parent scope. MCP tools that do not require approval can execute, including tools with side effects; `never` is not a read-only guarantee. Child tool restrictions and parent-scope lifetime still apply, and delegation grants no capabilities beyond that inherited scope.
 
-Existing AgentManager/SessionStore own identities and cleanup; native activation capacity, retirement and drain receipts own lifecycle. There are no external child processes, cold continuation provider, Teams/Projects/jobs/scheduler/plugin-host features. The trusted Go API exposes native activation handles for host-owned waiting/disposal, not model authority.
+Existing AgentManager/SessionStore own identities and cleanup; native activation capacity, retirement and drain receipts own lifecycle. There are no external child processes, cold continuation provider, or distributed Projects/jobs/scheduler/plugin-host features. The trusted Go API exposes native activation handles for host-owned waiting/disposal, not model authority.
+
+## Optional Team board
+
+Add `--enable-team` alongside `--enable-subagents` in ACP mode. Use the host’s `commands/execute` with `line: "/team on"` to enable the shared task board for a durable root session. `/team off` hides its tools without deleting tasks. This adds revision-checked task claims, not new execution powers or background workers. See the [DSH alignment notes](../../../../docs/fitness/dsh-alpha2-alignment.md#team-task-board-opt-in-native-slice) for limits.

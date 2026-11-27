@@ -176,6 +176,38 @@ interactive discovery through its Web profile, not ACP; this is a Pero
 extension. Desktop UI, production model service and packaging remain
 unverified.
 
+## Team task board: opt-in native slice
+
+The [pinned DSH Team contract](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/team/agent-team/README.md)
+puts shared task ownership in the live root session, not in individual member
+sessions. Pero now has a separate native board; the existing Claude
+`TaskCreate`, `TaskUpdate`, `TaskGet`, and `TaskList` remain session-local.
+
+Launch native `pero-agent-acp` with `--enable-subagents --enable-team`. In
+the existing ACP `commands/execute` method pass the session ID as `agentId`
+and `"/team on"` as `line`. `/team status` reads mode and count; `/team off`
+hides the tools without discarding the saved board. Starting the binary
+with those flags never enables a session automatically.
+
+- The live root and its owned children see `team_task_create`, `team_task_list`,
+  `team_task_get` and `team_task_update` only while opted in. Unrelated roots
+  and ordinary forks never gain access to the source board. A fork can still
+  contain historical tool messages as normal conversation history.
+- New tasks are unowned and may depend on existing tasks. Claim requires a
+  pending task with completed prerequisites and the current task revision.
+  The saved owner is the exact caller's session ID, never supplied by the
+  model. The owner or Lead can release or complete an in-progress task.
+- Two owned children racing the same revision yield exactly one committed
+  owner. Mode, owner and revision survive reloading the root's JSONL journal.
+  Updating tasks does not submit prompts, wake teammates, or grant file or
+  shell access. This is an in-process board, not distributed Task/Run.
+
+This slice does not implement DSH's complete tool schema: named owner filters
+and reassignment, edits, dependency rewiring, reopen/delete, write-scope
+warnings and Desktop mode controls remain open. List returns a 20-row page
+of summaries; get returns the full description. No change to checkout or
+artifact boundaries is implied.
+
 ## Compaction route and evidence
 
 The Go regression writes a JSONL session, removes the active agent, loads

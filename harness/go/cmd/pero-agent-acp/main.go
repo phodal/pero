@@ -33,6 +33,7 @@ import (
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
+	"github.com/phodal/pero/harness/go/team"
 	"github.com/phodal/pero/harness/go/webtools"
 	"github.com/phodal/pero/harness/go/workflow"
 )
@@ -92,6 +93,7 @@ func run() (resultErr error) {
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
+	enableTeam := flag.Bool("enable-team", false, "enable per-session shared task boards via the ACP commands/execute /team command")
 	enableGoal := flag.Bool("enable-goal", false, "Enable bounded /goal continuation in the native ACP harness")
 	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
 	sessionTitles := flag.Bool("session-titles", false, "generate one conversation title after its first completed ACP turn")
@@ -130,6 +132,9 @@ func run() (resultErr error) {
 	}
 	if *outputLimitRecoveries < 0 || *printMode && *outputLimitRecoveries != 0 {
 		return errors.New("--output-limit-recoveries must be nonnegative and is only supported in ACP mode")
+	}
+	if *enableTeam && (!delegation.Enabled || *printMode || *initOnly || *maintenance) {
+		return errors.New("--enable-team requires --enable-subagents and ACP mode")
 	}
 	if *enableGoal && (*printMode || *initOnly || *maintenance) {
 		return errors.New("--enable-goal is only supported when serving ACP")
@@ -459,6 +464,11 @@ func run() (resultErr error) {
 	}
 	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
+	}
+	if *enableTeam {
+		if err := team.Mount(ctx, h); err != nil {
+			return err
+		}
 	}
 	reviewer, err := scientificreviewer.Mount(ctx, h, persistence)
 	if err != nil {
