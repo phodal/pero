@@ -122,6 +122,8 @@ pub struct ChatPanel {
     pub resource_column: Option<crate::resource_panel::ResourceColumn>,
     #[cfg(all(feature = "native", target_os = "macos"))]
     pub computer_preview: Option<AnyView>,
+    #[cfg(all(feature = "native", target_os = "macos"))]
+    pub native_desktop_pane: Option<AnyView>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,
     pub scope: Option<pero_contracts::AppChatScope>,
     pub(crate) scope_selection: HashMap<Option<pero_contracts::AppChatScope>, String>,
@@ -212,6 +214,8 @@ impl ChatPanel {
             resource_column: None,
             #[cfg(all(feature = "native", target_os = "macos"))]
             computer_preview: None,
+            #[cfg(all(feature = "native", target_os = "macos"))]
+            native_desktop_pane: None,
             pending_prompts: vec![],
             scope: None,
             scope_selection: HashMap::new(),

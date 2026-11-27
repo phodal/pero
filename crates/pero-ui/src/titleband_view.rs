@@ -168,6 +168,7 @@ impl Workbench {
             titleband::ResourcesColumn {
                 width: column.width,
                 primary: match column.primary {
+                    pero_chat_ui::ResourcePrimary::Launcher => titleband::ResourcePrimary::Launcher,
                     pero_chat_ui::ResourcePrimary::Files => titleband::ResourcePrimary::Files,
                     pero_chat_ui::ResourcePrimary::Artifacts => titleband::ResourcePrimary::Artifacts,
                     pero_chat_ui::ResourcePrimary::Changes => titleband::ResourcePrimary::Changes,

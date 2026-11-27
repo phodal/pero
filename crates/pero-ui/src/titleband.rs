@@ -54,6 +54,7 @@ pub(crate) struct ResourcesColumn {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ResourcePrimary {
     Project,
+    Launcher,
     Files,
     Artifacts,
     Changes,

@@ -32,6 +32,7 @@ impl ChatPanel {
         state: &ArtifactCollection,
         compact: bool,
         titleband_width: Option<f32>,
+        actions_only: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
@@ -69,6 +70,7 @@ impl ChatPanel {
             }
         };
         let selected = match state.resource_view {
+            ResourceView::Launcher => ResourcePrimary::Launcher,
             ResourceView::Changes => ResourcePrimary::Changes,
             ResourceView::Desktop => ResourcePrimary::Desktop,
             ResourceView::Contents if files => ResourcePrimary::Files,
@@ -81,6 +83,7 @@ impl ChatPanel {
             let thread = thread.to_owned();
             resource_menu(available, selected, &self.locale, show_current, move |view, cx| {
                 let _ = owner.update(cx, |this, cx| match view {
+                    ResourcePrimary::Launcher => this.open_panel_launcher(&thread, cx),
                     ResourcePrimary::Files => this.choose_resource_tab(&thread, ResourceTab::Files, cx),
                     ResourcePrimary::Artifacts => this.choose_resource_tab(&thread, ResourceTab::Artifacts, cx),
                     ResourcePrimary::Changes => this.open_changes_pane(&thread, cx),
@@ -407,7 +410,7 @@ impl ChatPanel {
                     })),
                 )
             })
-            .when(files, |el| {
+            .when(files && !actions_only, |el| {
                 let close_thread = thread.to_owned();
                 el.child(
                     Button::new("files-close")
@@ -433,7 +436,7 @@ impl ChatPanel {
                         })),
                 )
             })
-            .when(!files, |el| {
+            .when(!files && !actions_only, |el| {
                 el.child(
                     self.artifact_icon_button(
                         thread,
@@ -458,7 +461,7 @@ impl ChatPanel {
         } else {
             (identity, None)
         };
-        let panel_menu = (titleband_width.is_some() && (!narrow_band || desktop))
+        let panel_menu = (!actions_only && titleband_width.is_some() && (!narrow_band || desktop))
             .then(|| panel_menu(false, cx));
         div()
             .id("artifact-pane-toolbar")
@@ -472,13 +475,13 @@ impl ChatPanel {
             })
             .when(!compact, |el| el.items_center())
             .when(titleband_width.is_none(), |el| el.border_b(px(0.5)).border_color(p.border))
-            .child(
+            .when(!actions_only, |el| el.child(
                 div().flex().items_center().gap(px(4.)).child(destinations)
                     .when(self.desktop_pane_available() && (!narrow_band || desktop), |el| {
                         el.child(destination("desktop-tab", "linux_desktop.tab", desktop, "desktop-tab", None)
                             .on_click(cx.listener(|this, _, _, cx| this.open_desktop_pane(cx))))
                     }),
-            )
+            ))
             .children(leading_identity)
             .child(actions)
             .children(panel_menu)
@@ -486,7 +489,7 @@ impl ChatPanel {
             .into_any_element()
     }
 
-    fn open_changes_pane(&mut self, thread: &str, cx: &mut Context<Self>) {
+    pub(crate) fn open_changes_pane(&mut self, thread: &str, cx: &mut Context<Self>) {
         let first = self
             .chats
             .iter()

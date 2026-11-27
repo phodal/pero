@@ -49,7 +49,13 @@ mod session_artifacts;
 mod artifact_panel;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod resource_panel;
-pub use resource_panel::{ResourceColumn, ResourcePrimary, resource_menu};
+#[cfg(any(target_family = "wasm", feature = "native"))]
+mod chat_resource_panel;
+#[cfg(any(target_family = "wasm", feature = "native"))]
+pub use resource_panel::{
+    PanelTabAction, PanelTabs, ResourceColumn, ResourcePrimary, panel_launcher, panel_tab_strip,
+    resource_menu,
+};
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod pane_toolbar;
 #[cfg(any(target_family = "wasm", feature = "native"))]
