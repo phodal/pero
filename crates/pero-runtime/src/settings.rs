@@ -273,6 +273,7 @@ mod tests {
                 "research-1".into(), "Control comparison".into(), "Compare held-out scenarios".into(),
                 Some("/work/pero".into()),
             ).unwrap()],
+            removed_project_sources: Default::default(),
             layout: {
                 let mut layout = pero_contracts::workbench::LayoutPreferences::default();
                 layout.resize_chat(512.);
