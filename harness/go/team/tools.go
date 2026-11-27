@@ -12,14 +12,15 @@ import (
 )
 
 type taskToolInput struct {
-	Subject   *string            `json:"subject"`
-	Details   *string            `json:"description"`
-	BlockedBy *[]TaskID          `json:"blocked_by"`
-	TaskID    string             `json:"task_id"`
-	Revision  uint64             `json:"expected_revision"`
-	Action    Update             `json:"action"`
-	Owner     *harness.SessionID `json:"owner"`
-	Cursor    int                `json:"cursor"`
+	Subject     *string            `json:"subject"`
+	Details     *string            `json:"description"`
+	BlockedBy   *[]TaskID          `json:"blocked_by"`
+	WriteScopes *[]string          `json:"write_scopes"`
+	TaskID      string             `json:"task_id"`
+	Revision    uint64             `json:"expected_revision"`
+	Action      Update             `json:"action"`
+	Owner       *harness.SessionID `json:"owner"`
+	Cursor      int                `json:"cursor"`
 }
 
 // Mount contributes opt-in Team tools and a trusted host command. Mode is
@@ -100,6 +101,7 @@ func (b Board) tools() map[string]harness.Tool {
 	const taskID = `"task_id":{"type":"string","pattern":"^[1-9][0-9]{0,8}$"}`
 	const taskText = `"subject":{"type":"string","minLength":1,"maxLength":200},"description":{"type":"string","minLength":1,"maxLength":16384}`
 	const dependencies = `"blocked_by":{"type":"array","maxItems":256,"items":{"type":"string","pattern":"^[1-9][0-9]{0,8}$"}}`
+	const writeScopes = `"write_scopes":{"type":"array","maxItems":32,"items":{"type":"string","minLength":1,"maxLength":256}}`
 	type action func(context.Context, *harness.Agent, taskToolInput) (any, error)
 	tools := make(map[string]harness.Tool, 4)
 	add := func(name, title, args, required string, run action) {
@@ -124,8 +126,8 @@ func (b Board) tools() map[string]harness.Tool {
 			},
 		}
 	}
-	add("create", "Create one unowned task. Add only existing prerequisite IDs.",
-		taskText+","+dependencies,
+	add("create", "Create one unowned task. Use existing prerequisite IDs and optional advisory workspace-relative write_scopes.",
+		taskText+","+dependencies+","+writeScopes,
 		`"subject","description"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			if in.Subject == nil || in.Details == nil {
 				return nil, ErrArgument
@@ -133,6 +135,9 @@ func (b Board) tools() map[string]harness.Tool {
 			input := NewTask{Title: *in.Subject, Details: *in.Details}
 			if in.BlockedBy != nil {
 				input.Dependencies = *in.BlockedBy
+			}
+			if in.WriteScopes != nil {
+				input.WriteScopes = *in.WriteScopes
 			}
 			return b.Create(ctx, caller, input)
 		})
@@ -159,7 +164,7 @@ func (b Board) tools() map[string]harness.Tool {
 				NextCursor int        `json:"nextCursor,omitempty"`
 			}{page, next}, nil
 		})
-	add("get", "Read one shared task (including a deleted record) with its revision and readiness.", taskID, `"task_id"`, func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+	add("get", "Read one shared task (including a deleted record) with its revision, readiness and advisory write-scope warnings.", taskID, `"task_id"`, func(_ context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 		id, err := parseTaskID(in.TaskID)
 		if err != nil {
 			return nil, err
@@ -174,15 +179,15 @@ func (b Board) tools() map[string]harness.Tool {
 		}
 		return s.view(task), nil
 	})
-	add("update", "Change a shared task using its latest revision. Edit subject/description; set_dependencies replaces blocked_by (use [] to clear). The owner or Lead can edit, rewire, reopen completed tasks, or delete tasks without dependents. Only the Lead can reassign to lead or a continuable child session ID; omit owner to unassign. Never starts an agent.",
-		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign","edit","set_dependencies","reopen","delete"]},"owner":{"type":"string","minLength":1,"maxLength":256}`+","+taskText+","+dependencies, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
+	add("update", "Change a shared task using its latest revision. Edit subject, description and/or write_scopes (use [] to clear scopes); set_dependencies replaces blocked_by (use [] to clear). The owner or Lead can edit, rewire, reopen completed tasks, or delete tasks without dependents. Only the Lead can reassign to lead or a continuable child session ID; omit owner to unassign. Never starts an agent.",
+		taskID+`,"expected_revision":{"type":"integer","minimum":1},"action":{"enum":["claim","release","complete","reassign","edit","set_dependencies","reopen","delete"]},"owner":{"type":"string","minLength":1,"maxLength":256}`+","+taskText+","+dependencies+","+writeScopes, `"task_id","expected_revision","action"`, func(ctx context.Context, caller *harness.Agent, in taskToolInput) (any, error) {
 			id, err := parseTaskID(in.TaskID)
 			if err != nil {
 				return nil, err
 			}
 			ref := TaskRef{ID: id, Revision: in.Revision}
-			if (in.Subject != nil || in.Details != nil) && in.Action != Edit {
-				return nil, fmt.Errorf("%w: subject and description are only valid for edit", ErrArgument)
+			if (in.Subject != nil || in.Details != nil || in.WriteScopes != nil) && in.Action != Edit {
+				return nil, fmt.Errorf("%w: subject, description and write_scopes are only valid for edit", ErrArgument)
 			}
 			if in.BlockedBy != nil && in.Action != SetDependencies {
 				return nil, fmt.Errorf("%w: blocked_by is only valid for set_dependencies", ErrArgument)
@@ -197,7 +202,7 @@ func (b Board) tools() map[string]harness.Tool {
 			if in.Owner != nil {
 				return nil, fmt.Errorf("%w: owner is only valid for reassignment", ErrArgument)
 			}
-			return b.update(ctx, caller, ref, mutation{operation: in.Action, title: in.Subject, details: in.Details, dependencies: in.BlockedBy})
+			return b.update(ctx, caller, ref, mutation{operation: in.Action, title: in.Subject, details: in.Details, dependencies: in.BlockedBy, writeScopes: in.WriteScopes})
 		})
 	return tools
 }

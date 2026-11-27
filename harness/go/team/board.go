@@ -32,6 +32,7 @@ var (
 	ErrDependents     = errors.New("TEAM_TASK_HAS_DEPENDENTS")
 	ErrCycle          = errors.New("TEAM_TASK_DEPENDENCY_CYCLE")
 	ErrArgument       = errors.New("TEAM_INVALID_ARGUMENT")
+	ErrWriteScope     = errors.New("TEAM_INVALID_WRITE_SCOPE")
 )
 
 type TaskID uint32
@@ -67,11 +68,45 @@ const (
 	Deleted    Status = "deleted"
 )
 
+// writeScope is a normalized workspace-relative path prefix for coordination
+// only. The board never resolves it against the filesystem.
+type writeScope string
+
+func normalizeWriteScopes(inputs []string) ([]writeScope, error) {
+	if len(inputs) > 32 {
+		return nil, fmt.Errorf("%w: too many write scopes", ErrArgument)
+	}
+	var scopes []writeScope
+	for _, input := range inputs {
+		prefix := strings.TrimRight(strings.TrimPrefix(strings.ReplaceAll(input, "\\", "/"), "./"), "/")
+		drive := len(prefix) >= 2 && prefix[1] == ':' && ((prefix[0] >= 'a' && prefix[0] <= 'z') || (prefix[0] >= 'A' && prefix[0] <= 'Z'))
+		if len(input) > 256 || drive || strings.ContainsRune(prefix, 0) {
+			return nil, ErrWriteScope
+		}
+		for segment := range strings.SplitSeq(prefix, "/") {
+			if segment == "" || segment == "." || segment == ".." {
+				return nil, ErrWriteScope
+			}
+		}
+		scope := writeScope(prefix)
+		if !slices.Contains(scopes, scope) {
+			scopes = append(scopes, scope)
+		}
+	}
+	return scopes, nil
+}
+
+func (s writeScope) overlaps(other writeScope) bool {
+	return s == other || strings.HasPrefix(string(s), string(other)+"/") ||
+		strings.HasPrefix(string(other), string(s)+"/")
+}
+
 type Task struct {
 	ID           TaskID            `json:"id"`
 	Title        string            `json:"subject"`
 	Details      string            `json:"description,omitempty"`
 	Dependencies []TaskID          `json:"blockedBy,omitempty"`
+	WriteScopes  []writeScope      `json:"writeScopes,omitempty"`
 	Revision     uint64            `json:"revision"`
 	Status       Status            `json:"status"`
 	Owner        harness.SessionID `json:"owner,omitempty"`
@@ -81,6 +116,7 @@ type NewTask struct {
 	Title        string
 	Details      string
 	Dependencies []TaskID
+	WriteScopes  []string
 }
 
 type TaskRef struct {
@@ -105,11 +141,13 @@ type mutation struct {
 	operation      Update
 	title, details *string
 	dependencies   *[]TaskID
+	writeScopes    *[]string
 }
 
 type taskView struct {
 	Task
-	Ready bool `json:"ready"`
+	Ready              bool     `json:"ready"`
+	WriteScopeWarnings []string `json:"writeScopeWarnings,omitempty"`
 }
 
 type state struct {
@@ -214,7 +252,11 @@ func (s state) create(input NewTask) (Task, error) {
 	if err := s.validateDependencies(id, input.Dependencies); err != nil {
 		return Task{}, err
 	}
-	return Task{ID: id, Title: title, Details: details,
+	scopes, err := normalizeWriteScopes(input.WriteScopes)
+	if err != nil {
+		return Task{}, err
+	}
+	return Task{ID: id, Title: title, Details: details, WriteScopes: scopes,
 		Dependencies: append([]TaskID(nil), input.Dependencies...), Revision: 1, Status: Pending}, nil
 }
 
@@ -229,7 +271,22 @@ func (s state) list() []Task {
 }
 
 func (s state) view(task Task) taskView {
-	return taskView{Task: task, Ready: task.Status == Pending && s.ready(task) == nil}
+	view := taskView{Task: task, Ready: task.Status == Pending && s.ready(task) == nil}
+	if len(task.WriteScopes) == 0 || (task.Status != Pending && task.Status != InProgress) {
+		return view
+	}
+	for _, other := range s.tasks {
+		if other.ID == task.ID || other.Status != InProgress {
+			continue
+		}
+		for _, scope := range task.WriteScopes {
+			if slices.ContainsFunc(other.WriteScopes, scope.overlaps) {
+				view.WriteScopeWarnings = append(view.WriteScopeWarnings, fmt.Sprintf("write scopes overlap with task %d", other.ID))
+				break
+			}
+		}
+	}
+	return view
 }
 
 func (s state) current(ref TaskRef) (Task, error) {
@@ -309,8 +366,8 @@ func (s state) update(ref TaskRef, input mutation, actor, root harness.SessionID
 			task.Status, task.Owner = Pending, ""
 		}
 	case Edit:
-		if input.title == nil && input.details == nil {
-			return Task{}, fmt.Errorf("%w: edit requires subject or description", ErrArgument)
+		if input.title == nil && input.details == nil && input.writeScopes == nil {
+			return Task{}, fmt.Errorf("%w: edit requires subject, description, or write_scopes", ErrArgument)
 		}
 		if input.title != nil {
 			task.Title, err = taskText(*input.title, "subject", 200)
@@ -320,6 +377,12 @@ func (s state) update(ref TaskRef, input mutation, actor, root harness.SessionID
 		}
 		if input.details != nil {
 			task.Details, err = taskText(*input.details, "description", 16384)
+			if err != nil {
+				return Task{}, err
+			}
+		}
+		if input.writeScopes != nil {
+			task.WriteScopes, err = normalizeWriteScopes(*input.writeScopes)
 			if err != nil {
 				return Task{}, err
 			}

@@ -319,7 +319,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":2,"action":"set_dependencies","blocked_by":[]}`, ErrStale.Error(), nil)
 	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":3,"action":"set_dependencies"}`, ErrArgument.Error(), nil)
 	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":3,"action":"set_dependencies","blocked_by":[]}`, "", &task)
-	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":4,"action":"edit","subject":"Reproduce the revised figure"}`, "", &task)
+	assertTool(fresh, resumed, "update", `{"task_id":"2","expected_revision":4,"action":"edit","subject":"Reproduce the revised figure","write_scopes":["./src/foo/a.go/","src/foo/a.go"]}`, "", &task)
 	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":4,"action":"delete"}`, "", &task)
 	assertTool(fresh, resumed, "update", `{"task_id":"1","expected_revision":5,"action":"claim"}`, ErrDeleted.Error(), nil)
 	assertTool(fresh, resumed, "create", `{"subject":"Missing input","description":"Do not create","blocked_by":["1"]}`, ErrNotFound.Error(), nil)
@@ -356,7 +356,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 	view = taskView{}
 	assertTool(restarted, agent, "get", `{"task_id":"2"}`, "", &view)
-	if !view.Ready || view.Revision != 5 || view.Title != "Reproduce the revised figure" || view.Details != "Reproduce the figure" {
+	if !view.Ready || view.Revision != 5 || view.Title != "Reproduce the revised figure" || view.Details != "Reproduce the figure" || !reflect.DeepEqual(view.WriteScopes, []writeScope{"src/foo/a.go"}) {
 		t.Fatalf("restart lost edited ready task: %+v", view)
 	}
 	var page struct{ Tasks []taskView }
@@ -364,11 +364,34 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	if len(page.Tasks) != 1 || page.Tasks[0].ID != 2 || !page.Tasks[0].Ready || page.Tasks[0].Details != "" {
 		t.Fatalf("list leaked a tombstone or omitted the active task: %+v", page)
 	}
-	assertTool(restarted, agent, "create", `{"subject":"New task","description":"Never recycle deleted IDs"}`, "", &task)
+	assertTool(restarted, agent, "create", `{"subject":"New task","description":"Never recycle deleted IDs","write_scopes":["src/foo"]}`, "", &task)
 	if task.ID != 3 {
 		t.Fatalf("task ID recycled after deletion: %+v", task)
 	}
-
+	assertTool(restarted, agent, "update", `{"task_id":"3","expected_revision":1,"action":"claim"}`, "", &task)
+	assertTool(restarted, agent, "create", `{"subject":"Separate tree","description":"Not a scope overlap","write_scopes":["src/foobar"]}`, "", &task)
+	assertTool(restarted, agent, "list", `{}`, "", &page)
+	if len(page.Tasks) != 3 || page.Tasks[0].ID != 2 || !page.Tasks[0].Ready ||
+		!reflect.DeepEqual(page.Tasks[0].WriteScopeWarnings, []string{"write scopes overlap with task 3"}) ||
+		len(page.Tasks[2].WriteScopeWarnings) != 0 {
+		t.Fatalf("scope advisory crossed a path boundary or changed readiness: %+v", page)
+	}
+	assertTool(restarted, agent, "update", `{"task_id":"2","expected_revision":5,"action":"claim"}`, "", &task)
+	if task.Status != InProgress {
+		t.Fatalf("advisory blocked claim: %+v", task)
+	}
+	assertTool(restarted, agent, "update", `{"task_id":"3","expected_revision":2,"action":"complete"}`, "", &task)
+	view = taskView{}
+	assertTool(restarted, agent, "get", `{"task_id":"2"}`, "", &view)
+	if view.Revision != 6 || len(view.WriteScopeWarnings) != 0 {
+		t.Fatalf("completion did not clear advisory without changing the other task: %+v", view)
+	}
+	assertTool(restarted, agent, "update", `{"task_id":"2","expected_revision":6,"action":"edit","write_scopes":["src/../outside"]}`, ErrWriteScope.Error(), nil)
+	task = Task{}
+	assertTool(restarted, agent, "update", `{"task_id":"2","expected_revision":6,"action":"edit","write_scopes":[]}`, "", &task)
+	if task.Revision != 7 || len(task.WriteScopes) != 0 {
+		t.Fatalf("explicit empty scopes did not clear only that field: %+v", task)
+	}
 }
 
 func TestGraphMutationRules(t *testing.T) {
@@ -406,5 +429,19 @@ func TestGraphMutationRules(t *testing.T) {
 				t.Fatalf("edit changed task identity, owner or status: %+v", task)
 			}
 		})
+	}
+}
+
+func TestWriteScopeNormalization(t *testing.T) {
+	for _, name := range []string{"", ".", "./", "/abs", `C:\abs`, `\\server\share`, "src/./a", "src/../a", "src//a", "nul\x00path"} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := normalizeWriteScopes([]string{name}); !errors.Is(err, ErrWriteScope) {
+				t.Fatalf("accepted non-workspace scope %q: %v", name, err)
+			}
+		})
+	}
+	scopes, err := normalizeWriteScopes([]string{`.\src\foo\`, "src/foo", "src/bar/"})
+	if err != nil || !reflect.DeepEqual(scopes, []writeScope{"src/foo", "src/bar"}) {
+		t.Fatalf("normalization and deduplication: %v, %v", scopes, err)
 	}
 }
