@@ -583,6 +583,8 @@ pub fn run() -> anyhow::Result<()> {
         })
         .expect("native workbench window");
         #[cfg(target_os = "macos")]
+        crate::native_desktop_chooser::install(&view, cx);
+        #[cfg(target_os = "macos")]
         if let Some(owner) = computer_view_owner {
             view.read(cx).computer_preview.clone().update(cx, |preview, _| preview.connect(&owner));
             crate::native_computer_hotkey::attach(view.clone(), window, owner, appshot_rx, cx);

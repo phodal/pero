@@ -11,7 +11,7 @@ use serde_json::json;
 impl Workbench {
     pub(crate) fn run_desktop_active(&self) -> bool {
         #[cfg(all(feature = "native", target_os = "macos"))]
-        { self.remote.run_desktop.view.is_some() }
+        { self.remote.run_desktop.attached.is_none() && self.remote.run_desktop.view.is_some() }
         #[cfg(not(all(feature = "native", target_os = "macos")))]
         { false }
     }

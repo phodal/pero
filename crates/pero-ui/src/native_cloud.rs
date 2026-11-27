@@ -38,6 +38,8 @@ pub(crate) struct CloudSession {
     identity: Value,
     github: Value,
     detail: Value,
+    #[cfg(target_os = "macos")]
+    watched_desktop: Option<desktop::DesktopWatch>,
     contributions: Value,
     contribution_more: bool,
     contribution_cursor: Option<String>,
@@ -79,6 +81,8 @@ impl CloudSession {
             identity: Value::Null,
             github: Value::Null,
             detail: Value::Null,
+            #[cfg(target_os = "macos")]
+            watched_desktop: None,
             contributions: json!([]),
             contribution_more: false,
             contribution_cursor: None,
@@ -180,6 +184,8 @@ impl CloudSession {
                 }
             }
             "remote_select" => self.select(value),
+            #[cfg(target_os = "macos")]
+            "remote_watch_desktop" => self.watch_desktop(value.get("task_id")),
             "remote_filter" => self.filter(value),
             "remote_open_source" => self.open_source(value),
             "remote_claim" | "remote_release" | "remote_dispatch" | "remote_cancel" => {
@@ -420,6 +426,8 @@ impl CloudSession {
             Ok(()) => self.error = None,
             Err(message) => self.error = Some(message),
         }
+        #[cfg(target_os = "macos")]
+        self.refresh_watched_desktop();
     }
 
     fn finish_callback(&mut self, value: &str) -> CommandOutcome {
@@ -751,18 +759,6 @@ impl CloudSession {
         Ok(value)
     }
 
-    fn api(&self) -> &'static str {
-        if self.client_mode {
-            "/api/client/v1"
-        } else {
-            "/api/v1"
-        }
-    }
-
-    fn configured(&self) -> bool {
-        !self.token.is_empty()
-    }
-
     fn clear_lists(&mut self) {
         self.pages = 1;
         self.tasks = json!([]);
@@ -770,6 +766,8 @@ impl CloudSession {
         self.has_more = false;
         self.selected = None;
         self.detail = Value::Null;
+        #[cfg(target_os = "macos")]
+        { self.watched_desktop = None; }
         self.identity = Value::Null;
         self.github = Value::Null;
         self.contributions = json!([]);
@@ -802,6 +800,10 @@ impl CloudSession {
             "source_kind": self.source_kind,
             "tag": self.tag,
         });
+        #[cfg(target_os = "macos")]
+        if let Some(watch) = &self.watched_desktop {
+            event.data["watched_desktop"] = json!(watch);
+        }
         event
     }
 
