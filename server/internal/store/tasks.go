@@ -92,6 +92,7 @@ func taskIn(ctx context.Context, q interface {
 			return nil, err
 		}
 		t.State = t.Run.Status
+		t.CurrentDesktopProfile = t.Run.DesktopProfile
 	}
 	return &t, nil
 }

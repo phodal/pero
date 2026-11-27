@@ -89,6 +89,7 @@ model Task {
   id: Id;
   state: TaskStatus;
   current_run_id?: string;
+  current_desktop_profile?: "blender";
   run?: Run | null;
   claimed_by?: Claimant;
   latest_source?: Source;

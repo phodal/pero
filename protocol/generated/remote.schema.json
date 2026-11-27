@@ -1469,6 +1469,10 @@
         "current_run_id": {
           "type": "string"
         },
+        "current_desktop_profile": {
+          "type": "string",
+          "const": "blender"
+        },
         "run": {
           "anyOf": [
             {

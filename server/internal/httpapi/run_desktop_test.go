@@ -33,6 +33,11 @@ func TestRunDesktopHandoffAndEvidenceStayWithOriginalRun(t *testing.T) {
 	request(t, api, "POST", taskPath+"/claim", owner.Token, map[string]any{}, "", 200)
 	run := parse[store.Run](t, request(t, api, "POST", taskPath+"/dispatch", owner.Token, selectWorker, "first", 200))
 	request(t, api, "POST", "/api/worker/v1/claims", worker.Token, map[string]string{"request_id": "claim", "instance_id": "active"}, "", 200)
+	summaries := parse[store.TaskPage](t, request(t, api, "GET", "/api/client/v1/tasks", owner.Token, nil, "", 200))
+	if len(summaries.Tasks) != 1 || summaries.Tasks[0].CurrentRunID != run.ID ||
+		summaries.Tasks[0].State != "running" || summaries.Tasks[0].CurrentDesktopProfile != store.BlenderDesktop {
+		t.Fatalf("task summary did not identify the running desktop: %+v", summaries.Tasks)
+	}
 	desktopPath := "/api/worker/v1/runs/" + run.ID + "/desktop"
 	clientDesktop := "/api/client/v1/runs/" + run.ID + "/desktop"
 	const reason = "Finish Blender Quick Setup"
