@@ -119,7 +119,7 @@ pub struct ChatPanel {
     /// The shell already exposes the resource navigation beside this chat.
     pub external_resource_navigation: bool,
     /// Side resources column measured by the last layout. Bottom stack is none.
-    pub resource_column: Option<crate::artifact_panel::ResourceColumn>,
+    pub resource_column: Option<crate::resource_panel::ResourceColumn>,
     #[cfg(all(feature = "native", target_os = "macos"))]
     pub computer_preview: Option<AnyView>,
     pub(crate) pending_prompts: Vec<ComposerInsertion>,

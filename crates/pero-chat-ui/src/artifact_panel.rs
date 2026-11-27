@@ -2,6 +2,7 @@
 use crate::{
     assets::UiIcon,
     panel::{ChatAction, ChatPanel},
+    resource_panel::{ResourceColumn, ResourcePrimary},
     session_artifacts::{ArtifactCollection, ArtifactPaneResize, ResourceView},
 };
 use gpui_kit::{
@@ -14,21 +15,6 @@ use pero_contracts::{
     session_artifact::{ArtifactSource, SessionArtifact},
     workbench::{LayoutPreferences, ResourceTab},
 };
-
-/// Side resources column measured for the workbench titleband.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ResourceColumn {
-    pub width: f32,
-    pub primary: ResourcePrimary,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ResourcePrimary {
-    Files,
-    Artifacts,
-    Changes,
-    Desktop,
-}
 
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
@@ -198,12 +184,11 @@ impl ChatPanel {
 
     pub fn titlebar_artifacts(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let thread = &self.chats.get(self.active_chat?)?.id;
-        let active = self.files.selection.tab == ResourceTab::Artifacts
-            && self.artifacts.conversations.get(thread).is_some_and(|state| state.open && state.resource_view == ResourceView::Contents);
-        let action = self.t(if active { "artifacts.close" } else { "artifacts.title" });
+        let active = self.resource_pane_open();
+        let action = self.t(if active { "resources.close_panel" } else { "resources.open_panel" });
         Some(
             pero_theme::ghost_icon_button("titleband-artifacts", pero_theme::Chrome::from_app(cx), cx)
-            .icon(Icon::default().path(UiIcon::Box.path()))
+            .icon(Icon::default().path(if active { "icons/panel-right-close.svg" } else { "icons/panel-right-open.svg" }))
             .selected(active)
             .toggled(active)
             .tooltip(action)
