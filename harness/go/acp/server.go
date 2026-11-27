@@ -137,6 +137,7 @@ type activeSession struct {
 	mu              sync.Mutex
 	inflight        bool
 	promptCancel    context.CancelFunc
+	goalRound       *goalRoundControl
 	modelChanging   bool
 	cancelRequested bool
 	closing         bool

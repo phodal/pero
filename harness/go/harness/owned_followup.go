@@ -256,6 +256,16 @@ func (r *OwnedFollowupRetirement) run() {
 
 type ownedFollowupExecutionKey struct{}
 
+// OwnsExecution reports whether the current worker is executing a live receipt
+// from this owner for the exact Agent. Restored input and other turns never match.
+func (o *OwnedFollowupOwner) OwnsExecution(ctx context.Context, agent *Agent) bool {
+	if o == nil || ctx == nil || agent == nil {
+		return false
+	}
+	receipt, ok := ctx.Value(ownedFollowupExecutionKey{}).(*OwnedFollowupReceipt)
+	return ok && receipt.owner == o && receipt.agent == agent && ctx.Err() == nil && receipt.ownsContext(ctx)
+}
+
 // Owned guarded input is valid only in the exact worker that selected its
 // original request. Copying observable message bytes into Inject/another queue
 // cannot transplant admission authority while the original remains queued.

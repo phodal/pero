@@ -134,11 +134,20 @@ Refusal, truncation, execution failure and cancellation stop continuation. A
 round's journaled admission is flushed before model dispatch. A fork cannot
 count an admission fact severed from its matching message, and does not carry execution authority.
 
-This slice does not implement upstream model-callable Goal tools, revision
-edits during execution or descendant-aware scheduling. It does not change
-the default slash-command path. It is not enabled for external harnesses or
-profiles with specialized prompt preparation. Desktop command discovery,
-production model service and packaging are not verified.
+After enabling Goal, the native tool catalog exposes `pero_goal_stop` only
+inside the exact active Goal turn. A model can record `completed`, `blocked`,
+or `paused` after reporting what it found. A successful tool result and normal
+turn settlement are required; plain text, a failed tool, an ordinary chat,
+or a child Agent cannot stop the Goal. The journal distinguishes a model
+assessment from operator completion; it is not independent scientific
+review. Only the operator can resume a blocked/paused goal, within the
+original cap. Completed goals cannot resume.
+
+The tool does not implement upstream revision edits, blocker thresholds,
+or descendant-aware scheduling. The default slash-command path is unchanged.
+Goal stays disabled for external harnesses and profiles with specialized
+prompt preparation. Desktop command discovery, production model service
+and packaging are not verified.
 
 ## Compaction route and evidence
 
