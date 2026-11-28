@@ -21,15 +21,16 @@ impl SupervisedPermission {
         }
     }
 
-    /// A supervised session may continue only when initialize named the DSH
-    /// harness that advertises the permission selector. Another name, or no
-    /// `agentInfo`, is refused: skipping the selector would leave that
-    /// harness on auto-review, where edits and commands are not asked.
-    pub fn admit(self, agent_name: Option<&str>) -> Result<&'static str, &'static str> {
+    /// `pero-agent-acp` must acknowledge `mode`. Any other peer is admitted only
+    /// when `gate_only` is the explicit agents-file opt-in, and then no selector
+    /// is set. The agent name is never that opt-in.
+    pub fn admit(self, agent_name: Option<&str>, gate_only: bool) -> Result<Option<&'static str>, &'static str> {
         if agent_name == Some("pero-agent-acp") {
-            Ok(self.mode())
+            Ok(Some(self.mode()))
+        } else if gate_only {
+            Ok(None)
         } else {
-            Err("Supervised session refused: peer is not a DSH that supports the permission selector")
+            Err("Supervised session refused: peer is not a DSH that supports the permission selector and did not opt in to gate-only supervision")
         }
     }
 }
@@ -215,11 +216,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn supervised_permission_admits_only_the_named_dsh() {
+    fn supervised_permission_admits_only_the_named_dsh_or_an_explicit_gate() {
         for permission in [SupervisedPermission::ReadOnlyDsh, SupervisedPermission::AskDsh] {
-            assert!(permission.admit(None).is_err());
-            assert!(permission.admit(Some("other-agent")).is_err());
-            assert_eq!(permission.admit(Some("pero-agent-acp")).unwrap(), permission.mode());
+            assert!(permission.admit(None, false).is_err());
+            assert!(permission.admit(Some("other-agent"), false).is_err());
+            assert!(permission.admit(Some("codex"), false).is_err());
+            assert!(permission.admit(Some("codex-acp"), false).is_err());
+            assert_eq!(permission.admit(Some("pero-agent-acp"), false).unwrap(), Some(permission.mode()));
+            assert_eq!(permission.admit(Some("pero-agent-acp"), true).unwrap(), Some(permission.mode()));
+            assert_eq!(permission.admit(Some("codex-acp"), true).unwrap(), None);
+            assert_eq!(permission.admit(None, true).unwrap(), None);
         }
         assert_eq!(SupervisedPermission::ReadOnlyDsh.mode(), "read-only");
         assert_eq!(SupervisedPermission::AskDsh.mode(), "full-access");

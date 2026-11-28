@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::AgentSupervision;
 use std::{collections::BTreeMap, sync::mpsc, time::Instant};
 
 #[test]
@@ -70,6 +71,7 @@ fn launch_with_access(
             .into()],
         env: BTreeMap::from([("PERO_FIXTURE_SCENARIO".into(), scenario.into())]),
         model: model.map(str::to_owned),
+        supervision: Some(AgentSupervision::Gate),
         mcp_servers: vec![],
     };
     let mut config = if scenario.starts_with("runtime_") {

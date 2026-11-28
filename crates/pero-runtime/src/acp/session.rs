@@ -456,8 +456,8 @@ async fn run(
                 (true, false) => ReceiptMode::Record,
             };
             let initialized: InitializeResponse = serde_json::from_value(initialized).map_err(agent_client_protocol::Error::into_internal_error)?;
-            if let Some(permission) = supervised_permission {
-                let mode = permission.admit(initialized.agent_info.as_ref().map(|info| info.name.as_str())).map_err(|message| failure(message))?;
+            if let Some(permission) = supervised_permission
+                && let Some(mode) = permission.admit(initialized.agent_info.as_ref().map(|info| info.name.as_str()), config.gate_only()).map_err(|message| failure(message))? {
                 initial_settings.push(SettingSelection { id: "permission".into(), value: mode.into() });
             }
             // Never start a session under a protocol version this client does not implement.

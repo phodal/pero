@@ -35,6 +35,7 @@ impl Fixture {
             model: None,
             session_instructions: String::new(),
             memory_instructions: String::new(),
+            supervision: None,
             mcp_servers: vec![],
         };
         let (tx, events) = mpsc::channel();

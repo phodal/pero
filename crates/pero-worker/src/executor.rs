@@ -148,7 +148,8 @@ impl Config {
                 "--session-id".into(), remote.session_id.clone(),
                 "--working-directory".into(), remote.working_directory.clone(),
             ],
-            env, model: None, mcp_servers: vec![],
+            env, model: None, supervision: Some(acp::AgentSupervision::Gate),
+            mcp_servers: vec![],
         };
         Ok(Execution {
             workspace, agent, prompt: prompt(run), run_id: run.id.clone(),
