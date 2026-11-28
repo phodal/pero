@@ -202,6 +202,23 @@ pub fn error_response(error: &DispatchError) -> CapabilityRejection {
     }
 }
 
+/// HTTP 403 for a migrated family. The route decision stays here; NativeApps only forwards.
+#[cfg(feature = "native")]
+pub fn rejection_response(error: &DispatchError) -> wry::http::Response<Vec<u8>> {
+    wry::http::Response::builder()
+        .status(403)
+        .header("Content-Type", "application/json")
+        .header("Cache-Control", "no-store")
+        .body(error_response(error).body)
+        .expect("capability error response")
+}
+
+/// Admit a parsed direct-route body. `Err` is the response NativeApps returns.
+#[cfg(feature = "native")]
+pub fn admit_route(path: &str, body: &Value) -> Result<(), wry::http::Response<Vec<u8>>> {
+    direct_operation(path, body).map_err(|error| rejection_response(&error))
+}
+
 #[cfg(all(test, feature = "native"))]
 mod native_adapter {
     use super::*;
