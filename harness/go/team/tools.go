@@ -27,6 +27,12 @@ type taskToolInput struct {
 	Ready       *bool              `json:"ready"`
 }
 
+const teamPolicy = `Agent Teams is available in this session.
+
+The root and its owned children share a task board, not a grant of workspace access. Split write work into disjoint scopes. Record expected workspace-relative write scopes and dependencies on tasks. An overlap warning is advisory, not a lock.
+
+List or read a task, claim a ready revision, do the work, then complete the current revision. Only the Lead can reassign to itself (lead) or an eligible continuable child by exact session ID. Changing a task never wakes its owner or sends a message. Wait for required delegated work using the available subagent controls before reporting a final result.`
+
 // Mount contributes opt-in Team tools and a trusted host command. Mode is
 // stored per root; mounting does not enable any new or restored session.
 func Mount(ctx context.Context, h *harness.Harness) error {
@@ -36,9 +42,9 @@ func Mount(ctx context.Context, h *harness.Harness) error {
 	board := Board{Registry: h.Subagents()}
 	tools := board.tools()
 	def := point.Define(point.Descriptor{
-		ID: "harness/contribution/pero-team", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey)},
+		ID: "harness/contribution/pero-team", Requires: []point.Requirement{point.Require(harness.ToolRegistryKey), point.Require(harness.PromptRegistryKey)},
 	}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
-		return h.Tools().RegisterCatalogProvider(run, "pero-team", harness.ToolCatalogProvider{
+		if _, err := h.Tools().RegisterCatalogProvider(run, "pero-team", harness.ToolCatalogProvider{
 			Schemas: func(_ context.Context, candidate *harness.Agent) ([]harness.ToolSchema, error) {
 				if _, err := board.read(candidate); err != nil {
 					return nil, nil
@@ -57,7 +63,21 @@ func Mount(ctx context.Context, h *harness.Harness) error {
 				}
 				return t, ok, nil
 			},
+		}); err != nil {
+			return nil, err
+		}
+		_, err := h.Prompts().Register(run, harness.PromptSection{
+			ID: "team:policy", Order: 660,
+			Guidance: func(_ context.Context, _ *harness.Agent, capabilities harness.PromptCapabilities) (string, error) {
+				for name := range tools {
+					if !capabilities.HasTool(name) {
+						return "", nil
+					}
+				}
+				return teamPolicy, nil
+			},
 		})
+		return nil, err
 	})
 	instance, err := h.Runtime().Mount(nil, "pero/team/tools", def, nil)
 	if err != nil {

@@ -87,6 +87,16 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 			t.Fatalf("Team tool count for %s: got %d, want %d", agent.ID(), got, want)
 		}
 	}
+	assertGuidance := func(agent *harness.Agent, want bool) {
+		t.Helper()
+		prompt, err := h.Prompts().Assemble(ctx, agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Count(prompt, "Agent Teams is available in this session."); (want && got != 1) || (!want && got != 0) {
+			t.Fatalf("Team guidance for %s: got %d sections, enabled = %t", agent.ID(), got, want)
+		}
+	}
 	call := func(runtime *harness.Harness, agent *harness.Agent, name, input string) harness.ToolResult {
 		t.Helper()
 		out, err := runtime.Tools().Execute(ctx, harness.ToolRequest{
@@ -98,6 +108,7 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 		return out.Result
 	}
 	assertTools(root, 0)
+	assertGuidance(root, false)
 	if _, err := board.List(root); !errors.Is(err, ErrDisabled) {
 		t.Fatalf("team enabled without opt-in: %v", err)
 	}
@@ -107,6 +118,8 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 	assertTools(root, 4)
 	assertTools(other, 0)
+	assertGuidance(root, true)
+	assertGuidance(other, false)
 	if _, err := board.List(other); !errors.Is(err, ErrDisabled) {
 		t.Fatalf("mode crossed roots: %v", err)
 	}
@@ -132,6 +145,8 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	b, bRun := start()
 	assertTools(a, 4)
 	assertTools(b, 4)
+	assertGuidance(a, true)
+	assertGuidance(b, true)
 	if _, err := board.Mode(a); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("child advertised a root-only mode setting: %v", err)
 	}
@@ -207,6 +222,8 @@ func TestSharedBoardOwnershipAndRestore(t *testing.T) {
 	}
 	assertTools(root, 0)
 	assertTools(a, 0)
+	assertGuidance(root, false)
+	assertGuidance(a, false)
 	if out := call(h, a, "team_task_get", `{"task_id":"1"}`); !out.IsError {
 		t.Fatal("direct Team tool dispatch succeeded while disabled")
 	}
