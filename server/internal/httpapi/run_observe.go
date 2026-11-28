@@ -61,9 +61,8 @@ func (a *API) observeRun(w http.ResponseWriter, r *http.Request) {
 }
 
 type persistedRuns struct {
-	db     *store.Store
-	mu     sync.Mutex
-	ledger map[string][]runlifecycle.Receipt
+	db *store.Store
+	mu sync.Mutex
 }
 
 func (p *persistedRuns) Decide(ctx context.Context, client *store.Client, project string, member bool, binding runlifecycle.Binding, request runlifecycle.Request) (runlifecycle.Observation, bool) {
@@ -100,8 +99,11 @@ func (p *persistedRuns) Decide(ctx context.Context, client *store.Client, projec
 		Status: run.Status, Events: seqs, RetainedFrom: retained, Generation: uint64(run.Generation),
 		SupportsCancel: run.Status == "queued" || run.Status == "running" || run.Status == "cancel_requested",
 	}
-	key := project + "/" + run.ID
-	observation := runlifecycle.Observe(true, project, binding, request, owner, p.ledger[key])
+	receipts, err := p.db.ObservationReceipts(ctx, project, run.ID)
+	if err != nil {
+		return runlifecycle.Observation{Outcome: runlifecycle.OutcomeUnknown, Effect: runlifecycle.EffectNone}, true
+	}
+	observation := runlifecycle.Observe(true, project, binding, request, owner, receipts)
 	if observation.Effect == runlifecycle.EffectApply || observation.Effect == runlifecycle.EffectApprove {
 		return runlifecycle.Observation{Outcome: runlifecycle.OutcomeUnsupported, Effect: runlifecycle.EffectNone, Continuation: observation.Continuation}, true
 	}
@@ -111,9 +113,18 @@ func (p *persistedRuns) Decide(ctx context.Context, client *store.Client, projec
 		}
 	}
 	if observation.Effect != runlifecycle.EffectNone {
-		p.ledger[key] = append(p.ledger[key], runlifecycle.Receipt{
+		err = p.db.SaveObservationReceipt(ctx, project, run.ID, runlifecycle.Receipt{
 			RequestID: request.RequestID, Operation: request.Operation, InputHash: request.InputHash, Outcome: observation.Outcome,
 		})
+		if errors.Is(err, store.ErrConflict) {
+			receipts, err = p.db.ObservationReceipts(ctx, project, run.ID)
+			if err != nil {
+				return runlifecycle.Observation{Outcome: runlifecycle.OutcomeUnknown, Effect: runlifecycle.EffectNone}, true
+			}
+			observation = runlifecycle.Observe(true, project, binding, request, owner, receipts)
+		} else if err != nil {
+			return runlifecycle.Observation{Outcome: runlifecycle.OutcomeUnknown, Effect: runlifecycle.EffectNone}, true
+		}
 	}
 	return observation, true
 }

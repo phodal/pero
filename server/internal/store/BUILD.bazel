@@ -21,6 +21,7 @@ go_library(
         "runtime.go",
         "github.go",
         "models.go",
+        "paper.go",
         "roadmap.go",
         "roadmap_list.go",
         "store.go",
@@ -35,6 +36,8 @@ go_library(
     visibility = ["//server:__subpackages__"],
     deps = [
         "//server/internal/campaign",
+        "//server/internal/paperdomain",
+        "//server/internal/runlifecycle",
         "//server/internal/runref",
         "//server/migrations",
         "//server/internal/runtimebinding",
@@ -42,6 +45,7 @@ go_library(
         "//server/internal/artifacts",
         "//server/internal/runtimechannel",
         "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgconn",
         "@com_github_jackc_pgx_v5//pgxpool",
     ],
 )
