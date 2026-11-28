@@ -581,6 +581,7 @@ impl ChatPanel {
                     self.retry_chat(cx);
                 }
             }
+            self.ensure_conversation_target(cx);
             cx.notify();
             return true;
         }
@@ -607,6 +608,7 @@ impl ChatPanel {
                 }
             }
             self.prepare_chat(cx);
+            self.ensure_conversation_target(cx);
             cx.notify();
             return true;
         }
@@ -645,6 +647,7 @@ impl ChatPanel {
                 }
             }
             self.prepare_chat(cx);
+            self.ensure_conversation_target(cx);
             cx.notify();
             return true;
         }

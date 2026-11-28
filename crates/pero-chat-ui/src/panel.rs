@@ -131,6 +131,8 @@ pub struct ChatPanel {
     input_placeholder: &'static str,
     pub(crate) replayed: bool,
     pub(crate) visible: bool,
+    /// The Workbench route is the Conversation page. Layout can show this panel earlier.
+    conversation_page: bool,
     pub(crate) next_request: u64,
     pub(crate) retired_chats: HashMap<String, String>,
     pub(crate) artifacts: crate::session_artifacts::SessionArtifacts,
@@ -222,6 +224,7 @@ impl ChatPanel {
             project_composer: ProjectComposer::default(),
             replayed: false,
             visible: true,
+            conversation_page: false,
             next_request: 0,
             retired_chats: HashMap::new(),
             artifacts: Default::default(),
@@ -353,6 +356,26 @@ impl ChatPanel {
         }
     }
 
+    pub fn set_conversation_page(&mut self, conversation_page: bool) {
+        self.conversation_page = conversation_page;
+    }
+
+    /// A connected, replayed, visible Conversation page with no project composer
+    /// owns a chat. Visibility edges miss a panel that was already showing.
+    pub fn ensure_conversation_target(&mut self, cx: &mut Context<Self>) {
+        let gate = crate::conversation_target::ConversationTarget {
+            connected: self.connected,
+            replayed: self.replayed,
+            visible: self.visible,
+            project_composer: self.project_composer.scope.is_some(),
+            conversation_page: self.conversation_page,
+            active_chat: self.active_chat.is_some(),
+        };
+        if gate.missing() {
+            self.restore_scope_chat(cx);
+        }
+    }
+
     pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.visible != visible {
             self.visible = visible;
@@ -368,6 +391,7 @@ impl ChatPanel {
             self.sync_follow(cx);
             cx.notify();
         }
+        self.ensure_conversation_target(cx);
     }
 
     /// UI controls enter the command boundary here; only typed intents leave it.
@@ -545,7 +569,7 @@ impl ChatPanel {
             })
         }).collect();
         let mut value = json!({"chats":self.chats,"activeChat":self.active_chat,"agents":self.agents,
-            "changes":self.changes_snapshot(),"connected":self.connected,"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
+            "changes":self.changes_snapshot(),"connected":self.connected,"replayed":self.replayed,"visible":self.visible,"projectComposerActive":self.project_composer.scope.is_some(),"error":self.error,"historyStatus":self.history_status,"dark":pero_theme::UiAppearance::global(cx).dark,"locale":self.locale,"scope":self.scope,"artifacts":self.artifact_snapshot(cx),"files":self.files_snapshot(cx),
             "composer":self.composer.read(cx).value().as_ref(),"composerFocused":self.composer_focused,
             "workspace":self.workspace,"attachments":self.attachments.iter().map(|r|r.label.as_str()).collect::<Vec<_>>(),
             "readableReplies":self.chats.iter().flat_map(|chat| chat.messages.iter().enumerate().filter_map(move |(index,_)| chat.reply_presentation(index).map(|reply| json!({"chat":chat.id,"index":index,"text":reply.summary})))).collect::<Vec<_>>(),

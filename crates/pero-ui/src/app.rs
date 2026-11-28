@@ -460,6 +460,7 @@ impl Workbench {
             origin=>origin.thread_id().and_then(|id|self.chat.read(cx).chats.iter().find(|chat|chat.id==id).and_then(|chat|chat.scope.clone())),
         });
         let visible = self.chat_visible(cx);
+        let conversation_page = self.navigation.page() == WorkbenchPage::Conversation;
         let show_return = self
             .chat
             .read(cx)
@@ -472,6 +473,7 @@ impl Workbench {
         let compute_available = self.apps.contains_panel("compute", "main");
         let compact = self.active_app_chat_slot().is_none() && self.floating_chat && !self.floating_chat_expanded && self.navigation.pane_layout().is_none_or(|layout| layout.leaves().len() <= 1) && matches!(self.navigation.current(), Some(WorkspaceItem::App { .. }));
         self.chat.update(cx, |chat, cx| {
+            chat.set_conversation_page(conversation_page);
             if !visible { chat.set_visible(false, cx); }
             let needs_project_draft = project_composer.is_some();
             let left_project_draft = chat.set_project_composer(project_composer, cx);
@@ -489,6 +491,7 @@ impl Workbench {
             let desktop = false;
             chat.set_composer_destinations(remote_project, compute_available, desktop, cx);
             chat.set_visible(visible, cx);
+            chat.ensure_conversation_target(cx);
             chat.show_return_to_review = show_return;
             if chat.compact != compact { chat.compact = compact; cx.notify(); }
         });
