@@ -3,6 +3,7 @@ package openai
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -22,6 +23,7 @@ import (
 )
 
 const messagesFilesBeta = "files-api-2025-04-14"
+const messagesFileRefreshMargin = time.Hour
 const messagesFileLifetime = 7 * 24 * time.Hour
 const messagesFilesDeadline = 20 * time.Second
 const maxMessagesFileRecord = 4096
@@ -30,6 +32,7 @@ const maxMessagesFilesBackoff = 8
 type messagesFiles struct {
 	client    *http.Client
 	url, root string
+	reclaim   bool
 
 	mu                                sync.Mutex
 	uploads                           map[[32]byte]*messagesFileUpload
@@ -62,8 +65,9 @@ func (f *messagesFiles) finishUploadLocked(version uint64, timeout bool) {
 }
 
 type messagesFileRecord struct {
-	ID      string    `json:"id"`
-	Expires time.Time `json:"expires"`
+	ID       string    `json:"id"`
+	Expires  time.Time `json:"expires"`
+	Filename string    `json:"filename,omitempty"`
 }
 
 type messagesInlineRetry struct {
@@ -129,7 +133,7 @@ func (a *Adapter) resolveMessagesFile(ctx, parent context.Context, digest [32]by
 	}
 	now := time.Now()
 	record := readMessagesFileRecord(location)
-	if validMessagesFileID(record.ID) && record.Expires.After(now.Add(time.Hour)) &&
+	if validMessagesFileID(record.ID) && record.Expires.After(now.Add(messagesFileRefreshMargin)) &&
 		!record.Expires.After(now.Add(messagesFileLifetime)) && !f.isStale(record.ID) {
 		f.mu.Unlock()
 		return record, nil
@@ -153,7 +157,7 @@ func (a *Adapter) resolveMessagesFile(ctx, parent context.Context, digest [32]by
 		f.uploads[digest] = op
 		go func() {
 			defer cancel()
-			record, err := f.upload(uploadCtx, a.messagesKey, src, now)
+			record, err := a.uploadMessagesFile(uploadCtx, src, now)
 			f.mu.Lock()
 			defer f.mu.Unlock()
 			if f.uploads[digest] == op {
@@ -263,6 +267,13 @@ func (f *messagesFiles) upload(ctx context.Context, key string, source messages.
 	if source.MediaType == "image/jpeg" {
 		filename = "image.jpg"
 	}
+	if f.reclaim {
+		var tag [16]byte
+		if _, err := rand.Read(tag[:]); err != nil {
+			return zero, err
+		}
+		filename = "pero-" + hex.EncodeToString(tag[:]) + "-" + filename
+	}
 	header.Set("Content-Disposition", `form-data; name="file"; filename="`+filename+`"`)
 	header.Set("Content-Type", source.MediaType)
 	part, err := m.CreatePart(header)
@@ -297,14 +308,15 @@ func (f *messagesFiles) upload(ctx context.Context, key string, source messages.
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return zero, errors.New("messages: Files upload failed")
+		return zero, messagesFilesUploadError(resp)
 	}
 	var uploaded struct {
-		ID      string    `json:"id"`
-		Type    string    `json:"type"`
-		MIME    string    `json:"mime_type"`
-		Bytes   int       `json:"size_bytes"`
-		Created time.Time `json:"created_at"`
+		ID       string    `json:"id"`
+		Type     string    `json:"type"`
+		MIME     string    `json:"mime_type"`
+		Bytes    int       `json:"size_bytes"`
+		Created  time.Time `json:"created_at"`
+		Filename string    `json:"filename"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMessagesFileRecord)).Decode(&uploaded); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -319,6 +331,9 @@ func (f *messagesFiles) upload(ctx context.Context, key string, source messages.
 	expires := now.Add(messagesFileLifetime)
 	if providerExpiry := uploaded.Created.Add(messagesFileLifetime); providerExpiry.Before(expires) {
 		expires = providerExpiry
+	}
+	if f.reclaim && uploaded.Filename == filename && reclaimableMessagesID.MatchString(uploaded.ID) {
+		writeMessagesFileRecord(f.ownedReceipt(uploaded.ID), messagesFileRecord{ID: uploaded.ID, Expires: expires, Filename: filename})
 	}
 	return messagesFileRecord{ID: uploaded.ID, Expires: expires}, nil
 }

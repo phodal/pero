@@ -319,10 +319,21 @@ type openAIStreamEvent struct {
 }
 
 func (a *Adapter) reserveHTTPRequest() error {
-	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
-		return harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+	return a.reserveHTTPAttempts(1)
+}
+
+func (a *Adapter) reserveHTTPAttempts(count int64) error {
+	if a.maxRequests == 0 {
+		return nil
 	}
-	return nil
+	for used := a.requests.Load(); ; used = a.requests.Load() {
+		if count > a.maxRequests-used {
+			return harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+		}
+		if a.requests.CompareAndSwap(used, used+count) {
+			return nil
+		}
+	}
 }
 
 func recordWirePayload(ctx context.Context, request harness.GenerateRequest, payload, toolsPayload []byte, toolResultBytes, toolResults int) error {

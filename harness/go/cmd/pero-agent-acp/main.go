@@ -70,6 +70,7 @@ func run() (resultErr error) {
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
 	replayKeyEnv := flag.String("messages-replay-key-env", "", "enable signed DeepSeek Messages thinking; name of an environment variable holding a private 32-byte hex replay key")
 	filesKeyEnv := flag.String("messages-files-key-env", "", "enable DeepSeek Messages raster uploads with a separate private 32-byte hex scope key")
+	filesReclaim := flag.Bool("messages-files-reclaim", false, "on storage quota errors, allow one near-expiry deletion of a Files upload proven to belong to this profile")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
@@ -245,6 +246,9 @@ func run() (resultErr error) {
 			return errors.New("Messages Files key must contain exactly 32 hex-encoded bytes")
 		}
 	}
+	if *filesReclaim && messagesFilesKey == nil {
+		return errors.New("--messages-files-reclaim requires --messages-files-key-env")
+	}
 	webProvider, err := configuredWeb(*web, *keyEnv, credential)
 	if err != nil {
 		return err
@@ -264,6 +268,7 @@ func run() (resultErr error) {
 			return err
 		}
 		providerConfig.MessagesFilesKey = messagesFilesKey
+		providerConfig.MessagesFilesReclaim = *filesReclaim
 	}
 	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
 	if paperResearch != nil {

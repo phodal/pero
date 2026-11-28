@@ -50,6 +50,8 @@ type Config struct {
 	// must be owner-controlled and the key must not be the provider credential.
 	MessagesFilesDirectory string
 	MessagesFilesKey       []byte
+	// Separately opt in to bounded deletion of near-expiry, locally proven uploads.
+	MessagesFilesReclaim bool
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
 	// Explicit transport choice for compatible providers without an SSE route.
@@ -106,7 +108,7 @@ func New(c Config) (*Adapter, error) {
 	if c.MessagesReplayKey != nil && (len(c.MessagesReplayKey) != 32 || c.APIFormat != DeepSeekMessages || c.DisableThinking) {
 		return nil, errors.New("messages adapter: signed thinking requires DeepSeek Messages, a 32-byte local replay key and thinking not disabled")
 	}
-	if c.MessagesFilesDirectory != "" || c.MessagesFilesKey != nil {
+	if c.MessagesFilesDirectory != "" || c.MessagesFilesKey != nil || c.MessagesFilesReclaim {
 		if c.APIFormat != DeepSeekMessages || !filepath.IsAbs(c.MessagesFilesDirectory) || len(c.MessagesFilesKey) != 32 {
 			return nil, errors.New("messages adapter: Files requires DeepSeek Messages, a private absolute directory and a 32-byte scope key")
 		}
@@ -221,7 +223,7 @@ func New(c Config) (*Adapter, error) {
 			}
 			filesURL := strings.TrimSuffix(u.String(), "/messages") + "/files"
 			scope := messagesReplayScope(c.MessagesFilesKey, filesURL, c.ProviderName, c.APIKey)
-			adapter.messagesFiles = &messagesFiles{client: &filesClient, url: filesURL, root: filepath.Join(c.MessagesFilesDirectory, scope)}
+			adapter.messagesFiles = &messagesFiles{client: &filesClient, url: filesURL, root: filepath.Join(c.MessagesFilesDirectory, scope), reclaim: c.MessagesFilesReclaim}
 		}
 	} else {
 		adapter.client = openaisdk.NewChatCompletionService(sdkOptions...)

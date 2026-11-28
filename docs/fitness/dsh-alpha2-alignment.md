@@ -481,9 +481,20 @@ stale-ID recovery. A provider upload timeout skips future cache-miss requests
 within that endpoint/credential adapter, with a bounded 1/2/4/8-request cooldown. Cached
 files remain usable, skips do not consume an upload attempt, and a successful
 upload resets the cooldown. User cancellation does not start backoff and
-the inference fallback remains fully inline. Quota reclamation, cross-process
-concurrent upload deduplication and full upstream vision budget/offload
-parity are not implemented. Live provider and Desktop Host acceptance are still unverified.
+the inference fallback remains fully inline. Cross-process concurrent upload deduplication and full upstream vision
+budget/offload parity are not implemented. Live provider and Desktop Host
+acceptance are still unverified.
+
+An additional CLI flag, `--messages-files-reclaim`, allows bounded recovery
+from explicit Files storage/file-count errors. It defaults off, even when
+Files upload is enabled. DeepSeek [shares Files across account keys](https://api-docs.deepseek.com/guides/files_api/).
+Per failed upload, Pero lists at most one page (20 rows) and may delete one near-expiry
+file with both the exact local upload receipt for this route/key/private
+profile and the matching remote ID and echoed random filename. Older generic
+uploads and files from another key or application are not eligible. One retry
+is allowed after a confirmed deletion. With insufficient budget for the full
+recovery, a malformed listing, or no provably owned candidate, inference
+falls back inline without deleting anything.
 
 ### Rejected remote file IDs
 
