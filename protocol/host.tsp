@@ -322,6 +322,11 @@ model AnswerUserQuestionsCommand {
 }
 model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Closed }
 model ConfigureCommand { action: "configure"; thread_id: ThreadId; config_id: string; value: string; ...Closed }
+model ReadTeamBoardCommand { action: "read_team_board"; request_id: string; thread_id: ThreadId; incarnation: safeint; ...Closed }
+model TeamBoardTask { id: string; subject: string; revision: safeint; status: "pending" | "in_progress" | "completed"; ready: boolean; owner?: string; ...Closed }
+model TeamBoard { revision: safeint; enabled: boolean; tasks: TeamBoardTask[]; ...Closed }
+model TeamBoardEvent { kind: "team_board"; ...ThreadEventBase; data: { incarnation: safeint; board: TeamBoard; ...Closed } }
+model TeamBoardErrorEvent { kind: "team_board_error"; ...ThreadEventBase; data: { incarnation: safeint; reason: "stale" | "unsupported" | "unavailable" | "invalid_response"; ...Closed } }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
 model DeleteCommand { action: "delete"; thread_id: ThreadId; ...Closed }
 /** Read one saved session and return its Insights analysis. */
@@ -346,6 +351,7 @@ union HostCommand {
   AnswerUserQuestionsCommand,
   ModelCommand,
   ConfigureCommand,
+  ReadTeamBoardCommand,
   CloseCommand,
   DeleteCommand,
   InsightsCommand,
@@ -640,6 +646,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 union HostEvent {
   TerminalEvent,
   McpSettingsEvent, McpSettingsErrorEvent, McpRuntimeEvent, McpSessionEvent, McpSessionErrorEvent, McpResourceSelectedEvent,
+  TeamBoardEvent, TeamBoardErrorEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,

@@ -41,6 +41,7 @@ pub enum PromptRejection {
 
 pub enum SessionCommand {
     Science(super::science::ScienceRequest),
+    TeamBoard(super::TeamBoardRead),
     McpSession { request: pero_contracts::mcp_session::McpSessionRequest, reply: Sender<HostEvent> },
     Prompt(String),
     PromptWithContext {
@@ -225,6 +226,10 @@ fn defer(
     thread: &str,
 ) {
     if deferred.len() >= MAX_DEFERRED_COMMANDS {
+        if let SessionCommand::TeamBoard(request) = command {
+            request.finish(Err("unavailable"));
+            return;
+        }
         if let SessionCommand::Science(request) = command {
             request.reply(Err("Session command queue is full".into()));
             return;
@@ -452,6 +457,7 @@ async fn run(
             if quiet_reconnect && (resume_id.is_none() || !quiet_load_capable) {
                 return Err(failure("This Harness cannot reconnect without resuming queued work; no session was opened"));
             }
+            let team_board_negotiated = initialized["agentCapabilities"]["_meta"][super::team_board::CAPABILITY] == json!(1);
             let science_negotiated = initialized["agentCapabilities"]["_meta"][super::science::CAPABILITY] == json!(1);
             let mcp_session_negotiated = initialized["agentCapabilities"]["_meta"][super::mcp_session::CAPABILITY] == json!(1);
             let app_use_context_negotiated = initialized["agentCapabilities"]["_meta"][APP_USE_CONTEXT_CAPABILITY] == json!(1);
@@ -599,6 +605,13 @@ async fn run(
                 session_data["peroSettings"] = serde_json::to_value(&configuration.lock().unwrap().settings).unwrap_or_default();
             }
             configuration.lock().unwrap().retained().map_err(|message| failure(message))?;
+            let team_board_available = interactive && team_board_negotiated &&
+                configuration.lock().unwrap().settings.options.iter().any(|option| option.id == "team" && option.category == "team");
+            if team_board_available {
+                session_data["peroTeamBoard"] = json!({"incarnation":mcp_runtime.lock().unwrap().incarnation});
+            } else if let Some(data) = session_data.as_object_mut() {
+                data.remove("peroTeamBoard");
+            }
             event(&tx, &thread, "session_ready", "会话已就绪", session_data.clone());
             let mut needs_authentication = false;
             loop {
@@ -670,6 +683,7 @@ async fn run(
                                 },
                                 command = commands.recv() => match command {
                                     Some(SessionCommand::Science(request)) => super::science::dispatch(&connection, &session_id, science_negotiated, request),
+                                    Some(SessionCommand::TeamBoard(request)) => super::team_board::dispatch(&connection, &session_id, team_board_available, mcp_runtime.clone(), request),
                                     Some(SessionCommand::Cancel) => {
                                         user_questions.clear();
                                         permissions.lock().unwrap().clear();
@@ -713,6 +727,7 @@ async fn run(
                         }
                     },
                     Some(SessionCommand::Science(request)) => super::science::dispatch(&connection, &session_id, science_negotiated, request),
+                    Some(SessionCommand::TeamBoard(request)) => super::team_board::dispatch(&connection, &session_id, team_board_available, mcp_runtime.clone(), request),
                     Some(SessionCommand::McpSession { request, reply }) => {
                         use pero_contracts::mcp_session::McpSessionError;
                         let target = request.target();

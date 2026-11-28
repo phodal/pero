@@ -91,6 +91,11 @@ pub enum HostCommand {
         request_id: String,
     },
     ReconnectSession { thread_id: String },
+    ReadTeamBoard {
+        request_id: String,
+        thread_id: String,
+        incarnation: u64,
+    },
     Workspace {
         path: String,
         #[serde(default)]

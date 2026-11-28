@@ -131,6 +131,7 @@ export type HostCommand =
   | AnswerUserQuestionsCommand
   | ModelCommand
   | ConfigureCommand
+  | ReadTeamBoardCommand
   | CloseCommand
   | DeleteCommand
   | InsightsCommand;
@@ -235,6 +236,8 @@ export type HostEvent =
   | McpSessionEvent
   | McpSessionErrorEvent
   | McpResourceSelectedEvent
+  | TeamBoardEvent
+  | TeamBoardErrorEvent
   | DocumentSaveChooseEvent
   | DocumentSavePathEvent
   | DocumentSaveCancelledEvent
@@ -1944,6 +1947,12 @@ export interface ConfigureCommand {
   config_id: string;
   value: string;
 }
+export interface ReadTeamBoardCommand {
+  action: "read_team_board";
+  request_id: string;
+  thread_id: ThreadId;
+  incarnation: number;
+}
 export interface CloseCommand {
   action: "close";
   thread_id: string;
@@ -2472,6 +2481,41 @@ export interface McpResourceText {
   uri: string;
   text: string;
   mimeType?: string;
+}
+export interface TeamBoardEvent {
+  kind: "team_board";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    board: TeamBoard;
+  };
+}
+export interface TeamBoard {
+  revision: number;
+  enabled: boolean;
+  tasks: TeamBoardTask[];
+}
+export interface TeamBoardTask {
+  id: string;
+  subject: string;
+  revision: number;
+  status: "pending" | "in_progress" | "completed";
+  ready: boolean;
+  owner?: string;
+}
+export interface TeamBoardErrorEvent {
+  kind: "team_board_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    reason: "stale" | "unsupported" | "unavailable" | "invalid_response";
+  };
 }
 export interface DocumentSaveChooseEvent {
   kind: "document_save_choose";
