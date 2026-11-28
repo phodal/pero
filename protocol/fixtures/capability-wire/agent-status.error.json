@@ -1,0 +1,6 @@
+{
+  "code": "unavailable",
+  "message": "The Host session is not available.",
+  "capability": "agent",
+  "operation": "status"
+}

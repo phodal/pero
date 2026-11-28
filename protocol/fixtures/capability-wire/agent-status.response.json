@@ -1,0 +1,9 @@
+{
+  "id": "app:paper-agent:0123456789abcdef0123456789abcdef",
+  "sessionId": "app:paper-agent:0123456789abcdef0123456789abcdef",
+  "scope": { "workspaceId": "ws_0123456789abcdef0123456789abcdef" },
+  "status": "running",
+  "attempt": 1,
+  "requestId": "request-1",
+  "updatedAt": "2026-11-28T00:00:00Z"
+}

@@ -17,6 +17,8 @@ mod apps;
 mod app_startup;
 mod app_canvas;
 mod research_assets;
+#[cfg(test)]
+mod capability_wire_host;
 mod project_resources;
 mod project_sources;
 mod project_tools;

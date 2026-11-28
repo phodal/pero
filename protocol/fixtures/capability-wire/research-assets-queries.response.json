@@ -1,0 +1,39 @@
+{
+  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "intent": {
+    "snapshotId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "definitionId": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "parameters": {},
+    "question": "Mean n?"
+  },
+  "receipt": {
+    "queryId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "status": "completed",
+    "reason": "",
+    "rows": [{ "value": 2.0 }],
+    "rowCount": 1,
+    "truncated": false,
+    "elapsedSeconds": 0.001,
+    "resultId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "snapshot": {
+    "schema": "pero.query-snapshot.v1",
+    "databaseHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "conversion": "Explicit text/number"
+  },
+  "definition": {
+    "name": "Mean measurement",
+    "sql": "SELECT AVG(n) AS value FROM sample",
+    "parameters": {},
+    "unit": "cm",
+    "grain": "sample",
+    "denominator": "non-null n",
+    "joins": "none",
+    "missing": "exclude null n",
+    "seedPolicy": "not applicable",
+    "reviewer": "local reviewer",
+    "reviewed": true,
+    "check": null
+  },
+  "acceptance": "needs_review"
+}
