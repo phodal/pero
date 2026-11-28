@@ -225,7 +225,7 @@ func permissionEscapesWorkspace(request ApprovalRequest) bool {
 func permissionModePrompt(mode PermissionMode) string {
 	switch mode {
 	case PermissionReadOnly:
-		return "Permission: view only. File changes and commands are rejected."
+		return "Permission: view only. Native file changes and commands are rejected. An MCP tool is not rejected unless it has a mutating annotation or an operator policy asks or denies it."
 	case PermissionWorkspaceWrite:
 		return "Permission: workspace edits. File changes may ask for approval. Commands are rejected because this session has no OS sandbox."
 	case PermissionFullAccess:

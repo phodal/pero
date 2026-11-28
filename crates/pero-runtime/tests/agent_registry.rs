@@ -159,6 +159,7 @@ fn supervised_dsh_requires_read_only_acknowledgement_before_prompt() {
     std::fs::create_dir(&root.0).unwrap();
     for (scenario, permission, expected_mode, expected_error) in [
         ("dsh_worker_ready", SupervisedPermission::ReadOnlyDsh, Some("read-only"), None),
+        ("dsh_worker_model_flips", SupervisedPermission::ReadOnlyDsh, None, Some("changed the inherited permission")),
         ("dsh_worker_no_selector", SupervisedPermission::ReadOnlyDsh, None, Some("not advertised")),
         ("dsh_worker_rejected", SupervisedPermission::ReadOnlyDsh, None, Some("Fixture rejected read-only")),
         ("dsh_worker_wrong_ack", SupervisedPermission::ReadOnlyDsh, None, Some("did not acknowledge")),
@@ -169,10 +170,12 @@ fn supervised_dsh_requires_read_only_acknowledgement_before_prompt() {
         ("dsh_worker_wrong_name", SupervisedPermission::AskDsh, None, Some("not a DSH")),
         ("dsh_worker_no_info", SupervisedPermission::AskDsh, None, Some("not a DSH")),
     ] {
-        let config = serde_json::from_value(serde_json::json!({
+        let mut spec = serde_json::json!({
             "id": "dsh-alias", "name": "Worker Agent", "command": "node",
             "args": [&fixture], "env": {"PERO_FIXTURE_SCENARIO": scenario}
-        })).unwrap();
+        });
+        if scenario == "dsh_worker_model_flips" { spec["model"] = serde_json::json!("model-b"); }
+        let config = serde_json::from_value(spec).unwrap();
         let (tx, rx) = mpsc::channel();
         let handle = acp::start_supervised(config, root.0.clone(), scenario.into(), tx, permission);
         handle.tx.send(SessionCommand::Prompt("queued before setup".into())).unwrap();
