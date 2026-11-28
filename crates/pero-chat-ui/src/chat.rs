@@ -693,6 +693,7 @@ impl ChatPanel {
                 chat.state = SessionState::Connecting;
                 chat.ordinary_origin = pero_contracts::session_history::OrdinarySessionOrigin::read(&event.data).is_some();
                 chat.acp_load_supported = false;
+                chat.archived_reconnect = None;
                 chat.project_agent = event.data.get("projectAgent").and_then(|value| serde_json::from_value(value.clone()).ok());
                 chat.workspace = event.data["workspace"].as_str().unwrap_or_default().into();
                 chat.scope = event

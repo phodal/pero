@@ -291,6 +291,8 @@ pub struct Conversation {
     pub(crate) ordinary_origin: bool,
     #[serde(skip)]
     pub(crate) acp_load_supported: bool,
+    #[serde(skip)]
+    pub(crate) archived_reconnect: Option<bool>,
     pub messages: Vec<Message>,
     pub tools: Vec<Tool>,
     #[serde(skip)]
@@ -347,6 +349,7 @@ impl Conversation {
             session_id: String::new(),
             ordinary_origin: false,
             acp_load_supported: false,
+            archived_reconnect: None,
             messages: vec![],
             tools: vec![],
             changes: Default::default(),
@@ -376,8 +379,9 @@ impl Conversation {
     }
 
     pub fn can_reconnect(&self) -> bool {
-        self.history.complete() && self.state == SessionState::Closed && self.ordinary_origin
-            && self.acp_load_supported && !self.session_id.is_empty() && self.queued.is_none()
+        self.history.complete() && self.state == SessionState::Closed
+            && self.archived_reconnect.unwrap_or(self.ordinary_origin) && self.acp_load_supported
+            && !self.session_id.is_empty() && self.queued.is_none()
     }
 
     pub fn can_retry(&self) -> bool {

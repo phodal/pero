@@ -63,6 +63,10 @@ impl ChatPanel {
         if !body.active {
             self.seal_archived_mcp_views(index);
             let chat = &mut self.chats[index];
+            // An archived conversation's path belongs to the Host platform.
+            // The Host checks the recorded origin and quiet-load receipt again
+            // when the operator actually requests reconnect.
+            chat.archived_reconnect = Some(body.reconnectable);
             chat.state = SessionState::Closed;
             chat.permission = None;
             chat.user_questions.clear();

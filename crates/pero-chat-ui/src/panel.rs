@@ -572,6 +572,7 @@ impl ChatPanel {
                 "allowed": chat.can_reconnect(),
                 "historyComplete": chat.history.complete(),
                 "ordinaryOrigin": chat.ordinary_origin,
+                "hostArchivedReconnect": chat.archived_reconnect,
                 "quietLoadSupported": chat.acp_load_supported,
                 "hasSessionId": !chat.session_id.is_empty(),
                 "hasQueuedPrompt": chat.queued.is_some(),

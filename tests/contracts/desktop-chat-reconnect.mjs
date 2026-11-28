@@ -106,6 +106,7 @@ async function desktopReconnect(inherited, originalId) {
         const created = event.data.events.findLast(row => row.kind === 'session_created');
         const ready = event.data.events.findLast(row => row.kind === 'session_ready');
         void window.captureReconnectHistory({
+          hostArchivedReconnect: event.data.reconnectable ?? null,
           hasCreated: !!created,
           hasAgent: !!created?.data.agent,
           hasWorkspace: !!created?.data.workspace,
@@ -150,6 +151,7 @@ async function desktopReconnect(inherited, originalId) {
     await page.screenshot({path: join(out, 'closed-with-draft.png')});
 
     phase = 'click Reconnect without submitting draft';
+    await expect.poll(async () => (await snapshot()).reconnectEligibility?.hostArchivedReconnect).toBe(true);
     await click(state => state.retryButtonBounds);
     await expect.poll(async () => (await chat())?.state, {timeout: 30_000}).toBe('idle');
     assert.equal((await chat()).session_id, originalId);
@@ -225,6 +227,7 @@ try {
       };
       const before = await readHistory('before');
       assert.equal(before.active, false);
+      assert.equal(before.reconnectable, true);
       assert.deepEqual(before.events.filter(event => event.kind === 'user_message').map(event => event.text), [knownPrompt]);
       send('reconnect_session', {thread_id: 'missing-history'});
       await observe('session_error', 'missing-history');

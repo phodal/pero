@@ -56,6 +56,9 @@ pub struct DeferredThread {
 pub struct ThreadHistory {
     pub events: Vec<HostEvent>,
     pub active: bool,
+    /// The owning Host, not the renderer, interprets the recorded workspace path.
+    #[serde(default)]
+    pub reconnectable: bool,
 }
 
 /// Identity saved by the Host when an ordinary conversation was created.
@@ -249,7 +252,7 @@ impl SessionHistory {
             .filter(|event| event.thread_id.as_deref() == Some(thread))
             .cloned()
             .collect();
-        ThreadHistory { events, active }
+        ThreadHistory { events, active, reconnectable: !active && self.reconnect_target(thread).is_some() }
     }
 }
 
@@ -273,9 +276,13 @@ mod tests {
         let mut journal = SessionHistory::default();
         journal.record(event("session_ready", "other", ready.clone()));
         journal.record(event("session_created", "thread", created.clone()));
+        assert!(!journal.thread("thread", false).reconnectable);
         assert!(journal.reconnect_target("thread").is_none());
         journal.record(event("session_ready", "thread", ready.clone()));
         journal.record(event("session_closed", "thread", json!({})));
+        assert!(journal.thread("thread", false).reconnectable);
+        assert!(!journal.thread("thread", true).reconnectable);
+        assert!(!journal.thread("missing", false).reconnectable);
         let (origin, id) = journal.reconnect_target("thread").expect("ordinary reconnect");
         assert_eq!((origin.agent.as_str(), origin.workspace.to_str(), id.as_str()), ("fixture", Some(workspace), "acp-original"));
 
@@ -291,6 +298,7 @@ mod tests {
             history.record(event("session_created", "scoped", origin));
             history.record(event("session_ready", "scoped", ready.clone()));
             assert!(history.reconnect_target("scoped").is_none(), "{key} is not ordinary chat");
+            assert!(!history.thread("scoped", false).reconnectable);
         }
         assert!(ordinary_reconnect_id("fixture", &json!({"sessionId":"id"})).is_none());
         assert_eq!(ordinary_reconnect_id("pero", &json!({"sessionId":"legacy"})), Some("legacy"));
