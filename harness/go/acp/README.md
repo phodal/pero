@@ -90,7 +90,13 @@ so retained callbacks cannot write into later attempts or reused sessions.
 Repeat `--selectable-model` for at most 32 additional model IDs. The default
 single-model launch still returns no model selector. Every session also
 advertises a `permission` selector, defaulting to `auto-review`. `read-only`
-rejects file changes and commands. `full-access` asks before them and does not
+rejects native file changes and commands that require approval. An MCP tool
+enters that gate only when its annotations set `readOnlyHint` to false. A tool
+with `readOnlyHint: true`, or with no annotations, does not enter the gate, and
+`read-only` does not reject it. The server hint is not verified. Negotiated
+`pero.mcpToolPolicy` can deny a tool, require an ask (which `read-only` then
+rejects), or leave the annotation gate in place. `full-access` asks before native
+file changes and commands and does not
 put commands in an OS sandbox; only an explicit launch `--sandbox` does.
 When a Worker peer initializes as `pero-agent-acp`, it must acknowledge
 `read-only`, or `full-access` when a native approval binding is pinned, before
