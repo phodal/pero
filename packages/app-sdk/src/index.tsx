@@ -10,6 +10,13 @@ export type { AppObject, AppObjectAction, AppObjectSnapshot } from './app-use';
 export { appObjectProps } from './app-use';
 export { useAppAgent } from './agent';
 export * from './host';
+export {
+  capabilityOutcome,
+  createCapabilityClient,
+  createCapabilitySnapshot,
+  createFrameTransport,
+  createLocalCapabilityTransport,
+} from './capability-client.mjs';
 import { mountAppConversation } from './chat-slot';
 import { AppApiProvider } from './host';
 import { subscribeAppEvent, navigateApp, notifyApp, setAppBadge, launchAppChat, callAppHost } from './iframe-host';

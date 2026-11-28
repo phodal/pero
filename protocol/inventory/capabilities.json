@@ -204,7 +204,6 @@
     {"id": "agent-run-result", "sdk": "AppAgentRun.result is optional", "host": "Run has no result field", "resolution": "Canonical AgentStatusResponse rejects result."}
   ],
   "deferred": [
-    "P0.3 SDK negotiation and transport ports",
     "P0.4 resource identity and remote read",
     "environment, environment profiles, canvas, notebook-projects, docling, reproduction, inputs, artifacts, and the /api proxy",
     "insights has no named operation",
