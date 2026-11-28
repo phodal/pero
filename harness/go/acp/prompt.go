@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
 )
@@ -50,11 +51,21 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 	var cleanup func()
 	manualReview := false
 	manualGoal := false
+	var grant *goalDelegation
 	if s.goal && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
 		if command, matched := harness.ParseCommand(params.Prompt[0].Text); matched && command.Name == "goal" {
 			manualGoal = true
 			if len(params.Prompt) != 1 {
 				promptErr = invalidError("/goal expects one text block and no attachments")
+			} else if action, instructions, _ := strings.Cut(strings.TrimSpace(command.RawInput), " "); action == "delegate" {
+				instructions = strings.TrimSpace(instructions)
+				if !s.goalAvailable(record.agent) || record.agent.Parent() != nil || instructions == "" || len(instructions) > 4096 {
+					promptErr = invalidError("/goal delegate requires a durable native root and one instruction up to 4096 bytes")
+				} else {
+					grant = &goalDelegation{}
+					content = []harness.ContentBlock{{Type: harness.BlockText, Text: instructions}}
+					manualGoal = false
+				}
 			} else {
 				result.Reason, promptErr = s.runGoalCommand(promptCtx, record, command.RawInput)
 			}
@@ -96,7 +107,7 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 		}
 	}
-	if !manualReview && !manualGoal {
+	if promptErr == nil && !manualReview && !manualGoal && grant == nil {
 		content, promptErr = promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
 	}
 	if promptErr == nil && !manualReview && !manualGoal {
@@ -110,7 +121,25 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 		}
 		if promptErr == nil {
-			result, promptErr = record.agent.Prompt(promptCtx, message)
+			if grant != nil {
+				var id harness.SessionID
+				id, promptErr = randomSessionID()
+				grant.promptID, message.ID = string(id), string(id)
+			}
+			if promptErr == nil {
+				if grant != nil {
+					record.mu.Lock()
+					record.goalDelegation = grant
+					record.mu.Unlock()
+				}
+				result, promptErr = record.agent.Prompt(promptCtx, message)
+				if grant != nil {
+					record.mu.Lock()
+					record.goalDelegation = nil
+					record.mu.Unlock()
+				}
+			}
+			delegatedTurn := result
 			for attempt := 1; promptErr == nil && promptCtx.Err() == nil && result.Reason == harness.FinishMaxTokens && attempt <= s.outputLimitRecoveries; attempt++ {
 				source, _ := json.Marshal(struct {
 					Kind    string `json:"kind"`
@@ -124,6 +153,9 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 			if promptErr == nil && s.scientificReviewer != nil {
 				promptErr = s.scientificReviewer.AfterTurn(promptCtx, record.agent, result)
+			}
+			if promptErr == nil && grant != nil && result.Turn == delegatedTurn.Turn {
+				result, promptErr = s.settleDelegatedGoal(promptCtx, record, grant, result)
 			}
 		}
 		// Prompt can return as soon as its context is canceled. Retain the ACP

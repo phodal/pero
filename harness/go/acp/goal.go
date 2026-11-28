@@ -215,7 +215,7 @@ func (s *Server) runGoalCommand(ctx context.Context, record *activeSession, inpu
 			return harness.FinishStop, s.stopGoal(ctx, record, state.ref(), goalStop{Reason: string(goalCompleted), By: goalStopOperator})
 		}
 	default:
-		return "", invalidError("usage: /goal start <rounds> <objective> | /goal edit <id@revision> <rounds or -> [objective] | /goal resume | /goal status | /goal complete")
+		return "", invalidError("usage: /goal start <rounds> <objective> | /goal edit <id@revision> <rounds or -> [objective] | /goal resume | /goal status | /goal complete | /goal delegate <instruction>")
 	}
 	return s.runGoalRounds(ctx, record, state)
 }

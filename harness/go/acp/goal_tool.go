@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -79,20 +78,8 @@ func (r *goalRoundControl) propose(call harness.ToolCallID, receipt json.RawMess
 func (r *goalRoundControl) settledDecision(events []harness.Event) goalDecisionArgs {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.call == "" {
-		return goalDecisionArgs{}
-	}
-	// Match the exact successful persisted tool result, not model text or a
-	// reused provider call ID. A finalization error loses this receipt.
-	for i := len(events) - 1; i >= 0; i-- {
-		event := events[i]
-		if event.Type == "tool/result" {
-			var result harness.ContentBlock
-			if json.Unmarshal(event.Data, &result) == nil && result.ToolCallID == r.call &&
-				!result.IsError && bytes.Equal(result.Meta, r.receipt) {
-				return r.value
-			}
-		}
+	if goalToolReceiptSettled(events, r.call, r.receipt) {
+		return r.value
 	}
 	return goalDecisionArgs{}
 }
@@ -226,13 +213,104 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(payload)}}}, nil
 		},
 	}
+	delegation := func(candidate *harness.Agent) *goalDelegation {
+		record := root(candidate)
+		if record == nil {
+			return nil
+		}
+		record.mu.Lock()
+		grant := record.goalDelegation
+		record.mu.Unlock()
+		if grant == nil || !agent.OwnsUserPrompt(grant.promptID) {
+			return nil
+		}
+		return grant
+	}
+	create := harness.Tool{
+		Schema: harness.ToolSchema{
+			Name: goalCreateTool, Description: "Create and start a bounded Goal only when the operator explicitly delegated that action.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"objective":{"type":"string"},"max_goal_rounds":{"type":"integer","minimum":1,"maximum":10}},"required":["objective"],"additionalProperties":false}`),
+		},
+		ExecutionMode: harness.ExecutionSerial,
+		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+			grant := delegation(request.Agent)
+			_, nested := request.ParentExecutionToken()
+			if grant == nil || nested || request.RootCallID() == "" || agent.Status() != harness.AgentRunning {
+				return harness.ToolResult{}, errors.New("create_goal requires the exact operator-delegated root turn")
+			}
+			var args struct {
+				Objective *string `json:"objective"`
+				Limit     *int    `json:"max_goal_rounds"`
+			}
+			if err := json.Unmarshal(request.Arguments, &args); err != nil {
+				return harness.ToolResult{}, err
+			}
+			id, err := randomSessionID()
+			if err != nil {
+				return harness.ToolResult{}, err
+			}
+			change, err := planGoalMutation(foldGoal(agent.Session().Events()), goalMutationArgs{Action: "create", Objective: args.Objective, Limit: args.Limit}, string(id))
+			if err != nil {
+				return harness.ToolResult{}, err
+			}
+			return grant.propose(request.CallID, change, id)
+		},
+	}
+	update := harness.Tool{
+		Schema: harness.ToolSchema{
+			Name: goalUpdateTool, Description: "Update the exact Goal revision. Within a Goal round only complete or blocked are permitted. A paused or blocked Goal requires the operator to run /goal resume.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"goal_id":{"type":"string"},"revision":{"type":"integer","minimum":1},"action":{"enum":["edit","pause","resume","complete","blocked"]},"objective":{"type":"string"},"max_goal_rounds":{"type":"integer","minimum":1,"maximum":10},"blocked_reason":{"type":"string","maxLength":1024}},"required":["goal_id","revision","action"],"additionalProperties":false}`),
+		},
+		ExecutionMode: harness.ExecutionSerial,
+		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+			grant, round := delegation(request.Agent), active(ctx, request.Agent)
+			_, nested := request.ParentExecutionToken()
+			if (grant == nil && round == nil) || nested || request.RootCallID() == "" || agent.Status() != harness.AgentRunning {
+				return harness.ToolResult{}, errors.New("update_goal requires the exact operator-delegated root turn or owned Goal round")
+			}
+			var args goalMutationArgs
+			if err := json.Unmarshal(request.Arguments, &args); err != nil {
+				return harness.ToolResult{}, err
+			}
+			if args.Action == "create" {
+				return harness.ToolResult{}, errors.New("update_goal cannot create a Goal")
+			}
+			state := foldGoal(agent.Session().Events())
+			if grant != nil {
+				mutation, err := planGoalMutation(state, args, "")
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				nonce, err := randomSessionID()
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				return grant.propose(request.CallID, mutation, nonce)
+			}
+			if args.ref() != state.ref() || (args.Action != "complete" && args.Action != "blocked") {
+				return harness.ToolResult{}, errors.New("this Goal round can only complete or block its exact current revision")
+			}
+			decision, err := args.stop()
+			if err != nil {
+				return harness.ToolResult{}, err
+			}
+			request.Arguments, err = json.Marshal(decision)
+			if err != nil {
+				return harness.ToolResult{}, err
+			}
+			return tool.ExecuteRequest(ctx, request)
+		},
+	}
 	_, err := s.h.Tools().RegisterCatalogProvider(run, "pero-goal", harness.ToolCatalogProvider{
 		Schemas: func(ctx context.Context, candidate *harness.Agent) ([]harness.ToolSchema, error) {
 			if root(candidate) == nil {
 				return nil, nil
 			}
+			if delegation(candidate) != nil {
+				return []harness.ToolSchema{read.Schema, create.Schema, update.Schema}, nil
+			}
 			if active(ctx, candidate) != nil {
-				return []harness.ToolSchema{read.Schema, tool.Schema}, nil
+				return []harness.ToolSchema{read.Schema, tool.Schema, update.Schema}, nil
 			}
 			return []harness.ToolSchema{read.Schema}, nil
 		},
@@ -240,6 +318,10 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			switch {
 			case name == goalReadTool && root(candidate) != nil:
 				return read, true, nil
+			case name == goalCreateTool && delegation(candidate) != nil:
+				return create, true, nil
+			case name == goalUpdateTool && (delegation(candidate) != nil || active(ctx, candidate) != nil):
+				return update, true, nil
 			case name == goalStopTool && active(ctx, candidate) != nil:
 				return tool, true, nil
 			default:

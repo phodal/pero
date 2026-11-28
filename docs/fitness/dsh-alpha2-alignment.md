@@ -98,7 +98,7 @@ use a real provider key, user profile, or private research data.
 | Native ACP lifecycle | New/list/close/resume, canonical workspace, cancellation without replay; Pero `session/load` also restores the saved model and effort through the Host runtime. The ordinary Desktop composer explicitly reconnects through the original Host thread. | App/Project/Automation retain their own lifecycles; signed-package and Native UI acceptance are separate. DSH does not advertise Pero's ACP load capability. |
 | Messages and Files | Text/tool SSE, signed replay at the same credential and route, explicit image upload/reuse, fallback and stale-ID handling; Rust Host restart and Paper source-provenance contracts. | Live DeepSeek round trip, broader DSH Files file lifecycle/quota/budget behavior, and real Desktop Paper link navigation remain open. Pero deliberately avoids widening uploads or retrying ambiguous stale IDs. |
 | Compaction, Skills and policy | Latest-request pressure, explicit summary override, frozen source identity; existing Skill catalog/permission tests and separately pinned AST comparison. | Pero intentionally does not choose a last-answered model implicitly or adopt DSH's dynamic filesystem Skill roots. Source/AST extraction is not whole-runtime execution. |
-| Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. | DSH's model-mediated create/edit/resume under direct human authority and model wrap-up are not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
+| Goal | Explicit ACP start/status/edit/resume/complete, durable admission, cancellation, scoped descendant waits, and model stop with configurable blocker threshold. One-shot `/goal delegate` enables the model to create, edit, pause, complete or block the exact Goal; it can resume only an active checkpoint. | Pero requires explicit delegation instead of inferring permission from ordinary chat. Upstream's separate model wrap-up is not ported. Shipped Electron/Native controls and live-model acceptance remain open. |
 | Team / subagents | Root mode and exact-ID board reads, optimistic claims/reassignment, dependencies and advisory scopes. Model guidance follows the effective Board tools. | Named member routing and the DSH subagent control tool family are not equivalent, and there is no shipped Desktop Team panel. Existing delegation and board state do not imply those features. |
 | DSH product/runtime distribution | Go has its own composition; Pero already owns permissions, Host/Project research workflows and Task/Run. | DSH Web/live settings, compatible Cordis plugin loading/hot reload, SDK distribution and PTC execution are not supplied by this PR. Do not claim parity for them based on the ACP wire suite. |
 
@@ -531,3 +531,21 @@ provider. Dependencies and invocation are in the
 [fixture guide](../../tests/runtime/paper-study/README.md#opt-in-messages-files-provenance).
 Desktop click-through, packaged runtime and visual-model acceptance remain
 separate. The built-in DeepSeek route is unchanged.
+
+
+## Model-mediated Goal through ACP
+
+Use `/goal delegate <instruction>` in an opt-in native durable root. The
+ordinary chat model still has only `get_goal`. The explicit operator turn has
+`create_goal` and `update_goal`, with a 1–10 round cap (default 3); the grant
+belongs to the exact live user message and expires before synthetic output
+recovery. In a Goal round the model can complete or block only the exact
+revision, under the existing minimum-round blocker policy. A paused or
+blocked Goal needs operator `/goal resume`. Edits do not refund used rounds
+or start work. The original tool result and originating turn must settle
+before a proposed mutation or continuation is committed.
+
+Run `node tests/contracts/dsh-goal-delegation.mjs <pero-agent-acp>` for a
+two-process loopback acceptance: unauthorized ordinary and recovery turns,
+create, early-block rejection, pause, revision edit and stale-ref rejection,
+quiet load, model resume rejection, explicit resume and model completion.

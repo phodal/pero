@@ -310,6 +310,7 @@ type Agent struct {
 	workerCtx      context.Context
 	turn           int
 	turnHuman      bool
+	turnUserPrompt string
 	inboxParked    bool   // DSH interrupt driver latch, guarded by mu
 	inboxInterrupt uint64 // changes before a synchronous interrupt observer returns
 	// requestHeaderLogged is process-lifetime state, matching DSH's distinction
@@ -373,6 +374,14 @@ func (a *Agent) TurnUserAuthored() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.status == AgentRunning && a.turnHuman
+}
+
+// OwnsUserPrompt reports whether the currently executing turn owns the
+// exact live human request, not a parked/replayed input or a plugin follow-up.
+func (a *Agent) OwnsUserPrompt(id string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return id != "" && a.status == AgentRunning && a.turnUserPrompt == id
 }
 
 // CurrentTurn returns the process-local turn currently executing, or the last

@@ -59,7 +59,7 @@ func (s *Server) advertiseSessionCommands(agent *harness.Agent) error {
 	}
 	if s.goalAvailable(agent) {
 		commands = append(commands, map[string]any{
-			"name": "goal", "description": "Set, inspect, or explicitly resume a bounded research goal",
+			"name": "goal", "description": "Set, inspect, resume, or delegate a bounded research goal",
 			"input": map[string]any{"hint": "start <rounds> <objective> | status | edit <id@revision> <rounds or -> [objective] | resume | complete"},
 		})
 	}

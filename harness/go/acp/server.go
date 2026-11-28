@@ -146,6 +146,7 @@ type activeSession struct {
 	inflight        bool
 	promptCancel    context.CancelFunc
 	goalRound       *goalRoundControl
+	goalDelegation  *goalDelegation
 	modelChanging   bool
 	cancelRequested bool
 	closing         bool
