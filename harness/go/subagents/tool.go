@@ -17,6 +17,7 @@ import (
 type ToolOptions struct {
 	EntryID, Provider, ToolName   string
 	MaxDepth, MaxSteps, MaxTokens int
+	Continuable                   bool
 }
 
 type ToolContribution struct{ instance *point.Instance }
@@ -56,8 +57,10 @@ func MountTool(ctx context.Context, h *harness.Harness, options ToolOptions) (*T
 			return nil, err
 		}
 		// Only this bounded native provider can be selected by the copied frontend.
-		if _, ok := provider.(*inProcessProvider); !ok {
-			return nil, errors.New("subagents: bounded tool requires native in-process provider")
+		_, oneShot := provider.(*inProcessProvider)
+		managed, managedOK := provider.(*managedInProcessProvider)
+		if (options.Continuable && (!managedOK || managed.definitions != nil)) || (!options.Continuable && !oneShot) {
+			return nil, errors.New("subagents: tool requires matching native in-process provider mode")
 		}
 		tools, err := point.Resolve(run, harness.ToolRegistryKey)
 		if err != nil {
@@ -76,6 +79,9 @@ func MountTool(ctx context.Context, h *harness.Harness, options ToolOptions) (*T
 			}
 			if depth := registry.Depth(agent); depth >= options.MaxDepth {
 				return fmt.Sprintf("Delegation depth for `%s`: current %d, maximum %d. Do not delegate further.", options.ToolName, depth, options.MaxDepth), nil
+			}
+			if options.Continuable {
+				return "Use " + options.ToolName + " to start a named child without blocking on its result. The completion arrives as an inbox notice. Child approval escalation is disabled.", nil
 			}
 			if provider.InheritsParentContext() {
 				return "Use " + options.ToolName + " for focused delegated work. The child sees completed parent turns, not the current turn. It waits for and returns the child result; canceling this call stops the child. Child operations requiring approval are denied (ApprovalNever); children cannot request escalation.", nil
@@ -100,6 +106,36 @@ func MountTool(ctx context.Context, h *harness.Harness, options ToolOptions) (*T
 }
 
 func delegationTool(registry *harness.SubagentRegistry, options ToolOptions) harness.Tool {
+	if options.Continuable {
+		return harness.Tool{
+			Schema:            harness.ToolSchema{Name: options.ToolName, Description: "Start a named subagent and return its Session ID immediately. Its completion arrives as an inbox notice.", InputSchema: json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":32},"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1}},"required":["description","prompt"],"additionalProperties":false}`)},
+			IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true },
+			ExecuteRequest: func(ctx context.Context, call harness.ToolRequest) (harness.ToolResult, error) {
+				var args struct {
+					Name        *string `json:"name"`
+					Description string  `json:"description"`
+					Prompt      string  `json:"prompt"`
+				}
+				decoder := json.NewDecoder(strings.NewReader(string(call.Arguments)))
+				decoder.DisallowUnknownFields()
+				if err := decoder.Decode(&args); err != nil {
+					return harness.ToolResult{}, err
+				}
+				if call.Agent == nil || strings.TrimSpace(args.Prompt) == "" || strings.TrimSpace(args.Description) == "" {
+					return harness.ToolResult{}, errors.New("subagents: caller, nonblank prompt and description are required")
+				}
+				activation, err := registry.StartActivation(ctx, options.Provider, harness.SubagentRequest{Parent: call.Agent, AgentName: args.Name, Label: args.Description, Prompt: args.Prompt, MaxDepth: options.MaxDepth, MaxSteps: options.MaxSteps, MaxTokens: options.MaxTokens}, "parent")
+				if err != nil {
+					return harness.ToolResult{}, err
+				}
+				raw, _ := json.Marshal(struct {
+					SessionID harness.SessionID `json:"sessionId"`
+					MessageID string            `json:"messageId"`
+				}{activation.ChildID, activation.MessageID})
+				return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(raw)}}}, nil
+			},
+		}
+	}
 	return harness.Tool{
 		Schema:            harness.ToolSchema{Name: options.ToolName, Description: "Delegate a task to a managed subagent and wait for its result. Canceling this call stops the child. Child operations requiring approval are denied (ApprovalNever); children cannot request escalation.", InputSchema: json.RawMessage(`{"type":"object","properties":{"description":{"type":"string","minLength":1},"prompt":{"type":"string","minLength":1}},"required":["description","prompt"],"additionalProperties":false}`)},
 		IsConcurrencySafe: func(context.Context, harness.ToolRequest) bool { return true },

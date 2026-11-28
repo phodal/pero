@@ -2,7 +2,9 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 
 	point "github.com/phodal/pero/harness/go/runtime"
 )
@@ -45,6 +47,8 @@ type SubagentDescendantEntry struct {
 	Depth       int       `json:"depth"`
 	Mode        string    `json:"mode,omitempty"`
 	Label       *string   `json:"label,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	Path        string    `json:"path,omitempty"`
 	Activity    string    `json:"activity,omitempty"`
 	HasChildren *bool     `json:"hasChildren,omitempty"`
 	Reason      string    `json:"reason,omitempty"`
@@ -117,14 +121,15 @@ func listSubagentDescendants(ctx context.Context, query SubagentCatalogQuery, ro
 		entry  SubagentChildCatalogEntry
 		parent SessionID
 		depth  int
+		path   string
 	}
 	stack := make([]position, 0, len(children))
-	push := func(rows []SubagentChildCatalogEntry, parent SessionID, depth int) {
+	push := func(rows []SubagentChildCatalogEntry, parent SessionID, depth int, path string) {
 		for i := len(rows) - 1; i >= 0; i-- {
-			stack = append(stack, position{rows[i], parent, depth})
+			stack = append(stack, position{rows[i], parent, depth, path})
 		}
 	}
-	push(children, rootID, 1)
+	push(children, rootID, 1, "")
 	visited := map[SessionID]bool{rootID: true}
 	result := make([]SubagentDescendantEntry, 0)
 	for len(stack) > 0 {
@@ -143,6 +148,14 @@ func listSubagentDescendants(ctx context.Context, query SubagentCatalogQuery, ro
 			err = nil
 		}
 		row := SubagentDescendantEntry{ID: entry.ID, ParentID: position.parent, Depth: position.depth}
+		if entry.Name != "" {
+			switch {
+			case position.depth == 1:
+				row.Path = entry.Name
+			case position.path != "":
+				row.Path = position.path + "/" + entry.Name
+			}
+		}
 		if err != nil {
 			var fatal *subagentCatalogError
 			var callerFence *subagentCatalogCallerError
@@ -165,6 +178,7 @@ func listSubagentDescendants(ctx context.Context, query SubagentCatalogQuery, ro
 			row.Kind = "child"
 			row.Mode = entry.Mode
 			row.Label = entry.Label
+			row.Name = entry.Name
 			row.Activity = "inactive"
 			if query.SubagentSessionResident(entry.ID) {
 				row.Activity = "running"
@@ -173,7 +187,7 @@ func listSubagentDescendants(ctx context.Context, query SubagentCatalogQuery, ro
 			row.HasChildren = &has
 		}
 		result = append(result, row)
-		push(children, entry.ID, position.depth+1)
+		push(children, entry.ID, position.depth+1, row.Path)
 	}
 	return result, nil
 }
@@ -201,6 +215,28 @@ func (q agentCatalogQuery) ReadSubagentCatalog(ctx context.Context, id SessionID
 	return rows, err
 }
 
+func (r *SubagentRegistry) beginCatalogRead(ctx context.Context, caller *Agent) (context.Context, agentCatalogQuery, func(), error) {
+	query, err := r.catalogQuery()
+	if err != nil {
+		return nil, agentCatalogQuery{}, nil, err
+	}
+	owner, ok := query.(SubagentCatalogReadOwner)
+	if !ok {
+		return nil, agentCatalogQuery{}, nil, ErrSubagentCatalogReadOwnerUnavailable
+	}
+	admitted, leased, release, err := owner.BeginSubagentCatalogRead(ctx)
+	if err != nil {
+		return nil, agentCatalogQuery{}, nil, err
+	}
+	if admitted == nil || leased == nil || release == nil {
+		if release != nil {
+			release()
+		}
+		return nil, agentCatalogQuery{}, nil, ErrSubagentCatalogReadOwnerUnavailable
+	}
+	return admitted, agentCatalogQuery{SubagentCatalogQuery: leased, registry: r, parent: caller}, release, nil
+}
+
 // ListAgentsDSH reads only exact-caller reachable parent-owned catalogs. Legacy
 // Catalog and unrestricted query service entrypoints keep their prior behavior.
 func (r *SubagentRegistry) ListAgentsDSH(ctx context.Context, parent *Agent, recursive bool) ([]SubagentDescendantEntry, error) {
@@ -217,26 +253,11 @@ func (r *SubagentRegistry) ListAgentsDSH(ctx context.Context, parent *Agent, rec
 	if err := r.requireLiveParent(parent); err != nil {
 		return nil, err
 	}
-	query, err := r.catalogQuery()
+	admitted, fenced, release, err := r.beginCatalogRead(ctx, parent)
 	if err != nil {
 		return nil, err
 	}
-	owner, ok := query.(SubagentCatalogReadOwner)
-	if !ok {
-		return nil, ErrSubagentCatalogReadOwnerUnavailable
-	}
-	admitted, leased, release, err := owner.BeginSubagentCatalogRead(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// Trusted provider contract still fails closed for an incomplete receipt.
-	if release != nil {
-		defer release()
-	}
-	if admitted == nil || leased == nil || release == nil {
-		return nil, ErrSubagentCatalogReadOwnerUnavailable
-	}
-	fenced := agentCatalogQuery{SubagentCatalogQuery: leased, registry: r, parent: parent}
+	defer release()
 	var rows []SubagentDescendantEntry
 	if recursive {
 		rows, err = listSubagentDescendants(admitted, fenced, parent.ID())
@@ -246,7 +267,7 @@ func (r *SubagentRegistry) ListAgentsDSH(ctx context.Context, parent *Agent, rec
 		if err == nil {
 			rows = make([]SubagentDescendantEntry, 0, len(children))
 			for _, child := range children {
-				rows = append(rows, SubagentDescendantEntry{Kind: "child", ID: child.ID, Mode: child.Mode, Label: child.Label})
+				rows = append(rows, SubagentDescendantEntry{Kind: "child", ID: child.ID, Mode: child.Mode, Label: child.Label, Name: child.Name})
 			}
 		}
 	}
@@ -270,4 +291,163 @@ func (r *SubagentRegistry) ListAgentsDSH(ctx context.Context, parent *Agent, rec
 		}
 	}
 	return rows, nil
+}
+
+// A DSH child address is a machine name, not the display label.
+func validDSHAgentName(name string) bool {
+	if len(name) == 0 || len(name) > 32 || name == "lead" || name[0] < 'a' || name[0] > 'z' {
+		return false
+	}
+	for i := 1; i < len(name); i++ {
+		c := name[i]
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// ResolveAgentNameDSH translates a root-relative name through parent journals.
+// The returned ID is not a membership or control grant. A single unmatched
+// token is an ID candidate; a slash path must resolve within this live tree.
+func (r *SubagentRegistry) ResolveAgentNameDSH(ctx context.Context, caller *Agent, address string) (SessionID, error) {
+	if r == nil || !r.beginSubagentCallback() {
+		return "", ErrSubagentAdmissionClosed
+	}
+	defer r.endSubagentCallback()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	root, err := r.LiveTreeRoot(caller)
+	if err != nil {
+		return "", err
+	}
+	if address == "lead" {
+		return root.ID(), nil
+	}
+	segments := strings.Split(address, "/")
+	missing := func() (SessionID, error) {
+		if len(segments) == 1 {
+			return SessionID(address), nil
+		}
+		return "", &subagentActivationError{"agent path was not found in this subagent tree", "AGENT_NAME_NOT_FOUND"}
+	}
+	for _, segment := range segments {
+		if !validDSHAgentName(segment) {
+			return missing()
+		}
+	}
+	admitted, fenced, release, err := r.beginCatalogRead(ctx, caller)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	current := root.ID()
+	visited := map[SessionID]bool{current: true}
+	for i, segment := range segments {
+		rows, err := fenced.ReadSubagentCatalog(admitted, current)
+		if err != nil {
+			return "", err
+		}
+		if err := admitted.Err(); err != nil {
+			return "", context.Cause(admitted)
+		}
+		now, err := r.LiveTreeRoot(caller)
+		if err != nil {
+			return "", err
+		}
+		if now != root {
+			return "", &subagentActivationError{"agent tree changed during name resolution", "UNAUTHORIZED"}
+		}
+		var found *SubagentChildCatalogEntry
+		for j := range rows {
+			if rows[j].Name == segment {
+				if found != nil {
+					return "", &subagentActivationError{"agent path is ambiguous", "DUPLICATE_AGENT_NAME"}
+				}
+				found = &rows[j]
+			}
+		}
+		if found == nil || visited[found.ID] || i < len(segments)-1 && found.Mode != "continuable" && found.Mode != "one-shot" {
+			return missing()
+		}
+		current = found.ID
+		visited[current] = true
+	}
+	return current, nil
+}
+
+// ListAgentsTool presents the read-only DSH catalog. It promises discovery,
+// not that a listed Session is authorized for messaging or interruption.
+func (r *SubagentRegistry) ListAgentsTool() Tool {
+	return Tool{
+		Schema: ToolSchema{
+			Name: "list_agents", Description: "List the root and discoverable continuable agents in your current tree. Names are paths from the root when available. Activity reports a running turn, not success or completion.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true },
+		ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+			lineage, _ := ctx.Value(toolCallLineageKey{}).(toolCallLineage)
+			if request.Agent == nil || lineage.owner != request.Agent {
+				return ToolResult{}, &subagentActivationError{"list_agents requires the exact live calling agent", "UNAUTHORIZED"}
+			}
+			root, err := r.LiveTreeRoot(request.Agent)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			rows, err := r.ListAgentsDSH(ctx, root, true)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			if current, err := r.LiveTreeRoot(request.Agent); err != nil || current != root {
+				return ToolResult{}, &subagentActivationError{"agent tree changed during listing", "UNAUTHORIZED"}
+			}
+			type member struct {
+				Name        string  `json:"name"`
+				Status      string  `json:"status"`
+				Description *string `json:"description,omitempty"`
+			}
+			status := "inactive"
+			if root.Status() == AgentRunning {
+				status = "running"
+			}
+			description := "root agent"
+			members := []member{{"lead", status, &description}}
+			for _, row := range rows {
+				address := row.Path
+				if address == "" {
+					address = string(row.ID)
+				}
+				switch {
+				case row.Kind == "diagnostic":
+					members = append(members, member{Name: address, Status: row.Reason})
+				case row.Mode == "continuable":
+					members = append(members, member{address, row.Activity, row.Label})
+				}
+			}
+			r.mu.RLock()
+			limit := r.config.MaxActiveSubagents
+			pool := r.activationPools[root]
+			if owner := r.activationParents[request.Agent]; owner != nil && owner.capacity != nil {
+				pool = owner.capacity.pool
+				if pool.facade != nil {
+					limit = pool.facade.config.MaxActiveSubagents
+				}
+			}
+			running := 0
+			if pool != nil {
+				running = pool.active
+			}
+			r.mu.RUnlock()
+			raw, _ := json.Marshal(struct {
+				Running int      `json:"running"`
+				Limit   int      `json:"limit"`
+				Agents  []member `json:"agents"`
+			}{running, limit, members})
+			return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: string(raw)}}}, nil
+		},
+	}
 }

@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "messages",
+    srcs = [
+        "request.go",
+        "stream.go",
+        "thinking.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/providers/messages",
+    visibility = ["//visibility:public"],
+    deps = ["//model"],
+)
+
+go_test(
+    name = "messages_test",
+    srcs = [
+        "request_test.go",
+        "stream_test.go",
+        "thinking_test.go",
+    ],
+    embed = [":messages"],
+    deps = ["//model"],
+)

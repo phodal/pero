@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"flag"
-	"github.com/phodal/pero/harness/go/harness"
+	"reflect"
 	"testing"
+
+	"github.com/phodal/pero/harness/go/harness"
 )
 
 func TestSubagentFlagsRequireExplicitOptIn(t *testing.T) {
@@ -38,6 +42,13 @@ func TestSubagentCLICompositionUsesBoundedNativeRegistry(t *testing.T) {
 			if err := mountSubagents(t.Context(), h, nil, subagentOptions{Enabled: enabled, MaxActive: 2}, nil); err != nil {
 				t.Fatal(err)
 			}
+			var hasList bool
+			for _, tool := range h.Tools().Schemas(h.Runtime().Root()) {
+				hasList = hasList || tool.Name == "list_agents"
+			}
+			if hasList != enabled {
+				t.Fatalf("list_agents available = %v; opt-in = %v", hasList, enabled)
+			}
 			if !enabled {
 				if h.Subagents() != nil {
 					t.Fatal("default registry exposed")
@@ -57,5 +68,141 @@ func TestSubagentCLICompositionUsesBoundedNativeRegistry(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSubagentCLIDiscoveryReadsOnlyReachableJournals(t *testing.T) {
+	ctx := t.Context()
+	persistence, err := harness.NewJSONLSessionPersistence(t.TempDir(), harness.JSONLPersistenceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: harness.AdapterFunc(func(context.Context, harness.GenerateRequest, func(harness.StreamChunk) error) (harness.Completion, error) {
+		t.Error("discovery must not request inference")
+		return harness.Completion{}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) })
+	if err = mountSubagents(ctx, h, persistence, subagentOptions{Enabled: true, MaxActive: 2}, nil); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	root, err := h.Agents().Create(ctx, harness.AgentOptions{ID: "lead", CWD: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(parent *harness.Session, id, mode, name string) {
+		t.Helper()
+		label := id
+		version := 1
+		if name != "" {
+			version = 3
+		}
+		_, err := parent.Append("subagent/catalog", harness.SubagentCatalogFact{Version: version, ChildID: harness.SessionID(id), Mode: mode, Label: &label, Name: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	save := func(session *harness.Session) {
+		t.Helper()
+		detach, err := persistence.Attach(ctx, session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := detach(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(root.Session(), "review", "one-shot", "")
+	add(root.Session(), "unreadable", "one-shot", "")
+	review := harness.NewSession("review", workspace)
+	add(review, "checker", "continuable", "checker")
+	save(review)
+	save(harness.NewSession("checker", workspace))
+	for _, name := range []string{"verify", "test"} {
+		branch := harness.NewSession(harness.SessionID(name+"-id"), workspace)
+		child := harness.SessionID(name + "-checker-id")
+		add(root.Session(), string(branch.Header().ID), "continuable", name)
+		add(branch, string(child), "continuable", "checker")
+		save(branch)
+		save(harness.NewSession(child, workspace))
+	}
+	forkAt := uint64(len(root.Session().Events()))
+	fork, err := root.Session().ForkPublic("separate-fork", &forkAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	add(fork, "hidden", "continuable", "checker")
+	save(fork)
+	save(harness.NewSession("hidden", workspace))
+
+	rows, err := h.Subagents().ListAgentsDSH(ctx, root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 7 || rows[0].ID != "review" || rows[0].Mode != "one-shot" ||
+		rows[1].ID != "checker" || rows[1].Mode != "continuable" || rows[1].Depth != 2 || rows[1].Activity != "inactive" || rows[1].Path != "" ||
+		rows[2].ID != "unreadable" || rows[2].Kind != "diagnostic" || rows[2].Reason != "unavailable" || rows[4].Path != "verify/checker" || rows[6].Path != "test/checker" {
+		t.Fatalf("unexpected discovery: %+v", rows)
+	}
+	for _, choice := range []struct {
+		name string
+		want harness.SessionID
+	}{
+		{"lead", root.ID()}, {"verify", "verify-id"}, {"verify/checker", "verify-checker-id"},
+		{"test/checker", "test-checker-id"}, {"checker", "checker"}, {"unmatched", "unmatched"},
+	} {
+		id, err := h.Subagents().ResolveAgentNameDSH(ctx, root, choice.name)
+		if err != nil || id != choice.want {
+			t.Fatalf("resolve %s = %s, %v; want %s", choice.name, id, err, choice.want)
+		}
+	}
+	for _, address := range []string{"review/checker", "verify/missing", "lead/test", "verify/"} {
+		_, err := h.Subagents().ResolveAgentNameDSH(ctx, root, address)
+		var coded interface{ ToolErrorCode() string }
+		if !errors.As(err, &coded) || coded.ToolErrorCode() != "AGENT_NAME_NOT_FOUND" {
+			t.Fatalf("invalid address %s returned %v", address, err)
+		}
+	}
+	assertList := func(agent *harness.Agent, expectedNames, expectedStatuses []string) {
+		t.Helper()
+		outcome, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: agent, Name: "list_agents", CallID: "read-team", Arguments: json.RawMessage(`{}`)})
+		if err != nil || len(outcome.Result.Content) != 1 {
+			t.Fatalf("list tool = %+v, %v", outcome, err)
+		}
+		var report struct {
+			Running int
+			Limit   int
+			Agents  []struct{ Name, Status string }
+		}
+		if err := json.Unmarshal([]byte(outcome.Result.Content[0].Text), &report); err != nil {
+			t.Fatal(err)
+		}
+		var names, statuses []string
+		for _, row := range report.Agents {
+			names = append(names, row.Name)
+			statuses = append(statuses, row.Status)
+		}
+		if report.Running != 0 || report.Limit != 2 || !reflect.DeepEqual(names, expectedNames) || !reflect.DeepEqual(statuses, expectedStatuses) {
+			t.Fatalf("unexpected model-facing report: %+v", report)
+		}
+	}
+	assertList(root, []string{"lead", "checker", "unreadable", "verify", "verify/checker", "test", "test/checker"},
+		[]string{"inactive", "inactive", "unavailable", "inactive", "inactive", "inactive", "inactive"})
+	forkRoot, err := h.Agents().Resume(ctx, fork, harness.AgentOptions{ID: "separate-fork", CWD: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forkRows, err := h.Subagents().ListAgentsDSH(ctx, forkRoot, true)
+	if err != nil || len(forkRows) != 1 || forkRows[0].ID != "hidden" {
+		t.Fatalf("fork inherited source membership: %+v %v", forkRows, err)
+	}
+	assertList(forkRoot, []string{"lead", "checker"}, []string{"inactive", "inactive"})
+	for _, id := range []harness.SessionID{"review", "checker", "hidden", "verify-id", "verify-checker-id", "test-id", "test-checker-id"} {
+		if _, loaded := h.Sessions().Get(id); loaded {
+			t.Fatalf("discovery published a cold session: %s", id)
+		}
 	}
 }

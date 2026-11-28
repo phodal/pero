@@ -26,6 +26,7 @@ pub struct AgentConfig {
     pub args: Vec<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    /// Model to select when creating a new ACP session, not when loading one.
     #[serde(default)]
     pub model: Option<String>,
     /// Explicit Worker opt-in. `gate` admits a non-DSH peer without the DSH

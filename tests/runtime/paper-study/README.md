@@ -237,3 +237,17 @@ and waits for its actual `configuration_changed` acknowledgement before promptin
 Every active phase must have actual bounded decisions and every planned Paper
 call must consume its own permission request; auto-review can no longer silently
 pass this check. No production default or persistent permission was changed.
+
+### Opt-in Messages Files provenance
+
+Run `--fixture vision-files` using the same executable/venv invocation as
+above. Prepare the bundled Paper parser/runtime and Data backend modules as
+in the CI step **Paper source provenance over Messages Files**. This fixture
+uses synthetic source and PDF bytes and an isolated loopback provider only.
+The separate source/PDF download approvals still apply. The fixture checks
+that one upload contains the exact safe PNG preview (not the metadata-bearing
+archive original) and that its ID stays inside the matching tool result.
+Paper retains the archive/member/preview digests, the literal caption match
+to the original PDF's first page, and a validated PDF citation. This is
+headless wiring and evidence persistence, not browser navigation or visual
+understanding.

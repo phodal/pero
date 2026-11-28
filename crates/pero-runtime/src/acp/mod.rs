@@ -10,6 +10,8 @@ mod registry;
 mod session;
 mod science;
 pub use science::ScienceRequest;
+mod team_board;
+pub use team_board::TeamBoardRead;
 mod user_questions;
 pub use agent_client_protocol as sdk;
 pub use app_use::{AppToolLoading, AppUseEndpoint, APP_USE_SKILL};

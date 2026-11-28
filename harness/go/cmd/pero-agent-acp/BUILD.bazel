@@ -50,6 +50,7 @@ go_library(
         "//skills",
         "//subagents",
         "//tasks",
+        "//team",
         "//todos",
         "//webtools",
         "//workflow",

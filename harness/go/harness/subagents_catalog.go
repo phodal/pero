@@ -203,30 +203,30 @@ func (r *SubagentRegistry) catalogBySessionID(ctx context.Context, parentID Sess
 		r.mu.RUnlock()
 		return nil, errors.New("harness: agent registry is unavailable")
 	}
-	records := make([]*subagentRecord, 0, len(r.records))
+	records := make([]SubagentSnapshot, 0, len(r.records))
 	for _, record := range r.records {
-		records = append(records, record)
+		records = append(records, record.snapshot)
 	}
 	providers := append([]subagentProviderEntry(nil), r.providers...)
 	r.mu.RUnlock()
 
 	entries := make(map[SessionID]SubagentCatalogEntry, len(records))
-	for _, record := range records {
+	for _, snapshot := range records {
 		mode := SubagentDescriptorOneShot
-		if record.snapshot.Continuable {
+		if snapshot.Continuable {
 			mode = SubagentDescriptorContinuable
 		}
 		activity := SubagentActivityReady
-		if agent, ok := agents.Get(record.snapshot.ID); ok && agent != nil {
+		if agent, ok := agents.Get(snapshot.ID); ok && agent != nil {
 			activity = SubagentActivityIdle
 			if agent.Status() == AgentRunning {
 				activity = SubagentActivityRunning
 			}
 		}
-		entries[record.snapshot.ID] = SubagentCatalogEntry{
-			Kind: SubagentCatalogChild, ID: record.snapshot.ID, Parent: record.snapshot.Parent,
-			Provider: record.snapshot.Provider, Label: record.snapshot.Label, Mode: mode,
-			Activity: activity, Depth: record.snapshot.Depth, StartedAt: record.snapshot.StartedAt,
+		entries[snapshot.ID] = SubagentCatalogEntry{
+			Kind: SubagentCatalogChild, ID: snapshot.ID, Parent: snapshot.Parent,
+			Provider: snapshot.Provider, Label: snapshot.Label, Mode: mode,
+			Activity: activity, Depth: snapshot.Depth, StartedAt: snapshot.StartedAt,
 		}
 	}
 
@@ -458,4 +458,79 @@ func (r *SubagentRegistry) notifyProviderWatchers() {
 	for _, watcher := range watchers {
 		watcher.deliver(r)
 	}
+}
+
+// IsContinuableDescendant checks only an exact session ID.
+func (r *SubagentRegistry) IsContinuableDescendant(ctx context.Context, root *Agent, target SessionID) (bool, error) {
+	id, err := r.resolveContinuableDescendant(ctx, root, string(target), false)
+	return id != "" && id == target, err
+}
+
+// ResolveContinuableDescendant resolves an exact ID or a unique saved label
+// inside the live root's topology without waking any member. A label never
+// shadows an exact ID, and diagnostic, one-shot and archived rows grant no access.
+func (r *SubagentRegistry) ResolveContinuableDescendant(ctx context.Context, root *Agent, target string) (SessionID, error) {
+	return r.resolveContinuableDescendant(ctx, root, target, true)
+}
+
+func (r *SubagentRegistry) resolveContinuableDescendant(ctx context.Context, root *Agent, target string, labels bool) (SessionID, error) {
+	if err := r.requireLiveParent(root); err != nil {
+		return "", err
+	}
+	entries, err := r.Catalog(ctx, root, true)
+	if err != nil {
+		return "", err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.disposed || !r.parentAdmitsLocked(root) {
+		return "", ErrSubagentAdmissionClosed
+	}
+	// Catalog is parent-first. A descendant of an unavailable or noncontinuable
+	// parent cannot be cold-reached and should not be selected as a new owner.
+	reachable := map[SessionID]bool{root.ID(): true}
+	var labelMatch SessionID
+	var ambiguous bool
+	// Mark exact-ID selectors independent of the traversal order.
+	exact := false
+	for _, entry := range entries {
+		if string(entry.ID) == target {
+			exact = true
+			break
+		}
+	}
+	for _, entry := range entries {
+		if !reachable[entry.Parent] || entry.Kind != SubagentCatalogChild || entry.Mode != SubagentDescriptorContinuable {
+			continue
+		}
+		archived := false
+		for _, check := range r.archiveChecks {
+			if check(entry.ID) {
+				archived = true
+				break
+			}
+		}
+		if archived {
+			continue
+		}
+		if live, found := r.agents.Get(entry.ID); found {
+			record := r.records[entry.ID]
+			if record == nil || record.child != live || record.parent.ID() != entry.Parent ||
+				!r.parentAdmitsLocked(live) || !r.activationAcceptsInput(record) {
+				continue
+			}
+		}
+		reachable[entry.ID] = true
+		if string(entry.ID) == target {
+			return entry.ID, nil
+		}
+		if labels && !exact && target != "" && entry.Label == target {
+			ambiguous = ambiguous || labelMatch != ""
+			labelMatch = entry.ID
+		}
+	}
+	if ambiguous {
+		return "", fmt.Errorf("harness: more than one continuable child uses label %q; select an exact session ID", target)
+	}
+	return labelMatch, nil
 }

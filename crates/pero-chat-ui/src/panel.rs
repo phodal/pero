@@ -448,6 +448,7 @@ impl ChatPanel {
             "disconnected" => {
                 self.connected = false;
                 for chat in &mut self.chats {
+                    chat.team.connect(None);
                     if matches!(chat.history, crate::history_recovery::HistoryLoad::Pending(_)) {
                         chat.history = crate::history_recovery::HistoryLoad::Deferred;
                     }
@@ -613,6 +614,17 @@ impl ChatPanel {
             "renderStats":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).stats()).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "renderedBytes":self.chats.iter().map(|c|c.messages.iter().map(|m|m.view.read(cx).rendered_bytes(cx)).collect::<Vec<_>>()).collect::<Vec<_>>()});
         value["mcpHistory"] = Value::Array(mcp_history);
+        if let Some(chat) = self.active_chat.and_then(|index| self.chats.get(index)) {
+            value["reconnectEligibility"] = json!({
+                "allowed": chat.can_reconnect(),
+                "historyComplete": chat.history.complete(),
+                "ordinaryOrigin": chat.ordinary_origin,
+                "hostArchivedReconnect": chat.archived_reconnect,
+                "quietLoadSupported": chat.acp_load_supported,
+                "hasSessionId": !chat.session_id.is_empty(),
+                "hasQueuedPrompt": chat.queued.is_some(),
+            });
+        }
         value["replayed"] = self.replayed.into();
         value["visible"] = self.visible.into();
         value["projectComposerActive"] = self.project_composer.scope.is_some().into();

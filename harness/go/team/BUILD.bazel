@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "team",
+    srcs = [
+        "board.go",
+        "journal.go",
+        "tools.go",
+    ],
+    importpath = "github.com/phodal/pero/harness/go/team",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//harness",
+        "//runtime",
+    ],
+)
+
+go_test(
+    name = "team_test",
+    srcs = [
+        "board_test.go",
+        "reassign_test.go",
+    ],
+    embed = [":team"],
+    deps = [
+        "//harness",
+        "//subagents",
+        "//tasks",
+    ],
+)

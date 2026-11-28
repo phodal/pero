@@ -534,6 +534,35 @@ impl Manager {
                 };
                 let _ = self.tx.send(event);
             }
+            HostCommand::ReadTeamBoard { request_id, thread_id, incarnation } => {
+                let request = acp::TeamBoardRead { request_id, thread_id, incarnation, reply: self.tx.clone() };
+                if request.request_id.is_empty() || request.request_id.len() > 128 || request.thread_id.is_empty()
+                    || request.incarnation == 0 || self.automation_threads.contains(&request.thread_id) {
+                    request.finish(Err("unavailable"));
+                    return false;
+                }
+                let Some(handle) = self.sessions.get(&request.thread_id) else {
+                    request.finish(Err("unavailable"));
+                    return false;
+                };
+                if let Err(error) = handle.tx.send(SessionCommand::TeamBoard(request))
+                    && let SessionCommand::TeamBoard(request) = error.0 {
+                    request.finish(Err("unavailable"));
+                    return false;
+                }
+            }
+            HostCommand::ReconnectSession { thread_id } => {
+                if let Err(error) = self.reconnect_session(&thread_id) {
+                    let mut event = if error == acp::CREDENTIAL_REQUIRED {
+                        HostEvent::message("session_error", None, acp::CREDENTIAL_REQUIRED)
+                    } else {
+                        HostEvent::new("session_error", None, error)
+                    };
+                    event.thread_id = Some(thread_id);
+                    let _ = self.tx.send(event);
+                    return false;
+                }
+            }
             HostCommand::NewSession {
                 thread_id,
                 agent_id,

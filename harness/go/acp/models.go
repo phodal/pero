@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+
 	"github.com/phodal/pero/harness/go/harness"
 )
 
@@ -68,8 +69,8 @@ func (s *Server) validateModelChoice(ctx context.Context, selection harness.Agen
 	return nil
 }
 
-func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Session) error {
-	if len(s.modelChoices) == 0 {
+func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Session, exact bool) error {
+	if len(s.modelChoices) == 0 && !exact {
 		return nil
 	}
 	selection, found, err := harness.RecordedModelSelection(session)
@@ -78,6 +79,12 @@ func (s *Server) checkRestoredModel(ctx context.Context, session *harness.Sessio
 	}
 	if !found {
 		selection = harness.AgentModelSelection{Provider: s.provider, Model: s.model}
+	}
+	if len(s.modelChoices) == 0 {
+		if selection.Provider != s.provider || selection.Model != s.model {
+			return invalidError("recorded model is not the configured single model")
+		}
+		return nil
 	}
 	return s.validateModelChoice(ctx, selection)
 }
@@ -103,6 +110,13 @@ func (s *Server) configOptions(agent *harness.Agent) ([]any, error) {
 			return nil, err
 		}
 		options = append(options, review)
+	}
+	teamOption, err := s.teamConfig(agent)
+	if err != nil {
+		return nil, err
+	}
+	if teamOption != nil {
+		options = append(options, teamOption)
 	}
 	return options, nil
 }
@@ -150,6 +164,8 @@ func (s *Server) setConfigOption(ctx context.Context, p setConfigOptionParams) (
 		return nil, classify(err)
 	}
 	switch p.ConfigID {
+	case "team":
+		return s.setTeamOption(ctx, record, p.Value)
 	case "scientific_review":
 		return s.setScientificReviewOption(ctx, record, p.Value)
 	case "permission":

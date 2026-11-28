@@ -558,6 +558,13 @@ func (s *Session) Events() []Event {
 	return events
 }
 
+// LastEventSeq is a cheap quiescence receipt for the current log.
+func (s *Session) LastEventSeq() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return uint64(len(s.events))
+}
+
 // EventsAfter copies only the events with Seq greater than after. Durable
 // sequences are contiguous from 1, so it reports false when after is beyond the
 // log rather than returning an empty suffix that would hide a diverged cache.

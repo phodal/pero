@@ -41,6 +41,11 @@ func (s *Server) configureSessionTools(servers []harness.MCPServerConfig, loadin
 				return err
 			}
 		}
+		if s.goal && s.preparePrompt == nil && !agent.IsExternal() {
+			if err := s.registerGoalTool(run, agent); err != nil {
+				return err
+			}
+		}
 		return harness.MountAgentMCPServers(ctx, run, s.h.Tools(), s.h.Prompts(), agent, servers)
 	}, nil
 }

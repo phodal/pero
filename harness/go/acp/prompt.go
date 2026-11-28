@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/phodal/pero/harness/go/harness"
 )
@@ -49,6 +50,27 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 	var result harness.TurnResult
 	var cleanup func()
 	manualReview := false
+	manualGoal := false
+	var grant *goalDelegation
+	if s.goal && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
+		if command, matched := harness.ParseCommand(params.Prompt[0].Text); matched && command.Name == "goal" {
+			manualGoal = true
+			if len(params.Prompt) != 1 {
+				promptErr = invalidError("/goal expects one text block and no attachments")
+			} else if action, instructions, _ := strings.Cut(strings.TrimSpace(command.RawInput), " "); action == "delegate" {
+				instructions = strings.TrimSpace(instructions)
+				if !s.goalAvailable(record.agent) || record.agent.Parent() != nil || instructions == "" || len(instructions) > 4096 {
+					promptErr = invalidError("/goal delegate requires a durable native root and one instruction up to 4096 bytes")
+				} else {
+					grant = &goalDelegation{}
+					content = []harness.ContentBlock{{Type: harness.BlockText, Text: instructions}}
+					manualGoal = false
+				}
+			} else {
+				result.Reason, promptErr = s.runGoalCommand(promptCtx, record, command.RawInput)
+			}
+		}
+	}
 	if s.scientificReviewer != nil && len(params.Prompt) > 0 && params.Prompt[0].Type == "text" {
 		line := params.Prompt[0].Text
 		if parsed, matched := harness.ParseCommand(line); matched && parsed.Name == "review" {
@@ -85,10 +107,10 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 		}
 	}
-	if !manualReview {
+	if promptErr == nil && !manualReview && !manualGoal && grant == nil {
 		content, promptErr = promptBlocks(promptCtx, s.h.Attachments(), params.Prompt)
 	}
-	if promptErr == nil && !manualReview {
+	if promptErr == nil && !manualReview && !manualGoal {
 		message := harness.Message{Role: harness.RoleUser, Content: content}
 		if s.preparePrompt != nil {
 			var id harness.SessionID
@@ -99,7 +121,25 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 		}
 		if promptErr == nil {
-			result, promptErr = record.agent.Prompt(promptCtx, message)
+			if grant != nil {
+				var id harness.SessionID
+				id, promptErr = randomSessionID()
+				grant.promptID, message.ID = string(id), string(id)
+			}
+			if promptErr == nil {
+				if grant != nil {
+					record.mu.Lock()
+					record.goalDelegation = grant
+					record.mu.Unlock()
+				}
+				result, promptErr = record.agent.Prompt(promptCtx, message)
+				if grant != nil {
+					record.mu.Lock()
+					record.goalDelegation = nil
+					record.mu.Unlock()
+				}
+			}
+			delegatedTurn := result
 			for attempt := 1; promptErr == nil && promptCtx.Err() == nil && result.Reason == harness.FinishMaxTokens && attempt <= s.outputLimitRecoveries; attempt++ {
 				source, _ := json.Marshal(struct {
 					Kind    string `json:"kind"`
@@ -113,6 +153,12 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 			}
 			if promptErr == nil && s.scientificReviewer != nil {
 				promptErr = s.scientificReviewer.AfterTurn(promptCtx, record.agent, result)
+			}
+			if promptErr == nil && grant != nil && result.Turn == delegatedTurn.Turn {
+				result, promptErr = s.settleDelegatedGoal(promptCtx, record, grant, result)
+			}
+			if promptErr == nil && s.waitForSubagentTree {
+				result, promptErr = s.settleSubagentTree(promptCtx, record.agent, result)
 			}
 		}
 		// Prompt can return as soon as its context is canceled. Retain the ACP
@@ -142,10 +188,60 @@ func (s *Server) prompt(ctx context.Context, params PromptParams) (string, error
 		}
 		return "", promptErr
 	}
-	if s.sessionTitles && !manualReview {
+	if s.sessionTitles && !manualReview && !manualGoal {
 		record.agent.StartSessionTitle(result.Turn)
 	}
 	return promptStopReason(result.Reason), nil
+}
+
+// The root can become idle before a child sends its completion notice.
+// Session event projection writes client updates synchronously, so joining
+// the root again after the children also joins their resulting wire output.
+func (s *Server) settleSubagentTree(ctx context.Context, agent *harness.Agent, result harness.TurnResult) (harness.TurnResult, error) {
+	registry := s.h.Subagents()
+	if registry == nil {
+		return result, nil
+	}
+	session := agent.Session()
+	for {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if err := agent.WhenIdle(ctx); err != nil {
+			return result, err
+		}
+		before := session.LastEventSeq()
+		if _, err := registry.WaitForChildren(ctx, agent); err != nil {
+			return result, err
+		}
+		if agent.Status() == harness.AgentIdle && before == session.LastEventSeq() {
+			break
+		}
+	}
+	if agent.CurrentTurn() != result.Turn {
+		events := session.Events()
+		for i := len(events) - 1; i >= 0; i-- {
+			if events[i].Type != "turn/end" || events[i].IsOpaque() {
+				continue
+			}
+			var end struct {
+				Turn   int                `json:"turn"`
+				Reason harness.FinishKind `json:"reason"`
+				Error  string             `json:"error"`
+			}
+			if err := json.Unmarshal(events[i].Data, &end); err != nil {
+				return result, err
+			}
+			if end.Turn > result.Turn {
+				result.Turn, result.Reason = end.Turn, end.Reason
+				if end.Error != "" {
+					return result, errors.New(end.Error)
+				}
+			}
+			break
+		}
+	}
+	return result, s.writer.currentError()
 }
 
 func validTurnReceiptID(id string) bool {

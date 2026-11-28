@@ -21,9 +21,13 @@ import (
 	"github.com/phodal/pero/harness/go/model"
 	point "github.com/phodal/pero/harness/go/runtime"
 	"github.com/phodal/pero/harness/go/scientificreviewer"
+	"github.com/phodal/pero/harness/go/team"
 )
 
 type Options struct {
+	// WaitForSubagentTree holds a native prompt through its asynchronous tree
+	// completion and any final turn driven by a child notice.
+	WaitForSubagentTree bool
 	// SessionTitles enables one auxiliary title call after the first completed
 	// turn. The native composition opts in; protocol-only embeddings stay inert.
 	SessionTitles bool
@@ -49,8 +53,13 @@ type Options struct {
 	// OutputLimitRecoveries explicitly allows attributed new turns after an
 	// output-limit stop. Zero preserves ACP's single-prompt stop contract.
 	OutputLimitRecoveries int
-	Compaction            *harness.BasicCompactionConfig
-	ToolResultPruner      *harness.ToolResultPruneConfig
+	// Goal enables the opt-in native ACP /goal command.
+	Goal bool
+	// GoalBlockAfterRounds is the minimum admitted rounds for a model blocker.
+	// Zero uses the default (three). It does not change the Goal round limit.
+	GoalBlockAfterRounds int
+	Compaction           *harness.BasicCompactionConfig
+	ToolResultPruner     *harness.ToolResultPruneConfig
 	// OmitToolImages keeps the receipt in ACP notifications when the host
 	// transport cannot carry raster bytes. Model context and journal are intact.
 	OmitToolImages      bool
@@ -70,10 +79,15 @@ type Options struct {
 	Science func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 	// ScientificReviewer shares the existing session and bounded subagent owner.
 	ScientificReviewer *scientificreviewer.App
+	// TeamBoard exposes an already mounted native Team board to session configuration.
+	TeamBoard *team.Board
 }
 
 type Server struct {
+	waitForSubagentTree      bool
 	sessionTitles            bool
+	goal                     bool
+	goalBlockAfterRounds     int
 	modelChoices             []harness.ModelCatalogEntry
 	modelCapacity            int
 	modelOutput              int
@@ -117,6 +131,7 @@ type Server struct {
 	preparePrompt       func(context.Context, *harness.Agent, *harness.Message) (func(), error)
 	science             func(context.Context, *harness.Agent, json.RawMessage) (any, error)
 	scientificReviewer  *scientificreviewer.App
+	teamBoard           *team.Board
 }
 
 type clientResponse struct {
@@ -134,6 +149,8 @@ type activeSession struct {
 	mu              sync.Mutex
 	inflight        bool
 	promptCancel    context.CancelFunc
+	goalRound       *goalRoundControl
+	goalDelegation  *goalDelegation
 	modelChanging   bool
 	cancelRequested bool
 	closing         bool
@@ -161,6 +178,12 @@ func NewServer(options Options) (*Server, error) {
 	if options.OutputLimitRecoveries < 0 {
 		return nil, errors.New("acp: output limit recoveries must be nonnegative")
 	}
+	if options.GoalBlockAfterRounds < 0 || options.GoalBlockAfterRounds > 0 && !options.Goal {
+		return nil, errors.New("acp: a positive Goal blocker threshold requires Goal mode")
+	}
+	if options.GoalBlockAfterRounds == 0 {
+		options.GoalBlockAfterRounds = defaultGoalBlockAfterRounds
+	}
 	if options.Name == "" {
 		options.Name = "pero-agent-acp"
 	}
@@ -178,17 +201,21 @@ func NewServer(options Options) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		sessionTitles: options.SessionTitles,
-		modelChoices:  choices, modelCapacity: capacity, modelOutput: output,
+		sessionTitles:        options.SessionTitles,
+		goal:                 options.Goal,
+		goalBlockAfterRounds: options.GoalBlockAfterRounds,
+		modelChoices:         choices, modelCapacity: capacity, modelOutput: output,
 		h: options.Harness, persistence: options.Persistence, validateWorkingDirectory: options.ValidateWorkingDirectory,
 		registerAppDeferredTools: options.RegisterAppDeferredTools,
 		provider:                 options.Provider, model: options.Model, maxSteps: options.MaxSteps, compaction: options.Compaction, toolResultPruner: options.ToolResultPruner,
 		outputLimitRecoveries: options.OutputLimitRecoveries, omitToolImages: options.OmitToolImages,
 		name: options.Name, version: options.Version, sessionListPageSize: options.SessionListPageSize,
 		questionTools: options.UserQuestions, holdAssistantText: options.HoldAssistantText, renderAssistantText: options.RenderAssistantText, preparePrompt: options.PreparePrompt,
-		science:            options.Science,
-		scientificReviewer: options.ScientificReviewer,
-		sessions:           make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
+		science:             options.Science,
+		scientificReviewer:  options.ScientificReviewer,
+		waitForSubagentTree: options.WaitForSubagentTree,
+		teamBoard:           options.TeamBoard,
+		sessions:            make(map[harness.SessionID]*activeSession), activating: make(map[harness.SessionID]struct{}),
 		pending: make(map[string]chan clientResponse), retiring: make(map[*harness.Agent]*activeSession), closedSessions: make(map[harness.SessionID]*activeSession),
 	}, nil
 }
@@ -343,6 +370,8 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		return s.mcpSessionRequest(ctx, message.Params)
 	case ScienceSessionMethod:
 		return s.scienceSessionRequest(ctx, message.Params)
+	case teamBoardMethod:
+		return s.teamBoardRequest(message.Params)
 	case "session/new":
 		var params NewSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {
@@ -382,6 +411,9 @@ func (s *Server) handle(ctx context.Context, message request) (any, *rpcError) {
 		var params ResumeSessionParams
 		if err := decodeParams(message.Params, &params); err != nil {
 			return nil, invalid(err.Error())
+		}
+		if params.Meta.QuietLoad != nil {
+			return nil, invalid("quiet load requires session/load")
 		}
 		if err := s.resumeSession(ctx, params); err != nil {
 			return nil, classify(err)
@@ -481,6 +513,14 @@ func (s *Server) newSession(ctx context.Context, params NewSessionParams) (harne
 		return "", err
 	}
 	defer done()
+	// Persist the physical workspace for new sessions so a transient alias
+	// does not become the session's durable identity. Validate the exact path
+	// we will use for both the session and its MCP clients.
+	if filepath.IsAbs(params.CWD) {
+		if canonical, err := filepath.EvalSymlinks(params.CWD); err == nil {
+			params.CWD = canonical
+		}
+	}
 	if err := s.checkWorkingDirectory(params.CWD); err != nil {
 		return "", err
 	}
@@ -582,10 +622,7 @@ func (s *Server) activateWithPolicy(ctx context.Context, agent *harness.Agent, a
 		}
 	}
 	committed = true
-	if s.scientificReviewer != nil && s.writer != nil {
-		return s.advertiseScientificReview(agent.ID())
-	}
-	return nil
+	return s.advertiseSessionCommands(agent)
 }
 
 func (s *Server) closeSession(ctx context.Context, id harness.SessionID) error {
@@ -660,6 +697,9 @@ func waitForACPCommands(ctx context.Context, idle <-chan struct{}) error {
 }
 
 func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) error {
+	if params.Meta.QuietLoad != nil && *params.Meta.QuietLoad != 1 {
+		return invalidError("unsupported quiet load revision")
+	}
 	done, err := s.beginSessionOperation(ctx)
 	if err != nil {
 		return err
@@ -700,7 +740,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 	if err := checkMCPResumeRequirements(session.Events(), len(params.MCPServers) > 0); err != nil {
 		return err
 	}
-	if err := s.checkRestoredModel(ctx, session); err != nil {
+	if err := s.checkRestoredModel(ctx, session, params.Meta.QuietLoad != nil); err != nil {
 		return err
 	}
 	servers, err := s.decodeSessionMCPServers(params.MCPServers, params.CWD)
@@ -729,7 +769,7 @@ func (s *Server) resumeSession(ctx context.Context, params ResumeSessionParams) 
 		s.retireAgent(agent)
 		return err
 	}
-	if err := s.activate(ctx, agent); err != nil {
+	if err := s.activateWithPolicy(ctx, agent, nil, params.Meta.QuietLoad == nil); err != nil {
 		s.retireAgent(agent)
 		return err
 	}

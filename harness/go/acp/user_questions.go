@@ -47,10 +47,14 @@ func (s *Server) extensionCapabilities() map[string]int {
 		MCPToolPolicyCapability:    1,
 		MCPSessionCapability:       1,
 		turnReceiptCapability:      1,
+		quietLoadCapability:        1,
 		model.AppUseContextMetaKey: 1,
 	}
 	if s.questionTools {
 		result[UserQuestionsCapability] = 1
+	}
+	if s.teamBoard != nil {
+		result[teamBoardCapability] = 1
 	}
 	if s.science != nil {
 		result[ScienceSessionCapability] = 1

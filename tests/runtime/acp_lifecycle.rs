@@ -102,13 +102,14 @@ fn launch_with_access(
 }
 
 #[test]
-fn explicit_load_uses_host_history_and_keeps_current_agent_observations() {
-    let (handle, rx, _workspace) = launch("load_replay", None);
+fn explicit_load_preserves_the_saved_model_and_host_history() {
+    let (handle, rx, _workspace) = launch("load_replay", Some("model-a"));
     let mut settings_observed = false;
     let mut title_observed = false;
     loop {
         let event = rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert_ne!(event.kind, "session_error", "{}", event.text);
+        assert_ne!(event.kind, "turn_started", "reconnecting started a model turn");
         if event.kind == "configuration_changed" {
             settings_observed = event.data["options"].as_array().unwrap().iter()
                 .any(|option| option["id"] == "mode" && option["current"] == "plan");
@@ -117,12 +118,18 @@ fn explicit_load_uses_host_history_and_keeps_current_agent_observations() {
             assert!(matches!(event.data["sessionUpdate"].as_str(), Some("session_info_update" | "config_option_update")), "Historical content was replayed twice");
             if event.data["sessionUpdate"] == "session_info_update" {title_observed = event.data["title"] == "Original conversation";}
         }
-        if event.kind == "session_ready" {assert_eq!(event.data["sessionId"], "fixture-session"); break;}
+        if event.kind == "session_ready" {
+            assert_eq!(event.data["sessionId"], "fixture-session");
+            assert_eq!(event.data["configOptions"][0]["currentValue"], "model-b");
+            assert!(event.data["peroSettings"]["options"].as_array().unwrap().iter()
+                .any(|option| option["id"] == "effort" && option["current"] == "low"));
+            break;
+        }
     }
     assert!(settings_observed && title_observed);
     handle.tx.send(SessionCommand::Prompt("fresh followup".into())).unwrap();
     let current = until(&rx, "session_update");
-    assert_eq!(current.data["content"]["text"], "turn-1:fresh followup");
+    assert_eq!(current.data["content"]["text"], "model-b/low:turn-1:fresh followup");
     until(&rx, "turn_finished");
     handle.tx.send(SessionCommand::Close).unwrap();
     until(&rx, "session_closed");

@@ -116,6 +116,7 @@ export type ArtifactView = "icons" | "list" | "gallery";
 export type HostCommand =
   | ListAgentsCommand
   | LoadThreadHistoryCommand
+  | ReconnectSessionCommand
   | WorkspaceCommand
   | LoadRoadmapCommand
   | AttachFilesCommand
@@ -130,6 +131,7 @@ export type HostCommand =
   | AnswerUserQuestionsCommand
   | ModelCommand
   | ConfigureCommand
+  | ReadTeamBoardCommand
   | CloseCommand
   | DeleteCommand
   | InsightsCommand;
@@ -234,6 +236,8 @@ export type HostEvent =
   | McpSessionEvent
   | McpSessionErrorEvent
   | McpResourceSelectedEvent
+  | TeamBoardEvent
+  | TeamBoardErrorEvent
   | DocumentSaveChooseEvent
   | DocumentSavePathEvent
   | DocumentSaveCancelledEvent
@@ -1789,6 +1793,10 @@ export interface LoadThreadHistoryCommand {
   thread_id: ThreadId;
   request_id: string;
 }
+export interface ReconnectSessionCommand {
+  action: "reconnect_session";
+  thread_id: ThreadId;
+}
 export interface WorkspaceCommand {
   action: "workspace";
   path: string;
@@ -1938,6 +1946,12 @@ export interface ConfigureCommand {
   thread_id: ThreadId;
   config_id: string;
   value: string;
+}
+export interface ReadTeamBoardCommand {
+  action: "read_team_board";
+  request_id: string;
+  thread_id: ThreadId;
+  incarnation: number;
 }
 export interface CloseCommand {
   action: "close";
@@ -2467,6 +2481,41 @@ export interface McpResourceText {
   uri: string;
   text: string;
   mimeType?: string;
+}
+export interface TeamBoardEvent {
+  kind: "team_board";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    board: TeamBoard;
+  };
+}
+export interface TeamBoard {
+  revision: number;
+  enabled: boolean;
+  tasks: TeamBoardTask[];
+}
+export interface TeamBoardTask {
+  id: string;
+  subject: string;
+  revision: number;
+  status: "pending" | "in_progress" | "completed";
+  ready: boolean;
+  owner?: string;
+}
+export interface TeamBoardErrorEvent {
+  kind: "team_board_error";
+  version: 1;
+  request_id: string | null;
+  text: string;
+  thread_id: string;
+  data: {
+    incarnation: number;
+    reason: "stale" | "unsupported" | "unavailable" | "invalid_response";
+  };
 }
 export interface DocumentSaveChooseEvent {
   kind: "document_save_choose";
@@ -3950,6 +3999,7 @@ export interface ThreadHistoryEvent {
 export interface ThreadHistoryData {
   events: ReplayThreadEvent[];
   active: boolean;
+  reconnectable?: boolean;
 }
 export interface ThreadHistoryErrorEvent {
   kind: "thread_history_error";

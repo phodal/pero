@@ -165,14 +165,21 @@ func (r *ToolRegistry) executeWithResolver(ctx context.Context, request ToolRequ
 	filtered.finalContent = finalContent
 	filtered.parentExecutionToken = request.parentExecutionToken
 	filtered.rootCallID = filtered.CallID
-	if hasParent && parentCall.token == parentToken && parentCall.owner == filtered.Agent && parentCall.rootCallID != "" {
-		filtered.rootCallID = parentCall.rootCallID
+	var nextStep *nextStepReport
+	if hasParent && parentCall.token == parentToken && parentCall.owner == filtered.Agent {
+		nextStep = parentCall.nextStep
+		if parentCall.rootCallID != "" {
+			filtered.rootCallID = parentCall.rootCallID
+		}
 	}
-	if filtered.CallID != "" && filtered.rootCallID != "" {
-		ctx = context.WithValue(ctx, toolCallLineageKey{}, toolCallLineage{owner: filtered.Agent, token: executionToken, rootCallID: filtered.rootCallID})
-	} else {
-		ctx = context.WithValue(ctx, toolCallLineageKey{}, toolCallLineage{})
+	if nextStep == nil {
+		nextStep = &nextStepReport{}
 	}
+	lineage := toolCallLineage{owner: filtered.Agent, token: executionToken, nextStep: nextStep}
+	if filtered.CallID != "" {
+		lineage.rootCallID = filtered.rootCallID
+	}
+	ctx = context.WithValue(ctx, toolCallLineageKey{}, lineage)
 	if prepared {
 		filtered.owner, filtered.profileLease = preparedTool.owner, preparedTool.profileLease
 		filtered.output = outputContract(preparedTool)

@@ -83,14 +83,16 @@ def source_archive(files=None):
 
 
 def vision_archive():
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, PngImagePlugin
     image = Image.new('RGB', (256, 256), 'white')
     draw = ImageDraw.Draw(image)
     draw.rectangle((32, 32, 79, 79), fill='#e02020')
     draw.rectangle((32, 112, 79, 159), fill='#e02020')
     draw.ellipse((160, 160, 223, 223), fill='#2050e0')
     output = io.BytesIO()
-    image.save(output, format='PNG')
+    metadata = PngImagePlugin.PngInfo()
+    metadata.add_text('Comment', 'Synthetic source metadata must not reach the model wire')
+    image.save(output, format='PNG', pnginfo=metadata)
     image.close()
     tex = (r'\documentclass{article}' + '\n' + r'\usepackage{graphicx}' + '\n' +
            r'\begin{document}' + '\n' + r'\begin{figure}' + '\n' +

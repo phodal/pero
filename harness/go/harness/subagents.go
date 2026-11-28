@@ -110,7 +110,10 @@ type SubagentRequest struct {
 	SuppressParentSettlement bool
 	Parent                   *Agent
 	Label                    string
-	Prompt                   string
+	// AgentName is an optional DSH sibling name for StartActivation. It is
+	// independent of Label and never grants permission to control the child.
+	AgentName *string
+	Prompt    string
 	// PromptContent preserves the full DSH content-block request. Prompt remains
 	// the compatibility text form for string-only providers; in-process
 	// providers consume PromptContent when present.
@@ -304,6 +307,12 @@ type SubagentManagedResumer interface {
 	PrepareManagedResume(context.Context, *Agent, SessionID) (SubagentContinuationProviderRun, SubagentSnapshot, error)
 }
 
+// SubagentDSHTreeResumer marks providers that can retain saved policy while
+// activating a child below its live root instead of its offline creator.
+type SubagentDSHTreeResumer interface {
+	SupportsDSHTreeResume() bool
+}
+
 var ErrSubagentResumeUnavailable = errors.New("harness: subagent cold resume unavailable")
 
 // SubagentContinuationResumer is implemented by session-backed providers.
@@ -395,6 +404,8 @@ type subagentProviderEntry struct {
 }
 
 type subagentRecord struct {
+	// Set only for a cold DSH child reattached under the root with its creator offline.
+	creationAncestors        []SessionID
 	admissionMu              sync.Mutex
 	snapshot                 SubagentSnapshot
 	run                      SubagentRun
@@ -488,6 +499,8 @@ type SubagentRegistry struct {
 	presetValidator atomic.Pointer[subagentPresetValidator]
 	runtime         *point.Runtime
 	resumeMu        sync.Mutex
+	nameMu          sync.Mutex
+	pendingNames    map[*Agent]map[string]bool
 
 	mu                  sync.RWMutex
 	nextID              uint64

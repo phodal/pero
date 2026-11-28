@@ -16,6 +16,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -27,8 +29,9 @@ var errStreamClosed = errors.New("SSE stream ended without [DONE]")
 type APIFormat string
 
 const (
-	ChatCompletions APIFormat = "chat-completions"
-	Responses       APIFormat = "responses"
+	ChatCompletions  APIFormat = "chat-completions"
+	Responses        APIFormat = "responses"
+	DeepSeekMessages APIFormat = "deepseek-messages"
 )
 
 type ModelConfig struct {
@@ -39,6 +42,16 @@ type ModelConfig struct {
 }
 type Config struct {
 	APIFormat APIFormat
+	// A 32-byte local secret explicitly enables signed Messages thinking.
+	// It scopes replay to this endpoint, provider and credential. Do not reuse
+	// the API key itself or send this secret to the provider.
+	MessagesReplayKey []byte
+	// Both fields explicitly enable raster-only Files uploads. The directory
+	// must be owner-controlled and the key must not be the provider credential.
+	MessagesFilesDirectory string
+	MessagesFilesKey       []byte
+	// Separately opt in to bounded deletion of near-expiry, locally proven uploads.
+	MessagesFilesReclaim bool
 	// Explicit compatible-provider extension; omitted unless requested.
 	DisableThinking bool
 	// Explicit transport choice for compatible providers without an SSE route.
@@ -60,30 +73,45 @@ type Config struct {
 	RequestTimeoutMS               int64
 }
 type Adapter struct {
-	apiFormat         APIFormat
-	responses         responses.ResponseService
-	disableThinking   bool
-	disableStreaming  bool
-	maxRequests       int64
-	maxOutputTokens   int
-	requests          atomic.Int64
-	client            openaisdk.ChatCompletionService
-	models            map[string]ModelConfig
-	providerName      string
-	retryPolicy       llm.ResolvedRetryPolicy
-	streamIdleTimeout time.Duration
-	requestTimeout    time.Duration
+	apiFormat                APIFormat
+	responses                responses.ResponseService
+	messagesClient           *http.Client
+	messagesURL, messagesKey string
+	messagesReplayScope      string
+	messagesFiles            *messagesFiles
+	disableThinking          bool
+	disableStreaming         bool
+	maxRequests              int64
+	maxOutputTokens          int
+	requests                 atomic.Int64
+	client                   openaisdk.ChatCompletionService
+	models                   map[string]ModelConfig
+	providerName             string
+	retryPolicy              llm.ResolvedRetryPolicy
+	streamIdleTimeout        time.Duration
+	requestTimeout           time.Duration
 }
 
 func New(c Config) (*Adapter, error) {
 	if c.APIFormat == "" {
 		c.APIFormat = ChatCompletions
 	}
-	if c.APIFormat != ChatCompletions && c.APIFormat != Responses {
+	if c.APIFormat != ChatCompletions && c.APIFormat != Responses && c.APIFormat != DeepSeekMessages {
 		return nil, errors.New("openai adapter: unsupported API format")
 	}
 	if c.APIFormat == Responses && (!c.DisableStreaming || c.DisableThinking) {
 		return nil, errors.New("openai adapter: Responses requires disable-streaming and does not accept the Chat thinking extension")
+	}
+	if c.APIFormat == DeepSeekMessages && c.DisableStreaming {
+		return nil, errors.New("messages adapter: this protocol requires streaming")
+	}
+	if c.MessagesReplayKey != nil && (len(c.MessagesReplayKey) != 32 || c.APIFormat != DeepSeekMessages || c.DisableThinking) {
+		return nil, errors.New("messages adapter: signed thinking requires DeepSeek Messages, a 32-byte local replay key and thinking not disabled")
+	}
+	if c.MessagesFilesDirectory != "" || c.MessagesFilesKey != nil || c.MessagesFilesReclaim {
+		if c.APIFormat != DeepSeekMessages || !filepath.IsAbs(c.MessagesFilesDirectory) || len(c.MessagesFilesKey) != 32 {
+			return nil, errors.New("messages adapter: Files requires DeepSeek Messages, a private absolute directory and a 32-byte scope key")
+		}
 	}
 	if c.MaxRequests < 0 || c.MaxOutputTokens < 0 {
 		return nil, errors.New("openai adapter: budget limits must be non-negative")
@@ -101,7 +129,16 @@ func New(c Config) (*Adapter, error) {
 	if strings.TrimSpace(c.APIKey) == "" || strings.TrimSpace(c.ProviderName) == "" || len(c.Models) == 0 {
 		return nil, errors.New("openai adapter: explicit credential, provider and model catalog required")
 	}
-	u.Path = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions"), "/responses") + "/"
+	if c.APIFormat == DeepSeekMessages {
+		// Accept the official /anthropic base, a /v1 base, or the exact endpoint.
+		p := strings.TrimSuffix(u.Path, "/")
+		if !strings.HasSuffix(p, "/v1/messages") {
+			p = strings.TrimSuffix(p, "/v1") + "/v1/messages"
+		}
+		u.Path, u.RawPath = p, ""
+	} else {
+		u.Path = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(u.Path, "/"), "/chat/completions"), "/responses") + "/"
+	}
 	models := map[string]ModelConfig{}
 	for _, m := range c.Models {
 		if m.ID == "" || m.ContextWindow < 0 || m.MaxTokens < 0 {
@@ -120,6 +157,9 @@ func New(c Config) (*Adapter, error) {
 			default:
 				return nil, errors.New("openai adapter: unsupported input modality")
 			}
+		}
+		if c.APIFormat == DeepSeekMessages && (m.Reasoning != nil || (m.MaxTokens == 0 && c.MaxOutputTokens == 0)) {
+			return nil, errors.New("messages adapter: model without configured reasoning and an explicit max-tokens limit required")
 		}
 		if !textInput {
 			return nil, errors.New("openai adapter: text input must remain enabled")
@@ -142,6 +182,9 @@ func New(c Config) (*Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.APIFormat == DeepSeekMessages && (policy.Mode == llm.RetryAlways || slices.Contains(policy.RetryableCodes, harness.StreamClosedCode)) {
+		return nil, errors.New("messages adapter: retry policy must not replay an incomplete stream")
+	}
 	if c.StreamIdleTimeoutMS == 0 {
 		c.StreamIdleTimeoutMS = 300000
 	}
@@ -161,13 +204,32 @@ func New(c Config) (*Adapter, error) {
 	if transport == nil {
 		transport = configuredTransport(c.UseEnvironmentProxy)
 	}
-	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming}
+	client.Transport = terminalCheckingTransport{next: transport, nonStreaming: c.DisableStreaming, messages: c.APIFormat == DeepSeekMessages}
 	if c.BeforeHTTPAttempt != nil {
 		client.Transport = attemptAuditTransport{next: client.Transport, before: c.BeforeHTTPAttempt}
 	}
 	sdkOptions := []option.RequestOption{option.WithAPIKey(c.APIKey), option.WithBaseURL(u.String()), option.WithHTTPClient(&client), option.WithMaxRetries(0), option.WithOrganization(""), option.WithProject(""), option.WithHeader("User-Agent", "pero-agent/0.1")}
-	sdk := openaisdk.NewChatCompletionService(sdkOptions...)
-	return &Adapter{apiFormat: c.APIFormat, responses: responses.NewResponseService(sdkOptions...), disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, client: sdk, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}, nil
+	adapter := &Adapter{apiFormat: c.APIFormat, disableThinking: c.DisableThinking, disableStreaming: c.DisableStreaming, maxRequests: int64(c.MaxRequests), maxOutputTokens: c.MaxOutputTokens, models: models, providerName: c.ProviderName, retryPolicy: policy, streamIdleTimeout: time.Duration(c.StreamIdleTimeoutMS) * time.Millisecond, requestTimeout: time.Duration(c.RequestTimeoutMS) * time.Millisecond}
+	if c.APIFormat == DeepSeekMessages {
+		adapter.messagesClient, adapter.messagesURL, adapter.messagesKey = &client, u.String(), c.APIKey
+		if c.MessagesReplayKey != nil {
+			adapter.messagesReplayScope = messagesReplayScope(c.MessagesReplayKey, u.String(), c.ProviderName, c.APIKey)
+		}
+		if c.MessagesFilesDirectory != "" {
+			filesClient := client
+			filesClient.Transport = terminalCheckingTransport{next: transport, nonStreaming: true}
+			if c.BeforeHTTPAttempt != nil {
+				filesClient.Transport = attemptAuditTransport{next: filesClient.Transport, before: c.BeforeHTTPAttempt}
+			}
+			filesURL := strings.TrimSuffix(u.String(), "/messages") + "/files"
+			scope := messagesReplayScope(c.MessagesFilesKey, filesURL, c.ProviderName, c.APIKey)
+			adapter.messagesFiles = &messagesFiles{client: &filesClient, url: filesURL, root: filepath.Join(c.MessagesFilesDirectory, scope), reclaim: c.MessagesFilesReclaim}
+		}
+	} else {
+		adapter.client = openaisdk.NewChatCompletionService(sdkOptions...)
+		adapter.responses = responses.NewResponseService(sdkOptions...)
+	}
+	return adapter, nil
 }
 
 type attemptAuditTransport struct {
@@ -193,7 +255,7 @@ func (a *Adapter) ResolveModelInfo(_ context.Context, provider, model string) (l
 		r.Efforts = append([]llm.ReasoningEffortInfo(nil), r.Efforts...)
 		reasoning = &r
 	}
-	return llm.ModelInfo{Provider: provider, Model: model, Name: m.Name, Description: m.Description, InputModalities: []string{"text"}, ContextWindow: m.ContextWindow, DefaultMaxTokens: m.MaxTokens, Reasoning: reasoning}, nil
+	return llm.ModelInfo{Provider: provider, Model: model, Name: m.Name, Description: m.Description, InputModalities: append([]string(nil), m.InputModalities...), ContextWindow: m.ContextWindow, DefaultMaxTokens: m.MaxTokens, Reasoning: reasoning}, nil
 }
 func (a *Adapter) RetryPolicyForProvider(provider string) (llm.ResolvedRetryPolicy, bool) {
 	p := a.retryPolicy

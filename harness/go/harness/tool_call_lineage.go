@@ -6,4 +6,5 @@ type toolCallLineage struct {
 	owner      *Agent
 	token      ToolExecutionToken
 	rootCallID ToolCallID
+	nextStep   *nextStepReport
 }

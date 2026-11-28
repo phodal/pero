@@ -264,6 +264,7 @@ model SetRemoteSettingsRequest {
 
 model ListAgentsCommand { action: "list_agents"; history?: "catalog"; ...Closed }
 model LoadThreadHistoryCommand { action: "load_thread_history"; thread_id: ThreadId; @minLength(1) @maxLength(128) request_id: string; ...Closed }
+model ReconnectSessionCommand { action: "reconnect_session"; thread_id: ThreadId; ...Closed }
 model WorkspaceCommand { action: "workspace"; path: string; ...Closed }
 model LoadRoadmapCommand { action: "load_roadmap"; ...Closed }
 model AttachFilesCommand { action: "attach_files"; paths: string[]; ...Closed }
@@ -321,6 +322,11 @@ model AnswerUserQuestionsCommand {
 }
 model ModelCommand { action: "model"; thread_id: string; model_id: string; ...Closed }
 model ConfigureCommand { action: "configure"; thread_id: ThreadId; config_id: string; value: string; ...Closed }
+model ReadTeamBoardCommand { action: "read_team_board"; request_id: string; thread_id: ThreadId; incarnation: safeint; ...Closed }
+model TeamBoardTask { id: string; subject: string; revision: safeint; status: "pending" | "in_progress" | "completed"; ready: boolean; owner?: string; ...Closed }
+model TeamBoard { revision: safeint; enabled: boolean; tasks: TeamBoardTask[]; ...Closed }
+model TeamBoardEvent { kind: "team_board"; ...ThreadEventBase; data: { incarnation: safeint; board: TeamBoard; ...Closed } }
+model TeamBoardErrorEvent { kind: "team_board_error"; ...ThreadEventBase; data: { incarnation: safeint; reason: "stale" | "unsupported" | "unavailable" | "invalid_response"; ...Closed } }
 model CloseCommand { action: "close"; thread_id: string; ...Closed }
 model DeleteCommand { action: "delete"; thread_id: ThreadId; ...Closed }
 /** Read one saved session and return its Insights analysis. */
@@ -330,6 +336,7 @@ model InsightsCommand { action: "insights"; thread_id: ThreadId; ...Closed }
 union HostCommand {
   ListAgentsCommand,
   LoadThreadHistoryCommand,
+  ReconnectSessionCommand,
   WorkspaceCommand,
   LoadRoadmapCommand,
   AttachFilesCommand,
@@ -344,6 +351,7 @@ union HostCommand {
   AnswerUserQuestionsCommand,
   ModelCommand,
   ConfigureCommand,
+  ReadTeamBoardCommand,
   CloseCommand,
   DeleteCommand,
   InsightsCommand,
@@ -457,7 +465,7 @@ model DeferredThread {
 }
 model ReplayData { events: ReplayThreadEvent[]; active: string[]; catalog?: DeferredThread[]; ...Closed }
 model ReplayEvent { kind: "replay"; ...EventBase; data: ReplayData }
-model ThreadHistoryData { events: ReplayThreadEvent[]; active: boolean; ...Closed }
+model ThreadHistoryData { events: ReplayThreadEvent[]; active: boolean; reconnectable?: boolean; ...Closed }
 model ThreadHistoryEvent { kind: "thread_history"; ...ThreadEventBase; data: ThreadHistoryData }
 model ThreadHistoryErrorEvent { kind: "thread_history_error"; ...ThreadEventBase }
 /** `text` is the selected workspace path. */
@@ -638,6 +646,7 @@ model ContributorSessionEvent { kind: "contributor_session"; ...ThreadEventBase;
 union HostEvent {
   TerminalEvent,
   McpSettingsEvent, McpSettingsErrorEvent, McpRuntimeEvent, McpSessionEvent, McpSessionErrorEvent, McpResourceSelectedEvent,
+  TeamBoardEvent, TeamBoardErrorEvent,
   DocumentSaveChooseEvent,DocumentSavePathEvent,DocumentSaveCancelledEvent,
   WorkspaceRestoredEvent,WorkspaceSavedEvent,WorkspaceErrorEvent,WorkspaceSourceEvent,WorkspaceSourceErrorEvent,WorkspaceResetEvent,WorkspaceSourceStoredEvent,DraftStoredEvent,
   WebOpenedEvent,WebStateEvent,WebClosedEvent,WebErrorEvent,WebChooseEvent,WebFocusedEvent,IconThemesEvent,

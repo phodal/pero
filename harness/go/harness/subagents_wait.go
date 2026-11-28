@@ -89,8 +89,19 @@ func (r *SubagentRegistry) waitForChildren(ctx context.Context, parent *Agent, f
 			if record.child != nil && !state.closing.Load() {
 				child := record.child
 				child.injectMu.Lock()
-				parked := child.pendingPrompts.Load() != 0 || len(child.injected) != 0 || child.durableInbox.HasNextTurn() || child.durableInbox.HasNextStep()
+				injected := len(child.injected) != 0
 				child.injectMu.Unlock()
+				nextTurn := child.durableInbox.HasNextTurn()
+				nextStep := child.durableInbox.HasNextStep() || injected
+				child.mu.Lock()
+				nextTurn = nextTurn || child.pendingPrompts.Load() != 0
+				// A waking admission publishes its next-turn input before
+				// marking the Agent running. Only an interrupt can park
+				// next-turn work; otherwise ignore quiet next-step input
+				// only when no waking turn is pending.
+				parked := child.status == AgentIdle && !child.maintenance &&
+					(child.inboxParked && nextTurn || !nextTurn && nextStep)
+				child.mu.Unlock()
 				state.mu.Lock()
 				failed := state.failure != nil
 				state.mu.Unlock()

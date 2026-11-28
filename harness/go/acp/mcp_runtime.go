@@ -6,8 +6,11 @@ import (
 	"github.com/phodal/pero/harness/go/harness"
 )
 
-// MCPRuntimeMeta holds optional extensions for the current session MCP snapshot.
+const quietLoadCapability = "pero.quietLoad"
+
+// MCPRuntimeMeta holds optional extensions for session setup.
 type MCPRuntimeMeta struct {
+	QuietLoad      *int                   `json:"pero.quietLoad,omitempty"`
 	Runtime        *MCPRuntimeRequest     `json:"pero.mcpRuntime,omitempty"`
 	AppToolLoading *appToolLoadingRequest `json:"pero.appToolLoading,omitempty"`
 }

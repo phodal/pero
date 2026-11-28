@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 )
@@ -131,6 +132,10 @@ func (r *SubagentRegistry) continuableRecord(ctx context.Context, parent *Agent,
 }
 
 func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Agent, childID SessionID, managed bool) (*subagentRecord, bool, error) {
+	cold := dshColdResumeFor(ctx, parent, childID)
+	matchesParent := func(record *subagentRecord) bool {
+		return record.parent == parent && (record.snapshot.Parent == parent.ID() || cold != nil && record.snapshot.Parent == cold.ancestors[0])
+	}
 	if err := r.requireLiveParent(parent); err != nil {
 		return nil, false, err
 	}
@@ -138,7 +143,7 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 	record := r.records[childID]
 	r.mu.RUnlock()
 	if record != nil {
-		if record.parent != parent {
+		if !matchesParent(record) {
 			return nil, false, r.ClassifyDSHSendFailure(ctx, parent, childID, SubagentSendWrongParent, &subagentActivationError{fmt.Sprintf("harness: subagent %q does not belong to this parent", childID), "UNAUTHORIZED"})
 		}
 		if !record.snapshot.Continuable || record.submit == nil {
@@ -170,7 +175,7 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 		return nil, false, errors.New("harness: subagent registry is disposed")
 	}
 	if record != nil {
-		if record.parent != parent {
+		if !matchesParent(record) {
 			return nil, false, r.ClassifyDSHSendFailure(ctx, parent, childID, SubagentSendWrongParent, &subagentActivationError{fmt.Sprintf("harness: subagent %q does not belong to this parent", childID), "UNAUTHORIZED"})
 		}
 		if !record.snapshot.Continuable || record.submit == nil {
@@ -220,6 +225,12 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 				retainUnavailable(ErrSubagentActivationModeUnsupported)
 				continue
 			}
+			if cold != nil {
+				resumer, ok := entry.provider.(SubagentDSHTreeResumer)
+				if !ok || !resumer.SupportsDSHTreeResume() {
+					continue
+				}
+			}
 			prepare = current.PrepareManagedResume
 		}
 		if err := r.protectSubagentPreparation(ctx, parent); err != nil {
@@ -250,6 +261,9 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 		}
 		snapshot.ID = childID
 		snapshot.Parent = parent.ID()
+		if cold != nil {
+			snapshot.Parent = cold.ancestors[0]
+		}
 		snapshot.Provider = entry.provider.Name()
 		snapshot.Continuable = true
 		if snapshot.Status == "" {
@@ -258,6 +272,9 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 		record = &subagentRecord{
 			snapshot: snapshot, parent: parent, child: prepared.Child, submit: prepared.Submit, dispose: prepared.Dispose, disposal: disposal,
 			suppressParentSettlement: snapshot.SuppressParentSettlement,
+		}
+		if cold != nil {
+			record.creationAncestors = cold.ancestors
 		}
 		if managed {
 			delivery, _ := ctx.Value(resumeDeliveryKey{}).(string)
@@ -278,7 +295,7 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 		if existing := r.records[childID]; existing != nil {
 			r.mu.Unlock()
 			r.cleanupPreparedSubagent(prepared.Dispose)
-			if existing.parent != parent {
+			if !matchesParent(existing) {
 				return nil, false, r.ClassifyDSHSendFailure(ctx, parent, childID, SubagentSendWrongParent, &subagentActivationError{fmt.Sprintf("harness: subagent %q does not belong to this parent", childID), "UNAUTHORIZED"})
 			}
 			return existing, false, nil
@@ -312,7 +329,7 @@ func (r *SubagentRegistry) continuableRecordMode(ctx context.Context, parent *Ag
 // Interrupt issues cancellation under exact live ancestor authority. It retains
 // local pending inbox work and does not stop the target's own descendants.
 func (r *SubagentRegistry) Interrupt(caller *Agent, target SessionID) error {
-	return r.interruptActivation(caller, "", target, "", nil)
+	return r.interruptActivation(caller, "", target, "", nil, false)
 }
 
 // InterruptDSH preserves the source empty-address no-op only for an exact live
@@ -320,7 +337,7 @@ func (r *SubagentRegistry) Interrupt(caller *Agent, target SessionID) error {
 // keep the same lineage, activation-generation and cancellation path.
 func (r *SubagentRegistry) InterruptDSH(caller *Agent, target SessionID) error {
 	if target != "" {
-		return r.Interrupt(caller, target)
+		return r.interruptActivation(caller, "", target, "", nil, true)
 	}
 	if r == nil {
 		return &subagentActivationError{"harness: subagent interrupt requires an authority and target", "UNAUTHORIZED"}
@@ -336,19 +353,19 @@ func (r *SubagentRegistry) InterruptDSH(caller *Agent, target SessionID) error {
 // InterruptByParentID is the browser's durable direct-parent authority; it does
 // not require a resident parent or consult a catalog/history for authorization.
 func (r *SubagentRegistry) InterruptByParentID(parentID, target SessionID) error {
-	return r.interruptActivation(nil, parentID, target, "", nil)
+	return r.interruptActivation(nil, parentID, target, "", nil, false)
 }
 
 // InterruptActivation pins cross-process control to the observed activation so
 // a delayed wire command cannot cancel a replacement reusing the same Session.
 func (r *SubagentRegistry) InterruptActivation(caller *Agent, target SessionID, runID string) error {
-	return r.interruptActivation(caller, "", target, runID, nil)
+	return r.interruptActivation(caller, "", target, runID, nil, false)
 }
 func (r *SubagentRegistry) InterruptActivationByParentID(parentID, target SessionID, runID string) error {
-	return r.interruptActivation(nil, parentID, target, runID, nil)
+	return r.interruptActivation(nil, parentID, target, runID, nil, false)
 }
 
-func (r *SubagentRegistry) interruptActivation(caller *Agent, parentID, target SessionID, runID string, facade *SubagentFacade) error {
+func (r *SubagentRegistry) interruptActivation(caller *Agent, parentID, target SessionID, runID string, facade *SubagentFacade, dsh bool) error {
 	if r == nil || target == "" || (caller == nil && parentID == "") {
 		return &subagentActivationError{"harness: subagent interrupt requires an authority and target", "UNAUTHORIZED"}
 	}
@@ -368,9 +385,13 @@ func (r *SubagentRegistry) interruptActivation(caller *Agent, parentID, target S
 		r.mu.RUnlock()
 		return nil
 	}
-	authorized := record.parent != nil && record.parent.ID() == parentID
+	authorized := record.snapshot.Parent == parentID
 	if caller != nil {
 		authorized = subagentWithin(record.parent, map[*Agent]struct{}{caller: {}})
+		if dsh && len(record.creationAncestors) > 0 {
+			root, err := r.liveTreeRootLocked(caller)
+			authorized = err == nil && root == record.parent && slices.Contains(record.creationAncestors, caller.ID())
+		}
 	}
 	if !authorized {
 		r.mu.RUnlock()
@@ -427,7 +448,7 @@ func (r *SubagentRegistry) DrainContinuableChildren(ctx context.Context, parent 
 			record.admissionMu.Unlock()
 			continue
 		}
-		if !record.snapshot.Continuable || record.parent != parent {
+		if !record.snapshot.Continuable || record.parent != parent || record.snapshot.Parent != parent.ID() {
 			r.mu.Unlock()
 			record.admissionMu.Unlock()
 			joined = errors.Join(joined, fmt.Errorf("harness: subagent %q is not a direct continuable child of %q", childID, parent.ID()))
@@ -883,3 +904,28 @@ func callSubagentCleanup(callback func() error) (err error) {
 // Dispose may synchronously retire another Agent whose observers reenter this
 // exact disposer, even using a new background context. Waiting would deadlock.
 var ErrSubagentDisposalInProgress = errors.New("harness: subagent disposal is in progress")
+
+// LiveTreeRoot resolves runtime ownership, not saved parent metadata. A normal
+// session fork is its own root; a resident or recently retired ID cannot act on
+// behalf of a different live Agent with the same Session ID.
+func (r *SubagentRegistry) LiveTreeRoot(caller *Agent) (*Agent, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.liveTreeRootLocked(caller)
+}
+
+func (r *SubagentRegistry) liveTreeRootLocked(caller *Agent) (*Agent, error) {
+	for current := caller; ; {
+		if r.disposed || !r.liveParentLocked(current) || !r.parentAdmitsLocked(current) {
+			return nil, &subagentActivationError{"harness: tree access requires an exact live Agent", "UNAUTHORIZED"}
+		}
+		record := r.records[current.ID()]
+		if record == nil && !current.Delegated() {
+			return current, nil
+		}
+		if record == nil || record.child != current || !r.activationAcceptsInput(record) {
+			return nil, &subagentActivationError{"harness: Agent is not an active member of this tree", "UNAUTHORIZED"}
+		}
+		current = record.parent
+	}
+}

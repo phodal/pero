@@ -322,6 +322,9 @@ func (a *Agent) worker(ctx context.Context) error {
 				stopRequestCancel = context.AfterFunc(work.ctx, func() { cancel(work.ctx.Err()) })
 				a.mu.Lock()
 				a.turnHuman = work.userAuthored
+				if hasWaiter && work.userAuthored {
+					a.turnUserPrompt = work.message.ID
+				}
 				a.turnCancel = cancel
 				a.activityCtx = turnContext
 				if a.inboxParked {
@@ -378,6 +381,7 @@ func (a *Agent) worker(ctx context.Context) error {
 			a.turnCancel = nil
 			a.activityCtx = nil
 			a.turnHuman = false
+			a.turnUserPrompt = ""
 			parked = a.inboxParked
 			a.mu.Unlock()
 			// Parked request tokens may have been drained. The durable inbox, not

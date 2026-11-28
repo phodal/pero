@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -32,6 +33,7 @@ import (
 	"github.com/phodal/pero/harness/go/skills"
 	"github.com/phodal/pero/harness/go/subagents"
 	"github.com/phodal/pero/harness/go/tasks"
+	"github.com/phodal/pero/harness/go/team"
 	"github.com/phodal/pero/harness/go/webtools"
 	"github.com/phodal/pero/harness/go/workflow"
 )
@@ -53,7 +55,7 @@ func run() (resultErr error) {
 	if len(os.Args) > 1 && os.Args[1] == "plugins" {
 		return runPlugins(os.Args[2:], os.Stdout)
 	}
-	endpoint := flag.String("endpoint", "", "explicit OpenAI-compatible HTTPS endpoint (loopback HTTP allowed)")
+	endpoint := flag.String("endpoint", "", "explicit provider HTTPS endpoint (loopback HTTP allowed)")
 	model := flag.String("model", "", "explicit provider model ID")
 	modelProfilePath := flag.String("model-profile", "", "explicit versioned JSON launch defaults for one matching model; CLI flags override defaults")
 	toolFormatFlag := flag.String("tool-format", "auto", "native or claude tool names; auto preserves package-selected behavior")
@@ -66,6 +68,9 @@ func run() (resultErr error) {
 	maintenance := flag.Bool("maintenance", false, "run Setup maintenance, then exit without a conversation")
 	sessions := flag.String("session-dir", "", "private directory for durable JSONL sessions (required)")
 	keyEnv := flag.String("api-key-env", "AGENT_PROVIDER_API_KEY", "environment variable containing the provider credential")
+	replayKeyEnv := flag.String("messages-replay-key-env", "", "enable signed DeepSeek Messages thinking; name of an environment variable holding a private 32-byte hex replay key")
+	filesKeyEnv := flag.String("messages-files-key-env", "", "enable DeepSeek Messages raster uploads with a separate private 32-byte hex scope key")
+	filesReclaim := flag.Bool("messages-files-reclaim", false, "on storage quota errors, allow one near-expiry deletion of a Files upload proven to belong to this profile")
 	auditPath := flag.String("http-attempt-audit", "", "optional absolute existing private file to durably record each provider HTTP attempt")
 	workspace := flag.String("workspace", "", "explicit native file tool authority root; absent disables native tools")
 	enableResearchClone := flag.Bool("enable-research-clone", false, "enable approved pinned GitHub acquisition without checkout; requires --workspace; Unix only")
@@ -89,6 +94,9 @@ func run() (resultErr error) {
 	approval := flag.String("approval", "ask", "tool approval policy: never or ask via ACP client")
 	budget := bindProviderBudget(flag.CommandLine)
 	maxTurnSteps := flag.Int("max-turn-steps", harness.DefaultMaxSteps, "maximum model/tool steps per turn; 0 disables this ceiling (cancellation and provider budgets still apply)")
+	enableTeam := flag.Bool("enable-team", false, "enable per-session shared task boards via ACP session configuration or the /team command")
+	enableGoal := flag.Bool("enable-goal", false, "Enable bounded /goal continuation in the native ACP harness")
+	goalBlockAfterRounds := flag.Int("goal-block-after-rounds", 0, "minimum admitted rounds before the model can report a persistent Goal blocker; 0 uses 3")
 	outputLimitRecoveries := flag.Int("output-limit-recoveries", 0, "ACP-only attributed follow-up turns after output truncation; 0 returns max_tokens immediately")
 	sessionTitles := flag.Bool("session-titles", false, "generate one conversation title after its first completed ACP turn")
 	skillRoots := bindSkillRoots(flag.CommandLine)
@@ -126,6 +134,18 @@ func run() (resultErr error) {
 	}
 	if *outputLimitRecoveries < 0 || *printMode && *outputLimitRecoveries != 0 {
 		return errors.New("--output-limit-recoveries must be nonnegative and is only supported in ACP mode")
+	}
+	if delegation.Continuations && (*printMode || *initOnly || *maintenance) {
+		return errors.New("--enable-dsh-continuations requires ACP mode")
+	}
+	if *enableTeam && (!delegation.Enabled || *printMode || *initOnly || *maintenance) {
+		return errors.New("--enable-team requires --enable-subagents and ACP mode")
+	}
+	if *enableGoal && (*printMode || *initOnly || *maintenance) {
+		return errors.New("--enable-goal is only supported when serving ACP")
+	}
+	if *goalBlockAfterRounds < 0 || *goalBlockAfterRounds > 0 && !*enableGoal {
+		return errors.New("--goal-block-after-rounds must be nonnegative; a positive value requires --enable-goal")
 	}
 	if *maxTurnSteps == 0 {
 		*maxTurnSteps = harness.UnlimitedMaxSteps
@@ -201,6 +221,37 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
+	var messagesReplayKey []byte
+	if *replayKeyEnv != "" {
+		if *replayKeyEnv == *keyEnv {
+			return errors.New("Messages replay key requires a separate environment variable")
+		}
+		value, err := takeProviderCredential(*replayKeyEnv)
+		if err != nil {
+			return err
+		}
+		messagesReplayKey, err = hex.DecodeString(value)
+		if err != nil || len(messagesReplayKey) != 32 {
+			return errors.New("Messages replay key must contain exactly 32 hex-encoded bytes")
+		}
+	}
+	var messagesFilesKey []byte
+	if *filesKeyEnv != "" {
+		if *filesKeyEnv == *keyEnv || *filesKeyEnv == *replayKeyEnv || !budget.ImageInput || budget.APIFormat != string(openai.DeepSeekMessages) {
+			return errors.New("Messages Files needs a separate key environment variable and DeepSeek Messages image input")
+		}
+		value, err := takeProviderCredential(*filesKeyEnv)
+		if err != nil {
+			return err
+		}
+		messagesFilesKey, err = hex.DecodeString(value)
+		if err != nil || len(messagesFilesKey) != 32 {
+			return errors.New("Messages Files key must contain exactly 32 hex-encoded bytes")
+		}
+	}
+	if *filesReclaim && messagesFilesKey == nil {
+		return errors.New("--messages-files-reclaim requires --messages-files-key-env")
+	}
 	webProvider, err := configuredWeb(*web, *keyEnv, credential)
 	if err != nil {
 		return err
@@ -212,6 +263,15 @@ func run() (resultErr error) {
 	providerConfig, err := configuredProvider(*endpoint, *model, credential, *budget)
 	if err != nil {
 		return err
+	}
+	providerConfig.MessagesReplayKey = messagesReplayKey
+	if messagesFilesKey != nil {
+		providerConfig.MessagesFilesDirectory, err = filepath.Abs(filepath.Join(*sessions, "deepseek-files-v1"))
+		if err != nil {
+			return err
+		}
+		providerConfig.MessagesFilesKey = messagesFilesKey
+		providerConfig.MessagesFilesReclaim = *filesReclaim
 	}
 	providerConfig.BeforeHTTPAttempt, err = httpAttemptAudit(*auditPath, budget.MaxRequests)
 	if paperResearch != nil {
@@ -236,6 +296,10 @@ func run() (resultErr error) {
 		return err
 	}
 	adapter, err := openai.New(providerConfig)
+	clear(messagesReplayKey)
+	clear(messagesFilesKey)
+	providerConfig.MessagesFilesKey = nil
+	providerConfig.MessagesReplayKey = nil
 	if err != nil {
 		return err
 	}
@@ -243,7 +307,14 @@ func run() (resultErr error) {
 	if err != nil {
 		return err
 	}
-	h, err := harness.Boot(ctx, harness.Options{EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
+	var attachments harness.AttachmentStore
+	if providerConfig.APIFormat == openai.DeepSeekMessages && budget.ImageInput {
+		attachments, err = harness.OpenLocalAttachmentStore(harness.LocalAttachmentStoreConfig{Home: *sessions})
+		if err != nil {
+			return err
+		}
+	}
+	h, err := harness.Boot(ctx, harness.Options{Attachments: attachments, EnableSubagents: true, Adapter: adapter, AdapterProviders: []string{"configured"}, ModelInfo: adapter, ApprovalPolicy: harness.ApprovalPolicy(*approval)})
 	if err != nil {
 		return err
 	}
@@ -406,6 +477,11 @@ func run() (resultErr error) {
 	if err := mountSubagents(ctx, h, persistence, *delegation, compactionConfig); err != nil {
 		return err
 	}
+	if *enableTeam {
+		if err := team.Mount(ctx, h); err != nil {
+			return err
+		}
+	}
 	reviewer, err := scientificreviewer.Mount(ctx, h, persistence)
 	if err != nil {
 		return err
@@ -510,7 +586,7 @@ func run() (resultErr error) {
 	if err := mountToolHistory(ctx, h, toolHistoryConfig); err != nil {
 		return err
 	}
-	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking, ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
+	if err := mountLaunchReceipt(ctx, h, launchReceipt{ModelProfile: modelProfile, ToolFormat: toolFormat, APIFormat: budget.APIFormat, StreamingDisabled: budget.DisableStreaming, ReasoningEffort: budget.ReasoningEffort, Model: *model, ContextWindow: compaction.ContextWindow, MaxOutputTokens: budget.MaxTokens, ThinkingDisabled: budget.DisableThinking || (budget.APIFormat == string(openai.DeepSeekMessages) && *replayKeyEnv == ""), ImageInput: budget.ImageInput, MaxTurnSteps: *maxTurnSteps, RequestTimeoutMS: budget.RequestTimeoutMS, Compaction: compactionConfig, EnvironmentServices: *serviceDirectory != "", OutputLimitRecoveries: *outputLimitRecoveries}); err != nil {
 		return err
 	}
 	if *initOnly || *maintenance {
@@ -532,8 +608,13 @@ func run() (resultErr error) {
 	if *printMode {
 		return runPrintPrepared(ctx, h, pluginHooks, *model, *workspace, printPrompt, harness.AgentOptions{MaxSteps: *maxTurnSteps, Compaction: compactionConfig}, engineering.preparePrompt(engineeringApp))
 	}
-	serverOptions := acp.Options{SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
+	serverOptions := acp.Options{WaitForSubagentTree: delegation.Continuations, SessionTitles: *sessionTitles, UserQuestions: len(packages) > 0, ModelSelection: len(*selectable) != 0, Compaction: compactionConfig, Harness: h, Persistence: persistence, Provider: "configured", Model: *model, MaxSteps: *maxTurnSteps, Name: "pero-agent-acp", Version: "0.1"}
 	serverOptions.OutputLimitRecoveries = *outputLimitRecoveries
+	serverOptions.Goal = *enableGoal
+	serverOptions.GoalBlockAfterRounds = *goalBlockAfterRounds
+	if *enableTeam {
+		serverOptions.TeamBoard = &team.Board{Registry: h.Subagents()}
+	}
 	serverOptions.OmitToolImages = cloudBrowser
 	serverOptions.ScientificReviewer = reviewer
 	serverOptions.PreparePrompt = engineering.preparePrompt(engineeringApp)
@@ -601,7 +682,7 @@ type providerBudget struct {
 
 func bindProviderBudget(flags *flag.FlagSet) *providerBudget {
 	budget := &providerBudget{}
-	flags.StringVar(&budget.APIFormat, "api-format", "chat-completions", "provider protocol: chat-completions or responses (Responses requires --disable-streaming)")
+	flags.StringVar(&budget.APIFormat, "api-format", "chat-completions", "provider protocol: chat-completions, responses (requires --disable-streaming), or deepseek-messages (requires --max-tokens)")
 	flags.BoolVar(&budget.DisableStreaming, "disable-streaming", false, "request a complete JSON response instead of SSE; no automatic transport fallback")
 	flags.BoolVar(&budget.DisableThinking, "disable-thinking", false, "explicitly send thinking.type=disabled to a compatible provider")
 	flags.BoolVar(&budget.UseEnvironmentProxy, "use-env-proxy", false, "opt in to standard HTTP(S)_PROXY/NO_PROXY routing; TLS verification remains enabled")

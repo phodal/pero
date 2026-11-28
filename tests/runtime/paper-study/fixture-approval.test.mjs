@@ -93,6 +93,7 @@ test('ID-only Go permission updates retain subject; supplied updates must match 
 test('documented synthetic scenes grant only their authored phase capabilities', () => {
   for (const [scene, source, pdf, vision] of [
     ['source', true, true, false], ['vision', true, false, true],
+    ['vision-files', true, true, true],
     ['nonstandard', false, false, false], ['nonstandard-read', true, false, false],
   ]) {
     const p = new FixtureApproval(scene); p.beginTurn(0);

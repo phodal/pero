@@ -124,6 +124,7 @@ type subagentActivationState struct {
 	activityFailure  error
 	failureAt        uint64
 	delivery         string
+	catalogName      string
 	result           chan SubagentResult
 	done             chan struct{}
 	cleanupDone      chan struct{}
@@ -208,6 +209,23 @@ func (r *SubagentRegistry) StartActivation(ctx context.Context, providerName str
 	if err != nil {
 		return SubagentActivation{}, err
 	}
+	_, local := provider.(SubagentContinuationProvider)
+	if local {
+		if _, ok := provider.(SubagentManagedContinuationProvider); !ok {
+			return SubagentActivation{}, ErrSubagentActivationModeUnsupported
+		}
+	} else if delivery == "caller" && request.AgentName != nil {
+		return SubagentActivation{}, &subagentActivationError{"caller-delivered external executions do not have a catalog name", "UNSUPPORTED_CAPABILITY"}
+	}
+	var name string
+	if local || delivery == "parent" {
+		var release func()
+		name, release, err = r.reserveDSHAgentName(request.Parent, request.AgentName)
+		if err != nil {
+			return SubagentActivation{}, err
+		}
+		defer release()
+	}
 	// DSH resolves relative delegation directories against the parent's current
 	// working directory before provider preparation. This is execution context
 	// only: providers retain the immutable delegated sandbox/Project root.
@@ -219,13 +237,11 @@ func (r *SubagentRegistry) StartActivation(ctx context.Context, providerName str
 	}
 	state := newSubagentActivation(delivery)
 	state.initialStart = true
+	state.catalogName = name
 	defer state.finishInitial()
 	request.activation = state
 	request.SuppressParentSettlement = true
-	if _, local := provider.(SubagentContinuationProvider); local {
-		if _, ok := provider.(SubagentManagedContinuationProvider); !ok {
-			return SubagentActivation{}, ErrSubagentActivationModeUnsupported
-		}
+	if local {
 		receipt, err := r.StartContinuableWithReceipt(ctx, providerName, request)
 		if err != nil {
 			return SubagentActivation{}, err

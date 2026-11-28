@@ -56,6 +56,39 @@ pub struct DeferredThread {
 pub struct ThreadHistory {
     pub events: Vec<HostEvent>,
     pub active: bool,
+    /// The owning Host, not the renderer, interprets the recorded workspace path.
+    #[serde(default)]
+    pub reconnectable: bool,
+}
+
+/// Identity saved by the Host when an ordinary conversation was created.
+#[derive(Deserialize)]
+pub struct OrdinarySessionOrigin {
+    pub agent: String,
+    pub workspace: std::path::PathBuf,
+}
+
+impl OrdinarySessionOrigin {
+    pub fn read(data: &serde_json::Value) -> Option<Self> {
+        if ["scope", "projectAgent", "appBinding", "appPlugin", "agentPlugins", "skillSelections", "automation"]
+            .iter().any(|key| !data[*key].is_null())
+        {
+            return None;
+        }
+        let origin: Self = serde_json::from_value(data.clone()).ok()?;
+        (origin.workspace.is_absolute() && !origin.agent.is_empty()).then_some(origin)
+    }
+}
+
+/// Acknowledged, load-capable ACP identity. Older built-in sessions predate
+/// the capability receipt; the built-in runtime still negotiates load on launch.
+pub fn ordinary_reconnect_id<'a>(agent: &str, data: &'a serde_json::Value) -> Option<&'a str> {
+    if !(data["peroQuietLoad"].as_bool() == Some(true)
+        || (data.get("peroQuietLoad").is_none() && agent == "pero"))
+    {
+        return None;
+    }
+    data["sessionId"].as_str().filter(|id| !id.is_empty())
 }
 
 /// These events are folded into an in-memory replay, including live requests
@@ -203,12 +236,23 @@ impl SessionHistory {
         SessionReplay { events, active, catalog: Some(catalog) }
     }
 
+    pub fn reconnect_target(&self, thread: &str) -> Option<(OrdinarySessionOrigin, String)> {
+        let mut entries = self.events.iter().rev().filter(|event| event.thread_id.as_deref() == Some(thread));
+        // Only readiness following the most recent creation belongs to that origin.
+        let ready = entries.by_ref().find(|event| matches!(event.kind.as_str(), "session_ready" | "session_created"))?;
+        if ready.kind != "session_ready" { return None; }
+        let created = entries.find(|event| event.kind == "session_created")?;
+        let origin = OrdinarySessionOrigin::read(&created.data)?;
+        let remote = ordinary_reconnect_id(&origin.agent, &ready.data)?.to_owned();
+        Some((origin, remote))
+    }
+
     pub fn thread(&self, thread: &str, active: bool) -> ThreadHistory {
         let events = self.events.iter()
             .filter(|event| event.thread_id.as_deref() == Some(thread))
             .cloned()
             .collect();
-        ThreadHistory { events, active }
+        ThreadHistory { events, active, reconnectable: !active && self.reconnect_target(thread).is_some() }
     }
 }
 
@@ -223,6 +267,47 @@ mod tests {
         event.data = data;
         event
     }
+
+    #[test]
+    fn reconnect_reads_only_the_latest_acknowledged_ordinary_origin() {
+        let workspace = if cfg!(windows) {r"C:\original"} else {"/original"};
+        let created = json!({"agent":"fixture","workspace":workspace});
+        let ready = json!({"sessionId":"acp-original","peroQuietLoad":true});
+        let mut journal = SessionHistory::default();
+        journal.record(event("session_ready", "other", ready.clone()));
+        journal.record(event("session_created", "thread", created.clone()));
+        assert!(!journal.thread("thread", false).reconnectable);
+        assert!(journal.reconnect_target("thread").is_none());
+        journal.record(event("session_ready", "thread", ready.clone()));
+        journal.record(event("session_closed", "thread", json!({})));
+        assert!(journal.thread("thread", false).reconnectable);
+        assert!(!journal.thread("thread", true).reconnectable);
+        assert!(!journal.thread("missing", false).reconnectable);
+        let (origin, id) = journal.reconnect_target("thread").expect("ordinary reconnect");
+        assert_eq!((origin.agent.as_str(), origin.workspace.to_str(), id.as_str()), ("fixture", Some(workspace), "acp-original"));
+
+        journal.record(event("session_created", "thread", created.clone()));
+        assert!(journal.reconnect_target("thread").is_none(), "older ACP identity crossed a new origin");
+        journal.record(event("session_ready", "thread", ready.clone()));
+        journal.record(event("session_deleted", "thread", json!({})));
+        assert!(journal.reconnect_target("thread").is_none());
+        for key in ["scope", "projectAgent", "appBinding", "appPlugin", "agentPlugins", "skillSelections", "automation"] {
+            let mut origin = created.clone();
+            origin[key] = json!(true);
+            let mut history = SessionHistory::default();
+            history.record(event("session_created", "scoped", origin));
+            history.record(event("session_ready", "scoped", ready.clone()));
+            assert!(history.reconnect_target("scoped").is_none(), "{key} is not ordinary chat");
+            assert!(!history.thread("scoped", false).reconnectable);
+        }
+        assert!(ordinary_reconnect_id("fixture", &json!({"sessionId":"id"})).is_none());
+        assert_eq!(ordinary_reconnect_id("pero", &json!({"sessionId":"legacy"})), Some("legacy"));
+        assert!(ordinary_reconnect_id("pero", &json!({"sessionId":"legacy","peroQuietLoad":false})).is_none());
+        assert!(serde_json::from_value::<crate::HostCommand>(json!({
+            "action":"reconnect_session","thread_id":"thread","workspace":"/other","agent_id":"foreign"
+        })).is_err());
+    }
+
     fn chunk(thread: &str, lane: &str, text: &str) -> HostEvent {
         event("session_update", thread, json!({"sessionUpdate":lane,"content":{"type":"text","text":text}}))
     }

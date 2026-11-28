@@ -4,16 +4,21 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	harnesssession "github.com/phodal/pero/harness/go/session"
 )
 
 func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
@@ -136,6 +141,315 @@ func TestExtractedACPWireLifecyclePermissionAndResume(t *testing.T) {
 		t.Fatal("resume replayed work")
 	}
 	rpc("session/close", map[string]any{"sessionId": id})
+}
+
+func TestQuietLoadParksDurableInboxUntilExplicitPrompt(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	var generations atomic.Int32
+	var lastUserByGeneration []string
+	h, err := harness.Boot(ctx, harness.Options{
+		AdapterProviders: []string{"fixture"},
+		Adapter: harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+			last := ""
+			for _, message := range req.Messages {
+				if message.Role == harness.RoleUser && len(message.Content) != 0 {
+					last = message.Content[0].Text
+				}
+			}
+			lastUserByGeneration = append(lastUserByGeneration, last)
+			generations.Add(1)
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}},
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { h.Dispose(context.Background()); h.Drain(context.Background()) }()
+	disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+	defer s.closeAll(ctx)
+	cwd := t.TempDir()
+	id := harness.SessionID("quiet-load-fixture")
+	durable := harness.NewSession(id, cwd)
+	inbox, err := harness.NewDurableInbox(durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := inbox.Append(harness.InboxNextTurn, harness.Message{
+		ID: "queued-note", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"workflow-settled"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "saved queued note"}},
+	}); !inserted || err != nil {
+		t.Fatalf("stage queued note: inserted=%v err=%v", inserted, err)
+	}
+	detach, err := disk.Attach(ctx, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := detach(); err != nil {
+		t.Fatal(err)
+	}
+
+	v := 1
+	params := ResumeSessionParams{SessionID: string(id), CWD: cwd, Meta: MCPRuntimeMeta{QuietLoad: &v}}
+	load := func(method string) *rpcError {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, failure := s.handle(ctx, request{Method: method, Params: raw})
+		return failure
+	}
+	if failure := load("session/resume"); failure == nil || failure.Code != -32602 {
+		t.Fatalf("resume accepted a load-only option: %+v", failure)
+	}
+	v = 2
+	if failure := load("session/load"); failure == nil || failure.Code != -32602 {
+		t.Fatalf("unknown revision accepted: %+v", failure)
+	}
+	v = 1
+	if failure := load("session/load"); failure != nil {
+		t.Fatalf("quiet load: %+v", failure)
+	}
+	record, err := s.currentRecord(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := record.agent.WhenIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pending := record.agent.PendingDurableInbox(harness.InboxNextTurn); generations.Load() != 0 || len(pending) != 1 || pending[0].ID != "queued-note" {
+		t.Fatalf("quiet load did not retain pending work without model invocation: generations=%d pending=%v", generations.Load(), pending)
+	}
+	stop, err := s.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "explicit next turn"}}})
+	if err != nil || stop != "end_turn" {
+		t.Fatalf("explicit prompt: %s %v", stop, err)
+	}
+	if err := record.agent.WhenIdle(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if generations.Load() != 2 || !slices.Equal(lastUserByGeneration, []string{"saved queued note", "explicit next turn"}) ||
+		len(record.agent.PendingDurableInbox(harness.InboxNextTurn)) != 0 {
+		t.Fatalf("explicit turn did not drain the saved note and new prompt once each: generations=%d last inputs=%q", generations.Load(), lastUserByGeneration)
+	}
+}
+
+func TestResumeRunsOnlyIntentionallyQueuedInput(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	firstRequest := make(chan struct{})
+	queuedRequest := make(chan struct{})
+	var generated []string
+	var guardedGenerations int
+	h, err := harness.Boot(ctx, harness.Options{
+		AdapterProviders: []string{"fixture"},
+		Adapter: harness.AdapterFunc(func(callCtx context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+			var last string
+			for _, message := range req.Messages {
+				if message.Role == harness.RoleUser && len(message.Content) > 0 {
+					last = message.Content[0].Text
+					if last == "unadmitted automatic continuation" {
+						guardedGenerations++
+					}
+				}
+			}
+			generated = append(generated, last)
+			if len(generated) == 1 {
+				close(firstRequest)
+				<-callCtx.Done()
+				return harness.Completion{}, callCtx.Err()
+			}
+			if len(generated) == 2 {
+				close(queuedRequest)
+			}
+			return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "done"}},
+			}}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
+	disk, err := harness.NewJSONLSessionPersistence(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	newServer := func() *Server {
+		t.Helper()
+		server, err := NewServer(Options{Harness: h, Persistence: disk, Provider: "fixture", Model: "fixture"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.writer = &wireWriter{encoder: json.NewEncoder(io.Discard)}
+		t.Cleanup(func() { _ = server.closeAll(context.Background()) })
+		return server
+	}
+	first := newServer()
+	cwd := t.TempDir()
+	id, err := first.newSession(ctx, NewSessionParams{CWD: cwd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type promptResult struct {
+		stop string
+		err  error
+	}
+	finished := make(chan promptResult, 1)
+	go func() {
+		stop, err := first.prompt(ctx, PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: "cancel this turn"}}})
+		finished <- promptResult{stop, err}
+	}()
+	select {
+	case <-firstRequest:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	params, err := json.Marshal(SessionParams{SessionID: string(id)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.handleNotification(request{Method: "session/cancel", Params: params})
+	select {
+	case result := <-finished:
+		if result.err != nil || result.stop != "cancelled" {
+			t.Fatalf("cancelled prompt: %+v", result)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if err := first.closeSession(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	// Construct the persisted input that an independent owner staged for
+	// the next activation. Explicit session/close retires live work, so the
+	// recovery fixture starts after that close, not before it.
+	saved, err := disk.Load(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox, err := harness.NewDurableInbox(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach, err := disk.Attach(ctx, saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This is the durable prefix of a native follow-up that was reserved but
+	// never admitted. Its in-process receipt does not survive this checkpoint.
+	guarded := harness.Message{
+		ID: "unadmitted-goal-fixture", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"fixture-goal"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "unadmitted automatic continuation"}},
+	}
+	data, err := json.Marshal(guarded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := saved.Append("agent/inbox/guarded", struct {
+		MessageID string `json:"messageId"`
+		Digest    string `json:"digest"`
+		Producer  string `json:"producer"`
+	}{guarded.ID, fmt.Sprintf("%x", sha256.Sum256(data)), "fixture-goal"}); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := inbox.Append(harness.InboxNextTurn, guarded); err != nil || !inserted {
+		t.Fatalf("staging guarded inbox work: inserted=%v err=%v", inserted, err)
+	}
+	inserted, appendErr := inbox.Append(harness.InboxNextTurn, harness.Message{
+		ID: "queued-fixture", Role: harness.RoleUser,
+		Source:  json.RawMessage(`{"kind":"workflow-settled"}`),
+		Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "intentionally queued work"}},
+	})
+	flushErr := saved.Flush(ctx)
+	if err := errors.Join(appendErr, flushErr, detach()); err != nil || !inserted {
+		t.Fatalf("staging independent inbox work: inserted=%v err=%v", inserted, err)
+	}
+
+	resume := ResumeSessionParams{SessionID: string(id), CWD: cwd}
+	// First resume claims the queued notice; the second must not claim it again.
+	for i := 0; i < 2; i++ {
+		reopened := newServer()
+		if err := reopened.resumeSession(ctx, resume); err != nil {
+			t.Fatal(err)
+		}
+		record, err := reopened.currentRecord(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			select {
+			case <-queuedRequest:
+			case <-ctx.Done():
+				t.Fatal("queued work did not generate:", ctx.Err())
+			}
+		}
+		if err := record.agent.WhenIdle(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if pending := record.agent.PendingDurableInbox(harness.InboxNextTurn); len(pending) != 0 {
+			t.Fatalf("resume %d left queued work pending: %v", i, pending)
+		}
+		if i == 0 {
+			if len(generated) != 2 || generated[0] != "cancel this turn" || generated[1] != "intentionally queued work" {
+				t.Fatalf("automatic resume generated for %q", generated)
+			}
+			// A native driver can explicitly reserve a fresh follow-up. Its
+			// round fact belongs to the same admission as the user message.
+			accepted, err := record.agent.TryFollowupWithAdmission(harness.Message{
+				Role: harness.RoleUser, Source: guarded.Source,
+				Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "explicit automatic continuation"}},
+			}, harness.FollowupAdmission{
+				Producer: "fixture-goal", Lifetime: ctx,
+				Check: func(context.Context, harness.Message) (bool, error) { return true, nil },
+				Commit: func(_ context.Context, message harness.Message, commit func(uint64, []harnesssession.AdmissionFact) error) (bool, error) {
+					err := commit(uint64(len(record.agent.Session().Events())), []harnesssession.AdmissionFact{{
+						Type: "fixture-goal/round", Value: message.ID,
+					}})
+					return err == nil, err
+				},
+			})
+			if err != nil || !accepted {
+				t.Fatalf("explicit guarded follow-up: accepted=%v err=%v", accepted, err)
+			}
+			if err := record.agent.WhenIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		events := record.agent.Session().Events()
+		rounds := 0
+		for j, event := range events {
+			if event.Type != "fixture-goal/round" {
+				continue
+			}
+			rounds++
+			var messageID string
+			var message harness.Message
+			if j+1 == len(events) || events[j+1].Type != "user/message" ||
+				json.Unmarshal(event.Data, &messageID) != nil ||
+				json.Unmarshal(events[j+1].Data, &message) != nil ||
+				messageID == "" || messageID != message.ID || messageID == guarded.ID {
+				t.Fatalf("round fact is not paired with a fresh admitted message: %s", event.Data)
+			}
+		}
+		if err := reopened.closeSession(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		if rounds != 1 || guardedGenerations != 0 || len(generated) != 3 || generated[2] != "explicit automatic continuation" {
+			t.Fatalf("resume %d: round facts=%d, stale provider inputs=%d, generated=%q", i, rounds, guardedGenerations, generated)
+		}
+	}
 }
 
 // A signal may close stdin, but must not turn a final durability failure into success.

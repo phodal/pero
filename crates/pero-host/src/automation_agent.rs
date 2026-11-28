@@ -199,6 +199,7 @@ impl Manager {
         let thread = match command {
             HostCommand::NewSession { thread_id, .. } | HostCommand::Prompt { thread_id, .. }
             | HostCommand::Cancel { thread_id } | HostCommand::Close { thread_id }
+            | HostCommand::ReconnectSession { thread_id }
             | HostCommand::Delete { thread_id } | HostCommand::Permission { thread_id, .. }
             | HostCommand::Model { thread_id, .. } | HostCommand::Configure { thread_id, .. }
             | HostCommand::Authenticate { thread_id, .. } => thread_id,

@@ -437,6 +437,9 @@ func (b *BasicCompactor) summarize(ctx context.Context, agent *Agent, compaction
 		refreshed = tool.ExpandReadReferences(agent.session, selection.seqs, refreshed)
 		request.Messages = append(refreshed, Message{Role: RoleUser, Content: []ContentBlock{{Type: BlockText, Text: compactionInstruction}}})
 	}
+	// Attribute the receipt to the request the adapter actually received,
+	// not the policy route before request middleware ran.
+	provider, model = request.Provider, request.Model
 	// Provider usage belongs to the completed request even when its summary is
 	// truncated, rejected or too large to replace the selected history.
 	if _, err := agent.session.Append("compaction/response", struct {

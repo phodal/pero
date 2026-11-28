@@ -44,7 +44,36 @@ impl Manager {
     pub(super) fn create_session_with_origin(
         &mut self,thread_id:String,agent_id:&str,binding:Option<&AppSessionBinding>,scope:Option<pero_contracts::app_chat::AppChatScope>,resume_id:Option<String>,project:Option<super::project_agent::Launch>,
     )->Result<(),String> {
-        let workspace = if let Some(id) = binding.and_then(|binding| binding.insights_project_id.as_deref()) {
+        self.create_session_at(thread_id, agent_id, binding, scope, resume_id, project, None)
+    }
+
+    pub(super) fn reconnect_session(&mut self, thread_id: &str) -> Result<(), String> {
+        if thread_id.is_empty() || thread_id.len() > 128 || thread_id.chars().any(char::is_control) {
+            return Err("Invalid session request".into());
+        }
+        if self.sessions.get(thread_id).is_some_and(|session| !session.tx.is_closed()) {
+            return Ok(());
+        }
+        if self.history_status.lock().unwrap().incomplete() {
+            return Err("Session history is incomplete; no session was started".into());
+        }
+        let (origin, remote) = self.history.lock().unwrap().reconnect_target(thread_id)
+            .ok_or("This conversation cannot reconnect to an acknowledged ACP session; no session was started")?;
+        let workspace = dunce::canonicalize(&origin.workspace)
+            .ok().filter(|path| path.is_dir() && path == &origin.workspace)
+            .ok_or("Original workspace is unavailable or has moved; no session was started")?;
+        self.create_session_at(thread_id.to_owned(), &origin.agent, None, None, Some(remote), None, Some(workspace))
+    }
+
+    fn create_session_at(
+        &mut self, thread_id: String, agent_id: &str, binding: Option<&AppSessionBinding>,
+        scope: Option<pero_contracts::app_chat::AppChatScope>, resume_id: Option<String>,
+        project: Option<super::project_agent::Launch>, reconnect_workspace: Option<std::path::PathBuf>,
+    ) -> Result<(), String> {
+        let reconnecting = reconnect_workspace.is_some();
+        let workspace = if let Some(workspace) = reconnect_workspace {
+            workspace
+        } else if let Some(id) = binding.and_then(|binding| binding.insights_project_id.as_deref()) {
             if let Some(path) = self.saved_project(id)?.workspace {
                 dunce::canonicalize(path).map_err(|error| format!("Project workspace unavailable: {error}"))?
             } else {
@@ -79,7 +108,9 @@ impl Manager {
             && !agent.args.iter().any(|argument| argument == "--science-env") {
             agent.args.push("--science-env".into());
         }
-        let market_skills = if scope.is_none() {
+        // Ordinary reconnect is limited to origins without a frozen skill
+        // selection. Newly selected skills apply only to a new conversation.
+        let market_skills = if scope.is_none() && !reconnecting {
             self.apps.as_ref().map(|apps| apps.market_selections()).transpose()?.unwrap_or_default()
         } else {Vec::new()};
         if !market_skills.is_empty() && agent.id != "pero" {
@@ -146,7 +177,7 @@ impl Manager {
             insights: scope.as_ref().is_some_and(|scope| scope.app == "insights")
                 || binding.is_some_and(|binding| binding.app.as_str() == "insights"),
         });
-        if binding.is_none() {
+        if binding.is_none() && !reconnecting {
             if let Some(path) = &self.settings_path {
                 pero_runtime::settings::save_chat_agent(path, agent_id)
                     .map_err(|error| error.to_string())?;
@@ -155,7 +186,7 @@ impl Manager {
         if agent.provider_credential_missing(|name| std::env::var(name).unwrap_or_default()) {
             return Err(acp::CREDENTIAL_REQUIRED.into());
         }
-        if !matches!(project.as_ref().map(|project| &project.origin), Some(LaunchOrigin::Retain)) {
+        if !reconnecting && !matches!(project.as_ref().map(|project| &project.origin), Some(LaunchOrigin::Retain)) {
             let mut event = HostEvent::new("session_created", None, String::new());
             event.thread_id = Some(thread_id.clone());
             event.data = serde_json::json!({"agent":agent.id,"workspace":workspace});
@@ -193,6 +224,7 @@ impl Manager {
             ..Default::default()
         }).unwrap_or_default();
         options.app_tool_loading = app_tool_loading;
+        options.quiet_reconnect = reconnecting;
         self.sessions.insert(
             thread_id.clone(),
             acp::start_interactive_configured(agent,workspace,thread_id,self.tx.clone(),app_use,resume_id,options),

@@ -110,6 +110,10 @@ func (g *SubagentStructuredAdmission) AdmitDSHMessage(ctx context.Context, messa
 // acceptedLocked is package-private and memory-only. It cannot invoke provider,
 // lifecycle or persistence code and runs with registry.mu at exact durable commit.
 func (g *SubagentStructuredAdmission) admitDSHMessage(ctx context.Context, message Message, target InboxTarget, acceptedLocked func()) (<-chan TurnOutcome, error) {
+	return g.admitDSHMessageGuarded(ctx, message, target, acceptedLocked, nil, nil)
+}
+
+func (g *SubagentStructuredAdmission) admitDSHMessageGuarded(ctx context.Context, message Message, target InboxTarget, acceptedLocked func(), store *SessionStore, admit func() (func(), error)) (<-chan TurnOutcome, error) {
 	if g == nil {
 		return nil, errors.New("harness: structured admission is unavailable")
 	}
@@ -144,7 +148,7 @@ func (g *SubagentStructuredAdmission) admitDSHMessage(ctx context.Context, messa
 		})
 	}
 	defer finish(false)
-	return g.child.admitDSHMessage(ctx, message, target, func() { finish(true) })
+	return g.child.admitDSHMessageGuarded(ctx, message, target, func() { finish(true) }, store, admit)
 }
 
 func (r *SubagentRegistry) activationInputPendingLocked(record *subagentRecord) bool {

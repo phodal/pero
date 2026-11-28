@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -295,5 +296,102 @@ func TestSubagentCatalogObserverRetirementCannotBeginExternalWork(t *testing.T) 
 	}
 	if err = h.Agents().WaitRetired(ctx, parent); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSubagentCatalogNameReservationSurvivesSettlementAndRestart(t *testing.T) {
+	ctx := activationTestContext(t)
+	h := subagentTestHarness(t)
+	parent := capacityParent(t, h, "reserves-agent-names")
+	persistence, err := NewJSONLSessionPersistence(t.TempDir(), JSONLPersistenceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	detach, err := persistence.Attach(ctx, parent.Session())
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, reject := make(chan struct{}, 1), make(chan struct{})
+	startupError := errors.New("fixture provider startup failed")
+	var starts atomic.Int64
+	provider := retirementSubagentProvider{prepare: func(ctx context.Context, _ SubagentRequest) (SubagentProviderRun, error) {
+		ordinal := starts.Add(1)
+		if ordinal == 1 {
+			entered <- struct{}{}
+			select {
+			case <-reject:
+				return SubagentProviderRun{}, startupError
+			case <-ctx.Done():
+				return SubagentProviderRun{}, ctx.Err()
+			}
+		}
+		id := SessionID(fmt.Sprintf("named-catalog-child-%d", ordinal))
+		result := make(chan SubagentResult, 1)
+		return SubagentProviderRun{ChildID: id, Result: result, Begin: func() {
+			result <- SubagentResult{ChildID: id, Status: SubagentCompleted, Reason: FinishStop}
+			close(result)
+		}, Cancel: func(error) {}, Dispose: func(context.Context) error { return nil }}, nil
+	}}
+	mount := func(h *Harness) {
+		mountRetirementHooks(t, h, func(run *point.Run) error {
+			_, err := h.Subagents().RegisterProvider(run, provider)
+			return err
+		})
+	}
+	mount(h)
+	name := "agent-1"
+	request := SubagentRequest{Parent: parent, AgentName: &name, Label: "Review artifacts", Prompt: "work", MaxDepth: 1}
+	first := make(chan error, 1)
+	go func() {
+		_, err := h.Subagents().StartActivation(ctx, provider.Name(), request, "parent")
+		first <- err
+	}()
+	activationReceive(t, ctx, entered)
+	_, err = h.Subagents().StartActivation(ctx, provider.Name(), request, "parent")
+	assertSubagentControlCode(t, err, "DUPLICATE_AGENT_NAME")
+	if starts.Load() != 1 {
+		t.Fatal("duplicate name reached the provider")
+	}
+
+	automatic := request
+	automatic.AgentName = nil
+	child, err := h.Subagents().StartActivation(ctx, provider.Name(), automatic, "parent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	activationReceive(t, ctx, child.Result)
+	close(reject)
+	if err := activationReceive(t, ctx, first); !errors.Is(err, startupError) {
+		t.Fatalf("the first startup did not fail as arranged: %v", err)
+	}
+	child, err = h.Subagents().StartActivation(ctx, provider.Name(), request, "parent")
+	if err != nil {
+		t.Fatalf("failed startup did not release the name: %v", err)
+	}
+	activationReceive(t, ctx, child.Result)
+	rows := readCatalogProjection(t, h, parent.Session())
+	if len(rows) != 2 || rows[0].Name != "agent-2" || rows[1].Name != name || rows[1].Label == nil || *rows[1].Label != request.Label {
+		t.Fatalf("unexpected committed names: %+v", rows)
+	}
+	if err := detach(); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := subagentTestHarness(t)
+	mount(restarted)
+	restored, err := persistence.Load(ctx, parent.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Parent, err = restarted.Agents().Resume(ctx, restored, AgentOptions{ID: parent.ID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = restarted.Subagents().StartActivation(ctx, provider.Name(), request, "parent")
+	assertSubagentControlCode(t, err, "DUPLICATE_AGENT_NAME")
+	_, err = restarted.Subagents().StartActivation(ctx, provider.Name(), request, "caller")
+	assertSubagentControlCode(t, err, "UNSUPPORTED_CAPABILITY")
+	if starts.Load() != 3 {
+		t.Fatalf("a rejected startup reached the provider: starts=%d", starts.Load())
 	}
 }

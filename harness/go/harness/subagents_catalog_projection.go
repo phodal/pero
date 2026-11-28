@@ -15,16 +15,19 @@ type SubagentChildCatalogEntry struct {
 	CreatedAt int64     `json:"createdAt"`
 	Mode      string    `json:"mode"`
 	Label     *string   `json:"label,omitempty"`
+	Name      string    `json:"name,omitempty"`
 }
 
 // SubagentCatalogFact retains the current official payload generations: v0
-// local, v1 local/unknown, and v2 external. None are upgraded during replay.
+// local, v1 local/unknown, v2 external, and v3 named. Replay does not
+// assign names to historical children.
 type SubagentCatalogFact struct {
 	Version        int       `json:"version"`
 	ChildID        SessionID `json:"childId"`
 	ChildCreatedAt int64     `json:"childCreatedAt"`
 	Mode           string    `json:"mode"`
 	Label          *string   `json:"label,omitempty"`
+	Name           string    `json:"name,omitempty"`
 }
 
 func strictCatalogJSON(raw []byte, target any) error {
@@ -55,6 +58,9 @@ func (f *SubagentCatalogFact) UnmarshalJSON(raw []byte) error {
 	if raw, ok := fields["label"]; ok && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return errors.New("subagent catalog: null label")
 	}
+	if name, ok := fields["name"]; ok && (bytes.Equal(bytes.TrimSpace(name), []byte("null")) || bytes.Equal(bytes.TrimSpace(name), []byte(`""`))) {
+		return errors.New("subagent catalog: missing agent name")
+	}
 	var value wire
 	if err := strictCatalogJSON(raw, &value); err != nil {
 		return err
@@ -65,8 +71,13 @@ func (f *SubagentCatalogFact) UnmarshalJSON(raw []byte) error {
 
 func (f SubagentCatalogFact) validate() error {
 	valid := (f.Version == 0 || f.Version == 1) && (f.Mode == "one-shot" || f.Mode == "continuable") || f.Version == 1 && f.Mode == "unknown" || f.Version == 2 && f.Mode == "external"
+	if f.Version == 3 {
+		valid = (f.Mode == "continuable" || f.Mode == "external") && validDSHAgentName(f.Name)
+	} else if f.Name != "" {
+		valid = false
+	}
 	if !valid || f.ChildCreatedAt < 0 || f.Mode == "continuable" && f.Label == nil {
-		return errors.New("subagent catalog: invalid version, mode, creation time, or label")
+		return errors.New("subagent catalog: invalid version, mode, creation time, label, or name")
 	}
 	return nil
 }
@@ -126,7 +137,7 @@ func catalogEntries(s *subagentCatalogState) []SubagentChildCatalogEntry {
 	entries := make([]SubagentChildCatalogEntry, 0)
 	for i := len(chunks) - 1; i >= 0; i-- {
 		for _, fact := range chunks[i].Values {
-			entry := SubagentChildCatalogEntry{ID: fact.ChildID, CreatedAt: fact.ChildCreatedAt, Mode: fact.Mode}
+			entry := SubagentChildCatalogEntry{ID: fact.ChildID, CreatedAt: fact.ChildCreatedAt, Mode: fact.Mode, Name: fact.Name}
 			if fact.Label != nil {
 				label := *fact.Label
 				entry.Label = &label
@@ -212,6 +223,10 @@ func establishSubagentCatalogChild(record *subagentRecord) error {
 			fact.Mode = "continuable"
 		}
 		fact.ChildCreatedAt = record.child.Session().Header().CreatedAt.UnixMilli()
+	}
+	if record.activation.catalogName != "" {
+		fact.Version = 3
+		fact.Name = record.activation.catalogName
 	}
 	if err := fact.validate(); err != nil {
 		return err

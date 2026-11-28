@@ -19,6 +19,9 @@ test('CI selects affected expensive consumers on PR and push while full and unkn
       [['apps/lcms2yield/ui-src/index.tsx'], ['lcms2yield']],
       [['apps/virtual-cell/backend/store.py'], ['virtual-cell']],
       [['harness/go/mcp/tools.go'], ['mcp-browser', 'notebook-python']],
+      [['harness/go/providers/openai/messages_files.go'], ['mcp-browser', 'notebook-python']],
+      [['tests/runtime/paper-study/fixture-provider.mjs'], ['mcp-browser', 'notebook-python']],
+      [['tests/contracts/desktop-chat-reconnect.mjs'], ['mcp-browser', 'notebook-python']],
     ]) {
       const flags = ciScope({ event, files });
       assert.deepEqual(Object.keys(flags).filter(name => flags[name]).sort(), expected.sort(), `${event} ${files}`);

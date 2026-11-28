@@ -308,6 +308,28 @@ jobs:
           go vet ./...
           go build ./cmd/pero-agent-acp
 
+      - uses: actions/setup-node@v7
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          node-version: "24.22.3"
+      - name: Verify DSH Goal delegation through real ACP processes
+        if: matrix.os == 'ubuntu-latest'
+        timeout-minutes: 2
+        run: node tests/contracts/dsh-goal-delegation.mjs "$PWD/harness/go/pero-agent-acp"
+      - name: Verify asynchronous DSH subagents through real ACP processes
+        if: matrix.os == 'ubuntu-latest'
+        timeout-minutes: 2
+        run: node tests/contracts/dsh-native-continuations.mjs "$PWD/harness/go/pero-agent-acp"
+      - name: Compare published DSH alpha.2 and the built ACP agent
+        if: matrix.os == 'ubuntu-latest' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:full'))
+        timeout-minutes: 6
+        run: |
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          npm install --prefix "$scratch" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.3-alpha.2
+          bash scripts/harness/check-dsh-alpha2.sh \
+            "$scratch/node_modules/@deepseek-ai/dsh/package.json" "$PWD/harness/go/pero-agent-acp"
+
   harness-bazel:
     name: Standalone harness Bazel contracts
     runs-on: ubuntu-latest
@@ -1022,9 +1044,38 @@ jobs:
           npm run build --workspace @pero/web
           npm ci --prefix packages/connectors --ignore-scripts
           node scripts/build/desktop.mjs
+      - name: Ordinary chat reconnect through Host and ACP
+        run: node tests/contracts/desktop-chat-reconnect.mjs
+      - name: DSH Team board through Host and ACP
+        run: node tests/runtime/dsh-team-board.mjs "$PWD/target/debug/pero-host" "$PWD/target/debug/pero-agent-acp"
+      - name: Project Agent Messages Files contract
+        run: node tests/contracts/dsh-messages-files.mjs
+      - name: Paper source provenance over Messages Files
+        run: |
+          node scripts/build/source-parsers.mjs
+          node scripts/build/scientific-runtime.mjs
+          mkdir -p apps/data/backend/_core
+          cp harness/go/charts/python/{dataset,view,chart_document}.py apps/data/backend/_core/
+          venv="$RUNNER_TEMP/paper-messages-python"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -c 'import json,subprocess,sys; deps=json.load(open("apps/paper-agent/app.json"))["backend"]["dependencies"]; subprocess.run([sys.executable,"-m","pip","install","--only-binary=:all:",*deps],check=True)'
+          # Cargo resolves GPUI path patches in this CI checkout. Keep the build
+          # outputs, but record the build lock and restore the committed source for the study.
+          tracked_changes="$(git status --porcelain --untracked-files=no)"
+          if [[ "$tracked_changes" == " M Cargo.lock" ]]; then
+            sha256sum Cargo.lock
+            git restore --source=HEAD --worktree -- Cargo.lock
+          elif [[ -n "$tracked_changes" ]]; then
+            printf 'Unexpected tracked build changes:\n%s\n' "$tracked_changes" >&2
+            exit 1
+          fi
+          PAPER_STUDY_PYTHON_ENV="$venv" node --experimental-transform-types tests/runtime/paper-study/run.mjs --fixture vision-files "$PWD/target/debug/pero-agent-acp"
+      - name: Prepare desktop acceptance dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Reconnect a saved conversation in Electron
+        run: xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 node tests/contracts/desktop-chat-reconnect.mjs --electron
       - name: Official conversation, including same-process close and restart
         run: |
-          npx playwright install --with-deps chromium
           npm install --prefix target/mcp-official-example --save-exact --ignore-scripts --no-audit --no-fund @modelcontextprotocol/server-basic-vanillajs@2.0.4
           xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-official-conversation
           xvfb-run -a env PERO_TEST_SOFTWARE_GL=1 npm run test:mcp-notebook-conversation
@@ -1034,6 +1085,7 @@ jobs:
         with:
           name: mcp-conversation-${{ github.sha }}
           path: |
+            test-results/desktop-chat-reconnect/
             test-results/mcp-apps-conversation/
             test-results/mcp-notebook-conversation/
           if-no-files-found: warn

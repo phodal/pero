@@ -2,7 +2,7 @@
 // The disposable package changes only external metadata/byte seams and UI setup.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -24,8 +24,9 @@ export function paperWritesForSession(writes, allowedPaperTools, imageInput) {
   }));
 }
 
-export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools, providerBudget, fixtureApproval }) {
+export async function openHost({ directory, agent, endpoint, model, credential, audit, skills = true, useEnvironmentProxy = false, prepareApp, pythonEnvironment, imageInput = false, allowedPaperTools, providerBudget, fixtureApproval, fixtureMessagesFiles = false }) {
   if (fixtureApproval) assert(new URL(endpoint).hostname === '127.0.0.1' && !useEnvironmentProxy, 'Synthetic grants require owned loopback provider');
+  if (fixtureMessagesFiles) assert(fixtureApproval && imageInput, 'Messages Files is only enabled for a synthetic image fixture');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const sessions = resolve(directory, 'sessions');
   await mkdir(sessions, { mode: 0o700, recursive: true });
@@ -34,7 +35,9 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
   const args = [...providerConnectionArgs({ endpoint, model, providerBudget }), '--session-dir', sessions,
     '--api-key-env', 'RESEARCH_CAMPAIGN_KEY', '--approval', fixtureApproval ? 'ask' : 'never', '--max-retries', '0',
     '--http-attempt-audit', audit, ...(skills ? ['--skills-root', installedSkills] : []),
-    ...(useEnvironmentProxy ? ['--use-env-proxy'] : []), ...(imageInput ? ['--image-input'] : [])];
+    ...(useEnvironmentProxy ? ['--use-env-proxy'] : []), ...(imageInput ? ['--image-input'] : []),
+    ...(fixtureMessagesFiles ? ['--api-format', 'deepseek-messages', '--max-tokens', '1024',
+      '--messages-files-key-env', 'PERO_STUDY_FIXTURE_FILES_KEY'] : [])];
   await writeFile(resolve(directory, 'agents.json'), JSON.stringify([{ id: 'research-harness', name: 'Research Harness', command: agent, args }]), { mode: 0o600 });
   await writeFile(resolve(directory, 'settings.json'), JSON.stringify({ computer_use: { enabled: false },
     ...(pythonEnvironment ? { app_python: { default: pythonEnvironment } } : {}) }), { mode: 0o600 });
@@ -61,7 +64,8 @@ export async function openHost({ directory, agent, endpoint, model, credential, 
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
     !name.startsWith('PERO_') && !/(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(name)));
   child = spawn(resolve(root, 'target/debug/pero-host'), ['--stdio'], { cwd: directory, stdio: ['pipe', 'pipe', 'pipe'], env: { ...env, ...mcp,
-    RESEARCH_CAMPAIGN_KEY: credential, PERO_AGENTS_FILE: resolve(directory, 'agents.json'),
+    RESEARCH_CAMPAIGN_KEY: credential,
+    ...(fixtureMessagesFiles ? { PERO_STUDY_FIXTURE_FILES_KEY: randomBytes(32).toString('hex') } : {}), PERO_AGENTS_FILE: resolve(directory, 'agents.json'),
     PERO_APPS_ROOT: resolve(directory, 'installed'), PERO_BUILTIN_APPS_ROOT: '',
     PERO_SETTINGS_PATH: resolve(directory, 'settings.json'), PERO_HISTORY_PATH: resolve(directory, 'history.jsonl'), UV_OFFLINE: '1' } });
   child.stderr.on('data', data => { stderr += scrub(data); });

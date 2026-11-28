@@ -51,6 +51,8 @@ export const ciScopeGlobs = Object.freeze(Object.fromEntries(Object.entries({
   'control-lab': [...scienceInputs, 'apps/control-lab/**', 'tests/runtime/control-lab/**', 'tests/e2e/control-lab*'],
   'virtual-cell': [...scienceInputs, 'apps/virtual-cell/**', 'tests/runtime/virtual-cell/**', 'tests/e2e/virtual-cell*'],
   'mcp-browser': [...notebookInputs, ...hostInputs, 'harness/go/mcp/**', 'harness/go/acp/**',
+    'harness/go/providers/messages/**', 'harness/go/providers/openai/messages*.go',
+    'tests/contracts/dsh-messages-files.mjs', 'tests/contracts/desktop-chat-reconnect.mjs', 'tests/runtime/paper-study/**', 'tests/fixtures/research-source.py',
     'desktop/src/main/mcp-*.ts', 'web/src/mcp-*.ts', 'tests/contracts/mcp-*', 'tests/e2e/mcp-*', 'scripts/test/mcp-*.mjs'],
 }).map(([name, globs]) => [name, Object.freeze([...sharedAppInputs, ...globs])])));
 

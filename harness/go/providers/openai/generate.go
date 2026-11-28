@@ -9,6 +9,7 @@ import (
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/providers/messages"
 	"slices"
 	"time"
 )
@@ -103,7 +104,56 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	var toolsPayload []byte
 	toolResultBytes, toolResults := 0, 0
 	imagesAllowed := slices.Contains(a.models[request.Model].InputModalities, "image")
-	if a.apiFormat == Responses {
+	var messagesRoute messages.ReplayRoute
+	var reserved bool
+	var fallback *messagesInlineRetry
+	if a.apiFormat == DeepSeekMessages {
+		if request.MaxTokens == 0 {
+			request.MaxTokens = a.models[request.Model].MaxTokens
+		}
+		var wire messages.Request
+		var err error
+		if a.messagesReplayScope != "" {
+			messagesRoute = messages.ReplayRoute{Scope: a.messagesReplayScope, Model: request.Model}
+		}
+		if imagesAllowed {
+			wire, err = messages.EncodeVision(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools, messagesRoute, messagesImageEncoder(ctx, request.Attachments))
+		} else if messagesRoute.Scope != "" {
+			wire, err = messages.EncodeSigned(messagesRoute, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		} else {
+			wire, err = messages.Encode(request.Model, request.System, request.MaxTokens, request.Temperature, request.Stop, request.Messages, request.Tools)
+		}
+		if err != nil {
+			return harness.Completion{}, harness.NewProviderError(err.Error(), "INVALID_REQUEST", nil)
+		}
+		if imagesAllowed && a.messagesFiles != nil {
+			if err := a.reserveHTTPRequest(); err != nil {
+				return harness.Completion{}, err
+			}
+			reserved = true
+			inline, encodeErr := json.Marshal(wire)
+			if encodeErr != nil {
+				return harness.Completion{}, encodeErr
+			}
+			inlineTools, inlineResultBytes, inlineResults := wire.WireAccounting()
+			if used := a.preferMessagesFiles(ctx, &wire); len(used) > 0 {
+				fallback = &messagesInlineRetry{ids: used, prepare: func(retryCtx context.Context) ([]byte, error) {
+					if err := retryCtx.Err(); err != nil {
+						return nil, err
+					}
+					if err := a.reserveHTTPRequest(); err != nil {
+						return nil, err
+					}
+					return inline, recordWirePayload(retryCtx, request, inline, inlineTools, inlineResultBytes, inlineResults)
+				}}
+			}
+			if err := ctx.Err(); err != nil {
+				return harness.Completion{}, err
+			}
+		}
+		body = wire
+		toolsPayload, toolResultBytes, toolResults = wire.WireAccounting()
+	} else if a.apiFormat == Responses {
 		wire, err := encodeResponses(request, imagesAllowed)
 		if err != nil {
 			return harness.Completion{}, err
@@ -154,33 +204,17 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	events := make(chan openAIStreamEvent, 1)
 	// Consume budget immediately before any HTTP generation; failed requests count.
 	// The SDK has retries disabled, and exhaustion is not a retryable error.
-	if a.maxRequests > 0 && a.requests.Add(1) > a.maxRequests {
-		return harness.Completion{}, harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
-	}
-	if request.Agent != nil {
-		hash := sha256.Sum256(payload)
-		promptID, promptReceiptSeq := harness.PromptReceiptLink(ctx)
-		_, err := request.Agent.Session().Append("request/wire-size", struct {
-			Stage                  string `json:"stage"`
-			Purpose                string `json:"purpose,omitempty"`
-			Turn                   int    `json:"turn,omitempty"`
-			Step                   int    `json:"step,omitempty"`
-			PromptID               string `json:"promptId,omitempty"`
-			PromptReceiptSeq       uint64 `json:"promptReceiptSeq,omitempty"`
-			PayloadBytes           int    `json:"payload_bytes"`
-			ToolsBytes             int    `json:"tools_bytes"`
-			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
-			ToolResults            int    `json:"tool_results"`
-			SHA256                 string `json:"payload_sha256"`
-		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, promptID, promptReceiptSeq, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
-		if err != nil {
-			return harness.Completion{}, err
-		}
-		if err := request.Agent.Session().Flush(ctx); err != nil {
+	if !reserved {
+		if err := a.reserveHTTPRequest(); err != nil {
 			return harness.Completion{}, err
 		}
 	}
-	if a.apiFormat == Responses {
+	if err := recordWirePayload(ctx, request, payload, toolsPayload, toolResultBytes, toolResults); err != nil {
+		return harness.Completion{}, err
+	}
+	if a.apiFormat == DeepSeekMessages {
+		go a.pumpMessages(streamCtx, payload, messagesRoute, fallback, events)
+	} else if a.apiFormat == Responses {
 		go a.pumpResponses(streamCtx, payload, events)
 	} else if a.disableStreaming {
 		go a.pumpCompletion(streamCtx, params, events)
@@ -190,12 +224,16 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 	timer := time.NewTimer(a.streamIdleTimeout)
 	defer timer.Stop()
 	assembly := newStreamAssembly()
+	observedStream := false
 	for {
 		select {
 		case event, open := <-events:
 			if !open {
 				if ctx.Err() != nil {
 					return harness.Completion{}, ctx.Err()
+				}
+				if a.apiFormat == DeepSeekMessages {
+					return harness.Completion{}, harness.NewProviderError("messages adapter: missing terminal completion", harness.StreamClosedCode, nil)
 				}
 				return assembly.completion()
 			}
@@ -206,7 +244,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return harness.Completion{}, normalizeStreamError(ctx, event.err)
 			}
 			if event.completion != nil {
-				if emit != nil {
+				if emit != nil && a.apiFormat != DeepSeekMessages {
 					chunk := harness.StreamChunk{Usage: event.completion.Usage}
 					for _, block := range event.completion.Message.Content {
 						block.Extensions = nil
@@ -226,6 +264,15 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return *event.completion, nil
 			}
 			resetTimer(timer, a.streamIdleTimeout)
+			if event.delta != nil {
+				observedStream = true
+				if emit != nil {
+					if err := emit(*event.delta); err != nil {
+						return harness.Completion{}, err
+					}
+				}
+				continue
+			}
 			chunk, consumeErr := assembly.consume(event.chunk)
 			if consumeErr != nil {
 				return harness.Completion{}, consumeErr
@@ -238,6 +285,7 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		case <-timer.C:
 			select {
 			case <-activity:
+				observedStream = true
 				timer.Reset(a.streamIdleTimeout)
 				continue
 			default:
@@ -246,6 +294,9 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 				return harness.Completion{}, err
 			}
 			cancelStream()
+			if observedStream && a.apiFormat == DeepSeekMessages {
+				return harness.Completion{}, harness.NewProviderError("messages adapter: idle timeout after response data", harness.StreamClosedCode, nil)
+			}
 			return harness.Completion{}, harness.NewProviderError(
 				fmt.Sprintf("openai adapter: provider stream idle timeout after %dms", a.streamIdleTimeout.Milliseconds()),
 				"TIMEOUT", context.DeadlineExceeded,
@@ -253,14 +304,61 @@ func (a *Adapter) generate(ctx context.Context, request harness.GenerateRequest,
 		case <-ctx.Done():
 			return harness.Completion{}, ctx.Err()
 		case <-activity:
+			observedStream = true
 			resetTimer(timer, a.streamIdleTimeout)
 		}
 	}
 }
 
 type openAIStreamEvent struct {
+	delta      *harness.StreamChunk
 	decoded    bool
 	completion *harness.Completion
 	chunk      openaisdk.ChatCompletionChunk
 	err        error
+}
+
+func (a *Adapter) reserveHTTPRequest() error {
+	return a.reserveHTTPAttempts(1)
+}
+
+func (a *Adapter) reserveHTTPAttempts(count int64) error {
+	if a.maxRequests == 0 {
+		return nil
+	}
+	for used := a.requests.Load(); ; used = a.requests.Load() {
+		if count > a.maxRequests-used {
+			return harness.NewProviderError("provider request budget exhausted", harness.RequestBudgetExhaustedCode, nil)
+		}
+		if a.requests.CompareAndSwap(used, used+count) {
+			return nil
+		}
+	}
+}
+
+func recordWirePayload(ctx context.Context, request harness.GenerateRequest, payload, toolsPayload []byte, toolResultBytes, toolResults int) error {
+	if request.Agent != nil {
+		hash := sha256.Sum256(payload)
+		promptID, promptReceiptSeq := harness.PromptReceiptLink(ctx)
+		_, err := request.Agent.Session().Append("request/wire-size", struct {
+			Stage                  string `json:"stage"`
+			Purpose                string `json:"purpose,omitempty"`
+			Turn                   int    `json:"turn,omitempty"`
+			Step                   int    `json:"step,omitempty"`
+			PromptID               string `json:"promptId,omitempty"`
+			PromptReceiptSeq       uint64 `json:"promptReceiptSeq,omitempty"`
+			PayloadBytes           int    `json:"payload_bytes"`
+			ToolsBytes             int    `json:"tools_bytes"`
+			ToolResultMessageBytes int    `json:"tool_result_message_bytes"`
+			ToolResults            int    `json:"tool_results"`
+			SHA256                 string `json:"payload_sha256"`
+		}{"prepared_for_http", request.Purpose, request.Turn, request.Step, promptID, promptReceiptSeq, len(payload), len(toolsPayload), toolResultBytes, toolResults, hex.EncodeToString(hash[:])})
+		if err != nil {
+			return err
+		}
+		if err := request.Agent.Session().Flush(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }

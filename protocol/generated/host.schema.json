@@ -9152,6 +9152,9 @@
           "$ref": "#/$defs/LoadThreadHistoryCommand"
         },
         {
+          "$ref": "#/$defs/ReconnectSessionCommand"
+        },
+        {
           "$ref": "#/$defs/WorkspaceCommand"
         },
         {
@@ -9194,6 +9197,9 @@
           "$ref": "#/$defs/ConfigureCommand"
         },
         {
+          "$ref": "#/$defs/ReadTeamBoardCommand"
+        },
+        {
           "$ref": "#/$defs/CloseCommand"
         },
         {
@@ -9227,6 +9233,12 @@
         },
         {
           "$ref": "#/$defs/McpResourceSelectedEvent"
+        },
+        {
+          "$ref": "#/$defs/TeamBoardEvent"
+        },
+        {
+          "$ref": "#/$defs/TeamBoardErrorEvent"
         },
         {
           "$ref": "#/$defs/DocumentSaveChooseEvent"
@@ -15722,6 +15734,32 @@
       ],
       "additionalProperties": false
     },
+    "ReadTeamBoardCommand": {
+      "title": "ReadTeamBoardCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "read_team_board"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "incarnation": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "request_id",
+        "thread_id",
+        "incarnation"
+      ],
+      "additionalProperties": false
+    },
     "ReadWorkspaceSource": {
       "title": "ReadWorkspaceSource",
       "type": "object",
@@ -15783,6 +15821,24 @@
         "version",
         "request_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "ReconnectSessionCommand": {
+      "title": "ReconnectSessionCommand",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "const": "reconnect_session"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        }
+      },
+      "required": [
+        "action",
+        "thread_id"
       ],
       "additionalProperties": false
     },
@@ -18982,6 +19038,202 @@
       ],
       "additionalProperties": false
     },
+    "TeamBoard": {
+      "title": "TeamBoard",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TeamBoardTask"
+          }
+        }
+      },
+      "required": [
+        "revision",
+        "enabled",
+        "tasks"
+      ],
+      "additionalProperties": false
+    },
+    "TeamBoardErrorEvent": {
+      "title": "TeamBoardErrorEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "team_board_error"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "incarnation": {
+              "type": "integer"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "stale"
+                },
+                {
+                  "type": "string",
+                  "const": "unsupported"
+                },
+                {
+                  "type": "string",
+                  "const": "unavailable"
+                },
+                {
+                  "type": "string",
+                  "const": "invalid_response"
+                }
+              ]
+            }
+          },
+          "required": [
+            "incarnation",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "TeamBoardEvent": {
+      "title": "TeamBoardEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "team_board"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "thread_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "incarnation": {
+              "type": "integer"
+            },
+            "board": {
+              "$ref": "#/$defs/TeamBoard"
+            }
+          },
+          "required": [
+            "incarnation",
+            "board"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "request_id",
+        "text",
+        "thread_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "TeamBoardTask": {
+      "title": "TeamBoardTask",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "pending"
+            },
+            {
+              "type": "string",
+              "const": "in_progress"
+            },
+            {
+              "type": "string",
+              "const": "completed"
+            }
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "owner": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "subject",
+        "revision",
+        "status",
+        "ready"
+      ],
+      "additionalProperties": false
+    },
     "TerminalData": {
       "title": "TerminalData",
       "oneOf": [
@@ -19294,6 +19546,9 @@
           }
         },
         "active": {
+          "type": "boolean"
+        },
+        "reconnectable": {
           "type": "boolean"
         }
       },
