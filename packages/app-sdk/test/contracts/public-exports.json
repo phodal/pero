@@ -42,6 +42,7 @@
       "hasKeepVisibleMarker",
       "normalizeAllowedApiPaths",
       "normalizeAppLocale",
+      "observeRun",
       "parseOptions",
       "readAppExample",
       "readPaperResource",
