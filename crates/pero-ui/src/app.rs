@@ -562,6 +562,11 @@ impl Workbench {
             if value["method"] == "project_sources" || value["method"] == "shared_project_sources" {
                 self.fail_project_web_sources(value["request_id"].as_str(), cx);
             }
+            if value["method"] == "shared_project_campaigns" {
+                let mut failure = HostEvent::new("project_campaigns_result", value["request_id"].as_str().map(str::to_owned), String::new());
+                failure.data = json!({"ok":false,"error":self.t("error.connection")});
+                self.receive_campaigns(&failure, cx);
+            }
             self.chat.update(cx, |panel, cx| {
                 if value["action"] == "load_thread_history" {
                     let mut failure = HostEvent::message(
@@ -662,6 +667,7 @@ impl Workbench {
             || self.receive_contribution(&event, cx)
             || self.receive_project_agents(&event, cx) || self.receive_research_resources(&event, cx)
             || self.receive_project_web_sources(&event, cx)
+            || self.receive_campaigns(&event, cx)
             || self.receive_apps(&event, cx)
             || self.receive_remote(&event, cx);
         // App lifecycle notifications also reach Chat; scope admission stays with Apps.
@@ -948,6 +954,7 @@ pub fn snapshot() -> String {
         });
         value["researchProjects"] = ui.research_projects_snapshot(cx); value["projectAgent"] = ui.project_agents.snapshot(cx);
         value["projectControls"] = ui.view_bounds.projects.snapshot();
+        value["projectCampaign"] = ui.campaign_snapshot(cx);
         value["terminal"] = ui.terminal.snapshot(cx);
         value["terminalControls"] = ui.view_bounds.terminal.snapshot();
         value["sidebarButtonBounds"] = ui.view_bounds.sidebar.snapshot();
