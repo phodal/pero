@@ -115,7 +115,13 @@ workspace, may select one `allow_once` option. A version-1 descriptor under ACP
 `workspace`, matching `sandbox_mode`, `enforcement: "required"`, and
 `network: "deny"`. This describes a required plan, **not proof that a command has
 already run in a sandbox**. The native executor must refuse dispatch if actual OS
-enforcement is unavailable. Permission requests without this native shell
+enforcement is unavailable. The Worker does not apply its own OS sandbox after
+approval. `full-access` makes DSH ask before file changes and commands; that
+permission mode leaves commands unsandboxed. `sandbox_mode: workspace-write` is
+checked against the descriptor DSH attaches only when the operator launched it
+with strict `--sandbox`. DSH then runs the approved command inside that launch
+sandbox. Without the launch sandbox, DSH emits no descriptor, and the Worker
+denies the call. Permission requests without this native shell
 descriptor (including write/edit or MCP-origin approval requests) remain denied.
 This policy does not sandbox or disable separately configured MCP servers.
 Titles, model arguments, permission names, and MCP hints are never authority.
