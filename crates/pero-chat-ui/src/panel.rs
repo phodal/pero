@@ -448,6 +448,7 @@ impl ChatPanel {
             "disconnected" => {
                 self.connected = false;
                 for chat in &mut self.chats {
+                    chat.team.connect(None);
                     if matches!(chat.history, crate::history_recovery::HistoryLoad::Pending(_)) {
                         chat.history = crate::history_recovery::HistoryLoad::Deferred;
                     }

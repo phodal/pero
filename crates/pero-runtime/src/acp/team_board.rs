@@ -3,7 +3,8 @@ use agent_client_protocol::schema::v1::SessionId;
 use agent_client_protocol::{Agent, ConnectionTo, UntypedMessage};
 use pero_contracts::HostEvent;
 use pero_contracts::mcp_runtime::McpRuntimeSession;
-use serde::{Deserialize, Serialize};
+use pero_contracts::team_board::TeamBoard;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex, mpsc::Sender};
 
@@ -18,45 +19,25 @@ pub struct TeamBoardRead {
     pub reply: Sender<HostEvent>,
 }
 
-#[derive(Deserialize, Serialize)]
-struct TaskSummary {
-    id: String,
-    subject: String,
-    revision: u64,
-    status: TaskStatus,
-    ready: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    owner: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum TaskStatus {
-    Pending,
-    InProgress,
-    Completed,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize)]
 struct Board {
+    #[serde(rename = "sessionId")]
     session_id: String,
-    revision: u64,
-    enabled: bool,
-    tasks: Vec<TaskSummary>,
+    #[serde(flatten)]
+    snapshot: TeamBoard,
 }
 
 fn project(response: Value, session_id: &str) -> Result<Value, &'static str> {
     let board: Board = serde_json::from_value(response).map_err(|_| "invalid_response")?;
     if board.session_id != session_id
-        || board.tasks.len() > 256
-        || (!board.enabled && !board.tasks.is_empty())
+        || board.snapshot.tasks.len() > 256
+        || (!board.snapshot.enabled && !board.snapshot.tasks.is_empty())
     {
         return Err("invalid_response");
     }
     // The shell receives only display fields, not model task descriptions or
     // internal metadata. Numeric task and board revisions belong to this root.
-    Ok(json!({"revision":board.revision,"enabled":board.enabled,"tasks":board.tasks}))
+    Ok(json!(board.snapshot))
 }
 
 impl TeamBoardRead {

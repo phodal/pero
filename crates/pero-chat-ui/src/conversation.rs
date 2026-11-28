@@ -288,6 +288,8 @@ pub struct Conversation {
     pub notice: crate::session_state::SessionNotice,
     pub session_id: String,
     #[serde(skip)]
+    pub(crate) team: crate::team_board::TeamPanel,
+    #[serde(skip)]
     pub(crate) ordinary_origin: bool,
     #[serde(skip)]
     pub(crate) acp_load_supported: bool,
@@ -347,6 +349,7 @@ impl Conversation {
             state: SessionState::Draft,
             notice: Default::default(),
             session_id: String::new(),
+            team: Default::default(),
             ordinary_origin: false,
             acp_load_supported: false,
             archived_reconnect: None,

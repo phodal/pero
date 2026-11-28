@@ -81,6 +81,7 @@ impl ChatPanel {
         if self.active_chat != index {
             self.expanded_mcp = None;
             if let Some(chat) = self.active_chat.and_then(|i| self.chats.get_mut(i)) {
+                chat.team.dismiss();
                 chat.draft = self
                     .composer_restore
                     .clone()
@@ -688,6 +689,7 @@ impl ChatPanel {
         let brief_title = self.t("chat.brief_title").to_string();
         let brief_request = self.t("chat.brief_request").to_string();
         let brief_context = self.t("chat.brief_context").to_string();
+        let active = self.active_chat == Some(index);
         let chat = &mut self.chats[index];
         chat.notice.observe(&event.kind, self.visible && self.active_chat == Some(index));
         let mut followup = None;
@@ -749,10 +751,12 @@ impl ChatPanel {
                 chat.error = None;
             }
             "session_connecting" => {
+                chat.team.connect(None);
                 if chat.can_reconnect() { chat.mcp = None; }
                 chat.state = SessionState::Connecting;
             },
             "session_ready" => {
+                chat.team.connect(event.data["peroTeamBoard"]["incarnation"].as_u64());
                 chat.session_id = event.data["sessionId"].as_str().unwrap_or_default().into();
                 chat.acp_load_supported = pero_contracts::session_history::ordinary_reconnect_id(&chat.agent, &event.data).is_some();
                 if chat.mcp.is_none() { chat.mcp = serde_json::from_value(event.data["peroMcp"].clone()).ok(); }
@@ -779,6 +783,7 @@ impl ChatPanel {
                     followup = Some(value);
                 }
             }
+            "team_board" | "team_board_error" if active => chat.team.receive(event),
             "mcp_runtime" => {
                 if let Ok(snapshot) = serde_json::from_value::<pero_contracts::mcp_runtime::McpRuntimeSession>(event.data.clone()) {
                     if chat.mcp.as_ref().is_none_or(|current| snapshot.can_replace(current)) { chat.mcp = Some(snapshot); }
@@ -794,10 +799,14 @@ impl ChatPanel {
                 chat.pending_model = None;
             }
             "configuration_changed" => {
+                let old_team = chat.settings.options.iter().find(|option| option.id == "team").map(|option| option.current.clone());
                 if let Ok(settings) = serde_json::from_value(event.data.clone()) {
                     chat.settings = settings;
                 }
                 chat.pending_setting = None;
+                if chat.settings.options.iter().find(|option| option.id == "team").map(|option| &option.current) != old_team.as_ref() {
+                    chat.team.changed();
+                }
             }
             "session_usage" => {
                 if let Ok(usage) = serde_json::from_value(event.data.clone()) {
@@ -857,6 +866,7 @@ impl ChatPanel {
                 chat.user_questions.clear();
             }
             "session_closed" => {
+                chat.team.connect(None);
                 chat.thinking.streaming(None);
                 chat.pending_setting = None;
                 chat.pending_model = None;
@@ -1002,6 +1012,7 @@ impl ChatPanel {
             .when(self.compact && chat.is_some_and(|c| c.error.is_some() && c.state != SessionState::AuthRequired), |el| {
                 el.child(div().px(px(12.)).py(px(6.)).bg(p.error_bg).text_color(p.error).child(chat.and_then(|c|c.error.clone()).unwrap_or_default()))
             })
+            .when(!self.compact, |el| el.children(self.team_panel(cx)))
             .child(self.composer_view(window, cx))
             .into_any_element()
     }

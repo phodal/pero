@@ -532,6 +532,7 @@ impl ChatPanel {
                         .text_color(p.text_muted)
                         .children(normal_agent)
                         .children(self.session_extra_controls(cx))
+                        .children(self.team_button(cx))
                         .child(self.output_controls(cx))
                         .children(self.session_setting_controls("thought_level", cx))
                         .children(

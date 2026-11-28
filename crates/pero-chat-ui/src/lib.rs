@@ -34,6 +34,7 @@ mod project_composer;
 pub use project_composer::ProjectComposerScope;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 mod session_controls;
+mod team_board;
 pub mod stream;
 #[cfg(any(target_family = "wasm", feature = "native"))]
 pub mod comparison;
