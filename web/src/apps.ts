@@ -2,6 +2,7 @@ import { appPanelSlot, type AppPanelSlot } from '../../packages/app-sdk/src/app-
 import { appPresentation } from './app-sdk-presentation';
 import { admitPaperNavigation } from './app-navigation';
 import { mountAppExamples } from './app-examples';
+import { reclaimAfterCanvasPress, type CanvasFocus } from './canvas-focus';
 import { mountAppPreparation } from './app-preparation';
 import { translate, normalizeLocale } from '../../locales';
 import type { HostEvent } from './bootstrap';
@@ -304,16 +305,37 @@ export function mountAppSurfaces(command: (value: object) => Promise<void>, onCh
   window.addEventListener('blur',()=>queueMicrotask(focus));
   window.addEventListener('focus',focus);
   // GPUI reports composer focus from its own hit test. A retained cross-origin
-  // tool iframe takes document.activeElement after pointerup, so keys miss
-  // the canvas input. Reclaim that input across the frames that follow.
+  // tool iframe can take document.activeElement after pointerup. An App pane
+  // iframe that this shell just focused keeps the keyboard.
+  const canvasFocusOf = (active: Element | null): { active: CanvasFocus; paneFocused: boolean } => {
+    if (active instanceof HTMLIFrameElement) {
+      for (const frame of frames.values()) {
+        if (frame.element !== active) continue;
+        const surface = mounts.get(key(frame.name, frame.panel))?.surface;
+        if (surface?.visible && surface.focused) return { active: 'pane-iframe', paneFocused: true };
+      }
+      return { active: 'tool-iframe', paneFocused: false };
+    }
+    if (active instanceof HTMLCanvasElement && active.hasAttribute('data-gpui-input')) {
+      return { active: 'composer-input', paneFocused: false };
+    }
+    return { active: 'canvas', paneFocused: false };
+  };
+  const composerIsFocused = () => {
+    const diagnostics = (window as unknown as { peroDiagnostics?: { snapshot?: () => string } }).peroDiagnostics;
+    try { return JSON.parse(diagnostics?.snapshot?.() ?? '{}').composerFocused === true; }
+    catch { return false; }
+  };
   const reclaimCanvasInput = (target: HTMLCanvasElement) => {
-    let frames = 0;
+    let pending = 0;
     const focusInput = () => {
-      const input = document.querySelector<HTMLElement>('[data-gpui-input]');
-      if (!input || document.activeElement?.tagName === 'IFRAME' || document.activeElement === target) {
+      const where = canvasFocusOf(document.activeElement);
+      const next = reclaimAfterCanvasPress({ composerFocused: composerIsFocused(), ...where });
+      if (next === 'composer-input' && where.active !== 'composer-input') {
+        const input = document.querySelector<HTMLElement>('[data-gpui-input]');
         (input ?? target).focus({ preventScroll: true });
       }
-      if (frames++ < 6) requestAnimationFrame(focusInput);
+      if (pending++ < 6) requestAnimationFrame(focusInput);
     };
     focusInput();
   };
