@@ -39,6 +39,59 @@ type blockedDispatch struct {
 	release   chan struct{}
 }
 
+func TestReviewedCampaignInventory(t *testing.T) {
+	var projectClient, serviceClient, outside string
+	var reviewedID string
+	api := testAPI(t, func(db *store.Store) http.Handler {
+		newClient := func(name, project string) (store.Client, string) {
+			value, token, err := db.CreateClient(t.Context(), name, []string{project})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return value, token
+		}
+		owner, token := newClient("Reviewer", "battery")
+		projectClient = token
+		runner, token := newClient("Runner", "battery")
+		serviceClient = token
+		_, outside = newClient("Outside", "other")
+		trial := store.TrialInput{Task: store.Spec{
+			Title: "Frozen trial", ProjectID: "battery", WorkspaceKey: "battery",
+			AgentID: "pybamm-sweep-v1", Prompt: "fixed input", Acceptance: "verify",
+		}, WorkerID: "worker"}
+		for _, mode := range []string{"", campaign.ReviewedPyBaMM} {
+			record, err := db.AdmitCampaign(t.Context(), &owner, "battery", "seed"+mode,
+				runner.ID, []store.TrialInput{trial, trial}, mode, "checker")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode != "" {
+				reviewedID = record.Plan.ID
+			}
+		}
+		return httpapi.ServerHandler(db, "test-operator", httpapi.ServerOptions{Campaigns: &httpapi.ResearchCampaigns{RunnerClientID: runner.ID}})
+	})
+	const path = "/api/client/v1/projects/battery/campaigns"
+	items := parse[struct{ Campaigns []store.CampaignSummary }](t, request(t, api, "GET", path, projectClient, nil, "", 200)).Campaigns
+	if len(items) != 1 || items[0].ID != reviewedID || items[0].Title != "Frozen trial" {
+		t.Fatalf("unexpected inventory: %+v", items)
+	}
+	request(t, api, "GET", path, outside, nil, "", 404)
+	type Detail struct {
+		CanReview bool     `json:"can_review"`
+		Titles    []string `json:"trial_titles"`
+	}
+	for _, check := range []struct {
+		token   string
+		allowed bool
+	}{{projectClient, true}, {serviceClient, false}} {
+		got := parse[Detail](t, request(t, api, "GET", path+"/"+reviewedID, check.token, nil, "", 200))
+		if got.CanReview != check.allowed || len(got.Titles) != 2 || got.Titles[0] != items[0].Title {
+			t.Fatalf("unexpected Campaign detail: %+v", got)
+		}
+	}
+}
+
 func (c *campaignStarter) ExecuteWorkflow(ctx context.Context, options client.StartWorkflowOptions, flow any, args ...any) (client.WorkflowRun, error) {
 	fault := c.fault.Swap(0)
 	if fault == 1 {

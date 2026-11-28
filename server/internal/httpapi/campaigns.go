@@ -19,8 +19,10 @@ type ResearchCampaigns struct {
 
 type campaignView struct {
 	store.CampaignRecord
-	Phase    campaign.Phase     `json:"phase"`
-	Progress *campaign.Progress `json:"progress,omitempty"`
+	Phase       campaign.Phase     `json:"phase"`
+	Progress    *campaign.Progress `json:"progress,omitempty"`
+	TrialTitles []string           `json:"trial_titles,omitempty"`
+	CanReview   bool               `json:"can_review"`
 }
 
 func (a *API) registerCampaigns(mux *http.ServeMux) {
@@ -28,6 +30,7 @@ func (a *API) registerCampaigns(mux *http.ServeMux) {
 		return
 	}
 	const base = "/api/client/v1/projects/{project}/campaigns"
+	mux.HandleFunc("GET "+base, a.listCampaigns)
 	mux.HandleFunc("POST "+base, a.startCampaign)
 	mux.HandleFunc("GET "+base+"/{campaign}", a.readCampaign)
 	mux.HandleFunc("POST "+base+"/{campaign}/cancel", a.cancelCampaign)
@@ -38,6 +41,22 @@ func (a *API) registerCampaigns(mux *http.ServeMux) {
 	mux.HandleFunc("PUT "+runner+"/result", a.campaignResult)
 	mux.HandleFunc("POST "+runner+"/verification/{index}", a.verifyCampaign)
 	mux.HandleFunc("PUT "+runner+"/decision", a.recordCampaignDecision)
+}
+
+func (a *API) listCampaigns(w http.ResponseWriter, r *http.Request) {
+	project := r.PathValue("project")
+	if !bounded(project, 128) {
+		invalid(w)
+		return
+	}
+	items, err := a.db.ListReviewedCampaigns(r.Context(), clientIdentity(r), project)
+	if err != nil {
+		failure(w, err)
+		return
+	}
+	respond(w, 200, struct {
+		Campaigns []store.CampaignSummary `json:"campaigns"`
+	}{items})
 }
 
 func (a *API) startCampaign(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +115,7 @@ func (a *API) readCampaign(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	view := campaignView{CampaignRecord: record}
+	view := campaignView{CampaignRecord: record, TrialTitles: record.TrialTitles(), CanReview: record.CanReview(clientIdentity(r))}
 	switch {
 	case record.Result != nil:
 		view.Phase = campaign.Done

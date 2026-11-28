@@ -1,5 +1,6 @@
 //! Local research presentation. App records remain with their owning backends.
 mod editor;
+mod campaigns;
 mod web_sources;
 #[cfg(all(feature = "native-probe", target_os = "macos"))]
 pub(crate) use web_sources::shared_probe;
@@ -31,6 +32,7 @@ pub(crate) struct ResearchProjectsView {
     catalogs: BTreeMap<String, ProjectResourceCatalog>,
     loading: BTreeSet<String>,
     web_sources: web_sources::WebSourcesView,
+    campaigns: campaigns::CampaignsView,
     pending: Option<(ResearchProject, Option<String>, bool)>,
     resolving_workspace: Option<(ResearchProject, Option<String>)>,
     error: Option<String>,
