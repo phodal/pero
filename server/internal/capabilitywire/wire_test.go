@@ -10,11 +10,31 @@ import (
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("caller")
+	var starts []string
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	if src := os.Getenv("TEST_SRCDIR"); src != "" {
+		starts = append(starts, filepath.Join(src, "pero"), src)
+	}
+	if _, file, _, ok := runtime.Caller(0); ok {
+		starts = append(starts, filepath.Dir(file))
+	}
+	for _, start := range starts {
+		dir := start
+		for range 8 {
+			if _, err := os.Stat(filepath.Join(dir, "protocol/inventory/capabilities.json")); err == nil {
+				return dir
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	t.Fatal("capability inventory not found")
+	return ""
 }
 
 func TestSharedFixtures(t *testing.T) {
