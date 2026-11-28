@@ -46,7 +46,7 @@ test('local and remote transports return the same paper evidence', async () => {
     req.on('data', chunk => { raw += chunk; });
     req.on('end', () => {
       try {
-        const value = domainRead(records, JSON.parse(raw));
+        const value = domainRead(records, { resource: JSON.parse(raw) });
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify(value));
       } catch (error) {
@@ -59,7 +59,7 @@ test('local and remote transports return the same paper evidence', async () => {
   const remote = {
     read: async request => {
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/client/v1/projects/lab/app-resources/paper`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(request),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(request.resource),
       });
       const payload = await response.json();
       if (!response.ok) {

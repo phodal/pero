@@ -47,7 +47,11 @@ export async function readPaperResource(transport, request) {
   if (!value || value.ownerHost !== resource.ownerHost) throw fail('owner_unavailable');
   if (value.revision !== resource.revision || value.digest !== resource.revision || value.provenance !== DOMAIN_PROVENANCE) throw fail('stale');
   if (containsForbidden(value)) throw fail('spoofed');
+  const ownerHost = value.ownerHost;
+  const digest = value.digest;
+  const mediaType = value.mediaType;
+  const provenance = value.provenance;
   const body = bytes(value.body);
-  if (await sha256(body) !== value.digest) throw fail('stale');
-  return { ownerHost: value.ownerHost, revision: resource.revision, digest: value.digest, mediaType: value.mediaType, body, provenance: value.provenance };
+  if (await sha256(body) !== digest) throw fail('stale');
+  return { ownerHost, revision: resource.revision, digest, mediaType, body, provenance };
 }
