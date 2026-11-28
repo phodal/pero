@@ -1,5 +1,6 @@
 //! Local research identity and links to App-owned, versioned objects.
 pub mod resource_identity;
+pub mod run_lifecycle;
 
 use serde::{Deserialize, Serialize};
 
