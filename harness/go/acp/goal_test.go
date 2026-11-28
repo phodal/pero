@@ -671,3 +671,108 @@ func TestGoalEditPreservesRoundsAndFencesStaleRevision(t *testing.T) {
 		t.Fatalf("edit reopened a completed goal: %+v", got)
 	}
 }
+
+func TestGoalReadDoesNotArmOrLeakAcrossSessions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	var reads []goalReadResult
+	var requests int
+	adapter := harness.AdapterFunc(func(_ context.Context, req harness.GenerateRequest, _ func(harness.StreamChunk) error) (harness.Completion, error) {
+		requests++
+		available := false
+		for _, tool := range req.Tools {
+			available = available || tool.Name == goalReadTool
+		}
+		last := req.Messages[len(req.Messages)-1]
+		if last.Role == harness.RoleTool {
+			result := last.Content[0]
+			if result.IsError || len(result.Content) != 1 {
+				return harness.Completion{}, fmt.Errorf("get_goal failed: %+v", result)
+			}
+			var view goalReadResult
+			if err := json.Unmarshal([]byte(result.Content[0].Text), &view); err != nil {
+				return harness.Completion{}, err
+			}
+			reads = append(reads, view)
+		} else if available {
+			return harness.Completion{Finish: harness.FinishToolCalls, Message: harness.Message{
+				Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockToolCall, Name: goalReadTool,
+					ToolCallID: harness.ToolCallID(fmt.Sprintf("read-%d", requests)), Arguments: json.RawMessage(`{}`)}},
+			}}, nil
+		}
+		return harness.Completion{Finish: harness.FinishStop, Message: harness.Message{
+			Role: harness.RoleAssistant, Content: []harness.ContentBlock{{Type: harness.BlockText, Text: "Read the checkpoint."}},
+		}}, nil
+	})
+
+	home, cwd := t.TempDir(), t.TempDir()
+	newServer := func() *Server { return newGoalTestServer(t, ctx, home, adapter, false, 0) }
+	newRoot := func(server *Server) harness.SessionID {
+		t.Helper()
+		id, err := server.newSession(ctx, NewSessionParams{CWD: cwd})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	run := func(server *Server, id harness.SessionID, line string) {
+		t.Helper()
+		params, _ := json.Marshal(PromptParams{SessionID: string(id), Prompt: []PromptContent{{Type: "text", Text: line}}})
+		result, rpc := server.handle(ctx, request{Method: "session/prompt", Params: params})
+		if rpc != nil || !reflect.DeepEqual(result, map[string]any{"stopReason": "end_turn"}) {
+			t.Fatalf("%s: result=%+v rpc=%+v", line, result, rpc)
+		}
+	}
+	first := newServer()
+	a := newRoot(first)
+	run(first, a, "Read the current goal.")
+	if len(reads) != 1 || reads[0] != (goalReadResult{}) {
+		t.Fatalf("expected null goal, got %+v", reads)
+	}
+	run(first, a, "/goal start 1 Verify snapshot A")
+	if len(reads) != 2 || reads[1].Goal == nil {
+		t.Fatalf("expected active round view: %+v", reads)
+	}
+	active := reads[1]
+	if active.Activation != "armed" || active.Goal.Phase != "active" || active.Goal.RoundsStarted != 1 ||
+		active.Goal.Revision != 1 || active.Goal.Objective != "Verify snapshot A" {
+		t.Fatalf("incorrect active round view: %+v %+v", active, active.Goal)
+	}
+	run(first, a, fmt.Sprintf("/goal edit %s@1 3 Verify snapshot B", active.Goal.ID))
+	if err := first.closeSession(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	second := newServer()
+	if err := second.resumeSession(ctx, ResumeSessionParams{SessionID: string(a), CWD: cwd}); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 4 {
+		t.Fatalf("editing or reopening triggered generation: %d", requests)
+	}
+	run(second, a, "Read the current goal without starting it.")
+	if len(reads) != 3 || reads[2].Goal == nil {
+		t.Fatalf("missing restored goal: %+v", reads)
+	}
+	restored := reads[2]
+	if restored.Activation != "disarmed" || restored.Goal.ID != active.Goal.ID ||
+		restored.Goal.Revision != 2 || restored.Goal.RoundsStarted != 1 ||
+		restored.Goal.MaxGoalRounds != 3 || restored.Goal.Objective != "Verify snapshot B" || requests != 6 {
+		t.Fatalf("read changed Goal activation or revision: %+v %+v requests=%d", restored, restored.Goal, requests)
+	}
+	run(second, newRoot(second), "Read the separate root's goal.")
+	if len(reads) != 4 || reads[3] != (goalReadResult{}) {
+		t.Fatalf("a separate root saw this goal: %+v", reads)
+	}
+	if err := second.closeSession(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	disabled := newServer()
+	disabled.goal = false
+	if err := disabled.resumeSession(ctx, ResumeSessionParams{SessionID: string(a), CWD: cwd}); err != nil {
+		t.Fatal(err)
+	}
+	run(disabled, a, "Do not advertise read when disabled.")
+	if requests != 9 || len(reads) != 4 {
+		t.Fatalf("disabled runtime leaked Goal read: requests=%d reads=%d", requests, len(reads))
+	}
+}

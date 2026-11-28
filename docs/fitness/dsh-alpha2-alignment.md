@@ -215,6 +215,19 @@ interactive discovery through its Web profile, not ACP; this is a Pero
 extension. Desktop UI, production model service and packaging remain
 unverified.
 
+### Model-facing Goal checkpoint read
+
+With opt-in Goal enabled, the current native root model turn can call
+`get_goal` without providing a session ID. Like the pinned
+[DSH Goal tool](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/goal/tool-goal/src/index.ts),
+it returns a null goal or the exact id, revision, objective, phase, and round
+counters. Activation is live, not durable authorization: an owned automatic
+round reports armed, while an ordinary prompt after restoring the journal
+reports disarmed. Reading never reserves a round, resumes a goal, or changes the
+revision. Another root, a child, or a disabled runtime cannot use it to read
+this Goal. This does not implement model-mediated create, edit, resume, or
+the DSH wrap-up turn.
+
 ## Team task board: opt-in native slice
 
 The [pinned DSH Team contract](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/packages/team/agent-team/README.md)

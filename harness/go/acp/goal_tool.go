@@ -15,6 +15,7 @@ import (
 
 const (
 	goalStopTool                = "pero_goal_stop"
+	goalReadTool                = "get_goal"
 	defaultGoalBlockAfterRounds = 3
 	goalBlockReasonMax          = 1024
 )
@@ -96,13 +97,70 @@ func (r *goalRoundControl) settledDecision(events []harness.Event) goalDecisionA
 	return goalDecisionArgs{}
 }
 
+type goalBlockView struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type goalReadView struct {
+	ID            string         `json:"id"`
+	Revision      int            `json:"revision"`
+	Objective     string         `json:"objective"`
+	Phase         string         `json:"phase"`
+	RoundsStarted int            `json:"roundsStarted"`
+	MaxGoalRounds int            `json:"maxGoalRounds"`
+	BlockedReason *goalBlockView `json:"blockedReason,omitempty"`
+}
+
+type goalReadResult struct {
+	Goal       *goalReadView `json:"goal"`
+	Activation string        `json:"activation,omitempty"`
+}
+
+func (g goalState) toolView(armed bool) goalReadResult {
+	if g.ID == "" {
+		return goalReadResult{}
+	}
+	view := &goalReadView{
+		ID: g.ID, Revision: g.ref().Revision, Objective: g.Objective,
+		Phase: "active", RoundsStarted: g.Rounds, MaxGoalRounds: g.Limit,
+	}
+	result := goalReadResult{Goal: view, Activation: "disarmed"}
+	if armed {
+		result.Activation = "armed"
+	}
+	switch g.Stop {
+	case string(goalCompleted):
+		view.Phase = "complete"
+	case string(goalBlocked):
+		view.Phase = "blocked"
+		view.BlockedReason = &goalBlockView{Code: "model-reported", Message: g.StopDetail}
+	case "":
+		if !armed && g.Rounds >= g.Limit {
+			view.Phase = "paused"
+		}
+	default:
+		// Pero checkpoints exhaustion, cancellation and provider failures
+		// without reporting that the operator's objective was complete.
+		view.Phase = "paused"
+	}
+	return result
+}
+
 func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
-	active := func(ctx context.Context, candidate *harness.Agent) *goalRoundControl {
-		if candidate != agent {
+	root := func(candidate *harness.Agent) *activeSession {
+		if candidate != agent || agent.Parent() != nil || !s.goalAvailable(agent) {
 			return nil
 		}
 		record, err := s.currentRecord(agent.ID())
 		if err != nil || record.agent != agent {
+			return nil
+		}
+		return record
+	}
+	active := func(ctx context.Context, candidate *harness.Agent) *goalRoundControl {
+		record := root(candidate)
+		if record == nil {
 			return nil
 		}
 		record.mu.Lock()
@@ -149,18 +207,44 @@ func (s *Server) registerGoalTool(run *point.Run, agent *harness.Agent) error {
 			}, nil
 		},
 	}
+	read := harness.Tool{
+		Schema: harness.ToolSchema{
+			Name:        goalReadTool,
+			Description: "Read the current session Goal and its activation state. This does not start or modify work.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		ExecuteRequest: func(ctx context.Context, request harness.ToolRequest) (harness.ToolResult, error) {
+			_, nested := request.ParentExecutionToken()
+			if nested || request.RootCallID() == "" || root(request.Agent) == nil || agent.Status() != harness.AgentRunning {
+				return harness.ToolResult{}, errors.New("Goal read requires the exact active root model turn")
+			}
+			state := foldGoal(agent.Session().Events())
+			payload, err := json.Marshal(state.toolView(active(ctx, request.Agent) != nil))
+			if err != nil {
+				return harness.ToolResult{}, err
+			}
+			return harness.ToolResult{Content: []harness.ContentBlock{{Type: harness.BlockText, Text: string(payload)}}}, nil
+		},
+	}
 	_, err := s.h.Tools().RegisterCatalogProvider(run, "pero-goal", harness.ToolCatalogProvider{
 		Schemas: func(ctx context.Context, candidate *harness.Agent) ([]harness.ToolSchema, error) {
-			if active(ctx, candidate) == nil {
+			if root(candidate) == nil {
 				return nil, nil
 			}
-			return []harness.ToolSchema{tool.Schema}, nil
+			if active(ctx, candidate) != nil {
+				return []harness.ToolSchema{read.Schema, tool.Schema}, nil
+			}
+			return []harness.ToolSchema{read.Schema}, nil
 		},
 		Resolve: func(ctx context.Context, candidate *harness.Agent, name string) (harness.Tool, bool, error) {
-			if name != goalStopTool || active(ctx, candidate) == nil {
+			switch {
+			case name == goalReadTool && root(candidate) != nil:
+				return read, true, nil
+			case name == goalStopTool && active(ctx, candidate) != nil:
+				return tool, true, nil
+			default:
 				return harness.Tool{}, false, nil
 			}
-			return tool, true, nil
 		},
 	})
 	return err
