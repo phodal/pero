@@ -246,7 +246,11 @@ without inference or changes to task identity or revision.
 
 A Host can discover `agentCapabilities._meta["pero.teamBoard"] = 1` and
 read `_pero/team/board` with only `{sessionId}` for an active, eligible root.
-The response combines mode and task summaries from a single journal read.
+The response combines the exact root `sessionId`, board `revision`, mode and
+task summaries from a single journal read. The revision is the last Team
+change in that root; it remains stable on repeated reads and across reloads.
+Clients still bind responses to the specific live Host connection that issued
+the request and discard them after a session switch or reconnect.
 Off returns an empty list; re-enabling reveals the same saved IDs, revisions and
 owners. Summaries exclude descriptions and deleted tasks. This ACP read does not
 mutate the journal, dispatch a prompt, or let children inspect a root via their

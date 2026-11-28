@@ -24,6 +24,7 @@ func fold(root harness.SessionID, events []harness.Event) (state, error) {
 			if err := board.apply(c); err != nil {
 				return state{}, err
 			}
+			board.revision = event.Seq
 		}
 	}
 	return board, nil
@@ -68,8 +69,12 @@ func (b Board) Mode(caller *harness.Agent) (bool, error) {
 
 // BoardSnapshot is a bounded, read-only projection for the root's Host UI.
 type BoardSnapshot struct {
-	Enabled bool       `json:"enabled"`
-	Tasks   []TaskView `json:"tasks"`
+	SessionID harness.SessionID `json:"sessionId"`
+	// Revision is the sequence of the last Team change in this exact root.
+	// It is independent of individual task revisions, model turns, and other roots.
+	Revision uint64     `json:"revision"`
+	Enabled  bool       `json:"enabled"`
+	Tasks    []TaskView `json:"tasks"`
 }
 
 // Snapshot reports mode and visible tasks from the same journal read. Disabling
@@ -79,10 +84,11 @@ func (b Board) Snapshot(caller *harness.Agent) (BoardSnapshot, error) {
 	if err != nil {
 		return BoardSnapshot{}, err
 	}
-	if !s.enabled {
-		return BoardSnapshot{Tasks: []TaskView{}}, nil
+	snapshot := BoardSnapshot{SessionID: caller.ID(), Revision: s.revision, Enabled: s.enabled, Tasks: []TaskView{}}
+	if s.enabled {
+		snapshot.Tasks = s.page(taskQuery{limit: taskLimit}).Tasks
 	}
-	return BoardSnapshot{Enabled: true, Tasks: s.page(taskQuery{limit: taskLimit}).Tasks}, nil
+	return snapshot, nil
 }
 
 func (b Board) SetEnabled(ctx context.Context, caller *harness.Agent, enabled bool) error {

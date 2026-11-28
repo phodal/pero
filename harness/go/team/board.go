@@ -164,8 +164,9 @@ type taskPage struct {
 }
 
 type state struct {
-	enabled bool
-	tasks   []Task
+	enabled  bool
+	tasks    []Task
+	revision uint64
 }
 
 type change struct {

@@ -106,14 +106,14 @@ func TestTeamModeACPWire(t *testing.T) {
 		return record.agent
 	}
 
-	boardSnapshot := func(w *questionWire, id string, enabled bool) []team.TaskView {
+	boardSnapshot := func(w *questionWire, id string, enabled bool) team.BoardSnapshot {
 		t.Helper()
 		raw := w.rpc(teamBoardMethod, map[string]string{"sessionId": id})
 		var snapshot team.BoardSnapshot
-		if err := json.Unmarshal(raw, &snapshot); err != nil || snapshot.Enabled != enabled || snapshot.Tasks == nil {
+		if err := json.Unmarshal(raw, &snapshot); err != nil || snapshot.Enabled != enabled || string(snapshot.SessionID) != id || snapshot.Tasks == nil {
 			t.Fatalf("unexpected board mode or task projection: %s, %v", raw, err)
 		}
-		return snapshot.Tasks
+		return snapshot
 	}
 	create := map[string]any{"cwd": cwd, "mcpServers": []any{}}
 	server, wire, stop := start(true)
@@ -141,37 +141,56 @@ func TestTeamModeACPWire(t *testing.T) {
 	if _, err = server.teamBoard.Update(ctx, root, team.TaskRef{ID: tombstone.ID, Revision: tombstone.Revision}, team.Delete); err != nil {
 		t.Fatal(err)
 	}
-	checkProjection := func(w *questionWire) {
+	check(set(wire, b, "team", "on"), "on", "a")
+	otherRoot := assertTools(server, b, 4)
+	other, err := server.teamBoard.Create(ctx, otherRoot, team.NewTask{Title: "Other root, same number", Details: "Independent board"})
+	if err != nil || other.ID != task.ID {
+		t.Fatalf("expected a colliding task ID across two roots: %+v, %v", other, err)
+	}
+	checkProjection := func(w *questionWire) team.BoardSnapshot {
 		t.Helper()
-		rows := boardSnapshot(w, a, true)
+		snapshot := boardSnapshot(w, a, true)
+		rows := snapshot.Tasks
 		if len(rows) != 1 || rows[0].ID != task.ID || rows[0].Revision != task.Revision || rows[0].Owner != harness.SessionID(a) || rows[0].Title != task.Title || rows[0].Status != team.InProgress || rows[0].Ready || rows[0].Details != "" {
 			t.Fatalf("saved task was not projected accurately or exposed its body/tombstone: %+v", rows)
 		}
-		if other := boardSnapshot(w, b, false); len(other) != 0 {
-			t.Fatalf("other root received tasks: %+v", other)
+		independent := boardSnapshot(w, b, true)
+		if len(independent.Tasks) != 1 || independent.Tasks[0].ID != rows[0].ID || independent.Tasks[0].Title != other.Title {
+			t.Fatalf("boards mixed tasks with the same numeric ID: %+v %+v", rows, independent)
 		}
+		return snapshot
 	}
 	before := len(root.Session().Events())
-	checkProjection(wire)
+	initial := checkProjection(wire)
+	if initial.Revision == 0 || checkProjection(wire).Revision != initial.Revision {
+		t.Fatal("board reads did not preserve the revision")
+	}
 	if len(root.Session().Events()) != before {
 		t.Fatal("reading the board changed its root journal")
 	}
 	check(set(wire, a, "team", "off"), "off", "b")
-	if hidden := boardSnapshot(wire, a, false); len(hidden) != 0 {
-		t.Fatalf("disabled board exposed tasks: %+v", hidden)
+	hidden := boardSnapshot(wire, a, false)
+	if len(hidden.Tasks) != 0 || hidden.Revision <= initial.Revision {
+		t.Fatalf("disable must hide retained tasks at a later revision: %+v", hidden)
 	}
 	assertTools(server, a, 0)
 	stop()
 
 	server, wire, stop = start(true)
 	check(wire.rpc("session/load", map[string]any{"sessionId": a, "cwd": cwd, "mcpServers": []any{}}), "off", "b")
-	check(wire.rpc("session/load", map[string]any{"sessionId": b, "cwd": cwd, "mcpServers": []any{}}), "off", "a")
+	check(wire.rpc("session/load", map[string]any{"sessionId": b, "cwd": cwd, "mcpServers": []any{}}), "on", "a")
 	assertTools(server, a, 0)
-	assertTools(server, b, 0)
+	assertTools(server, b, 4)
+	reopened := boardSnapshot(wire, a, false)
+	if reopened.Revision != hidden.Revision || len(reopened.Tasks) != 0 {
+		t.Fatalf("restart changed hidden board snapshot: %+v", reopened)
+	}
 	check(set(wire, a, "team", "on"), "on", "b")
 	assertTools(server, a, 4)
-	checkProjection(wire)
-	assertTools(server, b, 0)
+	if enabled := checkProjection(wire); enabled.Revision <= reopened.Revision {
+		t.Fatalf("re-enable must advance the board revision: %+v", enabled)
+	}
+	assertTools(server, b, 4)
 	stop()
 
 	server, wire, _ = start(false)
