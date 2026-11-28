@@ -54,7 +54,9 @@ deliver to live members of the same managed tree, including siblings;
 interruption requires an exact live ancestor. The interrupt receipt confirms
 that the request was accepted, not that a turn has settled. Pending local input
 stays parked until a later explicit wake. The tool does not start an inactive
-target. A cold send can restore a target across levels through its original live
-creator and the same saved-route checks. It cannot yet restore a target with
-an offline creator. Host delivery and
-interrupt authority are unchanged.
+target. A cold send can restore a target across levels, even if its creator
+is offline. If needed, the exact live root owns the temporary activation and
+its capacity. The child journal, original creator, depth, saved model route,
+and tool/approval ceiling are preserved. When the original creator rejoins
+the same tree it can still interrupt; a relay never acquires that authority.
+The Host protocol keeps its original direct-parent rule.
