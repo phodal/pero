@@ -53,15 +53,19 @@ func mountSubagents(ctx context.Context, h *harness.Harness, persistence harness
 			return err
 		}
 	}
-	const waitID = "pero/subagents/wait"
-	def := point.Define(point.Descriptor{ID: waitID, Provides: []point.AnyKey{harness.SubagentCatalogQueryKey.Any()}, Requires: []point.Requirement{point.Require(harness.SubagentRegistryKey), point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
+	const controlID = "pero/subagents/control"
+	def := point.Define(point.Descriptor{ID: controlID, Provides: []point.AnyKey{harness.SubagentCatalogQueryKey.Any()}, Requires: []point.Requirement{point.Require(harness.SubagentRegistryKey), point.Require(harness.ToolRegistryKey)}}, point.DecodeJSON[struct{}], func(run *point.Run, _ struct{}) (point.Dispose, error) {
 		if err := h.ProvideSubagentCatalogQuery(run, persistence); err != nil {
 			return nil, err
 		}
-		_, err := h.Tools().Register(run, h.Subagents().WaitAgentTool(run.Context))
-		return nil, err
+		for _, tool := range []harness.Tool{h.Subagents().WaitAgentTool(run.Context), h.Subagents().ListAgentsTool()} {
+			if _, err := h.Tools().Register(run, tool); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
 	})
-	instance, err := h.Runtime().Mount(nil, waitID, def, nil)
+	instance, err := h.Runtime().Mount(nil, controlID, def, nil)
 	if err != nil {
 		return err
 	}

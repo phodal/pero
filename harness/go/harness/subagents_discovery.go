@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -377,4 +378,76 @@ func (r *SubagentRegistry) ResolveAgentNameDSH(ctx context.Context, caller *Agen
 		visited[current] = true
 	}
 	return current, nil
+}
+
+// ListAgentsTool presents the read-only DSH catalog. It promises discovery,
+// not that a listed Session is authorized for messaging or interruption.
+func (r *SubagentRegistry) ListAgentsTool() Tool {
+	return Tool{
+		Schema: ToolSchema{
+			Name: "list_agents", Description: "List the root and discoverable continuable agents in your current tree. Names are paths from the root when available. Activity reports a running turn, not success or completion.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		IsConcurrencySafe: func(context.Context, ToolRequest) bool { return true },
+		ExecuteRequest: func(ctx context.Context, request ToolRequest) (ToolResult, error) {
+			lineage, _ := ctx.Value(toolCallLineageKey{}).(toolCallLineage)
+			if request.Agent == nil || lineage.owner != request.Agent {
+				return ToolResult{}, &subagentActivationError{"list_agents requires the exact live calling agent", "UNAUTHORIZED"}
+			}
+			root, err := r.LiveTreeRoot(request.Agent)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			rows, err := r.ListAgentsDSH(ctx, root, true)
+			if err != nil {
+				return ToolResult{}, err
+			}
+			if current, err := r.LiveTreeRoot(request.Agent); err != nil || current != root {
+				return ToolResult{}, &subagentActivationError{"agent tree changed during listing", "UNAUTHORIZED"}
+			}
+			type member struct {
+				Name        string  `json:"name"`
+				Status      string  `json:"status"`
+				Description *string `json:"description,omitempty"`
+			}
+			status := "inactive"
+			if root.Status() == AgentRunning {
+				status = "running"
+			}
+			description := "root agent"
+			members := []member{{"lead", status, &description}}
+			for _, row := range rows {
+				address := row.Path
+				if address == "" {
+					address = string(row.ID)
+				}
+				switch {
+				case row.Kind == "diagnostic":
+					members = append(members, member{Name: address, Status: row.Reason})
+				case row.Mode == "continuable":
+					members = append(members, member{address, row.Activity, row.Label})
+				}
+			}
+			r.mu.RLock()
+			limit := r.config.MaxActiveSubagents
+			pool := r.activationPools[root]
+			if owner := r.activationParents[request.Agent]; owner != nil && owner.capacity != nil {
+				pool = owner.capacity.pool
+				if pool.facade != nil {
+					limit = pool.facade.config.MaxActiveSubagents
+				}
+			}
+			running := 0
+			if pool != nil {
+				running = pool.active
+			}
+			r.mu.RUnlock()
+			raw, _ := json.Marshal(struct {
+				Running int      `json:"running"`
+				Limit   int      `json:"limit"`
+				Agents  []member `json:"agents"`
+			}{running, limit, members})
+			return ToolResult{Content: []ContentBlock{{Type: BlockText, Text: string(raw)}}}, nil
+		},
+	}
 }

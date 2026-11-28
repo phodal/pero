@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
+	"reflect"
 	"testing"
 
 	"github.com/phodal/pero/harness/go/harness"
@@ -39,6 +41,13 @@ func TestSubagentCLICompositionUsesBoundedNativeRegistry(t *testing.T) {
 			defer func() { _ = h.Dispose(context.Background()); _ = h.Drain(context.Background()) }()
 			if err := mountSubagents(t.Context(), h, nil, subagentOptions{Enabled: enabled, MaxActive: 2}, nil); err != nil {
 				t.Fatal(err)
+			}
+			var hasList bool
+			for _, tool := range h.Tools().Schemas(h.Runtime().Root()) {
+				hasList = hasList || tool.Name == "list_agents"
+			}
+			if hasList != enabled {
+				t.Fatalf("list_agents available = %v; opt-in = %v", hasList, enabled)
 			}
 			if !enabled {
 				if h.Subagents() != nil {
@@ -157,6 +166,31 @@ func TestSubagentCLIDiscoveryReadsOnlyReachableJournals(t *testing.T) {
 			t.Fatalf("invalid address %s returned %v", address, err)
 		}
 	}
+	assertList := func(agent *harness.Agent, expectedNames, expectedStatuses []string) {
+		t.Helper()
+		outcome, err := h.Tools().Execute(ctx, harness.ToolRequest{Agent: agent, Name: "list_agents", CallID: "read-team", Arguments: json.RawMessage(`{}`)})
+		if err != nil || len(outcome.Result.Content) != 1 {
+			t.Fatalf("list tool = %+v, %v", outcome, err)
+		}
+		var report struct {
+			Running int
+			Limit   int
+			Agents  []struct{ Name, Status string }
+		}
+		if err := json.Unmarshal([]byte(outcome.Result.Content[0].Text), &report); err != nil {
+			t.Fatal(err)
+		}
+		var names, statuses []string
+		for _, row := range report.Agents {
+			names = append(names, row.Name)
+			statuses = append(statuses, row.Status)
+		}
+		if report.Running != 0 || report.Limit != 2 || !reflect.DeepEqual(names, expectedNames) || !reflect.DeepEqual(statuses, expectedStatuses) {
+			t.Fatalf("unexpected model-facing report: %+v", report)
+		}
+	}
+	assertList(root, []string{"lead", "checker", "unreadable", "verify", "verify/checker", "test", "test/checker"},
+		[]string{"inactive", "inactive", "unavailable", "inactive", "inactive", "inactive", "inactive"})
 	forkRoot, err := h.Agents().Resume(ctx, fork, harness.AgentOptions{ID: "separate-fork", CWD: workspace})
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +199,7 @@ func TestSubagentCLIDiscoveryReadsOnlyReachableJournals(t *testing.T) {
 	if err != nil || len(forkRows) != 1 || forkRows[0].ID != "hidden" {
 		t.Fatalf("fork inherited source membership: %+v %v", forkRows, err)
 	}
+	assertList(forkRoot, []string{"lead", "checker"}, []string{"inactive", "inactive"})
 	for _, id := range []harness.SessionID{"review", "checker", "hidden", "verify-id", "verify-checker-id", "test-id", "test-checker-id"} {
 		if _, loaded := h.Sessions().Get(id); loaded {
 			t.Fatalf("discovery published a cold session: %s", id)

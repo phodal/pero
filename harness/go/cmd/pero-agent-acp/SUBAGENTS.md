@@ -1,6 +1,6 @@
 # Optional in-process delegation
 
-`--enable-subagents` installs `spawn_agent`, `fork_agent` and `wait_agent`. Default: disabled. `--max-active-subagents=4` bounds active children per live root (accepted range 1–32). Delegation depth is one; child tools cannot create grandchildren.
+`--enable-subagents` installs `spawn_agent`, `fork_agent`, `wait_agent` and `list_agents`. Default: disabled. `--max-active-subagents=4` bounds active children per live root (accepted range 1–32). Delegation depth is one; child tools cannot create grandchildren.
 
 Both delegation tools accept only `description` and `prompt`. They wait for a child result, then return it to the parent; cancelling the parent tool requests native child disposal. No independent background scheduler or model-selectable child configuration is exposed. Fork seeds only completed parent turns, excluding the currently running parent turn.
 
@@ -31,5 +31,6 @@ paths such as `verify/checker` without crossing into unrelated branches. Logs
 with an unnamed ancestor keep Session IDs. Managed activations reserve sibling
 names before startup, write them on successful catalog commit, and retain them
 after settlement and restart. This changes neither existing single-use
-`spawn_agent` / `fork_agent` nor Team owner selectors. The model-facing
-`list_agents` is not yet exposed.
+`spawn_agent` / `fork_agent` nor Team owner selectors. The read-only `list_agents` tool shows the root,
+continuable members and branch diagnostics; it does not make a child
+continuable or authorize a later action.
