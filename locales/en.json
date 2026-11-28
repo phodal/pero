@@ -1,5 +1,6 @@
 {
   "delivery.cancel": "Cancel",
+  "delivery.copy_run": "Copy Run ID",
   "delivery.clear": "Clear selection",
   "delivery.title": "Code deliveries",
   "delivery.link": "Link execution",

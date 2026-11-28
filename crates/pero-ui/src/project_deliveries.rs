@@ -284,8 +284,15 @@ impl Workbench {
                                         Button::new(("delivery-record", index))
                                             .ghost()
                                             .small()
+                                            .justify_start()
                                             .label(string(record, "title").to_owned())
                                             .toggled(id == self.deliveries.selected)
+                                            .relative()
+                                            .child(
+                                                self.view_bounds
+                                                    .projects
+                                                    .probe(format!("delivery:record:{id}")),
+                                            )
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 this.open_delivery(id.clone(), cx)
                                             }))
@@ -381,10 +388,16 @@ impl Workbench {
     fn delivery_detail(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let detail = &self.deliveries.detail;
         let p = pero_theme::UiAppearance::global(cx).palette.clone();
-        div().id("project-delivery-detail").flex().flex_col().gap(px(9.)).p(px(12.))
+        let base = string(detail, "base_sha").to_owned();
+        div().id("project-delivery-detail").flex().flex_col().gap(px(7.)).p(px(12.))
             .border_1().border_color(p.border).rounded(px(8.))
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(string(detail,"title").to_owned()))
-            .child(div().text_color(p.text_muted).child(format!("{} · {}", self.t("delivery.baseline"), string(detail,"base_sha"))))
+            .child(div().flex().items_center().gap(px(4.)).text_color(p.text_muted)
+                .child(self.t("delivery.baseline"))
+                .child(Button::new("copy-delivery-baseline").ghost().xsmall()
+                    .label(base.chars().take(12).collect::<String>())
+                    .tooltip(self.t("pr.copy_sha"))
+                    .accessibility_label(format!("{} {base}", self.t("pr.copy_sha")))
+                    .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(base.clone())))))
             .when(!string(detail, "campaign_id").is_empty(), |el| el.child(div().child(format!(
                 "{} · {}", self.t("delivery.campaign"), string(detail,"campaign_id")
             ))))
@@ -405,12 +418,22 @@ impl Workbench {
                 } else {
                     self.t(phase.label_key())
                 };
-                Some(div().flex().flex_col().gap(px(3.)).py(px(6.)).border_t_1().border_color(p.border)
+                let id = value("run_id").to_owned();
+                let short_id = id.trim_start_matches("run_").chars().take(10).collect::<String>();
+                let machine = [worker, value("agent_id")].into_iter().filter(|label| !label.is_empty()).collect::<Vec<_>>().join(" · ");
+                Some(div().flex().flex_col().gap(px(3.)).pt(px(7.)).border_t_1().border_color(p.border)
                     .child(div().font_weight(FontWeight::MEDIUM).child(format!("{} · {status}", self.t(label))))
-                    .child(div().text_color(p.text_muted).child(format!("{} · {} · {}", value("agent_id"), worker, value("workspace_key"))))
-                    .child(div().text_color(p.text_muted).child(format!(
-                        "{} · {} {}", value("run_id"), self.t("delivery.generation"), run["generation"]
-                    ))))
+                    .child(div().text_color(p.text_muted).child(machine))
+                    .child(div().flex().items_center().gap(px(4.)).text_color(p.text_muted)
+                        .child(format!("{} {}", self.t("delivery.generation"), run["generation"]))
+                        .child(Button::new(format!("copy-delivery-run-{key}")).ghost().xsmall()
+                            .label(short_id)
+                            .relative()
+                            .child(self.view_bounds.projects.probe(format!("delivery:run:{id}")))
+                            .tooltip(self.t("delivery.copy_run"))
+                            .accessibility_label(format!("{} {id}", self.t("delivery.copy_run")))
+                            .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(id.clone()))))))
+
             }))
             .when(EVIDENCE.iter().any(|(key, _)| detail[*key].is_object()), |el| el
                 .child(div().flex().flex_wrap().gap(px(6.)).children(EVIDENCE.into_iter().enumerate().filter_map(|(index, (key,label))| {

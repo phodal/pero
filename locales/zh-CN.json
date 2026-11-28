@@ -1,5 +1,6 @@
 {
   "delivery.cancel": "取消",
+  "delivery.copy_run": "复制 Run ID",
   "delivery.clear": "清除选择",
   "delivery.title": "代码交付",
   "delivery.link": "关联执行",
