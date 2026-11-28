@@ -18,100 +18,35 @@ import (
 
 var samplePDF = []byte("%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
 
-type fileDesk struct {
-	mu      sync.Mutex
-	handles map[string]devicetransfer.Handle
-	expired map[string]bool
-	uploads map[string]storedUpload
-	imports int
-	lookups int
+type countingImport struct {
+	mu       sync.Mutex
+	n        int
+	id       string
+	revision string
 }
 
-type storedUpload struct {
-	body     []byte
-	transfer devicetransfer.Transfer
-	commit   *devicetransfer.Commit
-}
-
-func (d *fileDesk) Lookup(handle string) (devicetransfer.Handle, bool, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.lookups++
-	value, ok := d.handles[handle]
-	return value, ok, d.expired[handle]
-}
-
-func (d *fileDesk) Put(upload string, body []byte, transfer devicetransfer.Transfer) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	current := d.uploads[upload]
-	current.body = append([]byte(nil), body...)
-	current.transfer = transfer
-	d.uploads[upload] = current
-}
-
-func (d *fileDesk) Get(upload string) ([]byte, devicetransfer.Transfer, *devicetransfer.Commit, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	value, ok := d.uploads[upload]
-	if !ok {
-		return nil, devicetransfer.Transfer{}, nil, false
-	}
-	return append([]byte(nil), value.body...), value.transfer, value.commit, true
-}
-
-func (d *fileDesk) Remember(upload string, commit devicetransfer.Commit) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	for _, value := range d.uploads {
-		if value.commit != nil && value.commit.Digest == commit.Digest {
-			d.uploads[upload] = storedUpload{body: d.uploads[upload].body, transfer: d.uploads[upload].transfer, commit: value.commit}
-			return
-		}
-	}
-	d.imports++
-	stored := commit
-	current := d.uploads[upload]
-	current.commit = &stored
-	d.uploads[upload] = current
-}
-
-func (d *fileDesk) Imported(digest string) (devicetransfer.Commit, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	for _, value := range d.uploads {
-		if value.commit != nil && value.commit.Digest == digest {
-			return *value.commit, true
-		}
-	}
-	return devicetransfer.Commit{}, false
-}
-
-func (d *fileDesk) Cancel(upload string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	current := d.uploads[upload]
-	current.transfer.Cancelled = true
-	current.body = nil
-	d.uploads[upload] = current
+func (c *countingImport) ImportPDF(string, []byte, string) (string, string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.n++
+	return c.id, c.revision, true
 }
 
 func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	sum := sha256.Sum256(samplePDF)
 	digest := hex.EncodeToString(sum[:])
-	desk := &fileDesk{
-		handles: map[string]devicetransfer.Handle{"handle-1": {ID: "handle-1", Provider: "desktop", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"}},
-		expired: map[string]bool{}, uploads: map[string]storedUpload{},
-	}
+	importer := &countingImport{id: "doc-1", revision: digest}
+	desk := newImportingDesk(importer)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "desktop", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"})
 	api := &API{files: desk}
 	code, received := postBytes(t, api, "lab", []string{"lab"}, "upload-1", "handle-1", samplePDF)
-	if code != 202 || received["received"] != float64(len(samplePDF)) || desk.imports != 0 {
-		t.Fatalf("upload %d %#v imports %d", code, received, desk.imports)
+	if code != 202 || received["received"] != float64(len(samplePDF)) || importer.n != 0 {
+		t.Fatalf("upload %d %#v imports %d", code, received, importer.n)
 	}
 	first := postFinalize(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
 	second := postFinalize(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
-	if first["created"] != true || second["created"] != false || first["revision"] != digest || second["paperId"] != first["paperId"] || desk.imports != 1 {
-		t.Fatalf("first %#v second %#v imports %d", first, second, desk.imports)
+	if first["created"] != true || second["created"] != false || first["paperId"] != "doc-1" || first["paperId"] == "paper-"+digest[:12] || second["paperId"] != first["paperId"] || importer.n != 1 {
+		t.Fatalf("first %#v second %#v imports %d", first, second, importer.n)
 	}
 	code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", "ab", uint64(len(samplePDF)))
 	if code != 409 || body["error"] != "digest_mismatch" {
@@ -128,26 +63,25 @@ func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	code, _ = postBytes(t, api, "lab", []string{"lab"}, "drop", "handle-1", samplePDF)
 	postCancel(t, api, "lab", "drop")
 	code, body = postFinalizeStatus(t, api, "lab", []string{"lab"}, "drop", digest, uint64(len(samplePDF)))
-	if code != 409 || body["error"] != "cancelled_transfer" || desk.imports != 1 {
-		t.Fatalf("cancel %d %#v imports %d", code, body, desk.imports)
+	if code != 409 || body["error"] != "cancelled_transfer" || importer.n != 1 {
+		t.Fatalf("cancel %d %#v imports %d", code, body, importer.n)
 	}
-	before := desk.lookups
+	before := importer.n
 	code, body = postBytes(t, api, "lab", []string{"lab"}, "walk", "../secret", samplePDF)
-	if code != 400 || body["error"] != "traversal" || desk.lookups != before {
-		t.Fatalf("walk %d %#v lookups %d", code, body, desk.lookups)
+	if code != 400 || body["error"] != "traversal" || importer.n != before {
+		t.Fatalf("walk %d %#v imports %d", code, body, importer.n)
 	}
 	code, body = postBytes(t, api, "lab", []string{"lab"}, "missing", "other-handle", samplePDF)
 	if code != 404 || body["error"] != "foreign" {
 		t.Fatalf("foreign %d %#v", code, body)
 	}
-	desk.expired["handle-1"] = true
+	desk.Expire("lab", "handle-1")
 	code, body = postBytes(t, api, "lab", []string{"lab"}, "old", "handle-1", samplePDF)
 	if code != 409 || body["error"] != "expired" {
 		t.Fatalf("expired %d %#v", code, body)
 	}
-	desk.expired["handle-1"] = false
 	code, body = postFinalizeStatus(t, api, "other", []string{"lab", "other"}, "upload-1", digest, uint64(len(samplePDF)))
-	if code != 403 || body["error"] != "wrong_project" {
+	if code != 409 || body["error"] != "interrupted" {
 		t.Fatalf("project %d %#v", code, body)
 	}
 	code, body = postBytes(t, api, "lab", nil, "revoked", "handle-1", samplePDF)
@@ -164,6 +98,70 @@ func TestPaperPDFImportIsIdempotent(t *testing.T) {
 	api.acceptDeviceBytes(rec, req)
 	if rec.Code != 413 {
 		t.Fatalf("limit %d %s", rec.Code, rec.Body.String())
+	}
+	swapped := map[string]any{"app": "paper-agent", "digest": digest, "mediaType": "application/pdf", "size": len(samplePDF), "handle": "handle-2"}
+	encoded, _ := json.Marshal(swapped)
+	swapReq := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/lab/device-transfers/upload-1/finalize", bytes.NewReader(encoded))
+	swapReq.SetPathValue("project", "lab")
+	swapReq.SetPathValue("upload", "upload-1")
+	swapReq = swapReq.WithContext(context.WithValue(swapReq.Context(), clientContextKey{}, &store.Client{Projects: []string{"lab"}, Role: "client"}))
+	swapRec := httptest.NewRecorder()
+	api.finalizeDeviceTransfer(swapRec, swapReq)
+	if swapRec.Code != 409 || !strings.Contains(swapRec.Body.String(), "conflict") {
+		t.Fatalf("swap %d %s", swapRec.Code, swapRec.Body.String())
+	}
+}
+
+func TestDeviceRoutesFollowTheImporter(t *testing.T) {
+	mux := http.NewServeMux()
+	(&API{}).registerClients(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/lab/device-transfers/up", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 404 || strings.Contains(rec.Body.String(), "foreign") {
+		t.Fatalf("unmounted %d %s", rec.Code, rec.Body.String())
+	}
+	importer := &countingImport{id: "doc-9", revision: "rev-domain"}
+	api := &API{}
+	mountDeviceDesk(api, importer)
+	if api.files == nil {
+		t.Fatal("importer did not mount a desk")
+	}
+	desk := api.files.(*importingDesk)
+	desk.Register("lab", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"})
+	desk.Register("other", devicetransfer.Handle{ID: "handle-1", Provider: "browser", MediaType: "application/pdf", Size: uint64(len(samplePDF)), Name: "note.pdf"})
+	if code, _ := postBytes(t, api, "lab", []string{"lab"}, "same", "handle-1", samplePDF); code != 202 {
+		t.Fatal(code)
+	}
+	if code, _ := postBytes(t, api, "other", []string{"other"}, "same", "handle-1", samplePDF); code != 202 {
+		t.Fatal(code)
+	}
+	sum := sha256.Sum256(samplePDF)
+	digest := hex.EncodeToString(sum[:])
+	got := postFinalize(t, api, "lab", []string{"lab"}, "same", digest, uint64(len(samplePDF)))
+	if got["paperId"] != "doc-9" || got["revision"] != "rev-domain" || got["paperId"] == "paper-"+digest[:12] {
+		t.Fatalf("%#v", got)
+	}
+	outsider := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/lab/device-transfers/same/cancel", strings.NewReader("{}"))
+	outsider.SetPathValue("project", "lab")
+	outsider.SetPathValue("upload", "same")
+	outsider = outsider.WithContext(context.WithValue(outsider.Context(), clientContextKey{}, &store.Client{Projects: []string{"other"}, Role: "client"}))
+	denied := httptest.NewRecorder()
+	api.cancelDeviceTransfer(denied, outsider)
+	if denied.Code != 403 || strings.Contains(denied.Body.String(), "traversal") {
+		t.Fatalf("cancel %d %s", denied.Code, denied.Body.String())
+	}
+	if _, transfer, _, ok := desk.Get("lab", "same"); !ok || transfer.Cancelled {
+		t.Fatal("project A cancel changed project B's knowledge of the lab upload")
+	}
+	walk := httptest.NewRequest(http.MethodPost, "/api/client/v1/projects/../lab/device-transfers/same/cancel", strings.NewReader("{}"))
+	walk.SetPathValue("project", "../lab")
+	walk.SetPathValue("upload", "same")
+	walk = walk.WithContext(context.WithValue(walk.Context(), clientContextKey{}, &store.Client{Projects: []string{"lab"}, Role: "client"}))
+	walked := httptest.NewRecorder()
+	api.cancelDeviceTransfer(walked, walk)
+	if walked.Code != 403 {
+		t.Fatalf("path before auth %d %s", walked.Code, walked.Body.String())
 	}
 }
 

@@ -46,10 +46,11 @@ type ServerOptions struct {
 	GitHub    *gh.Service
 	Campaigns *ResearchCampaigns
 	Paper     PaperDomain
+	Importer  PaperImporter
 }
 
 func ServerHandler(db *store.Store, token string, opts ServerOptions) http.Handler {
-	ordinary := configuredHandler(db, token, opts.Runtime, opts.Objects, opts.Gateway, opts.Campaigns, opts.Paper, opts.GitHub)
+	ordinary := configuredHandler(db, token, opts.Runtime, opts.Objects, opts.Gateway, opts.Campaigns, opts.Paper, opts.Importer, opts.GitHub)
 	if opts.Gateway == nil {
 		return ordinary
 	}
@@ -66,10 +67,11 @@ func HandlerWithSandbox(db *store.Store, operatorToken string, runtime *sandbox.
 	return handler(db, operatorToken, runtime, nil, services...)
 }
 func handler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, services ...*gh.Service) http.Handler {
-	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, nil, nil, services...)
+	return configuredHandler(db, operatorToken, runtime, artifactReader, nil, nil, nil, nil, services...)
 }
-func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, campaigns *ResearchCampaigns, paper PaperDomain, services ...*gh.Service) http.Handler {
+func configuredHandler(db *store.Store, operatorToken string, runtime *sandbox.Runtime, artifactReader ArtifactReader, gateway *runtimegateway.Gateway, campaigns *ResearchCampaigns, paper PaperDomain, importer PaperImporter, services ...*gh.Service) http.Handler {
 	a := &API{db: db, operatorHash: sha256.Sum256([]byte(operatorToken)), sandbox: runtime, gateway: gateway, campaigns: campaigns, paper: paper, runs: &persistedRuns{db: db, ledger: map[string][]runlifecycle.Receipt{}}}
+	mountDeviceDesk(a, importer)
 	if len(services) > 0 {
 		a.github = services[0]
 	}

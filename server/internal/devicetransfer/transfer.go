@@ -25,6 +25,7 @@ const (
 	Interrupted       = "interrupted"
 	Conflict          = "conflict"
 	CancelledTransfer = "cancelled_transfer"
+	Unavailable       = "unavailable"
 )
 
 type Handle struct {
@@ -54,7 +55,7 @@ type Commit struct {
 	Created  bool   `json:"created"`
 }
 
-func Finalize(member bool, project string, transfer Transfer, body []byte, known, expired bool, prior *Commit, imported string) (Commit, string) {
+func Finalize(member bool, project string, transfer Transfer, body []byte, known, expired bool, prior *Commit, domainID, domainRevision string) (Commit, string) {
 	if !member {
 		return Commit{}, Revoked
 	}
@@ -95,13 +96,10 @@ func Finalize(member bool, project string, transfer Transfer, body []byte, known
 		}
 		return Commit{}, Conflict
 	}
-	revision := actual
-	created := true
-	if imported != "" {
-		revision = imported
-		created = false
+	if domainID == "" || domainRevision == "" || domainID == "paper-"+actual[:12] {
+		return Commit{}, Unavailable
 	}
-	return Commit{PaperID: "paper-" + actual[:12], Revision: revision, Digest: actual, Created: created}, ""
+	return Commit{PaperID: domainID, Revision: domainRevision, Digest: actual, Created: true}, ""
 }
 
 func traversed(value string) bool {

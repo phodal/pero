@@ -44,6 +44,7 @@ pub enum FileError {
     Interrupted,
     Conflict,
     CancelledTransfer,
+    Unavailable,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -108,7 +109,7 @@ pub fn finalize(
     handle_known: bool,
     handle_expired: bool,
     prior: Option<&PaperCommit>,
-    imported: Option<&str>,
+    domain: Option<(&str, &str)>,
 ) -> Result<PaperCommit, FileError> {
     if !member {
         return Err(FileError::Revoked);
@@ -157,17 +158,18 @@ pub fn finalize(
         }
         return Err(FileError::Conflict);
     }
-    let revision = imported.unwrap_or(actual.as_str()).to_owned();
-    if let Some(existing) = imported {
-        if existing != revision {
-            return Err(FileError::Conflict);
-        }
+    let Some((paper_id, revision)) = domain else {
+        return Err(FileError::Unavailable);
+    };
+    if paper_id.is_empty() || revision.is_empty() || paper_id == format!("paper-{}", &actual[..12])
+    {
+        return Err(FileError::Unavailable);
     }
     Ok(PaperCommit {
-        paper_id: format!("paper-{}", &actual[..12]),
-        revision,
+        paper_id: paper_id.to_owned(),
+        revision: revision.to_owned(),
         digest: actual,
-        created: imported.is_none(),
+        created: true,
     })
 }
 
@@ -257,7 +259,18 @@ mod tests {
     #[test]
     fn import_commits_one_revision_and_retries_do_not_duplicate_it() {
         let transfer = transfer();
-        let first = finalize(true, "lab", &transfer, PDF, true, false, None, None).unwrap();
+        let first = finalize(
+            true,
+            "lab",
+            &transfer,
+            PDF,
+            true,
+            false,
+            None,
+            Some(("doc-1", transfer.digest.as_str())),
+        )
+        .unwrap();
+        assert_eq!(first.paper_id, "doc-1");
         assert!(first.created);
         assert_eq!(first.digest, transfer.digest);
         let again = finalize(
@@ -268,7 +281,7 @@ mod tests {
             true,
             false,
             Some(&first),
-            Some(first.revision.as_str()),
+            Some(("doc-1", first.revision.as_str())),
         )
         .unwrap();
         assert!(!again.created);
