@@ -141,6 +141,9 @@ impl Workbench {
                             reference: json!({"task_id":run["task_id"],"run_id":run["run_id"],"generation":run["generation"]}),
                         }
                     }).collect();
+                    if !self.deliveries.selected.is_empty() {
+                        self.open_delivery(self.deliveries.selected.clone(), cx);
+                    }
                 }
                 "remote_delivery_create" => {
                     self.deliveries.request = None;
@@ -171,9 +174,11 @@ impl Workbench {
     }
 
     fn open_delivery(&mut self, id: String, cx: &mut Context<Self>) {
-        self.deliveries.selected = id.clone();
-        self.deliveries.detail = Value::Null;
-        self.deliveries.evidence = Value::Null;
+        if self.deliveries.selected != id {
+            self.deliveries.selected = id.clone();
+            self.deliveries.detail = Value::Null;
+            self.deliveries.evidence = Value::Null;
+        }
         self.deliveries.waiting = true;
         self.command(
             json!({"action":"remote_delivery_read","project":self.deliveries.project,"id":id}),
@@ -219,6 +224,12 @@ impl Workbench {
                                         .ghost()
                                         .small()
                                         .label(self.t("remote.refresh"))
+                                        .relative()
+                                        .child(
+                                            self.view_bounds
+                                                .projects
+                                                .probe("delivery:refresh".into()),
+                                        )
                                         .disabled(self.deliveries.waiting)
                                         .on_click(cx.listener(|this, _, _, cx| {
                                             this.load_project_deliveries(cx)
@@ -287,6 +298,7 @@ impl Workbench {
                                             .justify_start()
                                             .label(string(record, "title").to_owned())
                                             .toggled(id == self.deliveries.selected)
+                                            .disabled(self.deliveries.waiting)
                                             .relative()
                                             .child(
                                                 self.view_bounds
@@ -422,7 +434,9 @@ impl Workbench {
                 let short_id = id.trim_start_matches("run_").chars().take(10).collect::<String>();
                 let machine = [worker, value("agent_id")].into_iter().filter(|label| !label.is_empty()).collect::<Vec<_>>().join(" · ");
                 Some(div().flex().flex_col().gap(px(3.)).pt(px(7.)).border_t_1().border_color(p.border)
-                    .child(div().font_weight(FontWeight::MEDIUM).child(format!("{} · {status}", self.t(label))))
+                    .child(div().relative().font_weight(FontWeight::MEDIUM)
+                        .child(self.view_bounds.projects.probe(format!("delivery:status:{id}:{}", value("status"))))
+                        .child(format!("{} · {status}", self.t(label))))
                     .child(div().text_color(p.text_muted).child(machine))
                     .child(div().flex().items_center().gap(px(4.)).text_color(p.text_muted)
                         .child(format!("{} {}", self.t("delivery.generation"), run["generation"]))
@@ -439,6 +453,7 @@ impl Workbench {
                 .child(div().flex().flex_wrap().gap(px(6.)).children(EVIDENCE.into_iter().enumerate().filter_map(|(index, (key,label))| {
                     if !detail[key].is_object() { return None; }
                     Some(Button::new(("delivery-evidence", index)).outline().small().label(self.t(label))
+                        .disabled(self.deliveries.waiting)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.deliveries.evidence = Value::Null;
                             this.deliveries.waiting = true;

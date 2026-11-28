@@ -104,8 +104,13 @@ try {
   await click('tab:delivery.title');
   await click('delivery:record:' + delivery.id);
   for (const ref of Object.values(stages)) await bounds('delivery:run:' + ref.run_id);
+  const runId = stages.analysis.run_id;
+  await bounds(`delivery:status:${runId}:queued`);
+  await api('/api/v1/tasks/' + stages.analysis.task_id + '/cancel', operator, {});
+  await click('delivery:refresh');
+  await bounds(`delivery:status:${runId}:cancelled`);
   await page.screenshot({ path: join(output, 'coding-delivery.png'), scale: 'css' });
-  console.log('Desktop reopened one shared delivery with all three original Run IDs.');
+  console.log('Desktop reopened three exact Runs and refreshed a changed status without replacing the original Run.');
 } catch (error) {
   await page?.screenshot({ path: join(output, 'coding-delivery-failure.png'), scale: 'css' }).catch(() => {});
   throw error;
