@@ -171,7 +171,7 @@
     {"path": "/host/environment/profiles", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "App origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/environment/profiles"},
     {"path": "/host/notebook-projects", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "notebook origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/notebook-projects"},
     {"path": "/host/canvas", "owner": "host", "effect": "control", "exposure": "local_only", "permission": "notebook origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/canvas"},
-    {"path": "/host/inputs", "owner": "shell", "effect": "read", "exposure": "privileged", "permission": "frozen input grant", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/inputs"},
+    {"path": "/host/inputs", "owner": "shell", "effect": "read", "exposure": "privileged", "permission": "frozen input grant", "carrier": "app-frame", "platforms": ["electron"], "deferred": true, "evidence": "desktop/src/main/apps.ts /host/inputs and /api/apps/${name}/inputs/"},
     {"path": "/host/artifacts", "owner": "shell", "effect": "read", "exposure": "local_only", "permission": "scientific-viewer snapshot", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/artifacts"},
     {"path": "/host/docling-runtime", "owner": "shell", "effect": "control", "exposure": "local_only", "permission": "paper-agent origin", "carrier": "app-frame", "platforms": ["electron", "native"], "deferred": true, "evidence": "apps.ts /host/docling-runtime"},
     {"path": "/host/reproduction", "owner": "host", "effect": "control", "exposure": "privileged", "permission": "paper-agent; Host approval stays private", "carrier": "app-frame", "platforms": ["electron"], "deferred": true, "evidence": "desktop/src/main/apps.ts /host/reproduction"},
@@ -195,6 +195,7 @@
     {"id": "skillhub-deadline", "electron": "skillhub-search and skillhub-versions use a 12000ms host deadline", "native": "skillsmarket uses the shared request timeout", "evidence": "apps.ts /host/skills"},
     {"id": "agent-cancel-hook", "electron": "Direct /host/agent cancel with cancelled true calls onAgentCancel", "native": "The route returns the Host result and does not show that shell hook", "evidence": "apps.ts /host/agent"},
     {"id": "reproduction-route", "electron": "POST /host/reproduction exists for paper-agent", "native": "No matching /host/reproduction branch in native_apps.rs", "evidence": "apps.ts /host/reproduction; native_apps.rs"},
+    {"id": "inputs-route", "electron": "GET /host/inputs/:sha256 and the /api/apps/${name}/inputs/ rewrite serve a frozen input grant", "native": "native_apps.rs has neither /host/inputs/ nor that rewrite", "evidence": "desktop/src/main/apps.ts; crates/pero-ui/src/native_apps.rs"},
     {"id": "automation-envelope", "electron": "Envelope copies operation onto the automation body", "native": "Same copy", "evidence": "automation_app.rs deny_unknown_fields AppRequest", "note": "Both shells share this clash. Direct /host/automation is the working carrier."}
   ],
   "drift": [
