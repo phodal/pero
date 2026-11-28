@@ -1,0 +1,658 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openpero.com/protocol/capabilities.schema.json",
+  "title": "CapabilityProtocol",
+  "description": "Generated from protocol/capabilities.tsp. Do not edit.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/CapabilityWire"
+    }
+  ],
+  "$defs": {
+    "AgentStatusCall": {
+      "title": "AgentStatusCall",
+      "type": "object",
+      "properties": {
+        "capability": {
+          "type": "string",
+          "const": "agent"
+        },
+        "operation": {
+          "type": "string",
+          "const": "status"
+        },
+        "input": {
+          "$ref": "#/$defs/AgentStatusInput"
+        }
+      },
+      "required": [
+        "capability",
+        "operation",
+        "input"
+      ],
+      "additionalProperties": false,
+      "description": "POST /host/capability body for the agent status read."
+    },
+    "AgentStatusInput": {
+      "title": "AgentStatusInput",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/AgentWorkspaceScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false,
+      "description": "Input object inside the legacy capability envelope. The shell adds operation."
+    },
+    "AgentStatusRequest": {
+      "title": "AgentStatusRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "status"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentWorkspaceScope"
+        },
+        "runId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "scope",
+        "runId"
+      ],
+      "additionalProperties": false,
+      "description": "Body of POST /host/app-agent after the shell merges the envelope operation."
+    },
+    "AgentStatusResponse": {
+      "title": "AgentStatusResponse",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/AgentWorkspaceScope"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "running"
+            },
+            {
+              "type": "string",
+              "const": "needs_input"
+            },
+            {
+              "type": "string",
+              "const": "cancelling"
+            },
+            {
+              "type": "string",
+              "const": "completed"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "interrupted"
+            }
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "stopReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "scope",
+        "status",
+        "attempt",
+        "requestId",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "Projection returned by the Host App Agent status read.\nSame fields as the Host Run serializer. No result object is emitted."
+    },
+    "AgentWorkspaceScope": {
+      "title": "AgentWorkspaceScope",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "additionalProperties": false,
+      "description": "Host App Agent scope. The executing parser stores only workspaceId.\nThe SDK type also allows projectId; that field is not on this wire."
+    },
+    "CapabilityAdmission": {
+      "title": "CapabilityAdmission",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "const": "accepted"
+        },
+        "grant": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "required": [
+        "outcome",
+        "grant"
+      ],
+      "additionalProperties": false,
+      "description": "Successful negotiation still grants nothing."
+    },
+    "CapabilityDescriptor": {
+      "title": "CapabilityDescriptor",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/CapabilityId"
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperationDescriptor"
+          }
+        },
+        "provider": {
+          "$ref": "#/$defs/ProviderIdentity"
+        },
+        "availability": {
+          "$ref": "#/$defs/ScopedAvailability"
+        }
+      },
+      "required": [
+        "id",
+        "protocolVersion",
+        "operations",
+        "provider",
+        "availability"
+      ],
+      "additionalProperties": false,
+      "description": "Stable capability advertisement. Declaring it grants nothing."
+    },
+    "CapabilityError": {
+      "title": "CapabilityError",
+      "type": "object",
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "missing_version"
+            },
+            {
+              "type": "string",
+              "const": "version_mismatch"
+            },
+            {
+              "type": "string",
+              "const": "unknown_operation"
+            },
+            {
+              "type": "string",
+              "const": "invalid_input"
+            },
+            {
+              "type": "string",
+              "const": "unavailable"
+            },
+            {
+              "type": "string",
+              "const": "denied"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityId"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false,
+      "description": "Structured error for the capability contract. Current shells still return text."
+    },
+    "CapabilityId": {
+      "title": "CapabilityId",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "CapabilityNegotiation": {
+      "title": "CapabilityNegotiation",
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityId"
+        },
+        "operation": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "declaredHost": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advertised": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "capability",
+        "operation",
+        "declaredHost",
+        "advertised"
+      ],
+      "additionalProperties": false,
+      "description": "Negotiation document. protocolVersion is required here and is not added to\nlegacy operation bodies. declaredHost is the existing permissions.host list.\nadvertised records a manifest or provider advertisement. Neither is a grant."
+    },
+    "CapabilityWire": {
+      "title": "CapabilityWire",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AgentStatusCall"
+        },
+        {
+          "$ref": "#/$defs/AgentStatusRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentStatusResponse"
+        },
+        {
+          "$ref": "#/$defs/ResearchAssetsQueriesRequest"
+        },
+        {
+          "$ref": "#/$defs/ResearchAssetsQueriesResponse"
+        },
+        {
+          "$ref": "#/$defs/CapabilityError"
+        },
+        {
+          "$ref": "#/$defs/CapabilityNegotiation"
+        },
+        {
+          "$ref": "#/$defs/CapabilityDescriptor"
+        },
+        {
+          "$ref": "#/$defs/CapabilityAdmission"
+        }
+      ]
+    },
+    "Closed": {
+      "title": "Closed",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Spread to reject unknown fields, matching serde deny_unknown_fields."
+    },
+    "OperationDescriptor": {
+      "title": "OperationDescriptor",
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/OperationName"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "effect": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "read"
+            },
+            {
+              "type": "string",
+              "const": "write"
+            },
+            {
+              "type": "string",
+              "const": "control"
+            },
+            {
+              "type": "string",
+              "const": "observe"
+            }
+          ]
+        },
+        "exposure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "local_only"
+            },
+            {
+              "type": "string",
+              "const": "transport_neutral"
+            },
+            {
+              "type": "string",
+              "const": "remotely_exposable"
+            },
+            {
+              "type": "string",
+              "const": "privileged"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "effect",
+        "exposure"
+      ],
+      "additionalProperties": false
+    },
+    "OperationName": {
+      "title": "OperationName",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "ProtocolVersion": {
+      "title": "ProtocolVersion",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "ProviderIdentity": {
+      "title": "ProviderIdentity",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "incarnation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "incarnation"
+      ],
+      "additionalProperties": false
+    },
+    "ResearchAssetsQueriesRequest": {
+      "title": "ResearchAssetsQueriesRequest",
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "queries"
+        },
+        "queryId": {
+          "$ref": "#/$defs/ResearchId"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false,
+      "description": "Host research-assets read. operation is the Host name `queries`.\nA queryId reads one saved Data query. Omitting it lists saved queries.\nprotocol/apps.tsp still documents only start, status and cancel."
+    },
+    "ResearchAssetsQueriesResponse": {
+      "title": "ResearchAssetsQueriesResponse",
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ResearchId"
+        },
+        "intent": {
+          "$ref": "#/$defs/ResearchQueryDocument"
+        },
+        "receipt": {
+          "$ref": "#/$defs/ResearchQueryReceipt"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/ResearchQueryDocument"
+        },
+        "definition": {
+          "$ref": "#/$defs/ResearchQueryDefinition"
+        },
+        "acceptance": {
+          "type": "string",
+          "const": "needs_review"
+        }
+      },
+      "required": [
+        "id",
+        "intent",
+        "receipt",
+        "snapshot",
+        "definition",
+        "acceptance"
+      ],
+      "additionalProperties": false,
+      "description": "Data evidence() object returned unchanged by the Host queries read.\nacceptance stays needs_review; a successful read is not scientific approval."
+    },
+    "ResearchId": {
+      "title": "ResearchId",
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Data-owned research identity. Same 64 lowercase hex rule as the Host parser."
+    },
+    "ResearchQueryDefinition": {
+      "title": "ResearchQueryDefinition",
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "denominator": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sql",
+        "unit",
+        "denominator"
+      ],
+      "additionalProperties": {}
+    },
+    "ResearchQueryDocument": {
+      "title": "ResearchQueryDocument",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "Domain documents keep their own fields. The envelope itself is closed."
+    },
+    "ResearchQueryReceipt": {
+      "title": "ResearchQueryReceipt",
+      "type": "object",
+      "properties": {
+        "queryId": {
+          "$ref": "#/$defs/ResearchId"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "completed"
+            },
+            {
+              "type": "string",
+              "const": "failed"
+            },
+            {
+              "type": "string",
+              "const": "cancelled"
+            },
+            {
+              "type": "string",
+              "const": "running"
+            },
+            {
+              "type": "string",
+              "const": "interrupted"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {}
+        },
+        "rowCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "elapsedSeconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultId": {
+          "$ref": "#/$defs/ResearchId"
+        }
+      },
+      "required": [
+        "queryId",
+        "status",
+        "reason",
+        "rows",
+        "rowCount",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "ScopedAvailability": {
+      "title": "ScopedAvailability",
+      "type": "object",
+      "properties": {
+        "scopeKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "workspace"
+            },
+            {
+              "type": "string",
+              "const": "project"
+            },
+            {
+              "type": "string",
+              "const": "app"
+            },
+            {
+              "type": "string",
+              "const": "device"
+            },
+            {
+              "type": "string",
+              "const": "unscoped"
+            }
+          ]
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "advertised"
+            },
+            {
+              "type": "string",
+              "const": "unavailable"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scopeKind",
+        "state"
+      ],
+      "additionalProperties": false,
+      "description": "Advertised scope. state is not authorization."
+    }
+  }
+}

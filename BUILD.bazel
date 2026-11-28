@@ -65,6 +65,8 @@ _CONTRACT_OUTPUTS = [
     "host.ts",
     "remote.schema.json",
     "remote.ts",
+    "capabilities.schema.json",
+    "capabilities.ts",
 ]
 
 js_run_binary(
