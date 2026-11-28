@@ -156,6 +156,11 @@ impl Workbench {
         if self.project_agent_active() {
             self.focus_project_composer(window, cx);
         }
+        // Leaving the Project lets the one-shot poll expire. Reopening restores
+        // this tab without a click, so start the read again.
+        if self.project_tab == ProjectTab::Campaigns {
+            self.refresh_campaigns(cx);
+        }
         cx.notify();
     }
 
