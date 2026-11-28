@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -18,6 +20,7 @@ type PaperImporter interface {
 
 // DeviceDesk keeps one project's in-flight upload and asks the domain to import it once.
 type DeviceDesk interface {
+	Register(project string, handle devicetransfer.Handle)
 	Lookup(project, handle string) (devicetransfer.Handle, bool, bool)
 	Put(project, upload string, body []byte, transfer devicetransfer.Transfer)
 	Get(project, upload string) (body []byte, transfer devicetransfer.Transfer, commit *devicetransfer.Commit, ok bool)
@@ -133,6 +136,80 @@ func (d *importingDesk) Cancel(project, upload string) bool {
 	current.body = nil
 	d.uploads[project][upload] = current
 	return true
+}
+
+func (a *API) acceptDeviceHandle(w http.ResponseWriter, r *http.Request) {
+	project := r.PathValue("project")
+	if !deviceMember(r, project) {
+		deviceError(w, devicetransfer.Revoked)
+		return
+	}
+	if strings.Contains(project, "..") || strings.ContainsAny(project, "/\\") {
+		deviceError(w, devicetransfer.Traversal)
+		return
+	}
+	var request struct {
+		ID        string `json:"id"`
+		Provider  string `json:"provider"`
+		MediaType string `json:"mediaType"`
+		Size      uint64 `json:"size"`
+		Name      string `json:"name"`
+	}
+	raw, ok := decodeDeviceObject(w, r)
+	if !ok {
+		return
+	}
+	for _, key := range []string{"path", "absolutePath", "url", "token"} {
+		if _, present := raw[key]; present {
+			deviceError(w, devicetransfer.Traversal)
+			return
+		}
+	}
+	decoder := json.NewDecoder(bytes.NewReader(mustJSON(raw)))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&request) != nil {
+		deviceError(w, devicetransfer.Conflict)
+		return
+	}
+	if request.Provider != "browser" && request.Provider != "desktop" {
+		deviceError(w, devicetransfer.Foreign)
+		return
+	}
+	if request.MediaType != "application/pdf" || request.Size == 0 || request.Size > devicetransfer.MaxBytes {
+		deviceError(w, devicetransfer.OverLimit)
+		return
+	}
+	if request.ID == "" || request.Name == "" || strings.Contains(request.ID, "..") || strings.Contains(request.Name, "..") || strings.ContainsAny(request.ID+request.Name, "/\\") {
+		deviceError(w, devicetransfer.Traversal)
+		return
+	}
+	a.files.Register(project, devicetransfer.Handle{
+		ID: request.ID, Provider: request.Provider, MediaType: request.MediaType, Size: request.Size, Name: request.Name,
+	})
+	respond(w, 201, map[string]string{"id": request.ID, "project": project})
+}
+
+func decodeDeviceObject(w http.ResponseWriter, r *http.Request) (map[string]json.RawMessage, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(bytes.TrimSpace(body)) == 0 || bytes.TrimSpace(body)[0] != '{' {
+		respond(w, 400, map[string]string{"error": "expected a bounded JSON object"})
+		return nil, false
+	}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(body, &raw) != nil {
+		respond(w, 400, map[string]string{"error": "invalid JSON request or request exceeds limit"})
+		return nil, false
+	}
+	return raw, true
+}
+
+func mustJSON(raw map[string]json.RawMessage) []byte {
+	body, err := json.Marshal(raw)
+	if err != nil {
+		return []byte("{}")
+	}
+	return body
 }
 
 func (a *API) acceptDeviceBytes(w http.ResponseWriter, r *http.Request) {

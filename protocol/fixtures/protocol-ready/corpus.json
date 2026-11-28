@@ -1,0 +1,65 @@
+{
+  "schema": "pero.protocol-ready.v1",
+  "protocolVersion": 1,
+  "project": "lab",
+  "clientToken": "protocol-ready-client",
+  "ownerHost": "paper-owner",
+  "localProject": "local-lab",
+  "app": "paper-agent",
+  "appInstance": "paper-agent@paper-owner",
+  "appVersion": "1",
+  "paperId": "paper-1",
+  "revision": "34ad712113ddbb4f4c4dc5f46380924a5ff69f53e0e5bc1b63e03c5bb6d44f90",
+  "evidence": "pero-paper-evidence-v1",
+  "pdf": "%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+  "runId": "run-1",
+  "runOwner": "control-plane",
+  "remoteAllow": ["paper.read", "run.observe", "device.files.pick", "device.files.transfer"],
+  "notRemote": ["agent/start", "agent/cancel", "agent/retry", "agent/prepare", "agent/terminal", "connectors/secret.set"],
+  "version": [
+    {"id": "current", "protocolVersion": 1, "capability": "paper", "operation": "read", "outcome": "ready"},
+    {"id": "zero", "protocolVersion": 0, "capability": "paper", "operation": "read", "outcome": "incompatible"},
+    {"id": "next", "protocolVersion": 2, "capability": "run", "operation": "observe", "outcome": "incompatible"},
+    {"id": "unknown-operation", "protocolVersion": 1, "capability": "paper", "operation": "compile", "outcome": "unsupported"}
+  ],
+  "dispatch": [
+    {
+      "id": "agent-status",
+      "body": {"capability": "agent", "operation": "status", "input": {"runId": "run-1"}},
+      "route": "/host/app-agent",
+      "owner": "host",
+      "injectOperation": true,
+      "forward": {"runId": "run-1", "operation": "status"},
+      "remote": false
+    },
+    {
+      "id": "agent-start-stays-local",
+      "body": {"capability": "agent", "operation": "start", "input": {"runId": "run-1"}},
+      "route": "/host/app-agent",
+      "owner": "host",
+      "injectOperation": true,
+      "forward": {"runId": "run-1", "operation": "start"},
+      "remote": false
+    },
+    {
+      "id": "unknown-operation",
+      "body": {"capability": "agent", "operation": "compile", "input": {}},
+      "error": "unknown_operation",
+      "remote": false
+    }
+  ],
+  "remote": [
+    {"id": "scoped-login", "expect": "client"},
+    {"id": "paper-read", "expect": "evidence"},
+    {"id": "pdf-import-once", "expect": "created-once"},
+    {"id": "paper-reopen", "expect": "same-bytes"},
+    {"id": "run-observe", "expect": "observed"},
+    {"id": "run-disconnect", "expect": "transport_abort"},
+    {"id": "run-replay", "expect": "duplicate"},
+    {"id": "run-gap", "expect": "gap"},
+    {"id": "wrong-project", "expect": "wrong_project"},
+    {"id": "missing-token", "expect": "authentication required"},
+    {"id": "operator-route", "expect": "absent"},
+    {"id": "path-handle", "expect": "traversal"}
+  ]
+}
