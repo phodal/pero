@@ -39,3 +39,4 @@
 - [0034: Auditable memory projections before service adoption](0034-auditable-memory-projections.md) — accepted research decision; runtime adoption deferred
 - [0035: Data semantic definition and query receipt contract](0035-data-semantic-contract.md) — reuse-contract-only; no upstream deployment adoption
 - [0036: MCP Apps Host Runtime and saved Notebook Inspector](0036-mcp-apps-host-runtime.md) — v0 renderer and first product consumer
+- [0037: Temporal for durable shared research campaigns](0037-temporal-research-campaigns.md) — accepted, implementation tracked under Compute #249
