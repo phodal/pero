@@ -231,7 +231,8 @@ work.mkdir(mode=0o700)
 (work/'source.txt').write_text(options['nonce']+'\n')
 local_agent=str(root/'pero-agent-acp')
 catalog=[{'id':'codex','name':'Codex ACP','command':'/opt/homebrew/bin/codex-acp','args':[],
- 'env':{'CODEX_PATH':'/opt/homebrew/bin/codex','INITIAL_AGENT_MODE':'workspace-write'}},
+ 'env':{'CODEX_PATH':'/opt/homebrew/bin/codex','INITIAL_AGENT_MODE':'workspace-write'},
+ 'supervision':'gate'},
  {'id':'pero','name':'DSH Go','command':local_agent,'args':
  ['--endpoint',options['model'],'--model','deepseek-flash','--session-dir',str(data/'sessions'),
   '--workspace','{workspace}','--api-key-env','AGENT_TEST_LOCAL_PROXY','--max-requests','4',

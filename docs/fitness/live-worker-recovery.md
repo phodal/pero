@@ -51,11 +51,13 @@ the poller, and cuts only A's test Worker connection. It waits for the exact
 DSH process to stop and the original Journal to be retained before recording
 operator evidence and intentionally dispatching the next generation to B.
 B temporarily runs DSH for that retry because the Task freezes its Agent type.
-The separate coding task uses Codex on B. A supervised Worker session refuses
-that Codex ACP peer before the first prompt, because initialize must name
-`pero-agent-acp` and the session must acknowledge the required permission mode.
-The DSH retry on B still meets that check. The source fixture, model proposal,
-candidate patch and receipt remain available for inspection.
+The separate coding task uses Codex on B. That agents-file entry sets
+`supervision` to `gate`: the Worker does not select a DSH permission mode, and
+unattended permission requests stay denied. The DSH retry still initializes as
+`pero-agent-acp` and acknowledges its permission mode. The source fixture, model
+proposal, candidate patch and receipt remain available for inspection. The
+two-machine receipt from the previous head does not cover this admission rule
+and has to be run again on the current head before it counts as acceptance.
 
 ```sh
 python3 tests/runtime/live-worker-recovery.py \

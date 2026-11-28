@@ -92,8 +92,9 @@ single-model launch still returns no model selector. Every session also
 advertises a `permission` selector, defaulting to `auto-review`. `read-only`
 rejects file changes and commands. `full-access` asks before them and does not
 put commands in an OS sandbox; only an explicit launch `--sandbox` does.
-A supervised Worker must acknowledge `read-only`, or `full-access` when a
-native approval binding is pinned, before the first prompt. These are
+When a Worker peer initializes as `pero-agent-acp`, it must acknowledge
+`read-only`, or `full-access` when a native approval binding is pinned, before
+the first prompt. These are
 operator declarations, not model discovery: the existing compatible adapter
 returns detached metadata from its configured catalog without HTTP requests.
 The existing ProviderRegistry validates metadata and Agent.SelectModel validates

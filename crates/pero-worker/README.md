@@ -29,7 +29,7 @@ queue once and exits after at most one execution):
 
 ```json
 [
-  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {} }
+  { "id": "codex", "name": "Codex", "command": "/usr/local/bin/codex-acp", "args": [], "env": {}, "supervision": "gate" }
 ]
 ```
 
@@ -59,19 +59,22 @@ monotonic watchdog stops execution when its lease expires. The Worker first
 requests ACP cancellation, then enforces bounded cleanup of its executor and
 the Agent's separate SDK process group. The executor also detects supervisor
 death. Failure to confirm cleanup produces `reconcile` and stops task intake.
-Unattended permission requests are denied by default. Every supervised Worker
-session requires the peer to initialize as `pero-agent-acp`, the DSH harness
-that advertises the `permission` selector. A different `agentInfo.name`, or a
-missing `agentInfo`, fails the session before `session/new` and before the
-first prompt. An identified peer must then acknowledge `read-only` when the
-run has no native approval binding, or `full-access` when it has one. A
-missing selector, a rejected selection, or an acknowledgement that leaves a
-different mode also fails the session before the prompt. That acknowledgement
-replaces DSH's `auto-review` default, where file edits and commands proceed
-without a prompt and commands have no OS sandbox. Desktop sessions started
-outside the Worker keep their previous admission. A Worker peer that cannot
-be identified as this DSH, including Codex ACP, is refused before its prompt.
-All `PERO_*` environment variables are
+Unattended permission requests are denied by default. A peer that initializes
+as `pero-agent-acp` must acknowledge `read-only` when the run has no native
+approval binding, or `full-access` when it has one, before the first prompt.
+A missing selector, a rejected selection, or an acknowledgement that leaves a
+different mode fails that session before the prompt. A different
+`agentInfo.name`, or a missing `agentInfo`, does not skip the selector.
+Another agent is admitted only when its agents-file entry sets
+`"supervision": "gate"`. The id and command name are not that opt-in.
+Gate-only supervision sets no DSH permission mode, and every unattended
+permission request stays denied by the Worker. Without the field, the session
+fails before `session/new`. The shipped Codex entry, including the packaged
+`codex-acp` adapter and the default local and remote agent id `codex`, carries
+`supervision: "gate"`. Built-in non-DSH agents ship with the same opt-in.
+`pero` does not: that binary must identify as `pero-agent-acp` and acknowledge
+the selector. Desktop sessions started outside the Worker keep their previous
+admission. All `PERO_*` environment variables are
 removed from the executor and Agent configuration; provider credentials should
 use the provider's own variable names.
 
