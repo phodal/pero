@@ -62,9 +62,14 @@ func (a *API) registerDeliveries(mux *http.ServeMux, reader ArtifactReader) {
 }
 
 func (a *API) listDeliveries(w http.ResponseWriter, r *http.Request) {
-	result, err := a.db.ClientDeliveries(r.Context(), clientIdentity(r), r.PathValue("project"))
+	before := r.URL.Query().Get("before")
+	result, err := a.db.ClientDeliveries(r.Context(), clientIdentity(r), r.PathValue("project"), before)
 	if err != nil {
 		failure(w, err)
+		return
+	}
+	if before != "" {
+		respond(w, 200, result)
 		return
 	}
 	choices, err := a.db.ClientDeliveryRunChoices(r.Context(), clientIdentity(r), r.PathValue("project"))
@@ -73,8 +78,8 @@ func (a *API) listDeliveries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, struct {
-		Deliveries []store.DeliveryRecord    `json:"deliveries"`
-		Runs       []store.DeliveryRunChoice `json:"runs"`
+		store.DeliveryPage
+		Runs []store.DeliveryRunChoice `json:"runs"`
 	}{result, choices})
 }
 

@@ -122,7 +122,7 @@ func (m DeliveryManifest) validate() error {
 	for _, kind := range deliveryEvidenceKinds {
 		link := m.evidence(kind)
 		e := link.evidence
-		if e != nil && (link.ref == nil || !deliveryKey.MatchString(e.ExportID) ||
+		if e != nil && (link.ref == nil || e.ExportID == "" || len(e.ExportID) > 128 ||
 			!deliveryKey.MatchString(e.FileID) || !deliveryDigest.MatchString(e.SHA256)) {
 			return ErrDeliveryInput
 		}
@@ -164,24 +164,37 @@ func readDelivery(row pgx.Row) (DeliveryRecord, error) {
 	return result, json.Unmarshal(raw, &result.DeliveryManifest)
 }
 
-func (s *Store) ClientDeliveries(ctx context.Context, client *Client, project string) ([]DeliveryRecord, error) {
+type DeliveryPage struct {
+	Deliveries []DeliveryRecord `json:"deliveries"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+}
+
+func (s *Store) ClientDeliveries(ctx context.Context, client *Client, project, before string) (DeliveryPage, error) {
 	if !slices.Contains(client.Projects, project) {
-		return nil, ErrNotFound
+		return DeliveryPage{}, ErrNotFound
 	}
-	rows, err := s.pool.Query(ctx, "SELECT "+deliveryColumns+" FROM project_deliveries WHERE project_id=$1 ORDER BY created_at DESC,id DESC LIMIT 50", project)
+	const pageSize = 50
+	rows, err := s.pool.Query(ctx, "SELECT "+deliveryColumns+` FROM project_deliveries
+		WHERE project_id=$1 AND ($2='' OR (created_at,id)<(
+			SELECT created_at,id FROM project_deliveries WHERE project_id=$1 AND id=$2))
+		ORDER BY created_at DESC,id DESC LIMIT $3`, project, before, pageSize+1)
 	if err != nil {
-		return nil, err
+		return DeliveryPage{}, err
 	}
 	defer rows.Close()
-	result := []DeliveryRecord{}
+	page := DeliveryPage{Deliveries: []DeliveryRecord{}}
 	for rows.Next() {
+		if len(page.Deliveries) == pageSize {
+			page.NextCursor = page.Deliveries[pageSize-1].ID
+			break
+		}
 		entry, err := readDelivery(rows)
 		if err != nil {
-			return nil, err
+			return DeliveryPage{}, err
 		}
-		result = append(result, entry)
+		page.Deliveries = append(page.Deliveries, entry)
 	}
-	return result, rows.Err()
+	return page, rows.Err()
 }
 
 // ClientDeliveryRunChoices lists bounded recent exact Runs. Earlier generations
@@ -247,8 +260,12 @@ func (s *Store) projectDelivery(ctx context.Context, client *Client, record Deli
 		if run.Ref() != *link.ref {
 			return DeliveryView{}, ErrNotFound
 		}
+		worker := run.WorkerID
+		if worker == "" {
+			worker = run.targetWorkerID
+		}
 		*link.view = &DeliveryRunView{RunRef: run.Ref(), AgentID: run.Spec.AgentID,
-			WorkspaceKey: run.Spec.WorkspaceKey, WorkerID: run.WorkerID, Status: run.Status, Reconciliation: run.Reconciliation()}
+			WorkspaceKey: run.Spec.WorkspaceKey, WorkerID: worker, Status: run.Status, Reconciliation: run.Reconciliation()}
 	}
 	if view.AnalysisRetryRun != nil && view.AnalysisRun.Reconciliation == nil {
 		return DeliveryView{}, ErrConflict

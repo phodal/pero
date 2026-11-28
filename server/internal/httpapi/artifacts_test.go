@@ -179,7 +179,7 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 		request(t, server, "GET", path, foreign, nil, "", 404)
 	}
 	view := parse[store.DeliveryView](t, request(t, server, "GET", delivery, member, nil, "", 200))
-	if view.AnalysisRun == nil || view.AnalysisRun.RunRef != ref || view.Proposal == nil || *view.Proposal != *manifest.Proposal {
+	if view.AnalysisRun == nil || view.AnalysisRun.RunRef != ref || view.AnalysisRun.WorkerID == "" || view.Proposal == nil || *view.Proposal != *manifest.Proposal {
 		t.Fatalf("reopened delivery lost exact provenance: %+v", view)
 	}
 	evidence := parse[map[string]string](t, request(t, server, "GET", preview, member, nil, "", 200))
@@ -208,6 +208,19 @@ func TestArtifactCollectorAndAuthorizedDownload(t *testing.T) {
 	view = parse[store.DeliveryView](t, request(t, server, "GET", delivery, member, nil, "", 200))
 	if view.AnalysisRun == nil || view.AnalysisRun.RunRef != ref || view.ImplementationRun == nil || view.ImplementationRun.RunRef != implementation {
 		t.Fatalf("appending a stage lost exact provenance: %+v", view)
+	}
+	for index := range 50 {
+		next := manifest
+		next.Title = fmt.Sprintf("Delivery %d", index)
+		request(t, server, "POST", deliveries, member, next, next.Title, 200)
+	}
+	page := parse[store.DeliveryPage](t, request(t, server, "GET", deliveries, member, nil, "", 200))
+	if len(page.Deliveries) != 50 || page.NextCursor != page.Deliveries[49].ID {
+		t.Fatalf("delivery list did not return a full first page and a stable cursor")
+	}
+	older := parse[store.DeliveryPage](t, request(t, server, "GET", deliveries+"?before="+page.NextCursor, member, nil, "", 200))
+	if len(older.Deliveries) != 1 || older.Deliveries[0].ID != first.ID || older.NextCursor != "" {
+		t.Fatalf("oldest saved delivery cannot be reopened: %+v", older)
 	}
 	objects.mu.Lock()
 	objects.corrupt = true
@@ -241,7 +254,7 @@ func seedArtifactExport(t *testing.T, s *store.Store, lifetime time.Duration) ar
 		t.Fatal(err)
 	}
 	source := artifacts.Source{ProjectID: "project", TaskID: task.ID, RunID: run.ID, Generation: run.Generation, ClusterID: "cluster", Namespace: "project", SandboxUID: "sandbox", PodUID: "pod", PVCName: "volume", PVCUID: "pvc", VolumeName: "pv", ImageDigest: "sha256:" + strings.Repeat("a", 64), TemplateDigest: "sha256:" + strings.Repeat("b", 64), WorkspaceRevision: strings.Repeat("c", 40)}
-	e, err := s.ReserveArtifactExport(ctx, source, artifacts.Policy{Paths: []string{"result.txt"}, MaxFiles: 1, MaxFileBytes: 16, MaxTotalBytes: 16}, "export_1")
+	e, err := s.ReserveArtifactExport(ctx, source, artifacts.Policy{Paths: []string{"result.txt"}, MaxFiles: 1, MaxFileBytes: 16, MaxTotalBytes: 16}, "export.v1")
 	if err != nil {
 		t.Fatal(err)
 	}
