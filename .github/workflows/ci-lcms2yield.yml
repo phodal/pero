@@ -1,0 +1,57 @@
+name: CI lcms2yield
+
+# Reusable jobs only: all automatic triggers and required gates stay in CI.
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: CI-owned job family
+        type: string
+        required: true
+      os:
+        type: string
+        default: ubuntu-latest
+      upload-runtime:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  lcms2yield:
+    if: inputs.suite == 'lcms2yield'
+    name: LCMS2Yield input and browser contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install UI dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/lcms2yield --ignore-scripts
+          # Depends on the GitHub-hosted ubuntu-24.04 image (this job's runs-on),
+          # which already includes Chromium's shared libraries. --with-deps also
+          # downloads multi-megabyte font packages from apt and blew the 5-minute job.
+          npx playwright install chromium
+      - name: Verify selected populations and CSV result attribution
+        run: |
+          npm --prefix apps/lcms2yield test
+          npm --prefix apps/lcms2yield run typecheck
+          npm --prefix apps/lcms2yield run test:browser
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcms2yield-browser
+          path: test-results/lcms2yield/
+          if-no-files-found: error
+

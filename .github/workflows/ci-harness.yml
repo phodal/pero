@@ -1,0 +1,55 @@
+name: CI harness
+
+# One job. Linux also runs the standalone harness Bazel contracts.
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  harness:
+    name: Harness Go contracts (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: harness/go/go.sum
+      - name: Harness race tests
+        working-directory: harness/go
+        run: go test -race -count=1 ./...
+      - name: Harness vet and build
+        if: ${{ !cancelled() }}
+        working-directory: harness/go
+        run: |
+          go vet ./...
+          go build ./cmd/pero-agent-acp
+      - name: Set up Bazel
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-version: 1.x
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Verify generated build declarations
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        working-directory: harness/go
+        run: bazel run --lockfile_mode=error //:gazelle -- -mode=diff
+      - name: Build standalone agent
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        working-directory: harness/go
+        run: bazel build --lockfile_mode=error //cmd/pero-agent-acp
+      - name: Test standalone contracts with race detector
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        working-directory: harness/go
+        run: bazel test --lockfile_mode=error --@rules_go//go/config:race=true //...

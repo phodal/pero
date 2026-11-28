@@ -3,8 +3,6 @@ name: Release Desktop products
 on:
   push:
     tags: ['v*']
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
   schedule:
     - cron: "0 20 * * *"
   workflow_dispatch:
@@ -23,7 +21,7 @@ permissions:
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -65,7 +63,7 @@ jobs:
 
   scope:
     name: Decide optional Virtual Cell packaging
-    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -141,7 +139,7 @@ jobs:
     if: >-
       always() && !cancelled() &&
       ((github.event_name == 'workflow_dispatch' && needs.resolve.result == 'success' && needs.gate.result == 'success') ||
-       ((github.event_name == 'schedule' || github.event_name == 'pull_request') && needs.scope.outputs.run == 'true'))
+       (github.event_name == 'schedule' && needs.scope.outputs.run == 'true'))
     name: ${{ matrix.product }} (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:

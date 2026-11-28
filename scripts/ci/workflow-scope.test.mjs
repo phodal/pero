@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import YAML from 'yaml';
-import { ciScope, ciScopeGlobs, computerUseGlobs, matchesPath, shouldRun } from './workflow-scope.mjs';
+import { ciScope, ciScopeGlobs, computerUseGlobs, fisherSelected, matchesPath, shouldRun } from './workflow-scope.mjs';
 
 test('CI selects affected expensive consumers on PR and push while full and unknown diffs retain them', () => {
   for (const event of ['pull_request', 'push']) {
@@ -159,29 +159,24 @@ test('Computer Use is manual and PR packaging is opt-in without cancelling tagge
 
   const release = YAML.parse(readFileSync('.github/workflows/release.yml', 'utf8'));
   assert.equal(release.on.push.branches, undefined);
-  assert.deepEqual(release.on.pull_request.types, ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled']);
-  assert.equal(release.on.pull_request.paths, undefined);
-  assert.equal(release.concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
+  assert.equal(release.on.pull_request, undefined);
+  assert.equal(release.concurrency['cancel-in-progress'], false);
+  assert.equal(release.jobs.scope.if, "github.event_name == 'schedule'");
   assert.equal(release.jobs.scope.steps.at(-1).run, 'node scripts/ci/workflow-scope.mjs < /dev/null');
   assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_BASE, undefined);
   assert.equal(release.jobs.scope.steps.at(-1).env.SCOPE_KIND, 'release-package');
   const sandbox = YAML.parse(readFileSync('.github/workflows/acceptance.yml', 'utf8'));
-  const isolated = sandbox;
-  assert.deepEqual(sandbox.on.pull_request.types, ['opened', 'reopened', 'synchronize', 'labeled']);
-  for (const workflow of [sandbox, isolated]) {
-    assert.ok(workflow.on.pull_request.paths.includes('server/**'));
-    assert.ok(workflow.on.pull_request.paths.includes('crates/pero-contracts/**'));
-    assert.ok(workflow.on.pull_request.paths.includes('crates/pero-runtime/**'));
-    assert.ok(workflow.on.pull_request.paths.includes('scripts/cargo.mjs'));
-  }
+  assert.deepEqual(Object.keys(sandbox.on), ['workflow_dispatch']);
+  assert.equal(sandbox.jobs.kind.if, "github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-standard'");
+  assert.equal(sandbox.jobs['isolated-kind'].if, "github.event_name == 'workflow_dispatch' && inputs.suite == 'sandbox-isolated'");
   assert.equal(matchesPath('server/**', 'server/internal/httpapi/routes.go'), true);
   assert.equal(matchesPath('server/**', 'server/internal/artifacts/s3/store.go'), true);
   assert.equal(matchesPath('server/**', 'services/http.go'), false);
   assert.equal(matchesPath('crates/pero-runtime/**', 'crates/pero-runtime/src/lib.rs'), true);
   assert.equal(matchesPath('crates/pero-runtime/**', 'crates/pero-host/src/lib.rs'), false);
-  assert.match(sandbox.jobs.kind.if, /agent-sandbox-e2e/);
-  assert.match(isolated.jobs['isolated-kind'].if, /agent-sandbox-isolated-e2e/);
-  assert.match(release.jobs.build.if, /pull_request/);
+  assert.equal(fisherSelected({ event: 'pull_request', files: ['apps/paper-agent/README.md'] }), true);
+  assert.equal(fisherSelected({ event: 'pull_request', files: ['README.md'] }), false);
+  assert.doesNotMatch(release.jobs.build.if, /pull_request/);
   assert.match(release.jobs.build.if, /schedule/);
   assert.match(release.jobs.build.strategy.matrix.include, /workflow_dispatch/);
   assert.match(release.jobs.build.strategy.matrix.include, /virtual-cell/);

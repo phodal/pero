@@ -1,0 +1,53 @@
+name: CI native-ui
+
+# Reusable jobs only: all automatic triggers and required gates stay in CI.
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: CI-owned job family
+        type: string
+        required: true
+      os:
+        type: string
+        default: ubuntu-latest
+      upload-runtime:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  native-ui:
+    if: inputs.suite == 'native-ui'
+    name: Native shell compilation and unit contracts
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly-2026-10-28
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout pinned GPUI outside the Cargo workspace
+        run: |
+          kit="$RUNNER_TEMP/gpui-kit"
+          echo "PERO_GPUI_KIT_PATH=$kit" >> "$GITHUB_ENV"
+          bash scripts/ci/checkout-public-pin.sh "$kit" https://github.com/longbridge/gpui-kit.git 7591a35eced761e3613c01e71ff04c10129dae1a
+      - name: Prepare the fonts embedded by the Native shell
+        run: node scripts/build/fonts.mjs
+      - name: Compile Native entry point and shell wiring
+        run: node scripts/cargo.mjs +nightly-2026-10-28 check --locked -p pero-ui --features native --bin pero-native
+      - name: Test Native Canvas transport and private consent contracts
+        run: node scripts/cargo.mjs +nightly-2026-10-28 test --locked -p pero-ui --features native --lib
+

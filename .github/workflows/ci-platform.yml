@@ -1,0 +1,58 @@
+name: CI platform
+
+# One job. A pull request calls this once; CI full calls it per extra OS.
+on:
+  workflow_call:
+    inputs:
+      os:
+        type: string
+        required: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  platform:
+    name: Go tests and Bazel (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Windows Git would otherwise rewrite LF and change the Bazel lock hashes.
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --local core.autocrlf false
+          git checkout -- .
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@0.19.1
+        with:
+          bazelisk-version: 1.x
+          bazelisk-cache: true
+          repository-cache: true
+
+      # rules_js cannot refresh the pnpm lock on Windows, and its text diffs are
+      # byte compares that do not match the LF sources there.
+      - name: Test generated checks
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        run: bazel test --config=ci //:checks
+
+      - name: Build control plane
+        if: ${{ !cancelled() }}
+        run: bazel build //server/cmd/server
+
+      - name: Set up Go
+        if: ${{ !cancelled() }}
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: server/go.sum
+
+      - name: Test
+        if: ${{ !cancelled() }}
+        working-directory: server
+        run: go test -race ./...

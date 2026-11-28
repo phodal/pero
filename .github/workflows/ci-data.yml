@@ -1,0 +1,66 @@
+name: CI data
+
+# Reusable jobs only: all automatic triggers and required gates stay in CI.
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: CI-owned job family
+        type: string
+        required: true
+      os:
+        type: string
+        default: ubuntu-latest
+      upload-runtime:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  data:
+    if: inputs.suite == 'data'
+    name: Data local catalog and download contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test opaque imports, bounded downloads and restart persistence
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s apps/data/test -p 'test_*.py' -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/data/package-lock.json
+      - name: Install Data browser test dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix apps/data --ignore-scripts
+          # Depends on the GitHub-hosted ubuntu-24.04 image (this job's runs-on),
+          # which already includes Chromium's shared libraries. --with-deps also
+          # downloads multi-megabyte font packages from apt and blew the 5-minute job.
+          npx playwright install chromium
+      - name: Check Data types and keyboard behavior in the real App frame
+        run: |
+          npm --prefix apps/data run typecheck
+          npm --prefix apps/data run test:ui
+          npm --prefix apps/data run test:browser
+      - name: Upload Data browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: data-fields-browser
+          path: |
+            test-results/data-fields/
+            test-results/data-workflow/
+          if-no-files-found: ignore
+

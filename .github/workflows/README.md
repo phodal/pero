@@ -1,47 +1,41 @@
 # Workflow entry points
 
-There are five runnable entry points and one shared implementation file:
+A pull request runs `ci.yml` only. Each reusable file below has one job, so a
+skipped suite is one check and a selected suite is one check.
 
 | File | Purpose |
 | --- | --- |
-| `ci.yml` | PR/master core contracts, path-selected App acceptance, and daily/manual full-platform coverage |
-| `ci-jobs.yml` | Reusable CI job families only; no automatic or manual trigger |
-| `acceptance.yml` | Path-scoped Paper checks, labeled sandbox acceptance, and explicitly selected manual diagnostics |
-| `computer-use.yml` | Explicitly selected manual native platform diagnostics |
-| `release.yml` | Tagged Desktop and Worker publication, daily/manual package validation, and explicitly opted-in PR packaging |
-| `pages.yml` | Existing successful-CI deployment and explicit rollback gate |
+| `ci.yml` | PR, master push, and daily Linux contracts. `Linux CI gate` is the aggregate check |
+| `ci-*.yml` | One reusable job each (platform, harness, Desktop, or one App suite). No pull_request trigger |
+| `ci-full.yml` | Daily and manual Desktop, Windows, macOS, Windows ACL, and opt-in Paper journeys. `Full-platform CI gate` |
+| `acceptance.yml` | Manual sandbox, Docling, Fisher, graphics, and locked scientific Linux suites |
+| `computer-use.yml` | Manual native platform diagnostics |
+| `release.yml` | Tagged Desktop and Worker publication, plus the daily Virtual Cell canary |
+| `pages.yml` | Publishes after a successful master push whose `Linux CI gate` passed |
 
-Ordinary feature contracts belong in CI. Add jobs or suites to an existing
-entry point instead of creating one workflow per feature. Separate release and
-Pages owners retain their different permissions and publication conditions.
+Ordinary feature contracts belong in CI. Add a step to an existing job, or a
+single-job reusable workflow called from `ci.yml`, instead of a new
+`pull_request` workflow. A job that is present and skipped still counts as a
+check.
 
-CI calls `ci-jobs.yml` with a `suite` selector for Desktop, Notebook, Notebook
-Canvas, Native shell, or an App's browser/scientific contracts (Data, Lab,
-Control Lab, Virtual Cell, Scientific Viewer and LCMS2Yield). The reusable file
-owns those implementations; `ci.yml` owns their triggers and aggregate gate.
+`scripts/ci/workflow-scope.mjs` owns which App suites a change selects. Shared
+SDK and design inputs select every affected App. Deleted or renamed inputs stay
+in scope. An unreadable diff runs every scoped check. Core protocol,
+authorization, Rust, Go, Bazel, harness, and recovery checks run on every
+pull request. Fisher browser checks run inside the Linux core job when Fisher
+paths change.
 
-Ordinary PRs and master pushes select expensive Notebook, Notebook Canvas,
-Native, App browser/scientific, and MCP Apps browser checks from the changed
-paths. `scripts/ci/workflow-scope.mjs` owns that dependency map. Shared SDK/design
-inputs select all affected Apps. Deleted/renamed inputs remain in scope; an
-unreadable diff runs every scoped check. Core protocol, authorization, Rust/Go
-and recovery checks remain ordinary checks.
+`ci:full` on a pull request selects every scoped App check. It does not start
+Desktop, Windows ACL, or the Windows/macOS Go and harness matrix. Dispatch
+`CI full` against that branch for those, or wait for the daily schedule on
+master.
 
-Daily, manual CI and `ci:full` still run all suites. The aggregate gate accepts
-a skipped App only when a successful scope output explicitly excludes it;
-failures, cancellations and missing scope evidence remain failures.
+Release packaging does not run on pull requests. Tags, manual dispatch, and the
+daily Virtual Cell canary still do. Tagged releases are not cancelled by a
+later pull request. Historical tags that precede the Worker packager keep their
+Desktop-only asset set.
 
-Virtual Cell PR packaging requires `ci:package` or `ci:full`, including for
-Worker/Host changes. New PR revisions cancel obsolete PR package attempts.
-Version tags, manual release, daily packaging, exact-SHA trust and publication
-gates retain their existing behavior; tagged releases are not cancelled by this
-PR-only policy.
-Tagged releases stage the Linux x86_64 Worker alongside Desktop after its
-archive has been extracted and its binary started on the native Linux runner.
-Historical tags that precede the Worker packager keep their Desktop-only asset
-set, as determined from the pinned source commit.
-
-`acceptance.yml` offers these manual suites:
+`acceptance.yml` manual suites:
 
 - `graphics` (default): disposable graphics probes.
 - `locked-scientific-linux`: pinned scientific environment downloads and real computation.
@@ -49,20 +43,10 @@ set, as determined from the pinned source commit.
 - `paper-fisher`: public original scan and independent numerical/browser checks.
 - `paper-docling-macos`: also requires `allow_official_downloads=true`.
 
-PR routing preserves each original path filter and event action. Sandbox and
-Docling retain their separate same-repository and label opt-ins. No optional
-scientific/infra suite is added to the daily schedule or ordinary push trigger.
-Each profile retains its tests, artifacts and existing concurrency group.
-
 ```sh
 gh workflow run acceptance.yml -f suite=sandbox-isolated
 gh workflow run acceptance.yml -f suite=graphics
 gh workflow run acceptance.yml -f suite=locked-scientific-linux
 gh workflow run acceptance.yml -f suite=paper-docling-macos -f allow_official_downloads=true
+gh workflow run ci-full.yml
 ```
-
-This reduces tracked workflow YAML files from 14 to 6. GitHub may still show
-old names in the Actions sidebar because historical runs remain. Removing a
-workflow file stops its future triggers; it does not erase historical runs.
-No run history, repository features, branch protection or release permissions
-are deleted or changed by this consolidation.
