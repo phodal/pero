@@ -44,6 +44,10 @@ func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if err := resource.Validate(); err != nil {
+		writeResourceError(w, err)
+		return
+	}
 	client := clientIdentity(r)
 	member := false
 	for _, allowed := range client.Projects {
@@ -51,11 +55,23 @@ func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
 			member = true
 		}
 	}
+	if !member {
+		writeResourceError(w, resourceref.ErrRevoked)
+		return
+	}
+	if resource.SharedProject != project {
+		writeResourceError(w, resourceref.ErrWrongProject)
+		return
+	}
+	if resource.App != "paper-agent" || resource.Kind != "paper" {
+		writeResourceError(w, resourceref.ErrUnsupported)
+		return
+	}
 	if a.paper == nil {
 		_, err := resourceref.ReadPaper(resourceref.ReadInput{
 			Resource: resource, Project: project, Member: member, AppEnabled: true, OwnerAvailable: false,
 		})
-		if err == nil {
+		if err == nil || err == resourceref.ErrUngranted {
 			err = resourceref.ErrOwnerUnavailable
 		}
 		writeResourceError(w, err)
@@ -63,18 +79,21 @@ func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
 	}
 	record, found := a.paper.Paper(resource.OwnerHost, project, resource.ID)
 	if !found {
-		if !member {
-			writeResourceError(w, resourceref.ErrRevoked)
-			return
-		}
-		if resource.SharedProject != project {
-			writeResourceError(w, resourceref.ErrWrongProject)
-			return
-		}
-		if err := resource.Validate(); err != nil {
-			writeResourceError(w, err)
-			return
-		}
+		writeResourceError(w, resourceref.ErrMissing)
+		return
+	}
+	if record.Resource.Class != resourceref.ClassImmutable {
+		writeResourceError(w, resourceref.ErrNotEvidence)
+		return
+	}
+	if record.Resource.SharedProject != project {
+		writeResourceError(w, resourceref.ErrWrongProject)
+		return
+	}
+	if record.Resource.OwnerHost != resource.OwnerHost || record.Resource.LocalProject != resource.LocalProject ||
+		record.Resource.App != resource.App || record.Resource.AppInstance != resource.AppInstance ||
+		record.Resource.AppVersion != resource.AppVersion || record.Resource.Kind != resource.Kind ||
+		record.Resource.ID != resource.ID {
 		writeResourceError(w, resourceref.ErrMissing)
 		return
 	}
@@ -93,8 +112,8 @@ func (a *API) readPaperResource(w http.ResponseWriter, r *http.Request) {
 		writeResourceError(w, err)
 		return
 	}
-	if result.OwnerHost != resource.OwnerHost || result.Digest != resource.Revision || result.Provenance != resourceref.DomainProvenance {
-		writeResourceError(w, resourceref.ErrOwnerUnavailable)
+	if result.OwnerHost != resource.OwnerHost || result.Revision != resource.Revision || result.Revision != record.Resource.Revision || result.Digest != resource.Revision || result.Provenance != resourceref.DomainProvenance {
+		writeResourceError(w, resourceref.ErrStale)
 		return
 	}
 	respond(w, 200, map[string]any{

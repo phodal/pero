@@ -82,6 +82,7 @@ func TestPaperReadsFailClosed(t *testing.T) {
 		{"disabled", func(in *ReadInput) { in.AppEnabled = false }, ErrDisabledApp},
 		{"ungranted", func(in *ReadInput) { in.Grants = nil }, ErrUngranted},
 		{"unavailable", func(in *ReadInput) { in.OwnerAvailable = false }, ErrOwnerUnavailable},
+		{"unwired", func(in *ReadInput) { in.OwnerAvailable = false; in.Grants = nil; in.Evidence = nil }, ErrOwnerUnavailable},
 		{"stale", func(in *ReadInput) {
 			in.Evidence = &Evidence{Digest: "ab" + ok.Evidence.Digest[2:], MediaType: "text/plain", Body: []byte("other")}
 		}, ErrStale},

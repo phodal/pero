@@ -24,9 +24,9 @@ Resolution is one function of the request:
 
 The read-only route is `POST /api/client/v1/projects/{project}/app-resources/paper`. The caller is the scoped client credential already required for `/api/client/`. The body is the qualified reference. Headers that try to name an owner, a backend, a path, or a worker or operator token are refused, as are those fields in the JSON. The response is the owner, revision, digest, media type, base64 body, and provenance `domain:paper`. It does not include a path, a backend URL, or a credential.
 
-The Go handler authorizes the client and asks a `PaperDomain` supplied at the composition root. The domain returns the bytes for that owner, project, and id, or it reports that the owner is down. A miss is `missing`. The handler does not store the bytes and does not look up another host. Until a composition root supplies a domain, the route fails closed with `owner_unavailable`.
+The Go handler authorizes the client and asks a `PaperDomain` supplied at the composition root. The domain returns the bytes for that owner, project, and id, or it reports that the owner is down. A miss is `missing`. The requested local project, App instance, and App version must equal that record; a different binding is `missing` and is not read as the same id. The handler does not store the bytes and does not look up another host. Until a composition root supplies a domain, a valid Paper request fails closed with `owner_unavailable` rather than as a missing grant.
 
-`readPaperResource` in the App SDK calls one injected transport. Local and remote transports can return the same Paper bytes. If the response names a different owner, carries a forbidden field, or does not hash to the requested revision, the client rejects it. The client has no fallback transport.
+`readPaperResource` in the App SDK calls one injected transport. Local and remote transports can return the same Paper bytes. If the response names a different owner, a different revision, carries a forbidden field, or does not hash to the requested revision, the client rejects it. The client has no fallback transport.
 
 ## What remains unsupported
 

@@ -17,6 +17,16 @@ import (
 
 type paperMap struct{ records []PaperRecord }
 
+type countingPaper struct {
+	paperMap
+	calls int
+}
+
+func (c *countingPaper) Paper(owner, project, id string) (PaperRecord, bool) {
+	c.calls++
+	return c.paperMap.Paper(owner, project, id)
+}
+
 func (m paperMap) Paper(owner, project, id string) (PaperRecord, bool) {
 	for _, record := range m.records {
 		if record.Resource.OwnerHost == owner && record.Resource.SharedProject == project && record.Resource.ID == id {
@@ -92,12 +102,13 @@ func TestPaperRouteReadsTheOwningEvidence(t *testing.T) {
 	if code != 403 || body["error"] != "revoked" {
 		t.Fatalf("revoked %d %#v", code, body)
 	}
-	api.paper = paperMap{records: []PaperRecord{paperRecord("host-b", resourceref.PaperEvidence, true, true, true)}}
+	counted := &countingPaper{paperMap: paperMap{records: []PaperRecord{paperRecord("host-b", resourceref.PaperEvidence, true, true, true)}}}
+	api.paper = counted
 	bad := paperBody("host-b", resourceref.PaperDigest)
 	bad["id"] = "../secret"
 	code, body = postPaperStatus(t, api, "lab", []string{"lab"}, bad, nil)
-	if code != 400 || body["error"] != "traversal" {
-		t.Fatalf("traversal %d %#v", code, body)
+	if code != 400 || body["error"] != "traversal" || counted.calls != 0 {
+		t.Fatalf("traversal %d %#v calls %d", code, body, counted.calls)
 	}
 	code, body = postPaperStatus(t, api, "lab", []string{"lab"}, paperBody("host-b", resourceref.PaperDigest), map[string]string{"X-Pero-Owner": "host-c", "X-Worker-Token": secret})
 	if code != 400 || body["error"] != "spoofed" || strings.Contains(strings.Join([]string{body["error"]}, ""), secret) {
@@ -116,6 +127,19 @@ func TestPaperRouteReadsTheOwningEvidence(t *testing.T) {
 	code, body = postPaperStatus(t, api, "../lab", []string{"../lab"}, paperBody("host-b", resourceref.PaperDigest), nil)
 	if code != 400 || body["error"] != "traversal" {
 		t.Fatalf("project path %d %#v", code, body)
+	}
+	for _, field := range []string{"localProject", "appInstance", "appVersion"} {
+		changed := paperBody("host-b", resourceref.PaperDigest)
+		changed[field] = changed[field] + "-other"
+		code, body = postPaperStatus(t, api, "lab", []string{"lab"}, changed, nil)
+		if code != 404 || body["error"] != "missing" {
+			t.Fatalf("%s %d %#v", field, code, body)
+		}
+	}
+	unwired := &API{}
+	code, body = postPaperStatus(t, unwired, "lab", []string{"lab"}, paperBody("host-b", resourceref.PaperDigest), nil)
+	if code != 409 || body["error"] != "owner_unavailable" {
+		t.Fatalf("unwired %d %#v", code, body)
 	}
 	study := paperBody("host-b", resourceref.PaperDigest)
 	study["kind"] = "study"

@@ -168,6 +168,9 @@ func ReadPaper(in ReadInput) (ReadResult, error) {
 	if resource.Class != ClassImmutable || !digest(resource.Revision) {
 		return ReadResult{}, ErrNotEvidence
 	}
+	if !in.OwnerAvailable {
+		return ReadResult{}, ErrOwnerUnavailable
+	}
 	granted := false
 	for _, grant := range in.Grants {
 		if grant.SharedProject == resource.SharedProject && grant.App == resource.App && grant.ID == resource.ID {
