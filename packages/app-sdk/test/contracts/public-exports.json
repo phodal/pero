@@ -18,6 +18,7 @@
       "Select",
       "THEMES",
       "appObjectProps",
+      "capabilityOutcome",
       "applyDevStyle",
       "applyStyle",
       "applyTheme",
@@ -61,7 +62,12 @@
       "useNavigate",
       "useNotify",
       "useTheme",
-      "validateParameters"
+      "validateParameters",
+      "createCapabilityClient",
+      "createCapabilitySnapshot",
+      "createFrameTransport",
+      "createLocalCapabilityTransport",
+      "renderAgentStatus"
     ],
     "./client": [
       "APP_OBJECT_LIMITS",
