@@ -26,4 +26,7 @@ The ACP composition also mounts a read-only DSH session-catalog query. It uses
 parent-owned journal entries and reads cold journals without loading Agents or
 publishing Sessions. A reachable one-shot session can lead to a continuable
 grandchild; unreadable branches stop locally and ordinary forks have separate
-catalogs. The model-facing `list_agents` and named addressing are not yet exposed.
+catalogs. The query understands the v3 catalog format and resolves root-relative
+paths such as `verify/checker` without crossing into unrelated branches. Logs
+with an unnamed ancestor keep Session IDs. Native child creation does not yet
+reserve and write those names, and model-facing `list_agents` is not yet exposed.

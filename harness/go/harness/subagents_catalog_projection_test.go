@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-func catalogFactEvent(t *testing.T, seq uint64, version int, id, mode string, label *string) Event {
+func catalogFactEvent(t *testing.T, seq uint64, version int, id, mode string, label *string, name string) Event {
 	t.Helper()
-	raw, err := json.Marshal(SubagentCatalogFact{Version: version, ChildID: SessionID(id), ChildCreatedAt: int64(1000 - seq), Mode: mode, Label: label})
+	raw, err := json.Marshal(SubagentCatalogFact{Version: version, ChildID: SessionID(id), ChildCreatedAt: int64(1000 - seq), Mode: mode, Label: label, Name: name})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,15 +37,20 @@ func TestSubagentCatalogProjectionVersionsOrderCheckpointsAndOwnership(t *testin
 	var checkpoint json.RawMessage
 	for i := 0; i < 130; i++ {
 		mode, version, caption := "one-shot", 0, (*string)(nil)
-		switch i % 4 {
+		name := ""
+		switch i % 6 {
 		case 1:
 			mode, version, caption = "continuable", 1, &label
 		case 2:
 			mode, version = "unknown", 1
 		case 3:
 			mode, version = "external", 2
+		case 4:
+			mode, version, caption, name = "continuable", 3, &label, fmt.Sprintf("named-%d", i)
+		case 5:
+			mode, version, name = "external", 3, fmt.Sprintf("named-%d", i)
 		}
-		raw, err = d.Apply(raw, catalogFactEvent(t, uint64(i+3), version, fmt.Sprintf("child-%d", i), mode, caption))
+		raw, err = d.Apply(raw, catalogFactEvent(t, uint64(i+3), version, fmt.Sprintf("child-%d", i), mode, caption, name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,6 +87,9 @@ func TestSubagentCatalogProjectionVersionsOrderCheckpointsAndOwnership(t *testin
 			t.Fatalf("event order changed at %d: %+v", i, entry)
 		}
 	}
+	if entries[0].Name != "" || entries[4].Name != "named-4" || entries[65].Name != "named-65" {
+		t.Fatalf("unexpected historical or restored names: %+v %+v %+v", entries[0], entries[4], entries[65])
+	}
 	if entries[1].Label == nil || *entries[1].Label != "" {
 		t.Fatal("empty required label was omitted")
 	}
@@ -95,6 +103,13 @@ func TestSubagentCatalogProjectionVersionsOrderCheckpointsAndOwnership(t *testin
 
 func TestSubagentCatalogProjectionRejectsMalformedOwnFacts(t *testing.T) {
 	invalid := []string{
+		`{"version":3,"childId":"c","childCreatedAt":0,"mode":"external"}`,
+		`{"version":3,"childId":"c","childCreatedAt":0,"mode":"external","name":"lead"}`,
+		`{"version":3,"childId":"c","childCreatedAt":0,"mode":"external","name":"review/checker"}`,
+		`{"version":3,"childId":"c","childCreatedAt":0,"mode":"one-shot","name":"review"}`,
+		`{"version":2,"childId":"c","childCreatedAt":0,"mode":"external","name":"review"}`,
+		`{"version":2,"childId":"c","childCreatedAt":0,"mode":"external","name":null}`,
+		`{"version":2,"childId":"c","childCreatedAt":0,"mode":"external","name":""}`,
 		`{"version":0,"childId":"c","childCreatedAt":0,"mode":"unknown"}`,
 		`{"version":1,"childId":"c","childCreatedAt":0,"mode":"external"}`,
 		`{"version":2,"childId":"c","childCreatedAt":0,"mode":"one-shot"}`,
