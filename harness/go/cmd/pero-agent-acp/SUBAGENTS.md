@@ -21,3 +21,9 @@ wait. The existing delegation tools still return results to the caller.
 ## Optional Team board
 
 Add `--enable-team` alongside `--enable-subagents` in ACP mode. Use the host’s `commands/execute` with `line: "/team on"` to enable the shared task board for a durable root session. `/team off` hides its tools without deleting tasks. This adds revision-checked task claims, not new execution powers or background workers. See the [DSH alignment notes](../../../../docs/fitness/dsh-alpha2-alignment.md#team-task-board-opt-in-native-slice) for limits.
+
+The ACP composition also mounts a read-only DSH session-catalog query. It uses
+parent-owned journal entries and reads cold journals without loading Agents or
+publishing Sessions. A reachable one-shot session can lead to a continuable
+grandchild; unreadable branches stop locally and ordinary forks have separate
+catalogs. The model-facing `list_agents` and named addressing are not yet exposed.

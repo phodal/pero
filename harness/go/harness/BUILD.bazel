@@ -88,6 +88,7 @@ go_library(
         "subagents_capacity.go",
         "subagents_catalog.go",
         "subagents_catalog_projection.go",
+        "subagents_catalog_query.go",
         "subagents_control.go",
         "subagents_discovery.go",
         "subagents_disposal.go",
