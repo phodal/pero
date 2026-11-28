@@ -466,7 +466,11 @@ one ID. Missing, near-expiry or invalid records need a new upload. Failed
 upload resolution leaves the whole model request inline, including any
 images successfully uploaded earlier in that attempt. The already-reserved
 inference budget stays available; uploads consume the same attempt budget
-and audit gate. Files and Messages reject HTTP redirects.
+and audit gate. Concurrent requests on the same adapter share one POST and
+one budget debit for identical raster bytes and MIME. Canceling the first
+request does not cancel a surviving waiter. The last departing waiter aborts
+the POST, and a successful shared receipt survives restart. Files and Messages
+reject HTTP redirects.
 
 Run the same fixture with `PERO_ACP_PERO_FILES=1` and both binary paths.
 It exercises three real Pero processes with the same assertions as the

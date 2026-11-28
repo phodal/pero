@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/phodal/pero/harness/go/harness"
+	"github.com/phodal/pero/harness/go/providers/messages"
 )
 
 func TestDeepSeekMessagesSharesAttemptBudgetAndDoesNotFollowRedirects(t *testing.T) {
@@ -473,4 +474,148 @@ func TestDeepSeekFilesBacksOffOnlyUploadTimeouts(t *testing.T) {
 	check("timeout restarts at one", a, 6, true, timedOut)
 	check("skip once", a, 6, false, skipped)
 	check("probe after reset", a, 6, false, file)
+}
+
+// The resolver evaluates Done after joining the operation. Observing it makes
+// cancellation in this HTTP fixture independent of goroutine scheduling.
+type fileWaitContext struct {
+	context.Context
+	waiting chan struct{}
+	once    sync.Once
+}
+
+func (c *fileWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+	return c.Context.Done()
+}
+
+func TestDeepSeekFilesSharesUploadUntilLastWaiter(t *testing.T) {
+	type post struct {
+		id      string
+		reply   chan struct{}
+		stopped chan struct{}
+	}
+	posts := make(chan post, 8)
+	var uploads, audits atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := uploads.Add(1)
+		reader, err := r.MultipartReader()
+		if err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		part, err := reader.NextPart()
+		if err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		raw, err := io.ReadAll(part)
+		if err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		_, _ = io.Copy(io.Discard, r.Body)
+		p := post{fmt.Sprintf("file-%d", n), make(chan struct{}), make(chan struct{})}
+		posts <- p
+		defer close(p.stopped)
+		select {
+		case <-p.reply:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": p.id, "type": "file",
+				"mime_type": part.Header.Get("Content-Type"), "size_bytes": len(raw), "created_at": time.Now().UTC()})
+		case <-r.Context().Done():
+		}
+	}))
+	defer provider.Close()
+	ctx, finish := context.WithTimeout(t.Context(), 5*time.Second)
+	defer finish()
+	dir := t.TempDir()
+	adapter := func() *Adapter {
+		t.Helper()
+		a, err := New(Config{APIFormat: DeepSeekMessages, Endpoint: provider.URL + "/v1/messages", APIKey: "same-key", ProviderName: "fixture",
+			Models: []ModelConfig{{ID: "vision", MaxTokens: 128}}, MaxRequests: 3,
+			MessagesFilesDirectory: dir, MessagesFilesKey: make([]byte, 32), BeforeHTTPAttempt: func() error { audits.Add(1); return nil }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	a := adapter()
+	image := func(size int) messages.ImageSource {
+		return messages.ImageSource{MediaType: "image/png", Data: ownedPNG(t, size, size)}
+	}
+	first, second := image(4), image(5)
+	type answer struct {
+		record messagesFileRecord
+		err    error
+	}
+	begin := func(source messages.ImageSource) (context.CancelFunc, <-chan struct{}, <-chan answer) {
+		child, cancel := context.WithCancel(ctx)
+		waiting := &fileWaitContext{Context: child, waiting: make(chan struct{})}
+		result := make(chan answer, 1)
+		go func() {
+			record, err := a.resolveMessagesFile(waiting, child, sha256.Sum256(source.Data), source)
+			result <- answer{record, err}
+		}()
+		return cancel, waiting.waiting, result
+	}
+	expectCancel := func(result <-chan answer) {
+		t.Helper()
+		if got := fileFixtureReceive(t, ctx, result); got.err != context.Canceled {
+			t.Fatalf("want canceled waiter, got %+v", got)
+		}
+	}
+	expectID := func(result <-chan answer, id string) {
+		t.Helper()
+		if got := fileFixtureReceive(t, ctx, result); got.err != nil || got.record.ID != id {
+			t.Fatalf("want %s, got %+v, %v", id, got.record, got.err)
+		}
+	}
+
+	cancelFirst, _, initiated := begin(first)
+	defer cancelFirst()
+	p := fileFixtureReceive(t, ctx, posts)
+	cancelSecond, joined, survivor := begin(first)
+	defer cancelSecond()
+	fileFixtureReceive(t, ctx, joined)
+	cancelFirst()
+	expectCancel(initiated)
+	close(p.reply)
+	expectID(survivor, p.id)
+
+	// A new adapter (empty in-flight map) reads the exact durable winner.
+	restarted := adapter()
+	cached, err := restarted.resolveMessagesFile(ctx, ctx, sha256.Sum256(first.Data), first)
+	if err != nil || cached.ID != p.id || restarted.requests.Load() != 0 {
+		t.Fatalf("want durable reuse without debit, got %+v, %v", cached, err)
+	}
+	cancelOnly, _, only := begin(second)
+	defer cancelOnly()
+	abandoned := fileFixtureReceive(t, ctx, posts)
+	cancelOnly()
+	expectCancel(only)
+	fileFixtureReceive(t, ctx, abandoned.stopped)
+	cancelFresh, _, fresh := begin(second)
+	defer cancelFresh()
+	replacement := fileFixtureReceive(t, ctx, posts)
+	close(replacement.reply)
+	expectID(fresh, replacement.id)
+	if uploads.Load() != 3 || audits.Load() != 3 || a.requests.Load() != 3 {
+		t.Fatalf("want one POST, audit and debit per upload, got %d, %d, %d", uploads.Load(), audits.Load(), a.requests.Load())
+	}
+}
+
+func fileFixtureReceive[T any](t *testing.T, ctx context.Context, events <-chan T) T {
+	t.Helper()
+	select {
+	case result := <-events:
+		return result
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+		var zero T
+		return zero
+	}
 }

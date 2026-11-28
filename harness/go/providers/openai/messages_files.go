@@ -31,7 +31,8 @@ type messagesFiles struct {
 	client    *http.Client
 	url, root string
 
-	backoffMu                         sync.Mutex
+	mu                                sync.Mutex
+	uploads                           map[[32]byte]*messagesFileUpload
 	backoffVersion                    uint64
 	backoffInterval, backoffRemaining int
 }
@@ -39,9 +40,7 @@ type messagesFiles struct {
 // beginUpload is called on cache misses only.
 // Cached references never consume the cooldown; a skipped miss makes the
 // existing all-inline fallback preserve the request without a Files attempt.
-func (f *messagesFiles) beginUpload() (uint64, bool) {
-	f.backoffMu.Lock()
-	defer f.backoffMu.Unlock()
+func (f *messagesFiles) beginUploadLocked() (uint64, bool) {
 	if f.backoffRemaining > 0 {
 		f.backoffRemaining--
 		return 0, false
@@ -49,9 +48,7 @@ func (f *messagesFiles) beginUpload() (uint64, bool) {
 	return f.backoffVersion, true
 }
 
-func (f *messagesFiles) finishUpload(version uint64, timeout bool) {
-	f.backoffMu.Lock()
-	defer f.backoffMu.Unlock()
+func (f *messagesFiles) finishUploadLocked(version uint64, timeout bool) {
 	if version != f.backoffVersion {
 		return // overlapping responses cannot double or clear a newer interval
 	}
@@ -75,7 +72,6 @@ type messagesInlineRetry struct {
 }
 
 func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Request) []string {
-	files := a.messagesFiles
 	bounded, cancel := context.WithTimeout(ctx, messagesFilesDeadline)
 	defer cancel()
 	resolved := make(map[[32]byte]string)
@@ -94,32 +90,9 @@ func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Reques
 		if id := resolved[digest]; id != "" {
 			return id, nil
 		}
-		location := filepath.Join(files.root, hex.EncodeToString(digest[:])+".json")
-		now := time.Now()
-		record := readMessagesFileRecord(location)
-		if !validMessagesFileID(record.ID) || !record.Expires.After(now.Add(time.Hour)) ||
-			record.Expires.After(now.Add(messagesFileLifetime)) || files.isStale(record.ID) {
-			version, proceed := files.beginUpload()
-			if !proceed {
-				return "", errors.New("messages: Files upload skipped after timeout")
-			}
-			if err := a.reserveHTTPRequest(); err != nil {
-				return "", err
-			}
-			var err error
-			record, err = files.upload(bounded, a.messagesKey, src, now)
-			if err != nil {
-				if ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
-					files.finishUpload(version, true)
-				}
-				return "", err
-			}
-			if files.isStale(record.ID) {
-				return "", errors.New("messages: upload returned a previously rejected file ID")
-			}
-			files.finishUpload(version, false)
-			// A read-only or unavailable cache must not break online use.
-			writeMessagesFileRecord(location, record)
+		record, err := a.resolveMessagesFile(bounded, ctx, digest, src)
+		if err != nil {
+			return "", err
 		}
 		resolved[digest] = record.ID
 		return record.ID, nil
@@ -132,6 +105,100 @@ func (a *Adapter) preferMessagesFiles(ctx context.Context, wire *messages.Reques
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// An upload belongs to its adapter (route and credentials), not to whichever
+// inference first needed the raster. The last departing waiter owns abort.
+type messagesFileUpload struct {
+	done    chan struct{}
+	cancel  context.CancelFunc
+	waiters int
+	version uint64
+	record  messagesFileRecord
+	err     error
+}
+
+func (a *Adapter) resolveMessagesFile(ctx, parent context.Context, digest [32]byte, src messages.ImageSource) (messagesFileRecord, error) {
+	var zero messagesFileRecord
+	f := a.messagesFiles
+	location := filepath.Join(f.root, hex.EncodeToString(digest[:])+".json")
+	f.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		f.mu.Unlock()
+		return zero, err
+	}
+	now := time.Now()
+	record := readMessagesFileRecord(location)
+	if validMessagesFileID(record.ID) && record.Expires.After(now.Add(time.Hour)) &&
+		!record.Expires.After(now.Add(messagesFileLifetime)) && !f.isStale(record.ID) {
+		f.mu.Unlock()
+		return record, nil
+	}
+	op := f.uploads[digest]
+	if op == nil {
+		version, proceed := f.beginUploadLocked()
+		if !proceed {
+			f.mu.Unlock()
+			return zero, errors.New("messages: Files upload skipped after timeout")
+		}
+		if err := a.reserveHTTPRequest(); err != nil {
+			f.mu.Unlock()
+			return zero, err
+		}
+		uploadCtx, cancel := context.WithTimeout(context.Background(), messagesFilesDeadline)
+		op = &messagesFileUpload{done: make(chan struct{}), cancel: cancel, version: version}
+		if f.uploads == nil {
+			f.uploads = make(map[[32]byte]*messagesFileUpload)
+		}
+		f.uploads[digest] = op
+		go func() {
+			defer cancel()
+			record, err := f.upload(uploadCtx, a.messagesKey, src, now)
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.uploads[digest] == op {
+				if err == nil && f.isStale(record.ID) {
+					err = errors.New("messages: upload returned a previously rejected file ID")
+				}
+				switch {
+				case err == nil:
+					f.finishUploadLocked(version, false)
+					// A read-only or unavailable cache must not break online use.
+					writeMessagesFileRecord(location, record)
+				case errors.Is(err, context.DeadlineExceeded):
+					f.finishUploadLocked(version, true)
+				}
+				delete(f.uploads, digest)
+			}
+			op.record, op.err = record, err
+			close(op.done)
+		}()
+	}
+	op.waiters++
+	f.mu.Unlock()
+
+	select {
+	case <-op.done:
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+		return op.record, op.err
+	case <-ctx.Done():
+		f.mu.Lock()
+		op.waiters--
+		if op.waiters == 0 && f.uploads[digest] == op {
+			// The capped resolution deadline can precede the shared HTTP
+			// deadline. Neither user cancellation nor a caller's own
+			// deadline counts as a provider timeout.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil {
+				f.finishUploadLocked(op.version, true)
+			}
+			delete(f.uploads, digest)
+			op.cancel()
+		}
+		f.mu.Unlock()
+		return zero, ctx.Err()
+	}
 }
 
 // Tombstones are scoped to this endpoint and credential and name only the
