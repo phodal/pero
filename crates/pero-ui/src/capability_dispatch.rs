@@ -362,4 +362,27 @@ mod tests {
             assert_eq!(envelope.body, case["forward"], "{id}");
         }
     }
+
+    #[test]
+    fn protocol_ready_corpus_matches_native_dispatch() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../protocol/fixtures/protocol-ready/corpus.json"
+        ))
+        .unwrap();
+        for case in corpus["dispatch"].as_array().unwrap() {
+            let id = case["id"].as_str().unwrap();
+            let result = dispatch_envelope(&case["body"]);
+            if let Some(code) = case["error"].as_str() {
+                assert_eq!(result.unwrap_err().code, code, "{id}");
+                continue;
+            }
+            let envelope = result.unwrap_or_else(|error| panic!("{id} {}", error.code));
+            assert_eq!(envelope.route, case["route"].as_str().unwrap(), "{id}");
+            assert_eq!(envelope.owner, case["owner"].as_str().unwrap(), "{id}");
+            assert_eq!(envelope.inject_operation, case["injectOperation"].as_bool().unwrap(), "{id}");
+            assert_eq!(envelope.body, case["forward"], "{id}");
+            assert_eq!(case["remote"].as_bool(), Some(false), "{id}");
+            assert!(envelope.route.starts_with("/host/"), "{id}");
+        }
+    }
 }
