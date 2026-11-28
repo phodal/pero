@@ -110,7 +110,7 @@
       "legacyBody": ["method", "path", "body"],
       "owner": "host",
       "effect": "control",
-      "permissionNote": "Direct POST /host/automation sends AppRequest. The capability envelope also copies operation onto that object, which deny_unknown_fields rejects. Direct calls remain the working carrier.",
+      "permissionNote": "Direct POST /host/automation sends AppRequest. P0.2 forwards the envelope input without injecting operation. An operation field on that body is invalid_input.",
       "carrier": "direct-host-automation",
       "platforms": ["electron", "native"],
       "exposure": "privileged",
@@ -190,13 +190,13 @@
   ],
   "asymmetries": [
     {"id": "sdk-slots", "electron": "/host/sdk adds slots [conversation]", "native": "/host/sdk sets slots []", "evidence": "desktop/src/main/apps.ts; crates/pero-ui/src/native_apps.rs sdk branch"},
-    {"id": "capability-rejection", "electron": "Unknown capability returns HTTP 403 text Host capability unavailable", "native": "anyhow bail becomes HTTP 503 text", "evidence": "apps.ts capability check; native_apps.rs serve Err mapping"},
+    {"id": "capability-rejection", "electron": "Unknown migrated operations return HTTP 403 CapabilityError. Method and size keep 405 and 413.", "native": "The same migrated rejections return HTTP 403 CapabilityError. Method and size still bail to HTTP 503.", "evidence": "capability-dispatch.mjs; capability_dispatch.rs; native_apps.rs serve Err mapping"},
     {"id": "opaque-origin", "electron": "A set Origin must equal the pero-app origin", "native": "respond also allows Origin null", "evidence": "apps.ts caller check; native_apps.rs respond"},
     {"id": "skillhub-deadline", "electron": "skillhub-search and skillhub-versions use a 12000ms host deadline", "native": "skillsmarket uses the shared request timeout", "evidence": "apps.ts /host/skills"},
     {"id": "agent-cancel-hook", "electron": "Direct /host/agent cancel with cancelled true calls onAgentCancel", "native": "The route returns the Host result and does not show that shell hook", "evidence": "apps.ts /host/agent"},
     {"id": "reproduction-route", "electron": "POST /host/reproduction exists for paper-agent", "native": "No matching /host/reproduction branch in native_apps.rs", "evidence": "apps.ts /host/reproduction; native_apps.rs"},
     {"id": "inputs-route", "electron": "GET /host/inputs/:sha256 and the /api/apps/${name}/inputs/ rewrite serve a frozen input grant", "native": "native_apps.rs has neither /host/inputs/ nor that rewrite", "evidence": "desktop/src/main/apps.ts; crates/pero-ui/src/native_apps.rs"},
-    {"id": "automation-envelope", "electron": "Envelope copies operation onto the automation body", "native": "Same copy", "evidence": "automation_app.rs deny_unknown_fields AppRequest", "note": "Both shells share this clash. Direct /host/automation is the working carrier."}
+    {"id": "automation-envelope", "electron": "Envelope forwards the automation input without an operation field", "native": "Same forward", "evidence": "capability-dispatch.mjs automation branch; automation_app.rs deny_unknown_fields AppRequest", "note": "P0.2 stopped injecting operation. Direct /host/automation remains the working carrier."}
   ],
   "drift": [
     {"id": "research-assets-operations", "typespec": "protocol/apps.tsp ResearchAssetsRequest is start, status, cancel", "host": "research_assets.rs also accepts datasets, queries, linkquery, saverecord", "resolution": "Canonical operations are this inventory and capabilities.tsp. apps.tsp stays the legacy Host-bundle subset. Parsers and shells are unchanged."},
@@ -204,11 +204,10 @@
     {"id": "agent-run-result", "sdk": "AppAgentRun.result is optional", "host": "Run has no result field", "resolution": "Canonical AgentStatusResponse rejects result."}
   ],
   "deferred": [
-    "P0.2 dispatch and owner admission for both shells",
     "P0.3 SDK negotiation and transport ports",
     "P0.4 resource identity and remote read",
     "environment, environment profiles, canvas, notebook-projects, docling, reproduction, inputs, artifacts, and the /api proxy",
-    "insights has no named operation; automation envelope operation injection",
+    "insights has no named operation",
     "parent-frame messages, Electron IPC, Host JSONL, Go client API, and MCP tool adapters",
     "legacy /host/agent info, start, events, and cancel versus /host/app-agent operations of the same name"
   ]
