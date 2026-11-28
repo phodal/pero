@@ -1,0 +1,85 @@
+{{define "private-tasks"}}
+{{$view := .Private}}
+{{if $view.LoginURL}}
+<section class="login">
+  <h1>我的任务</h1>
+  {{if .OAuth}}<p>使用与 Pero Desktop 相同的 GitHub 账号登录。</p><a class="button" href="{{$view.LoginURL}}">使用 GitHub 登录</a>
+  {{else}}<p role="status">GitHub 登录尚未配置。</p>{{end}}
+</section>
+{{else if $view.Task}}
+{{$task := $view.Task}}
+<a class="back" href="/my/tasks">← 我的任务</a>
+<div class="page-heading">
+  <div>
+    <h1>{{$task.Title}}</h1>
+    <p class="muted">{{$task.ProjectID}} · {{$task.WorkspaceKey}}</p>
+  </div>
+  <a class="button secondary" href="{{if $view.RunURL}}{{$view.RunURL}}{{else}}/my/tasks/{{$task.ID}}{{end}}">刷新进度</a>
+</div>
+<div class="split">
+  <section>
+    {{if $view.Run}}
+      {{with $view.Run.Summary}}<h2>执行结果</h2><p class="description">{{.}}</p>{{end}}
+      {{if $view.Reply}}<h2>Agent 回复</h2><p class="description">{{$view.Reply}}</p>{{end}}
+      <h2>执行进度</h2>
+      {{if $view.EventsTruncated}}<p class="muted">此处显示最近的执行记录。</p>{{end}}
+      {{if $view.Progress}}
+        <ul class="task-list">{{range $view.Progress}}<li class="description">{{.}}</li>{{end}}</ul>
+      {{else if not $view.Reply}}<p class="muted">暂未收到执行记录。</p>{{end}}
+      <details><summary>查看任务要求</summary><p class="description">{{$task.Prompt}}</p><h2>验收要求</h2><p class="description">{{$task.Acceptance}}</p></details>
+    {{else}}
+      <h2>任务说明</h2><p class="description">{{$task.Prompt}}</p>
+      <h2>验收要求</h2><p class="description">{{$task.Acceptance}}</p>
+    {{end}}
+  </section>
+  <aside>
+    <h2>状态</h2>
+    {{if $view.Run}}
+      <p class="badge" data-state="{{$view.Run.Status}}">{{privateState $view.Run.Status}}</p>
+      <p>执行记录 <a href="{{$view.RunURL}}"><code>{{$view.Run.ID}}</code></a></p>
+      <p>执行代次 <code>{{$view.Run.Generation}}</code></p>
+      {{with $view.Run.WorkerID}}<p>Worker <code>{{.}}</code></p>{{end}}
+    {{else}}
+      <p class="badge" data-state="{{$task.State}}">{{privateState $task.State}}</p>
+      <p>在 Pero Desktop 中分配任务。你可以关闭此页，稍后从这里查看进度。</p>
+      <a class="button secondary" href="pero://tasks/{{$task.ID}}">在 Pero Desktop 中打开</a>
+    {{end}}
+    <p>任务编号 <code>{{$task.ID}}</code></p>
+  </aside>
+</div>
+{{else}}
+<div class="page-heading"><div><h1>我的任务</h1></div></div>
+<div class="split">
+  <section>
+    <h2>提交任务</h2>
+    {{if .Message}}<p role="alert">{{.Message}}</p>{{end}}
+    {{if $view.Workspaces}}
+      <form action="/my/tasks" method="post" enctype="multipart/form-data" class="stack">
+        <input type="hidden" name="csrf" value="{{.Session.CSRF}}">
+        <input type="hidden" name="request_id" value="{{$view.RequestID}}">
+        <label for="workspace">项目与工作区</label>
+        <select id="workspace" name="workspace" required>
+          <option value="">选择工作区</option>
+          {{range $view.Workspaces}}<option value="{{.Value}}" {{if eq .Value $view.Workspace}}selected{{end}}>{{.ProjectID}} · {{.WorkspaceKey}}</option>{{end}}
+        </select>
+        <label for="title">任务标题</label>
+        <input id="title" name="title" maxlength="240" value="{{$view.Title}}" required>
+        <label for="prompt">任务说明</label>
+        <textarea id="prompt" name="prompt" maxlength="64000" required>{{$view.Prompt}}</textarea>
+        <label for="acceptance">验收要求</label>
+        <textarea id="acceptance" name="acceptance" maxlength="16000" required>{{$view.Acceptance}}</textarea>
+        <button type="submit">提交任务</button>
+      </form>
+    {{else}}
+      <p>当前账号没有可用的工作区。请用同一账号在 Pero Desktop 配置 Worker 并授予工作区权限。</p>
+    {{end}}
+  </section>
+  <aside>
+    <h2>最近任务</h2>
+    {{if $view.Tasks}}
+      <ul class="task-list">{{range $view.Tasks}}<li><a class="task-title" href="/my/tasks/{{.ID}}">{{.Title}}</a><span class="badge" data-state="{{.State}}">{{privateState .State}}</span></li>{{end}}</ul>
+    {{else}}<p class="muted">提交的任务会显示在这里。</p>{{end}}
+  </aside>
+</div>
+{{end}}
+{{end}}

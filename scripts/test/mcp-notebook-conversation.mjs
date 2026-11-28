@@ -197,16 +197,17 @@ try {
     if (!bounds?.width || !bounds.height) return false;
     const point = {x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2};
     const reachable = await page.evaluate(({x, y}) => {
-      const target = document.elementFromPoint(x, y);
-      return !!target && target.tagName !== 'IFRAME';
+      const canvas = document.querySelector('canvas:not([data-gpui-input])');
+      return !!canvas && document.elementFromPoint(x, y) === canvas;
     }, point);
     if (reachable) input = point;
     return reachable;
   }).toBe(true);
   await page.mouse.click(input.x, input.y);
   await expect.poll(async () => (await state()).composerFocused).toBe(true);
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-gpui-input'), undefined, {timeout: 10000});
   await page.keyboard.press('End');
-  await page.keyboard.insertText(' ' + notebookContextPrompt);
+  await page.keyboard.type(' ' + notebookContextPrompt);
   await expect.poll(async () => (await state()).composer).toContain(notebookContextPrompt);
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await conversation()).messages.some(message => message.text.includes(notebookContextAnswer)), {timeout: 30000}).toBe(true);
@@ -296,8 +297,13 @@ try {
   console.log('Notebook Inspector: pinned revision mounted from the registered App tool row.');
 } catch (error) {
   if (page) await page.screenshot({path: join(evidence, 'failure.png'), scale: 'css'}).catch(() => {});
+  const focus = await page?.evaluate(() => ({
+    composerFocused: JSON.parse(window.peroDiagnostics?.snapshot() || '{}').composerFocused,
+    activeElement: document.activeElement?.tagName,
+    inputConduit: document.activeElement?.getAttribute('data-gpui-input'),
+  })).catch(() => null);
   await writeFile(join(evidence, 'failure-log.json'), JSON.stringify({
-    error: String(error), modelRequests: provider.calls.length, providerErrors: provider.errors, errors, logs, seedError,
+    error: String(error), modelRequests: provider.calls.length, providerErrors: provider.errors, errors, logs, seedError, focus,
   }, null, 2));
   throw error;
 } finally {

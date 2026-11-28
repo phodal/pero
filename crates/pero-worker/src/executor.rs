@@ -3,7 +3,7 @@ use crate::{
     model::{Outcome, RemoteGrant, Run},
     run_desktop::{HandoffMonitor, HandoffStatus},
 };
-use pero_contracts::HostEvent;
+use pero_contracts::{HostEvent, local_worker::BUILTIN_AGENT_KEY_ENV};
 use pero_runtime::acp::{self, AgentConfig, SessionCommand};
 use pero_runtime::workspace_lease::WorkspaceLease;
 use serde::{Deserialize, Serialize};
@@ -210,6 +210,13 @@ impl Config {
             }
         }
         agent.env.retain(|key, _| !key.starts_with("PERO_"));
+        // Restore only the built-in Agent's credential in its private launch config.
+        if agent.id == "pero"
+            && approval.is_none()
+            && let Ok(key) = std::env::var(BUILTIN_AGENT_KEY_ENV)
+        {
+            agent.env.insert("DEEPSEEK_API_KEY".into(), key);
+        }
         let prompt = prompt(run);
         Ok(Execution {
             workspace,

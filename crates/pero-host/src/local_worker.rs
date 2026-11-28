@@ -2,7 +2,7 @@
 use pero_contracts::{
     HostEvent,
     local_worker::{
-        LocalWorkerConfig, LocalWorkerRequest, LocalWorkerState, LocalWorkerStatus,
+        BUILTIN_AGENT_KEY_ENV, LocalWorkerConfig, LocalWorkerRequest, LocalWorkerState, LocalWorkerStatus,
         LocalWorkerSummary, WorkerProgress,
     },
 };
@@ -24,7 +24,12 @@ pub struct LocalWorkers {
     thread: Option<std::thread::JoinHandle<()>>,
 }
 enum Message {
-    Start(LocalWorkerConfig, String, Option<PathBuf>),
+    Start {
+        config: LocalWorkerConfig,
+        request_id: String,
+        settings: Option<PathBuf>,
+        catalog: Vec<acp::AgentConfig>,
+    },
     Stop(String),
     Progress(u64, WorkerProgress),
     Shutdown,
@@ -33,6 +38,7 @@ struct Launch {
     config: LocalWorkerConfig,
     executable: PathBuf,
     directory: PathBuf,
+    builtin_api_key: Option<String>,
 }
 
 fn publish(state: &Arc<Mutex<LocalWorkerState>>, request_id: Option<String>) {
@@ -69,7 +75,12 @@ impl LocalWorkers {
             thread: Some(thread),
         }
     }
-    pub fn dispatch(&self, value: serde_json::Value, settings: Option<&Path>) {
+    pub fn dispatch(
+        &self,
+        value: serde_json::Value,
+        settings: Option<&Path>,
+        catalog: &[acp::AgentConfig],
+    ) {
         let request_id = value["request_id"].as_str().map(str::to_string);
         let result = match serde_json::from_value::<LocalWorkerRequest>(value) {
             Ok(LocalWorkerRequest::Get { request_id }) => {
@@ -82,11 +93,12 @@ impl LocalWorkers {
                 .map_err(|_| "Local Worker supervisor is unavailable".into()),
             Ok(LocalWorkerRequest::Start { request_id, worker }) => self
                 .commands
-                .send(Message::Start(
-                    worker,
+                .send(Message::Start {
+                    config: worker,
                     request_id,
-                    settings.map(Path::to_path_buf),
-                ))
+                    settings: settings.map(Path::to_path_buf),
+                    catalog: catalog.to_vec(),
+                })
                 .map_err(|_| "Local Worker supervisor is unavailable".into()),
             Err(_) => Err("Invalid local Worker request".into()),
         };
@@ -124,7 +136,11 @@ fn private_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .and_then(|_| file.sync_all())
         .map_err(|e| e.to_string())
 }
-fn prepare(mut config: LocalWorkerConfig, settings: Option<&Path>) -> Result<Launch, String> {
+fn prepare(
+    mut config: LocalWorkerConfig,
+    settings: Option<&Path>,
+    catalog: &[acp::AgentConfig],
+) -> Result<Launch, String> {
     config.validate().map_err(str::to_string)?;
     #[cfg(not(unix))]
     {
@@ -133,7 +149,6 @@ fn prepare(mut config: LocalWorkerConfig, settings: Option<&Path>) -> Result<Lau
     let url = reqwest_origin(&config.url)?;
     config.url = url;
     let root = std::env::current_dir().map_err(|e| e.to_string())?;
-    let catalog = acp::registry(&root)?;
     let mut selected = Vec::new();
     let mut workspaces = BTreeMap::new();
     let mut allowed_agents = BTreeMap::new();
@@ -156,6 +171,11 @@ fn prepare(mut config: LocalWorkerConfig, settings: Option<&Path>) -> Result<Lau
             }
         }
     }
+    // Keep the current provider credential out of the Worker allowlist on disk.
+    let builtin_api_key = selected
+        .iter_mut()
+        .find(|agent| agent.id == "pero")
+        .and_then(|agent| agent.env.remove("DEEPSEEK_API_KEY"));
     let data = settings
         .and_then(Path::parent)
         .map(|p| p.join("workers"))
@@ -193,6 +213,7 @@ fn prepare(mut config: LocalWorkerConfig, settings: Option<&Path>) -> Result<Lau
         config,
         executable,
         directory,
+        builtin_api_key,
     })
 }
 fn reqwest_origin(value: &str) -> Result<String, String> {
@@ -206,7 +227,12 @@ fn spawn(
     generation: u64,
     events: &mpsc::Sender<Message>,
 ) -> Result<Child, String> {
-    let mut child = Command::new(&launch.executable)
+    let mut command = Command::new(&launch.executable);
+    command.env_remove(BUILTIN_AGENT_KEY_ENV);
+    if let Some(key) = &launch.builtin_api_key {
+        command.env(BUILTIN_AGENT_KEY_ENV, key);
+    }
+    let mut child = command
         .env("PERO_CLOUD_URL", &launch.config.url)
         .env("PERO_WORKER_TOKEN", &launch.config.token)
         .env("PERO_WORKER_CONFIG", launch.directory.join("config.json"))
@@ -254,14 +280,19 @@ fn supervise(
     let mut restart: Option<Instant> = None;
     loop {
         match received.recv_timeout(Duration::from_millis(200)) {
-            Ok(Message::Start(config, request_id, settings)) => {
+            Ok(Message::Start {
+                config,
+                request_id,
+                settings,
+                catalog,
+            }) => {
                 if child.is_some() {
                     state.lock().unwrap().message =
                         "Stop the active local Worker before changing its configuration".into();
                     publish(&state, Some(request_id));
                     continue;
                 }
-                let next = match prepare(config, settings.as_deref()) {
+                let next = match prepare(config, settings.as_deref(), &catalog) {
                     Ok(launch) => launch,
                     Err(error) => {
                         let mut snapshot = state.lock().unwrap();
