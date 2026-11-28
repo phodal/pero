@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -215,7 +216,7 @@ func postFinalizeStatus(t *testing.T, api *API, project string, projects []strin
 	api.finalizeDeviceTransfer(rec, req)
 	var payload map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatal(rec.Body.String())
+		return rec.Code, map[string]any{"error": rec.Body.String()}
 	}
 	return rec.Code, payload
 }
@@ -258,7 +259,13 @@ func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
 		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
 		done <- finish{code, body}
 	}()
-	<-gate.entered
+	select {
+	case <-gate.entered:
+	case early := <-done:
+		t.Fatalf("finalize finished before the importer %#v", early)
+	case <-time.After(2 * time.Second):
+		t.Fatal("importer was not entered")
+	}
 	go func() {
 		code, body := postFinalizeStatus(t, api, "lab", []string{"lab"}, "upload-1", digest, uint64(len(samplePDF)))
 		done <- finish{code, body}
@@ -273,6 +280,17 @@ func TestConcurrentFinalizeImportsOnceAndCancelDoesNotWin(t *testing.T) {
 		api.cancelDeviceTransfer(rec, req)
 		cancelCode <- rec.Code
 	}()
+	deadline := time.After(2 * time.Second)
+	for desk.waitingCount() < 2 {
+		select {
+		case early := <-done:
+			t.Fatalf("finalize finished before both waiters %#v", early)
+		case <-deadline:
+			t.Fatalf("waiters %d", desk.waitingCount())
+		default:
+			runtime.Gosched()
+		}
+	}
 	close(gate.release)
 	first, second := <-done, <-done
 	if cancel := <-cancelCode; cancel == 200 {

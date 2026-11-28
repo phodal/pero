@@ -89,8 +89,16 @@ func TestProductionServerKeepsAPaperAndARunReceipt(t *testing.T) {
 	if first["effect"] != "cancel_owner" {
 		t.Fatalf("cancel %#v", first)
 	}
-	restarted := httptest.NewServer(httpapi.ServerHandler(db, "operator-token", httpapi.ServerOptions{}))
+	restarted := httptest.NewServer(httpapi.ServerHandler(db, "operator-token", httpapi.ServerOptions{Paper: &httpapi.PersistedPaper{DB: db}}))
 	t.Cleanup(restarted.Close)
+	reread := parse[map[string]any](t, request(t, restarted, "POST", "/api/client/v1/projects/lab/app-resources/paper", token, map[string]any{
+		"ownerHost": paperdomain.Host, "sharedProject": "lab", "localProject": "lab", "app": "paper-agent",
+		"appInstance": "paper-agent@" + paperdomain.Host, "appVersion": "1", "kind": "paper", "id": paperID,
+		"revision": revision, "class": "immutable",
+	}, "", 200))
+	if reread["digest"] != digest || reread["ownerHost"] != paperdomain.Host {
+		t.Fatalf("reread %#v", reread)
+	}
 	again := parse[map[string]any](t, request(t, restarted, "POST", "/api/client/v1/projects/lab/runs/observe", token, observe, "", 200))
 	if again["outcome"] != "duplicate" || again["effect"] != "none" {
 		t.Fatalf("restart %#v", again)

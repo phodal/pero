@@ -57,6 +57,7 @@ type importingDesk struct {
 	uploads      map[string]map[string]*uploadSlot
 	projectBytes map[string]uint64
 	globalBytes  uint64
+	waiting      int
 }
 
 type deskHandle struct {
@@ -170,8 +171,11 @@ func (d *importingDesk) Put(project, upload string, body []byte, transfer device
 		}
 		slot = &uploadSlot{created: d.now()}
 	}
-	if slot.commit != nil || slot.transfer.Cancelled {
-		return ""
+	if slot.commit != nil {
+		return devicetransfer.Conflict
+	}
+	if slot.transfer.Cancelled {
+		return devicetransfer.CancelledTransfer
 	}
 	incoming := uint64(len(body))
 	nextProject := d.projectBytes[project] - slot.accounted + incoming
@@ -226,7 +230,9 @@ func (d *importingDesk) Reserve(project, upload string, fn func(body []byte, tra
 		return devicetransfer.Commit{}, "", false
 	}
 	for slot.busy {
+		d.waiting++
 		d.cond.Wait()
+		d.waiting--
 	}
 	if slot.transfer.Cancelled {
 		d.mu.Unlock()
@@ -279,7 +285,9 @@ func (d *importingDesk) Cancel(project, upload string) string {
 		return devicetransfer.Foreign
 	}
 	for slot.busy {
+		d.waiting++
 		d.cond.Wait()
+		d.waiting--
 	}
 	if slot.commit != nil {
 		return devicetransfer.Conflict
@@ -287,6 +295,12 @@ func (d *importingDesk) Cancel(project, upload string) string {
 	slot.transfer.Cancelled = true
 	d.subtractLocked(project, slot)
 	return ""
+}
+
+func (d *importingDesk) waitingCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.waiting
 }
 
 func (d *importingDesk) liveUploads(project string) int {

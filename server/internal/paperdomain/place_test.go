@@ -10,11 +10,12 @@ func TestPlaceKeepsTheDomainID(t *testing.T) {
 	body := []byte("%PDF-1.1\n")
 	sum := sha256.Sum256(body)
 	digest := hex.EncodeToString(sum[:])
-	if _, _, err := Place("lab", body, digest, nil, "paper-"+digest[:12]); err != ErrRejected {
-		t.Fatal(err)
-	}
-	if _, _, err := Place("lab", body, digest, nil, "doc-"+digest[:12]); err != ErrRejected {
-		t.Fatal(err)
+	for _, id := range []string{"paper-" + digest[:12], "doc-" + digest[:12]} {
+		t.Run(id, func(t *testing.T) {
+			if _, _, err := Place("lab", body, digest, nil, id); err != ErrRejected {
+				t.Fatal(err)
+			}
+		})
 	}
 	id, err := MintID()
 	if err != nil || id == "" || id[:4] != "rev_" {

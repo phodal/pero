@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,9 @@ func ServerHandler(db *store.Store, token string, opts ServerOptions) http.Handl
 		return next
 	}
 	root := opts.ProtocolRoot
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			if file, ok := harnessFile(root, r.URL.Path); ok {
